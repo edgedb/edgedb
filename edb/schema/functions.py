@@ -871,6 +871,17 @@ class Function(CallableObject, VolatilitySubject, s_abc.Function,
     code = so.SchemaField(
         str, default=None, compcoef=0.4)
 
+    nativecode = so.SchemaField(
+        expr.Expression, default=None, compcoef=0.4)
+
+    orig_nativecode = so.SchemaField(
+        str,
+        default=None,
+        coerce=True,
+        allow_ddl_set=True,
+        ephemeral=True,
+    )
+
     language = so.SchemaField(
         qlast.Language, default=None, compcoef=0.4, coerce=True)
 
@@ -911,70 +922,6 @@ class Function(CallableObject, VolatilitySubject, s_abc.Function,
         sn = self.get_shortname(schema)
         return f'function {sn}{params.as_str(schema)}'
 
-    def compile_to_ir(self, schema: s_schema.Schema) -> irast.Statement:
-        """Compile an EdgeQL function into EdgeDB IR.
-
-        Args:
-            schema:
-                A schema instance where the function is defined.
-
-        Returns:
-            An instance of :class:`ir.ast.Statement` representing the
-            function body.
-        """
-        from edb.edgeql import compiler as qlcompiler
-        from edb.ir import ast as irast
-
-        code = self.get_code(schema)
-        assert code is not None
-        trees = qlparser.parse_block(code + ';')
-        if len(trees) != 1:
-            raise errors.InvalidFunctionDefinitionError(
-                'functions can only contain one statement')
-
-        tree = trees[0]
-
-        param_anchors = get_params_symtable(
-            self.get_params(schema), schema,
-            inlined_defaults=self.has_inlined_defaults(schema))
-
-        ir = qlcompiler.compile_ast_to_ir(
-            tree, schema,
-            anchors=param_anchors,
-            func_params=self.get_params(schema),
-            # the body of a session_only function can contain calls to
-            # other session_only functions
-            session_mode=self.get_session_only(schema),
-        )
-
-        assert isinstance(ir, irast.Statement)
-        schema = ir.schema
-
-        return_type = self.get_return_type(schema)
-        if (not ir.stype.issubclass(schema, return_type)
-                and not ir.stype.implicitly_castable_to(return_type, schema)):
-            raise errors.InvalidFunctionDefinitionError(
-                f'return type mismatch in function declared to return '
-                f'{return_type.get_verbosename(schema)}',
-                details=f'Actual return type is '
-                        f'{ir.stype.get_verbosename(schema)}',
-                context=tree.context,
-            )
-
-        return_typemod = self.get_return_typemod(schema)
-        if (return_typemod is not ft.TypeModifier.SET_OF
-                and ir.cardinality.is_multi()):
-            raise errors.InvalidFunctionDefinitionError(
-                f'return cardinality mismatch in function declared to return '
-                f'a singleton',
-                details=(
-                    f'Function may return a set with more than one element.'
-                ),
-                context=tree.context,
-            )
-
-        return ir
-
 
 class FunctionCommandContext(CallableCommandContext):
     pass
@@ -1002,6 +949,12 @@ class FunctionCommand(CallableCommand,
 
         return cls.get_schema_metaclass().get_fqname(schema, name, params)
 
+    def get_ast_attr_for_field(self, field: str) -> Optional[str]:
+        if field == 'nativecode':
+            return 'nativecode'
+        else:
+            return None
+
     def compile_expr_field(
         self,
         schema: s_schema.Schema,
@@ -1016,8 +969,96 @@ class FunctionCommand(CallableCommand,
                 allow_generic_type_output=True,
                 parent_object_type=self.get_schema_metaclass(),
             )
+        elif field.name == 'nativecode':
+            return self.compile_function(schema, context, value)
         else:
             return super().compile_expr_field(schema, context, field, value)
+
+    def _get_attribute_value(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        name: str,
+    ) -> Any:
+        val = self.get_resolved_attribute_value(
+            name,
+            schema=schema,
+            context=context,
+        )
+        mcls = self.get_schema_metaclass()
+        if val is None:
+            field = mcls.get_field(name)
+            assert isinstance(field, so.SchemaField)
+            val = field.default
+
+        if val is None:
+            raise AssertionError(
+                f'missing required {name} for {mcls.__name__}'
+            )
+        return val
+
+    def compile_function(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        body: expr.Expression,
+    ) -> expr.Expression:
+        from edb.ir import ast as irast
+
+        params = self._get_params(schema, context)
+        session_only = self._get_attribute_value(
+            schema, context, 'session_only')
+
+        language = self._get_attribute_value(schema, context, 'language')
+        assert language is qlast.Language.EdgeQL
+
+        has_inlined_defaults = bool(params.find_named_only(schema))
+
+        param_anchors = get_params_symtable(
+            params,
+            schema,
+            inlined_defaults=has_inlined_defaults,
+        )
+
+        compiled = type(body).compiled(
+            body,
+            schema,
+            anchors=param_anchors,
+            func_params=params,
+            # the body of a session_only function can contain calls to
+            # other session_only functions
+            session_mode=session_only,
+        )
+
+        ir = compiled.irast
+        assert isinstance(ir, irast.Statement)
+        schema = ir.schema
+
+        return_type = self._get_attribute_value(schema, context, 'return_type')
+        if (not ir.stype.issubclass(schema, return_type)
+                and not ir.stype.implicitly_castable_to(return_type, schema)):
+            raise errors.InvalidFunctionDefinitionError(
+                f'return type mismatch in function declared to return '
+                f'{return_type.get_verbosename(schema)}',
+                details=f'Actual return type is '
+                        f'{ir.stype.get_verbosename(schema)}',
+                context=body.qlast.context,
+            )
+
+        return_typemod = self._get_attribute_value(
+            schema, context, 'return_typemod')
+        if (return_typemod is not ft.TypeModifier.SET_OF
+                and ir.cardinality.is_multi()):
+            raise errors.InvalidFunctionDefinitionError(
+                f'return cardinality mismatch in function declared to return '
+                f'a singleton',
+                details=(
+                    f'Function may return a set with more than one element.'
+                ),
+                context=body.qlast.context,
+            )
+
+        return compiled
 
 
 class CreateFunction(CreateCallableObject, FunctionCommand):
@@ -1210,7 +1251,23 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
                 'language',
                 astnode.code.language,
             )
-            if astnode.code.from_function is not None:
+            if astnode.code.language is qlast.Language.EdgeQL:
+                if astnode.nativecode is not None:
+                    nativecode_expr = astnode.nativecode
+                else:
+                    nativecode_expr = qlparser.parse(astnode.code.code)
+
+                nativecode = expr.Expression.from_ast(
+                    nativecode_expr,
+                    schema,
+                    context.modaliases,
+                )
+
+                cmd.set_attribute_value(
+                    'nativecode',
+                    nativecode,
+                )
+            elif astnode.code.from_function is not None:
                 cmd.set_attribute_value(
                     'from_function',
                     astnode.code.from_function
@@ -1293,9 +1350,37 @@ class RenameFunction(sd.RenameObject, FunctionCommand):
     pass
 
 
-class AlterFunction(AlterCallableObject,
-                    FunctionCommand):
+class AlterFunction(AlterCallableObject, FunctionCommand):
+
     astnode = qlast.AlterFunction
+
+    def _get_attribute_value(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        name: str,
+    ) -> Any:
+        val = self.get_resolved_attribute_value(
+            name,
+            schema=schema,
+            context=context,
+        )
+        if val is None:
+            val = self.scls.get_field_value(schema, name)
+        if val is None:
+            mcls = self.get_schema_metaclass()
+            raise AssertionError(
+                f'missing required {name} for {mcls.__name__}'
+            )
+
+        return val
+
+    def _get_params(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> FuncParameterList:
+        return self.scls.get_params(schema)
 
 
 class DeleteFunction(DeleteCallableObject, FunctionCommand):

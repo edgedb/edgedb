@@ -879,6 +879,7 @@ class Language(s_enum.StrEnum):
 class FunctionCode(Clause):
     language: Language
     code: typing.Optional[str]
+    nativecode: typing.Optional[Expr]
     from_function: typing.Optional[str]
     from_expr: bool
 
@@ -886,6 +887,7 @@ class FunctionCode(Clause):
 class CreateFunction(CreateObject, CallableObject):
     returning: TypeExpr
     code: FunctionCode
+    nativecode: typing.Optional[Expr]
     returning_typemod: qltypes.TypeModifier = qltypes.TypeModifier.SINGLETON
 
 

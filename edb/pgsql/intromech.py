@@ -422,6 +422,11 @@ class IntrospectionMech:
             else:
                 initial_value = None
 
+            if row['nativecode']:
+                nativecode = self.unpack_expr(row['nativecode'], schema)
+            else:
+                nativecode = None
+
             func_data = {
                 'id': row['id'],
                 'name': name,
@@ -434,6 +439,7 @@ class IntrospectionMech:
                 'sql_func_has_out_params': row['sql_func_has_out_params'],
                 'error_on_null_result': row['error_on_null_result'],
                 'code': row['code'],
+                'nativecode': nativecode,
                 'initial_value': initial_value,
                 'session_only': row['session_only'],
                 'volatility': row['volatility'],

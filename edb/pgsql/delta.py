@@ -603,11 +603,13 @@ class CreateFunction(FunctionCommand, CreateObject,
     def compile_sql_function(self, func: s_funcs.Function, schema):
         return self.make_function(func, func.get_code(schema), schema)
 
-    def compile_edgeql_function(self, func: s_funcs.Function, schema):
-        body_ir = func.compile_to_ir(schema)
+    def compile_edgeql_function(self, func: s_funcs.Function, schema, context):
+        nativecode = func.get_nativecode(schema)
+        if nativecode.irast is None:
+            nativecode = self.compile_function(schema, context, nativecode)
 
         sql_text, _ = compiler.compile_ir_to_sql(
-            body_ir,
+            nativecode.irast,
             ignore_shapes=True,
             explicit_top_cast=irtyputils.type_to_typeref(  # note: no cache
                 schema, func.get_return_type(schema)),
@@ -624,7 +626,10 @@ class CreateFunction(FunctionCommand, CreateObject,
         schema = super().apply(schema, context)
         func = self.scls
 
-        if func.get_code(schema) is None:
+        if (
+            func.get_code(schema) is None
+            and func.get_nativecode(schema) is None
+        ):
             return schema
 
         func_language = func.get_language(schema)
@@ -632,7 +637,7 @@ class CreateFunction(FunctionCommand, CreateObject,
         if func_language is ql_ast.Language.SQL:
             dbf = self.compile_sql_function(func, schema)
         elif func_language is ql_ast.Language.EdgeQL:
-            dbf = self.compile_edgeql_function(func, schema)
+            dbf = self.compile_edgeql_function(func, schema, context)
         else:
             raise errors.QueryError(
                 f'cannot compile function {func.get_shortname(schema)}: '
@@ -666,7 +671,7 @@ class DeleteFunction(
         schema = super().apply(schema, context)
         func = self.scls
 
-        if func.get_code(orig_schema):
+        if func.get_code(orig_schema) or func.get_nativecode(orig_schema):
             # An EdgeQL or a SQL function
             # (not just an alias to a SQL function).
 

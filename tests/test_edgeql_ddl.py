@@ -1497,15 +1497,16 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_function_10(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'parameter `sum` is not callable'):
+                r'parameter `sum` is not callable',
+                _line=6, _col=39):
 
             await self.con.execute('''
                 CREATE FUNCTION test::ddlf_10(
                     sum: int64
                 ) -> int64
-                    USING EdgeQL $$
+                    USING (
                         SELECT <int64>sum(sum)
-                    $$;
+                    );
             ''')
 
     async def test_edgeql_ddl_function_11(self):
@@ -1690,8 +1691,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_function_20(self):
         with self.assertRaisesRegex(
-                edgedb.InvalidFunctionDefinitionError,
-                r'functions can only contain one statement'):
+                edgedb.EdgeQLSyntaxError,
+                r"Unexpected ';'"):
 
             await self.con.execute(r'''
                 CREATE FUNCTION test::ddlf_20(f: int64) -> int64
@@ -4264,7 +4265,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
             CREATE SCALAR TYPE test::dropint EXTENDING int64;
             CREATE FUNCTION test::dropfunc(a: test::dropint) -> int64
-                USING EdgeQL $$ SELECT a; $$;
+                USING EdgeQL $$ SELECT a $$;
         """)
 
         async with self.assertRaisesRegexTx(

@@ -35,6 +35,7 @@ async def fetch(
                 f.return_typemod,
                 f.language,
                 f.code,
+                f.nativecode,
                 f.from_function,
                 f.from_expr,
                 f.force_return_cast,
