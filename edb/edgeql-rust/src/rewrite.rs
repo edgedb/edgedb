@@ -13,6 +13,26 @@ const VARIABLES: &[&str] = &[
     "$_edb_arg__8",
     "$_edb_arg__9",
     "$_edb_arg__10",
+    "$_edb_arg__11",
+    "$_edb_arg__12",
+    "$_edb_arg__13",
+    "$_edb_arg__14",
+    "$_edb_arg__15",
+    "$_edb_arg__16",
+    "$_edb_arg__17",
+    "$_edb_arg__18",
+    "$_edb_arg__19",
+    "$_edb_arg__20",
+    "$_edb_arg__21",
+    "$_edb_arg__22",
+    "$_edb_arg__23",
+    "$_edb_arg__24",
+    "$_edb_arg__25",
+    "$_edb_arg__26",
+    "$_edb_arg__27",
+    "$_edb_arg__28",
+    "$_edb_arg__29",
+    "$_edb_arg__30",
 ];
 
 #[derive(Debug, PartialEq)]
@@ -34,6 +54,7 @@ pub struct Entry<'a> {
     pub key: String,
     pub tokens: Vec<SpannedToken<'a>>,
     pub variables: Vec<Variable>,
+    pub end_pos: Pos,
 }
 
 #[derive(Debug)]
@@ -97,9 +118,14 @@ pub fn rewrite<'x>(text: &'x str)
             }
         }
     }
+    let end_pos = token_stream.current_pos();
     let mut rewritten_tokens = Vec::with_capacity(tokens.len());
     let mut variables = Vec::new();
     for tok in &tokens {
+        if variables.len() >= VARIABLES.len() {
+            rewritten_tokens.push(tok.clone());
+            continue;
+        }
         match tok.token.kind {
             Kind::IntConst
             if tok.token.value != "1"
@@ -120,7 +146,7 @@ pub fn rewrite<'x>(text: &'x str)
             // Kind::FloatConst => todo!(),
             // Kind::BigIntConst => todo!(),
             // Kind::DecimalConst => todo!(),
-            Kind::Str => todo!(),
+            // Kind::Str => todo!(),
             Kind::Keyword
             if matches!(tok.token.value, "CONFIGURE"|"CREATE"|"ALTER"|"DROP")
             => {
@@ -128,6 +154,7 @@ pub fn rewrite<'x>(text: &'x str)
                     key: serialize_tokens(&tokens),
                     tokens,
                     variables: Vec::new(),
+                    end_pos,
                 });
             }
             _ => rewritten_tokens.push(tok.clone()),
@@ -137,6 +164,7 @@ pub fn rewrite<'x>(text: &'x str)
         key: serialize_tokens(&rewritten_tokens[..]),
         tokens,
         variables,
+        end_pos,
     });
 }
 

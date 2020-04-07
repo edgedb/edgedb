@@ -21,6 +21,7 @@ py_module_initializer!(
         m.add(py, "_unpickle_token", get_unpickle_fn(py))?;
         m.add(py, "Token", py.get_type::<Token>())?;
         m.add(py, "TokenizerError", py.get_type::<TokenizerError>())?;
+        m.add(py, "Entry", py.get_type::<pyrewrite::Entry>())?;
         m.add(py, "rewrite", py_fn!(py, rewrite(query: &PyString)))?;
         Ok(())
     });

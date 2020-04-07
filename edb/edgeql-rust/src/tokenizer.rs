@@ -12,6 +12,7 @@ use edgeql_parser::tokenizer::{TokenStream, Kind, is_keyword, SpannedToken};
 use edgeql_parser::tokenizer::{MAX_KEYWORD_LENGTH};
 use edgeql_parser::position::Pos;
 use crate::errors::TokenizerError;
+use crate::pyrewrite::py_pos;
 
 static mut TOKENS: Option<Tokens> = None;
 
@@ -185,10 +186,6 @@ const CURRENT_RESERVED_KEYWORDS: [&str; 51] = [
     "with",
 ];
 
-fn py_pos(py: Python, pos: &Pos) -> PyTuple {
-    (pos.line, pos.column, pos.offset).to_py_object(py)
-}
-
 fn rs_pos(py: Python, value: &PyObject) -> PyResult<Pos> {
     let (line, column, offset) = FromPyObject::extract(py, value)?;
     Ok(Pos { line, column, offset })
@@ -353,11 +350,6 @@ pub fn _unpickle_token(py: Python,
 }
 
 pub fn tokenize(py: Python, s: &PyString) -> PyResult<PyList> {
-    let tokens = unsafe { TOKENS.as_ref().expect("module initialized") };
-    let mut cache = Cache {
-        decimal: None,
-        keyword_buf: String::with_capacity(MAX_KEYWORD_LENGTH),
-    };
     let data = s.to_string(py)?;
 
     let mut token_stream = TokenStream::new(&data[..]);
@@ -380,7 +372,18 @@ pub fn tokenize(py: Python, s: &PyString) -> PyResult<PyList> {
         };
         TokenizerError::new(py, (err, py_pos(py, &pos)))
     })?;
+    return convert_tokens(py, rust_tokens, token_stream.current_pos());
+}
 
+pub fn convert_tokens(py: Python, rust_tokens: Vec<SpannedToken<'_>>,
+    end_pos: Pos)
+    -> PyResult<PyList>
+{
+    let tokens = unsafe { TOKENS.as_ref().expect("module initialized") };
+    let mut cache = Cache {
+        decimal: None,
+        keyword_buf: String::with_capacity(MAX_KEYWORD_LENGTH),
+    };
     let mut buf = Vec::with_capacity(rust_tokens.len());
     let mut tok_iter = rust_tokens.iter().peekable();
     while let Some(spanned_tok) = tok_iter.next() {
@@ -395,7 +398,7 @@ pub fn tokenize(py: Python, s: &PyString) -> PyResult<PyList> {
         tokens.eof.clone_ref(py),
         tokens.empty.clone_ref(py),
         py.None(),
-        token_stream.current_pos(), token_stream.current_pos())?
+        end_pos, end_pos)?
         .into_object());
     Ok(PyList::new(py, &buf[..]))
 }

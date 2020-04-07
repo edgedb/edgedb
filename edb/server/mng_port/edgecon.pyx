@@ -27,6 +27,7 @@ import traceback
 cimport cython
 cimport cpython
 
+from typing import List
 from . cimport cpythonx
 
 from libc.stdint cimport int8_t, uint8_t, int16_t, uint16_t, \
@@ -35,7 +36,9 @@ from libc.stdint cimport int8_t, uint8_t, int16_t, uint16_t, \
 
 import immutables
 
-from edb.server.tokenizer import tokenize
+from edb import _edgeql_rust
+
+from edb.server.tokenizer import tokenize, rewrite
 from edb.server.pgproto cimport hton
 from edb.server.pgproto.pgproto cimport (
     WriteBuffer,
@@ -591,7 +594,7 @@ cdef class EdgeConnection:
 
     async def _compile(
         self,
-        eql: bytes,
+        tokens: List[_edgeql_rust.Token],
         *,
         io_format: compiler.IoFormat = FMT_BINARY,
         expect_one: bint = False,
@@ -600,8 +603,6 @@ cdef class EdgeConnection:
     ):
         if self.dbview.in_tx_error():
             self.dbview.raise_in_tx_error()
-
-        tokens = tokenize(eql)
 
         if self.dbview.in_tx():
             return await self.get_backend().compiler.call(
@@ -684,7 +685,8 @@ cdef class EdgeConnection:
                 self.flush()
                 return
 
-        units = await self._compile(eql, stmt_mode=stmt_mode)
+        eql_tokens = tokenize(eql)
+        units = await self._compile(eql_tokens, stmt_mode=stmt_mode)
 
         for query_unit in units:
             self.dbview.start(query_unit)
@@ -740,8 +742,14 @@ cdef class EdgeConnection:
         if self.debug:
             self.debug_print('PARSE', eql)
 
+        entry = rewrite(eql)
+
+        if self.debug:
+            self.debug_print('Cache key', entry.key)
+            self.debug_print('Extra variables', entry.variables)
+
         query_unit = self.dbview.lookup_compiled_query(
-            eql, io_format, expect_one, implicit_limit)
+            entry.key(), io_format, expect_one, implicit_limit)
         cached = True
         if query_unit is None:
             # Cache miss; need to compile this query.
@@ -758,7 +766,7 @@ cdef class EdgeConnection:
                     self.dbview.raise_in_tx_error()
             else:
                 query_unit = await self._compile(
-                    eql,
+                    entry.tokens(),
                     io_format=io_format,
                     expect_one=expect_one,
                     stmt_mode='single',
@@ -785,7 +793,7 @@ cdef class EdgeConnection:
 
         if not cached and query_unit.cacheable:
             self.dbview.cache_compiled_query(
-                eql, io_format, expect_one, implicit_limit, query_unit)
+                entry.key(), io_format, expect_one, implicit_limit, query_unit)
 
         return query_unit
 
@@ -1179,8 +1187,9 @@ cdef class EdgeConnection:
         if not query:
             raise errors.BinaryProtocolError('empty query')
 
+        entry = rewrite(query)
         query_unit = self.dbview.lookup_compiled_query(
-            query, io_format, expect_one, implicit_limit)
+            entry.key(), io_format, expect_one, implicit_limit)
         if query_unit is None:
             if self.debug:
                 self.debug_print('OPTIMISTIC EXECUTE /REPARSE', query)
