@@ -73,7 +73,8 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
     _attrs: Mapping[str, str]
 
     def __init__(self, msg: str=None, *,
-                 hint: str=None, details: str=None, context=None,
+                 hint: str=None, details: str=None,
+                 context=None, position: Optional[Tuple[int, int, int]] = None,
                  token=None):
         if type(self) is EdgeDBError:
             raise RuntimeError(
@@ -119,6 +120,11 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
         if context.start is not None:
             self._attrs[FIELD_POSITION_START] = str(context.start.pointer)
             self._attrs[FIELD_POSITION_END] = str(context.end.pointer)
+
+    def set_position(self, line: int, column: int, pointer: int):
+        self.set_linecol(line, column)
+        self._attrs[FIELD_POSITION_START] = str(pointer)
+        self._attrs[FIELD_POSITION_END] = str(pointer)
 
     @property
     def line(self):

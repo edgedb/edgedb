@@ -35,6 +35,7 @@ from libc.stdint cimport int8_t, uint8_t, int16_t, uint16_t, \
 
 import immutables
 
+from edb.server.tokenizer import tokenize
 from edb.server.pgproto cimport hton
 from edb.server.pgproto.pgproto cimport (
     WriteBuffer,
@@ -61,8 +62,9 @@ from edb.server.pgcon import errors as pgerror
 from edb.schema import objects as s_obj
 
 from edb import errors
-from edb.errors import base as base_errors
+from edb.errors import base as base_errors, EdgeQLSyntaxError
 from edb.common import debug, taskgroup
+from edb.common import context as pctx
 
 from edgedb import scram
 
@@ -599,11 +601,13 @@ cdef class EdgeConnection:
         if self.dbview.in_tx_error():
             self.dbview.raise_in_tx_error()
 
+        tokens = tokenize(eql)
+
         if self.dbview.in_tx():
             return await self.get_backend().compiler.call(
-                'compile_eql_in_tx',
+                'compile_eql_tokens_in_tx',
                 self.dbview.txid,
-                eql,
+                tokens,
                 io_format,
                 expect_one,
                 implicit_limit,
@@ -611,9 +615,9 @@ cdef class EdgeConnection:
             )
         else:
             return await self.get_backend().compiler.call(
-                'compile_eql',
+                'compile_eql_tokens',
                 self.dbview.dbver,
-                eql,
+                tokens,
                 self.dbview.modaliases,
                 self.dbview.get_session_config(),
                 io_format,

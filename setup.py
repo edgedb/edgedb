@@ -545,6 +545,12 @@ setuptools.setup(
             extra_link_args=EXT_LDFLAGS),
 
         distutils_extension.Extension(
+            "edb.server.tokenizer",
+            ["edb/server/tokenizer.pyx"],
+            extra_compile_args=EXT_CFLAGS,
+            extra_link_args=EXT_LDFLAGS),
+
+        distutils_extension.Extension(
             "edb.server.mng_port.edgecon",
             ["edb/server/mng_port/edgecon.pyx"],
             extra_compile_args=EXT_CFLAGS,
