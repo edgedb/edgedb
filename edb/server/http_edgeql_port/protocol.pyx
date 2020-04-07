@@ -29,6 +29,7 @@ from edb.common import debug
 from edb.common import markup
 
 from edb.server import compiler
+from edb.server import tokenizer
 from edb.server.compiler import IoFormat
 from edb.server.http import http
 from edb.server.http cimport http
@@ -129,9 +130,9 @@ cdef class Protocol(http.HttpProtocol):
         comp = await self.server.compilers.get()
         try:
             units = await comp.call(
-                'compile_eql',
+                'compile_eql_tokens',
                 dbver,
-                query,
+                tokenizer.tokenize(query),
                 None,           # modaliases
                 None,           # session config
                 IoFormat.JSON,  # json mode

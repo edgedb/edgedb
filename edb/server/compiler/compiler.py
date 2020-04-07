@@ -30,8 +30,10 @@ import asyncpg
 import immutables
 
 from edb import errors
+from edb import _edgeql_rust
 
 from edb.server import defines
+from edb.server import tokenizer
 from edb.pgsql import compiler as pg_compiler
 from edb.pgsql import intromech
 
@@ -166,7 +168,8 @@ def compile_edgeql_script(
     compiler._std_schema = std_schema
     compiler._bootstrap_mode = True
 
-    units = compiler._compile(ctx=ctx, eql=eql.encode())
+    tokens = _edgeql_rust.tokenize(eql)
+    units = compiler._compile(ctx=ctx, tokens=tokens)
 
     sql_stmts = []
     for u in units:
@@ -903,9 +906,12 @@ class Compiler(BaseCompiler):
                     f'for the current connection')
             return self._compile_ql_query(ctx, ql)
 
-    def _compile(self, *,
-                 ctx: CompileContext,
-                 eql: bytes) -> List[dbstate.QueryUnit]:
+    def _compile(
+        self,
+        *,
+        ctx: CompileContext,
+        tokens: List[_edgeql_rust.Token],
+    ) -> List[dbstate.QueryUnit]:
 
         # When True it means that we're compiling for "connection.fetchall()".
         # That means that the returned QueryUnit has to have the in/out codec
@@ -913,9 +919,7 @@ class Compiler(BaseCompiler):
         single_stmt_mode = ctx.stmt_mode is enums.CompileStatementMode.SINGLE
         default_cardinality = enums.ResultCardinality.NO_RESULT
 
-        eql = eql.decode()
-
-        statements = edgeql.parse_block(eql)
+        statements = edgeql.parse_block_tokens(tokens)
         statements_len = len(statements)
 
         if ctx.stmt_mode is enums.CompileStatementMode.SKIP_FIRST:
@@ -1189,10 +1193,10 @@ class Compiler(BaseCompiler):
             'expected a ROLLBACK or ROLLBACK TO SAVEPOINT command'
         )  # pragma: no cover
 
-    async def compile_eql(
+    async def compile_eql_tokens(
             self,
             dbver: bytes,
-            eql: bytes,
+            eql_tokens: List[_edgeql_rust.Token],
             sess_modaliases: Optional[immutables.Map],
             sess_config: Optional[immutables.Map],
             io_format: enums.IoFormat,
@@ -1213,12 +1217,12 @@ class Compiler(BaseCompiler):
             capability=capability,
             json_parameters=json_parameters)
 
-        return self._compile(ctx=ctx, eql=eql)
+        return self._compile(ctx=ctx, tokens=eql_tokens)
 
-    async def compile_eql_in_tx(
+    async def compile_eql_tokens_in_tx(
             self,
             txid: int,
-            eql: bytes,
+            eql_tokens: List[_edgeql_rust.Token],
             io_format: enums.IoFormat,
             expect_one: bool,
             implicit_limit: int,
@@ -1232,7 +1236,7 @@ class Compiler(BaseCompiler):
             implicit_limit=implicit_limit,
             stmt_mode=enums.CompileStatementMode(stmt_mode))
 
-        return self._compile(ctx=ctx, eql=eql)
+        return self._compile(ctx=ctx, tokens=eql_tokens)
 
     async def interpret_backend_error(self, dbver, fields):
         db = await self._get_database(dbver)
@@ -1460,7 +1464,10 @@ class Compiler(BaseCompiler):
             schema_object_ids=schema_object_ids)
         ctx.state.start_tx()
 
-        units = self._compile(ctx=ctx, eql=schema_ddl)
+        units = self._compile(
+            ctx=ctx,
+            tokens=tokenizer.tokenize(schema_ddl),
+        )
         schema = ctx.state.current_tx().get_schema()
 
         restore_blocks = []

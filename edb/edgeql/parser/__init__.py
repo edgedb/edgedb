@@ -19,8 +19,13 @@
 
 from __future__ import annotations
 
+from typing import *
+
 from . import parser as ql_parser
 from .. import ast as qlast
+
+if TYPE_CHECKING:
+    from edb import _edgeql_rust
 
 
 def parse_fragment(expr):
@@ -54,7 +59,12 @@ def parse(expr, module_aliases=None):
     return tree
 
 
-def parse_block(expr):
+def parse_block_tokens(eql_tokens: List[_edgeql_rust.Token]):
+    parser = ql_parser.EdgeQLBlockParser()
+    return parser.parse(eql_tokens)
+
+
+def parse_block(expr: str):
     parser = ql_parser.EdgeQLBlockParser()
     return parser.parse(expr)
 

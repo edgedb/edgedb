@@ -22,5 +22,6 @@ from __future__ import annotations
 from . import ast  # NOQA
 from .codegen import generate_source  # NOQA
 from .parser import parse, parse_fragment, parse_block  # NOQA
+from .parser import parse_block_tokens  # NOQA
 from .parser.grammar import keywords  # NOQA
 from .rewriter import rewrite_refs  # NOQA
