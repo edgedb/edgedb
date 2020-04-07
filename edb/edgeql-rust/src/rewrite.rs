@@ -1,6 +1,20 @@
 use edgeql_parser::tokenizer::{TokenStream, SpannedToken, Token, Kind};
 use edgeql_parser::position::Pos;
 
+const VARIABLES: &[&str] = &[
+    "$_edb_arg__0",
+    "$_edb_arg__1",
+    "$_edb_arg__2",
+    "$_edb_arg__3",
+    "$_edb_arg__4",
+    "$_edb_arg__5",
+    "$_edb_arg__6",
+    "$_edb_arg__7",
+    "$_edb_arg__8",
+    "$_edb_arg__9",
+    "$_edb_arg__10",
+];
+
 #[derive(Debug, PartialEq)]
 pub enum Value {
     Str(String),
@@ -27,6 +41,43 @@ pub enum Error {
     Tokenizer(String, Pos),
 }
 
+fn push_var<'x>(res: &mut Vec<SpannedToken<'x>>,
+    typ: &'x str, var_name: &'x str)
+{
+    res.push(SpannedToken {
+        token: Token {
+            kind: Kind::Less,
+            value: "<",
+        },
+        start: Pos { line: 0, column: 0, offset: 0},
+        end: Pos { line: 0, column: 0, offset: 0},
+    });
+    res.push(SpannedToken {
+        token: Token {
+            kind: Kind::Ident,
+            value: typ,
+        },
+        start: Pos { line: 0, column: 0, offset: 0},
+        end: Pos { line: 0, column: 0, offset: 0},
+    });
+    res.push(SpannedToken {
+        token: Token {
+            kind: Kind::Greater,
+            value: ">",
+        },
+        start: Pos { line: 0, column: 0, offset: 0},
+        end: Pos { line: 0, column: 0, offset: 0},
+    });
+    res.push(SpannedToken {
+        token: Token {
+            kind: Kind::Argument,
+            value: var_name,
+        },
+        start: Pos { line: 0, column: 0, offset: 0},
+        end: Pos { line: 0, column: 0, offset: 0},
+    });
+}
+
 pub fn rewrite<'x>(text: &'x str)
     -> Result<Entry<'x>, Error>
 {
@@ -47,15 +98,31 @@ pub fn rewrite<'x>(text: &'x str)
         }
     }
     let mut rewritten_tokens = Vec::with_capacity(tokens.len());
+    let mut variables = Vec::new();
     for tok in &tokens {
         match tok.token.kind {
-            Kind::IntConst => todo!(),
-            Kind::FloatConst => todo!(),
-            Kind::BigIntConst => todo!(),
-            Kind::DecimalConst => todo!(),
+            Kind::IntConst
+            if tok.token.value != "1"
+            || !matches!(rewritten_tokens.last(),
+                Some(SpannedToken {
+                    token: Token { value: "LIMIT", kind: Kind::Keyword },
+                    ..
+                }))
+            => {
+                let name = VARIABLES[variables.len()];
+                push_var(&mut rewritten_tokens, "int64", name);
+                variables.push(Variable {
+                    value: Value::Int(tok.token.value.to_string()),
+                });
+                continue;
+            }
+            // TODO(tailhook)
+            // Kind::FloatConst => todo!(),
+            // Kind::BigIntConst => todo!(),
+            // Kind::DecimalConst => todo!(),
             Kind::Str => todo!(),
             Kind::Keyword
-            if matches!(tok.token.value, "configure"|"create"|"alter"|"drop")
+            if matches!(tok.token.value, "CONFIGURE"|"CREATE"|"ALTER"|"DROP")
             => {
                 return Ok(Entry {
                     key: serialize_tokens(&tokens),
@@ -63,13 +130,13 @@ pub fn rewrite<'x>(text: &'x str)
                     variables: Vec::new(),
                 });
             }
-            _ => rewritten_tokens.push(tok),
+            _ => rewritten_tokens.push(tok.clone()),
         }
     }
     return Ok(Entry {
-        key: serialize_tokens(&tokens[..]),
+        key: serialize_tokens(&rewritten_tokens[..]),
         tokens,
-        variables: Vec::new(),
+        variables,
     });
 }
 
