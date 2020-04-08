@@ -128,12 +128,19 @@ pub fn rewrite<'x>(text: &'x str)
         }
         match tok.token.kind {
             Kind::IntConst
-            if tok.token.value != "1"
-            || !matches!(rewritten_tokens.last(),
+            // Don't replace `.12` because this is a tuple access
+            if !matches!(rewritten_tokens.last(),
                 Some(SpannedToken {
-                    token: Token { value: "LIMIT", kind: Kind::Keyword },
+                    token: Token { kind: Kind::Dot, .. },
                     ..
                 }))
+            // Don't replace 'LIMIT 1' as a special case
+            && (tok.token.value != "1"
+                || !matches!(rewritten_tokens.last(),
+                    Some(SpannedToken {
+                        token: Token { value: "LIMIT", kind: Kind::Keyword },
+                        ..
+                    })))
             => {
                 let name = VARIABLES[variables.len()];
                 push_var(&mut rewritten_tokens, "int64", name);

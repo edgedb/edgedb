@@ -47,3 +47,17 @@ fn test_limit_1() {
         },
     ]);
 }
+
+#[test]
+fn test_tuple_access() {
+    let entry = rewrite(r###"
+        SELECT User { one := 2, two := .field.2, three := .field  . 3 }
+    "###).unwrap();
+    assert_eq!(entry.key,
+        "SELECT User{one:=<int64>$_edb_arg__0,two:=.field.2,three:=.field.3}");
+    assert_eq!(entry.variables, vec![
+        Variable {
+            value: Value::Int("2".into()),
+        },
+    ]);
+}
