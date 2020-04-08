@@ -162,7 +162,7 @@ pub fn rewrite<'x>(text: &'x str)
     }
     return Ok(Entry {
         key: serialize_tokens(&rewritten_tokens[..]),
-        tokens,
+        tokens: rewritten_tokens,
         variables,
         end_pos,
     });

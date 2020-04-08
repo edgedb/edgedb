@@ -745,8 +745,8 @@ cdef class EdgeConnection:
         entry = rewrite(eql)
 
         if self.debug:
-            self.debug_print('Cache key', entry.key)
-            self.debug_print('Extra variables', entry.variables)
+            self.debug_print('Cache key', entry.key())
+            self.debug_print('Extra variables', entry.variables())
 
         query_unit = self.dbview.lookup_compiled_query(
             entry.key(), io_format, expect_one, implicit_limit)
