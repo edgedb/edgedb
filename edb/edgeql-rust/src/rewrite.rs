@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use edgeql_parser::tokenizer::{TokenStream, SpannedToken, Token, Kind};
 use edgeql_parser::position::Pos;
 
@@ -99,6 +101,32 @@ fn push_var<'x>(res: &mut Vec<SpannedToken<'x>>,
     });
 }
 
+fn scan_vars<'x, 'y: 'x, I>(tokens: I) -> Option<(bool, usize)>
+    where I: IntoIterator<Item=&'x Token<'y>>,
+{
+    let mut max_visited = None::<usize>;
+    let mut names = BTreeSet::new();
+    for t in tokens {
+        if t.kind == Kind::Argument {
+            if let Ok(v) = t.value[1..].parse() {
+                if max_visited.map(|old| v > old).unwrap_or(true) {
+                    max_visited = Some(v);
+                }
+            } else {
+                names.insert(t.value);
+            }
+        }
+    }
+    if names.is_empty() {
+        let next = max_visited.map(|x| x.checked_add(1)).unwrap_or(Some(0))?;
+        Some((false, next))
+    } else if max_visited.is_some() {
+        return None  // mixed arguments
+    } else {
+        Some((true, names.len()))
+    }
+}
+
 pub fn rewrite<'x>(text: &'x str)
     -> Result<Entry<'x>, Error>
 {
@@ -119,6 +147,20 @@ pub fn rewrite<'x>(text: &'x str)
         }
     }
     let end_pos = token_stream.current_pos();
+    let (named_vars, var_index) = match
+        scan_vars(tokens.iter().map(|t| &t.token))
+    {
+        Some(pair) => pair,
+        None => {
+            // don't extract from invalid query, let python code do its work
+            return Ok(Entry {
+                key: serialize_tokens(&tokens),
+                tokens,
+                variables: Vec::new(),
+                end_pos,
+            });
+        }
+    };
     let mut rewritten_tokens = Vec::with_capacity(tokens.len());
     let mut variables = Vec::new();
     for tok in &tokens {
@@ -242,4 +284,50 @@ fn serialize_tokens(tokens: &[SpannedToken<'_>]) -> String {
         needs_space = !is_operator(token);
     }
     return buf;
+}
+
+#[cfg(test)]
+mod test {
+    use super::scan_vars;
+    use combine::{StreamOnce, Positioned, easy::Error};
+    use edgeql_parser::tokenizer::{TokenStream, SpannedToken, Token};
+
+    fn tokenize<'x>(s: &'x str) -> Vec<Token<'x>> {
+        let mut r = Vec::new();
+        let mut s = TokenStream::new(s);
+        loop {
+            match s.uncons() {
+                Ok(x) => r.push(x),
+                Err(ref e) if e == &Error::end_of_input() => break,
+                Err(e) => panic!("Parse error at {}: {}", s.position(), e),
+            }
+        }
+        return r;
+    }
+
+    #[test]
+    fn numeric() {
+        assert_eq!(scan_vars(&tokenize("$0 $1 $2")).unwrap(), (false, 3));
+        assert_eq!(scan_vars(&tokenize("$2 $3 $2")).unwrap(), (false, 4));
+        assert_eq!(scan_vars(&tokenize("$0 $0 $0")).unwrap(), (false, 1));
+        assert_eq!(scan_vars(&tokenize("$10 $100")).unwrap(), (false, 101));
+    }
+
+    #[test]
+    fn named() {
+        assert_eq!(scan_vars(&tokenize("$a")).unwrap(), (true, 1));
+        assert_eq!(scan_vars(&tokenize("$b $c $d")).unwrap(), (true, 3));
+        assert_eq!(scan_vars(&tokenize("$b $c $b")).unwrap(), (true, 2));
+        assert_eq!(scan_vars(&tokenize("$a $b $b $a $c $xx")).unwrap(),
+            (true, 4));
+    }
+
+    #[test]
+    fn mixed() {
+        assert_eq!(scan_vars(&tokenize("$a $0")), None);
+        assert_eq!(scan_vars(&tokenize("$0 $a")), None);
+        assert_eq!(scan_vars(&tokenize("$b $c $100")), None);
+        assert_eq!(scan_vars(&tokenize("$10 $xx $yy")), None);
+    }
+
 }
