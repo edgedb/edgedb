@@ -27,6 +27,7 @@ from edb.common import enum
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
+from edb.schema import defines as s_def
 
 from . import abc as s_abc
 from . import annos as s_anno
@@ -50,9 +51,6 @@ if TYPE_CHECKING:
 class PointerDirection(enum.StrEnum):
     Outbound = '>'
     Inbound = '<'
-
-
-MAX_NAME_LENGTH = 63
 
 
 def merge_cardinality(target: Pointer, sources: List[Pointer],
@@ -926,10 +924,10 @@ class PointerCommand(
             name = super()._classname_from_ast(schema, astnode, context)
 
         shortname = sn.shortname_from_fullname(name)
-        if len(shortname.name) > MAX_NAME_LENGTH:
+        if len(shortname.name) > s_def.MAX_NAME_LENGTH:
             raise errors.SchemaDefinitionError(
                 f'link or property name length exceeds the maximum of '
-                f'{MAX_NAME_LENGTH} characters',
+                f'{s_def.MAX_NAME_LENGTH} characters',
                 context=astnode.context)
         return name
 

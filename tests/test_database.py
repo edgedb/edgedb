@@ -19,6 +19,7 @@
 
 import edgedb
 
+from edb.schema import defines as s_def
 from edb.testbase import server as tb
 
 
@@ -45,3 +46,10 @@ class TestDatabase(tb.ConnectedTestCase):
             await conn.aclose()
         finally:
             await self.con.execute('DROP DATABASE mytestdb;')
+
+    async def test_database_create_02(self):
+        with self.assertRaisesRegex(edgedb.SchemaDefinitionError,
+                                    r'Database names longer than \d+ '
+                                    r'characters are not supported'):
+            await self.con.execute(
+                f'CREATE DATABASE mytestdb_{"x" * s_def.MAX_NAME_LENGTH};')
