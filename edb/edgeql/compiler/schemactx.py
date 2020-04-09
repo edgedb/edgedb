@@ -244,8 +244,8 @@ def derive_ptr(
     ctx.env.schema, derived = ptr.derive_ref(
         ctx.env.schema,
         source,
-        target,
         *qualifiers,
+        target=target,
         name=derived_name,
         inheritance_merge=inheritance_merge,
         refdict_whitelist={'pointers'},
@@ -445,7 +445,7 @@ def derive_dummy_ptr(
         ctx.env.schema, derived = ptr.derive_ref(
             ctx.env.schema,
             derived_obj,
-            derived_obj,
+            target=derived_obj,
             attrs={
                 'cardinality': qltypes.SchemaCardinality.MANY,
             },

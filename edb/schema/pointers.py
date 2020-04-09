@@ -380,7 +380,7 @@ class Pointer(referencing.ReferencedInheritingObject,
             ptr = schema.get(fqname, default=None)
             if ptr is None:
                 schema, ptr = self.derive_ref(
-                    schema, source, target,
+                    schema, source, target=target,
                     derived_name_base=derived_name_base, **kwargs)
         assert isinstance(ptr, Pointer)
         return schema, ptr
@@ -389,18 +389,17 @@ class Pointer(referencing.ReferencedInheritingObject,
         shortname = self.get_shortname(schema)
         return sn.Name(module='__', name=shortname.name)
 
-    def derive_ref(  # type: ignore
+    def derive_ref(
         self,
         schema: s_schema.Schema,
-        source: so.QualifiedObject,
-        target: Optional[s_types.Type] = None,
+        referrer: so.QualifiedObject,
         *qualifiers: str,
+        target: Optional[s_types.Type] = None,
         mark_derived: bool = False,
         attrs: Optional[Dict[str, Any]] = None,
         dctx: Optional[sd.CommandContext] = None,
         **kwargs: Any,
     ) -> Tuple[s_schema.Schema, Pointer]:
-
         if target is None:
             if attrs and 'target' in attrs:
                 target = attrs['target']
@@ -410,11 +409,11 @@ class Pointer(referencing.ReferencedInheritingObject,
         if attrs is None:
             attrs = {}
 
-        attrs['source'] = source
+        attrs['source'] = referrer
         attrs['target'] = target
 
         return super().derive_ref(
-            schema, source, mark_derived=mark_derived,
+            schema, referrer, mark_derived=mark_derived,
             dctx=dctx, attrs=attrs, **kwargs)
 
     def is_pure_computable(self, schema: s_schema.Schema) -> bool:
@@ -1045,14 +1044,6 @@ class PointerCommand(
         elif target_ref is not None:
             self._set_pointer_type(schema, astnode, context, target_ref)
 
-#    @classmethod
-#    def _extract_union_operands(cls, expr, operands):
-#        if expr.op == 'UNION':
-#            cls._extract_union_operands(expr.op_larg, operands)
-#            cls._extract_union_operands(expr.op_rarg, operands)
-#        else:
-#            operands.append(expr)
-#
     def compile_expr_field(
         self,
         schema: s_schema.Schema,
@@ -1068,8 +1059,9 @@ class PointerCommand(
             anchors: Dict[str, Any] = {}
 
             if field.name == 'expr':
+                # type ignore below, because the class is used as mixin
                 parent_ctx = context.get_ancestor(
-                    s_sources.SourceCommandContext,   # type: ignore
+                    s_sources.SourceCommandContext,  # type: ignore
                     self
                 )
                 assert parent_ctx is not None

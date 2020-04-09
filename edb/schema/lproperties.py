@@ -58,7 +58,7 @@ class Property(pointers.Pointer, s_abc.Property,
             target = self.get_target(schema)
 
         schema, ptr = super().derive_ref(
-            schema, source, target, attrs=attrs, **kwargs)
+            schema, source, target=target, attrs=attrs, **kwargs)
 
         ptr_sn = ptr.get_shortname(schema)
 
