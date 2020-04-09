@@ -9,7 +9,7 @@ use crate::tokenizer::CowToken;
 #[derive(Debug, PartialEq)]
 pub enum Value {
     Str(String),
-    Int(String),
+    Int(i64),
     Float(String),
     BigInt(String),
     Decimal(String),
@@ -27,7 +27,7 @@ pub struct Entry<'a> {
     pub variables: Vec<Variable>,
     pub end_pos: Pos,
     pub named_args: bool,
-    pub first_number: Option<usize>,
+    pub first_arg: Option<usize>,
 }
 
 #[derive(Debug)]
@@ -98,7 +98,7 @@ pub fn rewrite<'x>(text: &'x str)
                 variables: Vec::new(),
                 end_pos,
                 named_args: false,
-                first_number: None,
+                first_arg: None,
             });
         }
     };
@@ -106,7 +106,7 @@ pub fn rewrite<'x>(text: &'x str)
     let mut variables = Vec::new();
     let next_var = |num: usize| {
         if named_args {
-            format!("$_edb_arg__{}", var_idx + num)
+            format!("$__edb_arg_{}", var_idx + num)
         } else {
             format!("${}", var_idx + num)
         }
@@ -126,7 +126,10 @@ pub fn rewrite<'x>(text: &'x str)
                 push_var(&mut rewritten_tokens, "int64",
                     next_var(variables.len()));
                 variables.push(Variable {
-                    value: Value::Int(tok.value.to_string()),
+                    value: Value::Int(tok.value.parse()
+                        .map_err(|e| Error::Tokenizer(
+                            format!("can't parse integer: {}", e),
+                            tok.start))?),
                 });
                 continue;
             }
@@ -144,7 +147,7 @@ pub fn rewrite<'x>(text: &'x str)
                     variables: Vec::new(),
                     end_pos,
                     named_args: false,
-                    first_number: None,
+                    first_arg: None,
                 });
             }
             _ => rewritten_tokens.push(tok.clone()),
@@ -152,7 +155,7 @@ pub fn rewrite<'x>(text: &'x str)
     }
     return Ok(Entry {
         named_args,
-        first_number: if variables.is_empty() { None } else { Some(var_idx) },
+        first_arg: if variables.is_empty() { None } else { Some(var_idx) },
         key: serialize_tokens(&rewritten_tokens[..]),
         tokens: rewritten_tokens,
         variables,

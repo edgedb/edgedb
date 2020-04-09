@@ -53,7 +53,9 @@ cdef enum EdgeConnectionStatus:
 @cython.final
 cdef class CompiledQuery:
     cdef public object query_unit
-    cdef public dict extracted_variables
+    cdef public object first_extra  # Optional[int]
+    cdef public int extra_count
+    cdef public bytes extra_blob
 
 
 @cython.final
@@ -109,7 +111,8 @@ cdef class EdgeConnection:
 
     cdef pgcon_last_sync_status(self)
 
-    cdef WriteBuffer recode_bind_args(self, bytes bind_args, dict array_tids)
+    cdef WriteBuffer recode_bind_args(self,
+        bytes bind_args, CompiledQuery compiled)
 
     cdef WriteBuffer make_describe_msg(self, CompiledQuery query)
     cdef WriteBuffer make_command_complete_msg(self, query_unit)

@@ -92,6 +92,7 @@ class CompileContext:
     json_parameters: bool = False
     implicit_limit: int = 0
     schema_object_ids: Optional[Mapping[str, uuid.UUID]] = None
+    first_extracted_var: Optional[int] = None
 
 
 EMPTY_MAP = immutables.Map()
@@ -391,6 +392,7 @@ class Compiler(BaseCompiler):
 
             if ir.params:
                 array_params = []
+<<<<<<< HEAD
                 subtypes = [None] * len(ir.params)
                 first_param = next(iter(ir.params))
                 named = not first_param.name.isdecimal()
@@ -401,6 +403,38 @@ class Compiler(BaseCompiler):
                         el_type = param.schema_type.get_element_type(ir.schema)
                         array_params.append(
                             (idx, el_type.get_backend_id(ir.schema)))
+=======
+                if ctx.first_extracted_var:
+                    subtypes = [None] * ctx.first_extracted_var
+                else:
+                    subtypes = [None] * len(ir.params)
+                first_param_name = next(iter(ir.params))
+                if first_param_name.isdecimal():
+                    named = False
+                    for param_name, param_type in ir.params.items():
+                        idx = int(param_name)
+                        if(ctx.first_extracted_var and
+                                idx >= ctx.first_extracted_var):
+                            break
+                        subtypes[idx] = (param_name, param_type)
+                        if param_type.is_array():
+                            el_type = param_type.get_element_type(ir.schema)
+                            array_params.append(
+                                (idx, el_type.get_backend_id(ir.schema)))
+                else:
+                    named = True
+                    for param_name, param_type in ir.params.items():
+                        if param_name.startswith('__edb_arg_'):
+                            continue
+                        idx = argmap[param_name] - 1
+                        subtypes[idx] = (
+                            param_name, param_type
+                        )
+                        if param_type.is_array():
+                            el_type = param_type.get_element_type(ir.schema)
+                            array_params.append(
+                                (idx, el_type.get_backend_id(ir.schema)))
+>>>>>>> Named replacements work
 
                 ir.schema, params_type = s_types.Tuple.create(
                     ir.schema,
@@ -1083,6 +1117,7 @@ class Compiler(BaseCompiler):
         json_parameters: bool=False,
         schema: Optional[s_schema.Schema] = None,
         schema_object_ids: Optional[Mapping[str, uuid.UUID]] = None,
+        first_extracted_var: Optional[int] = None,
     ) -> CompileContext:
 
         if session_config is None:
@@ -1116,6 +1151,7 @@ class Compiler(BaseCompiler):
             stmt_mode=stmt_mode,
             json_parameters=json_parameters,
             schema_object_ids=schema_object_ids,
+            first_extracted_var=first_extracted_var,
         )
 
         return ctx
@@ -1124,7 +1160,8 @@ class Compiler(BaseCompiler):
                                   io_format: enums.IoFormat,
                                   expect_one: bool,
                                   implicit_limit: int,
-                                  stmt_mode: enums.CompileStatementMode):
+                                  stmt_mode: enums.CompileStatementMode,
+                                  first_extracted_var: Optional[int]=None):
         state = self._load_state(txid)
 
         of = _convert_format(io_format)
@@ -1134,7 +1171,8 @@ class Compiler(BaseCompiler):
             output_format=of,
             expected_cardinality_one=expect_one,
             implicit_limit=implicit_limit,
-            stmt_mode=stmt_mode)
+            stmt_mode=stmt_mode,
+            first_extracted_var=first_extracted_var)
 
         return ctx
 
@@ -1187,17 +1225,19 @@ class Compiler(BaseCompiler):
         )  # pragma: no cover
 
     async def compile_eql_tokens(
-            self,
-            dbver: bytes,
-            eql_tokens: List[_edgeql_rust.Token],
-            sess_modaliases: Optional[immutables.Map],
-            sess_config: Optional[immutables.Map],
-            io_format: enums.IoFormat,
-            expect_one: bool,
-            implicit_limit: int,
-            stmt_mode: enums.CompileStatementMode,
-            capability: enums.Capability,
-            json_parameters: bool=False) -> List[dbstate.QueryUnit]:
+        self,
+        dbver: bytes,
+        eql_tokens: List[_edgeql_rust.Token],
+        sess_modaliases: Optional[immutables.Map],
+        sess_config: Optional[immutables.Map],
+        io_format: enums.IoFormat,
+        expect_one: bool,
+        implicit_limit: int,
+        stmt_mode: enums.CompileStatementMode,
+        capability: enums.Capability,
+        first_extracted_var: Optional[int]=None,
+        json_parameters: bool=False,
+    ) -> List[dbstate.QueryUnit]:
 
         ctx = await self._ctx_new_con_state(
             dbver=dbver,
@@ -1208,18 +1248,20 @@ class Compiler(BaseCompiler):
             session_config=sess_config,
             stmt_mode=enums.CompileStatementMode(stmt_mode),
             capability=capability,
-            json_parameters=json_parameters)
+            json_parameters=json_parameters,
+            first_extracted_var=first_extracted_var)
 
         return self._compile(ctx=ctx, tokens=eql_tokens)
 
     async def compile_eql_tokens_in_tx(
-            self,
-            txid: int,
-            eql_tokens: List[_edgeql_rust.Token],
-            io_format: enums.IoFormat,
-            expect_one: bool,
-            implicit_limit: int,
-            stmt_mode: enums.CompileStatementMode
+        self,
+        txid: int,
+        eql_tokens: List[_edgeql_rust.Token],
+        io_format: enums.IoFormat,
+        expect_one: bool,
+        implicit_limit: int,
+        stmt_mode: enums.CompileStatementMode,
+        first_extracted_var: Optional[int]=None,
     ) -> List[dbstate.QueryUnit]:
 
         ctx = await self._ctx_from_con_state(
@@ -1227,7 +1269,8 @@ class Compiler(BaseCompiler):
             io_format=io_format,
             expect_one=expect_one,
             implicit_limit=implicit_limit,
-            stmt_mode=enums.CompileStatementMode(stmt_mode))
+            stmt_mode=enums.CompileStatementMode(stmt_mode),
+            first_extracted_var=first_extracted_var)
 
         return self._compile(ctx=ctx, tokens=eql_tokens)
 

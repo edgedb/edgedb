@@ -27,7 +27,7 @@ import traceback
 cimport cython
 cimport cpython
 
-from typing import List
+from typing import List, Optional
 from . cimport cpythonx
 
 from libc.stdint cimport int8_t, uint8_t, int16_t, uint16_t, \
@@ -99,9 +99,15 @@ DEF QUERY_OPT_IMPLICIT_LIMIT = 0xFF01
 @cython.final
 cdef class CompiledQuery:
 
-    def __init__(self, object query_unit, dict extracted_variables=None):
+    def __init__(self, object query_unit,
+        first_extra: Optional[int]=None,
+        int extra_count=0,
+        bytes extra_blob=None
+    ):
         self.query_unit = query_unit
-        self.extracted_variables = extracted_variables
+        self.first_extra = first_extra
+        self.extra_count = extra_count
+        self.extra_blob = extra_blob
 
 
 @cython.final
@@ -607,6 +613,7 @@ cdef class EdgeConnection:
         expect_one: bint = False,
         stmt_mode: str = 'single',
         implicit_limit: uint64_t = 0,
+        first_extracted_var: Optional[int] = None,
     ):
         if self.dbview.in_tx_error():
             self.dbview.raise_in_tx_error()
@@ -620,6 +627,7 @@ cdef class EdgeConnection:
                 expect_one,
                 implicit_limit,
                 stmt_mode,
+                first_extracted_var,
             )
         else:
             return await self.get_backend().compiler.call(
@@ -633,6 +641,7 @@ cdef class EdgeConnection:
                 implicit_limit,
                 stmt_mode,
                 CAP_ALL,
+                first_extracted_var,
             )
 
     async def _compile_rollback(self, bytes eql):
@@ -778,6 +787,7 @@ cdef class EdgeConnection:
                     expect_one=expect_one,
                     stmt_mode='single',
                     implicit_limit=implicit_limit,
+                    first_extracted_var=entry.first_extra(),
                 )
                 query_unit = query_unit[0]
         elif self.dbview.in_tx_error():
@@ -804,7 +814,9 @@ cdef class EdgeConnection:
 
         return CompiledQuery(
             query_unit=query_unit,
-            extracted_variables=entry.variables(),
+            first_extra=entry.first_extra(),
+            extra_count=entry.extra_count(),
+            extra_blob=entry.extra_blob(),
         )
 
     cdef parse_cardinality(self, bytes card):
@@ -1038,8 +1050,7 @@ cdef class EdgeConnection:
             self.write(self.make_command_complete_msg(query_unit))
             return
 
-        bound_args_buf = self.recode_bind_args(
-            bind_args, query_unit.in_array_backend_tids)
+        bound_args_buf = self.recode_bind_args(bind_args, compiled)
 
         process_sync = False
         if self.buffer.take_message_type(b'S'):
@@ -1213,7 +1224,9 @@ cdef class EdgeConnection:
         else:
             compiled = CompiledQuery(
                 query_unit=query_unit,
-                extracted_variables=entry.variables(),
+                first_extra=entry.first_extra(),
+                extra_count=entry.extra_count(),
+                extra_blob=entry.extra_blob(),
             )
 
         if (query_unit.in_type_id != in_tid or
@@ -1566,7 +1579,10 @@ cdef class EdgeConnection:
             raise errors.BinaryProtocolError(
                 f'unexpected message type {chr(mtype)!r}')
 
-    cdef WriteBuffer recode_bind_args(self, bytes bind_args, dict array_tids):
+    cdef WriteBuffer recode_bind_args(self,
+        bytes bind_args,
+        CompiledQuery query,
+    ):
         cdef:
             FRBuffer in_buf
             WriteBuffer out_buf = WriteBuffer.new()
@@ -1576,6 +1592,7 @@ cdef class EdgeConnection:
             const char *data
             object array_tid
             has_reserved = self.protocol_version >= (0, 8)
+            dict array_tids = query.query_unit.in_array_backend_tids
 
         assert cpython.PyBytes_CheckExact(bind_args)
         frb_init(
@@ -1589,7 +1606,12 @@ cdef class EdgeConnection:
         # number of elements in the tuple
         argsnum = hton.unpack_int32(frb_read(&in_buf, 4))
 
-        out_buf.write_int16(<int16_t>argsnum)
+        if query.first_extra is not None:
+            assert argsnum == query.first_extra, \
+                f"argument count mismatch {argsnum} != {query.first_extra}"
+            out_buf.write_int16(<int16_t>(argsnum + query.extra_count))
+        else:
+            out_buf.write_int16(<int16_t>argsnum)
 
         for i in range(argsnum):
             if has_reserved:
@@ -1608,6 +1630,9 @@ cdef class EdgeConnection:
                     out_buf.write_cstr(&data[12], in_len - 12)
                 else:
                     out_buf.write_cstr(data, in_len)
+
+        if query.first_extra is not None:
+            out_buf.write_bytes(query.extra_blob)
 
         # All columns are in binary format
         out_buf.write_int32(0x00010001)
