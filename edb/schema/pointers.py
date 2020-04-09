@@ -553,7 +553,7 @@ class PseudoPointer(s_abc.Pointer):
     def get_union_of(
         self,
         schema: s_schema.Schema,
-    ) -> Optional[so.ObjectSet[s_types.Type]]:
+    ) -> None:
         return None
 
     def get_default(
