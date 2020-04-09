@@ -19,13 +19,17 @@
 
 from __future__ import annotations
 
+from edb import errors
+
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
+from edb.schema import defines as s_def
 
 from . import abc as s_abc
 from . import annos as s_anno
 from . import delta as sd
 from . import objects as so
+from . import schema as s_schema
 
 
 class Database(so.GlobalObject, s_anno.AnnotationSubject, s_abc.Database,
@@ -39,7 +43,25 @@ class DatabaseCommandContext(sd.ObjectCommandContext):
 
 class DatabaseCommand(sd.GlobalObjectCommand, schema_metaclass=Database,
                       context_class=DatabaseCommandContext):
-    pass
+
+    def _create_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super()._create_begin(schema, context)
+
+        # Validate that the database name is fewer than 64 characters
+        name = self.get_attribute_value('name')
+        if len(str(name)) > s_def.MAX_NAME_LENGTH:
+            source_context = self.get_attribute_source_context('name')
+            raise errors.SchemaDefinitionError(
+                f'Database names longer than {s_def.MAX_NAME_LENGTH} '
+                f'characters are not supported',
+                context=source_context,
+            )
+
+        return schema
 
 
 class CreateDatabase(DatabaseCommand, sd.CreateObject):

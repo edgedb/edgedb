@@ -29,6 +29,7 @@ from edb.common import uuidgen
 from edb.schema import abc as s_abc
 from edb.schema import casts as s_casts
 from edb.schema import constraints as s_constr
+from edb.schema import defines as s_def
 from edb.schema import functions as s_func
 from edb.schema import modules as s_mod
 from edb.schema import name as s_name
@@ -136,7 +137,7 @@ def _edgedb_name_to_pg_name(name: str, prefix_length: int = 0) -> str:
         name[:prefix_length] +
         hashed +
         ':' +
-        name[-(63 - prefix_length - 1 - len(hashed)):]
+        name[-(s_def.MAX_NAME_LENGTH - prefix_length - 1 - len(hashed)):]
     )
 
 
@@ -148,12 +149,12 @@ def edgedb_name_to_pg_name(name: str, prefix_length: int = 0) -> str:
     @param name: EdgeDB name to convert
     @return: PostgreSQL column name
     """
-    if not (0 <= prefix_length < 63):
+    if not (0 <= prefix_length < s_def.MAX_NAME_LENGTH):
         raise ValueError('supplied name is too long '
                          'to be kept in original form')
 
     name = str(name)
-    if len(name) <= 63 - prefix_length:
+    if len(name) <= s_def.MAX_NAME_LENGTH - prefix_length:
         return name
 
     return _edgedb_name_to_pg_name(name, prefix_length)
