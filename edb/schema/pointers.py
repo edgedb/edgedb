@@ -210,12 +210,12 @@ class Pointer(referencing.ReferencedInheritingObject,
         merge_fn=merge_cardinality)
 
     union_of = so.SchemaField(
-        so.ObjectSet[so.Object],
+        so.ObjectSet['Pointer'],
         default=None,
         coerce=True)
 
     intersection_of = so.SchemaField(
-        so.ObjectSet[so.Object],
+        so.ObjectSet['Pointer'],
         default=None,
         coerce=True)
 
@@ -285,7 +285,7 @@ class Pointer(referencing.ReferencedInheritingObject,
     def set_target(
         self,
         schema: s_schema.Schema,
-        target: s_objtypes.ObjectType,
+        target: s_types.Type,
     ) -> s_schema.Schema:
         return self.set_field_value(schema, 'target', target)
 
@@ -499,10 +499,8 @@ class Pointer(referencing.ReferencedInheritingObject,
         constext: sd.CommandContext,
         refdict: so.RefDict,
     ) -> bool:
-        from edb.schema import objtypes as s_objtypes
-
         object_type = self.get_source(schema)
-        assert isinstance(object_type, s_objtypes.ObjectType)
+        assert isinstance(object_type, s_types.Type)
         return not object_type.is_view(schema)
 
 
@@ -715,9 +713,7 @@ class PointerCommandOrFragment(
         expr: qlast.Base,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-    ) -> Tuple[s_schema.Schema, s_types.Type, Union[None,
-                                                    PseudoPointer,
-                                                    Pointer]]:
+    ) -> Tuple[s_schema.Schema, s_types.Type, Optional[PointerLike]]:
         from edb.ir import ast as irast
         from edb.ir import typeutils as irtyputils
         from edb.schema import objtypes as s_objtypes
@@ -967,8 +963,7 @@ class PointerCommand(
         if astnode.cardinality is not None:
             self.set_attribute_value('cardinality', astnode.cardinality)
 
-        parent_ctx = self.get_referrer_context(context)
-        assert parent_ctx is not None
+        parent_ctx = self.get_referrer_context_or_die(context)
         source_name = parent_ctx.op.classname
         self.set_attribute_value('source', so.ObjectShell(name=source_name))
 
@@ -1049,7 +1044,7 @@ class PointerCommand(
         schema: s_schema.Schema,
         context: sd.CommandContext,
         field: so.Field[Any],
-        value: Any,
+        value: s_expr.Expression,
     ) -> s_expr.Expression:
         from . import sources as s_sources
 
@@ -1073,7 +1068,7 @@ class PointerCommand(
                     singletons = [source]
                     path_prefix_anchor = qlast.Source().name
 
-            expression = type(value).compiled(
+            return type(value).compiled(
                 value,
                 schema=schema,
                 options=qlcompiler.CompilerOptions(
@@ -1084,8 +1079,6 @@ class PointerCommand(
                     singletons=frozenset(singletons),
                 ),
             )
-            assert isinstance(expression, s_expr.Expression)
-            return expression
         else:
             return super().compile_expr_field(schema, context, field, value)
 

@@ -40,7 +40,7 @@ from . import sources
 from . import utils
 
 if TYPE_CHECKING:
-    from . import objtypes as s_objtypes
+    from . import types as s_types
     from . import schema as s_schema
 
 
@@ -140,7 +140,7 @@ class Link(sources.Source, pointers.Pointer, s_abc.Link,
     def set_target(
         self,
         schema: s_schema.Schema,
-        target: s_objtypes.ObjectType,
+        target: s_types.Type,
     ) -> s_schema.Schema:
         schema = super().set_target(schema, target)
         tgt_prop = self.getptr(schema, 'target')
