@@ -81,7 +81,7 @@ class SQLBlock:
             )
         stmts = self.get_statements()
         body = '\n\n'.join(stmt + ';' if stmt[-1] != ';' else stmt
-                           for stmt in stmts).rstrip()
+                           for stmt in stmts if stmt).rstrip()
         if body and body[-1] != ';':
             body += ';'
 
@@ -92,12 +92,7 @@ class SQLBlock:
                 for cmd in self.commands]
 
     def add_command(self, stmt) -> None:
-        if (isinstance(stmt, PLBlock)
-                and not stmt.has_declarations()
-                and not isinstance(stmt, PLTopBlock)):
-            self.commands.extend(stmt.commands)
-        else:
-            self.commands.append(stmt)
+        self.commands.append(stmt)
 
     def has_declarations(self) -> bool:
         return False
@@ -121,6 +116,8 @@ class PLBlock(SQLBlock):
             self.disable_ddl_triggers = self.top_block.disable_ddl_triggers
         else:
             self.disable_ddl_triggers = True
+        self.conditions = set()
+        self.neg_conditions = set()
 
     def has_declarations(self) -> bool:
         return bool(self.declarations)
@@ -131,10 +128,9 @@ class PLBlock(SQLBlock):
     def get_top_block(self) -> PLTopBlock:
         return self.top_block
 
-    def add_block(self, attach: bool=True):
+    def add_block(self):
         block = PLBlock(top_block=self.top_block, level=self.level + 1)
-        if attach:
-            self.add_command(block)
+        self.add_command(block)
         return block
 
     def to_string(self):
@@ -146,8 +142,40 @@ class PLBlock(SQLBlock):
 
         body = super().to_string()
 
-        return textwrap.indent(f'{decls}BEGIN\n{body}\nEND;',
-                               ' ' * self.level * 4)
+        if self.conditions or self.neg_conditions:
+            exprs = []
+            if self.conditions:
+                for cond in self.conditions:
+                    if not isinstance(cond, str):
+                        cond_expr = f'EXISTS ({cond.code(self)})'
+                    else:
+                        cond_expr = cond
+                    exprs.append(cond_expr)
+
+            if self.neg_conditions:
+                for cond in self.neg_conditions:
+                    if not isinstance(cond, str):
+                        cond_expr = f'EXISTS ({cond.code(self)})'
+                    else:
+                        cond_expr = cond
+                    exprs.append(f'NOT {cond_expr}')
+
+            if_clause = '\n    AND'.join(
+                f'({textwrap.indent(expr, "    ").lstrip()})'
+                for expr in exprs
+            )
+
+            body = textwrap.indent(body, '    ').rstrip()
+            semicolon = ';' if body[-1] != ';' else ''
+            body = f'IF {if_clause}\nTHEN\n{body}{semicolon}\nEND IF;'
+
+        if decls or not isinstance(self.top_block, PLBlock):
+            return textwrap.indent(
+                f'{decls}BEGIN\n{body}\nEND;',
+                ' ' * self.level * 4,
+            )
+        else:
+            return body
 
     def add_command(self, cmd, *, conditions=None, neg_conditions=None):
         if conditions or neg_conditions:
@@ -251,19 +279,13 @@ class Command(BaseCommand):
             return
 
         self.generate_extra(self_block)
-
-        kwargs = {}
-        if self.conditions:
-            kwargs['conditions'] = self.conditions
-        if self.neg_conditions:
-            kwargs['neg_conditions'] = self.neg_conditions
-
-        block.add_command(self_block, **kwargs)
+        self_block.conditions = self.conditions
+        self_block.neg_conditions = self.neg_conditions
 
     def generate_self_block(self, block: PLBlock) -> Optional[PLBlock]:
         # Default implementation simply calls self.code()
         self_block = block.add_block()
-        self_block.add_command(self.code(block))
+        self_block.add_command(self.code(self_block))
         return self_block
 
     def generate_extra(self, block: PLBlock) -> None:
@@ -322,25 +344,22 @@ class CompositeCommandGroup(CommandGroup):
             return None
 
         self_block = block.add_block()
-        extra_block = self_block.add_block(attach=False)
         prefix_code = self.prefix_code()
         actions = []
         dynamic_actions = []
 
         for cmd in self.commands:
             if isinstance(cmd, tuple) and (cmd[1] or cmd[2]):
-                action = cmd[0].code(block)
-                cmd[0].generate_extra(extra_block, self)
+                action = cmd[0].code(self_block)
                 if isinstance(action, PLExpression):
                     subcommand = \
                         f"EXECUTE {ql(prefix_code)} || ' ' || {action}"
                 else:
                     subcommand = prefix_code + ' ' + action
-                block.add_command(
+                self_block.add_command(
                     subcommand, conditions=cmd[1], neg_conditions=cmd[2])
             else:
-                action = cmd.code(block)
-                cmd.generate_extra(extra_block, self)
+                action = cmd.code(self_block)
                 if isinstance(action, PLExpression):
                     subcommand = \
                         f"EXECUTE {ql(prefix_code)} || ' ' || {action}"
@@ -350,14 +369,19 @@ class CompositeCommandGroup(CommandGroup):
 
         if actions:
             command = prefix_code + ' ' + ', '.join(actions)
-            block.add_command(command)
+            self_block.add_command(command)
 
         if dynamic_actions:
             for action in dynamic_actions:
-                block.add_command(action)
+                self_block.add_command(action)
 
-        if extra_block.has_statements():
-            block.add_command(extra_block)
+        extra_block = self_block.add_block()
+
+        for cmd in self.commands:
+            if isinstance(cmd, tuple) and (cmd[1] or cmd[2]):
+                cmd[0].generate_extra(extra_block, self)
+            else:
+                cmd.generate_extra(extra_block, self)
 
         return self_block
 
