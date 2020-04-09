@@ -187,7 +187,7 @@ class LinkCommand(lproperties.PropertySourceCommand,
     def _set_pointer_type(
         self,
         schema: s_schema.Schema,
-        astnode: qlast.CreateConcreteLink,
+        astnode: qlast.CreateConcretePointer,
         context: sd.CommandContext,
         target_ref: Union[so.Object, so.ObjectShell],
     ) -> None:
@@ -273,6 +273,7 @@ class CreateLink(
     ) -> sd.Command:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         if isinstance(astnode, qlast.CreateConcreteLink):
+            assert isinstance(cmd, pointers.PointerCommand)
             cmd._process_create_or_alter_ast(schema, astnode, context)
         else:
             # this is an abstract property then
@@ -472,6 +473,7 @@ class AlterLink(
     ) -> referencing.AlterReferencedInheritingObject[Link]:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         if isinstance(astnode, qlast.CreateConcreteLink):
+            assert isinstance(cmd, pointers.PointerCommand)
             cmd._process_create_or_alter_ast(schema, astnode, context)
         assert isinstance(cmd, referencing.AlterReferencedInheritingObject)
         return cmd

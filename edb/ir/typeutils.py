@@ -39,6 +39,7 @@ if TYPE_CHECKING:
     import uuid
 
     from edb.schema import name as s_name
+    from edb.schema import objects as s_objects
     from edb.schema import schema as s_schema
 
     PtrRefCacheKey = Tuple[s_pointers.PointerLike, s_pointers.PointerDirection]
@@ -398,6 +399,13 @@ def ptrref_from_ptrcls(
 
     ircls: Type[irast.BasePointerRef]
 
+    source_ref: Union[Optional[irast.TypeRef],
+                      Optional[s_objects.Object]]
+    target_ref: Union[Optional[irast.TypeRef],
+                      Optional[s_objects.Object]]
+    out_source: Union[Optional[irast.TypeRef],
+                      Optional[s_objects.Object]]
+
     if isinstance(ptrcls, irast.TupleIndirectionLink):
         ircls = irast.TupleIndirectionPointerRef
     elif isinstance(ptrcls, irast.TypeIntersectionLink):
@@ -414,8 +422,6 @@ def ptrref_from_ptrcls(
             s_mod.Module, name.module).id
     else:
         raise AssertionError(f'unexpected pointer class: {ptrcls}')
-
-    out_source: Optional[irast.TypeRef]
 
     target = ptrcls.get_far_endpoint(schema, direction)
     if isinstance(target, s_types.Type):
@@ -473,6 +479,7 @@ def ptrref_from_ptrcls(
         union_ptrs = set()
 
         for component in union_of.objects(schema):
+            assert isinstance(component, s_pointers.Pointer)
             material_comp = component.material_type(schema)
             union_ptrs.add(material_comp)
 
@@ -607,6 +614,7 @@ def cardinality_from_ptrcls(
         out_cardinality = None
         dir_cardinality = None
     else:
+        assert isinstance(out_card, qltypes.SchemaCardinality)
         out_cardinality = qltypes.Cardinality.from_schema_value(
             required, out_card)
         # Determine the cardinality of a given endpoint set.
