@@ -126,7 +126,9 @@ def compile_Parameter(
             index = ctx.argmap[expr.name]
         except KeyError:
             if expr.name.startswith('__edb_arg_'):
-                index = int(expr.name[10:])+1
+                index = int(expr.name[10:]) + 1
+            elif expr.name in ctx.argmap:
+                index = ctx.argmap[expr.name]
             else:
                 if is_decimal:
                     index = int(expr.name) + 1

@@ -1236,7 +1236,7 @@ cdef class EdgeConnection:
             if self.debug:
                 self.debug_print('OPTIMISTIC EXECUTE /MISMATCH', query)
 
-            self.write(self.make_describe_msg(query_unit))
+            self.write(self.make_describe_msg(compiled))
 
             # We must re-parse the query so that it becomes
             # "last anonymous statement" *in Postgres*.
