@@ -602,6 +602,7 @@ def extend_path(
     else:
         if direction is not s_pointers.PointerDirection.Inbound:
             source = ptrcls.get_near_endpoint(ctx.env.schema, direction)
+            assert isinstance(source, s_types.Type)
             stype = get_set_type(source_set, ctx=ctx)
             if not stype.issubclass(ctx.env.schema, source):
                 # Polymorphic link reference
@@ -616,6 +617,7 @@ def extend_path(
         ns=ctx.path_id_namespace, ctx=ctx)
 
     target = ptrcls.get_far_endpoint(ctx.env.schema, direction)
+    assert isinstance(target, s_types.Type)
     target_set = new_set(stype=target, path_id=path_id, ctx=ctx)
 
     ptr = irast.Pointer(

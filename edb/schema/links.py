@@ -40,7 +40,7 @@ from . import sources
 from . import utils
 
 if TYPE_CHECKING:
-    from . import objtypes as s_objtypes
+    from . import types as s_types
     from . import schema as s_schema
 
 
@@ -140,7 +140,7 @@ class Link(sources.Source, pointers.Pointer, s_abc.Link,
     def set_target(
         self,
         schema: s_schema.Schema,
-        target: s_objtypes.ObjectType,
+        target: s_types.Type,
     ) -> s_schema.Schema:
         schema = super().set_target(schema, target)
         tgt_prop = self.getptr(schema, 'target')
@@ -187,7 +187,7 @@ class LinkCommand(lproperties.PropertySourceCommand,
     def _set_pointer_type(
         self,
         schema: s_schema.Schema,
-        astnode: qlast.CreateConcreteLink,
+        astnode: qlast.CreateConcretePointer,
         context: sd.CommandContext,
         target_ref: Union[so.Object, so.ObjectShell],
     ) -> None:
@@ -273,6 +273,7 @@ class CreateLink(
     ) -> sd.Command:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         if isinstance(astnode, qlast.CreateConcreteLink):
+            assert isinstance(cmd, pointers.PointerCommand)
             cmd._process_create_or_alter_ast(schema, astnode, context)
         else:
             # this is an abstract property then
@@ -472,6 +473,7 @@ class AlterLink(
     ) -> referencing.AlterReferencedInheritingObject[Link]:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         if isinstance(astnode, qlast.CreateConcreteLink):
+            assert isinstance(cmd, pointers.PointerCommand)
             cmd._process_create_or_alter_ast(schema, astnode, context)
         assert isinstance(cmd, referencing.AlterReferencedInheritingObject)
         return cmd

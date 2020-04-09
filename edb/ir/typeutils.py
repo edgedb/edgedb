@@ -398,6 +398,10 @@ def ptrref_from_ptrcls(
 
     ircls: Type[irast.BasePointerRef]
 
+    source_ref: Optional[irast.TypeRef]
+    target_ref: Optional[irast.TypeRef]
+    out_source: Optional[irast.TypeRef]
+
     if isinstance(ptrcls, irast.TupleIndirectionLink):
         ircls = irast.TupleIndirectionPointerRef
     elif isinstance(ptrcls, irast.TypeIntersectionLink):
@@ -415,10 +419,9 @@ def ptrref_from_ptrcls(
     else:
         raise AssertionError(f'unexpected pointer class: {ptrcls}')
 
-    out_source: Optional[irast.TypeRef]
-
     target = ptrcls.get_far_endpoint(schema, direction)
-    if isinstance(target, s_types.Type):
+    if target is not None and not isinstance(target, irast.TypeRef):
+        assert isinstance(target, s_types.Type)
         target_ref = type_to_typeref(schema, target, cache=typeref_cache)
     else:
         target_ref = target
@@ -437,8 +440,11 @@ def ptrref_from_ptrcls(
         )
         source_ref = None
     else:
-        if isinstance(source, s_types.Type):
-            source_ref = type_to_typeref(schema, source, cache=typeref_cache)
+        if source is not None and not isinstance(source, irast.TypeRef):
+            assert isinstance(source, s_types.Type)
+            source_ref = type_to_typeref(schema,
+                                         source,
+                                         cache=typeref_cache)
         else:
             source_ref = source
         source_ptr = None
@@ -473,6 +479,7 @@ def ptrref_from_ptrcls(
         union_ptrs = set()
 
         for component in union_of.objects(schema):
+            assert isinstance(component, s_pointers.Pointer)
             material_comp = component.material_type(schema)
             union_ptrs.add(material_comp)
 
@@ -607,6 +614,7 @@ def cardinality_from_ptrcls(
         out_cardinality = None
         dir_cardinality = None
     else:
+        assert isinstance(out_card, qltypes.SchemaCardinality)
         out_cardinality = qltypes.Cardinality.from_schema_value(
             required, out_card)
         # Determine the cardinality of a given endpoint set.

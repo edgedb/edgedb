@@ -74,8 +74,10 @@ def populate_pointer_set_for_source_union(
     components: Iterable[Source],
     union: Source,
     *,
-    modname: str = '__derived__',
+    modname: Optional[str] = None,
 ) -> s_schema.Schema:
+    if modname is None:
+        modname = '__derived__'
 
     union_pointers = {}
 
