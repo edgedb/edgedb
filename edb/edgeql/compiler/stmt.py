@@ -294,13 +294,17 @@ def compile_InsertQuery(
             ctx=ctx,
         )
 
-        stmt.result = compile_query_subject(
-            result,
-            view_scls=ctx.view_scls,
-            view_name=ctx.toplevel_result_view_name,
-            compile_views=ictx.stmt is ictx.toplevel_stmt,
-            ctx=ictx,
-        )
+        with ictx.new() as resultctx:
+            if ictx.stmt is ctx.toplevel_stmt:
+                resultctx.expr_exposed = True
+
+            stmt.result = compile_query_subject(
+                result,
+                view_scls=ctx.view_scls,
+                view_name=ctx.toplevel_result_view_name,
+                compile_views=ictx.stmt is ictx.toplevel_stmt,
+                ctx=resultctx,
+            )
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
@@ -358,13 +362,17 @@ def compile_UpdateQuery(
             ctx=ctx,
         )
 
-        stmt.result = compile_query_subject(
-            result,
-            view_scls=ctx.view_scls,
-            view_name=ctx.toplevel_result_view_name,
-            compile_views=ictx.stmt is ictx.toplevel_stmt,
-            ctx=ictx,
-        )
+        with ictx.new() as resultctx:
+            if ictx.stmt is ctx.toplevel_stmt:
+                resultctx.expr_exposed = True
+
+            stmt.result = compile_query_subject(
+                result,
+                view_scls=ctx.view_scls,
+                view_name=ctx.toplevel_result_view_name,
+                compile_views=ictx.stmt is ictx.toplevel_stmt,
+                ctx=resultctx,
+            )
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
@@ -445,13 +453,17 @@ def compile_DeleteQuery(
             ctx=ctx,
         )
 
-        stmt.result = compile_query_subject(
-            result,
-            view_scls=ctx.view_scls,
-            view_name=ctx.toplevel_result_view_name,
-            compile_views=ictx.stmt is ictx.toplevel_stmt,
-            ctx=ictx,
-        )
+        with ictx.new() as resultctx:
+            if ictx.stmt is ctx.toplevel_stmt:
+                resultctx.expr_exposed = True
+
+            stmt.result = compile_query_subject(
+                result,
+                view_scls=ctx.view_scls,
+                view_name=ctx.toplevel_result_view_name,
+                compile_views=ictx.stmt is ictx.toplevel_stmt,
+                ctx=resultctx,
+            )
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
