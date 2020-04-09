@@ -39,7 +39,6 @@ if TYPE_CHECKING:
     import uuid
 
     from edb.schema import name as s_name
-    from edb.schema import objects as s_objects
     from edb.schema import schema as s_schema
 
     PtrRefCacheKey = Tuple[s_pointers.PointerLike, s_pointers.PointerDirection]
@@ -399,12 +398,9 @@ def ptrref_from_ptrcls(
 
     ircls: Type[irast.BasePointerRef]
 
-    source_ref: Union[Optional[irast.TypeRef],
-                      Optional[s_objects.Object]]
-    target_ref: Union[Optional[irast.TypeRef],
-                      Optional[s_objects.Object]]
-    out_source: Union[Optional[irast.TypeRef],
-                      Optional[s_objects.Object]]
+    source_ref: Optional[irast.TypeRef]
+    target_ref: Optional[irast.TypeRef]
+    out_source: Optional[irast.TypeRef]
 
     if isinstance(ptrcls, irast.TupleIndirectionLink):
         ircls = irast.TupleIndirectionPointerRef
@@ -424,7 +420,8 @@ def ptrref_from_ptrcls(
         raise AssertionError(f'unexpected pointer class: {ptrcls}')
 
     target = ptrcls.get_far_endpoint(schema, direction)
-    if isinstance(target, s_types.Type):
+    if target is not None and not isinstance(target, irast.TypeRef):
+        assert isinstance(target, s_types.Type)
         target_ref = type_to_typeref(schema, target, cache=typeref_cache)
     else:
         target_ref = target
@@ -443,8 +440,11 @@ def ptrref_from_ptrcls(
         )
         source_ref = None
     else:
-        if isinstance(source, s_types.Type):
-            source_ref = type_to_typeref(schema, source, cache=typeref_cache)
+        if source is not None and not isinstance(source, irast.TypeRef):
+            assert isinstance(source, s_types.Type)
+            source_ref = type_to_typeref(schema,
+                                         source,
+                                         cache=typeref_cache)
         else:
             source_ref = source
         source_ptr = None

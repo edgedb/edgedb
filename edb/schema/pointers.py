@@ -44,6 +44,7 @@ from . import utils
 
 if TYPE_CHECKING:
     from . import objtypes as s_objtypes
+    from . import sources as s_sources
 
 
 class PointerDirection(enum.StrEnum):
@@ -362,13 +363,12 @@ class Pointer(referencing.ReferencedInheritingObject,
     def get_derived(
         self,
         schema: s_schema.Schema,
-        source: so.Object,
+        source: s_sources.Source,
         target: s_types.Type,
         *,
         derived_name_base: str = None,
         **kwargs: Any
     ) -> Tuple[s_schema.Schema, Pointer]:
-        assert isinstance(source, so.QualifiedObject)
         fqname = self.derive_name(
             schema, source, derived_name_base=derived_name_base)
         ptr = schema.get(fqname, default=None)
@@ -1233,7 +1233,7 @@ class SetPointerType(
 def get_or_create_union_pointer(
     schema: s_schema.Schema,
     ptrname: str,
-    source: so.Object,
+    source: s_sources.Source,
     direction: PointerDirection,
     components: Iterable[Pointer],
     *,
@@ -1252,7 +1252,7 @@ def get_or_create_union_pointer(
     targets: List[s_types.Type] = [p for p in far_endpoints
                                    if isinstance(p, s_types.Type)]
 
-    target: so.Object
+    target: s_types.Type
 
     schema, target = utils.get_union_type(
         schema, targets, opaque=opaque, module=modname)
@@ -1269,7 +1269,10 @@ def get_or_create_union_pointer(
     genptr = schema.get(default_base_name, type=Pointer)
 
     if direction is PointerDirection.Inbound:
-        source, target = target, source
+        # type ignore below, because the types "Type" and "Source"
+        # could only be swapped by their common ancestor so.Object,
+        # and here we are considering them both as more specific objects
+        source, target = target, source  # type: ignore
 
     schema, result = genptr.get_derived(
         schema,
