@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::char;
 use std::collections::HashMap;
 use std::iter::Peekable;
@@ -186,6 +187,14 @@ const CURRENT_RESERVED_KEYWORDS: [&str; 51] = [
     "with",
 ];
 
+#[derive(Debug, Clone)]
+pub struct CowToken<'a> {
+    pub kind: Kind,
+    pub value: Cow<'a, str>,
+    pub start: Pos,
+    pub end: Pos,
+}
+
 fn rs_pos(py: Python, value: &PyObject) -> PyResult<Pos> {
     let (line, column, offset) = FromPyObject::extract(py, value)?;
     Ok(Pos { line, column, offset })
@@ -324,10 +333,9 @@ pub fn init_module(py: Python) {
     }
 }
 
-fn peek_keyword(iter: &mut Peekable<Iter<SpannedToken>>, kw: &str) -> bool {
+fn peek_keyword(iter: &mut Peekable<Iter<CowToken>>, kw: &str) -> bool {
     iter.peek()
-       .map(|t| t.token.kind == Kind::Ident &&
-                t.token.value.eq_ignore_ascii_case(kw))
+       .map(|t| t.kind == Kind::Ident && t.value.eq_ignore_ascii_case(kw))
        .unwrap_or(false)
 }
 
@@ -357,7 +365,7 @@ pub fn tokenize(py: Python, s: &PyString) -> PyResult<PyList> {
         let mut tokens = Vec::new();
         for res in &mut token_stream {
             match res {
-                Ok(t) => tokens.push(t),
+                Ok(t) => tokens.push(CowToken::from(t)),
                 Err(e) => {
                     return Err((e, token_stream.current_pos()));
                 }
@@ -375,7 +383,7 @@ pub fn tokenize(py: Python, s: &PyString) -> PyResult<PyList> {
     return convert_tokens(py, rust_tokens, token_stream.current_pos());
 }
 
-pub fn convert_tokens(py: Python, rust_tokens: Vec<SpannedToken<'_>>,
+pub fn convert_tokens(py: Python, rust_tokens: Vec<CowToken<'_>>,
     end_pos: Pos)
     -> PyResult<PyList>
 {
@@ -386,11 +394,11 @@ pub fn convert_tokens(py: Python, rust_tokens: Vec<SpannedToken<'_>>,
     };
     let mut buf = Vec::with_capacity(rust_tokens.len());
     let mut tok_iter = rust_tokens.iter().peekable();
-    while let Some(spanned_tok) = tok_iter.next() {
+    while let Some(tok) = tok_iter.next() {
         let (name, text, value) = convert(py, &tokens, &mut cache,
-                                          spanned_tok, &mut tok_iter)?;
+                                          tok, &mut tok_iter)?;
         let py_tok = Token::create_instance(py, name, text, value,
-            spanned_tok.start, spanned_tok.end)?;
+            tok.start, tok.end)?;
 
         buf.push(py_tok.into_object());
     }
@@ -518,13 +526,13 @@ impl Cache {
 
 
 fn convert(py: Python, tokens: &Tokens, cache: &mut Cache,
-    token: &SpannedToken,
-    tok_iter: &mut Peekable<Iter<SpannedToken>>)
+    token: &CowToken,
+    tok_iter: &mut Peekable<Iter<CowToken>>)
     -> PyResult<(PyString, PyString, PyObject)>
 {
     use Kind::*;
-    let value = token.token.value;
-    match token.token.kind {
+    let value = &token.value[..];
+    match token.kind {
         Assign => Ok((tokens.assign.clone_ref(py),
                       tokens.assign_op.clone_ref(py),
                       py.None())),
@@ -756,13 +764,13 @@ fn convert(py: Python, tokens: &Tokens, cache: &mut Cache,
                     }
                     _ => match tokens.keywords.get(&cache.keyword_buf) {
                         Some(tok_info) => {
-                            debug_assert_eq!(tok_info.kind, token.token.kind);
+                            debug_assert_eq!(tok_info.kind, token.kind);
                             Ok((tok_info.name.clone_ref(py),
                                  PyString::new(py, value),
                                  py.None()))
                         }
                         None => {
-                            debug_assert_eq!(token.token.kind, Kind::Ident);
+                            debug_assert_eq!(token.kind, Kind::Ident);
                             let val = PyString::new(py, value);
                             Ok((tokens.ident.clone_ref(py),
                                 val.clone_ref(py),
@@ -778,6 +786,34 @@ fn convert(py: Python, tokens: &Tokens, cache: &mut Cache,
 pub fn get_unpickle_fn(py: Python) -> PyObject {
     let tokens = unsafe { TOKENS.as_ref().expect("module initialized") };
     return tokens.unpickle_token.clone_ref(py);
+}
+
+impl<'a, 'b: 'a> From<&'a SpannedToken<'b>> for CowToken<'b> {
+    fn from(t: &'a SpannedToken<'b>) -> CowToken<'b> {
+        CowToken {
+            kind: t.token.kind,
+            value: t.token.value.into(),
+            start: t.start,
+            end: t.end,
+        }
+    }
+}
+
+impl<'a> From<SpannedToken<'a>> for CowToken<'a> {
+    fn from(t: SpannedToken<'a>) -> CowToken<'a> {
+        CowToken::from(&t)
+    }
+}
+
+impl<'a> CowToken<'a> {
+    pub fn new<'x, S: Into<Cow<'x, str>>>(kind: Kind, val: S) -> CowToken<'x> {
+        CowToken {
+            kind,
+            value: val.into(),
+            start: Pos { line: 0, column: 0, offset: 0},
+            end: Pos { line: 0, column: 0, offset: 0},
+        }
+    }
 }
 
 

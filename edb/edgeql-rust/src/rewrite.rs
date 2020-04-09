@@ -1,41 +1,10 @@
 use std::collections::BTreeSet;
 
-use edgeql_parser::tokenizer::{TokenStream, SpannedToken, Token, Kind};
+use edgeql_parser::tokenizer::{TokenStream, Kind};
 use edgeql_parser::position::Pos;
 
-const VARIABLES: &[&str] = &[
-    "$_edb_arg__0",
-    "$_edb_arg__1",
-    "$_edb_arg__2",
-    "$_edb_arg__3",
-    "$_edb_arg__4",
-    "$_edb_arg__5",
-    "$_edb_arg__6",
-    "$_edb_arg__7",
-    "$_edb_arg__8",
-    "$_edb_arg__9",
-    "$_edb_arg__10",
-    "$_edb_arg__11",
-    "$_edb_arg__12",
-    "$_edb_arg__13",
-    "$_edb_arg__14",
-    "$_edb_arg__15",
-    "$_edb_arg__16",
-    "$_edb_arg__17",
-    "$_edb_arg__18",
-    "$_edb_arg__19",
-    "$_edb_arg__20",
-    "$_edb_arg__21",
-    "$_edb_arg__22",
-    "$_edb_arg__23",
-    "$_edb_arg__24",
-    "$_edb_arg__25",
-    "$_edb_arg__26",
-    "$_edb_arg__27",
-    "$_edb_arg__28",
-    "$_edb_arg__29",
-    "$_edb_arg__30",
-];
+use crate::tokenizer::CowToken;
+
 
 #[derive(Debug, PartialEq)]
 pub enum Value {
@@ -54,9 +23,11 @@ pub struct Variable {
 #[derive(Debug)]
 pub struct Entry<'a> {
     pub key: String,
-    pub tokens: Vec<SpannedToken<'a>>,
+    pub tokens: Vec<CowToken<'a>>,
     pub variables: Vec<Variable>,
     pub end_pos: Pos,
+    pub named_args: bool,
+    pub first_number: Option<usize>,
 }
 
 #[derive(Debug)]
@@ -64,45 +35,15 @@ pub enum Error {
     Tokenizer(String, Pos),
 }
 
-fn push_var<'x>(res: &mut Vec<SpannedToken<'x>>,
-    typ: &'x str, var_name: &'x str)
-{
-    res.push(SpannedToken {
-        token: Token {
-            kind: Kind::Less,
-            value: "<",
-        },
-        start: Pos { line: 0, column: 0, offset: 0},
-        end: Pos { line: 0, column: 0, offset: 0},
-    });
-    res.push(SpannedToken {
-        token: Token {
-            kind: Kind::Ident,
-            value: typ,
-        },
-        start: Pos { line: 0, column: 0, offset: 0},
-        end: Pos { line: 0, column: 0, offset: 0},
-    });
-    res.push(SpannedToken {
-        token: Token {
-            kind: Kind::Greater,
-            value: ">",
-        },
-        start: Pos { line: 0, column: 0, offset: 0},
-        end: Pos { line: 0, column: 0, offset: 0},
-    });
-    res.push(SpannedToken {
-        token: Token {
-            kind: Kind::Argument,
-            value: var_name,
-        },
-        start: Pos { line: 0, column: 0, offset: 0},
-        end: Pos { line: 0, column: 0, offset: 0},
-    });
+fn push_var<'x>(res: &mut Vec<CowToken<'x>>, typ: &'x str, var_name: String) {
+    res.push(CowToken::new(Kind::Less, "<"));
+    res.push(CowToken::new(Kind::Ident, typ));
+    res.push(CowToken::new(Kind::Greater, ">"));
+    res.push(CowToken::new(Kind::Argument, var_name));
 }
 
 fn scan_vars<'x, 'y: 'x, I>(tokens: I) -> Option<(bool, usize)>
-    where I: IntoIterator<Item=&'x Token<'y>>,
+    where I: IntoIterator<Item=&'x CowToken<'y>>,
 {
     let mut max_visited = None::<usize>;
     let mut names = BTreeSet::new();
@@ -113,7 +54,7 @@ fn scan_vars<'x, 'y: 'x, I>(tokens: I) -> Option<(bool, usize)>
                     max_visited = Some(v);
                 }
             } else {
-                names.insert(t.value);
+                names.insert(&t.value[..]);
             }
         }
     }
@@ -135,7 +76,7 @@ pub fn rewrite<'x>(text: &'x str)
     let mut tokens = Vec::new();
     for res in &mut token_stream {
         match res {
-            Ok(t) => tokens.push(t),
+            Ok(t) => tokens.push(CowToken::from(t)),
             Err(Unexpected(s)) => {
                 return Err(Error::Tokenizer(
                     s.to_string(), token_stream.current_pos()));
@@ -147,9 +88,7 @@ pub fn rewrite<'x>(text: &'x str)
         }
     }
     let end_pos = token_stream.current_pos();
-    let (named_vars, var_index) = match
-        scan_vars(tokens.iter().map(|t| &t.token))
-    {
+    let (named_args, var_idx) = match scan_vars(&tokens) {
         Some(pair) => pair,
         None => {
             // don't extract from invalid query, let python code do its work
@@ -158,36 +97,36 @@ pub fn rewrite<'x>(text: &'x str)
                 tokens,
                 variables: Vec::new(),
                 end_pos,
+                named_args: false,
+                first_number: None,
             });
         }
     };
     let mut rewritten_tokens = Vec::with_capacity(tokens.len());
     let mut variables = Vec::new();
-    for tok in &tokens {
-        if variables.len() >= VARIABLES.len() {
-            rewritten_tokens.push(tok.clone());
-            continue;
+    let next_var = |num: usize| {
+        if named_args {
+            format!("$_edb_arg__{}", var_idx + num)
+        } else {
+            format!("${}", var_idx + num)
         }
-        match tok.token.kind {
+    };
+    for tok in &tokens {
+        match tok.kind {
             Kind::IntConst
             // Don't replace `.12` because this is a tuple access
             if !matches!(rewritten_tokens.last(),
-                Some(SpannedToken {
-                    token: Token { kind: Kind::Dot, .. },
-                    ..
-                }))
+                Some(CowToken { kind: Kind::Dot, .. }))
             // Don't replace 'LIMIT 1' as a special case
-            && (tok.token.value != "1"
+            && (tok.value != "1"
                 || !matches!(rewritten_tokens.last(),
-                    Some(SpannedToken {
-                        token: Token { value: "LIMIT", kind: Kind::Keyword },
-                        ..
-                    })))
+                    Some(CowToken { kind: Kind::Keyword, ref value, .. })
+                    if value == "LIMIT"))
             => {
-                let name = VARIABLES[variables.len()];
-                push_var(&mut rewritten_tokens, "int64", name);
+                push_var(&mut rewritten_tokens, "int64",
+                    next_var(variables.len()));
                 variables.push(Variable {
-                    value: Value::Int(tok.token.value.to_string()),
+                    value: Value::Int(tok.value.to_string()),
                 });
                 continue;
             }
@@ -197,19 +136,23 @@ pub fn rewrite<'x>(text: &'x str)
             // Kind::DecimalConst => todo!(),
             // Kind::Str => todo!(),
             Kind::Keyword
-            if matches!(tok.token.value, "CONFIGURE"|"CREATE"|"ALTER"|"DROP")
+            if matches!(&tok.value[..], "CONFIGURE"|"CREATE"|"ALTER"|"DROP")
             => {
                 return Ok(Entry {
                     key: serialize_tokens(&tokens),
                     tokens,
                     variables: Vec::new(),
                     end_pos,
+                    named_args: false,
+                    first_number: None,
                 });
             }
             _ => rewritten_tokens.push(tok.clone()),
         }
     }
     return Ok(Entry {
+        named_args,
+        first_number: if variables.is_empty() { None } else { Some(var_idx) },
         key: serialize_tokens(&rewritten_tokens[..]),
         tokens: rewritten_tokens,
         variables,
@@ -217,7 +160,7 @@ pub fn rewrite<'x>(text: &'x str)
     });
 }
 
-fn is_operator(token: &Token) -> bool {
+fn is_operator(token: &CowToken) -> bool {
     use edgeql_parser::tokenizer::Kind::*;
     match token.kind {
         | Assign
@@ -272,15 +215,16 @@ fn is_operator(token: &Token) -> bool {
     }
 }
 
-fn serialize_tokens(tokens: &[SpannedToken<'_>]) -> String {
+fn serialize_tokens(tokens: &[CowToken<'_>]) -> String {
     use edgeql_parser::tokenizer::Kind::Argument;
+
     let mut buf = String::new();
     let mut needs_space = false;
-    for SpannedToken { ref token, .. } in tokens {
+    for token in tokens {
         if needs_space && !is_operator(token) && token.kind != Argument {
             buf.push(' ');
         }
-        buf.push_str(token.value);
+        buf.push_str(&token.value);
         needs_space = !is_operator(token);
     }
     return buf;
@@ -290,19 +234,25 @@ fn serialize_tokens(tokens: &[SpannedToken<'_>]) -> String {
 mod test {
     use super::scan_vars;
     use combine::{StreamOnce, Positioned, easy::Error};
-    use edgeql_parser::tokenizer::{TokenStream, SpannedToken, Token};
+    use edgeql_parser::tokenizer::{TokenStream};
+    use crate::tokenizer::{CowToken};
 
-    fn tokenize<'x>(s: &'x str) -> Vec<Token<'x>> {
+    fn tokenize<'x>(s: &'x str) -> Vec<CowToken<'x>> {
         let mut r = Vec::new();
         let mut s = TokenStream::new(s);
         loop {
             match s.uncons() {
-                Ok(x) => r.push(x),
+                Ok(x) => r.push(CowToken::new(x.kind, x.value)),
                 Err(ref e) if e == &Error::end_of_input() => break,
                 Err(e) => panic!("Parse error at {}: {}", s.position(), e),
             }
         }
         return r;
+    }
+
+    #[test]
+    fn none() {
+        assert_eq!(scan_vars(&tokenize("SELECT 1+1")).unwrap(), (false, 0));
     }
 
     #[test]
