@@ -834,6 +834,27 @@ class TestExpressions(tb.QueryTestCase):
                     [mod],
                 )
 
+    async def test_edgeql_expr_variables_01(self):
+        await self.assert_query_result(
+            r'''SELECT (INTROSPECT TYPEOF <int64>$0).name;''',
+            {'std::int64'},
+            variables=(7,),
+        )
+
+    async def test_edgeql_expr_variables_02(self):
+        await self.assert_query_result(
+            r'''SELECT <str>$1 ++ (INTROSPECT TYPEOF <int64>$0).name;''',
+            {'xstd::int64'},
+            variables=(7, 'x'),
+        )
+
+    async def test_edgeql_expr_variables_03(self):
+        await self.assert_query_result(
+            r'''SELECT (INTROSPECT TYPEOF <int64>$x).name;''',
+            {'std::int64'},
+            variables={'x': 7},
+        )
+
     async def _test_boolop(self, left, right, op, not_op, result):
         if isinstance(result, bool):
             # this operation should be valid and produce opposite

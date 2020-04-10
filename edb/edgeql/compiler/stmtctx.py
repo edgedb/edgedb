@@ -31,6 +31,7 @@ from edb import errors
 from edb.common import parsing
 
 from edb.ir import ast as irast
+from edb.ir import utils as irutils
 from edb.ir import typeutils
 
 from edb.schema import functions as s_func
@@ -204,9 +205,12 @@ def fini_expression(
             context=srcctx,
         )
 
+    used_params = {p.name for p in irutils.get_parameters(ir)}
+
     result = irast.Statement(
         expr=ir,
         params=ctx.env.query_parameters,
+        unused_params=frozenset(set(ctx.env.query_parameters) - used_params),
         views=ctx.view_nodes,
         source_map=ctx.source_map,
         scope_tree=ctx.path_scope,

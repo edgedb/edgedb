@@ -42,13 +42,15 @@ from .context import OutputFormat  # NOQA
 
 
 def compile_ir_to_sql_tree(
-        ir_expr: irast.Base, *,
-        output_format: Optional[OutputFormat]=None,
-        ignore_shapes: bool=False,
-        explicit_top_cast: Optional[irast.TypeRef]=None,
-        singleton_mode: bool=False,
-        use_named_params: bool=False,
-        expected_cardinality_one: bool=False) -> pgast.Base:
+    ir_expr: irast.Base, *,
+    output_format: Optional[OutputFormat]=None,
+    ignore_shapes: bool=False,
+    explicit_top_cast: Optional[irast.TypeRef]=None,
+    singleton_mode: bool=False,
+    use_named_params: bool=False,
+    expected_cardinality_one: bool=False,
+    argmap: Dict[str, int]=None,
+) -> pgast.Base:
     try:
         # Transform to sql tree
         env = context.Environment(
@@ -72,6 +74,7 @@ def compile_ir_to_sql_tree(
             context.ContextSwitchMode.TRANSPARENT,
             env=env,
             scope_tree=scope_tree,
+            argmap=argmap,
         )
 
         _ = context.CompilerContext(initial=ctx)
@@ -89,13 +92,15 @@ def compile_ir_to_sql_tree(
 
 
 def compile_ir_to_sql(
-        ir_expr: irast.Base, *,
-        output_format: Optional[OutputFormat]=None,
-        ignore_shapes: bool=False,
-        explicit_top_cast: Optional[irast.TypeRef]=None,
-        use_named_params: bool=False,
-        expected_cardinality_one: bool=False,
-        pretty: bool=True) -> Tuple[str, Dict[str, int]]:
+    ir_expr: irast.Base, *,
+    output_format: Optional[OutputFormat]=None,
+    ignore_shapes: bool=False,
+    explicit_top_cast: Optional[irast.TypeRef]=None,
+    use_named_params: bool=False,
+    expected_cardinality_one: bool=False,
+    pretty: bool=True,
+    argmap: Dict[str, int]=None,
+) -> str:
 
     qtree = compile_ir_to_sql_tree(
         ir_expr,
@@ -103,14 +108,15 @@ def compile_ir_to_sql(
         ignore_shapes=ignore_shapes,
         explicit_top_cast=explicit_top_cast,
         use_named_params=use_named_params,
-        expected_cardinality_one=expected_cardinality_one)
+        expected_cardinality_one=expected_cardinality_one,
+        argmap=argmap,
+    )
 
     if debug.flags.edgeql_compile:  # pragma: no cover
         debug.header('SQL Tree')
         debug.dump(qtree)
 
     assert isinstance(qtree, pgast.Query), "expected instance of ast.Query"
-    argmap = qtree.argnames
 
     # Generate query text
     codegen = _run_codegen(qtree, pretty=pretty)
@@ -120,7 +126,7 @@ def compile_ir_to_sql(
         debug.header('SQL')
         debug.dump_code(sql_text, lexer='sql')
 
-    return sql_text, argmap
+    return sql_text
 
 
 def _run_codegen(

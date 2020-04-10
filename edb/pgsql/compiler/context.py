@@ -157,13 +157,14 @@ class CompilerContextLevel(compiler.ContextLevel):
         *,
         env: Optional[Environment] = None,
         scope_tree: Optional[irast.ScopeTreeNode] = None,
+        argmap: Dict[str, int] = None,
     ) -> None:
         if prevlevel is None:
             assert env is not None
             assert scope_tree is not None
 
             self.env = env
-            self.argmap = collections.OrderedDict()
+            self.argmap = {} if argmap is None else argmap.copy()
 
             self.singleton_mode = False
 

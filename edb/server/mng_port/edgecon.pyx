@@ -1015,7 +1015,10 @@ cdef class EdgeConnection:
             return
 
         bound_args_buf = self.recode_bind_args(
-            bind_args, query_unit.in_array_backend_tids)
+            bind_args,
+            query_unit.in_unused_args,
+            query_unit.in_array_backend_tids,
+        )
 
         process_sync = False
         if self.buffer.take_message_type(b'S'):
@@ -1535,7 +1538,11 @@ cdef class EdgeConnection:
             raise errors.BinaryProtocolError(
                 f'unexpected message type {chr(mtype)!r}')
 
-    cdef WriteBuffer recode_bind_args(self, bytes bind_args, dict array_tids):
+    cdef WriteBuffer recode_bind_args(self,
+        bytes bind_args,
+        frozenset unused_args,
+        dict array_tids,
+    ):
         cdef:
             FRBuffer in_buf
             WriteBuffer out_buf = WriteBuffer.new()
@@ -1558,16 +1565,21 @@ cdef class EdgeConnection:
         # number of elements in the tuple
         argsnum = hton.unpack_int32(frb_read(&in_buf, 4))
 
-        out_buf.write_int16(<int16_t>argsnum)
+        dest_arg_num = argsnum - len(unused_args) if unused_args else argsnum
+        out_buf.write_int16(<int16_t>dest_arg_num)
 
-        for i in range(argsnum):
+        for arg_index in range(argsnum):
             if has_reserved:
                 frb_read(&in_buf, 4)  # reserved
             in_len = hton.unpack_int32(frb_read(&in_buf, 4))
+            if unused_args is not None and arg_index in unused_args:
+                if in_len > 0:
+                    frb_read(&in_buf, in_len)
+                continue
             out_buf.write_int32(in_len)
             if in_len > 0:
                 data = frb_read(&in_buf, in_len)
-                array_tid = array_tids and array_tids.get(i)
+                array_tid = array_tids and array_tids.get(arg_index)
                 # Ensure all array parameters have correct element OIDs as
                 # per Postgres' expectations.
                 if array_tid is not None:

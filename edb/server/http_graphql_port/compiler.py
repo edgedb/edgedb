@@ -91,15 +91,19 @@ class Compiler(compiler.BaseCompiler):
                 f'compiled GrqphQL query has cardinality {ir.cardinality}, '
                 f'expected ONE')
 
-        sql_text, argmap = pg_compiler.compile_ir_to_sql(
+        argmap = {}
+        args = []
+        for param_name in ir.params:
+            if param_name not in ir.unused_params:
+                argmap[param_name] = len(args) + 1
+                args.append(param_name)
+
+        sql_text = pg_compiler.compile_ir_to_sql(
             ir,
             pretty=debug.flags.edgeql_compile,
             expected_cardinality_one=True,
-            output_format=pg_compiler.OutputFormat.JSON)
-
-        args = [None] * len(argmap)
-        for argname, argpos in argmap.items():
-            args[argpos - 1] = argname
+            output_format=pg_compiler.OutputFormat.JSON,
+            argmap=argmap)
 
         sql_bytes = sql_text.encode()
         sql_hash = self._hash_sql(sql_bytes)

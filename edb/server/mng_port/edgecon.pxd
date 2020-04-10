@@ -87,7 +87,7 @@ cdef class EdgeConnection:
 
         tuple protocol_version
         tuple max_protocol
-        
+
         object __weakref__
 
     cdef _parse_io_format(self, bytes mode)
@@ -103,7 +103,8 @@ cdef class EdgeConnection:
 
     cdef pgcon_last_sync_status(self)
 
-    cdef WriteBuffer recode_bind_args(self, bytes bind_args, dict array_tids)
+    cdef WriteBuffer recode_bind_args(self, bytes bind_args,
+        frozenset unused_args, dict array_tids)
 
     cdef WriteBuffer make_describe_msg(self, query_unit)
     cdef WriteBuffer make_command_complete_msg(self, query_unit)

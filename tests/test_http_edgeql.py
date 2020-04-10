@@ -192,6 +192,20 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
             variables={'number': 123456789123456789123456789}
         )
 
+    def test_http_edgeql_query_10(self):
+        self.assert_edgeql_query_result(
+            r'''SELECT (INTROSPECT TYPEOF <int64>$x).name;''',
+            ['std::int64'],
+            variables={'x': 7},
+        )
+
+    def test_http_edgeql_query_11(self):
+        self.assert_edgeql_query_result(
+            r'''SELECT <str>$x ++ (INTROSPECT TYPEOF <int64>$y).name;''',
+            ['xstd::int64'],
+            variables={'x': 'x', 'y': 7},
+        )
+
     def test_http_edgeql_session_func_01(self):
         with self.assertRaisesRegex(edgedb.QueryError,
                                     r'sys::advisory_lock\(\) cannot be '

@@ -410,6 +410,7 @@ class Statement(Command):
     expr: Set
     views: typing.Dict[sn.Name, s_types.Type]
     params: typing.Dict[str, s_types.Type]
+    unused_params: typing.Set[str]
     cardinality: qltypes.Cardinality
     stype: s_types.Type
     view_shapes: typing.Dict[so.Object, typing.List[s_pointers.Pointer]]

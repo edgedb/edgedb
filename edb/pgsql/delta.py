@@ -608,7 +608,7 @@ class CreateFunction(FunctionCommand, CreateObject,
         if nativecode.irast is None:
             nativecode = self.compile_function(schema, context, nativecode)
 
-        sql_text, _ = compiler.compile_ir_to_sql(
+        sql_text = compiler.compile_ir_to_sql(
             nativecode.irast,
             ignore_shapes=True,
             explicit_top_cast=irtyputils.type_to_typeref(  # note: no cache

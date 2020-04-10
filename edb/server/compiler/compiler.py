@@ -20,11 +20,11 @@
 from __future__ import annotations
 from typing import *
 
-import collections
 import dataclasses
 import hashlib
 import pickle
 import uuid
+import itertools
 
 import asyncpg
 import immutables
@@ -362,11 +362,60 @@ class Compiler(BaseCompiler):
                     f'the query has cardinality {result_cardinality} '
                     f'which does not match the expected cardinality ONE')
 
-        sql_text, argmap = pg_compiler.compile_ir_to_sql(
+        if ir.params:
+
+            if not single_stmt_mode:
+                raise errors.QueryError(
+                    'EdgeQL script queries cannot accept parameters')
+
+            first_param_name = next(iter(ir.params))
+            if first_param_name.isdecimal():
+                named = False
+                subtypes = [None] * len(ir.params)
+                for param_name, param_type in ir.params.items():
+                    idx = int(param_name)
+                    subtypes[idx] = (param_name, param_type)
+            else:
+                named = True
+                subtypes = []
+                for param_name, param_type in ir.params.items():
+                    subtypes.append((param_name, param_type))
+
+            postgres_idx = itertools.count(1)
+            unused_args = set()
+            array_tids = {}
+            argmap = {}
+            for idx, (param_name, param_type) in enumerate(subtypes):
+                if param_name in ir.unused_params:
+                    unused_args.add(idx)
+                else:
+                    argmap[param_name] = next(postgres_idx)
+                    if param_type.is_array():
+                        el_type = param_type.get_element_type(ir.schema)
+                        array_tids[idx] = el_type.get_backend_id(ir.schema)
+
+            in_array_backend_tids = array_tids or None
+            in_unused_args = frozenset(unused_args) if unused_args else None
+
+            ir.schema, params_type = s_types.Tuple.create(
+                ir.schema,
+                element_types=dict(subtypes),
+                named=named)
+
+        else:
+
+            ir.schema, params_type = s_types.Tuple.create(
+                ir.schema, element_types={}, named=False)
+            argmap = {}
+            in_unused_args = None
+            in_array_backend_tids = None
+
+        sql_text = pg_compiler.compile_ir_to_sql(
             ir,
             pretty=debug.flags.edgeql_compile,
             expected_cardinality_one=ctx.expected_cardinality_one,
-            output_format=ctx.output_format)
+            output_format=ctx.output_format,
+            argmap=argmap)
 
         sql_bytes = sql_text.encode(defines.EDGEDB_ENCODING)
 
@@ -378,45 +427,6 @@ class Compiler(BaseCompiler):
             else:
                 out_type_data, out_type_id = \
                     sertypes.TypeSerializer.describe_json()
-
-            in_array_backend_tids: Optional[
-                Mapping[int, int]
-            ] = None
-
-            if ir.params:
-                array_params = []
-                subtypes = [None] * len(ir.params)
-                first_param_name = next(iter(ir.params))
-                if first_param_name.isdecimal():
-                    named = False
-                    for param_name, param_type in ir.params.items():
-                        idx = int(param_name)
-                        subtypes[idx] = (param_name, param_type)
-                        if param_type.is_array():
-                            el_type = param_type.get_element_type(ir.schema)
-                            array_params.append(
-                                (idx, el_type.get_backend_id(ir.schema)))
-                else:
-                    named = True
-                    for param_name, param_type in ir.params.items():
-                        idx = argmap[param_name] - 1
-                        subtypes[idx] = (
-                            param_name, param_type
-                        )
-                        if param_type.is_array():
-                            el_type = param_type.get_element_type(ir.schema)
-                            array_params.append(
-                                (idx, el_type.get_backend_id(ir.schema)))
-
-                ir.schema, params_type = s_types.Tuple.create(
-                    ir.schema,
-                    element_types=collections.OrderedDict(subtypes),
-                    named=named)
-                if array_params:
-                    in_array_backend_tids = {p[0]: p[1] for p in array_params}
-            else:
-                ir.schema, params_type = s_types.Tuple.create(
-                    ir.schema, element_types={}, named=False)
 
             in_type_data, in_type_id = sertypes.TypeSerializer.describe(
                 ir.schema, params_type, {}, {})
@@ -440,15 +450,13 @@ class Compiler(BaseCompiler):
                 in_type_id=in_type_id.bytes,
                 in_type_data=in_type_data,
                 in_type_args=in_type_args,
+                in_unused_args=in_unused_args,
                 in_array_backend_tids=in_array_backend_tids,
                 out_type_id=out_type_id.bytes,
                 out_type_data=out_type_data,
             )
 
         else:
-            if ir.params:
-                raise errors.QueryError(
-                    'EdgeQL script queries cannot accept parameters')
 
             return dbstate.SimpleQuery(sql=(sql_bytes,))
 
@@ -831,7 +839,7 @@ class Compiler(BaseCompiler):
             sql = (sql_text.encode(),)
 
         else:
-            sql_text, _ = pg_compiler.compile_ir_to_sql(
+            sql_text = pg_compiler.compile_ir_to_sql(
                 ir,
                 pretty=debug.flags.edgeql_compile,
                 output_format=pg_compiler.OutputFormat.JSONB)
@@ -973,6 +981,7 @@ class Compiler(BaseCompiler):
                     unit.in_type_args = comp.in_type_args
                     unit.in_type_id = comp.in_type_id
                     unit.in_array_backend_tids = comp.in_array_backend_tids
+                    unit.in_unused_args = comp.in_unused_args
 
                     unit.cacheable = True
 

@@ -66,6 +66,7 @@ class Query(BaseQuery):
     in_array_backend_tids: Optional[
         Mapping[int, int]
     ] = None
+    in_unused_args: Optional[FrozenSet[int]] = None
 
     # Set only when a query is compiled with "json_parameters=True"
     in_type_args: Optional[Tuple[str, ...]] = None
@@ -173,6 +174,7 @@ class QueryUnit:
     out_type_id: bytes = sertypes.NULL_TYPE_ID
     in_type_data: bytes = sertypes.EMPTY_TUPLE_DESC
     in_type_id: bytes = sertypes.EMPTY_TUPLE_ID
+    in_unused_args: Optional[FrozenSet[int]] = None
 
     # Set only when a query is compiled with "json_parameters=True"
     in_type_args: Optional[Tuple[str, ...]] = None
