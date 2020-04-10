@@ -65,6 +65,10 @@ class ExprType(enum.IntEnum):
 
 TypeT = typing.TypeVar('TypeT', bound='Type')
 InheritingTypeT = typing.TypeVar('InheritingTypeT', bound='InheritingType')
+CollectionTypeT = typing.TypeVar('CollectionTypeT', bound='Collection')
+CollectionExprAliasT = typing.TypeVar(
+    'CollectionExprAliasT', bound='CollectionExprAlias'
+)
 
 
 class Type(
@@ -187,20 +191,20 @@ class Type(
     def is_polymorphic(self, schema: s_schema.Schema) -> bool:
         return False
 
-    def is_any(self) -> bool:
+    def is_any(self, schema: s_schema.Schema) -> bool:
         return False
 
-    def is_anytuple(self) -> bool:
+    def is_anytuple(self, schema: s_schema.Schema) -> bool:
         return False
 
     def find_any(self, schema: s_schema.Schema) -> Optional[Type]:
-        if self.is_any():
+        if self.is_any(schema):
             return self
         else:
             return None
 
     def contains_any(self, schema: s_schema.Schema) -> bool:
-        return self.is_any()
+        return self.is_any(schema)
 
     def is_scalar(self) -> bool:
         return False
@@ -211,7 +215,7 @@ class Type(
     def is_array(self) -> bool:
         return False
 
-    def is_tuple(self) -> bool:
+    def is_tuple(self, schema: s_schema.Schema) -> bool:
         return False
 
     def is_enum(self, schema: s_schema.Schema) -> bool:
@@ -232,7 +236,7 @@ class Type(
         if not poly.is_polymorphic(schema):
             raise TypeError('expected a polymorphic type as a second argument')
 
-        if poly.is_any():
+        if poly.is_any(schema):
             return True
 
         return self._test_polymorphic(schema, poly)
@@ -253,8 +257,8 @@ class Type(
         return self._resolve_polymorphic(schema, other)
 
     def to_nonpolymorphic(
-        self: TypeT, schema: s_schema.Schema, concrete_type: TypeT
-    ) -> typing.Tuple[s_schema.Schema, TypeT]:
+        self: TypeT, schema: s_schema.Schema, concrete_type: Type
+    ) -> typing.Tuple[s_schema.Schema, Type]:
         """Produce an non-polymorphic version of self.
 
         Example:
@@ -280,8 +284,8 @@ class Type(
     def _to_nonpolymorphic(
         self: TypeT,
         schema: s_schema.Schema,
-        concrete_type: TypeT,
-    ) -> typing.Tuple[s_schema.Schema, TypeT]:
+        concrete_type: Type,
+    ) -> typing.Tuple[s_schema.Schema, Type]:
         raise NotImplementedError(
             f'{type(self)} does not support to_nonpolymorphic()')
 
@@ -392,7 +396,7 @@ class InheritingType(so.DerivableInheritingObject, Type):
         other: Type,
         schema: s_schema.Schema,
     ) -> int:
-        if other.is_any() or self.is_any():
+        if other.is_any(schema) or self.is_any(schema):
             return MAX_TYPE_DISTANCE
 
         if not isinstance(other, type(self)):
@@ -615,7 +619,7 @@ class Collection(Type, s_abc.Collection):
 
     def get_common_parent_type_distance(
             self, other: Type, schema: s_schema.Schema) -> int:
-        if other.is_any():
+        if other.is_any(schema):
             return 1
 
         if other.__class__ is not self.__class__:
@@ -638,7 +642,7 @@ class Collection(Type, s_abc.Collection):
     def _issubclass(
         self, schema: s_schema.Schema, parent: so.SubclassableObject
     ) -> bool:
-        if isinstance(parent, Type) and parent.is_any():
+        if isinstance(parent, Type) and parent.is_any(schema):
             return True
 
         if parent.__class__ is not self.__class__:
@@ -650,7 +654,7 @@ class Collection(Type, s_abc.Collection):
         my_types = self.get_subtypes(schema)
 
         for pt, my in zip(parent_types, my_types):
-            if not pt.is_any() and not my.issubclass(schema, pt):
+            if not pt.is_any(schema) and not my.issubclass(schema, pt):
                 return False
 
         return True
@@ -666,7 +670,7 @@ class Collection(Type, s_abc.Collection):
         if isinstance(parent, tuple):
             return any(self.issubclass(schema, p) for p in parent)
 
-        if isinstance(parent, Type) and parent.is_any():
+        if isinstance(parent, Type) and parent.is_any(schema):
             return True
 
         return self._issubclass(schema, parent)
@@ -833,7 +837,7 @@ class Array(
         return schema, result
 
     def contains_array_of_tuples(self, schema: s_schema.Schema) -> bool:
-        return self.get_element_type(schema).is_tuple()
+        return self.get_element_type(schema).is_tuple(schema)
 
     def get_displayname(self, schema: s_schema.Schema) -> str:
         return (
@@ -934,7 +938,7 @@ class Array(
         return Array.from_subtypes(schema, (concrete_type,))
 
     def _test_polymorphic(self, schema: s_schema.Schema, other: Type) -> bool:
-        if other.is_any():
+        if other.is_any(schema):
             return True
 
         if not isinstance(other, Array):
@@ -1116,7 +1120,7 @@ class ArrayTypeShell(CollectionTypeShell):
         return cmd
 
 
-class CollectionExprAlias(so.QualifiedObject):
+class CollectionExprAlias(so.QualifiedObject, Collection):
 
     @classmethod
     def get_schema_class_displayname(cls) -> str:
@@ -1187,7 +1191,7 @@ class Tuple(
                              for st in self.get_subtypes(schema))
         return f'tuple<{st_names}>'
 
-    def is_tuple(self) -> bool:
+    def is_tuple(self, schema: s_schema.Schema) -> bool:
         return True
 
     def is_named(self, schema: s_schema.Schema) -> bool:
@@ -1484,7 +1488,7 @@ class Tuple(
         return type(self).from_subtypes(schema, new_types)
 
     def _test_polymorphic(self, schema: s_schema.Schema, other: Type) -> bool:
-        if other.is_any() or other.is_anytuple():
+        if other.is_any(schema) or other.is_anytuple(schema):
             return True
         if not isinstance(other, Tuple):
             return False
@@ -1726,7 +1730,7 @@ def ensure_schema_type_expr_type(
     return cmd
 
 
-class TypeCommand(sd.ObjectCommand[Type]):
+class TypeCommand(sd.ObjectCommand[TypeT]):
     @classmethod
     def _get_alias_expr(cls, astnode: qlast.CreateAlias) -> qlast.Expr:
         expr = qlast.get_ddl_field_value(astnode, 'expr')
@@ -1909,7 +1913,7 @@ class TypeCommand(sd.ObjectCommand[Type]):
 
 class InheritingTypeCommand(
     sd.QualifiedObjectCommand[InheritingTypeT],
-    TypeCommand,
+    TypeCommand[InheritingTypeT],
     inheriting.InheritingObjectCommand[InheritingTypeT],
 ):
 
@@ -1938,7 +1942,7 @@ class CollectionTypeCommandContext(sd.ObjectCommandContext[Collection]):
     pass
 
 
-class CollectionTypeCommand(TypeCommand,
+class CollectionTypeCommand(TypeCommand[CollectionTypeT],
                             context_class=CollectionTypeCommandContext):
 
     def get_ast(
@@ -1954,8 +1958,8 @@ class CollectionTypeCommand(TypeCommand,
 
 
 class CollectionExprAliasCommand(
-    sd.QualifiedObjectCommand[CollectionExprAlias],
-    TypeCommand,
+    sd.QualifiedObjectCommand[CollectionExprAliasT],
+    TypeCommand[CollectionExprAliasT],
     context_class=CollectionTypeCommandContext,
 ):
 
@@ -1974,38 +1978,38 @@ class CollectionExprAliasCommand(
 
 
 class CreateCollectionType(
-    CollectionTypeCommand,
-    sd.CreateObject[Collection],
+    CollectionTypeCommand[CollectionTypeT],
+    sd.CreateObject[CollectionTypeT],
 ):
     pass
 
 
 class DeleteCollectionType(
-    CollectionTypeCommand,
-    sd.DeleteObject[Collection],
+    CollectionTypeCommand[CollectionTypeT],
+    sd.DeleteObject[CollectionTypeT],
 ):
     pass
 
 
 class CreateCollectionExprAlias(
-    CollectionExprAliasCommand,
-    sd.CreateObject[CollectionExprAlias],
+    CollectionExprAliasCommand[CollectionExprAliasT],
+    sd.CreateObject[CollectionExprAliasT],
 ):
     pass
 
 
 class DeleteCollectionExprAlias(
-    CollectionExprAliasCommand,
-    sd.DeleteObject[CollectionExprAlias],
+    CollectionExprAliasCommand[CollectionExprAliasT],
+    sd.DeleteObject[CollectionExprAliasT],
 ):
     pass
 
 
-class CreateTuple(CreateCollectionType, schema_metaclass=Tuple):
+class CreateTuple(CreateCollectionType[Tuple], schema_metaclass=Tuple):
     pass
 
 
-class CreateTupleExprAlias(CreateCollectionExprAlias,
+class CreateTupleExprAlias(CreateCollectionExprAlias[TupleExprAlias],
                            schema_metaclass=TupleExprAlias):
     def _get_ast_node(
         self, schema: s_schema.Schema, context: sd.CommandContext
@@ -2015,11 +2019,11 @@ class CreateTupleExprAlias(CreateCollectionExprAlias,
         return qlast.CreateAlias
 
 
-class CreateArray(CreateCollectionType, schema_metaclass=Array):
+class CreateArray(CreateCollectionType[Array], schema_metaclass=Array):
     pass
 
 
-class CreateArrayExprAlias(CreateCollectionExprAlias,
+class CreateArrayExprAlias(CreateCollectionExprAlias[TupleExprAlias],
                            schema_metaclass=ArrayExprAlias):
     def _get_ast_node(
         self, schema: s_schema.Schema, context: sd.CommandContext
@@ -2029,20 +2033,20 @@ class CreateArrayExprAlias(CreateCollectionExprAlias,
         return qlast.CreateAlias
 
 
-class DeleteTuple(DeleteCollectionType, schema_metaclass=Tuple):
+class DeleteTuple(DeleteCollectionType[Tuple], schema_metaclass=Tuple):
     pass
 
 
-class DeleteTupleExprAlias(DeleteCollectionExprAlias,
+class DeleteTupleExprAlias(DeleteCollectionExprAlias[TupleExprAlias],
                            schema_metaclass=TupleExprAlias):
     pass
 
 
-class DeleteArray(DeleteCollectionType, schema_metaclass=Array):
+class DeleteArray(DeleteCollectionType[Array], schema_metaclass=Array):
     pass
 
 
-class DeleteArrayExprAlias(DeleteCollectionExprAlias,
+class DeleteArrayExprAlias(DeleteCollectionExprAlias[ArrayExprAlias],
                            schema_metaclass=ArrayExprAlias):
     pass
 

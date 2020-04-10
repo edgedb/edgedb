@@ -215,11 +215,11 @@ def ast_to_type_shell(
 
     elif isinstance(node.maintype, qlast.AnyType):
         from . import pseudo as s_pseudo
-        return s_pseudo.AnyTypeShell()
+        return s_pseudo.PseudoTypeShell(name='anytype')
 
     elif isinstance(node.maintype, qlast.AnyTuple):
         from . import pseudo as s_pseudo
-        return s_pseudo.AnyTupleShell()
+        return s_pseudo.PseudoTypeShell(name='anytuple')
 
     assert isinstance(node.maintype, qlast.ObjectRef)
 
@@ -287,9 +287,9 @@ def typeref_to_ast(
     result: qlast.TypeExpr
     components: Tuple[so.Object, ...]
 
-    if t.is_type() and cast(s_types.Type, t).is_any():
+    if t.is_type() and cast(s_types.Type, t).is_any(schema):
         result = qlast.TypeName(name=_name, maintype=qlast.AnyType())
-    elif t.is_type() and cast(s_types.Type, t).is_anytuple():
+    elif t.is_type() and cast(s_types.Type, t).is_anytuple(schema):
         result = qlast.TypeName(name=_name, maintype=qlast.AnyTuple())
     elif isinstance(t, s_types.Tuple) and t.is_named(schema):
         result = qlast.TypeName(

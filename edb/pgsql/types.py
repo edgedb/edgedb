@@ -149,7 +149,7 @@ def pg_type_from_object(
     if isinstance(obj, s_scalars.ScalarType):
         return pg_type_from_scalar(schema, obj)
 
-    elif obj.is_type() and obj.is_anytuple():
+    elif obj.is_type() and obj.is_anytuple(schema):
         return ('record',)
 
     elif isinstance(obj, s_abc.Tuple):
@@ -173,7 +173,7 @@ def pg_type_from_object(
     elif isinstance(obj, s_objtypes.ObjectType):
         return ('uuid',)
 
-    elif obj.is_type() and obj.is_any():
+    elif obj.is_type() and obj.is_any(schema):
         return ('anyelement',)
 
     else:
@@ -264,7 +264,7 @@ class _PointerStorageInfo:
         if pointer_target is not None:
             if pointer_target.is_object_type():
                 column_type = ('uuid',)
-            elif pointer_target.is_tuple():
+            elif pointer_target.is_tuple(schema):
                 column_type = common.get_backend_name(schema, pointer_target,
                                                       catenate=False)
             else:
@@ -567,12 +567,12 @@ class TypeDesc:
                     maintype=t.id, name=tn, collection=t.schema_name,
                     subtypes=subtypes, dimensions=dimensions,
                     position=i if not is_root else None)
-            elif t.is_type() and t.is_any():
+            elif t.is_type() and t.is_any(schema):
                 desc = TypeDescNode(
                     maintype=t.id, name=tn, collection=None,
                     subtypes=[], dimensions=[],
                     position=i if not is_root else None)
-            elif t.is_type() and t.is_anytuple():
+            elif t.is_type() and t.is_anytuple(schema):
                 desc = TypeDescNode(
                     maintype=t.id, name=tn, collection=None,
                     subtypes=[], dimensions=[],

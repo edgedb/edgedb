@@ -304,7 +304,7 @@ class GQLCoreSchema:
             if name in self._gql_enums:
                 target = self._gql_enums.get(name)
 
-        elif edb_target.is_tuple():
+        elif edb_target.is_tuple(self.edb_schema):
             edb_typename = edb_target.get_verbosename(self.edb_schema)
             raise g_errors.GraphQLCoreError(
                 f"Could not convert {edb_typename} to a GraphQL type.")

@@ -61,9 +61,9 @@ def get_schema_object(
         module = name.module
         name = name.name
     elif isinstance(name, qlast.AnyType):
-        return s_pseudo.Any.get(ctx.env.schema)
+        return s_pseudo.PseudoType.get(ctx.env.schema, 'anytype')
     elif isinstance(name, qlast.AnyTuple):
-        return s_pseudo.AnyTuple.get(ctx.env.schema)
+        return s_pseudo.PseudoType.get(ctx.env.schema, 'anytuple')
     elif isinstance(name, qlast.BaseObjectRef):
         raise AssertionError(f"Unhandled BaseObjectRef subclass: {name!r}")
 

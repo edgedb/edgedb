@@ -17,6 +17,10 @@
 #
 
 
+CREATE PSEUDO TYPE `anytype`;
+
+CREATE PSEUDO TYPE `anytuple`;
+
 CREATE ABSTRACT SCALAR TYPE std::anyscalar;
 
 CREATE SCALAR TYPE std::bool EXTENDING std::anyscalar;

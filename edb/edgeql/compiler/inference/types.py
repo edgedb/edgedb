@@ -270,7 +270,7 @@ def __infer_anytyperef(
     ir: irast.AnyTypeRef,
     env: context.Environment,
 ) -> s_types.Type:
-    return s_pseudo.Any.get(env.schema)
+    return s_pseudo.PseudoType.get(env.schema, 'anytype')
 
 
 @_infer_type.register
@@ -278,7 +278,7 @@ def __infer_anytupleref(
     ir: irast.AnyTupleRef,
     env: context.Environment,
 ) -> s_types.Type:
-    return s_pseudo.AnyTuple.get(env.schema)
+    return s_pseudo.PseudoType.get(env.schema, 'anytuple')
 
 
 @_infer_type.register
@@ -368,7 +368,7 @@ def __infer_slice(
         base_name = 'bytes'
     elif isinstance(node_type, s_abc.Array):
         base_name = 'array'
-    elif node_type.is_any():
+    elif node_type.is_any(env.schema):
         base_name = 'anytype'
     else:
         # the base type is not valid
@@ -452,12 +452,12 @@ def __infer_index(
 
         result = node_type.get_subtypes(env.schema)[0]
 
-    elif (node_type.is_any() or
+    elif (node_type.is_any(env.schema) or
             (node_type.is_scalar() and
                 node_type.get_name(env.schema) == 'std::anyscalar') and
             (index_type.implicitly_castable_to(int_t, env.schema) or
                 index_type.implicitly_castable_to(str_t, env.schema))):
-        result = s_pseudo.Any.get(env.schema)
+        result = s_pseudo.PseudoType.get(env.schema, 'anytype')
 
     else:
         raise errors.QueryError(
@@ -482,7 +482,7 @@ def __infer_array(
             raise errors.QueryError('could not determine array type',
                                     context=ir.context)
     else:
-        element_type = s_pseudo.Any.get(env.schema)
+        element_type = s_pseudo.PseudoType.get(env.schema, 'anytype')
 
     env.schema, arr_t = s_types.Array.create(
         env.schema,

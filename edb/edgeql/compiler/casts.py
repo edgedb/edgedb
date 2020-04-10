@@ -93,7 +93,7 @@ def compile_cast(
         return _cast_array_literal(
             ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
 
-    elif orig_stype.is_tuple():
+    elif orig_stype.is_tuple(ctx.env.schema):
         return _cast_tuple(
             ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
 
@@ -374,7 +374,7 @@ def _cast_tuple(
         return _cast_to_ir(
             new_tuple, direct_cast, orig_stype, new_stype, ctx=ctx)
 
-    if not new_stype.is_tuple():
+    if not new_stype.is_tuple(ctx.env.schema):
         raise errors.QueryError(
             f'cannot cast {orig_stype.get_displayname(ctx.env.schema)!r} '
             f'to {new_stype.get_displayname(ctx.env.schema)!r}',

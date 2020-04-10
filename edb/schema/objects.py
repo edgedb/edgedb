@@ -2210,7 +2210,7 @@ class SubclassableObject(Object):
         if isinstance(parent, tuple):
             return any(self.issubclass(schema, p) for p in parent)
         else:
-            if isinstance(parent, s_types.Type) and parent.is_any():
+            if isinstance(parent, s_types.Type) and parent.is_any(schema):
                 return True
             else:
                 return self._issubclass(schema, parent)

@@ -74,6 +74,7 @@ unreserved_keywords = frozenset([
     "postfix",
     "prefix",
     "property",
+    "pseudo",
     "read",
     "rename",
     "required",

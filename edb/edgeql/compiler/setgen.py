@@ -79,7 +79,7 @@ def new_empty_set(*, stype: Optional[s_types.Type]=None, alias: str,
                   srcctx: Optional[
                       parsing.ParserContext]=None) -> irast.Set:
     if stype is None:
-        stype = s_pseudo.Any.get(ctx.env.schema)
+        stype = s_pseudo.PseudoType.get(ctx.env.schema, 'anytype')
         if srcctx is not None:
             ctx.env.type_origins[stype] = srcctx
 
@@ -164,7 +164,7 @@ def new_array_set(
     if elements:
         stype = inference.infer_type(arr, env=ctx.env)
     else:
-        anytype = s_pseudo.Any.get(ctx.env.schema)
+        anytype = s_pseudo.PseudoType.get(ctx.env.schema, 'anytype')
         ctx.env.schema, stype = s_types.Array.from_subtypes(
             ctx.env.schema, [anytype])
         if srcctx is not None:
@@ -860,7 +860,7 @@ def ensure_set(
         stype = type_override
 
     if (isinstance(ir_set, irast.EmptySet)
-            and (stype is None or stype.is_any())
+            and (stype is None or stype.is_any(ctx.env.schema))
             and typehint is not None):
         inference.amend_empty_set_type(ir_set, typehint, env=ctx.env)
         stype = get_set_type(ir_set, ctx=ctx)

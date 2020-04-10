@@ -304,3 +304,10 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
             ''',
             {'123_HELLO'},
         )
+
+    async def test_edgeql_userddl_23(self):
+        with self.assertRaisesRegex(
+            edgedb.UnsupportedFeatureError,
+            'user-defined pseudotypes are not supported'
+        ):
+            await self.con.execute('CREATE PSEUDO TYPE foo;')

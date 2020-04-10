@@ -88,8 +88,8 @@ class ScalarType(
     def _to_nonpolymorphic(
         self,
         schema: s_schema.Schema,
-        concrete_type: ScalarType,
-    ) -> Tuple[s_schema.Schema, ScalarType]:
+        concrete_type: s_types.Type,
+    ) -> Tuple[s_schema.Schema, s_types.Type]:
         if (not concrete_type.is_polymorphic(schema) and
                 concrete_type.issubclass(schema, self)):
             return schema, concrete_type
@@ -102,7 +102,7 @@ class ScalarType(
         schema: s_schema.Schema,
         other: s_types.Type,
     ) -> bool:
-        if other.is_any():
+        if other.is_any(schema):
             return True
         else:
             return self.issubclass(schema, other)

@@ -18,11 +18,14 @@
 
 
 from __future__ import annotations
-# Cannot import * from typing because of name conflicts in this file.
-from typing import Optional, TypeVar, Tuple, TYPE_CHECKING
+from typing import *
 
-from . import name as sn
+from edb import errors
+from edb.edgeql import ast as qlast
+
+from . import delta as sd
 from . import objects as so
+from . import scalars as s_scalars
 from . import types as s_types
 
 if TYPE_CHECKING:
@@ -35,17 +38,26 @@ PseudoType_T = TypeVar("PseudoType_T", bound="PseudoType")
 class PseudoType(so.InheritingObject, s_types.Type):
 
     @classmethod
-    def get(cls: PseudoType_T, schema: s_schema.Schema) -> PseudoType_T:
-        raise NotImplementedError
+    def get(cls, schema: s_schema.Schema, name: str) -> PseudoType:
+        return schema.get_global(PseudoType, name)
+
+    def as_shell(self, schema: s_schema.Schema) -> PseudoTypeShell:
+        return PseudoTypeShell(name=self.get_name(schema))
 
     def get_shortname(self, schema: s_schema.Schema) -> str:
         return self.get_name(schema)
 
-    def get_bases(self, schema: s_schema.Schema) -> so.ObjectList:
-        return so.ObjectList.create_empty()
+    def get_bases(
+        self,
+        schema: s_schema.Schema,
+    ) -> so.ObjectList[PseudoType]:
+        return so.ObjectList[PseudoType].create_empty()  # type: ignore
 
-    def get_ancestors(self, schema: s_schema.Schema) -> so.ObjectList:
-        return so.ObjectList.create_empty()
+    def get_ancestors(
+        self,
+        schema: s_schema.Schema,
+    ) -> so.ObjectList[PseudoType]:
+        return so.ObjectList[PseudoType].create_empty()  # type: ignore
 
     def get_is_abstract(self, schema: s_schema.Schema) -> bool:
         return True
@@ -56,66 +68,30 @@ class PseudoType(so.InheritingObject, s_types.Type):
     def material_type(
         self,
         schema: s_schema.Schema,
-    ) -> Tuple[s_schema.Schema, s_types.Type]:
+    ) -> Tuple[s_schema.Schema, PseudoType]:
         return schema, self
 
+    def is_any(self, schema: s_schema.Schema) -> bool:
+        return self.get_name(schema) == 'anytype'
 
-class PseudoTypeShell(s_types.TypeShell):
+    def is_tuple(self, schema: s_schema.Schema) -> bool:
+        return self.get_name(schema) == 'anytuple'
 
-    def is_polymorphic(self, schema: s_schema.Schema) -> bool:
-        return True
-
-
-class Any(PseudoType):
-
-    @classmethod
-    def get(cls, schema: s_schema.Schema) -> Any:
-        return schema.get_global(Any, "anytype")
-
-    @classmethod
-    def instance(cls) -> Any:
-        if cls._instance is None:
-            cls._instance = cls.create()
-        return cls._instance
-
-    def is_any(self) -> bool:
-        return True
-
-    def _resolve_polymorphic(
-        self,
-        schema: s_schema.Schema,
-        concrete_type: s_types.Type
-    ) -> s_types.Type:
-        if concrete_type.is_scalar():
-            return concrete_type.get_topmost_concrete_base(schema)
-        return concrete_type
-
-    def _to_nonpolymorphic(
-        self,
-        schema: s_schema.Schema,
-        concrete_type: s_types.Type
-    ) -> Tuple[s_schema.Schema, s_types.Type]:
-        return schema, concrete_type
-
-    def _test_polymorphic(
-        self,
-        schema: s_schema.Schema,
-        other: s_types.Type
-    ) -> bool:
-        return other.is_any()
+    def is_anytuple(self, schema: s_schema.Schema) -> bool:
+        return self.get_name(schema) == 'anytuple'
 
     def implicitly_castable_to(
         self,
         other: s_types.Type,
         schema: s_schema.Schema
     ) -> bool:
-        return other.is_any()
+        return self == other
 
     def find_common_implicitly_castable_type(
         self,
         other: s_types.Type,
         schema: s_schema.Schema,
-    ) -> Tuple[s_schema.Schema, Optional[s_types.Type]]:
+    ) -> Tuple[s_schema.Schema, Optional[PseudoType]]:
         if self == other:
             return schema, self
         else:
@@ -126,53 +102,17 @@ class Any(PseudoType):
         other: s_types.Type,
         schema: s_schema.Schema
     ) -> int:
-        if other.is_any():
+        if self == other:
             return 0
         else:
             return s_types.MAX_TYPE_DISTANCE
 
-    def as_shell(self, schema):
-        return AnyTypeShell()
-
-
-class AnyTypeShell(PseudoTypeShell):
-
-    def __init__(self, *, name=sn.UnqualifiedName('anytype')):
-        super().__init__(name=name, schemaclass=Any)
-
-    def resolve(self, schema: s_schema.Schema) -> Any:
-        return Any.get(schema)
-
-
-class AnyTuple(PseudoType):
-
-    @classmethod
-    def get(cls, schema: s_schema.Schema) -> Any:
-        return schema.get_global(AnyTuple, "anytuple")
-
-    def is_anytuple(self) -> bool:
-        return True
-
-    def is_tuple(self) -> bool:
-        return True
-
-    def implicitly_castable_to(
-        self,
-        other: s_types.Type,
-        schema: s_schema.Schema
-    ) -> bool:
-        return other.is_anytuple()
-
-    def _resolve_polymorphic(
+    def _test_polymorphic(
         self,
         schema: s_schema.Schema,
-        concrete_type: s_types.Type
-    ) -> Optional[s_types.Type]:
-        if (not concrete_type.is_tuple() or
-                concrete_type.is_polymorphic(schema)):
-            return None
-        else:
-            return concrete_type
+        other: s_types.Type
+    ) -> bool:
+        return self == other
 
     def _to_nonpolymorphic(
         self,
@@ -181,22 +121,65 @@ class AnyTuple(PseudoType):
     ) -> Tuple[s_schema.Schema, s_types.Type]:
         return schema, concrete_type
 
-    def as_shell(self, schema):
-        return AnyTupleShell()
+    def _resolve_polymorphic(
+        self,
+        schema: s_schema.Schema,
+        concrete_type: s_types.Type
+    ) -> Optional[s_types.Type]:
+        if self.is_any(schema):
+            if isinstance(concrete_type, s_scalars.ScalarType):
+                return concrete_type.get_topmost_concrete_base(schema)
+            return concrete_type
+        elif self.is_anytuple(schema):
+            if (not concrete_type.is_tuple(schema) or
+                    concrete_type.is_polymorphic(schema)):
+                return None
+            else:
+                return concrete_type
+        else:
+            raise ValueError(
+                f'unexpected pseudo type: {self.get_name(schema)}')
 
 
-class AnyTupleShell(PseudoTypeShell):
+class PseudoTypeShell(s_types.TypeShell):
 
-    def __init__(self, *, name=sn.UnqualifiedName('anytuple')):
-        super().__init__(name=name, schemaclass=AnyTuple)
+    def __init__(self, *, name: str):
+        super().__init__(name=name, schemaclass=PseudoType)
 
-    def resolve(self, schema: s_schema.Schema) -> AnyTuple:
-        return AnyTuple.get(schema)
+    def is_polymorphic(self, schema: s_schema.Schema) -> bool:
+        return True
+
+    def resolve(self, schema: s_schema.Schema) -> PseudoType:
+        return PseudoType.get(schema, self.name)
 
 
-def populate_types(schema: s_schema.Schema) -> s_schema.Schema:
+class PseudoTypeCommandContext(sd.ObjectCommandContext[PseudoType]):
+    pass
 
-    schema, _ = Any.create_in_schema(schema, name='anytype')
-    schema, _ = AnyTuple.create_in_schema(schema, name='anytuple')
 
-    return schema
+class PseudoTypeCommand(
+    s_types.TypeCommand[PseudoType],
+    schema_metaclass=PseudoType,
+    context_class=PseudoTypeCommandContext,
+):
+    pass
+
+
+class CreatePseudoType(PseudoTypeCommand, sd.CreateObject[PseudoType]):
+
+    astnode = qlast.CreatePseudoType
+
+    @classmethod
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> sd.Command:
+        if not context.stdmode and not context.testmode:
+            raise errors.UnsupportedFeatureError(
+                'user-defined pseudotypes are not supported',
+                context=astnode.context
+            )
+
+        return super()._cmd_tree_from_ast(schema, astnode, context)

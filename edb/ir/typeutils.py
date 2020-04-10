@@ -155,12 +155,12 @@ def type_to_typeref(
             if cached_result.name_hint == t.get_name(schema):
                 return cached_result
 
-    if t.is_anytuple():
+    if t.is_anytuple(schema):
         result = irast.AnyTupleRef(
             id=t.id,
             name_hint=typename or t.get_name(schema),
         )
-    elif t.is_any():
+    elif t.is_any(schema):
         result = irast.AnyTypeRef(
             id=t.id,
             name_hint=typename or t.get_name(schema),
@@ -325,10 +325,10 @@ def ir_typeref_to_type(
         given *typeref*.
     """
     if is_anytuple(typeref):
-        return schema, s_pseudo.AnyTuple.get(schema)
+        return schema, s_pseudo.PseudoType.get(schema, 'anytuple')
 
     elif is_any(typeref):
-        return schema, s_pseudo.Any.get(schema)
+        return schema, s_pseudo.PseudoType.get(schema, 'anytype')
 
     elif is_tuple(typeref):
         named = False

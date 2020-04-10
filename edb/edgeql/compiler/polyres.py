@@ -395,7 +395,7 @@ def try_bind_call_args(
                 if empty_default:
                     default_type = None
 
-                    if param_type.is_any():
+                    if param_type.is_any(schema):
                         if resolved_poly_base_type is None:
                             raise errors.QueryError(
                                 f'could not resolve "anytype" type for the '

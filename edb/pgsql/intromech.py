@@ -551,17 +551,17 @@ class IntrospectionMech:
             )
 
         elif t['maintype'] == 'anytype':
-            scls = s_pseudo.Any.get(schema)
+            scls = s_pseudo.PseudoType.get(schema, 'anytype')
 
         elif t['maintype'] == 'anytuple':
-            scls = s_pseudo.AnyTuple.get(schema)
+            scls = s_pseudo.PseudoType.get(schema, 'anytuple')
 
         else:
             type_id = t['maintype']
             if type_id == s_obj.get_known_type_id('anytype'):
-                scls = s_pseudo.Any.get(schema)
+                scls = s_pseudo.PseudoType.get(schema, 'anytype')
             elif type_id == s_obj.get_known_type_id('anytuple'):
-                scls = s_pseudo.AnyTuple.get(schema)
+                scls = s_pseudo.PseudoType.get(schema, 'anytuple')
             else:
                 scls = schema.get_by_id(t['maintype'])
 

@@ -715,6 +715,10 @@ class DropAnnotation(DropObject):
     pass
 
 
+class CreatePseudoType(CreateObject):
+    pass
+
+
 class CreateScalarType(CreateExtendingObject):
     pass
 

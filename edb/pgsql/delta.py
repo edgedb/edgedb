@@ -48,6 +48,7 @@ from edb.schema import name as sn
 from edb.schema import objects as s_obj
 from edb.schema import operators as s_opers
 from edb.schema import pointers as s_pointers
+from edb.schema import pseudo as s_pseudo
 from edb.schema import referencing as s_referencing
 from edb.schema import roles as s_roles
 from edb.schema import sources as s_sources
@@ -361,6 +362,22 @@ class AlterObjectProperty(MetaCommand, adapts=sd.AlterObjectProperty):
     pass
 
 
+class PseudoTypeCommand(ObjectMetaCommand):
+
+    _table = metaschema.get_metaclass_table(s_pseudo.PseudoType)
+
+    def get_table(self, schema):
+        return self._table
+
+
+class CreatePseudoType(
+    PseudoTypeCommand,
+    CreateObject,
+    adapts=s_pseudo.CreatePseudoType,
+):
+    pass
+
+
 class TupleCommand(ObjectMetaCommand):
 
     pass
@@ -523,7 +540,7 @@ class FunctionCommand:
         return common.get_backend_name(schema, func, catenate=False)
 
     def get_pgtype(self, func: s_funcs.Function, obj, schema):
-        if obj.is_any():
+        if obj.is_any(schema):
             return ('anyelement',)
 
         try:

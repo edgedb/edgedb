@@ -41,7 +41,6 @@ from edb.schema import migrations  # NoQA
 from edb.schema import modules as s_mod
 from edb.schema import name as sn
 from edb.schema import objects as s_obj
-from edb.schema import pseudo as s_pseudo
 
 from edb.server import defines
 
@@ -2098,22 +2097,6 @@ def get_metaclass_table(mcls):
     return metaclass_tables[mcls]
 
 
-def make_register_any_command():
-    pseudo_type_table = get_metaclass_table(s_pseudo.PseudoType)
-
-    anytype = pseudo_type_table.record
-    anytype.ancestors = None
-    anytype.id = s_obj.get_known_type_id('anytype')
-    anytype.name = 'anytype'
-
-    anytuple = pseudo_type_table.record
-    anytuple.ancestors = None
-    anytuple.id = s_obj.get_known_type_id('anytuple')
-    anytuple.name = 'anytuple'
-
-    return dbops.Insert(table=pseudo_type_table, records=[anytype, anytuple])
-
-
 async def bootstrap(conn):
     commands = dbops.CommandGroup()
     commands.add_commands([
@@ -2194,9 +2177,6 @@ async def bootstrap(conn):
         dbops.CreateFunction(SysVersionFunction()),
         dbops.CreateFunction(SysGetTransactionIsolation()),
     ])
-
-    # Register "any" pseudo-type.
-    commands.add_command(make_register_any_command())
 
     block = dbops.PLTopBlock(disable_ddl_triggers=True)
     commands.generate(block)

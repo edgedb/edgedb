@@ -166,7 +166,7 @@ def compile_FunctionCall(
     rtype = matched_call.return_type
     path_id = pathctx.get_expression_path_id(rtype, ctx=ctx)
 
-    if rtype.is_tuple():
+    if rtype.is_tuple(env.schema):
         rtype = cast(s_types.Tuple, rtype)
         tuple_path_ids = []
         nested_path_ids = []
@@ -299,19 +299,27 @@ def compile_operator(
         # If both of the args are arrays or tuples, potentially
         # compile the operator for them differently than for other
         # combinations.
-        if args[0][0].is_tuple() and args[1][0].is_tuple():
+        if args[0][0].is_tuple(env.schema) and args[1][0].is_tuple(env.schema):
             # Out of the candidate operators, find the ones that
             # correspond to tuples.
-            coll_opers = [op for op in opers
-                          if all(param.get_type(schema).is_tuple() for param
-                                 in op.get_params(schema).objects(schema))]
+            coll_opers = [
+                op for op in opers
+                if all(
+                    param.get_type(schema).is_tuple(schema)
+                    for param in op.get_params(schema).objects(schema)
+                )
+            ]
 
         elif args[0][0].is_array() and args[1][0].is_array():
             # Out of the candidate operators, find the ones that
             # correspond to arrays.
-            coll_opers = [op for op in opers
-                          if all(param.get_type(schema).is_array() for param
-                                 in op.get_params(schema).objects(schema))]
+            coll_opers = [
+                op for op in opers
+                if all(
+                    param.get_type(schema).is_array()
+                    for param in op.get_params(schema).objects(schema)
+                )
+            ]
 
         # Proceed only if we have a special case of collection operators.
         if coll_opers:
@@ -528,8 +536,15 @@ def validate_recursive_operator(
     matched: List[polyres.BoundCall] = []
 
     # if larg and rarg are tuples or arrays, recurse into their subtypes
-    if (larg[0].is_tuple() and rarg[0].is_tuple() or
-            larg[0].is_array() and rarg[0].is_array()):
+    if (
+        (
+            larg[0].is_tuple(ctx.env.schema)
+            and rarg[0].is_tuple(ctx.env.schema)
+        ) or (
+            larg[0].is_array()
+            and rarg[0].is_array()
+        )
+    ):
         assert isinstance(larg[0], s_types.Collection)
         assert isinstance(rarg[0], s_types.Collection)
         for rsub, lsub in zip(larg[0].get_subtypes(ctx.env.schema),

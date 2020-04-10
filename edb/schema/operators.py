@@ -189,7 +189,7 @@ class CreateOperator(s_func.CreateCallableObject, OperatorCommand):
         for param in params.objects(schema):
             ptype = param.get_type(schema)
             all_arrays = all_arrays and ptype.is_array()
-            all_tuples = all_tuples and ptype.is_tuple()
+            all_tuples = all_tuples and ptype.is_tuple(schema)
 
         # It's illegal to declare an operator as recursive unless all
         # of its operands are the same basic type of collection.
@@ -236,7 +236,10 @@ class CreateOperator(s_func.CreateCallableObject, OperatorCommand):
                 for param in oper.get_params(schema).objects(schema):
                     ptype = param.get_type(schema)
                     oper_all_arrays = oper_all_arrays and ptype.is_array()
-                    oper_all_tuples = oper_all_tuples and ptype.is_tuple()
+                    oper_all_tuples = (
+                        oper_all_tuples
+                        and ptype.is_tuple(schema)
+                    )
 
                 if (all_arrays == oper_all_arrays and
                         all_tuples == oper_all_tuples):

@@ -409,7 +409,7 @@ def compile_TypeCast(
         pt = typegen.ql_typeexpr_to_type(expr.type, ctx=ctx)
 
         if (
-            (pt.is_tuple() or pt.is_anytuple())
+            (pt.is_tuple(ctx.env.schema) or pt.is_anytuple(ctx.env.schema))
             and not ctx.env.options.func_params
         ):
             raise errors.QueryError(
