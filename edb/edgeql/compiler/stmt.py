@@ -134,7 +134,8 @@ def compile_ForQuery(
 
             stmt.iterator_stmt = iterator_stmt
 
-            iterator_scope, _ = scopectx.path_scope_map[iterator_view]
+            view_scope_info = scopectx.path_scope_map[iterator_view]
+            iterator_scope = view_scope_info.path_scope
 
         pathctx.register_set_in_scope(
             iterator_stmt,
@@ -703,14 +704,9 @@ def compile_result_clause(
             shape = None
 
         if result_alias:
-            # `SELECT foo := expr` is largely equivalent to
-            # `WITH foo := expr SELECT foo` with one important exception:
-            # the scope namespace does not get added to the current query
-            # path scope.  This is needed to handle FOR queries correctly.
-            with sctx.newscope(temporary=True, fenced=True) as scopectx:
-                stmtctx.declare_view(
-                    result_expr, alias=result_alias,
-                    temporary_scope=False, ctx=scopectx)
+            # `SELECT foo := expr` is equivalent to
+            # `WITH foo := expr SELECT foo`
+            stmtctx.declare_view(result_expr, alias=result_alias, ctx=sctx)
 
             result_expr = qlast.Path(
                 steps=[qlast.ObjectRef(name=result_alias)]

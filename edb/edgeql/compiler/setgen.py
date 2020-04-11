@@ -229,13 +229,16 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
 
                 view_set = ctx.view_sets.get(stype)
                 if view_set is not None:
-                    path_scope, path_scope_ns = ctx.path_scope_map[view_set]
+                    view_scope_info = ctx.path_scope_map[view_set]
                     path_tip = new_set_from_set(
                         view_set,
-                        preserve_scope_ns=path_scope_ns is not None,
+                        preserve_scope_ns=(
+                            view_scope_info.pinned_path_id_ns is not None
+                        ),
                         ctx=ctx,
                     )
-                    extra_scopes[path_tip] = path_scope.copy()
+
+                    extra_scopes[path_tip] = view_scope_info
                 else:
                     path_tip = class_set(stype, ctx=ctx)
 
@@ -297,23 +300,22 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             else:
                 source = get_set_type(path_tip, ctx=ctx)
 
-            with ctx.newscope(fenced=True, temporary=True) as subctx:
-                if isinstance(source, s_types.Tuple):
-                    path_tip = tuple_indirection_set(
-                        path_tip, source=source, ptr_name=ptr_name,
-                        source_context=step.context, ctx=subctx)
+            if isinstance(source, s_types.Tuple):
+                path_tip = tuple_indirection_set(
+                    path_tip, source=source, ptr_name=ptr_name,
+                    source_context=step.context, ctx=ctx)
 
-                else:
-                    path_tip = ptr_step_set(
-                        path_tip, source=source, ptr_name=ptr_name,
-                        direction=direction,
-                        ignore_computable=True,
-                        source_context=step.context, ctx=subctx)
+            else:
+                path_tip = ptr_step_set(
+                    path_tip, source=source, ptr_name=ptr_name,
+                    direction=direction,
+                    ignore_computable=True,
+                    source_context=step.context, ctx=ctx)
 
-                    ptrcls = typegen.ptrcls_from_ptrref(
-                        path_tip.rptr.ptrref, ctx=ctx)
-                    if _is_computable_ptr(ptrcls, ctx=ctx):
-                        computables.append(path_tip)
+                ptrcls = typegen.ptrcls_from_ptrref(
+                    path_tip.rptr.ptrref, ctx=ctx)
+                if _is_computable_ptr(ptrcls, ctx=ctx):
+                    computables.append(path_tip)
 
         elif isinstance(step, qlast.TypeIntersection):
             arg_type = inference.infer_type(path_tip, ctx.env)
@@ -354,7 +356,14 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                 else:
                     scope_set = path_tip
 
-                extra_scopes[scope_set] = subctx.path_scope
+                extra_scopes[scope_set] = context.ScopeInfo(
+                    path_scope=subctx.path_scope,
+                    tentative_work=[
+                        cb
+                        for cb in subctx.tentative_work
+                        if cb not in ctx.tentative_work
+                    ],
+                )
 
         for key_path_id in path_tip.path_id.iter_weak_namespace_prefixes():
             mapped = ctx.view_map.get(key_path_id)
@@ -417,6 +426,30 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
     for fence in fences:
         fence.fenced = True
 
+    for ir_set, scope_info in extra_scopes.items():
+        nodes = tuple(
+            node for node in ctx.path_scope.find_descendants(ir_set.path_id)
+            # if node.parent_fence not in fences
+        )
+
+        if not nodes:
+            # The path portion not being a descendant means
+            # that is is already present in the scope above us,
+            # along with the view scope.
+            continue
+
+        assert len(nodes) == 1
+
+        nodes[0].fuse_subtree(scope_info.path_scope.copy())
+
+        for cb in scope_info.tentative_work:
+            stmtctx.at_stmt_fini(cb, ctx=ctx)
+
+        scope_info.tentative_work[:] = []
+
+        if ir_set.path_scope_id is None:
+            pathctx.assign_set_scope(ir_set, nodes[0], ctx=ctx)
+
     for ir_set in computables:
         scope = ctx.path_scope.find_descendant(ir_set.path_id)
         if scope is None:
@@ -433,24 +466,6 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             else:
                 path_tip = comp_ir_set
             path_sets[i] = comp_ir_set
-
-    for ir_set, scope in extra_scopes.items():
-        nodes = tuple(
-            node for node in ctx.path_scope.find_descendants(ir_set.path_id)
-            if node.parent_fence not in fences
-        )
-
-        if not nodes:
-            # The path portion not being a descendant means
-            # that is is already present in the scope above us,
-            # along with the view scope.
-            continue
-
-        assert len(nodes) == 1
-
-        nodes[0].fuse_subtree(scope)
-        if ir_set.path_scope_id is None:
-            pathctx.assign_set_scope(ir_set, nodes[0], ctx=ctx)
 
     for fence in fences:
         fence.fenced = False

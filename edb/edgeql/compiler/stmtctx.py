@@ -350,16 +350,18 @@ def populate_anchors(
 
 
 def declare_view(
-        expr: qlast.Expr, alias: str, *,
-        fully_detached: bool=False,
-        temporary_scope: bool=True,
-        must_be_used: bool=False,
-        path_id_namespace: Optional[FrozenSet[str]]=None,
-        ctx: context.ContextLevel) -> irast.Set:
+    expr: qlast.Expr,
+    alias: str,
+    *,
+    fully_detached: bool=False,
+    must_be_used: bool=False,
+    path_id_namespace: Optional[FrozenSet[str]]=None,
+    ctx: context.ContextLevel,
+) -> irast.Set:
 
     pinned_pid_ns = path_id_namespace
 
-    with ctx.newscope(temporary=temporary_scope, fenced=True) as subctx:
+    with ctx.newscope(temporary=True, fenced=True) as subctx:
         if path_id_namespace is not None:
             subctx.path_id_namespace = path_id_namespace
 
@@ -399,7 +401,15 @@ def declare_view(
         view_set = dispatch.compile(astutils.ensure_qlstmt(expr), ctx=subctx)
         assert isinstance(view_set, irast.Set)
 
-        ctx.path_scope_map[view_set] = subctx.path_scope, pinned_pid_ns
+        ctx.path_scope_map[view_set] = context.ScopeInfo(
+            path_scope=subctx.path_scope,
+            pinned_path_id_ns=pinned_pid_ns,
+            tentative_work=[
+                cb
+                for cb in subctx.tentative_work
+                if cb not in ctx.tentative_work
+            ],
+        )
 
         if not fully_detached:
             # The view path id _itself_ should not be in the nested namespace.
@@ -591,8 +601,10 @@ def get_pointer_cardinality_later(
             ptrcls=ptrcls,
             irexpr=irexpr,
             specified_card=specified_card,
-            source_ctx=source_ctx),
-        ctx=ctx)
+            source_ctx=source_ctx,
+        ),
+        ctx=ctx,
+    )
 
 
 def get_expr_cardinality_later(
@@ -606,9 +618,7 @@ def get_expr_cardinality_later(
         card = infer_expr_cardinality(irexpr=irexpr, ctx=ctx)
         setattr(target, field, card)
 
-    at_stmt_fini(
-        functools.partial(cb, irexpr=irexpr),
-        ctx=ctx)
+    at_stmt_fini(functools.partial(cb, irexpr=irexpr), ctx=ctx)
 
 
 def ensure_ptrref_cardinality(
@@ -661,20 +671,14 @@ def enforce_singleton_now(
 
 
 def enforce_singleton(
-        irexpr: irast.Base, *,
-        ctx: context.ContextLevel) -> None:
-
-    if not ctx.defining_view:
-        # We cannot reliably defer cardinality inference operations
-        # because the current scope is temporary and will not be
-        # accessible when the scheduled inference will run.
-        at_stmt_fini(
-            functools.partial(
-                enforce_singleton_now,
-                irexpr=irexpr
-            ),
-            ctx=ctx
-        )
+    irexpr: irast.Base,
+    *,
+    ctx: context.ContextLevel,
+) -> None:
+    at_stmt_fini(
+        functools.partial(enforce_singleton_now, irexpr=irexpr),
+        ctx=ctx,
+    )
 
 
 def enforce_pointer_cardinality(
@@ -685,16 +689,25 @@ def enforce_pointer_cardinality(
     ctx: context.ContextLevel,
 ) -> None:
 
-    if not ctx.defining_view:
-        def _enforce_singleton(ctx: context.ContextLevel) -> None:
-            if ptrcls.singular(ctx.env.schema):
-                enforce_singleton_now(irexpr, singletons=singletons, ctx=ctx)
+    def _enforce_singleton(ctx: context.ContextLevel) -> None:
+        if ptrcls.singular(ctx.env.schema):
+            enforce_singleton_now(irexpr, singletons=singletons, ctx=ctx)
 
-        at_stmt_fini(_enforce_singleton, ctx=ctx)
+    at_stmt_fini(_enforce_singleton, ctx=ctx)
 
 
 def at_stmt_fini(
-    cb: context.CompletionWorkCallback, *,
+    cb: context.CompletionWorkCallback,
+    *,
     ctx: context.ContextLevel,
 ) -> None:
-    ctx.completion_work.append(cb)
+
+    if ctx.in_temp_scope:
+        # We cannot reliably defer cardinality inference operations
+        # because the current scope is temporary and will not be
+        # accessible when the scheduled inference will run.
+        # If, however, the temp scope is later merged into the main
+        # scope, we need to schedule the inference operations properly.
+        ctx.tentative_work.append(cb)
+    else:
+        ctx.completion_work.append(cb)

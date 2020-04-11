@@ -115,12 +115,20 @@ def assign_set_scope(
 
 
 def get_set_scope(
-        ir_set: irast.Set, *,
-        ctx: context.ContextLevel) -> Optional[irast.ScopeTreeNode]:
+    ir_set: irast.Set,
+    *,
+    ctx: context.ContextLevel,
+) -> Optional[irast.ScopeTreeNode]:
     if ir_set.path_scope_id is None:
         return None
     else:
-        return ctx.path_scope.root.find_by_unique_id(ir_set.path_scope_id)
+        scope = ctx.path_scope.root.find_by_unique_id(ir_set.path_scope_id)
+        if scope is None:
+            raise errors.InternalServerError(
+                f'dangling scope pointer to node with uid'
+                f':{ir_set.path_scope_id} in {ir_set!r}'
+            )
+        return scope
 
 
 def mark_path_as_optional(

@@ -104,10 +104,14 @@ def _get_set_scope(
         ir_set: irast.Set,
         scope_tree: irast.ScopeTreeNode) -> irast.ScopeTreeNode:
 
-    new_scope = None
     if ir_set.path_scope_id:
         new_scope = scope_tree.root.find_by_unique_id(ir_set.path_scope_id)
-    if new_scope is None:
+        if new_scope is None:
+            raise errors.InternalServerError(
+                f'dangling scope pointer to node with uid'
+                f':{ir_set.path_scope_id} in {ir_set!r}'
+            )
+    else:
         new_scope = scope_tree
 
     return new_scope

@@ -24,10 +24,9 @@ from typing import *
 from typing_extensions import Protocol  # type: ignore
 
 import collections
+import dataclasses
 import enum
 import uuid
-
-from dataclasses import dataclass
 
 from edb.common import compiler
 from edb.common import parsing
@@ -85,10 +84,19 @@ class ViewRPtr:
         self.is_update = is_update
 
 
-@dataclass
+@dataclasses.dataclass
 class StatementMetadata:
     is_unnest_fence: bool = False
     iterator_target: bool = False
+
+
+@dataclasses.dataclass
+class ScopeInfo:
+    path_scope: irast.ScopeTreeNode
+    pinned_path_id_ns: Optional[FrozenSet[str]] = None
+    tentative_work: List[CompletionWorkCallback] = (
+        dataclasses.field(default_factory=list)
+    )
 
 
 class CompletionWorkCallback(Protocol):
@@ -408,14 +416,8 @@ class ContextLevel(compiler.ContextLevel):
     path_scope: irast.ScopeTreeNode
     """Path scope tree, with per-lexical-scope levels."""
 
-    path_scope_map: Dict[
-        irast.Set,
-        Tuple[irast.ScopeTreeNode, Optional[FrozenSet[str]]],
-    ]
-    """A dictionary of scope trees that are appropriate for a given view.
-    The second element in the value tuple is an optional pinned path id
-    namespace that must be used for all references to the view.
-    """
+    path_scope_map: Dict[irast.Set, ScopeInfo]
+    """A dictionary of scope info that are appropriate for a given view."""
 
     iterator_ctx: Optional[ContextLevel]
     """The context of the statement where all iterators should be placed."""
@@ -458,6 +460,12 @@ class ContextLevel(compiler.ContextLevel):
 
     in_conditional: Optional[parsing.ParserContext]
     """Whether currently in a conditional branch."""
+
+    in_temp_scope: bool
+    """Whether currently in a temporary scope."""
+
+    tentative_work: List[CompletionWorkCallback]
+    """Callbacks that rely on scope and scheduled tentatively."""
 
     def __init__(
         self,
@@ -516,6 +524,8 @@ class ContextLevel(compiler.ContextLevel):
             self.empty_result_type_hint = None
             self.defining_view = None
             self.in_conditional = None
+            self.in_temp_scope = False
+            self.tentative_work = []
 
         else:
             self.env = prevlevel.env
@@ -557,6 +567,8 @@ class ContextLevel(compiler.ContextLevel):
             self.empty_result_type_hint = prevlevel.empty_result_type_hint
             self.defining_view = prevlevel.defining_view
             self.in_conditional = prevlevel.in_conditional
+            self.in_temp_scope = prevlevel.in_temp_scope
+            self.tentative_work = prevlevel.tentative_work
 
             if mode == ContextSwitchMode.SUBQUERY:
                 self.anchors = prevlevel.anchors.copy()
@@ -618,6 +630,8 @@ class ContextLevel(compiler.ContextLevel):
                     prevlevel.path_scope = self.env.path_scope
 
                 self.path_scope = prevlevel.path_scope.copy()
+                self.in_temp_scope = True
+                self.tentative_work = list(prevlevel.tentative_work)
 
             if mode in {ContextSwitchMode.NEWFENCE,
                         ContextSwitchMode.NEWFENCE_TEMP}:
