@@ -1009,10 +1009,13 @@ def computable_ptr_set(
     pending_cardinality = ctx.pending_cardinality.get(ptrcls)
     if pending_cardinality is not None:
         stmtctx.get_pointer_cardinality_later(
-            ptrcls=ptrcls, irexpr=comp_ir_set_copy,
+            ptrcls=ptrcls,
+            irexpr=comp_ir_set_copy,
             specified_card=pending_cardinality.specified_cardinality,
+            is_mut_assignment=pending_cardinality.is_mut_assignment,
             source_ctx=pending_cardinality.source_ctx,
-            ctx=ctx)
+            ctx=ctx,
+        )
 
     stmtctx.enforce_pointer_cardinality(
         ptrcls,

@@ -96,6 +96,8 @@ type Eert {
 
 
 type Report extending Named {
+    property subtitle -> str;
+
     required link user -> User {
         property note -> str;
     }

@@ -706,53 +706,53 @@ def _normalize_view_ptr_expr(
             True,
         )
 
-    if not is_mutation:
-        if ptr_cardinality is not None:
-            ctx.env.schema = ptrcls.set_field_value(
-                ctx.env.schema, 'cardinality', ptr_cardinality)
+    if ptr_cardinality is not None:
+        ctx.env.schema = ptrcls.set_field_value(
+            ctx.env.schema, 'cardinality', ptr_cardinality)
+    else:
+        if qlexpr is None and ptrcls is not base_ptrcls:
+            ctx.pointer_derivation_map[base_ptrcls].append(ptrcls)
+
+        base_cardinality = None
+        base_required = False
+        if base_ptrcls is not None and not base_ptrcls_is_alias:
+            base_cardinality = base_ptrcls.get_cardinality(ctx.env.schema)
+            base_required = base_ptrcls.get_required(ctx.env.schema)
+
+        if base_cardinality is None:
+            specified_cardinality = shape_el.cardinality
+            specified_required = shape_el.required
         else:
-            if qlexpr is None and ptrcls is not base_ptrcls:
-                ctx.pointer_derivation_map[base_ptrcls].append(ptrcls)
+            specified_cardinality = base_cardinality
+            specified_required = base_required
 
-            base_cardinality = None
-            base_required = False
-            if base_ptrcls is not None and not base_ptrcls_is_alias:
-                base_cardinality = base_ptrcls.get_cardinality(ctx.env.schema)
-                base_required = base_ptrcls.get_required(ctx.env.schema)
+            if (shape_el.cardinality is not None
+                    and base_ptrcls is not None
+                    and shape_el.cardinality != base_cardinality):
+                base_src = base_ptrcls.get_source(ctx.env.schema)
+                assert base_src is not None
+                base_src_name = base_src.get_verbosename(ctx.env.schema)
+                raise errors.SchemaError(
+                    f'cannot redefine the cardinality of '
+                    f'{ptrcls.get_verbosename(ctx.env.schema)}: '
+                    f'it is defined as {base_cardinality.as_ptr_qual()!r} '
+                    f'in the base {base_src_name}',
+                    context=compexpr.context,
+                )
+            # The required flag may be inherited from the base
+            specified_required = shape_el.required or base_required
 
-            if base_cardinality is None:
-                specified_cardinality = shape_el.cardinality
-                specified_required = shape_el.required
-            else:
-                specified_cardinality = base_cardinality
-                specified_required = base_required
+        stmtctx.pend_pointer_cardinality_inference(
+            ptrcls=ptrcls,
+            specified_required=specified_required,
+            specified_card=specified_cardinality,
+            is_mut_assignment=is_mutation,
+            source_ctx=shape_el.context,
+            ctx=ctx,
+        )
 
-                if (shape_el.cardinality is not None
-                        and base_ptrcls is not None
-                        and shape_el.cardinality != base_cardinality):
-                    base_src = base_ptrcls.get_source(ctx.env.schema)
-                    assert base_src is not None
-                    base_src_name = base_src.get_verbosename(ctx.env.schema)
-                    raise errors.SchemaError(
-                        f'cannot redefine the cardinality of '
-                        f'{ptrcls.get_verbosename(ctx.env.schema)}: '
-                        f'it is defined as {base_cardinality.as_ptr_qual()!r} '
-                        f'in the base {base_src_name}',
-                        context=compexpr.context,
-                    )
-                # The required flag may be inherited from the base
-                specified_required = shape_el.required or base_required
-
-            stmtctx.pend_pointer_cardinality_inference(
-                ptrcls=ptrcls,
-                specified_required=specified_required,
-                specified_card=specified_cardinality,
-                source_ctx=shape_el.context,
-                ctx=ctx,
-            )
-
-            ctx.env.schema = ptrcls.set_field_value(
-                ctx.env.schema, 'cardinality', None)
+        ctx.env.schema = ptrcls.set_field_value(
+            ctx.env.schema, 'cardinality', None)
 
     if (
         ptrcls.is_protected_pointer(ctx.env.schema)

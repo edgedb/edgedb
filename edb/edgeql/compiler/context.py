@@ -125,6 +125,7 @@ class PendingCardinality(NamedTuple):
     specified_cardinality: Optional[qltypes.Cardinality]
     source_ctx: Optional[parsing.ParserContext]
     callbacks: List[PointerCardinalityCallback]
+    is_mut_assignment: bool
 
 
 class PointerRefCache(

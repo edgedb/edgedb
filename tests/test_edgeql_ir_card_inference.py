@@ -461,3 +461,13 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 % OK %
         foo: AT_MOST_ONE
         """
+
+    def test_edgeql_ir_card_inference_45(self):
+        """
+        WITH MODULE test
+        SELECT Report {
+            subtitle := 'aaa'
+        }
+% OK %
+        subtitle: ONE
+        """

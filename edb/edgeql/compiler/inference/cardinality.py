@@ -117,7 +117,7 @@ def _get_set_scope(
     return new_scope
 
 
-def _cartesian_cardinality(
+def cartesian_cardinality(
     args: Iterable[qltypes.Cardinality],
 ) -> qltypes.Cardinality:
     '''Cardinality of Cartesian product of multiple args.'''
@@ -126,6 +126,20 @@ def _cartesian_cardinality(
     if card:
         lower, upper = card
         return _bounds_to_card(min(lower), max(upper))
+    else:
+        # no args is indicative of a empty set
+        return AT_MOST_ONE
+
+
+def max_cardinality(
+    args: Iterable[qltypes.Cardinality],
+) -> qltypes.Cardinality:
+    '''Maximum lower and upper bound of specified cardinalities.'''
+
+    card = list(zip(*(_card_to_bounds(a) for a in args)))
+    if card:
+        lower, upper = card
+        return _bounds_to_card(max(lower), max(upper))
     else:
         # no args is indicative of a empty set
         return AT_MOST_ONE
@@ -168,7 +182,7 @@ def _common_cardinality(
     singletons: Collection[irast.PathId],
     env: context.Environment,
 ) -> qltypes.Cardinality:
-    return _cartesian_cardinality(
+    return cartesian_cardinality(
         infer_cardinality(
             a,
             scope_tree=scope_tree,
@@ -327,7 +341,7 @@ def __infer_set(
                     # product of the base to which the type
                     # intersection is applied and the cardinality due
                     # to type intersection itself.
-                    return _cartesian_cardinality([base_card, rptr_spec_card])
+                    return cartesian_cardinality([base_card, rptr_spec_card])
 
         else:
             if rptrref.union_components:
@@ -335,7 +349,7 @@ def __infer_set(
                 # because the union of pointers in this context is disjoint
                 # in a sense that for any specific source only a given union
                 # component is used.
-                rptrref_card = _cartesian_cardinality(
+                rptrref_card = cartesian_cardinality(
                     c.dir_cardinality for c in rptrref.union_components
                 )
             else:
@@ -349,7 +363,7 @@ def __infer_set(
                     singletons=singletons,
                     env=env,
                 )
-                return _cartesian_cardinality((source_card, rptrref_card))
+                return cartesian_cardinality((source_card, rptrref_card))
             else:
                 return MANY
     elif ir.expr is not None:
@@ -717,7 +731,7 @@ def __infer_select_stmt(
                 singletons=singletons,
                 env=env,
             )
-            stmt_card = _cartesian_cardinality((stmt_card, iter_card))
+            stmt_card = cartesian_cardinality((stmt_card, iter_card))
 
         return stmt_card
 
@@ -772,7 +786,7 @@ def __infer_update_stmt(
                 singletons=singletons,
                 env=env,
             )
-            stmt_card = _cartesian_cardinality((stmt_card, iter_card))
+            stmt_card = cartesian_cardinality((stmt_card, iter_card))
 
         return stmt_card
 
@@ -803,7 +817,7 @@ def __infer_delete_stmt(
                 singletons=singletons,
                 env=env,
             )
-            stmt_card = _cartesian_cardinality((stmt_card, iter_card))
+            stmt_card = cartesian_cardinality((stmt_card, iter_card))
 
         return stmt_card
 

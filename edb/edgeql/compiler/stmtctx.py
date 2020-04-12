@@ -460,9 +460,10 @@ def declare_view_from_schema(
 
 
 def infer_expr_cardinality(
-        *,
-        irexpr: irast.Set,
-        ctx: context.ContextLevel) -> qltypes.Cardinality:
+    *,
+    irexpr: irast.Set,
+    ctx: context.ContextLevel,
+) -> qltypes.Cardinality:
 
     scope = pathctx.get_set_scope(ir_set=irexpr, ctx=ctx)
     if scope is None:
@@ -471,12 +472,14 @@ def infer_expr_cardinality(
 
 
 def _infer_pointer_cardinality(
-        *,
-        ptrcls: s_pointers.Pointer,
-        irexpr: irast.Set,
-        specified_card: Optional[qltypes.Cardinality] = None,
-        source_ctx: Optional[parsing.ParserContext] = None,
-        ctx: context.ContextLevel) -> None:
+    *,
+    ptrcls: s_pointers.Pointer,
+    irexpr: irast.Set,
+    specified_card: Optional[qltypes.Cardinality] = None,
+    is_mut_assignment: bool = False,
+    source_ctx: Optional[parsing.ParserContext] = None,
+    ctx: context.ContextLevel,
+) -> None:
 
     # Infer cardinality and convert it back to schema values of "ONE/MANY".
     inferred_card = infer_expr_cardinality(irexpr=irexpr, ctx=ctx)
@@ -486,21 +489,33 @@ def _infer_pointer_cardinality(
     else:
         if inf_card.is_subset_cardinality(inferred_card, specified_card):
             # The inferred cardinality is within the boundaries of
-            # specified cardinality.
-            ptr_card = specified_card
+            # specified cardinality, use the maximum lower and upper bounds.
+            ptr_card = inf_card.max_cardinality(
+                (specified_card, inferred_card),
+            )
         else:
             sp_req, sp_card = specified_card.to_schema_value()
             ic_req, ic_card = inferred_card.to_schema_value()
             # Specified cardinality is stricter than inferred (e.g.
             # ONE vs MANY), this is an error.
             if sp_req and not ic_req:
-                raise errors.QueryError(
-                    f'possibly an empty set returned by an '
-                    f'expression for a computable '
-                    f'{ptrcls.get_verbosename(ctx.env.schema)} '
-                    f"declared as 'required'",
-                    context=source_ctx
-                )
+                if is_mut_assignment:
+                    # For mutations we punt the lower cardinality bound
+                    # check to the runtime constraint.  Doing it statically
+                    # is impractical because it is impossible to prove
+                    # non-emptiness of object-selecting expressions bound
+                    # for required links.
+                    ptr_card = inf_card.cartesian_cardinality(
+                        (specified_card, inferred_card),
+                    )
+                else:
+                    raise errors.QueryError(
+                        f'possibly an empty set returned by an '
+                        f'expression for a computable '
+                        f'{ptrcls.get_verbosename(ctx.env.schema)} '
+                        f"declared as 'required'",
+                        context=source_ctx
+                    )
             else:
                 raise errors.QueryError(
                     f'possibly more than one element returned by an '
@@ -544,12 +559,14 @@ def _update_cardinality_callbacks(
 
 
 def pend_pointer_cardinality_inference(
-        *,
-        ptrcls: s_pointers.Pointer,
-        specified_required: bool = False,
-        specified_card: Optional[qltypes.SchemaCardinality] = None,
-        source_ctx: Optional[parsing.ParserContext] = None,
-        ctx: context.ContextLevel) -> None:
+    *,
+    ptrcls: s_pointers.Pointer,
+    specified_required: bool = False,
+    specified_card: Optional[qltypes.SchemaCardinality] = None,
+    is_mut_assignment: bool = False,
+    source_ctx: Optional[parsing.ParserContext] = None,
+    ctx: context.ContextLevel,
+) -> None:
 
     existing = ctx.pending_cardinality.get(ptrcls)
     if existing is not None:
@@ -566,6 +583,7 @@ def pend_pointer_cardinality_inference(
 
     ctx.pending_cardinality[ptrcls] = context.PendingCardinality(
         specified_cardinality=sc,
+        is_mut_assignment=is_mut_assignment,
         source_ctx=source_ctx,
         callbacks=callbacks,
     )
@@ -588,12 +606,14 @@ def once_pointer_cardinality_is_inferred(
 
 
 def get_pointer_cardinality_later(
-        *,
-        ptrcls: s_pointers.PointerLike,
-        irexpr: irast.Set,
-        specified_card: Optional[qltypes.Cardinality] = None,
-        source_ctx: Optional[parsing.ParserContext] = None,
-        ctx: context.ContextLevel) -> None:
+    *,
+    ptrcls: s_pointers.PointerLike,
+    irexpr: irast.Set,
+    specified_card: Optional[qltypes.Cardinality] = None,
+    is_mut_assignment: bool = False,
+    source_ctx: Optional[parsing.ParserContext] = None,
+    ctx: context.ContextLevel,
+) -> None:
 
     at_stmt_fini(
         functools.partial(
@@ -601,6 +621,7 @@ def get_pointer_cardinality_later(
             ptrcls=ptrcls,
             irexpr=irexpr,
             specified_card=specified_card,
+            is_mut_assignment=is_mut_assignment,
             source_ctx=source_ctx,
         ),
         ctx=ctx,
