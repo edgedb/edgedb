@@ -166,7 +166,8 @@ def _process_view(
                     ptrcls.is_pure_computable(ctx.env.schema)):
                 continue
 
-            if not ptrcls.get_default(ctx.env.schema):
+            default_expr = ptrcls.get_default(ctx.env.schema)
+            if not default_expr:
                 if ptrcls.get_required(ctx.env.schema):
                     if ptrcls.is_property(ctx.env.schema):
                         # If the target is a sequence, there's no need
@@ -187,17 +188,36 @@ def _process_view(
                     continue
 
             ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
-            default_ql = qlast.ShapeElement(expr=qlast.Path(steps=[
-                qlast.Ptr(ptr=qlast.ObjectRef(name=ptrcls_sn.name,
-                                              module=ptrcls_sn.module))
-            ]))
+            default_ql = qlast.ShapeElement(
+                expr=qlast.Path(
+                    steps=[
+                        qlast.Ptr(
+                            ptr=qlast.ObjectRef(
+                                name=ptrcls_sn.name,
+                                module=ptrcls_sn.module,
+                            ),
+                        ),
+                    ],
+                ),
+                compexpr=qlast.DetachedExpr(
+                    expr=default_expr.qlast,
+                ),
+            )
 
             with ctx.newscope(fenced=True) as scopectx:
-                pointers.append(_normalize_view_ptr_expr(
-                    default_ql, view_scls, path_id=path_id,
-                    path_id_namespace=path_id_namespace,
-                    is_insert=is_insert, is_update=is_update,
-                    view_rptr=view_rptr, ctx=scopectx))
+                pointers.append(
+                    _normalize_view_ptr_expr(
+                        default_ql,
+                        view_scls,
+                        path_id=path_id,
+                        path_id_namespace=path_id_namespace,
+                        is_insert=is_insert,
+                        is_update=is_update,
+                        from_default=True,
+                        view_rptr=view_rptr,
+                        ctx=scopectx,
+                    ),
+                )
 
     for ptrcls in pointers:
         source: Union[s_types.Type, s_pointers.PointerLike]
@@ -226,6 +246,7 @@ def _normalize_view_ptr_expr(
         path_id_namespace: Optional[irast.WeakNamespace]=None,
         is_insert: bool=False,
         is_update: bool=False,
+        from_default: bool=False,
         view_rptr: Optional[context.ViewRPtr]=None,
         ctx: context.ContextLevel) -> s_pointers.Pointer:
     steps = shape_el.expr.steps
@@ -686,7 +707,10 @@ def _normalize_view_ptr_expr(
         )
 
     if not is_mutation:
-        if ptr_cardinality is None:
+        if ptr_cardinality is not None:
+            ctx.env.schema = ptrcls.set_field_value(
+                ctx.env.schema, 'cardinality', ptr_cardinality)
+        else:
             if qlexpr is None and ptrcls is not base_ptrcls:
                 ctx.pointer_derivation_map[base_ptrcls].append(ptrcls)
 
@@ -729,11 +753,12 @@ def _normalize_view_ptr_expr(
 
             ctx.env.schema = ptrcls.set_field_value(
                 ctx.env.schema, 'cardinality', None)
-        else:
-            ctx.env.schema = ptrcls.set_field_value(
-                ctx.env.schema, 'cardinality', ptr_cardinality)
 
-    if ptrcls.is_protected_pointer(ctx.env.schema) and qlexpr is not None:
+    if (
+        ptrcls.is_protected_pointer(ctx.env.schema)
+        and qlexpr is not None
+        and not from_default
+    ):
         ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
         if is_polymorphic:
             msg = (f'cannot access {ptrcls_sn.name} on a polymorphic '
@@ -798,9 +823,7 @@ def derive_ptrcls(
 
         view_rptr.ptrcls = schemactx.derive_ptr(
             view_rptr.ptrcls, view_rptr.source, target_scls,
-            derived_name_quals=(
-                view_rptr.source.get_name(ctx.env.schema),
-            ),
+            derived_name_quals=(view_rptr.source.get_name(ctx.env.schema),),
             is_insert=view_rptr.is_insert,
             is_update=view_rptr.is_update,
             attrs=attrs,
@@ -992,17 +1015,17 @@ def _compile_view_shapes_in_set(
 
     if shape_ptrs:
         pathctx.register_set_in_scope(ir_set, ctx=ctx)
-
         stype = setgen.get_set_type(ir_set, ctx=ctx)
-        view_type = stype.get_expr_type(ctx.env.schema)
-        is_mutation = view_type in (s_types.ExprType.Update,
-                                    s_types.ExprType.Insert)
 
         for path_tip, ptr in shape_ptrs:
             element = setgen.extend_path(
-                path_tip, ptr, is_mut_assign=is_mutation,
-                unnest_fence=True, same_computable_scope=True,
-                hoist_iterators=True, ctx=ctx)
+                path_tip,
+                ptr,
+                unnest_fence=True,
+                same_computable_scope=True,
+                hoist_iterators=True,
+                ctx=ctx,
+            )
 
             element_scope = pathctx.get_set_scope(element, ctx=ctx)
 

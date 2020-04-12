@@ -605,7 +605,6 @@ def extend_path(
         direction: PtrDir=PtrDir.Outbound,
         *,
         ignore_computable: bool=False,
-        is_mut_assign: bool=False,
         hoist_iterators: bool=False,
         unnest_fence: bool=False,
         same_computable_scope: bool=False,
@@ -643,14 +642,12 @@ def extend_path(
     )
 
     target_set.rptr = ptr
-    is_computable = _is_computable_ptr(
-        ptrcls, is_mut_assign=is_mut_assign, ctx=ctx)
+    is_computable = _is_computable_ptr(ptrcls, ctx=ctx)
     if not ignore_computable and is_computable:
         target_set = computable_ptr_set(
             ptr,
             unnest_fence=unnest_fence,
             hoist_iterators=hoist_iterators,
-            from_default_expr=is_mut_assign,
             same_computable_scope=same_computable_scope,
             ctx=ctx,
         )
@@ -659,9 +656,10 @@ def extend_path(
 
 
 def _is_computable_ptr(
-        ptrcls: s_pointers.PointerLike, *,
-        is_mut_assign: bool=False,
-        ctx: context.ContextLevel) -> bool:
+    ptrcls: s_pointers.PointerLike,
+    *,
+    ctx: context.ContextLevel,
+) -> bool:
     try:
         qlexpr = ctx.source_map[ptrcls][0]
     except KeyError:
@@ -669,13 +667,7 @@ def _is_computable_ptr(
     else:
         return qlexpr is not None
 
-    if ptrcls.is_pure_computable(ctx.env.schema):
-        return True
-
-    if is_mut_assign and ptrcls.get_default(ctx.env.schema) is not None:
-        return True
-
-    return False
+    return ptrcls.is_pure_computable(ctx.env.schema)
 
 
 def tuple_indirection_set(
@@ -905,12 +897,13 @@ def ensure_stmt(
 
 
 def computable_ptr_set(
-        rptr: irast.Pointer, *,
-        unnest_fence: bool=False,
-        hoist_iterators: bool=False,
-        same_computable_scope: bool=False,
-        from_default_expr: bool=False,
-        ctx: context.ContextLevel) -> irast.Set:
+    rptr: irast.Pointer,
+    *,
+    unnest_fence: bool=False,
+    hoist_iterators: bool=False,
+    same_computable_scope: bool=False,
+    ctx: context.ContextLevel,
+) -> irast.Set:
     """Return ir.Set for a pointer defined as a computable."""
     ptrcls = typegen.ptrcls_from_ptrref(rptr.ptrref, ctx=ctx)
     source_set = rptr.source
@@ -941,14 +934,10 @@ def computable_ptr_set(
         qlexpr, qlctx, inner_source_path_id, path_id_ns = \
             ctx.source_map[ptrcls]
     except KeyError:
-        if from_default_expr:
-            comp_expr = ptrcls.get_default(ctx.env.schema)
-        else:
-            comp_expr = ptrcls.get_expr(ctx.env.schema)
+        comp_expr = ptrcls.get_expr(ctx.env.schema)
         if comp_expr is None:
             ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
-            raise ValueError(
-                f'{ptrcls_sn!r} is not a computable pointer')
+            raise ValueError(f'{ptrcls_sn!r} is not a computable pointer')
 
         qlexpr = qlparser.parse(comp_expr.text)
         # NOTE: Validation of the expression type is not the concern
