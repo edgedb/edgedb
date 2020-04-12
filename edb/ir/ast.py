@@ -667,7 +667,7 @@ class Stmt(Expr):
 class FilteredStmt(Stmt):
     __abstract_node__ = True
     where: Set
-    where_card: qltypes.SchemaCardinality
+    where_card: qltypes.Cardinality
 
 
 class SelectStmt(FilteredStmt):

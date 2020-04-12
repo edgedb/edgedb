@@ -96,14 +96,17 @@ def compile_output(
 
 def compile_filter_clause(
         ir_set: irast.Set,
-        cardinality: qltypes.SchemaCardinality, *,
+        cardinality: qltypes.Cardinality, *,
         ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
     where_clause: pgast.BaseExpr
 
     with ctx.new() as ctx1:
         ctx1.expr_exposed = False
 
-        if cardinality is qltypes.SchemaCardinality.ONE:
+        if (
+            cardinality is qltypes.Cardinality.ONE
+            or cardinality is qltypes.Cardinality.AT_MOST_ONE
+        ):
             where_clause = dispatch.compile(ir_set, ctx=ctx)
         else:
             # In WHERE we compile ir.Set as a boolean disjunction:
