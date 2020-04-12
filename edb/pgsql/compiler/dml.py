@@ -35,6 +35,8 @@ from __future__ import annotations
 import collections
 from typing import *
 
+from edb.edgeql import qltypes
+
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
 
@@ -435,7 +437,13 @@ def compile_insert_shape_element(
         ctx: context.CompilerContextLevel) -> pgast.Query:
 
     with ctx.newscope() as insvalctx:
-        insvalctx.force_optional.add(shape_el.path_id)
+        # This method is only called if the upper cardinality of
+        # the expression is one, so we check for AT_MOST_ONE
+        # to determine nullability.
+        if (shape_el.rptr.ptrref.dir_cardinality
+                is qltypes.Cardinality.AT_MOST_ONE):
+            insvalctx.force_optional.add(shape_el.path_id)
+
         if iterator_id is not None:
             insvalctx.volatility_ref = iterator_id
         else:
