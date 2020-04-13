@@ -950,10 +950,6 @@ def process_link_update(
     )
 
     col_data = {
-        'ptr_item_id': pgast.TypeCast(
-            arg=pgast.StringConstant(val=str(mptrref.id)),
-            type_name=pgast.TypeName(name=('uuid',))
-        ),
         'source': pathctx.get_rvar_path_identity_var(
             dml_cte_rvar, ir_stmt.subject.path_id, env=ctx.env)
     }
@@ -1071,7 +1067,7 @@ def process_link_update(
         return data_cte
 
     cols = [pgast.ColumnRef(name=[col]) for col in specified_cols]
-    conflict_cols = ['source', 'target', 'ptr_item_id']
+    conflict_cols = ['source', 'target']
 
     if is_insert:
         conflict_clause = None

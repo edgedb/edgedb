@@ -2168,11 +2168,10 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
                 if old_ptr_stor_info.table_type == 'ObjectType':
                     move_data = dbops.Query(textwrap.dedent(f'''\
                         INSERT INTO {q(*new_ptr_stor_info.table_name)}
-                        (source, target, ptr_item_id)
+                        (source, target)
                         (SELECT
                             s.id AS source,
-                            s.{qi(old_ptr_stor_info.column_name)} AS target,
-                            {ql(str(pointer.id))}::uuid AS ptr_item_id
+                            s.{qi(old_ptr_stor_info.column_name)} AS target
                          FROM
                             {q(*old_ptr_stor_info.table_name)} AS s
                         );
@@ -2303,14 +2302,11 @@ class LinkMetaCommand(CompositeObjectMetaCommand, PointerMetaCommand):
         columns.append(
             dbops.Column(
                 name=tgt_col, type='uuid', required=False))
-        columns.append(
-            dbops.Column(
-                name='ptr_item_id', type='uuid', required=True))
 
         constraints.append(
             dbops.UniqueConstraint(
                 table_name=new_table_name,
-                columns=[src_col, tgt_col, 'ptr_item_id']))
+                columns=[src_col, tgt_col]))
 
         if not link.generic(schema) and link.scalar():
             try:
@@ -2701,9 +2697,6 @@ class PropertyMetaCommand(CompositeObjectMetaCommand, PointerMetaCommand):
         columns.append(
             dbops.Column(
                 name=src_col, type='uuid', required=True))
-        columns.append(
-            dbops.Column(
-                name='ptr_item_id', type='uuid', required=True))
 
         id = sn.QualName(
             module=prop.get_name(schema).module, name=str(prop.id))
@@ -2722,8 +2715,7 @@ class PropertyMetaCommand(CompositeObjectMetaCommand, PointerMetaCommand):
             constraints.append(
                 dbops.UniqueConstraint(
                     table_name=new_table_name,
-                    columns=[src_col, 'ptr_item_id'] +
-                            [tgt_col.name for tgt_col in tgt_cols]
+                    columns=[src_col] + [tgt_col.name for tgt_col in tgt_cols]
                 )
             )
 
@@ -3017,9 +3009,13 @@ class UpdateEndpointDeleteActions(MetaCommand):
         selects = []
         for link in links:
             selects.append(textwrap.dedent('''\
-                (SELECT ptr_item_id, {src} as source, {tgt} as target
+                (SELECT
+                    {id}::uuid AS __sobj_id__,
+                    {src} as source,
+                    {tgt} as target
                 FROM {table})
             ''').format(
+                id=ql(str(link.id)),
                 src=common.quote_ident('source'),
                 tgt=common.quote_ident('target'),
                 table=common.get_backend_name(schema, link),
@@ -3034,7 +3030,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
             link_col = link_psi.column_name
             selects.append(textwrap.dedent('''\
                 (SELECT
-                    {id}::uuid AS ptr_item_id,
+                    {id}::uuid AS __sobj_id__,
                     {src} as source,
                     {tgt} as target
                 FROM {table})
@@ -3125,7 +3121,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
                 text = textwrap.dedent('''\
                     SELECT
-                        q.ptr_item_id, q.source, q.target
+                        q.__sobj_id__, q.source, q.target
                         INTO link_type_id, srcid, tgtid
                     FROM
                         {tables}
@@ -3243,7 +3239,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
                 text = textwrap.dedent('''\
                     SELECT
-                        q.ptr_item_id, q.source, q.target
+                        q.__sobj_id__, q.source, q.target
                         INTO link_type_id, srcid, tgtid
                     FROM
                         {tables}
