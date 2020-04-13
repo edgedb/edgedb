@@ -174,7 +174,7 @@ class Environment:
     schema_view_cache: Dict[s_types.Type, s_types.Type]
     """Type cache used by schema-level views."""
 
-    query_parameters: Dict[str, s_types.Type]
+    query_parameters: Dict[str, irast.Param]
     """A mapping of query parameters to their types.  Gets populated during
     the compilation."""
 

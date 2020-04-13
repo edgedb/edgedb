@@ -392,27 +392,15 @@ class Compiler(BaseCompiler):
             if ir.params:
                 array_params = []
                 subtypes = [None] * len(ir.params)
-                first_param_name = next(iter(ir.params))
-                if first_param_name.isdecimal():
-                    named = False
-                    for param_name, param_type in ir.params.items():
-                        idx = int(param_name)
-                        subtypes[idx] = (param_name, param_type)
-                        if param_type.is_array():
-                            el_type = param_type.get_element_type(ir.schema)
-                            array_params.append(
-                                (idx, el_type.get_backend_id(ir.schema)))
-                else:
-                    named = True
-                    for param_name, param_type in ir.params.items():
-                        idx = argmap[param_name] - 1
-                        subtypes[idx] = (
-                            param_name, param_type
-                        )
-                        if param_type.is_array():
-                            el_type = param_type.get_element_type(ir.schema)
-                            array_params.append(
-                                (idx, el_type.get_backend_id(ir.schema)))
+                first_param = next(iter(ir.params))
+                named = not first_param.name.isdecimal()
+                for param in ir.params:
+                    idx = argmap[param.name] - 1
+                    subtypes[idx] = (param.name, param.schema_type)
+                    if param.schema_type.is_array():
+                        el_type = param.schema_type.get_element_type(ir.schema)
+                        array_params.append(
+                            (idx, el_type.get_backend_id(ir.schema)))
 
                 ir.schema, params_type = s_types.Tuple.create(
                     ir.schema,

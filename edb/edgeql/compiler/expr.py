@@ -429,6 +429,43 @@ def compile_TypeCast(
             )
 
         param_name = expr.expr.name
+
+        if ctx.env.options.json_parameters:
+            if param_name.isdecimal():
+                raise errors.QueryError(
+                    'queries compiled to accept JSON parameters do not '
+                    'accept positional parameters',
+                    context=expr.expr.context)
+
+            typeref = typegen.type_to_typeref(
+                ctx.env.get_track_schema_type('std::json'),
+                env=ctx.env,
+            )
+
+            param = casts.compile_cast(
+                irast.Parameter(
+                    typeref=typeref,
+                    name=param_name,
+                    optional=expr.expr.optional,
+                    context=expr.expr.context,
+                ),
+                pt,
+                srcctx=expr.expr.context,
+                ctx=ctx,
+            )
+
+        else:
+            typeref = typegen.type_to_typeref(pt, env=ctx.env)
+            param = setgen.ensure_set(
+                irast.Parameter(
+                    typeref=typeref,
+                    name=param_name,
+                    optional=expr.expr.optional,
+                    context=expr.expr.context,
+                ),
+                ctx=ctx,
+            )
+
         if param_name not in ctx.env.query_parameters:
             if ctx.env.query_parameters:
                 first_key: str = next(iter(ctx.env.query_parameters))
@@ -443,50 +480,19 @@ def compile_TypeCast(
                         raise errors.QueryError(
                             f'expected a named argument',
                             context=expr.expr.context)
-            ctx.env.query_parameters[param_name] = pt
+            ctx.env.query_parameters[param_name] = irast.Param(
+                name=param_name,
+                schema_type=pt,
+                ir_type=typeref,
+            )
         else:
-            param_first_type = ctx.env.query_parameters[param_name]
+            param_first_type = ctx.env.query_parameters[param_name].schema_type
             if not param_first_type.explicitly_castable_to(pt, ctx.env.schema):
                 raise errors.QueryError(
                     f'cannot cast '
                     f'{param_first_type.get_displayname(ctx.env.schema)} to '
                     f'{pt.get_displayname(ctx.env.schema)}',
                     context=expr.expr.context)
-
-        if ctx.env.options.json_parameters:
-            if param_name.isdecimal():
-                raise errors.QueryError(
-                    'queries compiled to accept JSON parameters do not '
-                    'accept positional parameters',
-                    context=expr.expr.context)
-
-            json_typeref = typegen.type_to_typeref(
-                ctx.env.get_track_schema_type('std::json'),
-                env=ctx.env,
-            )
-
-            param = casts.compile_cast(
-                irast.Parameter(
-                    typeref=json_typeref,
-                    name=param_name,
-                    optional=expr.expr.optional,
-                    context=expr.expr.context,
-                ),
-                pt,
-                srcctx=expr.expr.context,
-                ctx=ctx,
-            )
-
-        else:
-            param = setgen.ensure_set(
-                irast.Parameter(
-                    typeref=typegen.type_to_typeref(pt, env=ctx.env),
-                    name=param_name,
-                    optional=expr.expr.optional,
-                    context=expr.expr.context,
-                ),
-                ctx=ctx,
-            )
 
         return param
 

@@ -198,7 +198,7 @@ def fini_expression(
 
     result = irast.Statement(
         expr=ir,
-        params=ctx.env.query_parameters,
+        params=list(ctx.env.query_parameters.values()),
         views=ctx.view_nodes,
         source_map=ctx.source_map,
         scope_tree=ctx.path_scope,

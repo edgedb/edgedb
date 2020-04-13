@@ -296,12 +296,15 @@ class ConnectedTestCaseMixin:
                                   exp_result_json,
                                   exp_result_binary=...,
                                   *,
-                                  msg=None, sort=None):
+                                  msg=None, sort=None, variables=None):
+        fetch_args = variables if isinstance(variables, tuple) else ()
+        fetch_kw = variables if isinstance(variables, dict) else {}
         try:
             tx = self.con.transaction()
             await tx.start()
             try:
-                res = await self.con.fetchall_json(query)
+                res = await self.con.fetchall_json(query,
+                                                   *fetch_args, **fetch_kw)
             finally:
                 await tx.rollback()
 
@@ -318,7 +321,7 @@ class ConnectedTestCaseMixin:
             exp_result_binary = exp_result_json
 
         try:
-            res = await self.con.fetchall(query)
+            res = await self.con.fetchall(query, *fetch_args, **fetch_kw)
             res = serutils.serialize(res)
             if sort is not None:
                 self._sort_results(res, sort)
