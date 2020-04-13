@@ -125,15 +125,15 @@ def compile_Parameter(
         try:
             index = ctx.argmap[expr.name]
         except KeyError:
-            if expr.name.startswith('__edb_arg_'):
-                index = int(expr.name[10:]) + 1
-            elif expr.name in ctx.argmap:
+            if expr.name in ctx.argmap:
                 index = ctx.argmap[expr.name]
             else:
-                if is_decimal:
+                if expr.name.startswith('__edb_arg_'):
+                    index = int(expr.name[10:]) + 1
+                elif is_decimal:
                     index = int(expr.name) + 1
                 else:
-                    index = len(ctx.argmap) + 1
+                    index = next(ctx.next_argument)
                 ctx.argmap[expr.name] = index
         result = pgast.ParamRef(number=index)
 
