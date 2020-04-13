@@ -46,7 +46,11 @@ if TYPE_CHECKING:
 class Property(pointers.Pointer, s_abc.Property,
                qlkind=qltypes.SchemaObjectClass.PROPERTY):
 
-    def derive_ref(
+    # type ignore below, because even if the signature is modified
+    # to match exactly the signature in Pointer class (compatible with the
+    # parent method signature), mypy gets confused and still claims that
+    # the signature is not compatible with ReferencedObject.derive_ref
+    def derive_ref(  # type: ignore
         self,
         schema: s_schema.Schema,
         source: s_sources.Source,
