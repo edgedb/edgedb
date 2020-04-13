@@ -40,41 +40,38 @@ from . import utils
 
 if TYPE_CHECKING:
     from . import schema as s_schema
-    from . import sources as s_sources
 
 
 class Property(pointers.Pointer, s_abc.Property,
                qlkind=qltypes.SchemaObjectClass.PROPERTY):
 
-    # type ignore below, because even if the signature is modified
-    # to match exactly the signature in Pointer class (compatible with the
-    # parent method signature), mypy gets confused and still claims that
-    # the signature is not compatible with ReferencedObject.derive_ref
-    def derive_ref(  # type: ignore
+    def derive_ref(
         self,
         schema: s_schema.Schema,
-        source: s_sources.Source,
+        referrer: so.QualifiedObject,
+        *qualifiers: str,
         target: Optional[s_types.Type] = None,
         attrs: Optional[Dict[str, Any]] = None,
         **kwargs: Any,
-    ) -> Tuple[s_schema.Schema, pointers.Pointer]:
+    ) -> Tuple[s_schema.Schema, Property]:
         from . import links as s_links
         if target is None:
             target = self.get_target(schema)
 
         schema, ptr = super().derive_ref(
-            schema, source, target=target, attrs=attrs, **kwargs)
+            schema, referrer, target=target, attrs=attrs, **kwargs)
 
         ptr_sn = ptr.get_shortname(schema)
 
         if ptr_sn == 'std::source':
-            assert isinstance(source, s_links.Link)
+            assert isinstance(referrer, s_links.Link)
             schema = ptr.set_field_value(
-                schema, 'target', source.get_source(schema))
+                schema, 'target', referrer.get_source(schema))
         elif ptr_sn == 'std::target':
             schema = ptr.set_field_value(
-                schema, 'target', source.get_field_value(schema, 'target'))
+                schema, 'target', referrer.get_field_value(schema, 'target'))
 
+        assert isinstance(ptr, Property)
         return schema, ptr
 
     def compare(
