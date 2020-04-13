@@ -644,25 +644,46 @@ def process_link_update(
             dml_cte_rvar, ir_stmt.subject.path_id, env=ctx.env)
     }
 
+    # Turn the IR of the expression on the right side of :=
+    # into a subquery returning records for the link table.
+    data_cte, specified_cols = process_link_values(
+        ir_stmt=ir_stmt,
+        ir_expr=ir_set,
+        target_tab=target_tab_name,
+        col_data=col_data,
+        dml_rvar=dml_cte_rvar,
+        sources=[],
+        props_only=props_only,
+        target_is_scalar=target_is_scalar,
+        iterator_cte=iterator_cte,
+        ctx=ctx,
+    )
+
+    toplevel.ctes.append(data_cte)
+
+    delqry: Optional[pgast.DeleteStmt]
+
     if not is_insert:
         # Drop all previous link records for this source.
-        delcte = pgast.CommonTableExpr(
-            query=pgast.DeleteStmt(
-                relation=target_rvar,
-                where_clause=astutils.new_binop(
-                    lexpr=col_data['source'],
-                    op='=',
-                    rexpr=pgast.ColumnRef(
-                        name=[target_alias, 'source'])
-                ),
-                using_clause=[dml_cte_rvar],
-                returning_list=[
-                    pgast.ResTarget(
-                        val=pgast.ColumnRef(
-                            name=[target_alias, pgast.Star()]))
-                ]
+        delqry = pgast.DeleteStmt(
+            relation=target_rvar,
+            where_clause=astutils.new_binop(
+                lexpr=col_data['source'],
+                op='=',
+                rexpr=pgast.ColumnRef(
+                    name=[target_alias, 'source'])
             ),
-            name=ctx.env.aliases.get(hint='d')
+            using_clause=[dml_cte_rvar],
+            returning_list=[
+                pgast.ResTarget(
+                    val=pgast.ColumnRef(
+                        name=[target_alias, pgast.Star()]))
+            ]
+        )
+
+        delcte = pgast.CommonTableExpr(
+            name=ctx.env.aliases.get(hint='d'),
+            query=delqry,
         )
 
         pathctx.put_path_value_rvar(
@@ -675,14 +696,8 @@ def process_link_update(
         relctx.add_ptr_rel_overlay(
             ptrref, 'except', delcte, dml_stmts=dml_stack, ctx=ctx)
         toplevel.ctes.append(delcte)
-
-    # Turn the IR of the expression on the right side of :=
-    # into a subquery returning records for the link table.
-    data_cte, specified_cols = process_link_values(
-        ir_stmt, ir_set, target_tab_name, col_data,
-        dml_cte_rvar, [], props_only, target_is_scalar, iterator_cte, ctx=ctx)
-
-    toplevel.ctes.append(data_cte)
+    else:
+        delqry = None
 
     data_select = pgast.SelectStmt(
         target_list=[
@@ -696,16 +711,57 @@ def process_link_update(
     )
 
     cols = [pgast.ColumnRef(name=[col]) for col in specified_cols]
+    conflict_cols = ['source', 'target', 'ptr_item_id']
 
     if is_insert:
         conflict_clause = None
+    elif len(cols) == len(conflict_cols) and delqry is not None:
+        # There are no link properties, so we can optimize the
+        # link replacement operation by omitting the overlapping
+        # link rows from deletion.
+        filter_select = pgast.SelectStmt(
+            target_list=[
+                pgast.ResTarget(
+                    val=pgast.ColumnRef(name=['source']),
+                ),
+                pgast.ResTarget(
+                    val=pgast.ColumnRef(name=['target']),
+                ),
+            ],
+            from_clause=[pgast.RelRangeVar(relation=data_cte)],
+        )
+
+        delqry.where_clause = astutils.extend_binop(
+            delqry.where_clause,
+            astutils.new_binop(
+                lexpr=pgast.ImplicitRowExpr(
+                    args=[
+                        pgast.ColumnRef(name=['source']),
+                        pgast.ColumnRef(name=['target']),
+                    ],
+                ),
+                rexpr=pgast.SubLink(
+                    type=pgast.SubLinkType.ALL,
+                    expr=filter_select,
+                ),
+                op='!=',
+            )
+        )
+
+        conflict_clause = pgast.OnConflictClause(
+            action='nothing',
+            infer=pgast.InferClause(
+                index_elems=[
+                    pgast.ColumnRef(name=[col]) for col in conflict_cols
+                ]
+            ),
+        )
     else:
         # Inserting rows into the link table may produce cardinality
         # constraint violations, since the INSERT into the link table
         # is executed in the snapshot where the above DELETE from
         # the link table is not visible.  Hence, we need to use
         # the ON CONFLICT clause to resolve this.
-        conflict_cols = ['source', 'target', 'ptr_item_id']
         conflict_inference = []
         conflict_exc_row = []
 
@@ -844,6 +900,7 @@ def process_linkprop_update(
 
 
 def process_link_values(
+    *,
     ir_stmt: irast.MutatingStmt,
     ir_expr: irast.Set,
     target_tab: Tuple[str, ...],
@@ -853,7 +910,6 @@ def process_link_values(
     props_only: bool,
     target_is_scalar: bool,
     iterator_cte: Optional[pgast.CommonTableExpr],
-    *,
     ctx: context.CompilerContextLevel,
 ) -> Tuple[pgast.CommonTableExpr, List[str]]:
     """Unpack data from an update expression into a series of selects.
