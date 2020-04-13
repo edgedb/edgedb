@@ -147,6 +147,35 @@ py_class!(pub class Entry |py| {
 fn init_module(_py: Python<'_>) {
 }
 
+fn value_to_py(py: Python<'_>, value: &Value) -> PyResult<PyObject> {
+    let v = match value {
+        Value::Str(ref v) => {
+            PyString::new(py, v).into_object()
+        }
+        Value::Int32(v) => {
+            v.to_py_object(py).into_object()
+        }
+        Value::Int64(v) => {
+            v.to_py_object(py).into_object()
+        }
+        Value::Float(v) => {
+            v.to_py_object(py).into_object()
+        }
+        Value::BigInt(ref v) => {
+            py.get_type::<PyInt>()
+            .call(py,
+                PyTuple::new(py, &[
+                    v.to_py_object(py).into_object(),
+                ]),
+                None)?
+        }
+        Value::Boolean(b) => {
+            b.to_py_object(py).into_object()
+        }
+    };
+    Ok(v)
+}
+
 fn rewrite(py: Python<'_>, operation: Option<&PyString>, text: &PyString)
     -> PyResult<Entry>
 {
@@ -158,27 +187,9 @@ fn rewrite(py: Python<'_>, operation: Option<&PyString>, text: &PyString)
             let substitutions = PyDict::new(py);
             for (idx, var) in entry.variables.iter().enumerate() {
                 let s = format!("_edb_arg__{}", idx).to_py_object(py);
-                vars.set_item(py, s.clone_ref(py),
-                    match var.value {
-                        Value::Str(ref v) => {
-                            PyString::new(py, v).into_object()
-                        }
-                        Value::Int32(v) => {
-                            v.to_py_object(py).into_object()
-                        }
-                        Value::Int64(v) => {
-                            v.to_py_object(py).into_object()
-                        }
-                        Value::BigInt(ref v) => {
-                            py.get_type::<PyInt>()
-                            .call(py,
-                                PyTuple::new(py, &[
-                                    v.to_py_object(py).into_object(),
-                                ]),
-                                None)?
-                        }
-                        _ => todo!(),
-                    })?;
+                vars.set_item(py,
+                    s.clone_ref(py),
+                    value_to_py(py, &var.value)?)?;
                 substitutions.set_item(py, s.clone_ref(py), (
                     &var.token.value,
                     var.token.position.map(|x| x.line),
@@ -186,11 +197,9 @@ fn rewrite(py: Python<'_>, operation: Option<&PyString>, text: &PyString)
                 ).to_py_object(py).into_object())?;
             }
             for (name, var) in &entry.defaults {
-                vars.set_item(py, name.to_py_object(py),
-                    match var.value {
-                        Value::Str(ref s) => PyString::new(py, s),
-                        _ => todo!(),
-                    })?;
+                vars.set_item(py,
+                    name.to_py_object(py),
+                    value_to_py(py, &var.value)?)?
             }
             let key_vars = PyList::new(py,
                 &entry.key_vars.iter()
