@@ -495,6 +495,7 @@ class ConstantSet(ConstExpr):
 class Parameter(ImmutableExpr):
 
     name: str
+    optional: bool
     typeref: TypeRef
 
 

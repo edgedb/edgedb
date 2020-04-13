@@ -469,6 +469,7 @@ def compile_TypeCast(
                 irast.Parameter(
                     typeref=json_typeref,
                     name=param_name,
+                    optional=expr.expr.optional,
                     context=expr.expr.context,
                 ),
                 pt,
@@ -481,6 +482,7 @@ def compile_TypeCast(
                 irast.Parameter(
                     typeref=typegen.type_to_typeref(pt, env=ctx.env),
                     name=param_name,
+                    optional=expr.expr.optional,
                     context=expr.expr.context,
                 ),
                 ctx=ctx,

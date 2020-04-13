@@ -1431,9 +1431,10 @@ class GraphQLTranslator:
         var = self._context.vars[varname]
 
         vartype = var.defn.type
+        optional = True
         if isinstance(vartype, gql_ast.NonNullTypeNode):
-            # TODO: Add non-null validation to the produced EdgeQL?
             vartype = vartype.type
+            optional = False
 
         casttype = qlast.TypeName(
             maintype=qlast.ObjectRef(
@@ -1448,7 +1449,7 @@ class GraphQLTranslator:
 
         return qlast.TypeCast(
             type=casttype,
-            expr=qlast.Parameter(name=varname)
+            expr=qlast.Parameter(name=varname, optional=optional),
         )
 
     def visit_StringValueNode(self, node):
