@@ -117,20 +117,20 @@ def compile_Parameter(
         ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
     result: pgast.BaseParamRef
-    if expr.name.isdecimal():
-        index = int(expr.name) + 1
-        result = pgast.ParamRef(number=index)
+    is_decimal: bool = expr.name.isdecimal()
+
+    if not is_decimal and ctx.env.use_named_params:
+        result = pgast.NamedParamRef(name=expr.name)
     else:
-        if ctx.env.use_named_params:
-            result = pgast.NamedParamRef(name=expr.name)
-        else:
-            if expr.name in ctx.argmap:
-                index = ctx.argmap[expr.name]
+        try:
+            index = ctx.argmap[expr.name]
+        except KeyError:
+            if is_decimal:
+                index = int(expr.name) + 1
             else:
                 index = len(ctx.argmap) + 1
-                ctx.argmap[expr.name] = index
-
-            result = pgast.ParamRef(number=index)
+            ctx.argmap[expr.name] = index
+        result = pgast.ParamRef(number=index)
 
     return pgast.TypeCast(
         arg=result,

@@ -63,6 +63,7 @@ Set (
 
 from __future__ import annotations
 
+import dataclasses
 import typing
 import uuid
 
@@ -405,11 +406,25 @@ class Command(Base):
     __abstract_node__ = True
 
 
+@dataclasses.dataclass(frozen=True)
+class Param:
+    """Query parameter with it's schema type and IR type"""
+
+    name: str
+    """Parameter name"""
+
+    schema_type: s_types.Type
+    """Schema type"""
+
+    ir_type: TypeRef
+    """IR type reference"""
+
+
 class Statement(Command):
 
     expr: Set
     views: typing.Dict[sn.Name, s_types.Type]
-    params: typing.Dict[str, s_types.Type]
+    params: typing.List[Param]
     cardinality: qltypes.Cardinality
     volatility: qltypes.Volatility
     stype: s_types.Type

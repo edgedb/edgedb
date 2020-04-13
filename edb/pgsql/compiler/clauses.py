@@ -24,6 +24,7 @@ from typing import *
 from edb.edgeql import qltypes
 from edb.ir import ast as irast
 from edb.pgsql import ast as pgast
+from edb.pgsql import types as pg_types
 
 from . import context
 from . import dispatch
@@ -43,8 +44,34 @@ def init_stmt(
 def fini_stmt(
         stmt: pgast.Query, ctx: context.CompilerContextLevel,
         parent_ctx: context.CompilerContextLevel) -> None:
+
     if stmt is ctx.toplevel_stmt:
-        stmt.argnames = ctx.argmap
+        stmt.argnames = argmap = ctx.argmap
+
+        if not ctx.env.use_named_params:
+            # Adding unused parameters into a CTE
+            targets = []
+            for param_name, param in ctx.env.query_params.items():
+                if param_name in argmap:
+                    continue
+                if param_name.isdecimal():
+                    idx = int(param_name) + 1
+                else:
+                    idx = len(argmap) + 1
+                argmap[param_name] = idx
+                targets.append(pgast.ResTarget(val=pgast.TypeCast(
+                    arg=pgast.ParamRef(number=idx),
+                    type_name=pgast.TypeName(
+                        name=pg_types.pg_type_from_ir_typeref(param)
+                    )
+                )))
+            if targets:
+                ctx.toplevel_stmt.ctes.append(
+                    pgast.CommonTableExpr(
+                        name="__unused_vars",
+                        query=pgast.SelectStmt(target_list=targets)
+                    )
+                )
 
 
 def compile_iterator_expr(

@@ -274,6 +274,7 @@ class Environment:
     ignore_object_shapes: bool
     explicit_top_cast: Optional[irast.TypeRef]
     singleton_mode: bool
+    query_params: Dict[str, irast.TypeRef]
 
     def __init__(
         self,
@@ -284,6 +285,7 @@ class Environment:
         ignore_object_shapes: bool,
         singleton_mode: bool,
         explicit_top_cast: Optional[irast.TypeRef],
+        query_params: Dict[str, irast.TypeRef],
     ) -> None:
         self.aliases = aliases.AliasGenerator()
         self.output_format = output_format
@@ -293,3 +295,4 @@ class Environment:
         self.ignore_object_shapes = ignore_object_shapes
         self.singleton_mode = singleton_mode
         self.explicit_top_cast = explicit_top_cast
+        self.query_params = query_params

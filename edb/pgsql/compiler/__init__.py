@@ -51,21 +51,25 @@ def compile_ir_to_sql_tree(
         expected_cardinality_one: bool=False) -> pgast.Base:
     try:
         # Transform to sql tree
-        env = context.Environment(
-            output_format=output_format,
-            expected_cardinality_one=expected_cardinality_one,
-            use_named_params=use_named_params,
-            ignore_object_shapes=ignore_shapes,
-            explicit_top_cast=explicit_top_cast,
-            singleton_mode=singleton_mode)
+        query_params = {}
 
         if isinstance(ir_expr, irast.Statement):
             scope_tree = ir_expr.scope_tree
+            query_params = {p.name: p.ir_type for p in ir_expr.params}
             ir_expr = ir_expr.expr
         elif isinstance(ir_expr, irast.ConfigCommand):
             scope_tree = ir_expr.scope_tree
         else:
             scope_tree = irast.new_scope_tree()
+
+        env = context.Environment(
+            output_format=output_format,
+            expected_cardinality_one=expected_cardinality_one,
+            use_named_params=use_named_params,
+            query_params=query_params,
+            ignore_object_shapes=ignore_shapes,
+            explicit_top_cast=explicit_top_cast,
+            singleton_mode=singleton_mode)
 
         ctx = context.CompilerContextLevel(
             None,
