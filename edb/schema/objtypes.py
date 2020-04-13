@@ -69,22 +69,22 @@ class ObjectType(
         introspectable=False)
 
     @classmethod
-    def get_schema_class_displayname(cls):
+    def get_schema_class_displayname(cls) -> str:
         return 'object type'
 
-    def is_object_type(self):
+    def is_object_type(self) -> bool:
         return True
 
-    def is_union_type(self, schema) -> bool:
+    def is_union_type(self, schema: s_schema.Schema) -> bool:
         return bool(self.get_union_of(schema))
 
-    def is_intersection_type(self, schema) -> bool:
+    def is_intersection_type(self, schema: s_schema.Schema) -> bool:
         return bool(self.get_intersection_of(schema))
 
-    def is_compound_type(self, schema) -> bool:
+    def is_compound_type(self, schema: s_schema.Schema) -> bool:
         return self.is_union_type(schema) or self.is_intersection_type(schema)
 
-    def get_displayname(self, schema):
+    def get_displayname(self, schema: s_schema.Schema) -> str:
         if self.is_view(schema) and not self.get_alias_is_persistent(schema):
             schema, mtype = self.material_type(schema)
         else:
@@ -109,7 +109,13 @@ class ObjectType(
             else:
                 return mtype.get_displayname(schema)
 
-    def getrptrs(self, schema, name, *, sources=()):
+    def getrptrs(
+        self,
+        schema: s_schema.Schema,
+        name: Union[sn.Name, str],
+        *,
+        sources: Iterable[so.InheritingObjectT] = ()
+    ) -> Set[links.Link]:
         if sn.Name.is_qualified(name):
             raise ValueError(
                 'references to concrete pointers must not be qualified')
@@ -118,7 +124,8 @@ class ObjectType(
             lnk for lnk in schema.get_referrers(self, scls_type=links.Link,
                                                 field_name='target')
             if (
-                lnk.get_shortname(schema).name == name
+                isinstance(lnk, links.Link)
+                and lnk.get_shortname(schema).name == name
                 and not lnk.get_source(schema).is_view(schema)
                 and lnk.get_is_local(schema)
                 and (not sources or lnk.get_source(schema) in sources)
@@ -130,7 +137,8 @@ class ObjectType(
                 lnk for lnk in schema.get_referrers(obj, scls_type=links.Link,
                                                     field_name='target')
                 if (
-                    lnk.get_shortname(schema).name == name
+                    isinstance(lnk, links.Link)
+                    and lnk.get_shortname(schema).name == name
                     and not lnk.get_source(schema).is_view(schema)
                     and lnk.get_is_local(schema)
                     and (not sources or lnk.get_source(schema) in sources)
@@ -139,31 +147,39 @@ class ObjectType(
 
         return ptrs
 
-    def implicitly_castable_to(self, other: s_types.Type, schema) -> bool:
+    def implicitly_castable_to(
+        self,
+        other: s_types.Type,
+        schema: s_schema.Schema
+    ) -> bool:
         return self.issubclass(schema, other)
 
     def find_common_implicitly_castable_type(
         self,
         other: s_types.Type,
         schema: s_schema.Schema,
-    ) -> Tuple[s_schema.Schema, Optional[s_types.Type]]:
+    ) -> Tuple[s_schema.Schema, Optional[ObjectType]]:
         return (
             schema,
             utils.get_class_nearest_common_ancestor(schema, [self, other]),
         )
 
     @classmethod
-    def get_root_classes(cls):
+    def get_root_classes(cls) -> Tuple[sn.Name, ...]:
         return (
             sn.Name(module='std', name='BaseObject'),
             sn.Name(module='std', name='Object'),
         )
 
     @classmethod
-    def get_default_base_name(cls):
+    def get_default_base_name(cls) -> sn.Name:
         return sn.Name(module='std', name='Object')
 
-    def _issubclass(self, schema, parent):
+    def _issubclass(
+        self,
+        schema: s_schema.Schema,
+        parent: so.SubclassableObject
+    ) -> bool:
         if self == parent:
             return True
 
@@ -236,7 +252,7 @@ def get_or_create_union_type(
         module=module,
     )
 
-    objtype = schema.get_by_id(type_id, None)
+    objtype: Optional[so.Object] = schema.get_by_id(type_id, None)
     created = objtype is None
     if objtype is None:
         components = list(components)
@@ -261,6 +277,7 @@ def get_or_create_union_type(
                 modname=module,
             )
 
+    assert isinstance(objtype, ObjectType)
     return schema, objtype, created
 
 
@@ -319,10 +336,11 @@ def get_or_create_intersection_type(
             if objtype.getptr(schema, pn) is None:
                 schema = objtype.add_pointer(schema, ptr)
 
+    assert isinstance(objtype, ObjectType)
     return schema, objtype, created
 
 
-class ObjectTypeCommandContext(sd.ObjectCommandContext,
+class ObjectTypeCommandContext(sd.ObjectCommandContext[ObjectType],
                                constraints.ConsistencySubjectCommandContext,
                                s_anno.AnnotationSubjectCommandContext,
                                links.LinkSourceCommandContext,
@@ -330,20 +348,27 @@ class ObjectTypeCommandContext(sd.ObjectCommandContext,
     pass
 
 
-class ObjectTypeCommand(s_types.InheritingTypeCommand,
-                        constraints.ConsistencySubjectCommand,
+class ObjectTypeCommand(s_types.InheritingTypeCommand[ObjectType],
+                        constraints.ConsistencySubjectCommand[ObjectType],
                         sources.SourceCommand, links.LinkSourceCommand,
                         schema_metaclass=ObjectType,
                         context_class=ObjectTypeCommandContext):
     pass
 
 
-class CreateObjectType(ObjectTypeCommand, inheriting.CreateInheritingObject):
+class CreateObjectType(ObjectTypeCommand,
+                       inheriting.CreateInheritingObject[ObjectType]):
     astnode = qlast.CreateObjectType
 
     @classmethod
-    def _cmd_tree_from_ast(cls, schema, astnode, context):
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> sd.Command:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        assert isinstance(cmd, sd.QualifiedObjectCommand)
         cmd = cls._handle_view_op(schema, cmd, astnode, context)
         return cmd
 
@@ -363,7 +388,11 @@ class CreateObjectType(ObjectTypeCommand, inheriting.CreateInheritingObject):
         else:
             return super()._get_ast(schema, context, parent_node=parent_node)
 
-    def _get_ast_node(self, schema, context):
+    def _get_ast_node(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext
+    ) -> Type[qlast.DDLOperation]:
         if self.get_attribute_value('expr_type'):
             return qlast.CreateAlias
         else:
@@ -374,19 +403,27 @@ class RenameObjectType(ObjectTypeCommand, sd.RenameObject):
     pass
 
 
-class RebaseObjectType(ObjectTypeCommand, inheriting.RebaseInheritingObject):
+class RebaseObjectType(ObjectTypeCommand,
+                       inheriting.RebaseInheritingObject[ObjectType]):
     pass
 
 
-class AlterObjectType(ObjectTypeCommand, inheriting.AlterInheritingObject):
+class AlterObjectType(ObjectTypeCommand,
+                      inheriting.AlterInheritingObject[ObjectType]):
     astnode = qlast.AlterObjectType
 
     @classmethod
-    def _cmd_tree_from_ast(cls, schema, astnode, context):
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> sd.Command:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         cmd = cls._handle_view_op(schema, cmd, astnode, context)
         return cmd
 
 
-class DeleteObjectType(ObjectTypeCommand, inheriting.DeleteInheritingObject):
+class DeleteObjectType(ObjectTypeCommand,
+                       inheriting.DeleteInheritingObject[ObjectType]):
     astnode = qlast.DropObjectType
