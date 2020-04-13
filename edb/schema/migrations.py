@@ -36,35 +36,44 @@ if TYPE_CHECKING:
 class Migration(so.Object, s_abc.Migration):
 
     parents = so.SchemaField(
-        so.ObjectList,
+        so.ObjectList['Migration'],
         default=so.DEFAULT_CONSTRUCTOR, coerce=True, inheritable=False)
 
     target = so.SchemaField(
         qlast.Schema,
         inheritable=False, default=None, introspectable=False)
 
-    delta = so.SchemaField(
+    # type ignore below, because this class is redefining a new member
+    # with the same name
+    delta = so.SchemaField(  # type: ignore
         sd.DeltaRoot,
         default=None,
         coerce=True, inheritable=False, introspectable=False)
 
 
-class MigrationCommandContext(sd.ObjectCommandContext):
+class MigrationCommandContext(sd.ObjectCommandContext[Migration]):
     pass
 
 
-class MigrationCommand(sd.ObjectCommand, schema_metaclass=Migration,
+class MigrationCommand(sd.ObjectCommand[Migration],
+                       schema_metaclass=Migration,
                        context_class=MigrationCommandContext):
     pass
 
 
-class CreateMigration(MigrationCommand, sd.CreateObject):
+class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
     astnode = qlast.CreateMigration
 
     @classmethod
-    def _cmd_tree_from_ast(cls, schema, astnode, context):
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> sd.Command:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
+        assert isinstance(astnode, qlast.CreateMigration)
         if astnode.target is not None:
             cmd.set_attribute_value('target', astnode.target)
 
@@ -87,8 +96,10 @@ class CommitMigration(MigrationCommand):
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        migration = schema.get(self.classname)
-        schema = migration.get_delta(schema).apply(schema, context)
+        migration = schema.get(self.classname, type=Migration)
+        delta = migration.get_delta(schema)
+        assert delta is not None
+        schema = delta.apply(schema, context)
         return schema
 
 
