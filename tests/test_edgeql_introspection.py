@@ -515,10 +515,11 @@ class TestIntrospection(tb.QueryTestCase):
                     subject: {
                         name
                     },
-                    args: {
+                    params: {
                         num,
                         @value
-                    } ORDER BY .num
+                    } FILTER .name != '__subject__'
+                      ORDER BY .num
                 }
                 FILTER
                     .subject.name = 'body'
@@ -530,7 +531,7 @@ class TestIntrospection(tb.QueryTestCase):
                 'subject': {
                     'name': 'body'
                 },
-                'args': [{
+                'params': [{
                     'num': 1,
                     '@value': '10000'
                 }]
@@ -550,7 +551,11 @@ class TestIntrospection(tb.QueryTestCase):
                             expr,
                             annotations: { name, @value },
                             subject: { name },
-                            args: { name, @value, type: { name } },
+                            params: {
+                                name,
+                                @value,
+                                type: { name }
+                            } FILTER .name != '__subject__',
                             return_typemod,
                             return_type: { name },
                             errmessage,
@@ -570,7 +575,7 @@ class TestIntrospection(tb.QueryTestCase):
                                 'expr': '(__subject__ <= max)',
                                 'annotations': {},
                                 'subject': {'name': 'body'},
-                                'args': [
+                                'params': [
                                     {
                                         'name': 'max',
                                         'type': {'name': 'std::int64'},
@@ -593,7 +598,7 @@ class TestIntrospection(tb.QueryTestCase):
                                 'expr': 'std::_is_exclusive(__subject__)',
                                 'annotations': {},
                                 'subject': {'name': 'id'},
-                                'args': {},
+                                'params': {},
                                 'return_typemod': 'SINGLETON',
                                 'return_type': {'name': 'std::bool'},
                                 'errmessage':
@@ -617,7 +622,11 @@ class TestIntrospection(tb.QueryTestCase):
                         expr,
                         annotations: { name, @value },
                         subject: { name },
-                        args: { name, @value, type: { name } },
+                        params: {
+                            name,
+                            @value,
+                            type: { name }
+                        } FILTER .name != '__subject__',
                         return_typemod,
                         return_type: { name },
                         errmessage,
@@ -634,7 +643,7 @@ class TestIntrospection(tb.QueryTestCase):
                         'expr': 'contains(vals, __subject__)',
                         'annotations': {},
                         'subject': {'name': 'test::EmulatedEnum'},
-                        'args': [
+                        'params': [
                             {
                                 'name': 'vals',
                                 'type': {'name': 'array'},

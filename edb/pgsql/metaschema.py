@@ -2248,13 +2248,14 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
         else:
             ftype = type(None)
 
-        if pn.name == 'args' and mcls is s_constraints.Constraint:
-            # Constraint args need special handling.
+        if pn.name == 'params' and mcls is s_constraints.Constraint:
+            # Constraint params need special handling to support
+            # currying (@value property injection)
             link_query = f'''
                 SELECT
                     q.id            AS source,
                     q.param_id      AS target,
-                    q.value         AS value
+                    COALESCE(q.value, '')         AS value
                 FROM
                     edgedb.{mcls.__name__} AS s,
 
@@ -2270,7 +2271,7 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
                             INNER JOIN edgedb.Parameter AS param
                                 ON param.id = p.param_id
 
-                            INNER JOIN
+                            LEFT JOIN
                                 UNNEST(s.args)
                                     WITH ORDINALITY AS tv(_, value, _, num)
                                 ON (p.num = tv.num + 1)
@@ -2297,8 +2298,6 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
                             param.kind = 'VARIADIC'
 
                     ) AS q
-                WHERE
-                    s.subject IS NOT NULL
             '''
 
         elif pn.name == 'bases' or pn.name == 'ancestors':

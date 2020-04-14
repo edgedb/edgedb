@@ -167,8 +167,7 @@ CREATE ABSTRACT TYPE schema::VolatilitySubject {
 CREATE TYPE schema::Constraint
     EXTENDING schema::CallableObject, schema::InheritingObject
 {
-    CREATE MULTI LINK args -> schema::Parameter {
-        CREATE CONSTRAINT std::exclusive;
+    ALTER LINK params {
         CREATE PROPERTY value -> std::str;
     };
     CREATE PROPERTY expr -> std::str;

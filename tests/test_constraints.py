@@ -703,7 +703,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
             r'''
                 SELECT schema::Constraint {
                     name,
-                    args: {
+                    params: {
                         num,
                         name,
                         kind,
@@ -720,7 +720,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
             [
                 {
                     "name": 'test::mymax_ext1',
-                    "args": [
+                    "params": [
                         {
                             "num": 1,
                             "kind": 'POSITIONAL',

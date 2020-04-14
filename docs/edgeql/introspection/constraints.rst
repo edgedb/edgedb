@@ -69,7 +69,7 @@ Introspection of the scalar ``maxex_100`` with focus on the constraint:
     ...         expr,
     ...         annotations: { name, @value },
     ...         subject: { name },
-    ...         args: { name, @value, type: { name } },
+    ...         params: { name, @value, type: { name } },
     ...         return_typemod,
     ...         return_type: { name },
     ...         errmessage,
@@ -85,7 +85,7 @@ Introspection of the scalar ``maxex_100`` with focus on the constraint:
                     expr: '(__subject__ <= max)',
                     annotations: {},
                     subject: Object { name: 'default::maxex_100' },
-                    args: {
+                    params: {
                         Object {
                             name: 'max',
                             type: Object { name: 'anytype' },
