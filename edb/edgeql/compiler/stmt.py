@@ -190,7 +190,7 @@ def compile_GroupQuery(
 
         typename = s_name.Name(
             module='__group__', name=ctx.aliases.get('Group'))
-        obj = ctx.env.get_track_schema_object('std::Object')
+        obj = ctx.env.get_track_schema_object('std::BaseObject')
         stmt.group_path_id = pathctx.get_path_id(
             obj, typename=typename, ctx=ictx)
 

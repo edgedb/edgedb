@@ -476,7 +476,7 @@ def trace_Function(node: qlast.CreateFunction, *, ctx: DepTraceContext):
             param_t = ctx.get_ref_name(param.type.maintype)
             params[param.name] = param_t
         else:
-            params[param.name] = 'std::Object'
+            params[param.name] = 'std::BaseObject'
 
     if node.nativecode is not None:
         deps.append((node.nativecode, params))

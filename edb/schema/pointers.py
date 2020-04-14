@@ -419,7 +419,7 @@ class Pointer(referencing.ReferencedInheritingObject,
 
     def is_id_pointer(self, schema: s_schema.Schema) -> bool:
         from edb.schema import sources as s_sources
-        std_id = schema.get('std::Object',
+        std_id = schema.get('std::BaseObject',
                             type=s_sources.Source).getptr(schema, 'id')
         std_target = schema.get('std::target', type=so.SubclassableObject)
         assert isinstance(std_id, so.SubclassableObject)

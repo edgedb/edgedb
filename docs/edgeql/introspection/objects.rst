@@ -98,6 +98,7 @@ Introspection of ``User``:
             is_final: false,
             bases: {Object { name: 'default::Addressable' }},
             ancestors: {
+                Object { name: 'std::BaseObject' },
                 Object { name: 'std::Object' },
                 Object { name: 'default::Addressable' }
             },

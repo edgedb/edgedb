@@ -38,7 +38,7 @@ CREATE SCALAR TYPE schema::Volatility
     EXTENDING enum<'IMMUTABLE', 'STABLE', 'VOLATILE'>;
 
 # Base type for all schema entities.
-CREATE ABSTRACT TYPE schema::Object {
+CREATE ABSTRACT TYPE schema::Object EXTENDING std::BaseObject {
     CREATE REQUIRED PROPERTY name -> std::str;
 };
 
@@ -53,7 +53,7 @@ ALTER TYPE schema::Type {
 };
 
 
-ALTER TYPE std::Object {
+ALTER TYPE std::BaseObject {
     CREATE LINK __type__ -> schema::Type {
         SET readonly := True;
     };
@@ -133,7 +133,7 @@ CREATE ABSTRACT TYPE schema::InheritingObject EXTENDING schema::Object {
 };
 
 
-CREATE TYPE schema::Parameter {
+CREATE TYPE schema::Parameter EXTENDING std::BaseObject {
     CREATE REQUIRED LINK type -> schema::Type;
     CREATE REQUIRED PROPERTY typemod -> std::str;
     CREATE REQUIRED PROPERTY kind -> std::str;
@@ -155,7 +155,7 @@ CREATE ABSTRACT TYPE schema::CallableObject
 };
 
 
-CREATE ABSTRACT TYPE schema::VolatilitySubject {
+CREATE ABSTRACT TYPE schema::VolatilitySubject EXTENDING schema::Object {
     CREATE REQUIRED PROPERTY volatility -> schema::Volatility {
         # NOTE: this default indicates the default value in the python
         # implementation, but is not itself a source of truth

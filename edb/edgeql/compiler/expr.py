@@ -516,7 +516,7 @@ def compile_Introspect(
         typeref = typegen.type_to_typeref(
             typing.cast(
                 s_objtypes.ObjectType,
-                ctx.env.schema.get('std::Object'),
+                ctx.env.schema.get('std::BaseObject'),
             ),
             env=ctx.env,
         )

@@ -1981,7 +1981,7 @@ class CreateObjectType(ObjectTypeMetaCommand,
         self.table_name = new_table_name
 
         columns = []
-        if objtype.get_name(schema) == 'std::Object':
+        if objtype.get_name(schema) == 'std::BaseObject':
             token_col = dbops.Column(
                 name='__edb_token', type='uuid', required=False)
             columns.append(token_col)
@@ -2014,7 +2014,7 @@ class CreateObjectType(ObjectTypeMetaCommand,
             cid_col = dbops.Column(
                 name='__type__', type='uuid', required=True)
 
-            if objtype.get_name(schema) == 'std::Object':
+            if objtype.get_name(schema) == 'std::BaseObject':
                 alter_table.add_operation(dbops.AlterTableAddColumn(cid_col))
 
             constraint = dbops.PrimaryKey(

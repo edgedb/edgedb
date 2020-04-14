@@ -338,6 +338,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                 "name": "User_Type",
                 "description": None,
                 "interfaces": [
+                    {"name": "BaseObject"},
                     {"name": "NamedObject"},
                     {"name": "Object"},
                     {"name": "User"},
@@ -1025,6 +1026,11 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                         "interfaces": [
                             {
                                 "__typename": "__Type",
+                                "name": "BaseObject",
+                                "kind": "INTERFACE"
+                            },
+                            {
+                                "__typename": "__Type",
                                 "name": "NamedObject",
                                 "kind": "INTERFACE"
                             },
@@ -1144,6 +1150,11 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                         "interfaces": [
                             {
                                 "__typename": "__Type",
+                                "name": "BaseObject",
+                                "kind": "INTERFACE"
+                            },
+                            {
+                                "__typename": "__Type",
                                 "name": "NamedObject",
                                 "kind": "INTERFACE"
                             },
@@ -1236,6 +1247,11 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                             }
                         ],
                         "interfaces": [
+                            {
+                                "__typename": "__Type",
+                                "name": "BaseObject",
+                                "kind": "INTERFACE"
+                            },
                             {
                                 "__typename": "__Type",
                                 "name": "NamedObject",
@@ -1336,6 +1352,11 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                         "interfaces": [
                             {
                                 "__typename": "__Type",
+                                "name": "BaseObject",
+                                "kind": "INTERFACE"
+                            },
+                            {
+                                "__typename": "__Type",
                                 "name": "NamedObject",
                                 "kind": "INTERFACE"
                             },
@@ -1421,6 +1442,11 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                         "interfaces": [
                             {
                                 "__typename": "__Type",
+                                "name": "BaseObject",
+                                "kind": "INTERFACE"
+                            },
+                            {
+                                "__typename": "__Type",
                                 "name": "NamedObject",
                                 "kind": "INTERFACE"
                             },
@@ -1499,6 +1525,11 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                             }
                         ],
                         "interfaces": [
+                            {
+                                "__typename": "__Type",
+                                "name": "BaseObject",
+                                "kind": "INTERFACE"
+                            },
                             {
                                 "__typename": "__Type",
                                 "name": "NamedObject",
@@ -1645,6 +1676,11 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                         "interfaces": [
                             {
                                 "__typename": "__Type",
+                                "name": "BaseObject",
+                                "kind": "INTERFACE"
+                            },
+                            {
+                                "__typename": "__Type",
                                 "name": "NamedObject",
                                 "kind": "INTERFACE"
                             },
@@ -1740,6 +1776,11 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                             }
                         ],
                         "interfaces": [
+                            {
+                                "__typename": "__Type",
+                                "name": "BaseObject",
+                                "kind": "INTERFACE"
+                            },
                             {
                                 "__typename": "__Type",
                                 "name": "NamedObject",

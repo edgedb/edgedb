@@ -808,11 +808,13 @@ _123456789_123456789_123456789 -> str
             type C extending B;
         """)
 
+        BaseObject = schema.get('std::BaseObject')
         Object = schema.get('std::Object')
         A = schema.get('test::A')
         B = schema.get('test::B')
         C = schema.get('test::C')
         std_link = schema.get('std::link')
+        BaseObject__type__ = BaseObject.getptr(schema, '__type__')
         Object__type__ = Object.getptr(schema, '__type__')
         A__type__ = A.getptr(schema, '__type__')
         B__type__ = B.getptr(schema, '__type__')
@@ -823,6 +825,7 @@ _123456789_123456789_123456789 -> str
                 B__type__,
                 A__type__,
                 Object__type__,
+                BaseObject__type__,
                 std_link,
             )
         )
@@ -843,6 +846,7 @@ _123456789_123456789_123456789 -> str
             (
                 B__type__,
                 Object__type__,
+                BaseObject__type__,
                 std_link,
             )
         )

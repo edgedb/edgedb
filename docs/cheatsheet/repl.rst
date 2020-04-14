@@ -50,7 +50,7 @@ Describe an object type:
 .. code-block:: edgeql-repl
 
     db> \d std::Object
-    abstract type std::Object {
+    abstract type std::Object extending std::BaseObject {
         required single link __type__ -> schema::Type {
             readonly := true;
         };

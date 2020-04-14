@@ -26,14 +26,17 @@ CREATE SCALAR TYPE sys::TransactionIsolation
     EXTENDING enum<'REPEATABLE READ', 'SERIALIZABLE'>;
 
 
-CREATE TYPE sys::Database {
+CREATE ABSTRACT TYPE sys::SystemObject EXTENDING std::BaseObject;
+
+
+CREATE TYPE sys::Database EXTENDING sys::SystemObject {
     CREATE REQUIRED PROPERTY name -> std::str {
         SET readonly := True;
     };
 };
 
 
-CREATE TYPE sys::Role {
+CREATE TYPE sys::Role EXTENDING sys::SystemObject {
     CREATE REQUIRED PROPERTY name -> std::str {
         CREATE CONSTRAINT std::exclusive;
     };

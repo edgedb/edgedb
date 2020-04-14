@@ -427,7 +427,7 @@ def derive_dummy_ptr(
     *,
     ctx: context.ContextLevel,
 ) -> s_pointers.Pointer:
-    stdobj = cast(s_objtypes.ObjectType, ctx.env.schema.get('std::Object'))
+    stdobj = cast(s_objtypes.ObjectType, ctx.env.schema.get('std::BaseObject'))
     derived_obj_name = stdobj.get_derived_name(
         ctx.env.schema, stdobj, module='__derived__')
     derived_obj = ctx.env.schema.get(derived_obj_name, None)

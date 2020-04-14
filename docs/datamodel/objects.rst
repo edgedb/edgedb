@@ -25,10 +25,12 @@ than one type <ref_eql_sdl_object_types_inheritance>` - that's called
 *multiple inheritance*. This mechanism allows building complex object
 types out of combinations of more basic types.
 
-``std::Object`` is the root of the object type hierarchy and all object
-types in EdgeDB extend ``std::Object`` directly or indirectly.
+``std::BaseObject`` is the root of the object type hierarchy and all
+object types in EdgeDB, including system types, extend ``std::BaseObject``
+directly or indirectly.  User-defined object types extend from ``std::Object``,
+which is a subtype of ``std::BaseObject``.
 
-.. eql:type:: std::Object
+.. eql:type:: std::BaseObject
 
     Root object type.
 
@@ -36,13 +38,23 @@ types in EdgeDB extend ``std::Object`` directly or indirectly.
 
     .. code-block:: sdl
 
-        abstract type Object {
+        abstract type std::BaseObject {
             # Universally unique object identifier
             required readonly property id -> uuid;
 
             # Object type in the information schema.
             required readonly link __type__ -> schema::ObjectType;
         }
+
+.. eql:type:: std::Object
+
+    Root object type for user-defined types.
+
+    Definition:
+
+    .. code-block:: sdl
+
+        abstract type std::Object extending std::BaseObject;
 
 
 See Also

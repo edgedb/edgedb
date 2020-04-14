@@ -674,6 +674,7 @@ class TestDump01(tb.QueryTestCase, tb.CLITestCaseMixin):
                         {'name': 'default::T', '@index': 3},
                         {'name': 'default::R', '@index': 4},
                         {'name': 'std::Object', '@index': 5},
+                        {'name': 'std::BaseObject', '@index': 6},
                     ],
                 }
             ]

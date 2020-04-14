@@ -1328,7 +1328,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT
                 (INTROSPECT TYPEOF User.<owner).name;
             ''',
-            ['std::Object']
+            ['std::BaseObject']
         )
 
     async def test_edgeql_select_reverse_link_02(self):

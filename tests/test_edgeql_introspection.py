@@ -323,6 +323,8 @@ class TestIntrospection(tb.QueryTestCase):
                     'name': 'test::Text',
                 }, {
                     'name': 'std::Object',
+                }, {
+                    'name': 'std::BaseObject',
                 }],
             }]
         )
@@ -1051,14 +1053,22 @@ class TestIntrospection(tb.QueryTestCase):
         )
 
     async def test_edgeql_introspection_meta_13(self):
-        # make sure that ALL schema Objects are std::Objects
         res = await self.con.fetchone(r"""
             SELECT count(schema::Object);
         """)
 
+        # make sure that ALL schema Objects are std::BaseObjects
         await self.assert_query_result(
             r"""
-                SELECT schema::Object IS std::Object;
+                SELECT schema::Object IS std::BaseObject;
+            """,
+            [True] * res
+        )
+
+        # ...but not std::Objects
+        await self.assert_query_result(
+            r"""
+                SELECT schema::Object IS NOT std::Object;
             """,
             [True] * res
         )

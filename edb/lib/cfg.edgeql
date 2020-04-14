@@ -27,8 +27,9 @@ CREATE ABSTRACT ANNOTATION cfg::internal;
 CREATE ABSTRACT ANNOTATION cfg::requires_restart;
 CREATE ABSTRACT ANNOTATION cfg::system;
 
+CREATE ABSTRACT TYPE cfg::ConfigObject EXTENDING std::BaseObject;
 
-CREATE TYPE cfg::Port {
+CREATE TYPE cfg::Port EXTENDING cfg::ConfigObject {
     CREATE REQUIRED PROPERTY port -> std::int64 {
         CREATE CONSTRAINT std::exclusive;
         SET readonly := true;
@@ -57,12 +58,12 @@ CREATE TYPE cfg::Port {
 };
 
 
-CREATE ABSTRACT TYPE cfg::AuthMethod;
+CREATE ABSTRACT TYPE cfg::AuthMethod EXTENDING cfg::ConfigObject;
 CREATE TYPE cfg::Trust EXTENDING cfg::AuthMethod;
 CREATE TYPE cfg::SCRAM EXTENDING cfg::AuthMethod;
 
 
-CREATE TYPE cfg::Auth {
+CREATE TYPE cfg::Auth EXTENDING cfg::ConfigObject {
     CREATE REQUIRED PROPERTY priority -> std::int64 {
         CREATE CONSTRAINT std::exclusive;
         SET readonly := true;
@@ -83,7 +84,7 @@ CREATE TYPE cfg::Auth {
 };
 
 
-CREATE TYPE cfg::Config {
+CREATE TYPE cfg::Config extending cfg::ConfigObject {
     CREATE REQUIRED PROPERTY listen_port -> std::int16 {
         CREATE ANNOTATION cfg::system := 'true';
         SET default := 5656;

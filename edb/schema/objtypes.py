@@ -93,7 +93,7 @@ class ObjectType(
         union_of = mtype.get_union_of(schema)
         if union_of:
             if self.get_is_opaque_union(schema):
-                std_obj = schema.get('std::Object')
+                std_obj = schema.get('std::BaseObject')
                 return std_obj.get_displayname(schema)
             else:
                 comps = sorted(union_of.objects(schema), key=lambda o: o.id)
@@ -155,7 +155,8 @@ class ObjectType(
     @classmethod
     def get_root_classes(cls):
         return (
-            sn.Name(module='std', name='Object')
+            sn.Name(module='std', name='BaseObject'),
+            sn.Name(module='std', name='Object'),
         )
 
     @classmethod
@@ -240,7 +241,7 @@ def get_or_create_union_type(
     if objtype is None:
         components = list(components)
 
-        std_object = schema.get('std::Object')
+        std_object = schema.get('std::BaseObject')
 
         schema, objtype = std_object.derive_subtype(
             schema,
@@ -281,7 +282,7 @@ def get_or_create_intersection_type(
     if objtype is None:
         components = list(components)
 
-        std_object = schema.get('std::Object')
+        std_object = schema.get('std::BaseObject')
 
         schema, objtype = std_object.derive_subtype(
             schema,

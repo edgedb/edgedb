@@ -157,11 +157,11 @@ def fini_expression(
                 tgt = vptr.get_target(ctx.env.schema)
                 if (tgt.is_union_type(ctx.env.schema)
                         and tgt.get_is_opaque_union(ctx.env.schema)):
-                    # Opaque unions should manifest as std::Object
+                    # Opaque unions should manifest as std::BaseObject
                     # in schema views.
                     ctx.env.schema = vptr.set_target(
                         ctx.env.schema,
-                        ctx.env.schema.get('std::Object'),
+                        ctx.env.schema.get('std::BaseObject'),
                     )
 
                 if not hasattr(vptr, 'get_pointers'):
