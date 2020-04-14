@@ -805,18 +805,6 @@ impl<'a> From<SpannedToken<'a>> for CowToken<'a> {
     }
 }
 
-impl<'a> CowToken<'a> {
-    pub fn new<'x, S: Into<Cow<'x, str>>>(kind: Kind, val: S) -> CowToken<'x> {
-        CowToken {
-            kind,
-            value: val.into(),
-            start: Pos { line: 0, column: 0, offset: 0},
-            end: Pos { line: 0, column: 0, offset: 0},
-        }
-    }
-}
-
-
 fn unquote_string<'a>(s: &'a str) -> Result<String, String> {
     let mut res = String::with_capacity(s.len());
     let mut chars = s.chars();

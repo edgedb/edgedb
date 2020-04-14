@@ -35,11 +35,13 @@ pub enum Error {
     Tokenizer(String, Pos),
 }
 
-fn push_var<'x>(res: &mut Vec<CowToken<'x>>, typ: &'x str, var_name: String) {
-    res.push(CowToken::new(Kind::Less, "<"));
-    res.push(CowToken::new(Kind::Ident, typ));
-    res.push(CowToken::new(Kind::Greater, ">"));
-    res.push(CowToken::new(Kind::Argument, var_name));
+fn push_var<'x>(res: &mut Vec<CowToken<'x>>, typ: &'x str, var: String,
+    start: Pos, end: Pos)
+{
+    res.push(CowToken {kind: Kind::Less, value: "<".into(), start, end});
+    res.push(CowToken {kind: Kind::Ident, value: typ.into(), start, end});
+    res.push(CowToken {kind: Kind::Greater, value: ">".into(), start, end});
+    res.push(CowToken {kind: Kind::Argument, value: var.into(), start, end});
 }
 
 fn scan_vars<'x, 'y: 'x, I>(tokens: I) -> Option<(bool, usize)>
@@ -125,7 +127,8 @@ pub fn rewrite<'x>(text: &'x str)
             && tok.value != "9223372036854775808"
             => {
                 push_var(&mut rewritten_tokens, "int64",
-                    next_var(variables.len()));
+                    next_var(variables.len()),
+                    tok.start, tok.end);
                 variables.push(Variable {
                     value: Value::Int(tok.value.parse()
                         .map_err(|e| Error::Tokenizer(
@@ -239,6 +242,7 @@ mod test {
     use super::scan_vars;
     use combine::{StreamOnce, Positioned, easy::Error};
     use edgeql_parser::tokenizer::{TokenStream};
+    use edgeql_parser::position::Pos;
     use crate::tokenizer::{CowToken};
 
     fn tokenize<'x>(s: &'x str) -> Vec<CowToken<'x>> {
@@ -246,7 +250,12 @@ mod test {
         let mut s = TokenStream::new(s);
         loop {
             match s.uncons() {
-                Ok(x) => r.push(CowToken::new(x.kind, x.value)),
+                Ok(x) => r.push(CowToken {
+                    kind: x.kind,
+                    value: x.value.into(),
+                    start: Pos { line: 0, column: 0, offset: 0 },
+                    end: Pos { line: 0, column: 0, offset: 0 },
+                }),
                 Err(ref e) if e == &Error::end_of_input() => break,
                 Err(e) => panic!("Parse error at {}: {}", s.position(), e),
             }
