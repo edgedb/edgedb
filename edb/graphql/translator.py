@@ -53,12 +53,29 @@ ARG_TYPES = {
 
 REWRITE_TYPE_ERROR = re.compile(
     r"Variable '\$(?P<var_name>_edb_arg__\d+)' of type"
-    r" '(?P<used>String|Int)!'"
+    r" '(?P<used>\w+)!'"
     r" used in position expecting type '(?P<expected>[^']+)'"
 )
 _STR_TYPES = frozenset(("ID", "ID!"))
 _INT_TYPES = frozenset(("Int64", "Int64!", "Bigint", "Decimal"))
 _INT64_TYPES = frozenset(("Bigint", "Decimal"))
+_IMPLICIT_CONVERSIONS = {
+    # Used, Expected
+    ("String", "ID"),
+    ("String", "ID!"),
+    ("Int", "Int64"),
+    ("Int", "Int64!"),
+    ("Int", "Bigint"),
+    ("Int", "Bigint!"),
+    ("Int", "Decimal"),
+    ("Int", "Decimal!"),
+    ("Int64", "Bigint"),
+    ("Int64", "Bigint!"),
+    ("Int64", "Decimal"),
+    ("Int64", "Decimal!"),
+    ("Float", "Decimal"),
+    ("Float", "Decimal!"),
+}
 INT_FLOAT_ERROR = re.compile(
     r"Variable '\$[^']+' of type 'Int!?'"
     r" used in position expecting type 'Float!?'"
@@ -1628,13 +1645,7 @@ def convert_errors(
 
             result.append(err)
             continue
-        if m.group("used") == "String" and m.group("expected") in _STR_TYPES:
-            # skip the error, we avoid it in the execution code
-            continue
-        if m.group("used") == "Int" and m.group("expected") in _INT_TYPES:
-            # skip the error, we avoid it in the execution code
-            continue
-        if m.group("used") == "Int64" and m.group("expected") in _INT64_TYPES:
+        if (m.group("used"), m.group("expected")) in _IMPLICIT_CONVERSIONS:
             # skip the error, we avoid it in the execution code
             continue
         value, line, col = substitutions[m.group("var_name")]
