@@ -123,7 +123,7 @@ class TranspiledOperation(NamedTuple):
 
     edgeql_ast: qlast.Base
     cacheable: bool
-    cache_deps_vars: dict
+    cache_deps_vars: Optional[FrozenSet[str]]
     variables_desc: dict
 
 
@@ -1003,14 +1003,27 @@ class GraphQLTranslator:
             if fname == 'set':
                 return self._visit_insert_value(field.value)
             elif fname == 'clear':
-                # just check if the value is True (we need the visit
-                # to resolve potential variables)
-                if self.visit(field.value).value == 'true':
+                cond = field.value
+                if isinstance(cond, gql_ast.VariableNode):
+                    var_name = cond.name.value
+                    var = self._context.vars[var_name]
+                    if not var.critical:
+                        self._context.vars[var_name] = \
+                            var._replace(critical=True)
+                    value = var.val
+                elif isinstance(cond, gql_ast.BooleanValueNode):
+                    value = cond.value
+                elif isinstance(cond, gql_ast.NullValueNode):
+                    value = None
+                else:
+                    # We assume that schema was validated,
+                    # so variable is of correct type
+                    raise AssertionError(f"Unexpected node {cond!r}")
+
+                if value:
                     # empty set to clear the value
                     return qlast.Set()
-                else:
-                    raise g_errors.GraphQLTranslationError(
-                        '"clear" parameter can only take the value of "true"')
+
             elif fname == 'increment':
                 return qlast.BinOp(
                     left=eqlpath,
@@ -1678,7 +1691,7 @@ def translate_ast(
     return TranspiledOperation(
         edgeql_ast=op.stmt,
         cacheable=True,
-        cache_deps_vars=dict(op.critvars) if op.critvars else None,
+        cache_deps_vars=frozenset(op.critvars) if op.critvars else None,
         variables_desc=op.vars,
     )
 

@@ -45,7 +45,7 @@ class CompiledOperation:
     sql_args: List[str]
     dbver: int
     cacheable: bool
-    cache_deps_vars: Dict
+    cache_deps_vars: Optional[FrozenSet[str]]
     variables: Dict
 
 
