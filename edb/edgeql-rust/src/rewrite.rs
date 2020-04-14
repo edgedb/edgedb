@@ -122,6 +122,7 @@ pub fn rewrite<'x>(text: &'x str)
                 || !matches!(rewritten_tokens.last(),
                     Some(CowToken { kind: Kind::Keyword, ref value, .. })
                     if value == "LIMIT"))
+            && tok.value != "9223372036854775808"
             => {
                 push_var(&mut rewritten_tokens, "int64",
                     next_var(variables.len()));
