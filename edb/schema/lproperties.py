@@ -396,11 +396,8 @@ class AlterProperty(
         node: qlast.DDLOperation,
         op: sd.AlterObjectProperty,
     ) -> None:
-        # TODO: this method is not covered by tests
         if op.property == 'target':
             if op.new_value:
-                # TODO: how to resolve the error below?
-                # "object" has no attribute "classname"
                 node.commands.append(qlast.SetLinkType(
                     type=qlast.ObjectRef(
                         name=op.new_value.classname.name,  # type: ignore
