@@ -28,8 +28,7 @@ CREATE SCALAR TYPE schema::Cardinality
     EXTENDING enum<'ONE', 'MANY'>;
 
 CREATE SCALAR TYPE schema::TargetDeleteAction
-    EXTENDING enum<'RESTRICT', 'DELETE SOURCE', 'SET EMPTY',
-                   'SET DEFAULT', 'DEFERRED RESTRICT'>;
+    EXTENDING enum<'RESTRICT', 'DELETE SOURCE', 'ALLOW', 'DEFERRED RESTRICT'>;
 
 CREATE SCALAR TYPE schema::OperatorKind
     EXTENDING enum<'INFIX', 'POSTFIX', 'PREFIX', 'TERNARY'>;
@@ -43,8 +42,19 @@ CREATE ABSTRACT TYPE schema::Object EXTENDING std::BaseObject {
 };
 
 
+CREATE ABSTRACT TYPE schema::SubclassableObject EXTENDING schema::Object {
+    CREATE PROPERTY is_abstract -> std::bool {
+        SET default := false;
+    };
+
+    CREATE PROPERTY is_final -> std::bool {
+        SET default := false;
+    };
+};
+
+
 # Base type for all *types*.
-CREATE ABSTRACT TYPE schema::Type EXTENDING schema::Object;
+CREATE ABSTRACT TYPE schema::Type EXTENDING schema::SubclassableObject;
 CREATE TYPE schema::PseudoType EXTENDING schema::Type;
 
 ALTER TYPE schema::Type {
@@ -116,29 +126,21 @@ CREATE ABSTRACT TYPE schema::AnnotationSubject EXTENDING schema::Object {
 };
 
 
-CREATE ABSTRACT TYPE schema::InheritingObject EXTENDING schema::Object {
+CREATE ABSTRACT TYPE schema::InheritingObject
+EXTENDING schema::SubclassableObject {
     CREATE MULTI LINK bases EXTENDING schema::ordered
         -> schema::InheritingObject;
     CREATE MULTI LINK ancestors EXTENDING schema::ordered
         -> schema::InheritingObject;
     CREATE PROPERTY inherited_fields -> array<std::str>;
-
-    CREATE REQUIRED PROPERTY is_abstract -> std::bool {
-        SET default := false;
-    };
-
-    CREATE REQUIRED PROPERTY is_final -> std::bool {
-        SET default := false;
-    };
 };
 
 
-CREATE TYPE schema::Parameter EXTENDING std::BaseObject {
+CREATE TYPE schema::Parameter EXTENDING schema::Object {
     CREATE REQUIRED LINK type -> schema::Type;
     CREATE REQUIRED PROPERTY typemod -> std::str;
     CREATE REQUIRED PROPERTY kind -> std::str;
     CREATE REQUIRED PROPERTY num -> std::int64;
-    CREATE PROPERTY name -> std::str;
     CREATE PROPERTY default -> std::str;
 };
 
@@ -208,8 +210,8 @@ CREATE ABSTRACT TYPE schema::Pointer
         schema::InheritingObject, schema::ConsistencySubject,
         schema::AnnotationSubject
 {
-    CREATE REQUIRED PROPERTY cardinality -> schema::Cardinality;
-    CREATE REQUIRED PROPERTY required -> std::bool;
+    CREATE PROPERTY cardinality -> schema::Cardinality;
+    CREATE PROPERTY required -> std::bool;
     CREATE PROPERTY default -> std::str;
     CREATE PROPERTY expr -> std::str;
 };

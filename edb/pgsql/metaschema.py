@@ -2641,7 +2641,9 @@ def _generate_types_views(schema, type_fields):
             {_lookup_type('q.subtypes[1]')}
                             AS element_type,
             q.dimensions    AS dimensions,
-            NULL            AS expr
+            NULL            AS expr,
+            false           AS is_abstract,
+            true            AS is_final
         FROM
             types AS q
         WHERE
@@ -2659,7 +2661,9 @@ def _generate_types_views(schema, type_fields):
                             AS element_type,
             dimensions      AS dimensions,
             (q.expr).origtext
-                            AS expr
+                            AS expr,
+            false           AS is_abstract,
+            true            AS is_final
         FROM
             edgedb.ArrayExprAlias AS q
 
@@ -2676,7 +2680,9 @@ def _generate_types_views(schema, type_fields):
             (SELECT id FROM edgedb.Object
                  WHERE name = 'schema::Tuple')
                             AS __type__,
-            NULL            AS expr
+            NULL            AS expr,
+            false           AS is_abstract,
+            true            AS is_final
         FROM
             types AS q
         WHERE
@@ -2691,7 +2697,9 @@ def _generate_types_views(schema, type_fields):
                  WHERE name = 'schema::Tuple')
                             AS __type__,
             (q.expr).origtext
-                            AS expr
+                            AS expr,
+            false           AS is_abstract,
+            true            AS is_final
         FROM
             edgedb.TupleExprAlias q
     '''
@@ -3323,6 +3331,20 @@ async def generate_views(conn, schema):
                     ON (c.oid = cmt.objoid AND c.tableoid = cmt.classoid)
                 INNER JOIN {objtab} AS no
                     ON (no.name = cmt.description)
+                LEFT JOIN (
+                    edgedb.AnnotationValue av
+                    INNER JOIN edgedb.Annotation a
+                        ON (
+                            ((av.annotation).types[1]).maintype = a.id
+                            AND a.name = 'schema::_internal'
+                            AND av.value = 'true'
+                        )
+                )
+                ON (
+                    t.id = ((av.subject).types[1]).maintype
+                )
+            WHERE
+                av.id IS NULL
         '''
 
         view = dbops.View(name=tabname(schema, schema_cls), query=view_query)
@@ -3351,6 +3373,8 @@ async def generate_views(conn, schema):
             SELECT
                 "expr",
                 "id",
+                "is_abstract",
+                "is_final",
                 "name",
                 "__type__"
             FROM
