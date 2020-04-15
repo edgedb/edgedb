@@ -124,10 +124,8 @@ class Link(sources.Source, pointers.Pointer, s_abc.Link,
         schema: s_schema.Schema
     ) -> s_types.Type:
         from . import types as s_types
-
         source = self.get_source(schema)
-        if not isinstance(source, s_types.Type):
-            raise TypeError('Source is expected to be a Type')
+        assert isinstance(source, s_types.Type)
         return source
 
     def compare(
