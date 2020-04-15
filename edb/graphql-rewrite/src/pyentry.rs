@@ -1,5 +1,6 @@
 use cpython::{Python, PyClone, ToPyObject, PythonObject, ObjectProtocol};
 use cpython::{PyString, PyResult, PyTuple, PyDict, PyList, PyObject, PyInt};
+use cpython::{PyModule, PyType, FromPyObject};
 
 use edb_graphql_parser::common::{unquote_string, unquote_block_string};
 use edb_graphql_parser::position::Pos;
@@ -147,7 +148,9 @@ py_class!(pub class Entry |py| {
 fn init_module(_py: Python<'_>) {
 }
 
-fn value_to_py(py: Python<'_>, value: &Value) -> PyResult<PyObject> {
+fn value_to_py(py: Python<'_>, value: &Value, decimal: &PyType)
+    -> PyResult<PyObject>
+{
     let v = match value {
         Value::Str(ref v) => {
             PyString::new(py, v).into_object()
@@ -158,8 +161,12 @@ fn value_to_py(py: Python<'_>, value: &Value) -> PyResult<PyObject> {
         Value::Int64(v) => {
             v.to_py_object(py).into_object()
         }
-        Value::Float(v) => {
-            v.to_py_object(py).into_object()
+        Value::Decimal(v) => {
+            decimal.call(py,
+                PyTuple::new(py, &[
+                    v.to_py_object(py).into_object(),
+                ]),
+                None)?
         }
         Value::BigInt(ref v) => {
             py.get_type::<PyInt>()
@@ -179,6 +186,8 @@ fn value_to_py(py: Python<'_>, value: &Value) -> PyResult<PyObject> {
 fn rewrite(py: Python<'_>, operation: Option<&PyString>, text: &PyString)
     -> PyResult<Entry>
 {
+    let decimal = PyType::extract(py,
+        &PyModule::import(py, "decimal")?.get(py, "Decimal")?)?;
     let oper = operation.map(|x| x.to_string(py)).transpose()?;
     let text = text.to_string(py)?;
     match entry_point::rewrite(oper.as_ref().map(|x| &x[..]), &text) {
@@ -189,7 +198,7 @@ fn rewrite(py: Python<'_>, operation: Option<&PyString>, text: &PyString)
                 let s = format!("_edb_arg__{}", idx).to_py_object(py);
                 vars.set_item(py,
                     s.clone_ref(py),
-                    value_to_py(py, &var.value)?)?;
+                    value_to_py(py, &var.value, &decimal)?)?;
                 substitutions.set_item(py, s.clone_ref(py), (
                     &var.token.value,
                     var.token.position.map(|x| x.line),
@@ -199,7 +208,7 @@ fn rewrite(py: Python<'_>, operation: Option<&PyString>, text: &PyString)
             for (name, var) in &entry.defaults {
                 vars.set_item(py,
                     name.to_py_object(py),
-                    value_to_py(py, &var.value)?)?
+                    value_to_py(py, &var.value, &decimal)?)?
             }
             let key_vars = PyList::new(py,
                 &entry.key_vars.iter()

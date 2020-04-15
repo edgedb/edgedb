@@ -23,7 +23,7 @@ pub enum Value {
     Int32(i32),
     Int64(i64),
     BigInt(String),
-    Float(f64),
+    Decimal(String),
     Boolean(bool),
 }
 
@@ -258,7 +258,10 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
                     BigInt(s.as_bigint().to_string())
                 }
                 (G::Float(s), Some("Float")) => {
-                    Float(*s)
+                    Decimal(s.clone())
+                }
+                (G::Float(s), Some("Decimal")) => {
+                    Decimal(s.clone())
                 }
                 (G::Boolean(s), Some("Boolean")) => {
                     Boolean(*s)
@@ -374,10 +377,9 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
                 });
                 variables.push(Variable {
                     token: PyToken::new(&(*token, *pos))?,
-                    value: Value::Float(token.value.parse().map_err(
-                        |_| Error::Assertion("can't parse float".into()))?),
+                    value: Value::Decimal(token.value.to_string()),
                 });
-                push_var_definition(&mut args, &var_name, "Float");
+                push_var_definition(&mut args, &var_name, "Decimal");
                 continue;
             }
             Name if token.value == "true" || token.value == "false" => {

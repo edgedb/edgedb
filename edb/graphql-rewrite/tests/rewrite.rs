@@ -459,7 +459,7 @@ fn test_float() {
         }
     "###).unwrap();
     assert_eq!(entry.key, "\
-        query($_edb_arg__0:Float!){\
+        query($_edb_arg__0:Decimal!){\
             object(filter:{field:{eq:$_edb_arg__0}}){\
                 field\
             }\
@@ -473,7 +473,7 @@ fn test_float() {
                 position: Some(Pos { line: 3, column: 41,
                                      character: 57, token: 12 }),
             },
-            value: Value::Float(17.25),
+            value: Value::Decimal("17.25".into()),
         }
     ]);
 }
@@ -496,7 +496,7 @@ fn test_defaults_float() {
     ");
     let mut defaults = BTreeMap::new();
     defaults.insert("x".to_owned(), Variable {
-        value: Value::Float(123.25),
+        value: Value::Decimal("123.25".into()),
         token: PyToken {
             kind: PyTokenKind::Equals,
             value: "=".into(),
@@ -505,7 +505,7 @@ fn test_defaults_float() {
         },
     });
     defaults.insert("y".to_owned(), Variable {
-        value: Value::Float(1234.75),
+        value: Value::Decimal("1234.75".into()),
         token: PyToken {
             kind: PyTokenKind::Equals,
             value: "=".into(),

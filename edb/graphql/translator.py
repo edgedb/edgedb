@@ -73,8 +73,8 @@ _IMPLICIT_CONVERSIONS = {
     ("Int64", "Bigint!"),
     ("Int64", "Decimal"),
     ("Int64", "Decimal!"),
-    ("Float", "Decimal"),
-    ("Float", "Decimal!"),
+    ("Decimal", "Float"),
+    ("Decimal", "Float!"),
 }
 INT_FLOAT_ERROR = re.compile(
     r"Variable '\$[^']+' of type 'Int!?'"
