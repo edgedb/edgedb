@@ -114,21 +114,20 @@ class ObjectType(
         schema: s_schema.Schema,
         name: Union[sn.Name, str],
         *,
-        sources: Iterable[so.InheritingObjectT] = ()
+        sources: Iterable[s_types.Type] = ()
     ) -> Set[links.Link]:
         if sn.Name.is_qualified(name):
             raise ValueError(
                 'references to concrete pointers must not be qualified')
-
         ptrs = {
             lnk for lnk in schema.get_referrers(self, scls_type=links.Link,
                                                 field_name='target')
             if (
                 isinstance(lnk, links.Link)
                 and lnk.get_shortname(schema).name == name
-                and not lnk.get_source(schema).is_view(schema)
+                and not lnk.get_source_type(schema).is_view(schema)
                 and lnk.get_is_local(schema)
-                and (not sources or lnk.get_source(schema) in sources)
+                and (not sources or lnk.get_source_type(schema) in sources)
             )
         }
 
@@ -139,9 +138,9 @@ class ObjectType(
                 if (
                     isinstance(lnk, links.Link)
                     and lnk.get_shortname(schema).name == name
-                    and not lnk.get_source(schema).is_view(schema)
+                    and not lnk.get_source_type(schema).is_view(schema)
                     and lnk.get_is_local(schema)
-                    and (not sources or lnk.get_source(schema) in sources)
+                    and (not sources or lnk.get_source_type(schema) in sources)
                 )
             )
 
@@ -159,9 +158,15 @@ class ObjectType(
         other: s_types.Type,
         schema: s_schema.Schema,
     ) -> Tuple[s_schema.Schema, Optional[ObjectType]]:
+        assert isinstance(other, ObjectType)
+        nearest_common_ancestor = utils.get_class_nearest_common_ancestor(
+            schema, [self, other]
+        )
+        if nearest_common_ancestor is not None:
+            assert isinstance(nearest_common_ancestor, ObjectType)
         return (
             schema,
-            utils.get_class_nearest_common_ancestor(schema, [self, other]),
+            nearest_common_ancestor,
         )
 
     @classmethod
@@ -270,6 +275,7 @@ def get_or_create_union_type(
         )
 
         if not opaque:
+
             schema = sources.populate_pointer_set_for_source_union(
                 schema,
                 components,
@@ -310,15 +316,15 @@ def get_or_create_intersection_type(
             ),
         )
 
-        ptrs = collections.defaultdict(list)
+        ptrs_dict = collections.defaultdict(list)
 
         for component in components:
             for pn, ptr in component.get_pointers(schema).items(schema):
-                ptrs[pn].append(ptr)
+                ptrs_dict[pn].append(ptr)
 
         intersection_pointers = {}
 
-        for pn, ptrs in ptrs.items():
+        for pn, ptrs in ptrs_dict.items():
             if len(ptrs) > 1:
                 # The pointer is present in more than one component.
                 schema, ptr = pointers.get_or_create_intersection_pointer(
@@ -367,6 +373,7 @@ class CreateObjectType(ObjectTypeCommand,
         astnode: qlast.DDLOperation,
         context: sd.CommandContext,
     ) -> sd.Command:
+        assert isinstance(astnode, qlast.ObjectDDL)
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         assert isinstance(cmd, sd.QualifiedObjectCommand)
         cmd = cls._handle_view_op(schema, cmd, astnode, context)
@@ -419,7 +426,9 @@ class AlterObjectType(ObjectTypeCommand,
         astnode: qlast.DDLOperation,
         context: sd.CommandContext,
     ) -> sd.Command:
+        assert isinstance(astnode, qlast.ObjectDDL)
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        assert isinstance(cmd, sd.QualifiedObjectCommand)
         cmd = cls._handle_view_op(schema, cmd, astnode, context)
         return cmd
 
