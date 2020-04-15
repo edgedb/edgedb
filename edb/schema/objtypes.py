@@ -93,7 +93,7 @@ class ObjectType(
         union_of = mtype.get_union_of(schema)
         if union_of:
             if self.get_is_opaque_union(schema):
-                std_obj = schema.get('std::BaseObject')
+                std_obj = schema.get('std::BaseObject', type=ObjectType)
                 return std_obj.get_displayname(schema)
             else:
                 comps = sorted(union_of.objects(schema), key=lambda o: o.id)
@@ -262,7 +262,7 @@ def get_or_create_union_type(
     if objtype is None:
         components = list(components)
 
-        std_object = schema.get('std::BaseObject')
+        std_object = schema.get('std::BaseObject', type=ObjectType)
 
         schema, objtype = std_object.derive_subtype(
             schema,
@@ -305,7 +305,7 @@ def get_or_create_intersection_type(
     if objtype is None:
         components = list(components)
 
-        std_object = schema.get('std::BaseObject')
+        std_object = schema.get('std::BaseObject', type=ObjectType)
 
         schema, objtype = std_object.derive_subtype(
             schema,
