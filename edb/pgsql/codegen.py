@@ -142,9 +142,13 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self._visit_values_expr(node)
             return
 
-        self.new_lines = 1
+        # This is a very crude detection of whether this SELECT is
+        # a top level statement.
+        parenthesize = bool(self.result)
 
-        self.write('(')
+        if parenthesize:
+            self.new_lines = 1
+            self.write('(')
 
         if node.ctes:
             self.gen_ctes(node.ctes)
@@ -235,8 +239,9 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.visit(node.limit_count)
             self.indentation -= 1
 
-        self.new_lines = 1
-        self.write(')')
+        if parenthesize:
+            self.new_lines = 1
+            self.write(')')
 
     def visit_InsertStmt(self, node):
         if node.ctes:
