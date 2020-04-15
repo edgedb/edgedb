@@ -38,10 +38,12 @@ pub enum Error {
 fn push_var<'x>(res: &mut Vec<CowToken<'x>>, typ: &'x str, var: String,
     start: Pos, end: Pos)
 {
+    res.push(CowToken {kind: Kind::OpenParen, value: "(".into(), start, end});
     res.push(CowToken {kind: Kind::Less, value: "<".into(), start, end});
     res.push(CowToken {kind: Kind::Ident, value: typ.into(), start, end});
     res.push(CowToken {kind: Kind::Greater, value: ">".into(), start, end});
     res.push(CowToken {kind: Kind::Argument, value: var.into(), start, end});
+    res.push(CowToken {kind: Kind::CloseParen, value: ")".into(), start, end});
 }
 
 fn scan_vars<'x, 'y: 'x, I>(tokens: I) -> Option<(bool, usize)>
