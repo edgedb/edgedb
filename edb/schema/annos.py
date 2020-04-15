@@ -56,7 +56,11 @@ class Annotation(so.QualifiedObject,
         return f"abstract {vn}"
 
 
-class AnnotationValue(referencing.ReferencedInheritingObject):
+class AnnotationValue(
+    referencing.ReferencedInheritingObject,
+    reflection=so.ReflectionMethod.AS_LINK,
+    reflection_link='annotation',
+):
 
     subject = so.SchemaField(
         so.Object, compcoef=1.0, default=None, inheritable=False)
@@ -281,6 +285,11 @@ class AlterAnnotationValue(
             value,
         )
 
+        annoname = sn.shortname_from_fullname(cmd.classname)
+        anno = schema.get(annoname, type=Annotation)
+
+        cmd.set_attribute_value('annotation', value=anno, orig_value=anno)
+
         assert isinstance(cmd, AlterAnnotationValue)
 
         return cmd
@@ -314,3 +323,37 @@ class DeleteAnnotationValue(
 ):
 
     astnode = qlast.DropAnnotationValue
+
+    @classmethod
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext
+    ) -> DeleteAnnotationValue:
+
+        assert isinstance(astnode, qlast.DropAnnotationValue)
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        annoname = sn.shortname_from_fullname(cmd.classname)
+
+        anno = schema.get(annoname, type=Annotation)
+
+        cmd.set_attribute_value('annotation', value=None, orig_value=anno)
+
+        assert isinstance(cmd, DeleteAnnotationValue)
+        return cmd
+
+    def _delete_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        if (
+            not context.canonical
+            and not self.has_attribute_value('annotation')
+        ):
+            annoname = sn.shortname_from_fullname(self.classname)
+            anno = schema.get(annoname, type=Annotation)
+            self.set_attribute_value('annotation', value=None, orig_value=anno)
+
+        return super()._delete_begin(schema, context)

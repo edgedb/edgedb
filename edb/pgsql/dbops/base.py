@@ -221,16 +221,20 @@ class PLBlock(SQLBlock):
     def declare_var(
         self,
         type_name: Union[str, Tuple[str, str]],
+        *,
+        var_name: str='',
         var_name_prefix: str='v',
         shared: bool=False,
     ) -> str:
         if shared:
-            var_name = var_name_prefix
+            if not var_name:
+                var_name = var_name_prefix
             if var_name not in self.shared_vars:
                 self.declarations.append((var_name, type_name))
                 self.shared_vars.add(var_name)
         else:
-            var_name = self.get_var_name(var_name_prefix)
+            if not var_name:
+                var_name = self.get_var_name(var_name_prefix)
             self.declarations.append((var_name, type_name))
 
         return var_name

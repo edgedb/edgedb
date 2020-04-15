@@ -230,7 +230,7 @@ class CreateTrigger(tables.CreateInheritableTableObject):
             f" FROM unnest({desc_var}.events) AS e)"
         )
 
-        cond_var = block.declare_var('text', 'cond')
+        cond_var = block.declare_var('text', var_name_prefix='cond')
 
         condition_code = textwrap.dedent(f"""\
             {cond_var} := COALESCE(
@@ -356,7 +356,10 @@ class DDLTriggerBase:
     ) -> Tuple[str, str]:
         bases = [ql('{}.{}'.format(*base.name)) for base in bases]
         var = block.declare_var(
-            ('edgedb', 'intro_trigger_desc_t'), 't', shared=True)
+            ('edgedb', 'intro_trigger_desc_t'),
+            var_name_prefix='t',
+            shared=True,
+        )
 
         return var, textwrap.dedent(f'''\
             SELECT DISTINCT ON (triggers.name)

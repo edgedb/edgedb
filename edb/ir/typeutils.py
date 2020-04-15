@@ -215,11 +215,12 @@ def type_to_typeref(
         else:
             base_typeref = None
 
+        tname = t.get_name(schema)
         if typename is not None:
             name = typename
         else:
-            name = t.get_name(schema)
-        module = schema.get_global(s_mod.Module, name.module)
+            name = tname
+        module = schema.get_global(s_mod.Module, tname.module)
 
         common_parent_ref: Optional[irast.TypeRef]
         if union_of:

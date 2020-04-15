@@ -18,7 +18,7 @@
 
 
 from edb.testbase import lang as tb
-from edb.server import compiler
+from edb.server import compiler as edbcompiler
 
 
 class TestServerCompiler(tb.BaseSchemaLoadTest):
@@ -35,11 +35,15 @@ class TestServerCompiler(tb.BaseSchemaLoadTest):
         cls._std_schema = tb._load_std_schema()
 
     def test_server_compiler_compile_edgeql_script(self):
-
-        compiler.compile_edgeql_script(
-            self._std_schema,
-            self.schema,
+        compiler = tb.new_compiler()
+        context = edbcompiler.new_compiler_context(
             modaliases={None: 'test'},
+            schema=self.schema,
+        )
+
+        edbcompiler.compile_edgeql_script(
+            compiler=compiler,
+            ctx=context,
             eql='''
                 SELECT Foo {
                     bar

@@ -2633,14 +2633,17 @@ class TestExpressions(tb.QueryTestCase):
                     A := (
                         SELECT ObjectType
                         FILTER ObjectType.name ILIKE 'schema::a%'
+                               AND NOT .is_internal
                     ),
                     D := (
                         SELECT ObjectType
                         FILTER ObjectType.name ILIKE 'schema::d%'
+                               AND NOT .is_internal
                     ),
                     O := (
                         SELECT ObjectType
                         FILTER ObjectType.name ILIKE 'schema::o%'
+                               AND NOT .is_internal
                     )
                 SELECT _ := {A, D, O}.name
                 ORDER BY _;
@@ -2650,7 +2653,6 @@ class TestExpressions(tb.QueryTestCase):
                 'schema::AnnotationSubject',
                 'schema::Array',
                 'schema::Delta',
-                'schema::DerivedLink',
                 'schema::Object',
                 'schema::ObjectType',
                 'schema::Operator',

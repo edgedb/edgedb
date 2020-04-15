@@ -2473,7 +2473,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     'num': 0,
                     'kind': 'VARIADIC',
                     'type': {
-                        'name': 'array'
+                        'name': 'array<anytype>'
                     }
                 }
             ]}]
@@ -2550,7 +2550,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                         'name': 's',
                         'kind': 'VARIADIC',
                         'type': {
-                            'name': 'array',
+                            'name': 'array<std::str>',
                             'element_type': {'name': 'std::str'}
                         },
                         'typemod': 'SINGLETON'

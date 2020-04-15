@@ -175,7 +175,7 @@ class IntrospectionMech:
             exclude_modules=exclude_modules)
 
         modules = [
-            {'id': m['id'], 'name': m['name'], 'builtin': m['builtin']}
+            {'id': m['id'], 'name': m['name']}
             for m in modules
         ]
 
@@ -184,8 +184,7 @@ class IntrospectionMech:
             schema, mod = s_mod.Module.create_in_schema(
                 schema,
                 id=module['id'],
-                name=module['name'],
-                builtin=module['builtin'])
+                name=module['name'])
 
             recorded_schemas.add(common.get_backend_name(schema, mod))
 
@@ -907,34 +906,28 @@ class IntrospectionMech:
 
             exprmap[name] = row['expr']
 
-            if row['union_of']:
-                union_of = [schema.get(t) for t in row['union_of']]
-            else:
-                union_of = None
-
-            if row['intersection_of']:
-                intersection_of = [schema.get(t)
-                                   for t in row['intersection_of']]
-            else:
-                intersection_of = None
-
             schema, objtype = s_objtypes.ObjectType.create_in_schema(
                 schema,
                 id=objtype['id'],
                 name=name,
                 is_abstract=objtype['is_abstract'],
-                union_of=union_of,
-                intersection_of=intersection_of,
                 is_final=objtype['is_final'],
                 expr_type=objtype['expr_type'],
                 alias_is_persistent=objtype['alias_is_persistent'],
             )
 
-            basemap[objtype] = (row['bases'], row['ancestors'])
+            basemap[objtype] = (
+                row['bases'],
+                row['ancestors'],
+                row['union_of'],
+                row['intersection_of'],
+            )
 
-        for scls, (basenames, ancestors) in basemap.items():
+        for scls, (basenames, ancestors, union, isect) in basemap.items():
             schema = self._set_reflist(schema, scls, 'bases', basenames)
             schema = self._set_reflist(schema, scls, 'ancestors', ancestors)
+            schema = self._set_reflist(schema, scls, 'union_of', union)
+            schema = self._set_reflist(schema, scls, 'intersection_of', isect)
 
         return schema, exprmap
 

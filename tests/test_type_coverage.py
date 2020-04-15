@@ -232,7 +232,7 @@ class TypeCoverageTests(unittest.TestCase):
         self.assertFunctionCoverage(EDB_DIR / "ir", 100.00)
 
     def test_cqa_type_coverage_pgsql(self) -> None:
-        self.assertFunctionCoverage(EDB_DIR / "pgsql", 46.81)
+        self.assertFunctionCoverage(EDB_DIR / "pgsql", 46.90)
 
     def test_cqa_type_coverage_pgsqlcompiler(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "pgsql" / "compiler", 100.00)
@@ -250,13 +250,13 @@ class TypeCoverageTests(unittest.TestCase):
         self.assertFunctionCoverage(EDB_DIR / "schema", 100.0)
 
     def test_cqa_type_coverage_server(self) -> None:
-        self.assertFunctionCoverage(EDB_DIR / "server", 14.52)
+        self.assertFunctionCoverage(EDB_DIR / "server", 16.11)
 
     def test_cqa_type_coverage_server_cache(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "server" / "cache", 0)
 
     def test_cqa_type_coverage_server_compiler(self) -> None:
-        self.assertFunctionCoverage(EDB_DIR / "server" / "compiler", 24.30)
+        self.assertFunctionCoverage(EDB_DIR / "server" / "compiler", 29.41)
 
     def test_cqa_type_coverage_server_config(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "server" / "config", 25.00)
@@ -275,7 +275,7 @@ class TypeCoverageTests(unittest.TestCase):
 
     def test_cqa_type_coverage_server_http_graphql_port(self) -> None:
         self.assertFunctionCoverage(
-            EDB_DIR / "server" / "http_graphql_port", 20
+            EDB_DIR / "server" / "http_graphql_port", 40
         )
 
     def test_cqa_type_coverage_server_mng_port(self) -> None:
@@ -291,7 +291,7 @@ class TypeCoverageTests(unittest.TestCase):
         self.assertFunctionCoverage(EDB_DIR / "server" / "procpool", 5.36)
 
     def test_cqa_type_coverage_testbase(self) -> None:
-        self.assertFunctionCoverage(EDB_DIR / "testbase", 34.57)
+        self.assertFunctionCoverage(EDB_DIR / "testbase", 34.15)
 
     def test_cqa_type_coverage_tools(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "tools", 21.74)

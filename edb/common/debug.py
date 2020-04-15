@@ -117,6 +117,9 @@ class flags(metaclass=FlagsMeta):
     typecheck = Flag(
         doc="Perform runtime type checking.")
 
+    pgserver = Flag(
+        doc="Show PostgreSQL server logs and log all statements.")
+
 
 @contextlib.contextmanager
 def timeit(title='block'):

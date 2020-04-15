@@ -972,7 +972,7 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
                     name,
                     element_types: {
                         name := .type.name
-                    } ORDER BY .num
+                    } ORDER BY @index
                 }
                 FILTER
                     .is_from_alias

@@ -104,21 +104,23 @@ class FunctionOperation:
 
 
 class CreateFunction(ddl.DDLOperation, FunctionOperation):
-    def __init__(self, function, **kwargs):
+    def __init__(self, function, *, or_replace=False, **kwargs):
         super().__init__(**kwargs)
         self.function = function
+        self.or_replace = or_replace
 
     def code(self, block: base.PLBlock) -> str:
         args = self.format_args(self.function.args, self.function.has_variadic)
 
         code = textwrap.dedent('''
-            CREATE FUNCTION {name}({args})
+            CREATE {replace} FUNCTION {name}({args})
             RETURNS {setof} {returns}
             AS $____funcbody____$
             {text}
             $____funcbody____$
             LANGUAGE {lang} {volatility} {strict};
         ''').format_map({
+            'replace': 'OR REPLACE' if self.or_replace else '',
             'name': qn(*self.function.name),
             'args': args,
             'returns': qt(self.function.returns),

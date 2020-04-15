@@ -38,7 +38,7 @@ from . import stmt as _stmt_compiler  # NOQA
 from . import context
 from . import dispatch
 
-from .context import OutputFormat  # NOQA
+from .context import OutputFormat as OutputFormat # NOQA
 
 
 def compile_ir_to_sql_tree(

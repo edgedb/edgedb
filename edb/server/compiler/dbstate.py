@@ -198,6 +198,7 @@ class TransactionState(NamedTuple):
     schema: s_schema.Schema
     modaliases: immutables.Map
     config: immutables.Map
+    cached_reflection: immutables.Map[str, Tuple[str, ...]]
 
 
 class Transaction:
@@ -205,7 +206,9 @@ class Transaction:
     def __init__(self, constate,
                  schema: s_schema.Schema,
                  modaliases: immutables.Map,
-                 config: immutables.Map, *,
+                 config: immutables.Map,
+                 cached_reflection: immutables.Map[str, Tuple[str, ...]],
+                 *,
                  implicit=True):
 
         self._constate = constate
@@ -224,7 +227,8 @@ class Transaction:
                 name=None,
                 schema=schema,
                 modaliases=modaliases,
-                config=config))
+                config=config,
+                cached_reflection=cached_reflection))
 
         # The top of the stack is the "current" state.
         self._stack.append(
@@ -233,7 +237,8 @@ class Transaction:
                 name=None,
                 schema=schema,
                 modaliases=modaliases,
-                config=config))
+                config=config,
+                cached_reflection=cached_reflection))
 
     @property
     def id(self):
@@ -270,7 +275,10 @@ class Transaction:
                 name=name,
                 schema=self.get_schema(),
                 modaliases=self.get_modaliases(),
-                config=self.get_session_config()))
+                config=self.get_session_config(),
+                cached_reflection=self.get_cached_reflection(),
+            ),
+        )
 
         # The top of the stack is the "current" state.
         self._stack.append(
@@ -279,7 +287,10 @@ class Transaction:
                 name=None,
                 schema=self.get_schema(),
                 modaliases=self.get_modaliases(),
-                config=self.get_session_config()))
+                config=self.get_session_config(),
+                cached_reflection=self.get_cached_reflection(),
+            ),
+        )
 
         copy = self.copy()
         self._constate._savepoints_log[sp_id] = copy
@@ -331,6 +342,9 @@ class Transaction:
     def get_session_config(self) -> immutables.Map:
         return self._stack[-1].config
 
+    def get_cached_reflection(self) -> immutables.Map[str, Tuple[str, ...]]:
+        return self._stack[-1].cached_reflection
+
     def update_schema(self, new_schema: s_schema.Schema):
         self._stack[-1] = self._stack[-1]._replace(schema=new_schema)
 
@@ -340,6 +354,12 @@ class Transaction:
     def update_session_config(self, new_config: immutables.Map):
         self._stack[-1] = self._stack[-1]._replace(config=new_config)
 
+    def update_cached_reflection(
+        self,
+        new: immutables.Map[str, Tuple[str, ...]],
+    ) -> None:
+        self._stack[-1] = self._stack[-1]._replace(cached_reflection=new)
+
 
 class CompilerConnectionState:
 
@@ -347,19 +367,23 @@ class CompilerConnectionState:
 
     __slots__ = ('_savepoints_log', '_dbver', '_current_tx', '_capability')
 
-    def __init__(self, dbver: bytes,
-                 schema: s_schema.Schema,
-                 modaliases: immutables.Map,
-                 config: immutables.Map,
-                 capability: enums.Capability):
+    def __init__(
+        self,
+        dbver: bytes,
+        schema: s_schema.Schema,
+        modaliases: immutables.Map,
+        config: immutables.Map,
+        capability: enums.Capability,
+        cached_reflection: FrozenSet[str],
+    ):
         self._dbver = dbver
         self._savepoints_log = {}
-        self._init_current_tx(schema, modaliases, config)
+        self._init_current_tx(schema, modaliases, config, cached_reflection)
         self._capability = capability
 
-    def _init_current_tx(self, schema, modaliases, config):
+    def _init_current_tx(self, schema, modaliases, config, cached_reflection):
         self._current_tx = Transaction(
-            self, schema, modaliases, config)
+            self, schema, modaliases, config, cached_reflection)
 
     def can_rollback_to_savepoint(self, spid):
         return spid in self._savepoints_log
@@ -411,7 +435,8 @@ class CompilerConnectionState:
         self._init_current_tx(
             prior_state.schema,
             prior_state.modaliases,
-            prior_state.config)
+            prior_state.config,
+            prior_state.cached_reflection)
 
         return prior_state
 
@@ -424,6 +449,7 @@ class CompilerConnectionState:
         self._init_current_tx(
             latest_state.schema,
             latest_state.modaliases,
-            latest_state.config)
+            latest_state.config,
+            latest_state.cached_reflection)
 
         return latest_state

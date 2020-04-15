@@ -104,7 +104,7 @@ class TestDump01(tb.QueryTestCase, tb.CLITestCaseMixin):
                 annotations: {
                     name,
                     @value,
-                } ORDER BY. name
+                } ORDER BY .name
             }
             FILTER
                 EXISTS .annotations
@@ -441,7 +441,7 @@ class TestDump01(tb.QueryTestCase, tb.CLITestCaseMixin):
         await self.assert_query_result(
             r'''
                 WITH MODULE schema
-                SELECT `Function` {
+                SELECT Function {
                     name,
                     annotations: {
                         name,
@@ -589,7 +589,10 @@ class TestDump01(tb.QueryTestCase, tb.CLITestCaseMixin):
                             'constraints': [
                                 {
                                     'name': 'default::user_int_constr',
-                                    'params': [{'name': 'x', '@value': '3'}],
+                                    'params': [{
+                                        'name': 'x',
+                                        '@value': '3'
+                                    }],
                                 },
                             ],
                         },
@@ -598,7 +601,10 @@ class TestDump01(tb.QueryTestCase, tb.CLITestCaseMixin):
                             'constraints': [
                                 {
                                     'name': 'std::max_len_value',
-                                    'params': [{'name': 'max', '@value': '3'}],
+                                    'params': [{
+                                        'name': 'max',
+                                        '@value': '3'
+                                    }],
                                 },
                             ],
                         }
@@ -664,17 +670,17 @@ class TestDump01(tb.QueryTestCase, tb.CLITestCaseMixin):
                 {
                     'name': 'default::V',
                     'bases': [
-                        {'name': 'default::U', '@index': 1},
-                        {'name': 'default::S', '@index': 2},
-                        {'name': 'default::T', '@index': 3},
+                        {'name': 'default::U', '@index': 0},
+                        {'name': 'default::S', '@index': 1},
+                        {'name': 'default::T', '@index': 2},
                     ],
                     'ancestors': [
-                        {'name': 'default::U', '@index': 1},
-                        {'name': 'default::S', '@index': 2},
-                        {'name': 'default::T', '@index': 3},
-                        {'name': 'default::R', '@index': 4},
-                        {'name': 'std::Object', '@index': 5},
-                        {'name': 'std::BaseObject', '@index': 6},
+                        {'name': 'default::U', '@index': 0},
+                        {'name': 'default::S', '@index': 1},
+                        {'name': 'default::T', '@index': 2},
+                        {'name': 'default::R', '@index': 3},
+                        {'name': 'std::Object', '@index': 4},
+                        {'name': 'std::BaseObject', '@index': 5},
                     ],
                 }
             ]

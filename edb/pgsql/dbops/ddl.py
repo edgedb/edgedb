@@ -82,7 +82,7 @@ class DDLTrigger(metaclass=DDLTriggerMeta):
 
 
 class DDLOperation(base.Command):
-    def generate(self, block: base.PLBlock) -> None:
+    def generate(self, block: base.SQLBlock) -> None:
         triggers = DDLTriggerMeta.get_triggers(self.__class__)
 
         if not block.disable_ddl_triggers:

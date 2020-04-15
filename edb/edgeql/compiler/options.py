@@ -39,6 +39,12 @@ class GlobalCompilerOptions:
     #: Whether to allow the expression to be of a generic type.
     allow_generic_type_output: bool = False
 
+    #: Allow writing to protected pointers in INSERT.
+    allow_writing_protected_pointers: bool = False
+
+    #: Whether to apply various introspection query rewrites.
+    introspection_schema_rewrites: bool = True
+
     #: Enables constant folding optimization (enabled by default).
     constant_folding: bool = True
 

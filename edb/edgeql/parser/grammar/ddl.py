@@ -518,12 +518,21 @@ class GetMigrationStmt(Nonterm):
         )
 
 
+commands_block(
+    'CreateDatabase',
+    SetFieldStmt,
+)
+
+
 #
 # CREATE DATABASE
 #
 class CreateDatabaseStmt(Nonterm):
-    def reduce_CREATE_DATABASE_AnyNodeName(self, *kids):
-        self.val = qlast.CreateDatabase(name=kids[2].val)
+    def reduce_CREATE_DATABASE_AnyNodeName_OptCreateRoleCommandsBlock(
+        self,
+        *kids,
+    ):
+        self.val = qlast.CreateDatabase(name=kids[2].val, commands=kids[3].val)
 
 
 #

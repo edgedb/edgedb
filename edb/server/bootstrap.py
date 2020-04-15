@@ -43,13 +43,16 @@ from edb.schema import database as s_db
 from edb.schema import ddl as s_ddl
 from edb.schema import delta as sd
 from edb.schema import modules as s_mod
+from edb.schema import objects as s_obj
+from edb.schema import reflection as s_refl
 from edb.schema import schema as s_schema
 from edb.schema import std as s_std
 
 from edb.server import buildmeta
 from edb.server import config
-from edb.server import compiler
+from edb.server import compiler as edbcompiler
 from edb.server import defines as edbdef
+from edb.server import tokenizer  # type: ignore
 
 from edb.pgsql import common as pg_common
 from edb.pgsql import dbops
@@ -82,7 +85,7 @@ async def _execute(conn, query, *args):
     return await _statement(conn, query, *args, method='execute')
 
 
-async def _execute_block(conn, block: dbops.PLBlock) -> None:
+async def _execute_block(conn, block: dbops.SQLBlock) -> None:
 
     if not block.is_transactional():
         stmts = block.get_statements()
@@ -103,6 +106,8 @@ async def _ensure_edgedb_role(
     *,
     membership=(),
     is_superuser=False,
+    builtin=False,
+    objid=None,
 ) -> None:
     membership = set(membership)
     if is_superuser:
@@ -118,6 +123,9 @@ async def _ensure_edgedb_role(
     else:
         superuser_flag = False
 
+    if objid is None:
+        objid = uuidgen.uuid1mc()
+
     role = dbops.Role(
         name=username,
         is_superuser=superuser_flag,
@@ -126,7 +134,8 @@ async def _ensure_edgedb_role(
         allow_createrole=True,
         membership=membership,
         metadata=dict(
-            id=str(uuidgen.uuid1mc()),
+            id=str(objid),
+            builtin=builtin,
         ),
     )
 
@@ -137,6 +146,8 @@ async def _ensure_edgedb_role(
     create_role.generate(block)
 
     await _execute_block(conn, block)
+
+    return objid
 
 
 async def _get_db_info(conn, dbname):
@@ -162,6 +173,7 @@ async def _ensure_edgedb_template_database(cluster, conn):
     if not result:
         logger.info('Creating template database...')
         block = dbops.SQLBlock()
+        dbid = uuidgen.uuid1mc()
         db = dbops.Database(
             edbdef.EDGEDB_TEMPLATE_DB,
             owner=edbdef.EDGEDB_SUPERUSER,
@@ -172,13 +184,14 @@ async def _ensure_edgedb_template_database(cluster, conn):
                       else 'en_US.UTF-8'),
             encoding='UTF8',
             metadata=dict(
-                id=str(uuidgen.uuid1mc()),
+                id=str(dbid),
+                builtin=True,
             ),
         )
         dbops.CreateDatabase(db).generate(block)
         await _execute_block(conn, block)
 
-        return True
+        return dbid
     else:
         alter = []
         alter_owner = False
@@ -205,7 +218,7 @@ async def _ensure_edgedb_template_database(cluster, conn):
                         edbdef.EDGEDB_TEMPLATE_DB,
                         edbdef.EDGEDB_SUPERUSER))
 
-        return False
+        return None
 
 
 async def _ensure_edgedb_template_not_connectable(conn):
@@ -283,9 +296,43 @@ def _process_delta(delta, schema):
     return schema, delta
 
 
-async def _make_stdlib(
-    testmode: bool
-) -> Tuple[s_schema.Schema, str, Set[uuid.UUID]]:
+def compile_bootstrap_script(
+    compiler: edbcompiler.Compiler,
+    schema: s_schema.Schema,
+    eql: str,
+    *,
+    single_statement: bool = False,
+    expected_cardinality_one: bool = False,
+) -> Tuple[s_schema.Schema, str]:
+
+    ctx = edbcompiler.new_compiler_context(
+        schema=schema,
+        single_statement=single_statement,
+        expected_cardinality_one=expected_cardinality_one,
+        json_parameters=True,
+        output_format=edbcompiler.IoFormat.JSON,
+    )
+
+    return edbcompiler.compile_edgeql_script(compiler, ctx, eql)
+
+
+class StdlibBits(NamedTuple):
+
+    #: User-visible std.
+    stdschema: s_schema.Schema
+    #: Shadow extended schema for reflection..
+    reflschema: s_schema.Schema
+    #: SQL text of the procedure to initialize `std` in Postgres.
+    sqltext: str
+    #: A set of ids of all types in std.
+    types: Set[uuid.UUID]
+    #: Schema class reflection layout.
+    classlayout: Dict[Type[s_obj.Object], s_refl.SchemaTypeLayout]
+    #: Schema introspection query (SQL).
+    introquery: str
+
+
+async def _make_stdlib(testmode: bool, global_ids) -> StdlibBits:
     schema = s_schema.Schema()
     schema, _ = s_mod.Module.create_in_schema(schema, name='__derived__')
 
@@ -299,7 +346,8 @@ async def _make_stdlib(
         std_texts.append(s_std.get_std_module_text('_testmode'))
 
     ddl_text = '\n'.join(std_texts)
-    new_types: Set[uuid.UUID] = set()
+    types: Set[uuid.UUID] = set()
+    std_plans: List[sd.Command] = []
 
     for ddl_cmd in edgeql.parse_block(ddl_text):
         delta_command = s_ddl.delta_from_ddl(
@@ -312,6 +360,7 @@ async def _make_stdlib(
         # Apply and adapt delta, build native delta plan, which
         # will also update the schema.
         schema, plan = _process_delta(delta_command, schema)
+        std_plans.append(delta_command)
 
         if isinstance(plan, (s_db.CreateDatabase, s_db.DropDatabase)):
             if (current_block is not None and
@@ -323,7 +372,7 @@ async def _make_stdlib(
                 current_block = dbops.SQLBlock()
 
         else:
-            new_types.update(plan.new_types)
+            types.update(plan.new_types)
             if (current_block is not None and
                     not isinstance(current_block, dbops.PLTopBlock)):
                 raise errors.QueryError(
@@ -334,61 +383,139 @@ async def _make_stdlib(
 
         plan.generate(current_block)
 
+    stdglobals = '\n'.join([
+        f'''CREATE SUPERUSER ROLE {edbdef.EDGEDB_SUPERUSER} {{
+            SET id := <uuid>'{global_ids[edbdef.EDGEDB_SUPERUSER]}'
+        }};''',
+        f'''CREATE DATABASE {edbdef.EDGEDB_TEMPLATE_DB} {{
+            SET id := <uuid>'{global_ids[edbdef.EDGEDB_TEMPLATE_DB]}'
+        }};''',
+        f'CREATE DATABASE {edbdef.EDGEDB_SUPERUSER_DB};',
+    ])
+
+    context = sd.CommandContext(stdmode=True)
+
+    for ddl_cmd in edgeql.parse_block(stdglobals):
+        delta_command = s_ddl.delta_from_ddl(
+            ddl_cmd, modaliases={}, schema=schema, stdmode=True)
+
+        schema = delta_command.apply(schema, context)
+
+    refldelta, classlayout, introparts = s_refl.generate_structure(schema)
+    reflschema, reflplan = _process_delta(refldelta, schema)
+
+    std_plans.append(refldelta)
+
     assert current_block is not None
-    sql_text = current_block.to_string()
+    reflplan.generate(current_block)
+    subblock = current_block.add_block()
 
-    mods = {
-        mod.get_name(schema)
-        for mod in schema.get_modules()
-        if mod.get_builtin(schema)
-    }
-    if mods != s_schema.STD_MODULES:
-        raise errors.SchemaError(
-            f'modules {s_schema.STD_MODULES - mods} are not marked as builtin')
+    compiler = edbcompiler.new_compiler(
+        std_schema=schema,
+        reflection_schema=reflschema,
+        schema_class_layout=classlayout,
+        bootstrap_mode=True,
+    )
 
-    return schema, sql_text, new_types
+    compilerctx = edbcompiler.new_compiler_context(reflschema)
+
+    for std_plan in std_plans:
+        compiler._compile_schema_storage_in_delta(
+            ctx=compilerctx,
+            delta=std_plan,
+            block=subblock,
+            is_internal_reflection=std_plan is refldelta,
+            stdmode=True,
+        )
+
+    sqltext = current_block.to_string()
+
+    compilerctx = edbcompiler.new_compiler_context(
+        reflschema,
+        schema_reflection_mode=True,
+        output_format=edbcompiler.IoFormat.JSON_ELEMENTS,
+    )
+
+    # The introspection query bits are returned in chunks
+    # because it's a large UNION and we currently generate SQL
+    # that is much harder for Posgres to plan as opposed to a
+    # straight flat UNION.
+    sql_introparts = []
+
+    for intropart in introparts:
+        introtokens = tokenizer.tokenize(intropart.encode())
+        units = compiler._compile(ctx=compilerctx, tokens=introtokens)
+        assert len(units) == 1 and len(units[0].sql) == 1
+        sql_intropart = units[0].sql[0].decode()
+        sql_introparts.append(sql_intropart)
+
+    introsql = ' UNION ALL '.join(sql_introparts)
+
+    return StdlibBits(
+        stdschema=schema,
+        reflschema=reflschema,
+        sqltext=sqltext,
+        types=types,
+        classlayout=classlayout,
+        introquery=introsql,
+    )
 
 
-async def _init_stdlib(cluster, conn, testmode):
+async def _init_stdlib(cluster, conn, testmode, global_ids):
     in_dev_mode = devmode.is_in_dev_mode()
 
     cache_hit = False
-    sql_text = None
+    stdlib = None
 
     if in_dev_mode:
-        schema_cache = 'backend-stdschema.pickle'
-        script_cache = 'backend-stdinitsql.pickle'
-        testmode_flag = 'backend-stdtestmode.pickle'
-
+        stdlib_cache = 'backend-stdlib.pickle'
         src_hash = devmode.hash_dirs(CACHE_SRC_DIRS)
+        if testmode:
+            src_hash += b'testmode'
+        stdlib = devmode.read_dev_mode_cache(src_hash, stdlib_cache)
 
-        cached_testmode = devmode.read_dev_mode_cache(src_hash, testmode_flag)
-
-        if cached_testmode is not None and cached_testmode == testmode:
-            sql_text = devmode.read_dev_mode_cache(src_hash, script_cache)
-
-        if sql_text is not None:
-            schema = devmode.read_dev_mode_cache(src_hash, schema_cache)
-
-    if sql_text is None or schema is None:
-        schema, sql_text, new_types = await _make_stdlib(testmode)
+    if stdlib is None:
+        stdlib = await _make_stdlib(testmode, global_ids)
     else:
         cache_hit = True
 
-    await _execute_ddl(conn, sql_text)
+    await _execute_ddl(conn, stdlib.sqltext)
+    schema = stdlib.stdschema
 
     if not cache_hit:
-        typemap = await conn.fetch('''
-            SELECT id, backend_id FROM edgedb.type WHERE id = any($1::uuid[])
-        ''', new_types)
-        for tid, backend_tid in typemap:
-            t = schema.get_by_id(tid)
-            schema = t.set_field_value(schema, 'backend_id', backend_tid)
+        tids_query = '''
+            SELECT schema::ScalarType {
+                id,
+                backend_id,
+            } FILTER .id IN <uuid>json_array_unpack(<json>$ids);
+        '''
+
+        compiler = edbcompiler.new_compiler(
+            std_schema=schema,
+            reflection_schema=stdlib.reflschema,
+            schema_class_layout=stdlib.classlayout,
+            bootstrap_mode=True,
+        )
+
+        schema, sql = compile_bootstrap_script(
+            compiler,
+            stdlib.reflschema,
+            tids_query,
+            expected_cardinality_one=False,
+            single_statement=True,
+        )
+
+        typemap = await conn.fetchval(
+            sql, json.dumps([str(t) for t in stdlib.types]))
+        for entry in json.loads(typemap):
+            t = schema.get_by_id(uuidgen.UUID(entry['id']))
+            schema = t.set_field_value(
+                schema, 'backend_id', entry['backend_id'])
+
+        stdlib = stdlib._replace(stdschema=schema)
 
     if not cache_hit and in_dev_mode:
-        devmode.write_dev_mode_cache(schema, src_hash, schema_cache)
-        devmode.write_dev_mode_cache(sql_text, src_hash, script_cache)
-        devmode.write_dev_mode_cache(testmode, src_hash, testmode_flag)
+        devmode.write_dev_mode_cache(stdlib, src_hash, stdlib_cache)
 
     await _store_static_bin_cache(
         cluster,
@@ -396,10 +523,35 @@ async def _init_stdlib(cluster, conn, testmode):
         pickle.dumps(schema, protocol=pickle.HIGHEST_PROTOCOL),
     )
 
-    await metaschema.generate_views(conn, schema)
-    await metaschema.generate_support_views(conn, schema)
+    await _store_static_bin_cache(
+        cluster,
+        'reflschema',
+        pickle.dumps(stdlib.reflschema, protocol=pickle.HIGHEST_PROTOCOL),
+    )
 
-    return schema
+    await _store_static_bin_cache(
+        cluster,
+        'classlayout',
+        pickle.dumps(stdlib.classlayout, protocol=pickle.HIGHEST_PROTOCOL),
+    )
+
+    await _store_static_json_cache(
+        cluster,
+        'introquery',
+        json.dumps(stdlib.introquery),
+    )
+
+    await metaschema.generate_views(conn, stdlib.reflschema)
+    await metaschema.generate_support_views(conn, stdlib.reflschema)
+
+    compiler = edbcompiler.new_compiler(
+        std_schema=schema,
+        reflection_schema=stdlib.reflschema,
+        schema_class_layout=stdlib.classlayout,
+        bootstrap_mode=True,
+    )
+
+    return schema, stdlib.reflschema, compiler
 
 
 async def _execute_ddl(conn, sql_text):
@@ -454,29 +606,30 @@ async def _execute_ddl(conn, sql_text):
         raise
 
 
-async def _init_defaults(std_schema, schema, conn):
+async def _init_defaults(schema, compiler, conn):
     script = '''
         CREATE MODULE default;
     '''
 
-    schema, sql = compiler.compile_bootstrap_script(std_schema, schema, script)
-    await conn.execute(sql)
+    schema, sql = compile_bootstrap_script(compiler, schema, script)
+    await _execute_ddl(conn, sql)
     return schema
 
 
-async def _populate_data(std_schema, schema, conn):
+async def _populate_data(schema, compiler, conn):
     script = '''
         INSERT stdgraphql::Query;
         INSERT stdgraphql::Mutation;
     '''
 
-    schema, sql = compiler.compile_bootstrap_script(std_schema, schema, script)
+    schema, sql = compile_bootstrap_script(compiler, schema, script)
     await _execute_ddl(conn, sql)
     return schema
 
 
 async def _configure(
     schema: s_schema.Schema,
+    compiler: edbcompiler.Compiler,
     conn: asyncpg_con.Connection,
     cluster: pgcluster.BaseCluster,
     *,
@@ -511,8 +664,12 @@ async def _configure(
     config_spec = config.get_settings()
 
     for script in scripts:
-        _, sql = compiler.compile_bootstrap_script(
-            schema, schema, script, single_statement=True)
+        _, sql = compile_bootstrap_script(
+            compiler,
+            schema,
+            script,
+            single_statement=True,
+        )
 
         if debug.flags.bootstrap:
             debug.header('Bootstrap')
@@ -534,15 +691,18 @@ async def _configure(
     await _execute_block(conn, block)
 
 
-async def _compile_sys_queries(schema, cluster):
+async def _compile_sys_queries(schema, compiler, cluster):
     queries = {}
 
     cfg_query = config.generate_config_query(schema)
 
-    schema, sql = compiler.compile_bootstrap_script(
-        schema, schema, cfg_query,
+    schema, sql = compile_bootstrap_script(
+        compiler,
+        schema,
+        cfg_query,
         expected_cardinality_one=True,
-        single_statement=True)
+        single_statement=True,
+    )
 
     queries['config'] = sql
 
@@ -553,12 +713,31 @@ async def _compile_sys_queries(schema, cluster):
             password,
         } FILTER .name = <str>$name;
     '''
-    schema, sql = compiler.compile_bootstrap_script(
-        schema, schema, role_query,
+    schema, sql = compile_bootstrap_script(
+        compiler,
+        schema,
+        role_query,
         expected_cardinality_one=True,
-        single_statement=True)
+        single_statement=True,
+    )
 
     queries['role'] = sql
+
+    tids_query = '''
+        SELECT schema::ScalarType {
+            id,
+            backend_id,
+        } FILTER .id IN <uuid>json_array_unpack(<json>$ids);
+    '''
+    schema, sql = compile_bootstrap_script(
+        compiler,
+        schema,
+        tids_query,
+        expected_cardinality_one=False,
+        single_statement=True,
+    )
+
+    queries['backend_tids'] = sql
 
     await _store_static_json_cache(
         cluster,
@@ -585,7 +764,15 @@ async def _populate_misc_instance_data(cluster):
     return json_instance_data
 
 
-async def _ensure_edgedb_database(conn, database, owner, *, cluster):
+async def _ensure_edgedb_database(
+    conn,
+    database,
+    owner,
+    *,
+    cluster,
+    builtin: bool = False,
+    objid: Optional[uuid.UUID] = None,
+):
     result = await _get_db_info(conn, database)
     if not result:
         logger.info(
@@ -593,11 +780,14 @@ async def _ensure_edgedb_database(conn, database, owner, *, cluster):
             f'{database}')
 
         block = dbops.SQLBlock()
+        if objid is None:
+            objid = uuidgen.uuid1mc()
         db = dbops.Database(
             database,
             owner=owner,
             metadata=dict(
-                id=str(uuidgen.uuid1mc()),
+                id=str(objid),
+                builtin=builtin,
             ),
         )
         dbops.CreateDatabase(db).generate(block)
@@ -643,12 +833,13 @@ async def bootstrap(cluster, args) -> bool:
         if session_user != edbdef.EDGEDB_SUPERUSER:
             membership.add(session_user)
 
-        await _ensure_edgedb_role(
+        superuser_uid = await _ensure_edgedb_role(
             cluster,
             pgconn,
             edbdef.EDGEDB_SUPERUSER,
             membership=membership,
             is_superuser=True,
+            builtin=True,
         )
 
         if session_user != edbdef.EDGEDB_SUPERUSER:
@@ -658,10 +849,10 @@ async def bootstrap(cluster, args) -> bool:
             )
             cluster.set_default_session_authorization(edbdef.EDGEDB_SUPERUSER)
 
-        need_meta_bootstrap = await _ensure_edgedb_template_database(
+        new_template_db_id = await _ensure_edgedb_template_database(
             cluster, pgconn)
 
-        if need_meta_bootstrap:
+        if new_template_db_id:
             conn = await cluster.connect(database=edbdef.EDGEDB_TEMPLATE_DB)
             conn.add_log_listener(_pg_log_listener)
 
@@ -676,29 +867,44 @@ async def bootstrap(cluster, args) -> bool:
                 await _ensure_meta_schema(conn)
                 instancedata = await _populate_misc_instance_data(cluster)
 
-                std_schema = await _init_stdlib(
-                    cluster, conn, testmode=args['testmode'])
+                std_schema, refl_schema, compiler = await _init_stdlib(
+                    cluster,
+                    conn,
+                    testmode=args['testmode'],
+                    global_ids={
+                        edbdef.EDGEDB_SUPERUSER: superuser_uid,
+                        edbdef.EDGEDB_TEMPLATE_DB: new_template_db_id,
+                    }
+                )
                 await _bootstrap_config_spec(std_schema, cluster)
-                await _compile_sys_queries(std_schema, cluster)
-                schema = await _init_defaults(std_schema, std_schema, conn)
-                schema = await _populate_data(std_schema, schema, conn)
-                await _configure(std_schema, conn, cluster,
+                await _compile_sys_queries(refl_schema, compiler, cluster)
+                schema = await _init_defaults(std_schema, compiler, conn)
+                schema = await _populate_data(std_schema, compiler, conn)
+                await _configure(schema, compiler, conn, cluster,
                                  insecure=args['insecure'],
                                  testmode=args['testmode'])
             finally:
                 await conn.close()
 
+            superuser_db = schema.get_global(
+                s_db.Database, edbdef.EDGEDB_SUPERUSER_DB)
+
             await _ensure_edgedb_database(
                 pgconn,
                 edbdef.EDGEDB_SUPERUSER_DB,
                 edbdef.EDGEDB_SUPERUSER,
-                cluster=cluster)
+                cluster=cluster,
+                builtin=True,
+                objid=superuser_db.id,
+            )
 
         else:
             conn = await cluster.connect(database=edbdef.EDGEDB_SUPERUSER_DB)
 
             try:
-                std_schema = await compiler.load_std_schema(conn)
+                compiler = edbcompiler.Compiler({})
+                await compiler.ensure_initialized(conn)
+                std_schema = compiler.get_std_schema()
                 config_spec = config.load_spec_from_schema(std_schema)
                 config.set_settings(config_spec)
                 instancedata = await _get_instance_data(conn)
@@ -769,4 +975,4 @@ async def bootstrap(cluster, args) -> bool:
     finally:
         await pgconn.close()
 
-    return need_meta_bootstrap
+    return new_template_db_id is not None

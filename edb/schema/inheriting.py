@@ -64,16 +64,25 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         context: sd.CommandContext,
         update: Mapping[str, bool],
     ) -> s_schema.Schema:
-        inh_fields = set(self.scls.get_inherited_fields(schema))
+        cur_inh_fields = self.scls.get_inherited_fields(schema)
+        inh_fields = set(cur_inh_fields)
         for fn, inherited in update.items():
             if inherited:
                 inh_fields.add(fn)
             else:
                 inh_fields.discard(fn)
-        self.set_attribute_value(
-            'inherited_fields', frozenset(inh_fields))
-        schema = self.scls.set_field_value(
-            schema, 'inherited_fields', inh_fields)
+
+        if cur_inh_fields != inh_fields:
+            if inh_fields:
+                self.set_attribute_value(
+                    'inherited_fields', frozenset(inh_fields))
+                schema = self.scls.set_field_value(
+                    schema, 'inherited_fields', inh_fields)
+            else:
+                self.set_attribute_value('inherited_fields', None)
+                schema = self.scls.set_field_value(
+                    schema, 'inherited_fields', None)
+
         return schema
 
     def inherit_fields(self,
@@ -476,7 +485,7 @@ BaseDelta_T = Tuple[
     Tuple[
         Tuple[
             List[so.ObjectShell],
-            Union[str, so.ObjectShell, Tuple[str, so.ObjectShell]],
+            Union[str, Tuple[str, so.ObjectShell]],
         ],
         ...,
     ],
@@ -494,7 +503,7 @@ def delta_bases(
     added_bases: List[
         Tuple[
             List[so.ObjectShell],
-            Union[str, so.ObjectShell, Tuple[str, so.ObjectShell]],
+            Union[str, Tuple[str, so.ObjectShell]],
         ]
     ] = []
 
@@ -610,9 +619,7 @@ class CreateInheritingObject(
 
             self.prepend(cmd)
 
-        result = super()._create_innards(schema, context)
-        assert isinstance(result, s_schema.Schema)
-        return result
+        return super()._create_innards(schema, context)
 
     @classmethod
     def _cmd_tree_from_ast(

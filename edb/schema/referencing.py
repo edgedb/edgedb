@@ -49,7 +49,9 @@ class ReferencedObject(so.DerivableObject):
         bool,
         default=False,
         inheritable=False,
-        compcoef=0.909)
+        compcoef=0.909,
+        reflection_method=so.ReflectionMethod.AS_LINK,
+    )
 
     def get_subject(self, schema: s_schema.Schema) -> Optional[so.Object]:
         # NB: classes that inherit ReferencedObject define a `get_subject`

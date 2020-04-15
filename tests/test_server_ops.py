@@ -69,7 +69,7 @@ class TestServerOps(tb.TestCase):
         try:
             data = await asyncio.wait_for(
                 read_runtime_info(proc.stdout),
-                timeout=100)
+                timeout=1000)
 
             runstate_dir = data['runstate_dir']
             port = data['port']

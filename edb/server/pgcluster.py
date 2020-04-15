@@ -266,6 +266,9 @@ class Cluster(BaseCluster):
             'max_connections': '500',
         }
 
+        if os.getenv('EDGEDB_DEBUG_PGSERVER'):
+            start_settings['log_statement'] = 'all'
+
         if server_settings:
             start_settings.update(server_settings)
 
@@ -285,7 +288,7 @@ class Cluster(BaseCluster):
             # of postgres daemon under an Administrative account
             # is not permitted and there is no easy way to drop
             # privileges.
-            if os.getenv('ASYNCPG_DEBUG_SERVER'):
+            if os.getenv('EDGEDB_DEBUG_PGSERVER'):
                 stdout = sys.stdout
             else:
                 stdout = subprocess.DEVNULL
@@ -304,7 +307,7 @@ class Cluster(BaseCluster):
                     'pg_ctl start exited with status {:d}{}'.format(
                         process.returncode, stderr))
         else:
-            if os.getenv('ASYNCPG_DEBUG_SERVER'):
+            if os.getenv('EDGEDB_DEBUG_PGSERVER'):
                 stdout = sys.stdout
             else:
                 stdout = subprocess.DEVNULL

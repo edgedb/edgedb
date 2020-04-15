@@ -20,6 +20,9 @@ from __future__ import annotations
 
 from typing import *
 
+import collections.abc
+import json
+
 from edb import errors
 
 from edb.common import enum
@@ -27,11 +30,12 @@ from edb.common import enum
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
-from edb.schema import defines as s_def
+from edb.edgeql import quote as qlquote
 
 from . import abc as s_abc
 from . import annos as s_anno
 from . import constraints
+from . import defines as s_def
 from . import delta as sd
 from . import expr as s_expr
 from . import inheriting
@@ -189,7 +193,6 @@ class Pointer(referencing.ReferencedInheritingObject,
     computable = so.SchemaField(
         bool,
         default=None,
-        ephemeral=True,
     )
 
     # Computable pointers have this set to an expression
@@ -211,12 +214,16 @@ class Pointer(referencing.ReferencedInheritingObject,
     union_of = so.SchemaField(
         so.ObjectSet['Pointer'],
         default=None,
-        coerce=True)
+        coerce=True,
+        type_is_generic_self=True,
+    )
 
     intersection_of = so.SchemaField(
         so.ObjectSet['Pointer'],
         default=None,
-        coerce=True)
+        coerce=True,
+        type_is_generic_self=True,
+    )
 
     def is_tuple_indirection(self) -> bool:
         return False
@@ -502,6 +509,77 @@ class Pointer(referencing.ReferencedInheritingObject,
         assert isinstance(object_type, s_types.Type)
         return not object_type.is_view(schema)
 
+    def get_schema_reflection_default(
+        self,
+        schema: s_schema.Schema,
+    ) -> Optional[str]:
+        """Return the default expression if this is a reflection of a
+           schema class field and the field has a defined default value.
+        """
+        ptr = self.get_nearest_non_derived_parent(schema)
+
+        src = ptr.get_source(schema)
+        if src is None:
+            # This is an abstract pointer
+            return None
+
+        ptr_name = ptr.get_name(schema)
+        if ptr_name.module not in {'schema', 'sys', 'cfg'}:
+            # This isn't a reflection type
+            return None
+
+        if isinstance(src, Pointer):
+            # This is a link property
+            tgt = src.get_target(schema)
+            assert tgt is not None
+            schema_objtype = tgt
+        else:
+            assert isinstance(src, s_types.Type)
+            schema_objtype = src
+
+        assert isinstance(schema_objtype, so.QualifiedObject)
+        src_name = schema_objtype.get_name(schema)
+        mcls = so.ObjectMeta.get_schema_metaclass(src_name.name)
+        if mcls is None:
+            # This schema class is not (publicly) reflected.
+            return None
+        fname = ptr.get_shortname(schema).name
+        if not mcls.has_field(fname):
+            # This pointer is not a schema field.
+            return None
+        field = mcls.get_field(fname)
+        if not isinstance(field, so.SchemaField):
+            # Not a schema field, no default possible.
+            return None
+        f_default = field.default
+        if (
+            f_default is None
+            or f_default is so.NoDefault
+        ):
+            # No explicit default value.
+            return None
+
+        tgt = ptr.get_target(schema)
+
+        if f_default is so.DEFAULT_CONSTRUCTOR:
+            if (
+                issubclass(
+                    field.type,
+                    (collections.abc.Set, collections.abc.Sequence),
+                )
+                and not issubclass(field.type, (str, bytes))
+            ):
+                return f'<{tgt.get_displayname(schema)}>[]'
+            else:
+                return None
+
+        default = qlquote.quote_literal(json.dumps(f_default))
+
+        if tgt.is_enum(schema):
+            return f'<{tgt.get_displayname(schema)}><str>to_json({default})'
+        else:
+            return f'<{tgt.get_displayname(schema)}>to_json({default})'
+
 
 class PseudoPointer(s_abc.Pointer):
     # An abstract base class for pointer-like objects, i.e.
@@ -618,6 +696,12 @@ class PseudoPointer(s_abc.Pointer):
 
     def is_exclusive(self, schema: s_schema.Schema) -> bool:
         return False
+
+    def get_schema_reflection_default(
+        self,
+        schema: s_schema.Schema,
+    ) -> Optional[str]:
+        return None
 
 
 PointerLike = Union[Pointer, PseudoPointer]

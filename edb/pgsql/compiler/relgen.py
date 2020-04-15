@@ -958,7 +958,12 @@ def process_set_as_path(
 
             rvars.append(main_rvar)
         else:
-            main_rvar = map_rvar
+            main_rvar = SetRVar(
+                map_rvar.rvar,
+                path_id=ir_set.path_id,
+                aspects=['value'],
+            )
+            rvars.append(main_rvar)
 
     if not source_is_visible:
         # If the source path is not visible in the current scope,

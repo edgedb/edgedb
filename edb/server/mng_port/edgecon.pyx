@@ -1123,6 +1123,20 @@ cdef class EdgeConnection:
             if query_unit.new_types and self.dbview.in_tx():
                 await self._update_type_ids(query_unit)
 
+    async def _get_backend_tids(self, tids):
+        conn = self.get_backend().pgcon
+        server = self.port.get_server()
+        query = await server.get_sys_query(conn, 'backend_tids')
+        json_data = await conn.parse_execute_json(
+            query, b'__sys_backend_tids',
+            dbver=b'', use_prep_stmt=True, args=(list(tids),),
+        )
+
+        if json_data is not None:
+            return json.loads(json_data.decode('utf-8'))
+        else:
+            return None
+
     async def _update_type_ids(self, query_unit):
         # Inform the compiler process about the newly
         # appearing types, so type descriptors contain
@@ -1130,12 +1144,7 @@ cdef class EdgeConnection:
         # when in a transaction, since otherwise the entire
         # schema will reload anyway due to a bumped dbver.
         try:
-            tids = ','.join(f"'{tid}'" for tid in query_unit.new_types)
-            ret = await self.get_backend().pgcon.simple_query(b'''
-                SELECT id, backend_id
-                FROM edgedb.type
-                WHERE id = any(ARRAY[%b]::uuid[])
-            ''' % (tids.encode(),), ignore_data=False)
+            ret = await self._get_backend_tids(query_unit.new_types)
         except Exception:
             if self.dbview.in_tx():
                 self.dbview.abort_tx()
@@ -1143,9 +1152,9 @@ cdef class EdgeConnection:
         else:
             typemap = {}
             if ret:
-                for tid, backend_tid in ret:
-                    if backend_tid is not None:
-                        typemap[tid.decode()] = int(backend_tid.decode())
+                for entry in ret:
+                    if entry['backend_id'] is not None:
+                        typemap[entry['id']] = entry['backend_id']
             if typemap:
                 return await self.get_backend().compiler.call(
                     'update_type_ids',

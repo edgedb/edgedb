@@ -471,6 +471,10 @@ class ContextLevel(compiler.ContextLevel):
     tentative_work: List[CompletionWorkCallback]
     """Callbacks that rely on scope and scheduled tentatively."""
 
+    disable_shadowing: Set[Union[s_obj.Object, s_pointers.PseudoPointer]]
+    """A set of schema objects for which the shadowing rewrite should be
+       disabled."""
+
     def __init__(
         self,
         prevlevel: Optional[ContextLevel],
@@ -530,6 +534,7 @@ class ContextLevel(compiler.ContextLevel):
             self.in_conditional = None
             self.in_temp_scope = False
             self.tentative_work = []
+            self.disable_shadowing = set()
 
         else:
             self.env = prevlevel.env
@@ -573,6 +578,7 @@ class ContextLevel(compiler.ContextLevel):
             self.in_conditional = prevlevel.in_conditional
             self.in_temp_scope = prevlevel.in_temp_scope
             self.tentative_work = prevlevel.tentative_work
+            self.disable_shadowing = prevlevel.disable_shadowing
 
             if mode == ContextSwitchMode.SUBQUERY:
                 self.anchors = prevlevel.anchors.copy()
@@ -616,6 +622,7 @@ class ContextLevel(compiler.ContextLevel):
 
                 self.view_rptr = None
                 self.toplevel_result_view_name = None
+                self.disable_shadowing = prevlevel.disable_shadowing.copy()
             else:
                 self.anchors = prevlevel.anchors
                 self.modaliases = prevlevel.modaliases

@@ -620,6 +620,7 @@ def init_stmt(
 
     if isinstance(irstmt, irast.MutatingStmt):
         ctx.path_scope.factoring_fence = True
+        ctx.iterator_ctx = None
 
     irstmt.parent_stmt = parent_ctx.stmt
 

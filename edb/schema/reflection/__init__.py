@@ -17,6 +17,14 @@
 #
 
 
-ALTER MODULE std {
-    SET builtin := true;
-};
+from .reader import parse_into  # NoQA
+from .structure import generate_structure  # NoQA
+from .structure import SchemaTypeLayout  # NoQA
+from .writer import write_meta  # NoQA
+
+__all__ = (
+    'generate_structure',
+    'write_meta',
+    'parse_into',
+    'SchemaTypeLayout',
+)

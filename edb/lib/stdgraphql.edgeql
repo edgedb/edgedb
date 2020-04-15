@@ -17,10 +17,7 @@
 #
 
 
-CREATE MODULE stdgraphql {
-    SET builtin := true;
-};
-
+CREATE MODULE stdgraphql;
 
 # these are just some placeholders for packaging GraphQL queries
 CREATE TYPE stdgraphql::Query EXTENDING std::BaseObject;

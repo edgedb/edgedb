@@ -18,9 +18,11 @@
 
 
 from __future__ import annotations
+from typing import *
 
 import dataclasses
-from typing import *
+
+import immutables
 
 from edb import errors
 from edb import graphql
@@ -29,6 +31,9 @@ from edb.common import debug
 from edb.edgeql import compiler as qlcompiler
 from edb.pgsql import compiler as pg_compiler
 from edb.server import compiler
+
+if TYPE_CHECKING:
+    from edb.schema import schema as s_schema
 
 
 @dataclasses.dataclass(frozen=True)
@@ -51,12 +56,19 @@ class CompiledOperation:
 
 class Compiler(compiler.BaseCompiler):
 
-    def _wrap_schema(self, dbver, schema) -> CompilerDatabaseState:
+    def _wrap_schema(
+        self,
+        dbver: int,
+        schema: s_schema.Schema,
+        cached_reflection: immutables.Map[str, Tuple[str, ...]],
+    ) -> CompilerDatabaseState:
         gqlcore = graphql.GQLCoreSchema(schema)
         return CompilerDatabaseState(
             dbver=dbver,
             schema=schema,
-            gqlcore=gqlcore)
+            cached_reflection=cached_reflection,
+            gqlcore=gqlcore,
+        )
 
     async def compile_graphql(
         self,

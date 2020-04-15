@@ -56,12 +56,16 @@ class ObjectType(
     union_of = so.SchemaField(
         so.ObjectSet["ObjectType"],
         default=so.DEFAULT_CONSTRUCTOR,
-        coerce=True)
+        coerce=True,
+        type_is_generic_self=True,
+    )
 
     intersection_of = so.SchemaField(
         so.ObjectSet["ObjectType"],
         default=so.DEFAULT_CONSTRUCTOR,
-        coerce=True)
+        coerce=True,
+        type_is_generic_self=True,
+    )
 
     is_opaque_union = so.SchemaField(
         bool,

@@ -20,7 +20,6 @@
 import os.path
 
 from edb.testbase import server as tb
-from edb.tools import test
 
 
 class TestIntrospection(tb.QueryTestCase):
@@ -273,7 +272,6 @@ class TestIntrospection(tb.QueryTestCase):
                 SELECT ObjectType {
                     properties: {
                         target[IS Array]: {
-                            name,
                             element_type: {
                                 name
                             }
@@ -287,7 +285,6 @@ class TestIntrospection(tb.QueryTestCase):
                 'properties': [
                     {
                         'target': {
-                            'name': 'array',
                             'element_type': {
                                 'name': 'std::str'
                             }
@@ -343,11 +340,11 @@ class TestIntrospection(tb.QueryTestCase):
                     name,
                     properties: {
                         name,
-                    } ORDER BY Link.properties.name
+                    } ORDER BY .name
                 }
                 FILTER
-                    Link.name = 'todo'
-                    AND EXISTS Link.source;
+                    .name = 'todo'
+                    AND EXISTS .source;
             """,
             [{
                 'name': 'todo',
@@ -411,7 +408,6 @@ class TestIntrospection(tb.QueryTestCase):
                     params: {
                         num,
                         type[IS schema::Array]: {
-                            name,
                             element_type: {
                                 name
                             }
@@ -427,7 +423,6 @@ class TestIntrospection(tb.QueryTestCase):
                     {
                         'num': 1,
                         'type': {
-                            'name': 'array',
                             'element_type': {
                                 'name': 'anytype'
                             }
@@ -445,7 +440,6 @@ class TestIntrospection(tb.QueryTestCase):
                     params: {
                         num,
                         type: {
-                            name,
                             [IS schema::Array].element_type: {
                                 id,
                                 name
@@ -462,7 +456,6 @@ class TestIntrospection(tb.QueryTestCase):
                     {
                         'num': 1,
                         'type': {
-                            'name': 'array',
                             'element_type': {
                                 'name': 'anytype'
                             }
@@ -481,7 +474,7 @@ class TestIntrospection(tb.QueryTestCase):
                         num,
                         kind,
                         type: {
-                            name,
+                            type := .__type__.name,
                             [IS schema::Array].element_type: {
                                 name
                             }
@@ -498,14 +491,14 @@ class TestIntrospection(tb.QueryTestCase):
                         'num': 0,
                         'kind': 'POSITIONAL',
                         'type': {
-                            'name': 'anytype',
+                            'type': 'schema::PseudoType',
                         }
                     },
                     {
                         'num': 1,
                         'kind': 'VARIADIC',
                         'type': {
-                            'name': 'array',
+                            'type': 'schema::Array',
                             'element_type': {
                                 'name': 'anytype'
                             }
@@ -633,7 +626,9 @@ class TestIntrospection(tb.QueryTestCase):
                         params: {
                             name,
                             @value,
-                            type: { name }
+                            type: {
+                                type := .__type__.name
+                            }
                         } FILTER .name != '__subject__',
                         return_typemod,
                         return_type: { name },
@@ -654,8 +649,8 @@ class TestIntrospection(tb.QueryTestCase):
                         'params': [
                             {
                                 'name': 'vals',
-                                'type': {'name': 'array'},
-                                '@value': "['v1', 'v2']"
+                                'type': {'type': 'schema::Array'},
+                                '@value': "['v1','v2']"
                             }
                         ],
                         'return_typemod': 'SINGLETON',
@@ -671,7 +666,7 @@ class TestIntrospection(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 WITH MODULE schema
-                SELECT `Function` {
+                SELECT Function {
                     name,
                     annotations: { name, @value },
                     params: {
@@ -687,14 +682,14 @@ class TestIntrospection(tb.QueryTestCase):
                         name,
                         [IS Tuple].element_types: {
                             name,
-                            type: {
-                                name
-                            }
-                        } ORDER BY .num
+                            type: { name },
+                        } ORDER BY @index
                     },
                 }
-                FILTER .name = 'std::count' OR .name = 'sys::get_version'
-                ORDER BY .name;
+                FILTER
+                    .name IN {'std::count', 'sys::get_version'}
+                ORDER BY
+                    .name;
             """,
             [
                 {
@@ -711,7 +706,10 @@ class TestIntrospection(tb.QueryTestCase):
                         }
                     ],
                     "return_typemod": "SINGLETON",
-                    "return_type": {"name": "std::int64", "element_types": []}
+                    "return_type": {
+                        "name": "std::int64",
+                        "element_types": [],
+                    }
                 },
                 {
                     "name": "sys::get_version",
@@ -719,7 +717,6 @@ class TestIntrospection(tb.QueryTestCase):
                     "params": [],
                     "return_typemod": "SINGLETON",
                     "return_type": {
-                        "name": "tuple",
                         "element_types": [
                             {"name": "major",
                              "type": {"name": "std::int64"}},
@@ -730,7 +727,7 @@ class TestIntrospection(tb.QueryTestCase):
                             {"name": "stage_no",
                              "type": {"name": "std::int64"}},
                             {"name": "local",
-                             "type": {"name": "array"}}
+                             "type": {"name": "array<std::str>"}}
                         ]
                     }
                 }
@@ -741,7 +738,7 @@ class TestIntrospection(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 WITH MODULE schema
-                SELECT `Function` {
+                SELECT Function {
                     name,
                     session_only
                 }
@@ -764,7 +761,7 @@ class TestIntrospection(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 WITH MODULE schema
-                SELECT `Function` {
+                SELECT Function {
                     name,
                     volatility
                 }
@@ -795,7 +792,7 @@ class TestIntrospection(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 WITH MODULE schema
-                SELECT `Operator` {
+                SELECT Operator {
                     name,
                     params: {
                         name, type: {name}
@@ -818,16 +815,28 @@ class TestIntrospection(tb.QueryTestCase):
                 {
                     'name': 'std::+',
                     'params': [
-                        {'name': 'l', 'type': {'name': 'std::datetime'}},
-                        {'name': 'r', 'type': {'name': 'std::duration'}},
+                        {
+                            'name': 'l',
+                            'type': {'name': 'std::datetime'}
+                        },
+                        {
+                            'name': 'r',
+                            'type': {'name': 'std::duration'},
+                        },
                     ],
                     'volatility': 'STABLE'
                 },
                 {
                     'name': 'std::+',
                     'params': [
-                        {'name': 'l', 'type': {'name': 'std::duration'}},
-                        {'name': 'r', 'type': {'name': 'std::duration'}},
+                        {
+                            'name': 'l',
+                            'type': {'name': 'std::duration'},
+                        },
+                        {
+                            'name': 'r',
+                            'type': {'name': 'std::duration'},
+                        },
                     ],
                     'volatility': 'IMMUTABLE'
                 }
@@ -838,7 +847,7 @@ class TestIntrospection(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 WITH MODULE schema
-                SELECT `Cast` {
+                SELECT Cast {
                     from_type: {name},
                     to_type: {name},
                     volatility
@@ -886,14 +895,10 @@ class TestIntrospection(tb.QueryTestCase):
             [True],
         )
 
-    @test.xfail('''
-        There should be many more than 10 Objects in the DB due to
-        all the schema objects from standard library.
-    ''')
     async def test_edgeql_introspection_meta_03(self):
         await self.assert_query_result(
             r'''
-                SELECT count(Object) > 10;
+                SELECT count(BaseObject) > 10;
             ''',
             [True],
         )
@@ -950,10 +955,6 @@ class TestIntrospection(tb.QueryTestCase):
             [True],
         )
 
-    @test.xfail('''
-        CollectionType queries cause the following error:
-        relation "edgedbss.6b1e0cfa-1511-11e9-8f2e-b5ee4369b429" does not exist
-    ''')
     async def test_edgeql_introspection_meta_06(self):
         await self.assert_query_result(
             r'''SELECT count(schema::CollectionType) > 0;''',
@@ -1030,30 +1031,6 @@ class TestIntrospection(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT count(schema::Function) > 0;
-            ''',
-            [True],
-        )
-
-    async def test_edgeql_introspection_meta_11(self):
-        await self.assert_query_result(
-            r'''
-                WITH MODULE schema
-                SELECT DISTINCT (
-                    SELECT Type IS Array
-                    FILTER Type.name = 'array'
-                );
-            ''',
-            [True],
-        )
-
-    async def test_edgeql_introspection_meta_12(self):
-        await self.assert_query_result(
-            r'''
-                WITH MODULE schema
-                SELECT DISTINCT (
-                    SELECT Type IS Tuple
-                    FILTER Type.name = 'tuple'
-                );
             ''',
             [True],
         )
@@ -1240,9 +1217,13 @@ class TestIntrospection(tb.QueryTestCase):
                     links: {
                         name,
                         required,
-                    } ORDER BY .name
+                    }
+                    FILTEr NOT .is_internal
+                    ORDER BY .name
                 }
-                FILTER .name IN {'schema::CallableObject', 'schema::Parameter'}
+                FILTER
+                    .name IN {'schema::CallableObject', 'schema::Parameter'}
+                    AND NOT .is_internal
                 ORDER BY .name;
             ''',
             [

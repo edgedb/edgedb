@@ -249,6 +249,16 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         else:
             return None
 
+    def get_orig_attribute_value(
+        self,
+        attr_name: str,
+    ) -> Any:
+        op = self.get_attribute_set_cmd(attr_name)
+        if op is not None:
+            return op.old_value
+        else:
+            return None
+
     def set_attribute_value(
         self,
         attr_name: str,
@@ -816,7 +826,7 @@ class DeltaRootContext(CommandContextToken["DeltaRoot"]):
     pass
 
 
-class DeltaRoot(CommandGroup):
+class DeltaRoot(CommandGroup, context_class=DeltaRootContext):
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
@@ -1089,6 +1099,10 @@ class ObjectCommand(
 
     def get_ast_attr_for_field(self, field: str) -> Optional[str]:
         return None
+
+    @classmethod
+    def maybe_get_schema_metaclass(cls) -> Optional[Type[so.Object_T]]:
+        return cls._schema_metaclass
 
     @classmethod
     def get_schema_metaclass(cls) -> Type[so.Object_T]:
@@ -1448,6 +1462,7 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
                 self.set_attribute_value('id', specified_id)
 
         if not context.canonical:
+            self.set_attribute_value('builtin', context.stdmode)
             schema = self.resolve_refs(schema, context)
 
         props = self.get_resolved_attributes(schema, context)
@@ -1751,7 +1766,13 @@ class AlterObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
                     pos_node = astcmd.position
                     if pos_node is not None:
                         if pos_node.ref is not None:
-                            ref = f'{pos_node.ref.module}::{pos_node.ref.name}'
+                            ref = so.ObjectShell(
+                                name=(
+                                    f'{pos_node.ref.module}::'
+                                    f'{pos_node.ref.name}'
+                                ),
+                                schemaclass=cls.get_schema_metaclass(),
+                            )
                             pos = (pos_node.position, ref)
                         else:
                             pos = pos_node.position

@@ -25,11 +25,9 @@ from typing import *
 from edb import lib as stdlib
 from edb import errors
 
-from edb import edgeql
 from edb import schema
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import parser as qlparser
-from edb.schema import delta as s_delta
 
 from . import ddl as s_ddl
 from . import schema as s_schema
@@ -76,16 +74,12 @@ def get_std_module_text(modname: str) -> str:
 
 def load_std_module(
     schema: s_schema.Schema,
-    modname: str
+    modname: str,
 ) -> s_schema.Schema:
 
-    modaliases: Mapping[Optional[str], str] = {}
-    context = s_delta.CommandContext()
-    context.stdmode = True
-
-    modtext = get_std_module_text(modname)
-    for statement in edgeql.parse_block(modtext):
-        schema = s_ddl.apply_ddl(
-            statement, schema=schema, modaliases=modaliases, stdmode=True)
-
-    return schema
+    return s_ddl.apply_ddl_script(
+        get_std_module_text(modname),
+        schema=schema,
+        modaliases={},
+        stdmode=True,
+    )

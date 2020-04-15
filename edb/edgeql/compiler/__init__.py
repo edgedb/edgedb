@@ -201,6 +201,10 @@ def compile_ast_to_ir(
             An optional :class:`edgeql.compiler.options.CompilerOptions`
             instance specifying compilation options.
 
+        allow_writing_protected_ptrs:
+            If ``True``, allows protected object properties or links to
+            be overwritten in `INSERT` shapes.
+
     Returns:
         An instance of :class:`ir.ast.Command`.  Most frequently, this
         would be an instance of :class:`ir.ast.Statement`.

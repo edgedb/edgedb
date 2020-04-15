@@ -36,19 +36,25 @@ if TYPE_CHECKING:
 class Migration(so.Object, s_abc.Migration):
 
     parents = so.SchemaField(
-        so.ObjectList['Migration'],
-        default=so.DEFAULT_CONSTRUCTOR, coerce=True, inheritable=False)
+        so.ObjectList["Migration"],
+        default=so.DEFAULT_CONSTRUCTOR,
+        coerce=True,
+        inheritable=False,
+        ephemeral=True,
+    )
 
     target = so.SchemaField(
         qlast.Schema,
-        inheritable=False, default=None, introspectable=False)
+        inheritable=False, default=None, introspectable=False,
+        ephemeral=True)
 
     # type ignore below, because this class is redefining a new member
     # with the same name
     delta = so.SchemaField(  # type: ignore
         sd.DeltaRoot,
         default=None,
-        coerce=True, inheritable=False, introspectable=False)
+        coerce=True, inheritable=False, introspectable=False,
+        ephemeral=True)
 
 
 class MigrationCommandContext(sd.ObjectCommandContext[Migration]):

@@ -589,6 +589,10 @@ class Collection(Type, s_abc.Collection):
         compcoef=None,
     )
 
+    @classmethod
+    def get_displayname_static(cls, name: str) -> str:
+        return type_displayname_from_name(name)
+
     def is_polymorphic(self, schema: s_schema.Schema) -> bool:
         return any(st.is_polymorphic(schema)
                    for st in self.get_subtypes(schema))
@@ -821,7 +825,8 @@ class Array(
             id = generate_array_type_id(schema, element_type, dimensions, name)
 
         if name is None:
-            name = type_name_from_id(id)
+            dn = f'array<{element_type.get_displayname(schema)}>'
+            name = type_name_from_id_and_displayname(id, dn)
 
         result = typing.cast(Array_T, schema.get_by_id(id, default=None))
         if result is None:
@@ -991,13 +996,16 @@ class Array(
         if not typemods:
             typemods = ([-1],)
 
+        st = next(iter(subtypes))
+
         if name is None:
             dimensions = typemods[0]
             tid = generate_array_type_id(schema, subtypes[0], dimensions)
-            name = type_name_from_id(tid)
+            name = type_name_from_id_and_displayname(
+                tid, f'array<{st.get_displayname(schema)}>')
 
         return ArrayTypeShell(
-            subtype=next(iter(subtypes)),
+            subtype=st,
             typemods=typemods,
             name=name,
         )
@@ -1153,6 +1161,10 @@ class Tuple(
         coerce=True,
         # We want a low compcoef so that tuples are *never* altered.
         compcoef=0.01,
+        # Tuple element types cannot be represented by a direct link,
+        # because the element types may be duplicate, so we need a
+        # proxy object.
+        reflection_proxy=('schema::TupleElement', 'type'),
     )
 
     @classmethod
@@ -1171,7 +1183,10 @@ class Tuple(
             id = generate_tuple_type_id(schema, element_types, name, named)
 
         if name is None:
-            name = type_name_from_id(id)
+            st_names = ', '.join(
+                st.get_displayname(schema) for st in element_types.values()
+            )
+            name = type_name_from_id_and_displayname(id, f'tuple<{st_names}>')
 
         result = typing.cast(Tuple_T, schema.get_by_id(id, default=None))
         if result is None:
@@ -1313,7 +1328,10 @@ class Tuple(
         named = typemods is not None and typemods.get('named', False)
         if name is None:
             tid = generate_tuple_type_id(schema, subtypes, name, named)
-            name = type_name_from_id(tid)
+            st_names = ', '.join(
+                st.get_displayname(schema) for st in subtypes.values()
+            )
+            name = type_name_from_id_and_displayname(tid, f'tuple<{st_names}>')
 
         return TupleTypeShell(
             subtypes=subtypes,
@@ -1621,15 +1639,24 @@ class TupleExprAlias(CollectionExprAlias, Tuple):
     pass
 
 
-def type_name_from_id(id: uuid.UUID) -> str:
-    return f'__id:{id}'
+def type_name_from_id_and_displayname(id: uuid.UUID, displayname: str) -> str:
+    return f'__id:{id}:{s_name.mangle_name(displayname)}'
 
 
 def type_id_from_name(name: str) -> Optional[uuid.UUID]:
     if name.startswith('__id:'):
-        return uuid.UUID(name[len('__id:'):])
+        parts = name.split(':', maxsplit=2)
+        return uuid.UUID(parts[1])
     else:
         return None
+
+
+def type_displayname_from_name(name: str) -> str:
+    if name.startswith('__id:'):
+        parts = name.split(':', maxsplit=2)
+        return s_name.unmangle_name(parts[2])
+    else:
+        return name
 
 
 def generate_type_id(id_str: str) -> uuid.UUID:
@@ -2098,6 +2125,11 @@ def cleanup_schema_collection(
     if not isinstance(coll_type, Collection):
         raise ValueError(
             f'{coll_type.get_displayname(schema)} is not a collection')
+
+    if coll_type.get_builtin(schema):
+        # Never attempt to drop collections derived from builtin
+        # schema.
+        return
 
     delta_root = context.top().op
     assert isinstance(delta_root, sd.DeltaRoot)

@@ -2743,7 +2743,9 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     annotations: {
                         name,
                         @value,
-                    } FILTER .name LIKE 'test::anno10%'
+                    }
+                    FILTER .name LIKE 'test::anno10%'
+                    ORDER BY .name
                 }
                 FILTER
                     .name LIKE 'test::%Anno10'
@@ -2753,14 +2755,14 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             [
                 {
                     "annotations": [
-                        {"name": "test::anno10_inh", "@value": "B"},
                         {"name": "test::anno10", "@value": "B"},
+                        {"name": "test::anno10_inh", "@value": "B"},
                     ]
                 },
                 {
                     "annotations": [
-                        {"name": "test::anno10_inh", "@value": "A"},
                         {"name": "test::anno10", "@value": "A"},
+                        {"name": "test::anno10_inh", "@value": "A"},
                     ]
                 },
             ]
@@ -2973,8 +2975,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         await self.assert_query_result(
             r"""
-                SELECT (SELECT schema::ObjectType
-                        FILTER .name = 'test::Ext4Child').properties.name;
+                SELECT (
+                    SELECT schema::ObjectType
+                    FILTER .name = 'test::Ext4Child'
+                ).properties.name;
             """,
             {'id', 'a'}
         )
@@ -2986,8 +2990,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         for name in {'Ext4Child', 'Ext4GrandChild', 'Ext4GrandGrandChild'}:
             await self.assert_query_result(
                 f"""
-                    SELECT (SELECT schema::ObjectType
-                            FILTER .name = 'test::{name}').properties.name;
+                    SELECT (
+                        SELECT schema::ObjectType
+                        FILTER .name = 'test::{name}'
+                    ).properties.name;
                 """,
                 {'id', 'a', 'b'}
             )
@@ -3013,8 +3019,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         for name in {'Ext4Child', 'Ext4GrandChild', 'Ext4GrandGrandChild'}:
             await self.assert_query_result(
                 f"""
-                    SELECT (SELECT schema::ObjectType
-                            FILTER .name = 'test::{name}').properties.name;
+                    SELECT (
+                        SELECT schema::ObjectType
+                        FILTER .name = 'test::{name}'
+                    ).properties.name;
                 """,
                 {'id', 'a'}
             )

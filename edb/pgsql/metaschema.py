@@ -2071,6 +2071,58 @@ class SysGetTransactionIsolation(dbops.Function):
             text=self.text)
 
 
+class GetCachedReflection(dbops.Function):
+    "Return a list of existing schema reflection helpers."
+    text = '''
+        SELECT
+            substring(proname, '__rh_#"%#"', '#') AS eql_hash,
+            proargnames AS argnames
+        FROM
+            pg_proc
+            INNER JOIN pg_namespace ON (pronamespace = pg_namespace.oid)
+        WHERE
+            proname LIKE '__rh_%'
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_get_cached_reflection'),
+            args=[],
+            returns=('record',),
+            set_returning=True,
+            # This function only reads from a table.
+            volatility='stable',
+            text=self.text,
+        )
+
+
+class GetBaseScalarTypeMap(dbops.Function):
+    """Return a map of base EdgeDB scalar type ids to Postgres type names."""
+
+    text = f'''
+        VALUES
+            {", ".join(
+                f"""(
+                    {ql(str(k))}::uuid,
+                    {
+                        ql(f'{v[0]}.{v[1]}') if len(v) == 2
+                        else ql(f'pg_catalog.{v[0]}')
+                    }
+                )"""
+            for k, v in types.base_type_name_map.items())}
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_get_base_scalar_type_map'),
+            args=[],
+            returns=('record',),
+            set_returning=True,
+            volatility='immutable',
+            text=self.text,
+        )
+
+
 def _field_to_column(field):
     ftype = field.type
     coltype = None
@@ -2289,6 +2341,8 @@ async def bootstrap(conn):
         dbops.CreateFunction(SysConfigFunction()),
         dbops.CreateFunction(SysVersionFunction()),
         dbops.CreateFunction(SysGetTransactionIsolation()),
+        dbops.CreateFunction(GetCachedReflection()),
+        dbops.CreateFunction(GetBaseScalarTypeMap()),
     ])
 
     block = dbops.PLTopBlock(disable_ddl_triggers=True)
@@ -2478,15 +2532,17 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
     return dbops.View(name=tabname(schema, ptr), query=link_query)
 
 
-def _generate_database_view(schema):
+def _generate_database_views(schema):
     Database = schema.get('sys::Database')
 
     view_query = f'''
         SELECT
             ((d.description)->>'id')::uuid              AS id,
-            datname         AS name,
+            datname                                     AS name,
+            datname                                     AS name__internal,
+            ((d.description)->>'builtin')::bool         AS builtin,
             (SELECT id FROM edgedb.Object
-                 WHERE name = 'sys::Database') AS __type__
+                 WHERE name = 'sys::Database')          AS __type__
         FROM
             pg_database dat
             CROSS JOIN LATERAL (
@@ -2498,7 +2554,60 @@ def _generate_database_view(schema):
             (d.description)->>'id' IS NOT NULL
     '''
 
-    return dbops.View(name=tabname(schema, Database), query=view_query)
+    annotations_link_query = f'''
+        SELECT
+            ((d.description)->>'id')::uuid              AS source,
+            (annotations->>'id')::uuid                  AS target,
+            (annotations->>'value')::text               AS value,
+            (annotations->>'is_local')::bool            AS is_local
+        FROM
+            pg_database dat
+            CROSS JOIN LATERAL (
+                SELECT
+                    edgedb.shobj_metadata(dat.oid, 'pg_database')
+                        AS description
+            ) AS d
+            CROSS JOIN LATERAL
+                ROWS FROM (
+                    jsonb_array_elements((d.description)->'annotations')
+                ) AS annotations
+    '''
+
+    int_annotations_link_query = f'''
+        SELECT
+            ((d.description)->>'id')::uuid              AS source,
+            (annotations->>'id')::uuid                  AS target,
+            (annotations->>'value')::text               AS value,
+            (annotations->>'is_local')::bool            AS is_local
+        FROM
+            pg_database dat
+            CROSS JOIN LATERAL (
+                SELECT
+                    edgedb.shobj_metadata(dat.oid, 'pg_database')
+                        AS description
+            ) AS d
+            CROSS JOIN LATERAL
+                ROWS FROM (
+                    jsonb_array_elements(
+                        (d.description)->'annotations__internal'
+                    )
+                ) AS annotations
+    '''
+
+    return [
+        dbops.View(name=tabname(schema, Database), query=view_query),
+        dbops.View(
+            name=tabname(schema, Database.getptr(schema, 'annotations')),
+            query=annotations_link_query,
+        ),
+        dbops.View(
+            name=tabname(
+                schema,
+                Database.getptr(schema, 'annotations__internal'),
+            ),
+            query=int_annotations_link_query,
+        ),
+    ]
 
 
 def _generate_role_views(schema):
@@ -2510,7 +2619,13 @@ def _generate_role_views(schema):
             (SELECT id FROM edgedb.Object
                  WHERE name = 'sys::Role')              AS __type__,
             a.rolname                                   AS name,
+            a.rolname                                   AS name__internal,
             a.rolsuper                                  AS is_superuser,
+            False                                       AS is_abstract,
+            False                                       AS is_final,
+            False                                       AS is_derived,
+            ARRAY[]::text[]                             AS inherited_fields,
+            ((d.description)->>'builtin')::bool         AS builtin,
             (d.description)->>'password_hash'           AS password
         FROM
             pg_catalog.pg_roles AS a
@@ -2523,10 +2638,12 @@ def _generate_role_views(schema):
             (d.description)->>'id' IS NOT NULL
     '''
 
-    link_query = f'''
+    member_of_link_query = f'''
         SELECT
             ((d.description)->>'id')::uuid              AS source,
-            ((md.description)->>'id')::uuid             AS target
+            ((md.description)->>'id')::uuid             AS target,
+            row_number() OVER (PARTITION BY a.oid ORDER BY m.roleid)
+                                                        AS index
         FROM
             pg_catalog.pg_roles AS a
             CROSS JOIN LATERAL (
@@ -2542,11 +2659,73 @@ def _generate_role_views(schema):
             ) AS md
     '''
 
+    annotations_link_query = f'''
+        SELECT
+            ((d.description)->>'id')::uuid              AS source,
+            (annotations->>'id')::uuid                  AS target,
+            (annotations->>'value')::text               AS value,
+            (annotations->>'is_local')::bool            AS is_local
+        FROM
+            pg_catalog.pg_roles AS a
+            CROSS JOIN LATERAL (
+                SELECT
+                    edgedb.shobj_metadata(a.oid, 'pg_authid')
+                        AS description
+            ) AS d
+            CROSS JOIN LATERAL
+                ROWS FROM (
+                    jsonb_array_elements(
+                        (d.description)->'annotations'
+                    )
+                ) AS annotations
+    '''
+
+    int_annotations_link_query = f'''
+        SELECT
+            ((d.description)->>'id')::uuid              AS source,
+            (annotations->>'id')::uuid                  AS target,
+            (annotations->>'value')::text               AS value,
+            (annotations->>'is_local')::bool            AS is_local
+        FROM
+            pg_catalog.pg_roles AS a
+            CROSS JOIN LATERAL (
+                SELECT
+                    edgedb.shobj_metadata(a.oid, 'pg_authid')
+                        AS description
+            ) AS d
+            CROSS JOIN LATERAL
+                ROWS FROM (
+                    jsonb_array_elements(
+                        (d.description)->'annotations__internal'
+                    )
+                ) AS annotations
+    '''
+
     return [
-        dbops.View(name=tabname(schema, Role),
-                   query=view_query),
-        dbops.View(name=tabname(schema, Role.getptr(schema, 'member_of')),
-                   query=link_query),
+        dbops.View(
+            name=tabname(schema, Role),
+            query=view_query
+        ),
+        dbops.View(
+            name=tabname(schema, Role.getptr(schema, 'member_of')),
+            query=member_of_link_query,
+        ),
+        dbops.View(
+            name=tabname(schema, Role.getptr(schema, 'bases')),
+            query=member_of_link_query,
+        ),
+        dbops.View(
+            name=tabname(schema, Role.getptr(schema, 'ancestors')),
+            query=member_of_link_query,
+        ),
+        dbops.View(
+            name=tabname(schema, Role.getptr(schema, 'annotations')),
+            query=annotations_link_query,
+        ),
+        dbops.View(
+            name=tabname(schema, Role.getptr(schema, 'annotations__internal')),
+            query=int_annotations_link_query,
+        ),
     ]
 
 
@@ -2595,7 +2774,7 @@ def _get_type_source(schema, type_fields):
 
 
 def _generate_type_element_view(schema, type_fields):
-    TypeElement = schema.get('schema::TypeElement')
+    TupleElement = schema.get('schema::TupleElement')
 
     source = _get_type_source(schema, type_fields)
 
@@ -2605,19 +2784,18 @@ def _generate_type_element_view(schema, type_fields):
         SELECT
             q.id            AS id,
             (SELECT id FROM edgedb.Object
-                 WHERE name = 'schema::TypeElement')
+                 WHERE name = 'schema::TupleElement')
                             AS __type__,
             {_lookup_type('q.id')}
                             AS type,
-            q.name          AS name,
-            q.position      AS num
+            q.name          AS name
         FROM
             types AS q
         WHERE
             q.position IS NOT NULL
     '''
 
-    return dbops.View(name=tabname(schema, TypeElement), query=view_query)
+    return dbops.View(name=tabname(schema, TupleElement), query=view_query)
 
 
 def _generate_types_views(schema, type_fields):
@@ -2642,8 +2820,12 @@ def _generate_types_views(schema, type_fields):
                             AS element_type,
             q.dimensions    AS dimensions,
             NULL            AS expr,
+            NULL::bigint    AS expr_type,
             false           AS is_abstract,
-            true            AS is_final
+            true            AS is_final,
+            false           AS builtin,
+            false           AS alias_is_persistent,
+            NULL::uuid      AS rptr
         FROM
             types AS q
         WHERE
@@ -2662,8 +2844,12 @@ def _generate_types_views(schema, type_fields):
             dimensions      AS dimensions,
             (q.expr).origtext
                             AS expr,
+            NULL::bigint    AS expr_type,
             false           AS is_abstract,
-            true            AS is_final
+            true            AS is_final,
+            false           AS builtin,
+            false           AS alias_is_persistent,
+            NULL::uuid      AS rptr
         FROM
             edgedb.ArrayExprAlias AS q
 
@@ -2681,8 +2867,12 @@ def _generate_types_views(schema, type_fields):
                  WHERE name = 'schema::Tuple')
                             AS __type__,
             NULL            AS expr,
+            NULL::bigint    AS expr_type,
             false           AS is_abstract,
-            true            AS is_final
+            true            AS is_final,
+            false           AS builtin,
+            false           AS alias_is_persistent,
+            NULL::uuid      AS rptr
         FROM
             types AS q
         WHERE
@@ -2698,8 +2888,12 @@ def _generate_types_views(schema, type_fields):
                             AS __type__,
             (q.expr).origtext
                             AS expr,
+            NULL::bigint    AS expr_type,
             false           AS is_abstract,
-            true            AS is_final
+            true            AS is_final,
+            false           AS builtin,
+            false           AS alias_is_persistent,
+            NULL::uuid      AS rptr
         FROM
             edgedb.TupleExprAlias q
     '''
@@ -3219,15 +3413,8 @@ async def generate_views(conn, schema):
                 if pn == 'id':
                     # Id is present implicitly in schema tables.
                     pass
-                elif pn == '__type__':
-                    continue
                 else:
-                    # This is nether a field, nor a refdict, that's
-                    # not expected.
-                    raise RuntimeError(
-                        f'introspection schema error: cannot resolve '
-                        f'{schema_cls.get_name(schema)}.{pn} '
-                        f'into metadata reference')
+                    continue
 
             if field is not None:
                 ft = field.type
@@ -3276,9 +3463,9 @@ async def generate_views(conn, schema):
                     col_expr = f'(t.{qi(ptrstor.column_name)}).origtext'
                 elif field.type is s_expr.ExpressionList:
                     col_expr = f'''
-                        (SELECT array_agg(q.origtext)
+                        (SELECT array_agg(qi.origtext)
                          FROM unnest(t.{qi(ptrstor.column_name)})
-                                AS qi(text, _, _, _))
+                                AS qi(text, origtext, refs))
                     '''
                 elif issubclass(field.type, s_obj.Object):
                     col_expr = textwrap.dedent(f'''\
@@ -3360,8 +3547,9 @@ async def generate_views(conn, schema):
     te_view = _generate_type_element_view(schema, type_fields)
     views[te_view.name] = te_view
 
-    db_view = _generate_database_view(schema)
-    views[db_view.name] = db_view
+    db_views = _generate_database_views(schema)
+    for db_view in db_views:
+        views[db_view.name] = db_view
 
     role_views = _generate_role_views(schema)
     for role_view in role_views:
@@ -3371,11 +3559,15 @@ async def generate_views(conn, schema):
     types_view.query += '\nUNION ALL\n' + '\nUNION ALL\n'.join(f'''
         (
             SELECT
+                "alias_is_persistent",
+                "builtin",
                 "expr",
+                "expr_type",
                 "id",
                 "is_abstract",
                 "is_final",
                 "name",
+                "rptr",
                 "__type__"
             FROM
                 {common.qname(*view.name)}

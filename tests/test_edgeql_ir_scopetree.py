@@ -275,9 +275,9 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
 % OK %
         "FENCE": {
-            "(__derived__::expr~3)",
+            "(__derived__::expr~51)",
             "FENCE": {
-                "(__derived__::expr~3).>foo[IS std::str]"
+                "(__derived__::expr~51).>foo[IS std::str]"
             },
             "FENCE": {
                 "(schema::Type)"

@@ -1171,8 +1171,11 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             ]
         )
 
+    async def test_edgeql_calls_34(self):
+        # Tuple argument
+
         await self.con.execute('''
-            CREATE FUNCTION test::call33_2(
+            CREATE FUNCTION test::call34(
                 a: array<tuple<int64, int64>>
             ) -> int64
                 USING EdgeQL $$
@@ -1181,17 +1184,17 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         ''')
 
         await self.assert_query_result(
-            r'''SELECT test::call33_2([(1, 2), (3, 4)]);''',
+            r'''SELECT test::call34([(1, 2), (3, 4)]);''',
             [
                 1,
             ]
         )
 
-    async def test_edgeql_calls_34(self):
+    async def test_edgeql_calls_35(self):
         # Tuple return
 
         await self.con.execute('''
-            CREATE FUNCTION test::call34(
+            CREATE FUNCTION test::call35(
                 a: int64
             ) -> tuple<int64, tuple<foo: int64>>
                 USING EdgeQL $$
@@ -1200,21 +1203,22 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         ''')
 
         await self.assert_query_result(
-            r'''SELECT test::call34(1);''',
+            r'''SELECT test::call35(1);''',
             [
                 [1, {'foo': 2}]
             ]
         )
 
         await self.assert_query_result(
-            r'''SELECT test::call34(1).1.foo;''',
+            r'''SELECT test::call35(1).1.foo;''',
             [
                 2
             ]
         )
 
+    async def test_edgeql_calls_36(self):
         await self.con.execute('''
-            CREATE FUNCTION test::call34_2(
+            CREATE FUNCTION test::call36(
                 a: int64
             ) -> array<tuple<int64>>
                 USING EdgeQL $$
@@ -1223,16 +1227,16 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         ''')
 
         await self.assert_query_result(
-            r'''SELECT test::call34_2(1);''',
+            r'''SELECT test::call36(1);''',
             [
                 [[1]]
             ]
         )
 
-    async def test_edgeql_calls_35(self):
+    async def test_edgeql_calls_37(self):
         # define a function with positional arguments with defaults
         await self.con.execute('''
-            CREATE FUNCTION test::call35(
+            CREATE FUNCTION test::call37(
                 a: int64 = 1,
                 b: int64 = 2
             ) -> int64
@@ -1242,16 +1246,16 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         ''')
 
         await self.assert_query_result(
-            r'''SELECT test::call35();''',
+            r'''SELECT test::call37();''',
             [3],
         )
 
         await self.assert_query_result(
-            r'''SELECT test::call35(2);''',
+            r'''SELECT test::call37(2);''',
             [4],
         )
 
         await self.assert_query_result(
-            r'''SELECT test::call35(2, 3);''',
+            r'''SELECT test::call37(2, 3);''',
             [5],
         )

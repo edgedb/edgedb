@@ -196,6 +196,12 @@ def delta_schemas(
     if not include_std_diff:
         excluded_modules.update(s_schema.STD_MODULES)
 
+        def _filter(schema: s_schema.Schema, obj: so.Object) -> bool:
+            return not obj.get_builtin(schema)
+
+        schema_a_filters.append(_filter)
+        schema_b_filters.append(_filter)
+
     # __derived__ is ephemeral and should never be included
     excluded_modules.add('__derived__')
 
@@ -220,6 +226,7 @@ def delta_schemas(
             create = modules.CreateModule(classname=added_module,
                                           if_not_exists=True)
             create.set_attribute_value('name', added_module)
+            create.set_attribute_value('builtin', False)
             result.add(create)
 
     objects = sd.DeltaRoot(canonical=True)
@@ -395,6 +402,54 @@ def apply_ddl(
     schema, _ = _delta_from_ddl(ddl_stmt, schema=schema, modaliases=modaliases,
                                 stdmode=stdmode, testmode=testmode)
     return schema
+
+
+def apply_ddl_script(
+    ddl_text: str,
+    *,
+    schema: s_schema.Schema,
+    modaliases: Optional[Mapping[Optional[str], str]] = None,
+    stdmode: bool = False,
+    testmode: bool = False,
+) -> s_schema.Schema:
+
+    schema, _ = apply_ddl_script_ex(
+        ddl_text,
+        schema=schema,
+        modaliases=modaliases,
+        stdmode=stdmode,
+        testmode=testmode,
+    )
+
+    return schema
+
+
+def apply_ddl_script_ex(
+    ddl_text: str,
+    *,
+    schema: s_schema.Schema,
+    modaliases: Optional[Mapping[Optional[str], str]] = None,
+    stdmode: bool = False,
+    testmode: bool = False,
+) -> Tuple[s_schema.Schema, sd.DeltaRoot]:
+
+    delta = sd.DeltaRoot()
+
+    if modaliases is None:
+        modaliases = {}
+
+    for ddl_stmt in edgeql.parse_block(ddl_text):
+        schema, cmd = _delta_from_ddl(
+            ddl_stmt,
+            schema=schema,
+            modaliases=modaliases,
+            stdmode=stdmode,
+            testmode=testmode,
+        )
+
+        delta.add(cmd)
+
+    return schema, delta
 
 
 def delta_from_ddl(

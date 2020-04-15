@@ -104,6 +104,21 @@ HashCriterion = Union[Type["Object"], Tuple[str, Any]]
 _EMPTY_FIELD_FROZENSET: FrozenSet[Field[Any]] = frozenset()
 
 
+class ReflectionMethod(enum.Enum):
+    """Annotation on schema classes telling how to reflect in metaschema."""
+
+    #: Straight 1:1 reflection (the default)
+    REGULAR = enum.auto()
+
+    #: Object type for schema class is elided and its properties
+    #: are reflected as link properties.  This is used for certain
+    #: Referenced classes, like AnnotationValue.
+    AS_LINK = enum.auto()
+
+    #: No metaschema reflection at all.
+    NONE = enum.auto()
+
+
 def default_field_merge(
     target: InheritingObject,
     sources: Iterable[Object],
@@ -155,12 +170,15 @@ class Field(struct.ProtoField, Generic[T]):
     __slots__ = ('name', 'type', 'coerce',
                  'compcoef', 'inheritable', 'simpledelta',
                  'merge_fn', 'ephemeral', 'introspectable',
-                 'allow_ddl_set', 'weak_ref')
+                 'allow_ddl_set', 'weak_ref', 'reflection_method')
 
     #: Name of the field on the target class; assigned by ObjectMeta
     name: str
     #: The type of the value stored in the field
     type: Type[T]
+    #: Specifies if *type* is a generic type of the host object
+    #: this field is defined on.
+    type_is_generic_self: bool
     #: Whether the field is allowed to automatically coerce
     #: the input value to the declared type of the field.
     coerce: bool
@@ -188,11 +206,19 @@ class Field(struct.ProtoField, Generic[T]):
     #: A callable used to merge the value of the field from
     #: multiple objects.  Most oftenly used by inheritance.
     merge_fn: MergeFunction
+    #: Defines how the field is reflected into the backend schema storage.
+    reflection_method: ReflectionMethod
+    #: In cases when the value of the field cannot be reflected as a
+    #: direct link (for example, if the value is a non-distinct set),
+    #: this specifies a (ProxyType, linkname) pair of a proxy object type
+    #: and the name of the link within that proxy type.
+    reflection_proxy: Optional[Tuple[str, str]]
 
     def __init__(
         self,
         type_: Type[T],
         *,
+        type_is_generic_self: bool = False,
         coerce: bool = False,
         compcoef: Optional[float] = None,
         inheritable: bool = True,
@@ -202,6 +228,8 @@ class Field(struct.ProtoField, Generic[T]):
         introspectable: bool = True,
         weak_ref: bool = False,
         allow_ddl_set: bool = False,
+        reflection_method: ReflectionMethod = ReflectionMethod.REGULAR,
+        reflection_proxy: Optional[Tuple[str, str]] = None,
         **kwargs: Any,
     ) -> None:
         """Schema item core attribute definition.
@@ -211,6 +239,7 @@ class Field(struct.ProtoField, Generic[T]):
             raise ValueError(f'{type_!r} is not a type')
 
         self.type = type_
+        self.type_is_generic_self = type_is_generic_self
         self.coerce = coerce
         self.allow_ddl_set = allow_ddl_set
 
@@ -219,6 +248,8 @@ class Field(struct.ProtoField, Generic[T]):
         self.simpledelta = simpledelta
         self.introspectable = introspectable
         self.weak_ref = weak_ref
+        self.reflection_method = reflection_method
+        self.reflection_proxy = reflection_proxy
 
         if (
             merge_fn is default_field_merge
@@ -370,15 +401,18 @@ class RefDict(struct.Struct):
     requires_explicit_overloaded = struct.Field(
         bool, default=False, frozen=True)
 
-    ref_cls = struct.Field(
+    ref_cls: Type[Object] = struct.Field(
         type, frozen=True)
 
 
 class ObjectMeta(type):
 
-    _all_types: List[ObjectMeta] = []
-    _schema_types: Set[ObjectMeta] = set()
-    _ql_map: Dict[qltypes.SchemaObjectClass, ObjectMeta] = {}
+    _all_types: ClassVar[Dict[str, Type[Object]]] = {}
+    _schema_types: ClassVar[Set[ObjectMeta]] = set()
+    _ql_map: ClassVar[Dict[qltypes.SchemaObjectClass, ObjectMeta]] = {}
+    _refdicts_to: ClassVar[
+        Dict[ObjectMeta, List[Tuple[RefDict, ObjectMeta]]]
+    ] = {}
 
     # Instance fields (i.e. class fields on types built with ObjectMeta)
     _fields: Dict[str, Field[Any]]
@@ -389,6 +423,8 @@ class ObjectMeta(type):
     _refdicts_by_refclass: Dict[type, RefDict]
     _refdicts_by_field: Dict[str, RefDict]  # key is rd.attr
     _ql_class: Optional[qltypes.SchemaObjectClass]
+    _reflection_method: ReflectionMethod
+    _reflection_link: Optional[str]
 
     def __new__(
         mcls,
@@ -397,6 +433,8 @@ class ObjectMeta(type):
         clsdict: Dict[str, Any],
         *,
         qlkind: Optional[qltypes.SchemaObjectClass] = None,
+        reflection: ReflectionMethod = ReflectionMethod.REGULAR,
+        reflection_link: Optional[str] = None,
     ) -> ObjectMeta:
         refdicts: collections.OrderedDict[str, RefDict]
 
@@ -408,6 +446,12 @@ class ObjectMeta(type):
         if '__slots__' in clsdict:
             raise TypeError(
                 f'cannot create {name} class: __slots__ are not supported')
+
+        if name in mcls._all_types:
+            raise TypeError(
+                f'duplicate name for schema class: {name}, already defined'
+                f' as {mcls._all_types[name]!r}'
+            )
 
         for k, v in tuple(clsdict.items()):
             if isinstance(v, RefDict):
@@ -483,22 +527,21 @@ class ObjectMeta(type):
                 raise RuntimeError(
                     f'{name}.{dct.attr} field must be coerced')
 
-            if isinstance(dct.ref_cls, str):
-                ref_cls_getter = getattr(cls, dct.ref_cls)
-                try:
-                    dct.ref_cls = ref_cls_getter()
-                except NotImplementedError:
-                    pass
+            other_dct = cls._refdicts_by_refclass.get(dct.ref_cls)
+            if other_dct is not None:
+                raise TypeError(
+                    'multiple reference dicts for {!r} in '
+                    '{!r}: {!r} and {!r}'.format(dct.ref_cls, cls,
+                                                 dct.attr, other_dct.attr))
 
-            if not isinstance(dct.ref_cls, str):
-                other_dct = cls._refdicts_by_refclass.get(dct.ref_cls)
-                if other_dct is not None:
-                    raise TypeError(
-                        'multiple reference dicts for {!r} in '
-                        '{!r}: {!r} and {!r}'.format(dct.ref_cls, cls,
-                                                     dct.attr, other_dct.attr))
+            cls._refdicts_by_refclass[dct.ref_cls] = dct
 
-                cls._refdicts_by_refclass[dct.ref_cls] = dct
+            try:
+                refdicts_to = mcls._refdicts_to[dct.ref_cls]
+            except KeyError:
+                refdicts_to = mcls._refdicts_to[dct.ref_cls] = []
+
+            refdicts_to.append((dct, cls))
 
         # Refdicts need to be reversed here to respect the __mro__,
         # as we have iterated over it in reverse above.
@@ -515,7 +558,15 @@ class ObjectMeta(type):
                 f.type.resolve_types({cls.__name__: cls})
 
         cls._ql_class = qlkind
-        mcls._all_types.append(cls)
+        cls._reflection_method = reflection
+        if reflection is ReflectionMethod.AS_LINK:
+            if reflection_link is None:
+                raise TypeError(
+                    'reflection AS_LINK requires reflection_link to be passed'
+                    ' also'
+                )
+            cls._reflection_link = reflection_link
+        mcls._all_types[name] = cast(Type['Object'], cls)
 
         return cls
 
@@ -576,13 +627,25 @@ class ObjectMeta(type):
         else:
             raise KeyError(f'{cls} has no refdict for {refcls}')
 
+    def get_referring_classes(cls) -> FrozenSet[Tuple[RefDict, ObjectMeta]]:
+        try:
+            refdicts_to = type(cls)._refdicts_to[cls]
+        except KeyError:
+            return frozenset()
+        else:
+            return frozenset(refdicts_to)
+
     @property
     def is_schema_object(cls) -> bool:
         return cls in ObjectMeta._schema_types
 
     @classmethod
-    def get_schema_metaclasses(mcls) -> Iterator[ObjectMeta]:
-        return iter(mcls._all_types)
+    def get_schema_metaclasses(mcls) -> Iterator[Type[Object]]:
+        return iter(mcls._all_types.values())
+
+    @classmethod
+    def get_schema_metaclass(mcls, name: str) -> Optional[Type[Object]]:
+        return mcls._all_types.get(name)
 
     @classmethod
     def get_schema_metaclass_for_ql_class(
@@ -602,6 +665,12 @@ class ObjectMeta(type):
             return cls._ql_class
         else:
             raise LookupError(f'{cls} has no edgeql class string assigned')
+
+    def get_reflection_method(cls) -> ReflectionMethod:
+        return cls._reflection_method
+
+    def get_reflection_link(cls) -> Optional[str]:
+        return cls._reflection_link
 
 
 class FieldValueNotFoundError(Exception):
@@ -634,6 +703,13 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         str,
         inheritable=False,
         compcoef=0.670,
+    )
+
+    builtin = SchemaField(
+        bool,
+        default=False,
+        compcoef=0.01,
+        inheritable=False,
     )
 
     # The path_id_name field is solely for the purposes of the compiler
@@ -1108,6 +1184,14 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             delete_class = sd.ObjectCommandMeta.get_command_class_or_die(
                 sd.DeleteObject, type(old))
             delta = delete_class(**command_args)
+            cls.delta_properties(
+                delta,
+                old,
+                new,
+                context=context,
+                old_schema=old_schema,
+                new_schema=new_schema,
+            )
 
         for refdict in cls.get_refdicts():
             cls._delta_refdict(
@@ -1214,13 +1298,13 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         cls,
         delta: sd.ObjectCommand[Object],
         old: Optional[Object],
-        new: Object,
+        new: Optional[Object],
         *,
         context: ComparisonContext,
         old_schema: Optional[s_schema.Schema],
         new_schema: s_schema.Schema,
     ) -> None:
-        ff = type(new).get_fields(sorted=True).items()
+        ff = cls.get_fields(sorted=True).items()
         fields = {fn: f for fn, f in ff
                   if f.simpledelta and not f.ephemeral and f.introspectable}
 
@@ -1284,6 +1368,24 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                     else:
                         v = value
                     cls.delta_property(new_schema, new, delta, fn, v)
+
+        elif old:
+            assert old_schema is not None
+
+            for fn, f in fields.items():
+                value = old.get_explicit_field_value(old_schema, fn, None)
+                if value is not None:
+                    if (issubclass(f.type, s_abc.ObjectContainer)
+                            and not context.related_schemas):
+                        v = value.as_shell(old_schema)
+                    else:
+                        v = value
+
+                    delta.set_attribute_value(
+                        fn,
+                        value=None,
+                        orig_value=v,
+                    )
 
     @classmethod
     def delta_property(
@@ -1604,6 +1706,9 @@ class ObjectShell(Shell):
             return self.origname
         else:
             return self.get_displayname(schema)
+
+    def get_name(self, schema: s_schema.Schema) -> str:
+        return self.name
 
     def get_displayname(self, schema: s_schema.Schema) -> str:
         return self.displayname or self.name
@@ -2244,6 +2349,7 @@ class InheritingObject(SubclassableObject):
 
     bases = SchemaField(
         ObjectList['InheritingObject'],
+        type_is_generic_self=True,
         default=DEFAULT_CONSTRUCTOR,
         coerce=True,
         inheritable=False,
@@ -2252,6 +2358,7 @@ class InheritingObject(SubclassableObject):
 
     ancestors = SchemaField(
         ObjectList['InheritingObject'],
+        type_is_generic_self=True,
         default=DEFAULT_CONSTRUCTOR,
         coerce=True,
         inheritable=False,

@@ -32,7 +32,7 @@ from edb.common import topological
 from edb.tools.edb import edbcommands
 
 from edb.server import cluster as edbcluster
-from edb.server import compiler
+from edb.server import compiler as edbcompiler
 from edb.server import defines as edbdef
 from edb.server import pgcluster
 from edb.server import pgconnparams
@@ -163,14 +163,19 @@ async def do_wipe(
 
 
 async def _get_dbs_and_roles(pgconn) -> Tuple[List[str], List[str]]:
-    std_schema = await compiler.load_std_schema(pgconn)
-
-    schema, get_databases_sql = compiler.compile_bootstrap_script(
-        std_schema,
-        std_schema,
-        'SELECT sys::Database.name',
+    compiler = edbcompiler.Compiler(None)
+    await compiler.ensure_initialized(pgconn)
+    schema = compiler.get_std_schema()
+    compilerctx = edbcompiler.new_compiler_context(
+        schema,
         expected_cardinality_one=False,
         single_statement=True,
+    )
+
+    schema, get_databases_sql = edbcompiler.compile_edgeql_script(
+        compiler,
+        compilerctx,
+        'SELECT sys::Database.name',
     )
 
     databases = list(sorted(
@@ -178,15 +183,13 @@ async def _get_dbs_and_roles(pgconn) -> Tuple[List[str], List[str]]:
         key=lambda dname: dname == edbdef.EDGEDB_TEMPLATE_DB,
     ))
 
-    schema, get_roles_sql = compiler.compile_bootstrap_script(
-        std_schema,
-        std_schema,
+    schema, get_roles_sql = compiler.compile_edgeql_script(
+        compiler,
+        compilerctx,
         '''SELECT sys::Role {
             name,
             parents := .member_of.name,
         }''',
-        expected_cardinality_one=False,
-        single_statement=True,
     )
 
     roles = json.loads(await pgconn.fetchval(get_roles_sql))

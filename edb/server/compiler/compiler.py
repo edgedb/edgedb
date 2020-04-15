@@ -22,6 +22,7 @@ from typing import *
 
 import collections
 import dataclasses
+import json
 import hashlib
 import pickle
 import uuid
@@ -35,7 +36,6 @@ from edb import _edgeql_rust
 from edb.server import defines
 from edb.server import tokenizer
 from edb.pgsql import compiler as pg_compiler
-from edb.pgsql import intromech
 
 from edb import edgeql
 from edb.common import debug
@@ -56,6 +56,7 @@ from edb.schema import migrations as s_migrations
 from edb.schema import modules as s_mod
 from edb.schema import objects as s_obj
 from edb.schema import objtypes as s_objtypes
+from edb.schema import reflection as s_refl
 from edb.schema import schema as s_schema
 from edb.schema import types as s_types
 
@@ -80,16 +81,18 @@ class CompilerDatabaseState:
 
     dbver: bytes
     schema: s_schema.Schema
+    cached_reflection: immutables.Map[str, Tuple[str, ...]]
 
 
 @dataclasses.dataclass(frozen=True)
 class CompileContext:
 
     state: dbstate.CompilerConnectionState
-    output_format: pg_compiler.OutputFormat
+    output_format: enums.IoFormat
     expected_cardinality_one: bool
     stmt_mode: enums.CompileStatementMode
     json_parameters: bool = False
+    schema_reflection_mode: bool = False
     implicit_limit: int = 0
     schema_object_ids: Optional[Mapping[str, uuid.UUID]] = None
     first_extracted_var: Optional[int] = None
@@ -115,85 +118,99 @@ def _convert_format(inp: enums.IoFormat) -> pg_compiler.OutputFormat:
         raise RuntimeError(f"IO format {inp!r} is not supported")
 
 
-def compile_bootstrap_script(
-    std_schema: s_schema.Schema,
-    schema: s_schema.Schema,
-    eql: str, *,
-    single_statement: bool = False,
-    expected_cardinality_one: bool = False,
+def compile_edgeql_script(
+    compiler: Compiler,
+    ctx: CompileContext,
+    eql: str,
 ) -> Tuple[s_schema.Schema, str]:
 
-    return compile_edgeql_script(
-        std_schema=std_schema,
-        schema=schema,
-        eql=eql,
-        single_statement=single_statement,
-        expected_cardinality_one=expected_cardinality_one,
-        json_parameters=True,
-        bootstrap_mode=True,
-        output_format=pg_compiler.OutputFormat.JSON,
-    )
+    sql, argmap = compiler._compile_ql_script(ctx, eql)
+    new_schema = ctx.state.current_tx().get_schema()
+
+    return new_schema, sql
 
 
-def compile_edgeql_script(
+def new_compiler(
+    *,
     std_schema: s_schema.Schema,
+    reflection_schema: s_schema.Schema,
+    schema_class_layout: Dict[Type[s_obj.Object], s_refl.SchemaTypeLayout],
+    bootstrap_mode: bool = False,
+) -> Compiler:
+    """Create and return an ad-hoc compiler instance."""
+
+    compiler = Compiler(None)
+    compiler._std_schema = std_schema
+    compiler._refl_schema = reflection_schema
+    compiler._bootstrap_mode = bootstrap_mode
+    compiler._schema_class_layout = schema_class_layout
+
+    return compiler
+
+
+def new_compiler_context(
     schema: s_schema.Schema,
-    eql: str, *,
+    *,
     single_statement: bool = False,
     modaliases: Optional[Mapping[Optional[str], str]] = None,
     expected_cardinality_one: bool = False,
     json_parameters: bool = False,
-    bootstrap_mode: bool = False,
-    output_format: pg_compiler.OutputFormat = pg_compiler.OutputFormat.NATIVE,
-) -> Tuple[s_schema.Schema, str]:
+    schema_reflection_mode: bool = False,
+    output_format: enums.IoFormat = enums.IoFormat.BINARY,
+) -> CompileContext:
+    """Create and return an ad-hoc compiler context."""
 
     state = dbstate.CompilerConnectionState(
         0,
         schema,
         immutables.Map(modaliases) if modaliases else EMPTY_MAP,
         EMPTY_MAP,
-        enums.Capability.ALL)
+        enums.Capability.ALL,
+        EMPTY_MAP,
+    )
 
     ctx = CompileContext(
         state=state,
         output_format=output_format,
         expected_cardinality_one=expected_cardinality_one,
         json_parameters=json_parameters,
+        schema_reflection_mode=schema_reflection_mode,
         stmt_mode=(
             enums.CompileStatementMode.SINGLE
             if single_statement else enums.CompileStatementMode.ALL
-        )
+        ),
     )
 
-    compiler = Compiler(None)
-    compiler._std_schema = std_schema
-    compiler._bootstrap_mode = True
-
-    tokens = _edgeql_rust.tokenize(eql)
-    units = compiler._compile(ctx=ctx, tokens=tokens)
-
-    sql_stmts = []
-    for u in units:
-        for stmt in u.sql:
-            stmt = stmt.strip()
-            if not stmt.endswith(b';'):
-                stmt += b';'
-
-            sql_stmts.append(stmt)
-
-    sql = b'\n'.join(sql_stmts)
-    new_schema = state.current_tx().get_schema()
-
-    return new_schema, sql.decode()
+    return ctx
 
 
-async def load_std_schema(backend_conn) -> s_schema.Schema:
-    data = await backend_conn.fetchval('SELECT edgedb.__syscache_stdschema();')
+async def load_cached_schema(backend_conn, key) -> s_schema.Schema:
+    data = await backend_conn.fetchval(f'SELECT edgedb.__syscache_{key}();')
     try:
         return pickle.loads(data)
     except Exception as e:
         raise RuntimeError(
             'could not load std schema pickle') from e
+
+
+async def load_std_schema(backend_conn) -> s_schema.Schema:
+    return await load_cached_schema(backend_conn, 'stdschema')
+
+
+async def load_schema_intro_query(backend_conn) -> str:
+    return json.loads(await backend_conn.fetchval(
+        'SELECT edgedb.__syscache_introquery();'))
+
+
+async def load_schema_class_layout(backend_conn) -> s_schema.Schema:
+    data = await backend_conn.fetchval(
+        'SELECT edgedb.__syscache_classlayout();',
+    )
+    try:
+        return pickle.loads(data)
+    except Exception as e:
+        raise RuntimeError(
+            'could not load schema class layout pickle') from e
 
 
 class BaseCompiler:
@@ -207,7 +224,10 @@ class BaseCompiler:
         self._dbname = None
         self._cached_db = None
         self._std_schema = None
+        self._refl_schema = None
         self._config_spec = None
+        self._schema_class_layout = None
+        self._intro_query = None
 
     def _hash_sql(self, sql: bytes, **kwargs: bytes):
         h = hashlib.sha1(sql)
@@ -216,10 +236,17 @@ class BaseCompiler:
             h.update(val)
         return h.hexdigest().encode('latin1')
 
-    def _wrap_schema(self, dbver, schema) -> CompilerDatabaseState:
+    def _wrap_schema(
+        self,
+        dbver: int,
+        schema: s_schema.Schema,
+        cached_reflection: immutables.Map[str, Tuple[str, ...]],
+    ) -> CompilerDatabaseState:
         return CompilerDatabaseState(
             dbver=dbver,
-            schema=schema)
+            schema=schema,
+            cached_reflection=cached_reflection,
+        )
 
     async def new_connection(self):
         con_args = self._connect_args.copy()
@@ -232,14 +259,32 @@ class BaseCompiler:
             raise errors.InternalServerError(str(ex)) from ex
 
     async def introspect(
-            self, connection: asyncpg.Connection) -> s_schema.Schema:
-
-        im = intromech.IntrospectionMech(connection)
-        schema = await im.readschema(
+        self,
+        connection: asyncpg.Connection,
+    ) -> s_schema.Schema:
+        data = await connection.fetch(self._intro_query)
+        return s_refl.parse_into(
             schema=self._std_schema,
-            exclude_modules=s_schema.STD_MODULES)
+            data=[r[0] for r in data],
+            schema_class_layout=self._schema_class_layout,
+        )
 
-        return schema
+    async def _load_reflection_cache(
+        self,
+        connection: asyncpg.Connection,
+    ) -> FrozenSet[str]:
+        data = await connection.fetch('''
+            SELECT
+                eql_hash,
+                argnames
+            FROM
+                ROWS FROM(edgedb._get_cached_reflection())
+                    AS t(eql_hash text, argnames text[])
+        ''')
+
+        return immutables.Map({
+            r['eql_hash']: tuple(r['argnames']) for r in data
+        })
 
     async def _get_database(self, dbver: bytes) -> CompilerDatabaseState:
         if self._cached_db is not None and self._cached_db.dbver == dbver:
@@ -249,20 +294,37 @@ class BaseCompiler:
 
         con = await self.new_connection()
         try:
-            if self._std_schema is None:
-                self._std_schema = await load_std_schema(con)
-
-            if self._config_spec is None:
-                self._config_spec = config.load_spec_from_schema(
-                    self._std_schema)
-                config.set_settings(self._config_spec)
-
+            await self.ensure_initialized(con)
             schema = await self.introspect(con)
-            db = self._wrap_schema(dbver, schema)
+            cached_reflection = await self._load_reflection_cache(con)
+            db = self._wrap_schema(dbver, schema, cached_reflection)
             self._cached_db = db
             return db
         finally:
             await con.close()
+
+    async def ensure_initialized(self, con: asyncpg.Connection) -> None:
+        if self._std_schema is None:
+            self._std_schema = await load_cached_schema(con, 'stdschema')
+
+        if self._refl_schema is None:
+            self._refl_schema = await load_cached_schema(con, 'reflschema')
+
+        if self._schema_class_layout is None:
+            self._schema_class_layout = await load_schema_class_layout(con)
+
+        if self._intro_query is None:
+            self._intro_query = await load_schema_intro_query(con)
+
+        if self._config_spec is None:
+            self._config_spec = config.load_spec_from_schema(
+                self._std_schema)
+            config.set_settings(self._config_spec)
+
+    def get_std_schema(self) -> s_schema.Schema:
+        if self._std_schema is None:
+            raise AssertionError('compiler is not initialized')
+        return self._std_schema
 
     # API
 
@@ -301,8 +363,11 @@ class Compiler(BaseCompiler):
         context.schema_object_ids = ctx.schema_object_ids
         return context
 
-    def _process_delta(self, ctx: CompileContext, delta, schema):
+    def _process_delta(self, ctx: CompileContext, delta):
         """Adapt and process the delta command."""
+
+        current_tx = ctx.state.current_tx()
+        schema = current_tx.get_schema()
 
         if debug.flags.delta_plan:
             debug.header('Delta Plan')
@@ -311,12 +376,148 @@ class Compiler(BaseCompiler):
         delta = pg_delta.CommandMeta.adapt(delta)
         context = self._new_delta_context(ctx)
         schema = delta.apply(schema, context)
+        current_tx.update_schema(schema)
 
         if debug.flags.delta_pgsql_plan:
             debug.header('PgSQL Delta Plan')
             debug.dump(delta, schema=schema)
 
-        return schema, delta
+        if isinstance(delta, (s_db.CreateDatabase, s_db.DropDatabase)):
+            block = pg_dbops.SQLBlock()
+            new_types = frozenset()
+        else:
+            block = pg_dbops.PLTopBlock()
+            new_types = frozenset(str(tid) for tid in delta.new_types)
+
+        # Generate SQL DDL for the delta.
+        delta.generate(block)
+
+        # Generate schema storage SQL (DML into schema storage tables).
+        subblock = block.add_block()
+        self._compile_schema_storage_in_delta(ctx, delta, subblock)
+
+        return block, new_types
+
+    def _compile_schema_storage_in_delta(
+        self,
+        ctx: CompileContext,
+        delta: s_delta.Command,
+        block: pg_dbops.SQLBlock,
+        *,
+        is_internal_reflection: bool = False,
+        stdmode: bool = False,
+    ):
+
+        current_tx = ctx.state.current_tx()
+        schema = current_tx.get_schema()
+
+        meta_blocks: List[Tuple[str, Dict[str, Any]]] = []
+
+        s_refl.write_meta(
+            delta,
+            classlayout=self._schema_class_layout,
+            schema=schema,
+            context=s_delta.CommandContext(),
+            blocks=meta_blocks,
+            is_internal_reflection=is_internal_reflection,
+            stdmode=stdmode,
+        )
+
+        cache = current_tx.get_cached_reflection()
+
+        with cache.mutate() as cache_mm:
+            for eql, args in meta_blocks:
+                eql_hash = hashlib.sha1(eql.encode()).hexdigest()
+                fname = ('edgedb', f'__rh_{eql_hash}')
+
+                if eql_hash in cache_mm:
+                    argnames = cache_mm[eql_hash]
+                else:
+                    sql, argmap = self._compile_schema_storage_stmt(ctx, eql)
+                    argnames = tuple(arg.name for arg in argmap)
+
+                    func = pg_dbops.Function(
+                        name=fname,
+                        args=[(argname, 'json') for argname in argnames],
+                        returns='json',
+                        text=sql,
+                    )
+
+                    cf = pg_dbops.CreateFunction(func, or_replace=True)
+                    cf.generate(block)
+
+                    cache_mm[eql_hash] = argnames
+
+                argvals = []
+                for argname in argnames:
+                    argvals.append(pg_common.quote_literal(args[argname]))
+
+                block.add_command(f'''
+                    PERFORM {pg_common.qname(*fname)}({", ".join(argvals)});
+                ''')
+
+        ctx.state.current_tx().update_cached_reflection(cache_mm.finish())
+
+    def _compile_schema_storage_stmt(
+        self,
+        ctx: CompileContext,
+        eql: str,
+    ) -> Tuple[str, Dict[str, int]]:
+
+        schema = ctx.state.current_tx().get_schema()
+
+        try:
+            # Switch to the shadow introspection/reflection schema.
+            ctx.state.current_tx().update_schema(self._refl_schema)
+
+            newctx = CompileContext(
+                state=ctx.state,
+                stmt_mode=enums.CompileStatementMode.SINGLE,
+                json_parameters=True,
+                schema_reflection_mode=True,
+                output_format=enums.IoFormat.JSON,
+                expected_cardinality_one=False,
+            )
+
+            return self._compile_ql_script(newctx, eql)
+
+        finally:
+            # Restore the regular schema.
+            ctx.state.current_tx().update_schema(schema)
+
+    def _compile_ql_script(
+        self,
+        ctx: CompileContext,
+        eql: str,
+    ) -> Tuple[str, Dict[str, int]]:
+
+        tokens = _edgeql_rust.tokenize(eql)
+        units = self._compile(ctx=ctx, tokens=tokens)
+
+        sql_stmts = []
+        for u in units:
+            for stmt in u.sql:
+                stmt = stmt.strip()
+                if not stmt.endswith(b';'):
+                    stmt += b';'
+
+                sql_stmts.append(stmt)
+
+        if ctx.stmt_mode is enums.CompileStatementMode.SINGLE:
+            if len(sql_stmts) > 1:
+                raise errors.InternalServerError(
+                    'compiler yielded multiple SQL statements despite'
+                    ' requested SINGLE statement mode'
+                )
+            sql = sql_stmts[0].strip(b';')
+            argmap = units[0].in_type_args
+            if argmap is None:
+                argmap = ()
+        else:
+            sql = b'\n'.join(sql_stmts)
+            argmap = ()
+
+        return sql.decode(), argmap
 
     def _compile_ql_query(
             self, ctx: CompileContext,
@@ -326,7 +527,7 @@ class Compiler(BaseCompiler):
         session_config = current_tx.get_session_config()
 
         native_out_format = (
-            ctx.output_format is pg_compiler.OutputFormat.NATIVE
+            ctx.output_format is enums.IoFormat.BINARY
         )
 
         single_stmt_mode = ctx.stmt_mode is enums.CompileStatementMode.SINGLE
@@ -357,6 +558,8 @@ class Compiler(BaseCompiler):
                 json_parameters=ctx.json_parameters,
                 implicit_limit=ctx.implicit_limit,
                 session_mode=session_mode,
+                allow_writing_protected_pointers=ctx.schema_reflection_mode,
+                introspection_schema_rewrites=not ctx.schema_reflection_mode,
             ),
         )
 
@@ -371,9 +574,10 @@ class Compiler(BaseCompiler):
 
         sql_text, argmap = pg_compiler.compile_ir_to_sql(
             ir,
-            pretty=debug.flags.edgeql_compile,
+            pretty=debug.flags.edgeql_compile or debug.flags.delta_execute,
             expected_cardinality_one=ctx.expected_cardinality_one,
-            output_format=ctx.output_format)
+            output_format=_convert_format(ctx.output_format),
+        )
 
         sql_bytes = sql_text.encode(defines.EDGEDB_ENCODING)
 
@@ -410,6 +614,8 @@ class Compiler(BaseCompiler):
                     if param.schema_type.is_array():
                         el_type = param.schema_type.get_element_type(ir.schema)
                         array_tid = el_type.get_backend_id(ir.schema)
+                        if array_tid is None:
+                            assert array_tid is not None
 
                     subtypes[idx] = (param.name, param.schema_type)
                     in_type_args[idx] = dbstate.Param(
@@ -502,7 +708,6 @@ class Compiler(BaseCompiler):
 
     def _compile_and_apply_ddl_command(self, ctx: CompileContext, cmd):
         current_tx = ctx.state.current_tx()
-        schema = current_tx.get_schema()
 
         if debug.flags.delta_plan_input:
             debug.header('Delta Plan Input')
@@ -510,31 +715,21 @@ class Compiler(BaseCompiler):
 
         # Do a dry-run on test_schema to canonicalize
         # the schema delta-commands.
-        test_schema = schema
+        test_schema = current_tx.get_schema()
         context = self._new_delta_context(ctx)
         cmd.apply(test_schema, context=context)
         cmd.canonical = True
 
         # Apply and adapt delta, build native delta plan, which
         # will also update the schema.
-        schema, plan = self._process_delta(ctx, cmd, schema)
+        block, new_types = self._process_delta(ctx, cmd)
 
-        if isinstance(plan, (s_db.CreateDatabase, s_db.DropDatabase)):
-            block = pg_dbops.SQLBlock()
-            new_types = frozenset()
-        else:
-            block = pg_dbops.PLTopBlock()
-            new_types = frozenset(str(tid) for tid in plan.new_types)
-
-        plan.generate(block)
         is_transactional = block.is_transactional()
         if not is_transactional:
             sql = tuple(stmt.encode('utf-8')
                         for stmt in block.get_statements())
         else:
             sql = (block.to_string().encode('utf-8'),)
-
-        current_tx.update_schema(schema)
 
         if debug.flags.delta_execute:
             debug.header('Delta Script')
@@ -1104,21 +1299,24 @@ class Compiler(BaseCompiler):
         if schema is None:
             db = await self._get_database(dbver)
             schema = db.schema
+            cached_reflection = db.cached_reflection
+        else:
+            cached_reflection = immutables.Map()
 
         self._current_db_state = dbstate.CompilerConnectionState(
             dbver,
             schema,
             modaliases,
             session_config,
-            capability)
+            capability,
+            cached_reflection,
+        )
 
         state = self._current_db_state
 
-        of = _convert_format(io_format)
-
         ctx = CompileContext(
             state=state,
-            output_format=of,
+            output_format=io_format,
             expected_cardinality_one=expect_one,
             implicit_limit=implicit_limit,
             stmt_mode=stmt_mode,
@@ -1137,11 +1335,9 @@ class Compiler(BaseCompiler):
                                   first_extracted_var: Optional[int]=None):
         state = self._load_state(txid)
 
-        of = _convert_format(io_format)
-
         ctx = CompileContext(
             state=state,
-            output_format=of,
+            output_format=io_format,
             expected_cardinality_one=expect_one,
             implicit_limit=implicit_limit,
             stmt_mode=stmt_mode,

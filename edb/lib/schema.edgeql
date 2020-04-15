@@ -20,9 +20,7 @@
 ## INTROSPECTION SCHEMA
 
 
-CREATE MODULE schema {
-    SET builtin := true;
-};
+CREATE MODULE schema;
 
 CREATE SCALAR TYPE schema::Cardinality
     EXTENDING enum<'ONE', 'MANY'>;
@@ -39,6 +37,12 @@ CREATE SCALAR TYPE schema::Volatility
 # Base type for all schema entities.
 CREATE ABSTRACT TYPE schema::Object EXTENDING std::BaseObject {
     CREATE REQUIRED PROPERTY name -> std::str;
+    CREATE REQUIRED PROPERTY is_internal -> std::bool {
+        SET default := false;
+    };
+    CREATE REQUIRED PROPERTY builtin -> std::bool {
+        SET default := false;
+    };
 };
 
 
@@ -80,9 +84,7 @@ CREATE ABSTRACT LINK schema::ordered {
 };
 
 
-CREATE TYPE schema::Module EXTENDING schema::Object {
-    CREATE PROPERTY builtin -> std::bool;
-};
+CREATE TYPE schema::Module EXTENDING schema::Object;
 
 
 CREATE ABSTRACT TYPE schema::CollectionType EXTENDING schema::Type;
@@ -94,17 +96,17 @@ CREATE TYPE schema::Array EXTENDING schema::CollectionType {
 };
 
 
-CREATE TYPE schema::TypeElement {
+CREATE TYPE schema::TupleElement {
     CREATE REQUIRED LINK type -> schema::Type;
-    CREATE REQUIRED PROPERTY num -> std::int16;
     CREATE PROPERTY name -> std::str;
 };
 
 
 CREATE TYPE schema::Tuple EXTENDING schema::CollectionType {
-    CREATE MULTI LINK element_types -> schema::TypeElement {
+    CREATE MULTI LINK element_types EXTENDING schema::ordered
+    -> schema::TupleElement {
         CREATE CONSTRAINT std::exclusive;
-    };
+    }
 };
 
 
@@ -150,6 +152,7 @@ CREATE ABSTRACT TYPE schema::CallableObject
 {
     CREATE MULTI LINK params -> schema::Parameter {
         CREATE CONSTRAINT std::exclusive;
+        ON TARGET DELETE ALLOW;
     };
 
     CREATE LINK return_type -> schema::Type;
@@ -158,7 +161,7 @@ CREATE ABSTRACT TYPE schema::CallableObject
 
 
 CREATE ABSTRACT TYPE schema::VolatilitySubject EXTENDING schema::Object {
-    CREATE REQUIRED PROPERTY volatility -> schema::Volatility {
+    CREATE PROPERTY volatility -> schema::Volatility {
         # NOTE: this default indicates the default value in the python
         # implementation, but is not itself a source of truth
         SET default := 'VOLATILE';
@@ -252,9 +255,6 @@ ALTER TYPE schema::ObjectType {
 CREATE TYPE schema::Link EXTENDING schema::Pointer, schema::Source;
 
 
-CREATE TYPE schema::DerivedLink EXTENDING schema::Pointer, schema::Source;
-
-
 CREATE TYPE schema::Property EXTENDING schema::Pointer;
 
 
@@ -279,7 +279,7 @@ ALTER TYPE schema::ObjectType {
 CREATE TYPE schema::Function
     EXTENDING schema::CallableObject, schema::VolatilitySubject
 {
-    CREATE REQUIRED PROPERTY session_only -> std::bool {
+    CREATE PROPERTY session_only -> std::bool {
         SET default := false;
     };
 };

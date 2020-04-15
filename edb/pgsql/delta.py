@@ -1996,31 +1996,30 @@ class CreateObjectType(ObjectTypeMetaCommand,
         schema, _, op = self.create_object(schema, context, objtype)
         self.pgops.add(op)
 
-        if objtype.get_name(schema).module != 'schema':
-            constr_name = common.edgedb_name_to_pg_name(
-                self.classname + '.class_check')
+        constr_name = common.edgedb_name_to_pg_name(
+            self.classname + '.class_check')
 
-            constr_expr = dbops.Query(textwrap.dedent(f"""\
-                SELECT '"__type__" = ' || quote_literal(id)
-                FROM edgedb.ObjectType WHERE name =
-                    {ql(objtype.get_name(schema))}
-            """), type='text')
+        constr_expr = dbops.Query(textwrap.dedent(f"""\
+            SELECT '"__type__" = ' || quote_literal(id)
+            FROM edgedb.ObjectType WHERE name =
+                {ql(objtype.get_name(schema))}
+        """), type='text')
 
-            cid_constraint = dbops.CheckConstraint(
-                self.table_name, constr_name, constr_expr, inherit=False)
-            alter_table.add_operation(
-                dbops.AlterTableAddConstraint(cid_constraint))
+        cid_constraint = dbops.CheckConstraint(
+            self.table_name, constr_name, constr_expr, inherit=False)
+        alter_table.add_operation(
+            dbops.AlterTableAddConstraint(cid_constraint))
 
-            cid_col = dbops.Column(
-                name='__type__', type='uuid', required=True)
+        cid_col = dbops.Column(
+            name='__type__', type='uuid', required=True)
 
-            if objtype.get_name(schema) == 'std::BaseObject':
-                alter_table.add_operation(dbops.AlterTableAddColumn(cid_col))
+        if objtype.get_name(schema) == 'std::BaseObject':
+            alter_table.add_operation(dbops.AlterTableAddColumn(cid_col))
 
-            constraint = dbops.PrimaryKey(
-                table_name=alter_table.name, columns=['id'])
-            alter_table.add_operation(
-                dbops.AlterTableAddConstraint(constraint))
+        constraint = dbops.PrimaryKey(
+            table_name=alter_table.name, columns=['id'])
+        alter_table.add_operation(
+            dbops.AlterTableAddConstraint(constraint))
 
         bases = (
             dbops.Table(
@@ -3895,6 +3894,7 @@ class CreateDatabase(ObjectMetaCommand, adapts=s_db.CreateDatabase):
                     self.classname,
                     metadata=dict(
                         id=str(db.id),
+                        builtin=db.get_builtin(schema),
                     ),
                 )
             )
@@ -3933,6 +3933,7 @@ class CreateRole(ObjectMetaCommand, adapts=s_roles.CreateRole):
             metadata=dict(
                 id=str(role.id),
                 password_hash=passwd,
+                builtin=role.get_builtin(schema),
             ),
         )
         self.pgops.add(dbops.CreateRole(role))
@@ -3957,6 +3958,7 @@ class AlterRole(ObjectMetaCommand, adapts=s_roles.AlterRole):
             metadata=dict(
                 id=str(role.id),
                 password_hash=passwd,
+                builtin=role.get_builtin(schema),
             ),
         )
         self.pgops.add(dbops.AlterRole(dbrole))

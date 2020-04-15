@@ -680,7 +680,14 @@ def _is_computable_ptr(
     else:
         return qlexpr is not None
 
-    return ptrcls.is_pure_computable(ctx.env.schema)
+    return (
+        ptrcls.is_pure_computable(ctx.env.schema)
+        or (
+            ctx.env.options.introspection_schema_rewrites
+            and ptrcls not in ctx.disable_shadowing
+            and bool(ptrcls.get_schema_reflection_default(ctx.env.schema))
+        )
+    )
 
 
 def tuple_indirection_set(
@@ -933,10 +940,13 @@ def computable_ptr_set(
             preserve_scope_ns=True, ctx=ctx)
         source_set.shape = []
         if source_set.rptr is not None:
+            source_rptrref = source_set.rptr.ptrref
+            if source_rptrref.base_ptr is not None:
+                source_rptrref = source_rptrref.base_ptr
             source_set.rptr = irast.Pointer(
                 source=source_set.rptr.source,
                 target=source_set,
-                ptrref=source_set.rptr.ptrref.base_ptr,
+                ptrref=source_rptrref,
                 direction=source_set.rptr.direction,
             )
 
@@ -951,11 +961,39 @@ def computable_ptr_set(
         path_id_ns = comp_info.path_id_ns
     except KeyError:
         comp_expr = ptrcls.get_expr(ctx.env.schema)
-        if comp_expr is None:
-            ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
-            raise ValueError(f'{ptrcls_sn!r} is not a computable pointer')
+        schema_qlexpr: Optional[qlast.Expr] = None
+        if comp_expr is None and ctx.env.options.introspection_schema_rewrites:
+            schema_deflt = ptrcls.get_schema_reflection_default(ctx.env.schema)
+            if schema_deflt is not None:
+                assert isinstance(ptrcls, s_pointers.Pointer)
+                ptrcls_n = ptrcls.get_shortname(ctx.env.schema).name
+                schema_qlexpr = qlast.BinOp(
+                    left=qlast.Path(
+                        steps=[
+                            qlast.Source(),
+                            qlast.Ptr(
+                                ptr=qlast.ObjectRef(name=ptrcls_n),
+                                direction=s_pointers.PointerDirection.Outbound,
+                                type=(
+                                    'property'
+                                    if ptrcls.is_link_property(ctx.env.schema)
+                                    else None
+                                )
+                            )
+                        ],
+                    ),
+                    right=qlparser.parse_fragment(schema_deflt),
+                    op='??',
+                )
 
-        qlexpr = qlparser.parse(comp_expr.text)
+        if schema_qlexpr is None:
+            if comp_expr is None:
+                ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
+                raise errors.InternalServerError(
+                    f'{ptrcls_sn!r} is not a computable pointer')
+
+            schema_qlexpr = qlparser.parse(comp_expr.text)
+
         # NOTE: Validation of the expression type is not the concern
         # of this function. For any non-object pointer target type,
         # the default expression must be assignment-cast into that
@@ -963,12 +1001,12 @@ def computable_ptr_set(
         target_scls = ptrcls.get_target(ctx.env.schema)
         assert target_scls is not None
         if not target_scls.is_object_type():
-            qlexpr = qlast.TypeCast(
+            schema_qlexpr = qlast.TypeCast(
                 type=astutils.type_to_ql_typeref(
                     target_scls, schema=ctx.env.schema),
-                expr=qlexpr,
+                expr=schema_qlexpr,
             )
-        qlexpr = astutils.ensure_qlstmt(qlexpr)
+        qlexpr = astutils.ensure_qlstmt(schema_qlexpr)
         qlctx = None
         inner_source_path_id = None
         path_id_ns = None
@@ -1004,6 +1042,7 @@ def computable_ptr_set(
 
     result_stype = ptrcls.get_target(ctx.env.schema)
     with newctx() as subctx:
+        subctx.disable_shadowing.add(ptrcls)
         subctx.view_scls = result_stype
         assert isinstance(source_scls, s_sources.Source)
         subctx.view_rptr = context.ViewRPtr(

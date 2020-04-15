@@ -16,9 +16,7 @@
 # limitations under the License.
 #
 
-CREATE MODULE math {
-    SET builtin := true;
-};
+CREATE MODULE math;
 
 
 CREATE FUNCTION

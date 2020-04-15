@@ -715,7 +715,9 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
                     }
                     FILTER .num > 0
                     ORDER BY .num ASC
-                } FILTER .name = 'test::mymax_ext1' AND exists(.subject);
+                } FILTER
+                    .name = 'test::mymax_ext1'
+                    AND exists(.subject);
             ''',
             [
                 {
@@ -749,7 +751,9 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
                     }
                     FILTER .num > 0
                     ORDER BY .num ASC
-                } FILTER .name = 'test::mymax_ext1' AND NOT exists(.subject);
+                } FILTER
+                    .name = 'test::mymax_ext1'
+                    AND NOT exists(.subject);
             ''',
             [
                 {

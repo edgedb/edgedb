@@ -24,14 +24,11 @@ from edb.edgeql import qltypes
 
 from . import annos as s_anno
 from . import delta as sd
-from . import objects as so
 
 
 class Module(s_anno.AnnotationSubject,
              qlkind=qltypes.SchemaObjectClass.MODULE):
-
-    builtin = so.SchemaField(
-        bool, default=False, compcoef=0.4, introspectable=True)
+    pass
 
 
 class ModuleCommandContext(sd.ObjectCommandContext[Module]):
