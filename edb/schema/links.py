@@ -119,6 +119,15 @@ class Link(sources.Source, pointers.Pointer, s_abc.Link,
         return bool([p for p in self.get_pointers(schema).objects(schema)
                      if not p.is_special_pointer(schema)])
 
+    def get_source_type(
+        self,
+        schema: s_schema.Schema
+    ) -> s_types.Type:
+        from . import types as s_types
+        source = self.get_source(schema)
+        assert isinstance(source, s_types.Type)
+        return source
+
     def compare(
         self,
         other: so.Object,

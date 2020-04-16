@@ -420,8 +420,8 @@ def is_nontrivial_container(value: Any) -> Optional[Iterable[Any]]:
 
 def get_class_nearest_common_ancestor(
     schema: s_schema.Schema,
-    classes: Iterable[so.InheritingObjectT]) \
-        -> Optional[so.InheritingObjectT]:
+    classes: Iterable[so.InheritingObjectT]
+) -> Optional[so.InheritingObjectT]:
     # First, find the intersection of parents
     classes = list(classes)
     first = [classes[0]]
