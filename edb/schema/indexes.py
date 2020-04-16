@@ -79,7 +79,7 @@ class IndexableSubject(so.InheritingObject):
     def add_index(
         self,
         schema: s_schema.Schema,
-        index: Index
+        index: Index,
     ) -> s_schema.Schema:
         return self.add_classref(schema, 'indexes', index)
 
@@ -167,7 +167,7 @@ class IndexCommand(
         schema: s_schema.Schema,
         context: sd.CommandContext,
         *,
-        name: Optional[str] = None
+        name: Optional[str] = None,
     ) -> Optional[Index]:
         try:
             return super().get_object(schema, context, name=name)
@@ -216,7 +216,7 @@ class CreateIndex(
         schema: s_schema.Schema,
         context: sd.CommandContext,
         name: str,
-        parent: referencing.ReferencedObject
+        parent: referencing.ReferencedObject,
     ) -> qlast.ObjectDDL:
         assert isinstance(parent, Index)
         nref = cls.get_inherited_ref_name(schema, context, parent, name)
