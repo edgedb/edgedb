@@ -147,7 +147,7 @@ class IndexCommand(
         referrer_name: str,
         context: sd.CommandContext,
     ) -> Tuple[str, ...]:
-        assert isinstance(astnode, qlast.CreateIndex)
+        assert isinstance(astnode, qlast.IndexOp)
         expr_text = cls.get_orig_expr_text(schema, astnode, 'expr')
 
         if expr_text is None:
