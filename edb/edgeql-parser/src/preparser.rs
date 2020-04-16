@@ -91,12 +91,22 @@ pub fn full_statement(data: &[u8], continuation: Option<Continuation>)
                     }),
                 }
                 loop {
-                    match iter.next() {
-                        Some((end_idx, b'$')) => {
-                            if let Some(end) = find_bytes(&data[end_idx+1..],
-                                                          &data[idx..end_idx+1])
+                    let (c_idx, c) = if let Some(pair) = iter.peek() {
+                        *pair
+                    } else {
+                        return Err(Continuation {
+                            position: idx,
+                            braces: braces_buf,
+                        })
+                    };
+                    match c {
+                        b'$' => {
+                            let end_idx = c_idx + 1;
+                            let marker_size = end_idx - idx;
+                            if let Some(end) = find_bytes(&data[end_idx..],
+                                                          &data[idx..end_idx])
                             {
-                                iter.nth(end + end_idx - idx);
+                                iter.nth(1 + end + marker_size - 1);
                                 continue 'outer;
                             }
                             return Err(Continuation {
@@ -104,18 +114,11 @@ pub fn full_statement(data: &[u8], continuation: Option<Continuation>)
                                 braces: braces_buf,
                             });
                         }
-                        | Some((_, b'A'..=b'Z'))
-                        | Some((_, b'a'..=b'z'))
-                        | Some((_, b'0'..=b'9'))
-                        | Some((_, b'_'))
-                        => continue,
+                        b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'_' => {},
                         // Not a dollar-quote
-                        Some((_, _)) => continue 'outer,
-                        None => return Err(Continuation {
-                            position: idx,
-                            braces: braces_buf,
-                        }),
+                        _ => continue 'outer,
                     }
+                    iter.next();
                 }
             }
             b'{' => braces_buf.push(b'}'),
