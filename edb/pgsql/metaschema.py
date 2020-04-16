@@ -185,6 +185,114 @@ class StrToDecimal(dbops.Function):
         )
 
 
+class StrToInt64NoInline(dbops.Function):
+    """String-to-int64 cast with noinline guard.
+
+    Adding a LIMIT clause to the function statement makes it
+    uninlinable due to the Postgres inlining heuristic looking
+    for simple SELECT expressions only (i.e. no clauses.)
+
+    This might need to change in the future if the heuristic
+    changes.
+    """
+    text = r'''
+        SELECT
+            "val"::bigint
+        LIMIT
+            1
+        ;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'str_to_int64_noinline'),
+            args=[('val', ('text',))],
+            returns=('bigint',),
+            volatility='stable',
+            text=self.text,
+        )
+
+
+class StrToInt32NoInline(dbops.Function):
+    """String-to-int32 cast with noinline guard."""
+    text = r'''
+        SELECT
+            "val"::int
+        LIMIT
+            1
+        ;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'str_to_int32_noinline'),
+            args=[('val', ('text',))],
+            returns=('int',),
+            volatility='stable',
+            text=self.text,
+        )
+
+
+class StrToInt16NoInline(dbops.Function):
+    """String-to-int16 cast with noinline guard."""
+    text = r'''
+        SELECT
+            "val"::smallint
+        LIMIT
+            1
+        ;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'str_to_int16_noinline'),
+            args=[('val', ('text',))],
+            returns=('smallint',),
+            volatility='stable',
+            text=self.text,
+        )
+
+
+class StrToFloat64NoInline(dbops.Function):
+    """String-to-float64 cast with noinline guard."""
+    text = r'''
+        SELECT
+            "val"::float8
+        LIMIT
+            1
+        ;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'str_to_float64_noinline'),
+            args=[('val', ('text',))],
+            returns=('float8',),
+            volatility='stable',
+            text=self.text,
+        )
+
+
+class StrToFloat32NoInline(dbops.Function):
+    """String-to-float32 cast with noinline guard."""
+    text = r'''
+        SELECT
+            "val"::float4
+        LIMIT
+            1
+        ;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'str_to_float32_noinline'),
+            args=[('val', ('text',))],
+            returns=('float4',),
+            volatility='stable',
+            text=self.text,
+        )
+
+
 class GetObjectMetadata(dbops.Function):
     """Return EdgeDB metadata associated with a backend object."""
     text = '''
@@ -2147,6 +2255,11 @@ async def bootstrap(conn):
         dbops.CreateDomain(BigintDomain()),
         dbops.CreateFunction(StrToBigint()),
         dbops.CreateFunction(StrToDecimal()),
+        dbops.CreateFunction(StrToInt64NoInline()),
+        dbops.CreateFunction(StrToInt32NoInline()),
+        dbops.CreateFunction(StrToInt16NoInline()),
+        dbops.CreateFunction(StrToFloat64NoInline()),
+        dbops.CreateFunction(StrToFloat32NoInline()),
         dbops.CreateFunction(GetTableDescendantsFunction()),
         dbops.CreateFunction(ParseTriggerConditionFunction()),
         dbops.CreateFunction(NormalizeArrayIndexFunction()),

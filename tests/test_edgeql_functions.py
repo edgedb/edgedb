@@ -2155,6 +2155,12 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             {987654321},
         )
 
+        await self.assert_query_result(
+            r'''SELECT to_int64('987654321st', <str>$0);''',
+            {987654321},
+            variables=('FM999999999th',),
+        )
+
         with self.assertRaisesRegex(edgedb.InvalidValueError,
                                     '"fmt" argument must be'):
             async with self.con.transaction():
@@ -2224,6 +2230,12 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''SELECT to_int32('987654321st', 'FM999999999th');''',
             {987654321},
+        )
+
+        await self.assert_query_result(
+            r'''SELECT to_int32('987654321st', <str>$0);''',
+            {987654321},
+            variables=('FM999999999th',),
         )
 
         with self.assertRaisesRegex(edgedb.InvalidValueError,
@@ -2297,6 +2309,12 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             {4321},
         )
 
+        await self.assert_query_result(
+            r'''SELECT to_int16('4321st', <str>$0);''',
+            {4321},
+            variables=('FM999999999th',),
+        )
+
         with self.assertRaisesRegex(edgedb.InvalidValueError,
                                     '"fmt" argument must be'):
             async with self.con.transaction():
@@ -2321,6 +2339,11 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''SELECT to_float64('123.456789', 'FM999.999999999');''',
             {123.456789},
+        )
+        await self.assert_query_result(
+            r'''SELECT to_float64('123.456789', <str>$0);''',
+            {123.456789},
+            variables=('FM999.999999999',)
         )
 
         with self.assertRaisesRegex(edgedb.InvalidValueError,

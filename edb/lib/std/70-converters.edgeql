@@ -389,7 +389,9 @@ std::to_int64(s: std::str, fmt: OPTIONAL str={}) -> std::int64
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
-            "s"::bigint
+            -- Must use the noninline version to prevent
+            -- the overeager function inliner from crashing
+            edgedb.str_to_int64_noinline("s")
         WHEN "fmt" = '' THEN
             edgedb._raise_specific_exception(
                 'invalid_parameter_value',
@@ -417,7 +419,9 @@ std::to_int32(s: std::str, fmt: OPTIONAL str={}) -> std::int32
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
-            "s"::int
+            -- Must use the noninline version to prevent
+            -- the overeager function inliner from crashing
+            edgedb.str_to_int32_noinline("s")
         WHEN "fmt" = '' THEN
             edgedb._raise_specific_exception(
                 'invalid_parameter_value',
@@ -445,7 +449,9 @@ std::to_int16(s: std::str, fmt: OPTIONAL str={}) -> std::int16
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
-            "s"::smallint
+            -- Must use the noninline version to prevent
+            -- the overeager function inliner from crashing
+            edgedb.str_to_int16_noinline("s")
         WHEN "fmt" = '' THEN
             edgedb._raise_specific_exception(
                 'invalid_parameter_value',
@@ -473,7 +479,7 @@ std::to_float64(s: std::str, fmt: OPTIONAL str={}) -> std::float64
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
-            "s"::float8
+            edgedb.str_to_float64_noinline("s")
         WHEN "fmt" = '' THEN
             edgedb._raise_specific_exception(
                 'invalid_parameter_value',
@@ -501,7 +507,7 @@ std::to_float32(s: std::str, fmt: OPTIONAL str={}) -> std::float32
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
-            "s"::float4
+            edgedb.str_to_float32_noinline("s")
         WHEN "fmt" = '' THEN
             edgedb._raise_specific_exception(
                 'invalid_parameter_value',
