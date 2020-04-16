@@ -257,7 +257,7 @@ def get_or_create_union_type(
         module=module,
     )
 
-    objtype = schema.get_by_id(type_id, None, type=so.Object)
+    objtype = schema.get_by_id(type_id, None, type=ObjectType)
     created = objtype is None
     if objtype is None:
         components = list(components)
@@ -283,7 +283,6 @@ def get_or_create_union_type(
                 modname=module,
             )
 
-    assert isinstance(objtype, ObjectType)
     return schema, objtype, created
 
 
