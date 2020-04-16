@@ -93,6 +93,14 @@ fn test_dollar_var() {
 }
 
 #[test]
+fn test_after_variable() {
+    test_statement(b"select $$ $$; extra;", 13);
+    test_statement(b"select $a$ $a$; extra;", 15);
+    test_statement(b"select $a;", 10);
+    test_statement(b"select $a{ x; };", 16);
+}
+
+#[test]
 fn test_schema() {
     test_statement(br###"
         CREATE MIGRATION movies TO {
