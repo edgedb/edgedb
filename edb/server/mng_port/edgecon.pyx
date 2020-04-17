@@ -758,15 +758,15 @@ cdef class EdgeConnection:
         if self.debug:
             self.debug_print('PARSE', eql)
 
-        entry = normalize(eql)
+        normalized = normalize(eql)
 
         if self.debug:
-            self.debug_print('Cache key', entry.key())
-            self.debug_print('Extra variables', entry.variables(),
-                             'after', entry.first_extra())
+            self.debug_print('Cache key', normalized.key())
+            self.debug_print('Extra variables', normalized.variables(),
+                             'after', normalized.first_extra())
 
         query_unit = self.dbview.lookup_compiled_query(
-            entry.key(), io_format, expect_one, implicit_limit)
+            normalized.key(), io_format, expect_one, implicit_limit)
         cached = True
         if query_unit is None:
             # Cache miss; need to compile this query.
@@ -783,12 +783,12 @@ cdef class EdgeConnection:
                     self.dbview.raise_in_tx_error()
             else:
                 query_unit = await self._compile(
-                    entry.tokens(),
+                    normalized.tokens(),
                     io_format=io_format,
                     expect_one=expect_one,
                     stmt_mode='single',
                     implicit_limit=implicit_limit,
-                    first_extracted_var=entry.first_extra(),
+                    first_extracted_var=normalized.first_extra(),
                 )
                 query_unit = query_unit[0]
         elif self.dbview.in_tx_error():
@@ -811,13 +811,14 @@ cdef class EdgeConnection:
 
         if not cached and query_unit.cacheable:
             self.dbview.cache_compiled_query(
-                entry.key(), io_format, expect_one, implicit_limit, query_unit)
+                normalized.key(), io_format, expect_one,
+                implicit_limit, query_unit)
 
         return CompiledQuery(
             query_unit=query_unit,
-            first_extra=entry.first_extra(),
-            extra_count=entry.extra_count(),
-            extra_blob=entry.extra_blob(),
+            first_extra=normalized.first_extra(),
+            extra_count=normalized.extra_count(),
+            extra_blob=normalized.extra_blob(),
         )
 
     cdef parse_cardinality(self, bytes card):
@@ -1211,9 +1212,9 @@ cdef class EdgeConnection:
         if not query:
             raise errors.BinaryProtocolError('empty query')
 
-        entry = normalize(query)
+        normalized = normalize(query)
         query_unit = self.dbview.lookup_compiled_query(
-            entry.key(), io_format, expect_one, implicit_limit)
+            normalized.key(), io_format, expect_one, implicit_limit)
         if query_unit is None:
             if self.debug:
                 self.debug_print('OPTIMISTIC EXECUTE /REPARSE', query)
@@ -1225,9 +1226,9 @@ cdef class EdgeConnection:
         else:
             compiled = CompiledQuery(
                 query_unit=query_unit,
-                first_extra=entry.first_extra(),
-                extra_count=entry.extra_count(),
-                extra_blob=entry.extra_blob(),
+                first_extra=normalized.first_extra(),
+                extra_count=normalized.extra_count(),
+                extra_blob=normalized.extra_blob(),
             )
 
         if (query_unit.in_type_id != in_tid or
