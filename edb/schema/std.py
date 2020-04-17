@@ -35,10 +35,10 @@ from . import ddl as s_ddl
 from . import schema as s_schema
 
 
-SCHEMA_ROOT = pathlib.Path(schema.__path__[0])
-LIB_ROOT = pathlib.Path(stdlib.__path__[0])
-QL_COMPILER_ROOT = pathlib.Path(qlcompiler.__path__[0])
-QL_PARSER_ROOT = pathlib.Path(qlparser.__path__[0])
+SCHEMA_ROOT = pathlib.Path(schema.__path__[0])  # type: ignore
+LIB_ROOT = pathlib.Path(stdlib.__path__[0])  # type: ignore
+QL_COMPILER_ROOT = pathlib.Path(qlcompiler.__path__[0])  # type: ignore
+QL_PARSER_ROOT = pathlib.Path(qlparser.__path__[0])  # type: ignore
 
 CACHE_SRC_DIRS = (
     (SCHEMA_ROOT, '.py'),
@@ -75,9 +75,11 @@ def get_std_module_text(modname: str) -> str:
 
 
 def load_std_module(
-        schema: s_schema.Schema, modname: str) -> s_schema.Schema:
+    schema: s_schema.Schema,
+    modname: str
+) -> s_schema.Schema:
 
-    modaliases = {}
+    modaliases: Mapping[Optional[str], str] = {}
     context = s_delta.CommandContext()
     context.stdmode = True
 
