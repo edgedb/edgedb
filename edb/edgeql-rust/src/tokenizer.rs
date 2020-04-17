@@ -13,7 +13,7 @@ use edgeql_parser::tokenizer::{TokenStream, Kind, is_keyword, SpannedToken};
 use edgeql_parser::tokenizer::{MAX_KEYWORD_LENGTH};
 use edgeql_parser::position::Pos;
 use crate::errors::TokenizerError;
-use crate::pyrewrite::py_pos;
+use crate::pynormalize::py_pos;
 
 static mut TOKENS: Option<Tokens> = None;
 

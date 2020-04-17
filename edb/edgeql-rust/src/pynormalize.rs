@@ -9,7 +9,7 @@ use edgeql_parser::position::Pos;
 use edgedb_protocol::codec;
 
 use crate::errors::TokenizerError;
-use crate::rewrite::{Error, Value, Variable, rewrite as _rewrite};
+use crate::normalize::{Error, Value, Variable, normalize as _normalize};
 use crate::tokenizer::convert_tokens;
 
 
@@ -96,11 +96,11 @@ pub fn serialize_extra(variables: &[Variable]) -> Result<Bytes, String> {
     Ok(buf.freeze())
 }
 
-pub fn rewrite(py: Python<'_>, text: &PyString)
+pub fn normalize(py: Python<'_>, text: &PyString)
     -> PyResult<Entry>
 {
     let text = text.to_string(py)?;
-    match _rewrite(&text) {
+    match _normalize(&text) {
         Ok(entry) => {
             let blob = serialize_extra(&entry.variables)
                 .map_err(|e| PyErr::new::<AssertionError, _>(py, e))?;

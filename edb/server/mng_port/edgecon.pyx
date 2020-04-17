@@ -38,7 +38,7 @@ import immutables
 
 from edb import _edgeql_rust
 
-from edb.server.tokenizer import tokenize, rewrite
+from edb.server.tokenizer import tokenize, normalize
 from edb.server.pgproto cimport hton
 from edb.server.pgproto.pgproto cimport (
     WriteBuffer,
@@ -758,7 +758,7 @@ cdef class EdgeConnection:
         if self.debug:
             self.debug_print('PARSE', eql)
 
-        entry = rewrite(eql)
+        entry = normalize(eql)
 
         if self.debug:
             self.debug_print('Cache key', entry.key())
@@ -1211,7 +1211,7 @@ cdef class EdgeConnection:
         if not query:
             raise errors.BinaryProtocolError('empty query')
 
-        entry = rewrite(query)
+        entry = normalize(query)
         query_unit = self.dbview.lookup_compiled_query(
             entry.key(), io_format, expect_one, implicit_limit)
         if query_unit is None:

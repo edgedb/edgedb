@@ -1,9 +1,9 @@
-use edgeql_rust::rewrite::{rewrite, Value, Variable};
+use edgeql_rust::normalize::{normalize, Value, Variable};
 
 
 #[test]
 fn test_verbatim() {
-    let entry = rewrite(r###"
+    let entry = normalize(r###"
         SELECT $1 + $2
     "###).unwrap();
     assert_eq!(entry.key, "SELECT$1+$2");
@@ -12,7 +12,7 @@ fn test_verbatim() {
 
 #[test]
 fn test_configure() {
-    let entry = rewrite(r###"
+    let entry = normalize(r###"
         CONFIGURE SYSTEM SET some_setting := 7
     "###).unwrap();
     assert_eq!(entry.key, "CONFIGURE SYSTEM SET some_setting:=7");
@@ -21,7 +21,7 @@ fn test_configure() {
 
 #[test]
 fn test_int() {
-    let entry = rewrite(r###"
+    let entry = normalize(r###"
         SELECT 1 + 2
     "###).unwrap();
     assert_eq!(entry.key, "SELECT(<int64>$0)+(<int64>$1)");
@@ -37,7 +37,7 @@ fn test_int() {
 
 #[test]
 fn test_positional() {
-    let entry = rewrite(r###"
+    let entry = normalize(r###"
         SELECT <int64>$0 + 2
     "###).unwrap();
     assert_eq!(entry.key, "SELECT<int64>$0+(<int64>$1)");
@@ -50,7 +50,7 @@ fn test_positional() {
 
 #[test]
 fn test_named() {
-    let entry = rewrite(r###"
+    let entry = normalize(r###"
         SELECT <int64>$test_var + 2
     "###).unwrap();
     assert_eq!(entry.key, "SELECT<int64>$test_var+(<int64>$__edb_arg_1)");
@@ -63,7 +63,7 @@ fn test_named() {
 
 #[test]
 fn test_limit_1() {
-    let entry = rewrite(r###"
+    let entry = normalize(r###"
         SELECT User { one := 1 } LIMIT 1
     "###).unwrap();
     assert_eq!(entry.key, "SELECT User{one:=(<int64>$0)}LIMIT 1");
@@ -76,7 +76,7 @@ fn test_limit_1() {
 
 #[test]
 fn test_tuple_access() {
-    let entry = rewrite(r###"
+    let entry = normalize(r###"
         SELECT User { one := 2, two := .field.2, three := .field  . 3 }
     "###).unwrap();
     assert_eq!(entry.key,

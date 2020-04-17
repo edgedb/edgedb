@@ -72,7 +72,7 @@ fn scan_vars<'x, 'y: 'x, I>(tokens: I) -> Option<(bool, usize)>
     }
 }
 
-pub fn rewrite<'x>(text: &'x str)
+pub fn normalize<'x>(text: &'x str)
     -> Result<Entry<'x>, Error>
 {
     use combine::easy::Error::*;
