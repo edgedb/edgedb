@@ -398,12 +398,11 @@ class AlterProperty(
     ) -> None:
         if op.property == 'target':
             if op.new_value:
-                node.commands.append(qlast.SetLinkType(
-                    type=qlast.ObjectRef(
-                        name=op.new_value.classname.name,  # type: ignore
-                        module=op.new_value.classname.module  # type: ignore
-                    )
-                ))
+                node.commands.append(
+                    qlast.SetPropertyType(
+                        type=utils.typeref_to_ast(schema, op.new_value),
+                    ),
+                )
         else:
             super()._apply_field_ast(schema, context, node, op)
 

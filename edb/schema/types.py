@@ -371,11 +371,26 @@ class Type(
         return not self.is_view(schema)
 
     def as_shell(self, schema: s_schema.Schema) -> TypeShell:
-        return TypeShell(
-            name=self.get_name(schema),
-            schemaclass=type(self),
-            is_abstract=self.get_is_abstract(schema),
-        )
+        if union_of := self.get_union_of(schema):
+            return UnionTypeShell(
+                components=[
+                    o.as_shell(schema) for o in union_of.objects(schema)
+                ],
+                module=self.get_name(schema).module,
+            )
+        elif intersection_of := self.get_intersection_of(schema):
+            return IntersectionTypeShell(
+                components=[
+                    o.as_shell(schema) for o in intersection_of.objects(schema)
+                ],
+                module=self.get_name(schema).module,
+            )
+        else:
+            return TypeShell(
+                name=self.get_name(schema),
+                schemaclass=type(self),
+                is_abstract=self.get_is_abstract(schema),
+            )
 
 
 class InheritingType(so.DerivableInheritingObject, Type):
@@ -496,6 +511,12 @@ class TypeExprShell(TypeShell):
             typing.cast(InheritingType, c.resolve(schema))
             for c in self.components
         )
+
+    def get_components(
+        self,
+        schema: s_schema.Schema,
+    ) -> typing.Tuple[TypeShell, ...]:
+        return self.components
 
 
 class UnionTypeShell(TypeExprShell):
@@ -1622,12 +1643,21 @@ class TupleTypeShell(CollectionTypeShell):
     ) -> typing.Tuple[TypeShell, ...]:
         return tuple(self.subtypes.values())
 
+    def iter_subtypes(
+        self,
+        schema: s_schema.Schema,
+    ) -> Iterator[typing.Tuple[str, TypeShell]]:
+        return iter(self.subtypes.items())
+
+    def is_named(self) -> bool:
+        return self.typemods is not None and self.typemods.get('named', False)
+
     def get_id(self, schema: s_schema.Schema) -> uuid.UUID:
         stable_type_id = type_id_from_name(self.name)
         if stable_type_id is not None:
             return stable_type_id
 
-        named = self.typemods is not None and self.typemods.get('named', False)
+        named = self.is_named()
 
         quals = [self.name]
         if self.expr is not None:
@@ -1663,7 +1693,7 @@ class TupleTypeShell(CollectionTypeShell):
                     and schema.get_by_id(el.get_id(schema), None) is None):
                 cmd.add(el.as_create_delta(schema))
 
-        named = self.typemods is not None and self.typemods.get('named', False)
+        named = self.is_named()
         ct.set_attribute_value('id', type_id)
         ct.set_attribute_value('name', ct.classname)
         ct.set_attribute_value('named', named)
@@ -1782,7 +1812,7 @@ def ensure_schema_type_expr_type(
             module=module,
         )
     elif isinstance(type_shell, IntersectionTypeShell):
-        type_id, type_name = get_union_type_id(
+        type_id, type_name = get_intersection_type_id(
             schema,
             components,
             module=module,

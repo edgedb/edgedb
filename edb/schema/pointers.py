@@ -193,6 +193,14 @@ class Pointer(referencing.ReferencedInheritingObject,
     computable = so.SchemaField(
         bool,
         default=None,
+        compcoef=0.99,
+    )
+
+    # True, ff this pointer is defined in an Alias.
+    is_from_alias = so.SchemaField(
+        bool,
+        default=None,
+        compcoef=0.99,
     )
 
     # Computable pointers have this set to an expression
@@ -423,7 +431,7 @@ class Pointer(referencing.ReferencedInheritingObject,
             dctx=dctx, attrs=attrs, **kwargs)
 
     def is_pure_computable(self, schema: s_schema.Schema) -> bool:
-        return bool(self.get_expr(schema))
+        return bool(self.get_expr(schema)) or bool(self.get_computable(schema))
 
     def is_id_pointer(self, schema: s_schema.Schema) -> bool:
         from edb.schema import sources as s_sources
@@ -890,6 +898,21 @@ class PointerCommandOrFragment(
 
         return schema, target, base
 
+    def _deparse_name(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        name: str,
+    ) -> qlast.ObjectRef:
+
+        ref = super()._deparse_name(schema, context, name)
+        referrer_ctx = self.get_referrer_context(context)
+        if referrer_ctx is None:
+            return ref
+        else:
+            ref.module = ''
+            return ref
+
 
 class PointerCommand(
     referencing.ReferencedInheritingObjectCommand[Pointer],
@@ -1316,6 +1339,25 @@ class SetPointerType(
                 modaliases=context.modaliases,
                 schema=schema,
             )
+
+        if isinstance(target_ref, s_types.CollectionTypeShell):
+            s_types.ensure_schema_collection(
+                schema,
+                target_ref,
+                parent_cmd=cmd,
+                src_context=astnode.type.context,
+                context=context,
+            )
+
+        ctx = context.current()
+        assert isinstance(ctx, sd.ObjectCommandContext)
+        ptr = ctx.op.get_object(schema, context, default=None)
+        if ptr is not None:
+            orig_type = ptr.get_target(schema)
+            if orig_type.is_collection():
+                s_types.cleanup_schema_collection(
+                    schema, orig_type, ptr, cmd, context=context,
+                    src_context=astnode.context)
 
         cmd.set_attribute_value('target', target_ref)
 

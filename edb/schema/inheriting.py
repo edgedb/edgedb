@@ -442,53 +442,6 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
 
         return base_refs
 
-    def _apply_rebase_ast(
-        self,
-        context: sd.CommandContext,
-        node: qlast.ObjectDDL,
-        op: Any
-    ) -> Any:
-        rebase = next(iter(self.get_subcommands(type=RebaseInheritingObject)))
-
-        dropped = rebase.removed_bases
-        added = rebase.added_bases
-
-        if dropped:
-            node.commands.append(
-                qlast.AlterDropInherit(
-                    bases=[
-                        qlast.ObjectRef(
-                            module=b.classname.module,
-                            name=b.classname.name
-                        )
-                        for b in dropped
-                    ]
-                )
-            )
-
-        for bases, pos in added:
-            if isinstance(pos, tuple):
-                pos_node = qlast.Position(
-                    position=pos[0],
-                    ref=qlast.ObjectRef(
-                        module=pos[1].classname.module,
-                        name=pos[1].classname.name))
-            else:
-                pos_node = qlast.Position(position=pos)
-
-            node.commands.append(
-                qlast.AlterAddInherit(
-                    bases=[
-                        qlast.ObjectRef(
-                            module=b.classname.module,
-                            name=b.classname.name
-                        )
-                        for b in bases
-                    ],
-                    position=pos_node
-                )
-            )
-
     def _apply_field_ast(
         self,
         schema: s_schema.Schema,
@@ -504,8 +457,6 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
                     value=op.new_value
                 )
             )
-        elif op.property == 'bases':
-            self._apply_rebase_ast(context, node, op)
         else:
             super()._apply_field_ast(schema, context, node, op)
 
@@ -963,3 +914,53 @@ class RebaseInheritingObject(
             bases = [default_base]
 
         return so.ObjectList[so.InheritingObjectT].create(schema, bases)
+
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
+        assert parent_node is not None
+
+        dropped = self._get_bases_for_ast(schema, context, self.removed_bases)
+
+        if dropped:
+            parent_node.commands.append(
+                qlast.AlterDropInherit(
+                    bases=[utils.typeref_to_ast(schema, b) for b in dropped],
+                )
+            )
+
+        for bases, pos in self.added_bases:
+            bases = self._get_bases_for_ast(schema, context, bases)
+            if not bases:
+                continue
+
+            if isinstance(pos, tuple):
+                pos_node = qlast.Position(
+                    position=pos[0],
+                    ref=utils.typeref_to_ast(schema, pos[1]),
+                )
+            else:
+                pos_node = qlast.Position(position=pos)
+
+            parent_node.commands.append(
+                qlast.AlterAddInherit(
+                    bases=[utils.typeref_to_ast(schema, b) for b in bases],
+                    position=pos_node,
+                )
+            )
+
+        return None
+
+    def _get_bases_for_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        bases: Tuple[so.ObjectShell, ...],
+    ) -> Tuple[so.ObjectShell, ...]:
+        mcls = self.get_schema_metaclass()
+        roots = set(mcls.get_root_classes())
+        return tuple(b for b in bases if b.name not in roots)

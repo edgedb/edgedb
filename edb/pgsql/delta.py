@@ -3403,7 +3403,8 @@ class UpdateEndpointDeleteActions(MetaCommand):
         for link_op, link, orig_schema in self.link_ops:
             if isinstance(link_op, DeleteLink):
                 if (link.generic(orig_schema)
-                        or not link.get_is_local(orig_schema)):
+                        or not link.get_is_local(orig_schema)
+                        or link.is_pure_computable(orig_schema)):
                     continue
                 source = link.get_source(orig_schema)
                 current_source = orig_schema.get_by_id(source.id, None)
@@ -3416,7 +3417,11 @@ class UpdateEndpointDeleteActions(MetaCommand):
                     affected_targets.add(current_target)
                 deletions = True
             else:
-                if link.generic(schema) or not link.get_is_local(schema):
+                if (
+                    link.generic(schema)
+                    or not link.get_is_local(schema)
+                    or link.is_pure_computable(schema)
+                ):
                     continue
                 source = link.get_source(schema)
                 if source.is_view(schema):
@@ -3468,6 +3473,9 @@ class UpdateEndpointDeleteActions(MetaCommand):
                                              field_name='target'):
                 if (not link.get_is_local(schema)
                         or link.is_pure_computable(schema)):
+                    continue
+                source = link.get_source(schema)
+                if source.is_view(schema):
                     continue
                 ptr_stor_info = types.get_pointer_storage_info(
                     link, schema=schema)
