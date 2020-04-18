@@ -86,11 +86,11 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
         return cmd
 
 
-class AlterMigration(MigrationCommand):
+class AlterMigration(MigrationCommand, sd.AlterObject[Migration]):
     astnode = qlast.AlterMigration
 
 
-class DeleteMigration(MigrationCommand):
+class DeleteMigration(MigrationCommand, sd.DeleteObject[Migration]):
     astnode = qlast.DropMigration
 
 

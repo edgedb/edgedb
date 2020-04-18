@@ -240,16 +240,6 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         else:
             return None
 
-    def get_attribute_source_context(
-        self,
-        attr_name: str,
-    ) -> Optional[parsing.ParserContext]:
-        op = self.get_attribute_set_cmd(attr_name)
-        if op is not None:
-            return op.source_context
-        else:
-            return None
-
     def get_orig_attribute_value(
         self,
         attr_name: str,
@@ -257,6 +247,16 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         op = self.get_attribute_set_cmd(attr_name)
         if op is not None:
             return op.old_value
+        else:
+            return None
+
+    def get_attribute_source_context(
+        self,
+        attr_name: str,
+    ) -> Optional[parsing.ParserContext]:
+        op = self.get_attribute_set_cmd(attr_name)
+        if op is not None:
+            return op.source_context
         else:
             return None
 
@@ -1053,6 +1053,23 @@ class ObjectCommand(
         # a List[Type[DDLOperation]]
         return type(self).astnode  # type: ignore
 
+    def _deparse_name(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+        name: str,
+    ) -> qlast.ObjectRef:
+        qlclass = self.get_schema_metaclass().get_ql_class()
+
+        if isinstance(name, sn.Name):
+            nname = sn.shortname_from_fullname(name)
+            ref = qlast.ObjectRef(
+                module=nname.module, name=nname.name, itemclass=qlclass)
+        else:
+            ref = qlast.ObjectRef(module='', name=name, itemclass=qlclass)
+
+        return ref
+
     def _get_ast(
         self,
         schema: s_schema.Schema,
@@ -1061,17 +1078,11 @@ class ObjectCommand(
         parent_node: Optional[qlast.DDLOperation] = None,
     ) -> Optional[qlast.DDLOperation]:
         astnode = self._get_ast_node(schema, context)
-        qlclass = self.get_schema_metaclass().get_ql_class()
-        if isinstance(self.classname, sn.Name):
-            nname = sn.shortname_from_fullname(self.classname)
-            name = qlast.ObjectRef(module=nname.module, name=nname.name,
-                                   itemclass=qlclass)
-        else:
-            name = qlast.ObjectRef(module='', name=self.classname,
-                                   itemclass=qlclass)
 
         if astnode.get_field('name'):
-            op = astnode(name=name)
+            op = astnode(
+                name=self._deparse_name(schema, context, self.classname),
+            )
         else:
             op = astnode()
 
@@ -1262,6 +1273,18 @@ class ObjectCommand(
         for attr in self.enumerate_attributes():
             result[attr] = self.get_resolved_attribute_value(
                 attr, schema=schema, context=context)
+
+        return result
+
+    def get_orig_attributes(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> Dict[str, Any]:
+        result = {}
+
+        for attr in self.enumerate_attributes():
+            result[attr] = self.get_orig_attribute_value(attr)
 
         return result
 
@@ -1566,6 +1589,10 @@ class AlterObjectFragment(ObjectCommand[so.Object]):
         assert isinstance(op, ObjectCommand)
         scls = op.scls
         self.scls = scls
+
+        for op in self.get_prerequisites():
+            schema = op.apply(schema, context)
+
         schema = self._alter_begin(schema, context)
         schema = self._alter_innards(schema, context)
         schema = self._alter_finalize(schema, context)
@@ -1680,8 +1707,13 @@ class RenameObject(AlterObjectFragment):
         parent_node: Optional[qlast.DDLOperation] = None,
     ) -> Optional[qlast.DDLOperation]:
         astnode = self._get_ast_node(schema, context)
-        ref = qlast.ObjectRef(name=self.new_name)
-        return astnode(new_name=ref)
+        ref = self._deparse_name(schema, context, self.new_name)
+        ref.itemclass = None
+        orig_ref = self._deparse_name(schema, context, self.classname)
+        if (orig_ref.module, orig_ref.name) != (ref.module, ref.name):
+            return astnode(new_name=ref)
+        else:
+            return None
 
     @classmethod
     def _cmd_from_ast(
@@ -1991,16 +2023,19 @@ class DeleteObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
 
         if not context.canonical and not context.disable_dep_verification:
             refs = schema.get_referrers(self.scls)
+            ctx = context.current()
+            assert ctx is not None
+            orig_schema = ctx.original_schema
             if refs:
                 for ref in refs:
                     if (not context.is_deleting(ref)
-                            and ref.is_blocking_ref(schema, self.scls)):
+                            and ref.is_blocking_ref(orig_schema, self.scls)):
                         ref_strs.append(
-                            ref.get_verbosename(schema, with_parent=True))
+                            ref.get_verbosename(orig_schema, with_parent=True))
 
             if ref_strs:
-                vn = self.scls.get_verbosename(schema, with_parent=True)
-                dn = self.scls.get_displayname(schema)
+                vn = self.scls.get_verbosename(orig_schema, with_parent=True)
+                dn = self.scls.get_displayname(orig_schema)
                 detail = '; '.join(f'{ref_str} depends on {dn}'
                                    for ref_str in ref_strs)
                 raise errors.SchemaError(

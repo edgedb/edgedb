@@ -1061,6 +1061,20 @@ class DeleteConstraint(
     astnode = [qlast.DropConcreteConstraint, qlast.DropConstraint]
     referenced_astnode = qlast.DropConcreteConstraint
 
+    def _apply_field_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        node: qlast.DDLOperation,
+        op: sd.AlterObjectProperty,
+    ) -> None:
+        if op.property == 'args':
+            assert isinstance(op.old_value, s_expr.ExpressionList)
+            node.args = [arg.qlast for arg in op.old_value]
+            return
+
+        super()._apply_field_ast(schema, context, node, op)
+
 
 class RebaseConstraint(
     ConstraintCommand,

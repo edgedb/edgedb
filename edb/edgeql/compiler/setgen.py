@@ -535,14 +535,18 @@ def ptr_step_set(
 
 
 def resolve_ptr(
-        near_endpoint: s_obj.Object,
-        pointer_name: str, *,
-        far_endpoints: Iterable[s_obj.Object] = (),
-        direction: s_pointers.PointerDirection=(
-            s_pointers.PointerDirection.Outbound
-        ),
-        source_context: Optional[parsing.ParserContext]=None,
-        ctx: context.ContextLevel) -> s_pointers.Pointer:
+    near_endpoint: s_obj.Object,
+    pointer_name: str,
+    *,
+    far_endpoints: Iterable[s_obj.Object] = (),
+    direction: s_pointers.PointerDirection = (
+        s_pointers.PointerDirection.Outbound
+    ),
+    source_context: Optional[parsing.ParserContext] = None,
+    track_ref: bool = True,
+    ctx: context.ContextLevel,
+) -> s_pointers.Pointer:
+
     if not isinstance(near_endpoint, s_sources.Source):
         # Reference to a property on non-object
         msg = 'invalid property reference on a primitive type expression'
@@ -555,16 +559,18 @@ def resolve_ptr(
 
         if ptr is not None:
             ref = ptr.get_nearest_non_derived_parent(ctx.env.schema)
-            ctx.env.schema_refs.add(ref)
+            if track_ref:
+                ctx.env.schema_refs.add(ref)
 
     else:
         ptrs = near_endpoint.getrptrs(ctx.env.schema, pointer_name,
                                       sources=far_endpoints)
         if ptrs:
-            ctx.env.schema_refs.update(
-                p.get_nearest_non_derived_parent(ctx.env.schema)
-                for p in ptrs
-            )
+            if track_ref:
+                ctx.env.schema_refs.update(
+                    p.get_nearest_non_derived_parent(ctx.env.schema)
+                    for p in ptrs
+                )
 
             opaque = (
                 direction is s_pointers.PointerDirection.Inbound

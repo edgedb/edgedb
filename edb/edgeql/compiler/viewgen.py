@@ -567,7 +567,12 @@ def _normalize_view_ptr_expr(
             )
 
             try:
-                ptrcls = setgen.resolve_ptr(ptrsource, ptrname, ctx=ctx)
+                ptrcls = setgen.resolve_ptr(
+                    ptrsource,
+                    ptrname,
+                    track_ref=False,
+                    ctx=ctx,
+                )
 
                 base_ptrcls = ptrcls.get_bases(
                     ctx.env.schema).first(ctx.env.schema)
@@ -655,6 +660,10 @@ def _normalize_view_ptr_expr(
             if base_ptrcls is None:
                 base_ptrcls = shape_expr_ctx.view_rptr.base_ptrcls
                 base_ptrcls_is_alias = shape_expr_ctx.view_rptr.ptrcls_is_alias
+
+            if ptrcls is not None:
+                ctx.env.schema = ptrcls.set_field_value(
+                    ctx.env.schema, 'is_local', True)
 
         ptr_cardinality = None
         ptr_target = inference.infer_type(irexpr, ctx.env)
@@ -830,6 +839,12 @@ def _normalize_view_ptr_expr(
         ctx.env.schema = ptrcls.set_field_value(
             ctx.env.schema,
             'computable',
+            True,
+        )
+
+        ctx.env.schema = ptrcls.set_field_value(
+            ctx.env.schema,
+            'is_local',
             True,
         )
 

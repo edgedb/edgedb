@@ -323,8 +323,8 @@ class BaseSchemaTest(BaseDocTest):
                 ddl_plan = s_ddl.compile_migration(
                     ddl_plan, target_schema, current_schema)
 
-            elif isinstance(stmt, qlast.Delta):
-                # APPLY MIGRATION
+            elif isinstance(stmt, qlast.CommitMigration):
+                # COMMIT MIGRATION
                 migration_cmd = s_ddl.cmd_from_ddl(
                     stmt, schema=current_schema,
                     modaliases={None: default_module},

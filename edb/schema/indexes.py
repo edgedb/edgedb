@@ -352,6 +352,16 @@ class AlterIndex(
 ):
     astnode = qlast.AlterIndex
 
+    def _apply_fields_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        node: qlast.DDLOperation,
+    ) -> None:
+        expr = self.get_attribute_value('expr')
+        assert expr is not None
+        node.expr = expr.origqlast
+
 
 class DeleteIndex(
     IndexCommand,
@@ -376,6 +386,18 @@ class DeleteIndex(
         )
 
         return cmd
+
+    def _apply_fields_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        node: qlast.DDLOperation,
+    ) -> None:
+        # When deleting index the original expression acts as a way to
+        # identify the index, so we must retrieve it and write it as "expr".
+        expr = self.get_orig_attribute_value('expr')
+        assert expr is not None
+        node.expr = expr.origqlast
 
 
 class RebaseIndex(

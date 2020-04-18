@@ -1090,6 +1090,37 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             return 1.0
 
     @classmethod
+    def compare_obj_field_value(
+        cls: Type[Object_T],
+        field: Field[Type[T]],
+        ours: Object_T,
+        theirs: Object_T,
+        *,
+        our_schema: s_schema.Schema,
+        their_schema: s_schema.Schema,
+        context: ComparisonContext,
+        explicit: bool = False,
+    ) -> float:
+        fname = field.name
+        if explicit:
+            our_value = ours.get_explicit_field_value(
+                our_schema, fname, None)
+            their_value = theirs.get_explicit_field_value(
+                their_schema, fname, None)
+        else:
+            our_value = ours.get_field_value(our_schema, fname)
+            their_value = theirs.get_field_value(their_schema, fname)
+
+        return cls.compare_field_value(
+            field,
+            our_value,
+            their_value,
+            our_schema=our_schema,
+            their_schema=their_schema,
+            context=context,
+        )
+
+    @classmethod
     def compare_values(
         cls: Type[Object_T],
         ours: Optional[Object_T],
@@ -1346,18 +1377,22 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                     new_v = newattr_v
 
                 if f.compcoef is not None:
-                    fcoef = cls.compare_field_value(
+                    fcoef = cls.compare_obj_field_value(
                         f,
-                        oldattr_v,
-                        newattr_v,
+                        old,
+                        new,
                         our_schema=old_schema,
                         their_schema=new_schema,
-                        context=context)
+                        context=context,
+                    )
 
                     if fcoef != 1.0:
-                        delta.set_attribute_value(
+                        cls.delta_property(
+                            new_schema,
+                            new,
+                            delta,
                             fn,
-                            new_v,
+                            value=new_v,
                             orig_value=old_v,
                         )
         elif new:
@@ -1403,8 +1438,9 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         delta: sd.ObjectCommand[Object],
         fname: str,
         value: Any,
+        orig_value: Any = None,
     ) -> None:
-        delta.set_attribute_value(fname, value)
+        delta.set_attribute_value(fname, value, orig_value=orig_value)
 
     @classmethod
     def delta_rename(
@@ -2567,14 +2603,58 @@ class InheritingObject(SubclassableObject):
         delta: sd.Command,
         fname: str,
         value: Any,
+        orig_value: Any = None,
     ) -> None:
         assert isinstance(scls, InheritingObject)
         inherited_fields = scls.get_inherited_fields(schema)
         delta.set_attribute_value(
             fname,
             value,
+            orig_value=orig_value,
             inherited=fname in inherited_fields,
         )
+
+    @classmethod
+    def compare_obj_field_value(
+        cls: Type[InheritingObjectT],
+        field: Field[Type[T]],
+        ours: InheritingObjectT,
+        theirs: InheritingObjectT,
+        *,
+        our_schema: s_schema.Schema,
+        their_schema: s_schema.Schema,
+        context: ComparisonContext,
+        explicit: bool = False,
+    ) -> float:
+        fname = field.name
+        if explicit:
+            our_value = ours.get_explicit_field_value(
+                our_schema, fname, None)
+            their_value = theirs.get_explicit_field_value(
+                their_schema, fname, None)
+        else:
+            our_value = ours.get_field_value(our_schema, fname)
+            their_value = theirs.get_field_value(their_schema, fname)
+
+        similarity = cls.compare_field_value(
+            field,
+            our_value,
+            their_value,
+            our_schema=our_schema,
+            their_schema=their_schema,
+            context=context,
+        )
+
+        # Check to see if this field's inherited status has changed.
+        # If so, this is defintely a change.
+        our_ifs = ours.get_inherited_fields(our_schema)
+        their_ifs = theirs.get_inherited_fields(their_schema)
+
+        if (fname in our_ifs) != (fname in their_ifs):
+            # The change in inherited status decreases the similarity.
+            similarity *= 0.95
+
+        return similarity
 
 
 DerivableInheritingObjectT = TypeVar(

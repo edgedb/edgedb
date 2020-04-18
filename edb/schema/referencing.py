@@ -116,8 +116,7 @@ class ReferencedObject(so.DerivableObject):
             derived_attrs.update(attrs)
 
         derived_attrs['name'] = derived_name
-        derived_attrs['bases'] = so.ObjectList.create(
-            schema, [self])
+        derived_attrs['bases'] = so.ObjectList.create(schema, [self])
 
         mcls = type(self)
         referrer_class = type(referrer)
@@ -687,6 +686,41 @@ class ReferencedInheritingObjectCommand(
                     context=self.source_context,
                 )
 
+    def get_implicit_bases(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        bases: Any,
+    ) -> Sequence[str]:
+
+        mcls = self.get_schema_metaclass()
+        default_base = mcls.get_default_base_name()
+
+        if isinstance(bases, so.ObjectCollectionShell):
+            base_names = [
+                b.name for b in bases.items if b.name is not None
+            ]
+        elif isinstance(bases, so.ObjectList):
+            base_names = list(bases.names(schema))
+        else:
+            # assume regular iterable of shells
+            base_names = [
+                b.name for b in bases
+            ]
+
+        # Filter out explicit bases
+        implicit_bases = [
+            b
+            for b in base_names
+            if (
+                b != default_base
+                and isinstance(b, sn.SchemaName)
+                and sn.shortname_from_fullname(b) != b
+            )
+        ]
+
+        return implicit_bases
+
     def _propagate_ref_op(self,
                           schema: s_schema.Schema,
                           context: sd.CommandContext,
@@ -746,7 +780,10 @@ class CreateReferencedInheritingObject(
     ) -> Optional[qlast.DDLOperation]:
         refctx = type(self).get_referrer_context(context)
         if refctx is not None:
-            if not self.get_attribute_value('is_local'):
+            if self.get_attribute_value('is_from_alias'):
+                return None
+
+            elif not self.get_attribute_value('is_local'):
                 if context.descriptive_mode:
                     astnode = super()._get_ast(
                         schema,
@@ -922,37 +959,6 @@ class CreateReferencedInheritingObject(
 
         return schema
 
-    def get_implicit_bases(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        bases: Any,
-    ) -> Sequence[str]:
-
-        mcls = self.get_schema_metaclass()
-        default_base = mcls.get_default_base_name()
-
-        if isinstance(bases, so.ObjectCollectionShell):
-            base_names = [
-                b.name for b in bases.items if b.name is not None
-            ]
-        else:
-            assert isinstance(bases, so.ObjectList)
-            base_names = list(bases.names(schema))
-
-        # Filter out explicit bases
-        implicit_bases = [
-            b
-            for b in base_names
-            if (
-                b != default_base
-                and isinstance(b, sn.SchemaName)
-                and sn.shortname_from_fullname(b) != b
-            )
-        ]
-
-        return implicit_bases
-
 
 class AlterReferencedInheritingObject(
     ReferencedInheritingObjectCommand[ReferencedInheritingObjectT],
@@ -1029,6 +1035,16 @@ class RebaseReferencedInheritingObject(
             self.removed_bases = removed_bases
 
         return super().apply(schema, context)
+
+    def _get_bases_for_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        bases: Tuple[so.ObjectShell, ...],
+    ) -> Tuple[so.ObjectShell, ...]:
+        bases = super()._get_bases_for_ast(schema, context, bases)
+        implicit_bases = set(self.get_implicit_bases(schema, context, bases))
+        return tuple(b for b in bases if b.name not in implicit_bases)
 
 
 class RenameReferencedInheritingObject(
@@ -1223,3 +1239,19 @@ class DeleteReferencedInheritingObject(
         schema = cmd.apply(schema, context)
 
         return schema, cmd
+
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
+        refctx = type(self).get_referrer_context(context)
+        if (
+            refctx is not None
+            and not self.get_orig_attribute_value('is_local')
+        ):
+            return None
+        else:
+            return super()._get_ast(schema, context, parent_node=parent_node)
