@@ -281,7 +281,7 @@ def typeref_to_ast(
     from . import types as s_types
 
     if isinstance(ref, so.ObjectShell):
-        t = ref.resolve(schema)
+        return shell_to_ast(schema, ref)
     else:
         t = ref
 
@@ -347,6 +347,91 @@ def typeref_to_ast(
                 module=module,
                 name=t_name.name
             )
+        )
+    else:
+        raise NotImplementedError(f'cannot represent {t!r} as a shell')
+
+    return result
+
+
+def shell_to_ast(
+    schema: s_schema.Schema,
+    t: so.ObjectShell,
+    *,
+    _name: Optional[str] = None,
+) -> qlast.TypeExpr:
+    from . import pseudo as s_pseudo
+    from . import types as s_types
+
+    result: qlast.TypeExpr
+    qlref: qlast.BaseObjectRef
+
+    if isinstance(t, s_pseudo.PseudoTypeShell):
+        if t.name == 'anytype':
+            qlref = qlast.AnyType()
+        elif t.name == 'anytuple':
+            qlref = qlast.AnyTuple()
+        else:
+            raise AssertionError(f'unexpected pseudo type shell: {t.name!r}')
+        result = qlast.TypeName(name=_name, maintype=qlref)
+    elif isinstance(t, s_types.TupleTypeShell):
+        if t.is_named():
+            result = qlast.TypeName(
+                name=_name,
+                maintype=qlast.ObjectRef(
+                    name='tuple',
+                ),
+                subtypes=[
+                    shell_to_ast(schema, st, _name=sn)
+                    for sn, st in t.iter_subtypes(schema)
+                ]
+            )
+        else:
+            result = qlast.TypeName(
+                name=_name,
+                maintype=qlast.ObjectRef(
+                    name='tuple',
+                ),
+                subtypes=[
+                    shell_to_ast(schema, st)
+                    for st in t.get_subtypes(schema)
+                ]
+            )
+    elif isinstance(t, s_types.ArrayTypeShell):
+        result = qlast.TypeName(
+            name=_name,
+            maintype=qlast.ObjectRef(
+                name='array',
+            ),
+            subtypes=[
+                shell_to_ast(schema, st)
+                for st in t.get_subtypes(schema)
+            ]
+        )
+    elif isinstance(t, s_types.UnionTypeShell):
+        components = t.get_components(schema)
+        result = typeref_to_ast(schema, components[0])
+        for component in components[1:]:
+            result = qlast.TypeOp(
+                left=result,
+                op='|',
+                right=typeref_to_ast(schema, component),
+            )
+    elif isinstance(t, so.ObjectShell):
+        name = t.name
+        if isinstance(name, sn.SchemaName):
+            qlref = qlast.ObjectRef(
+                module=name.module,
+                name=name.name,
+            )
+        else:
+            qlref = qlast.ObjectRef(
+                module='',
+                name=name,
+            )
+        result = qlast.TypeName(
+            name=_name,
+            maintype=qlref,
         )
     else:
         raise NotImplementedError(f'cannot represent {t!r} as a shell')

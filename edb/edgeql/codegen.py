@@ -1545,7 +1545,11 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_AlterObject(node, 'FUNCTION', after_name=after_name)
 
     def visit_DropFunction(self, node: qlast.DropFunction) -> None:
-        self._visit_DropObject(node, 'FUNCTION')
+        def after_name() -> None:
+            self.write('(')
+            self.visit_list(node.params, newlines=False)
+            self.write(')')
+        self._visit_DropObject(node, 'FUNCTION', after_name=after_name)
 
     def visit_FuncParam(self, node: qlast.FuncParam) -> None:
         kind = node.kind.to_edgeql()

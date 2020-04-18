@@ -153,6 +153,11 @@ def fini_expression(
             view_own_pointers = view.get_pointers(ctx.env.schema)
             for vptr in view_own_pointers.objects(ctx.env.schema):
                 _elide_derived_ancestors(vptr, ctx=ctx)
+                ctx.env.schema = vptr.set_field_value(
+                    ctx.env.schema,
+                    'is_from_alias',
+                    True,
+                )
 
                 tgt = vptr.get_target(ctx.env.schema)
                 assert tgt is not None
@@ -175,6 +180,11 @@ def fini_expression(
                 )
                 for vlprop in vptr_own_pointers.objects(ctx.env.schema):
                     _elide_derived_ancestors(vlprop, ctx=ctx)
+                    ctx.env.schema = vlprop.set_field_value(
+                        ctx.env.schema,
+                        'is_from_alias',
+                        True,
+                    )
 
     expr_type = inference.infer_type(ir, ctx.env)
 

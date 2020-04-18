@@ -440,6 +440,16 @@ class AlterObjectType(ObjectTypeCommand,
         cmd = cls._handle_view_op(schema, cmd, astnode, context)
         return cmd
 
+    def _get_ast_node(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext
+    ) -> Type[qlast.DDLOperation]:
+        if self.get_attribute_value('expr'):
+            return qlast.AlterAlias
+        else:
+            return super()._get_ast_node(schema, context)
+
 
 class DeleteObjectType(ObjectTypeCommand,
                        inheriting.DeleteInheritingObject[ObjectType]):

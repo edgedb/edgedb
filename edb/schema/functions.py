@@ -1481,6 +1481,30 @@ class AlterFunction(AlterCallableObject, FunctionCommand):
 class DeleteFunction(DeleteCallableObject, FunctionCommand):
     astnode = qlast.DropFunction
 
+    def _apply_fields_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        node: qlast.DDLOperation,
+    ) -> None:
+        super()._apply_fields_ast(schema, context, node)
+
+        params = []
+        for op in self.get_subcommands(type=ParameterCommand):
+            props = op.get_orig_attributes(schema, context)
+            num = props['num']
+            param = qlast.FuncParam(
+                name=Parameter.paramname_from_fullname(props['name']),
+                type=utils.typeref_to_ast(schema, props['type']),
+                typemod=props['typemod'],
+                kind=props['kind'],
+            )
+            params.append((num, param))
+
+        params.sort(key=lambda e: e[0])
+
+        node.params = [p[1] for p in params]
+
 
 def get_params_symtable(
     params: FuncParameterList,
