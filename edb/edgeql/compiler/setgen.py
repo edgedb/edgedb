@@ -529,7 +529,6 @@ def resolve_ptr(
         ),
         source_context: Optional[parsing.ParserContext]=None,
         ctx: context.ContextLevel) -> s_pointers.Pointer:
-
     if not isinstance(near_endpoint, s_sources.Source):
         # Reference to a property on non-object
         msg = 'invalid property reference on a primitive type expression'

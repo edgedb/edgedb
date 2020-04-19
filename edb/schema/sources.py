@@ -27,9 +27,7 @@ from . import pointers as s_pointers
 
 if TYPE_CHECKING:
     from . import links
-    from . import objtypes
     from . import schema as s_schema
-    from . import types as s_types
 
 
 class SourceCommandContext(indexes.IndexSourceCommandContext):
@@ -66,9 +64,9 @@ class Source(so.QualifiedObject, indexes.IndexableSubject):
     def getrptrs(
         self,
         schema: s_schema.Schema,
-        name: sn.Name,
+        name: str,
         *,
-        sources: Iterable[s_types.Type] = ()
+        sources: Iterable[so.Object] = ()
     ) -> Set[links.Link]:
         return set()
 
@@ -86,7 +84,7 @@ class Source(so.QualifiedObject, indexes.IndexableSubject):
 
 def populate_pointer_set_for_source_union(
     schema: s_schema.Schema,
-    components: List[objtypes.ObjectType],
+    components: List[Source],
     union: Source,
     *,
     modname: Optional[str] = None,
