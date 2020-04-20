@@ -38,15 +38,15 @@ if TYPE_CHECKING:
 
 
 class AliasCommandContext(
-    sd.ObjectCommandContext[Any],
+    sd.ObjectCommandContext[so.Object],
     s_anno.AnnotationSubjectCommandContext
 ):
     pass
 
 
 class AliasCommand(
-    sd.QualifiedObjectCommand[so.QualifiedObject],
-    s_types.TypeCommand[Any],
+    sd.QualifiedObjectCommand[s_types.InheritingType],
+    s_types.TypeCommand[s_types.InheritingType],
     context_class=AliasCommandContext,
 ):
 
