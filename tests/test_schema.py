@@ -865,7 +865,7 @@ _123456789_123456789_123456789 -> str
         schema, derived = std_prop.derive_ref(
             schema,
             B,
-            schema.get('std::str'),
+            target=schema.get('std::str'),
             name=B_name.get_name(schema),
             inheritance_merge=False,
             mark_derived=True,
