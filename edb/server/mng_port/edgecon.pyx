@@ -27,6 +27,7 @@ import traceback
 cimport cython
 cimport cpython
 
+from typing import List, Optional
 from . cimport cpythonx
 
 from libc.stdint cimport int8_t, uint8_t, int16_t, uint16_t, \
@@ -35,7 +36,9 @@ from libc.stdint cimport int8_t, uint8_t, int16_t, uint16_t, \
 
 import immutables
 
-from edb.server.tokenizer import tokenize
+from edb import _edgeql_rust
+
+from edb.server.tokenizer import tokenize, normalize
 from edb.server.pgproto cimport hton
 from edb.server.pgproto.pgproto cimport (
     WriteBuffer,
@@ -92,6 +95,19 @@ cdef tuple DUMP_VER_MAX = (0, 8)
 cdef object logger = logging.getLogger('edb.server')
 
 DEF QUERY_OPT_IMPLICIT_LIMIT = 0xFF01
+
+@cython.final
+cdef class CompiledQuery:
+
+    def __init__(self, object query_unit,
+        first_extra: Optional[int]=None,
+        int extra_count=0,
+        bytes extra_blob=None
+    ):
+        self.query_unit = query_unit
+        self.first_extra = first_extra
+        self.extra_count = extra_count
+        self.extra_blob = extra_blob
 
 
 @cython.final
@@ -591,17 +607,16 @@ cdef class EdgeConnection:
 
     async def _compile(
         self,
-        eql: bytes,
+        tokens: List[_edgeql_rust.Token],
         *,
         io_format: compiler.IoFormat = FMT_BINARY,
         expect_one: bint = False,
         stmt_mode: str = 'single',
         implicit_limit: uint64_t = 0,
+        first_extracted_var: Optional[int] = None,
     ):
         if self.dbview.in_tx_error():
             self.dbview.raise_in_tx_error()
-
-        tokens = tokenize(eql)
 
         if self.dbview.in_tx():
             return await self.get_backend().compiler.call(
@@ -612,6 +627,7 @@ cdef class EdgeConnection:
                 expect_one,
                 implicit_limit,
                 stmt_mode,
+                first_extracted_var,
             )
         else:
             return await self.get_backend().compiler.call(
@@ -625,6 +641,7 @@ cdef class EdgeConnection:
                 implicit_limit,
                 stmt_mode,
                 CAP_ALL,
+                first_extracted_var,
             )
 
     async def _compile_rollback(self, bytes eql):
@@ -684,7 +701,8 @@ cdef class EdgeConnection:
                 self.flush()
                 return
 
-        units = await self._compile(eql, stmt_mode=stmt_mode)
+        eql_tokens = tokenize(eql)
+        units = await self._compile(eql_tokens, stmt_mode=stmt_mode)
 
         for query_unit in units:
             self.dbview.start(query_unit)
@@ -736,12 +754,19 @@ cdef class EdgeConnection:
         object io_format,
         bint expect_one,
         uint64_t implicit_limit,
-    ):
+    ) -> CompiledQuery:
         if self.debug:
             self.debug_print('PARSE', eql)
 
+        normalized = normalize(eql)
+
+        if self.debug:
+            self.debug_print('Cache key', normalized.key())
+            self.debug_print('Extra variables', normalized.variables(),
+                             'after', normalized.first_extra())
+
         query_unit = self.dbview.lookup_compiled_query(
-            eql, io_format, expect_one, implicit_limit)
+            normalized.key(), io_format, expect_one, implicit_limit)
         cached = True
         if query_unit is None:
             # Cache miss; need to compile this query.
@@ -758,11 +783,12 @@ cdef class EdgeConnection:
                     self.dbview.raise_in_tx_error()
             else:
                 query_unit = await self._compile(
-                    eql,
+                    normalized.tokens(),
                     io_format=io_format,
                     expect_one=expect_one,
                     stmt_mode='single',
                     implicit_limit=implicit_limit,
+                    first_extracted_var=normalized.first_extra(),
                 )
                 query_unit = query_unit[0]
         elif self.dbview.in_tx_error():
@@ -785,9 +811,15 @@ cdef class EdgeConnection:
 
         if not cached and query_unit.cacheable:
             self.dbview.cache_compiled_query(
-                eql, io_format, expect_one, implicit_limit, query_unit)
+                normalized.key(), io_format, expect_one,
+                implicit_limit, query_unit)
 
-        return query_unit
+        return CompiledQuery(
+            query_unit=query_unit,
+            first_extra=normalized.first_extra(),
+            extra_count=normalized.extra_count(),
+            extra_blob=normalized.extra_blob(),
+        )
 
     cdef parse_cardinality(self, bytes card):
         if card == b'm':
@@ -903,37 +935,37 @@ cdef class EdgeConnection:
         if not eql:
             raise errors.BinaryProtocolError('empty query')
 
-        query_unit = await self._parse(
+        compiled_query = await self._parse(
             eql, io_format, expect_one, implicit_limit)
 
         buf = WriteBuffer.new_message(b'1')  # ParseComplete
         buf.write_int16(0)  # no headers
-        buf.write_byte(self.render_cardinality(query_unit))
-        buf.write_bytes(query_unit.in_type_id)
-        buf.write_bytes(query_unit.out_type_id)
+        buf.write_byte(self.render_cardinality(compiled_query.query_unit))
+        buf.write_bytes(compiled_query.query_unit.in_type_id)
+        buf.write_bytes(compiled_query.query_unit.out_type_id)
         buf.end_message()
 
-        self._last_anon_compiled = query_unit
+        self._last_anon_compiled = compiled_query
 
         self.write(buf)
 
     #############
 
-    cdef WriteBuffer make_describe_msg(self, query_unit):
+    cdef WriteBuffer make_describe_msg(self, CompiledQuery query):
         cdef:
             WriteBuffer msg
 
         msg = WriteBuffer.new_message(b'T')
         msg.write_int16(0)  # no headers
 
-        msg.write_byte(self.render_cardinality(query_unit))
+        msg.write_byte(self.render_cardinality(query.query_unit))
 
-        in_data = query_unit.in_type_data
-        msg.write_bytes(query_unit.in_type_id)
+        in_data = query.query_unit.in_type_data
+        msg.write_bytes(query.query_unit.in_type_id)
         msg.write_len_prefixed_bytes(in_data)
 
-        out_data = query_unit.out_type_data
-        msg.write_bytes(query_unit.out_type_id)
+        out_data = query.query_unit.out_type_data
+        msg.write_bytes(query.query_unit.out_type_id)
         msg.write_len_prefixed_bytes(out_data)
 
         msg.end_message()
@@ -1000,8 +1032,9 @@ cdef class EdgeConnection:
                 'server restart is required for the configuration '
                 'change to take effect')
 
-    async def _execute(self, query_unit, bind_args,
+    async def _execute(self, compiled: CompiledQuery, bind_args,
                        bint parse, bint use_prep_stmt):
+        query_unit = compiled.query_unit
         if self.dbview.in_tx_error():
             if not (query_unit.tx_savepoint_rollback or query_unit.tx_rollback):
                 self.dbview.raise_in_tx_error()
@@ -1018,8 +1051,7 @@ cdef class EdgeConnection:
             self.write(self.make_command_complete_msg(query_unit))
             return
 
-        bound_args_buf = self.recode_bind_args(
-            bind_args, query_unit.in_array_backend_tids)
+        bound_args_buf = self.recode_bind_args(bind_args, compiled)
 
         process_sync = False
         if self.buffer.take_message_type(b'S'):
@@ -1141,9 +1173,9 @@ cdef class EdgeConnection:
                 raise errors.BinaryProtocolError(
                     'no prepared anonymous statement found')
 
-            query_unit = self._last_anon_compiled
+            compiled = self._last_anon_compiled
 
-        await self._execute(query_unit, bind_args, False, False)
+        await self._execute(compiled, bind_args, False, False)
 
     async def optimistic_execute(self):
         cdef:
@@ -1179,15 +1211,24 @@ cdef class EdgeConnection:
         if not query:
             raise errors.BinaryProtocolError('empty query')
 
+        normalized = normalize(query)
         query_unit = self.dbview.lookup_compiled_query(
-            query, io_format, expect_one, implicit_limit)
+            normalized.key(), io_format, expect_one, implicit_limit)
         if query_unit is None:
             if self.debug:
                 self.debug_print('OPTIMISTIC EXECUTE /REPARSE', query)
 
-            query_unit = await self._parse(
+            compiled = await self._parse(
                 query, io_format, expect_one, implicit_limit)
-            self._last_anon_compiled = query_unit
+            self._last_anon_compiled = compiled
+            query_unit = compiled.query_unit
+        else:
+            compiled = CompiledQuery(
+                query_unit=query_unit,
+                first_extra=normalized.first_extra(),
+                extra_count=normalized.extra_count(),
+                extra_blob=normalized.extra_blob(),
+            )
 
         if (query_unit.in_type_id != in_tid or
                 query_unit.out_type_id != out_tid):
@@ -1195,24 +1236,24 @@ cdef class EdgeConnection:
             if self.debug:
                 self.debug_print('OPTIMISTIC EXECUTE /MISMATCH', query)
 
-            self.write(self.make_describe_msg(query_unit))
+            self.write(self.make_describe_msg(compiled))
 
             # We must re-parse the query so that it becomes
             # "last anonymous statement" *in Postgres*.
             # Otherwise the `await self._execute` below would execute
             # some other query.
-            query_unit = await self._parse(
+            compiled = await self._parse(
                 query, io_format, expect_one, implicit_limit)
-            self._last_anon_compiled = query_unit
+            self._last_anon_compiled = compiled
             return
 
         if self.debug:
             self.debug_print('OPTIMISTIC EXECUTE', query)
 
-        self._last_anon_compiled = query_unit
+        self._last_anon_compiled = compiled
 
         await self._execute(
-            query_unit, bind_args, True, bool(query_unit.sql_hash))
+            compiled, bind_args, True, bool(query_unit.sql_hash))
 
     async def sync(self):
         self.buffer.consume_message()
@@ -1539,7 +1580,10 @@ cdef class EdgeConnection:
             raise errors.BinaryProtocolError(
                 f'unexpected message type {chr(mtype)!r}')
 
-    cdef WriteBuffer recode_bind_args(self, bytes bind_args, dict array_tids):
+    cdef WriteBuffer recode_bind_args(self,
+        bytes bind_args,
+        CompiledQuery query,
+    ):
         cdef:
             FRBuffer in_buf
             WriteBuffer out_buf = WriteBuffer.new()
@@ -1549,6 +1593,7 @@ cdef class EdgeConnection:
             const char *data
             object array_tid
             has_reserved = self.protocol_version >= (0, 8)
+            dict array_tids = query.query_unit.in_array_backend_tids
 
         assert cpython.PyBytes_CheckExact(bind_args)
         frb_init(
@@ -1562,7 +1607,12 @@ cdef class EdgeConnection:
         # number of elements in the tuple
         argsnum = hton.unpack_int32(frb_read(&in_buf, 4))
 
-        out_buf.write_int16(<int16_t>argsnum)
+        if query.first_extra is not None:
+            assert argsnum == query.first_extra, \
+                f"argument count mismatch {argsnum} != {query.first_extra}"
+            out_buf.write_int16(<int16_t>(argsnum + query.extra_count))
+        else:
+            out_buf.write_int16(<int16_t>argsnum)
 
         for i in range(argsnum):
             if has_reserved:
@@ -1581,6 +1631,9 @@ cdef class EdgeConnection:
                     out_buf.write_cstr(&data[12], in_len - 12)
                 else:
                     out_buf.write_cstr(data, in_len)
+
+        if query.first_extra is not None:
+            out_buf.write_bytes(query.extra_blob)
 
         # All columns are in binary format
         out_buf.write_int32(0x00010001)

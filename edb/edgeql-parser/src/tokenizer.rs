@@ -71,6 +71,7 @@ pub struct Token<'a> {
     pub value: &'a str,
 }
 
+#[derive(Debug, Clone)]
 pub struct SpannedToken<'a> {
     pub token: Token<'a>,
     pub start: Pos,
