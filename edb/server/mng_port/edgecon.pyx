@@ -1035,7 +1035,6 @@ cdef class EdgeConnection:
     async def _execute(self, compiled: CompiledQuery, bind_args,
                        bint parse, bint use_prep_stmt):
         query_unit = compiled.query_unit
-        # TODO(tailhook) use query args
         if self.dbview.in_tx_error():
             if not (query_unit.tx_savepoint_rollback or query_unit.tx_rollback):
                 self.dbview.raise_in_tx_error()
