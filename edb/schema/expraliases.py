@@ -87,6 +87,8 @@ class AliasCommand(
             modaliases=modaliases,
         )
 
+        # Any is used here for simplicity: mapping is assigned
+        # with one of the class attributes defined in this class
         mapping: Dict[Type[qlast.ObjectDDL], Any]
 
         with context(ctx):
@@ -114,6 +116,8 @@ class AliasCommand(
                     f'{scls.get_schema_class_displayname()}'
                 )
 
+            # type ignore below is used, because the values are defined
+            # as Any above
             return mapping[type(astnode)]  # type: ignore
 
 
