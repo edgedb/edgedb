@@ -27,13 +27,13 @@ from edb.edgeql import ast as qlast
 
 from . import scalars as s_scalars
 from . import annos as s_anno
+from . import objects as so
 from . import objtypes as s_objtypes
 from . import delta as sd
 from . import types as s_types
 
 
 if TYPE_CHECKING:
-    from . import objects as so
     from . import schema as s_schema
 
 
@@ -82,7 +82,7 @@ class AliasCommand(
         modaliases = cls._modaliases_from_ast(schema, astnode, context)
         ctx = AliasCommandContext(
             schema,
-            op=sd._dummy_object,  # type: ignore
+            op=sd._dummy_object_command,
             scls=sd._dummy_object,
             modaliases=modaliases,
         )

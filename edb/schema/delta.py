@@ -2315,3 +2315,7 @@ def compile_ddl(
         cmd = cmdcls._cmd_tree_from_ast(schema, astnode, context)
 
     return cmd
+
+
+# See _dummy_command
+_dummy_object_command: ObjectCommand[Any] = ObjectCommand(classname="dummy")
