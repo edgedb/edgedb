@@ -68,8 +68,8 @@ def linearize_delta(
     ordered = list(topological.sort(depgraph, allow_unresolved=True,
                                     return_record=True))
 
-    parents: Dict[Tuple[Type[sd.ObjectCommand[Any]], str],
-                  sd.ObjectCommand[Any]]
+    parents: Dict[Tuple[Type[sd.ObjectCommand[so.Object]], str],
+                  sd.ObjectCommand[so.Object]]
     dependencies: Dict[sd.Command, Set[sd.Command]]
     parents = {}
     dependencies = collections.defaultdict(set)
@@ -108,12 +108,12 @@ def linearize_delta(
             mcls = ancestor_op.get_schema_metaclass()
             create_cmd_cls = sd.ObjectCommandMeta.get_command_class_or_die(
                 sd.CreateObject, mcls)
-            attached_root: Optional[sd.ObjectCommand[Any]] = None
+            attached_root: Optional[sd.ObjectCommand[so.Object]] = None
 
             # Try attaching to a "Create" op, if that doesn't work
             # attach to whatever the ancestor is right now.
             for ancestor_cls in [create_cmd_cls, type(ancestor_op)]:
-                ancestor_key: Tuple[Type[sd.ObjectCommand[Any]], str] = (
+                ancestor_key: Tuple[Type[sd.ObjectCommand[so.Object]], str] = (
                     ancestor_cls, ancestor_op.classname)
                 # The root operation is the top-level operation in the delta.
                 attached_root = parents.get(ancestor_key)
@@ -154,7 +154,7 @@ def linearize_delta(
     return delta
 
 
-def _get_parent_op(opstack: List[sd.Command]) -> sd.ObjectCommand[Any]:
+def _get_parent_op(opstack: List[sd.Command]) -> sd.ObjectCommand[so.Object]:
     parent_op = opstack[1]
     assert isinstance(parent_op, sd.ObjectCommand)
     return parent_op
@@ -368,7 +368,7 @@ def _trace_op(
 
 def get_object(
     schema: s_schema.Schema,
-    op: sd.ObjectCommand[Any],
+    op: sd.ObjectCommand[so.Object],
     name: str,
 ) -> so.Object:
     metaclass = op.get_schema_metaclass()
