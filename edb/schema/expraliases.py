@@ -36,14 +36,16 @@ if TYPE_CHECKING:
     from . import schema as s_schema
 
 
-class AliasCommandContext(sd.ObjectCommandContext,
-                          s_anno.AnnotationSubjectCommandContext):
+class AliasCommandContext(
+    sd.ObjectCommandContext[Any],
+    s_anno.AnnotationSubjectCommandContext
+):
     pass
 
 
 class AliasCommand(
-    sd.QualifiedObjectCommand[s_types.Type],
-    s_types.TypeCommand,
+    sd.QualifiedObjectCommand[s_types.Type],  # type: ignore
+    s_types.TypeCommand[Any],
     context_class=AliasCommandContext,
 ):
 
@@ -79,12 +81,15 @@ class AliasCommand(
         modaliases = cls._modaliases_from_ast(schema, astnode, context)
         ctx = AliasCommandContext(
             schema,
-            op=sd._dummy_object,
+            op=sd._dummy_object,  # type: ignore
             scls=sd._dummy_object,
             modaliases=modaliases,
         )
 
+        mapping: Dict[Type[qlast.ObjectDDL], Any]
+
         with context(ctx):
+            assert isinstance(astnode, qlast.NamedDDL)
             classname = cls._classname_from_ast(schema, astnode, context)
 
             if isinstance(astnode, qlast.CreateAlias):
@@ -108,7 +113,7 @@ class AliasCommand(
                     f'{scls.get_schema_class_displayname()}'
                 )
 
-            return mapping[type(astnode)]
+            return mapping[type(astnode)]  # type: ignore
 
 
 class CreateAlias(AliasCommand):

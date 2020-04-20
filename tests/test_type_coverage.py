@@ -83,8 +83,6 @@ class TypeCoverage(ast.NodeVisitor):
             self.typed_functions += 1
             self.typed_lines += end_line - start_line + 1
         else:
-            if 'edb/schema' in str(self.path):
-                print(f'{node.name} at {self.path}:{node.lineno}')
             self.untyped_functions += 1
             self.untyped_lines += end_line - start_line + 1
 
@@ -201,7 +199,7 @@ class TypeCoverageTests(unittest.TestCase):
         self.assertFunctionCoverage(EDB_DIR / "cli", 38.71)
 
     def test_cqa_type_coverage_common(self) -> None:
-        self.assertFunctionCoverage(EDB_DIR / "common", 35.16)
+        self.assertFunctionCoverage(EDB_DIR / "common", 36.48)
 
     def test_cqa_type_coverage_common_ast(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "common" / "ast", 7.58)
@@ -249,7 +247,7 @@ class TypeCoverageTests(unittest.TestCase):
         self.assertFunctionCoverage(EDB_DIR / "repl", 100.0)
 
     def test_cqa_type_coverage_schema(self) -> None:
-        self.assertFunctionCoverage(EDB_DIR / "schema", 98.69)
+        self.assertFunctionCoverage(EDB_DIR / "schema", 100.0)
 
     def test_cqa_type_coverage_server(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "server", 14.43)
