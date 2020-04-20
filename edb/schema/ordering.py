@@ -159,7 +159,11 @@ def _get_parent_op(opstack: List[sd.Command]) -> sd.ObjectCommand:
     return parent_op
 
 
-def _break_down(opmap, strongrefs, opstack):
+def _break_down(
+    opmap: Dict[sd.Command, List[sd.Command]],
+    strongrefs: Dict[sn.Name, str],
+    opstack: List[sd.Command]
+) -> None:
     if len(opstack) > 2:
         new_opstack = _extract_op(opstack)
     else:

@@ -143,7 +143,7 @@ class PseudoType(so.InheritingObject, s_types.Type):
 
 class PseudoTypeShell(s_types.TypeShell):
 
-    def __init__(self, *, name: str):
+    def __init__(self, *, name: str) -> None:
         super().__init__(name=name, schemaclass=PseudoType)
 
     def is_polymorphic(self, schema: s_schema.Schema) -> bool:

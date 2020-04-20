@@ -54,7 +54,9 @@ class TypeCoverage(ast.NodeVisitor):
             if arg.annotation:
                 self.assert_no_strings(arg.annotation)
                 typed_count += 1
-            elif index == 0 and self._classdefs and arg.arg in {"self", "cls"}:
+            elif index == 0 and self._classdefs and arg.arg in {"self",
+                                                                "cls",
+                                                                "mcls"}:
                 typed_count += 1
         for arg in args.kwonlyargs:
             arg_count += 1
@@ -81,6 +83,8 @@ class TypeCoverage(ast.NodeVisitor):
             self.typed_functions += 1
             self.typed_lines += end_line - start_line + 1
         else:
+            if 'edb/schema' in str(self.path):
+                print(f'{node.name} at {self.path}:{node.lineno}')
             self.untyped_functions += 1
             self.untyped_lines += end_line - start_line + 1
 

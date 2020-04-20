@@ -584,7 +584,7 @@ class CommandContextToken(Generic[Command_T]):
         op: Command_T,
         *,
         modaliases: Optional[Mapping[Optional[str], str]] = None,
-    ):
+    ) -> None:
         self.original_schema = schema
         self.op = op
         self.modaliases = modaliases if modaliases is not None else {}
