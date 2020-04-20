@@ -33,6 +33,7 @@ from . import types as s_types
 
 
 if TYPE_CHECKING:
+    from . import objects as so
     from . import schema as s_schema
 
 
@@ -44,7 +45,7 @@ class AliasCommandContext(
 
 
 class AliasCommand(
-    sd.QualifiedObjectCommand[s_types.Type],  # type: ignore
+    sd.QualifiedObjectCommand[so.QualifiedObject],
     s_types.TypeCommand[Any],
     context_class=AliasCommandContext,
 ):
