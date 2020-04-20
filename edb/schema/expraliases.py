@@ -50,24 +50,24 @@ class AliasCommand(
     context_class=AliasCommandContext,
 ):
 
-    _scalar_cmd_map = {
+    _scalar_cmd_map: Dict[Type[qlast.NamedDDL], Type[sd.Command]] = {
         qlast.CreateAlias: s_scalars.CreateScalarType,
         qlast.AlterAlias: s_scalars.AlterScalarType,
         qlast.DropAlias: s_scalars.DeleteScalarType,
     }
 
-    _objtype_cmd_map = {
+    _objtype_cmd_map: Dict[Type[qlast.NamedDDL], Type[sd.Command]] = {
         qlast.CreateAlias: s_objtypes.CreateObjectType,
         qlast.AlterAlias: s_objtypes.AlterObjectType,
         qlast.DropAlias: s_objtypes.DeleteObjectType,
     }
 
-    _array_cmd_map = {
+    _array_cmd_map: Dict[Type[qlast.NamedDDL], Type[sd.Command]] = {
         qlast.CreateAlias: s_types.CreateArrayExprAlias,
         qlast.DropAlias: s_types.DeleteArrayExprAlias,
     }
 
-    _tuple_cmd_map = {
+    _tuple_cmd_map: Dict[Type[qlast.NamedDDL], Type[sd.Command]] = {
         qlast.CreateAlias: s_types.CreateTupleExprAlias,
         qlast.DropAlias: s_types.DeleteTupleExprAlias,
     }
@@ -87,9 +87,7 @@ class AliasCommand(
             modaliases=modaliases,
         )
 
-        # Any is used here for simplicity: mapping is assigned
-        # with one of the class attributes defined in this class
-        mapping: Dict[Type[qlast.ObjectDDL], Any]
+        mapping: Dict[Type[qlast.NamedDDL], Type[sd.Command]]
 
         with context(ctx):
             assert isinstance(astnode, qlast.NamedDDL)
@@ -116,9 +114,7 @@ class AliasCommand(
                     f'{scls.get_schema_class_displayname()}'
                 )
 
-            # type ignore below is used, because the values are defined
-            # as Any above
-            return mapping[type(astnode)]  # type: ignore
+            return mapping[type(astnode)]
 
 
 class CreateAlias(AliasCommand):
