@@ -294,9 +294,7 @@ def object_type_to_python_type(
         ptype = p.get_target(schema)
         assert ptype is not None
 
-        if ptype.is_object_type():
-            assert isinstance(ptype, s_objtypes.ObjectType)
-
+        if isinstance(ptype, s_objtypes.ObjectType):
             pytype = _memo.get(ptype)
             if pytype is None:
                 pytype = object_type_to_python_type(

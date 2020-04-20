@@ -912,9 +912,7 @@ def get_config_type_shape(
             ptype = p.get_target(schema)
             assert ptype is not None
 
-            if ptype.is_object_type():
-                assert isinstance(ptype, s_objtypes.ObjectType)
-
+            if isinstance(ptype, s_objtypes.ObjectType):
                 subshape = get_config_type_shape(
                     schema, ptype, path + elem_path)
                 subshape.append(
