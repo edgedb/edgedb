@@ -539,26 +539,12 @@ fn convert(py: Python, tokens: &Tokens, cache: &mut Cache,
                    .into_object()))
         }
         Str => {
-            if value.starts_with('r') {
-                Ok((tokens.sconst.clone_ref(py),
-                    PyString::new(py, value),
-                    PyString::new(py, &value[2..value.len()-1])
-                       .into_object()))
-            } else if value.starts_with('$') {
-                let msize = value[1..].find('$').unwrap() + 2;
-                Ok((tokens.sconst.clone_ref(py),
-                    PyString::new(py, value),
-                    PyString::new(py, &value[msize..value.len()-msize])
-                       .into_object()))
-            } else {
-                Ok((tokens.sconst.clone_ref(py),
-                    PyString::new(py, value),
-                    PyString::new(py,
-                        &unquote_string(&value[1..value.len()-1])
-                        .map_err(|s| TokenizerError::new(py,
-                            (s, py_pos(py, &token.start))))?)
-                       .into_object()))
-            }
+            let content = decode_string(value)
+                .map_err(|s| TokenizerError::new(py,
+                    (s, py_pos(py, &token.start))))?;
+            Ok((tokens.sconst.clone_ref(py),
+                PyString::new(py, value),
+                PyString::new(py, &content).into_object()))
         },
         BacktickName => {
             Ok((tokens.ident.clone_ref(py),
@@ -635,6 +621,17 @@ impl<'a, 'b: 'a> From<&'a SpannedToken<'b>> for CowToken<'b> {
 impl<'a> From<SpannedToken<'a>> for CowToken<'a> {
     fn from(t: SpannedToken<'a>) -> CowToken<'a> {
         CowToken::from(&t)
+    }
+}
+
+pub fn decode_string<'a>(value: &'a str) -> Result<Cow<'a, str>, String> {
+    if value.starts_with('r') {
+        Ok(value[2..value.len()-1].into())
+    } else if value.starts_with('$') {
+        let msize = value[1..].find('$').unwrap() + 2;
+        Ok(value[msize..value.len()-msize].into())
+    } else {
+        Ok(unquote_string(&value[1..value.len()-1])?.into())
     }
 }
 

@@ -36,6 +36,70 @@ fn test_int() {
 }
 
 #[test]
+fn test_str() {
+    let entry = normalize(r###"
+        SELECT "x" + "yy"
+    "###).unwrap();
+    assert_eq!(entry.key, "SELECT(<str>$0)+(<str>$1)");
+    assert_eq!(entry.variables, vec![
+        Variable {
+            value: Value::Str("x".into()),
+        },
+        Variable {
+            value: Value::Str("yy".into()),
+        }
+    ]);
+}
+
+#[test]
+fn test_float() {
+    let entry = normalize(r###"
+        SELECT 1.5 + 23.25
+    "###).unwrap();
+    assert_eq!(entry.key, "SELECT(<float64>$0)+(<float64>$1)");
+    assert_eq!(entry.variables, vec![
+        Variable {
+            value: Value::Float(1.5),
+        },
+        Variable {
+            value: Value::Float(23.25),
+        }
+    ]);
+}
+
+#[test]
+fn test_bigint() {
+    let entry = normalize(r###"
+        SELECT 1n + 23n
+    "###).unwrap();
+    assert_eq!(entry.key, "SELECT(<bigint>$0)+(<bigint>$1)");
+    assert_eq!(entry.variables, vec![
+        Variable {
+            value: Value::BigInt(1.into()),
+        },
+        Variable {
+            value: Value::BigInt(23.into()),
+        }
+    ]);
+}
+
+#[test]
+fn test_decimal() {
+    let entry = normalize(r###"
+        SELECT 1.33n + 23.77n
+    "###).unwrap();
+    assert_eq!(entry.key, "SELECT(<decimal>$0)+(<decimal>$1)");
+    assert_eq!(entry.variables, vec![
+        Variable {
+            value: Value::Decimal("1.33".parse().unwrap()),
+        },
+        Variable {
+            value: Value::Decimal("23.77".parse().unwrap()),
+        }
+    ]);
+}
+
+#[test]
 fn test_positional() {
     let entry = normalize(r###"
         SELECT <int64>$0 + 2

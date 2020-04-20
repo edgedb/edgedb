@@ -2,17 +2,18 @@ use std::collections::BTreeSet;
 
 use edgeql_parser::tokenizer::{TokenStream, Kind};
 use edgeql_parser::position::Pos;
-
-use crate::tokenizer::CowToken;
+use num_bigint::BigInt;
+use bigdecimal::BigDecimal;
+use crate::tokenizer::{CowToken, decode_string};
 
 
 #[derive(Debug, PartialEq)]
 pub enum Value {
     Str(String),
     Int(i64),
-    Float(String),
-    BigInt(String),
-    Decimal(String),
+    Float(f64),
+    BigInt(BigInt),
+    Decimal(BigDecimal),
 }
 
 #[derive(Debug, PartialEq)]
@@ -139,11 +140,56 @@ pub fn normalize<'x>(text: &'x str)
                 });
                 continue;
             }
-            // TODO(tailhook)
-            // Kind::FloatConst => todo!(),
-            // Kind::BigIntConst => todo!(),
-            // Kind::DecimalConst => todo!(),
-            // Kind::Str => todo!(),
+            Kind::FloatConst => {
+                push_var(&mut rewritten_tokens, "float64",
+                    next_var(variables.len()),
+                    tok.start, tok.end);
+                variables.push(Variable {
+                    value: Value::Float(tok.value.parse()
+                        .map_err(|e| Error::Tokenizer(
+                            format!("can't parse float: {}", e),
+                            tok.start))?),
+                });
+                continue;
+            }
+            Kind::BigIntConst => {
+                push_var(&mut rewritten_tokens, "bigint",
+                    next_var(variables.len()),
+                    tok.start, tok.end);
+                variables.push(Variable {
+                    value: Value::BigInt(tok.value[..tok.value.len()-1].parse()
+                        .map_err(|e| Error::Tokenizer(
+                            format!("can't parse bitint: {}", e),
+                            tok.start))?),
+                });
+                continue;
+            }
+            Kind::DecimalConst => {
+                push_var(&mut rewritten_tokens, "decimal",
+                    next_var(variables.len()),
+                    tok.start, tok.end);
+                variables.push(Variable {
+                    value: Value::Decimal(
+                        tok.value[..tok.value.len()-1]
+                        .parse()
+                        .map_err(|e| Error::Tokenizer(
+                            format!("can't parse decimal: {}", e),
+                            tok.start))?),
+                });
+                continue;
+            }
+            Kind::Str => {
+                push_var(&mut rewritten_tokens, "str",
+                    next_var(variables.len()),
+                    tok.start, tok.end);
+                variables.push(Variable {
+                    value: Value::Str(decode_string(&tok.value)
+                        .map_err(|e| Error::Tokenizer(
+                            format!("can't unqote string: {}", e),
+                            tok.start))?.into()),
+                });
+                continue;
+            }
             Kind::Keyword
             if matches!(&tok.value[..], "CONFIGURE"|"CREATE"|"ALTER"|"DROP")
             => {

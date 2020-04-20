@@ -7,9 +7,14 @@ edition = "2018"
 
 [dependencies]
 edgeql-parser = {path = "../edgeql-parser"}
-edgedb-protocol = {git="https://github.com/edgedb/edgedb-rust"}
 combine = "4.0.0-beta.1"
 bytes = "0.5.3"
+num-bigint = "0.2.3"
+bigdecimal = "0.1.0"
+
+[dependencies.edgedb-protocol]
+git = "https://github.com/edgedb/edgedb-rust"
+features = ["with-num-bigint", "with-bigdecimal"]
 
 [dependencies.cpython]
 name = "cpython"

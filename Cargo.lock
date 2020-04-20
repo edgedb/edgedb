@@ -31,6 +31,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8aac770f1885fd7e387acedd76065302551364496e46b3dd00860b2f8359b9d"
 
 [[package]]
+name = "bigdecimal"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "460825c9e21708024d67c07057cd5560e5acdccac85de0de624a81d3de51bacb"
+dependencies = [
+ "num-bigint",
+ "num-integer",
+ "num-traits",
+]
+
+[[package]]
 name = "byteorder"
 version = "1.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -114,7 +125,10 @@ name = "edgedb-protocol"
 version = "0.1.0"
 source = "git+https://github.com/edgedb/edgedb-rust#2f722174e8e6b8fa9089117ce570c609d2c1ad8c"
 dependencies = [
+ "bigdecimal",
  "bytes",
+ "num-bigint",
+ "num-traits",
  "snafu",
  "uuid",
 ]
@@ -132,11 +146,13 @@ dependencies = [
 name = "edgeql-rust"
 version = "0.1.0"
 dependencies = [
+ "bigdecimal",
  "bytes",
  "combine 4.0.1",
  "cpython",
  "edgedb-protocol",
  "edgeql-parser",
+ "num-bigint",
 ]
 
 [[package]]
