@@ -283,7 +283,7 @@ def object_type_to_python_type(
 
     if _memo is None:
         _memo = {}
-
+    default: Any
     fields = []
     subclasses = []
 
@@ -292,8 +292,9 @@ def object_type_to_python_type(
             continue
 
         ptype = p.get_target(schema)
+        assert ptype is not None
 
-        if ptype.is_object_type():
+        if isinstance(ptype, s_objtypes.ObjectType):
             pytype = _memo.get(ptype)
             if pytype is None:
                 pytype = object_type_to_python_type(
@@ -342,15 +343,15 @@ def object_type_to_python_type(
     else:
         bases = ()
 
-    ptype = dataclasses.make_dataclass(
+    ptype_dataclass = dataclasses.make_dataclass(
         objtype.get_name(schema).name,
         fields=fields,
         bases=bases,
         frozen=True,
         namespace={'_subclasses': subclasses},
     )
-    assert isinstance(ptype, type)
-    return ptype
+    assert isinstance(ptype_dataclass, type)
+    return ptype_dataclass
 
 
 @functools.singledispatch

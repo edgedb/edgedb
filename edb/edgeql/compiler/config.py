@@ -278,9 +278,9 @@ def _validate_op(
                 ct, scls_type=s_links.Link, field_name='target')
 
             if ptrs:
-                ptr = next(iter(ptrs))
-                assert isinstance(ptr, s_links.Link)
-                ptr_candidate = ptr
+                pointer_link = next(iter(ptrs))
+                assert isinstance(pointer_link, s_links.Link)
+                ptr_candidate = pointer_link
                 break
 
         if (ptr_candidate is None

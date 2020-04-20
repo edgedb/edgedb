@@ -155,6 +155,8 @@ def fini_expression(
                 _elide_derived_ancestors(vptr, ctx=ctx)
 
                 tgt = vptr.get_target(ctx.env.schema)
+                assert tgt is not None
+
                 if (tgt.is_union_type(ctx.env.schema)
                         and tgt.get_is_opaque_union(ctx.env.schema)):
                     # Opaque unions should manifest as std::BaseObject
@@ -166,8 +168,11 @@ def fini_expression(
 
                 if not hasattr(vptr, 'get_pointers'):
                     continue
-
-                vptr_own_pointers = vptr.get_pointers(ctx.env.schema)
+                # type ignore below, because we check above if vptr has
+                # a get_pointers attribute
+                vptr_own_pointers = vptr.get_pointers(  # type: ignore
+                    ctx.env.schema
+                )
                 for vlprop in vptr_own_pointers.objects(ctx.env.schema):
                     _elide_derived_ancestors(vlprop, ctx=ctx)
 

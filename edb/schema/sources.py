@@ -23,9 +23,10 @@ from typing import *
 from . import indexes
 from . import name as sn
 from . import objects as so
-from . import pointers
+from . import pointers as s_pointers
 
 if TYPE_CHECKING:
+    from . import links
     from . import schema as s_schema
 
 
@@ -43,10 +44,10 @@ class Source(so.QualifiedObject, indexes.IndexableSubject):
         attr='pointers',
         requires_explicit_overloaded=True,
         backref_attr='source',
-        ref_cls=pointers.Pointer)
+        ref_cls=s_pointers.Pointer)
 
     pointers = so.SchemaField(
-        so.ObjectIndexByUnqualifiedName[pointers.Pointer],
+        so.ObjectIndexByUnqualifiedName[s_pointers.Pointer],
         inheritable=False, ephemeral=True, coerce=True, compcoef=0.857,
         default=so.DEFAULT_CONSTRUCTOR)
 
@@ -54,16 +55,28 @@ class Source(so.QualifiedObject, indexes.IndexableSubject):
         self,
         schema: s_schema.Schema,
         name: str,
-    ) -> Optional[pointers.Pointer]:
+    ) -> Optional[s_pointers.Pointer]:
         if sn.Name.is_qualified(name):
             raise ValueError(
                 'references to concrete pointers must not be qualified')
         return self.get_pointers(schema).get(schema, name, None)
 
-    def getrptrs(self, schema, name, *, sources=()):
+    def getrptrs(
+        self,
+        schema: s_schema.Schema,
+        name: str,
+        *,
+        sources: Iterable[so.Object] = ()
+    ) -> Set[links.Link]:
         return set()
 
-    def add_pointer(self, schema, pointer, *, replace=False):
+    def add_pointer(
+        self,
+        schema: s_schema.Schema,
+        pointer: s_pointers.Pointer,
+        *,
+        replace: bool = False
+    ) -> s_schema.Schema:
         schema = self.add_classref(
             schema, 'pointers', pointer, replace=replace)
         return schema
@@ -71,7 +84,7 @@ class Source(so.QualifiedObject, indexes.IndexableSubject):
 
 def populate_pointer_set_for_source_union(
     schema: s_schema.Schema,
-    components: Iterable[Source],
+    components: List[Source],
     union: Source,
     *,
     modname: Optional[str] = None,
@@ -95,13 +108,12 @@ def populate_pointer_set_for_source_union(
             if len(ptrs) == 1:
                 ptr = ptrs[0]
             else:
-                ptrs = set(ptrs)
-                schema, ptr = pointers.get_or_create_union_pointer(
+                schema, ptr = s_pointers.get_or_create_union_pointer(
                     schema,
                     ptrname=pn,
                     source=union,
-                    direction=pointers.PointerDirection.Outbound,
-                    components=ptrs,
+                    direction=s_pointers.PointerDirection.Outbound,
+                    components=set(ptrs),
                     modname=modname,
                 )
 

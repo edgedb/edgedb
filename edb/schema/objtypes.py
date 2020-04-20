@@ -114,7 +114,7 @@ class ObjectType(
         schema: s_schema.Schema,
         name: Union[sn.Name, str],
         *,
-        sources: Iterable[s_types.Type] = ()
+        sources: Iterable[so.Object] = ()
     ) -> Set[links.Link]:
         if sn.Name.is_qualified(name):
             raise ValueError(
@@ -278,7 +278,7 @@ def get_or_create_union_type(
 
             schema = sources.populate_pointer_set_for_source_union(
                 schema,
-                components,
+                cast(List[sources.Source], components),
                 objtype,
                 modname=module,
             )

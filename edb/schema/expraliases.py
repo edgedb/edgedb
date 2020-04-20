@@ -19,6 +19,9 @@
 
 from __future__ import annotations
 
+from typing import *
+
+
 from edb import errors
 from edb.edgeql import ast as qlast
 
@@ -27,6 +30,10 @@ from . import annos as s_anno
 from . import objtypes as s_objtypes
 from . import delta as sd
 from . import types as s_types
+
+
+if TYPE_CHECKING:
+    from . import schema as s_schema
 
 
 class AliasCommandContext(sd.ObjectCommandContext,
@@ -63,7 +70,12 @@ class AliasCommand(
     }
 
     @classmethod
-    def command_for_ast_node(cls, astnode, schema, context):
+    def command_for_ast_node(
+        cls,
+        astnode: qlast.DDLOperation,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> Type[sd.Command]:
         modaliases = cls._modaliases_from_ast(schema, astnode, context)
         ctx = AliasCommandContext(
             schema,
