@@ -855,6 +855,25 @@ class TestExpressions(tb.QueryTestCase):
             variables={'x': 7},
         )
 
+    async def test_edgeql_expr_variables_04(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"parameter \$x is required"):
+            await self.assert_query_result(
+                r'''SELECT <int64>$x;''',
+                {'std::int64'},
+                variables={'x': None},
+            )
+
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"parameter \$0 is required"):
+            await self.assert_query_result(
+                r'''SELECT <int64>$0;''',
+                {'std::int64'},
+                variables=(None,),
+            )
+
     async def _test_boolop(self, left, right, op, not_op, result):
         if isinstance(result, bool):
             # this operation should be valid and produce opposite

@@ -1051,7 +1051,6 @@ cdef class EdgeConnection:
             self.write(self.make_command_complete_msg(query_unit))
             return
 
-        bound_args_buf = self.recode_bind_args(bind_args, compiled)
 
         process_sync = False
         if self.buffer.take_message_type(b'S'):
@@ -1060,6 +1059,8 @@ cdef class EdgeConnection:
             process_sync = True
 
         try:
+            bound_args_buf = self.recode_bind_args(bind_args, compiled)
+
             self.dbview.start(query_unit)
             try:
                 if query_unit.system_config:
@@ -1619,6 +1620,9 @@ cdef class EdgeConnection:
                 frb_read(&in_buf, 4)  # reserved
             in_len = hton.unpack_int32(frb_read(&in_buf, 4))
             out_buf.write_int32(in_len)
+            if in_len < 0:
+                name = query.query_unit.in_type_args[i]
+                raise errors.QueryError(f"parameter ${name} is required")
             if in_len > 0:
                 data = frb_read(&in_buf, in_len)
                 array_tid = array_tids and array_tids.get(i)

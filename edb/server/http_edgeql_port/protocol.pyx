@@ -165,7 +165,7 @@ cdef class Protocol(http.HttpProtocol):
         args = []
         if query_unit.in_type_args:
             for name in query_unit.in_type_args:
-                if variables is None or name not in variables:
+                if variables is None or variables.get(name) is None:
                     raise errors.QueryError(
                         f'no value for the ${name} query parameter')
                 else:

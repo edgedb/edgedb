@@ -422,11 +422,9 @@ class Compiler(BaseCompiler):
             in_type_data, in_type_id = sertypes.TypeSerializer.describe(
                 ir.schema, params_type, {}, {})
 
-            in_type_args = None
-            if ctx.json_parameters:
-                in_type_args = [None] * len(argmap)
-                for argname, argpos in argmap.items():
-                    in_type_args[argpos - 1] = argname
+            in_type_args = [None] * len(argmap)
+            for argname, argpos in argmap.items():
+                in_type_args[argpos - 1] = argname
 
             sql_hash = self._hash_sql(
                 sql_bytes,

@@ -139,6 +139,19 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
                 """
             )
 
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'no value for the \$name query parameter'):
+            self.edgeql_query(
+                r"""
+                    SELECT Setting {
+                        name,
+                        value
+                    }
+                    FILTER .name = <str>$name;
+                """,
+                variables={'name': None})
+
     def test_http_edgeql_query_05(self):
         with self.assertRaisesRegex(edgedb.InvalidReferenceError,
                                     r'UNRECOGNIZABLE'):
