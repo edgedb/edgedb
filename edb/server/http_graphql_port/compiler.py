@@ -101,8 +101,8 @@ class Compiler(compiler.BaseCompiler):
             output_format=pg_compiler.OutputFormat.JSON)
 
         args = [None] * len(argmap)
-        for argname, argpos in argmap.items():
-            args[argpos - 1] = argname
+        for argname, param in argmap.items():
+            args[param.index - 1] = argname
 
         sql_bytes = sql_text.encode()
         sql_hash = self._hash_sql(sql_bytes)

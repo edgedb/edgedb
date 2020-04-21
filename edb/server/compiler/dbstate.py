@@ -173,7 +173,7 @@ class QueryUnit:
     out_type_id: bytes = sertypes.NULL_TYPE_ID
     in_type_data: bytes = sertypes.EMPTY_TUPLE_DESC
     in_type_id: bytes = sertypes.EMPTY_TUPLE_ID
-    in_type_args: Optional[Tuple[str, ...]] = None
+    in_type_args: Optional[Dict[str, bool]] = None
 
     # A tuple of <index, element_backend_type_id> pairs for parameters
     # that are of an array type.

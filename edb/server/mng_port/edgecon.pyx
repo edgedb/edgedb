@@ -1608,6 +1608,11 @@ cdef class EdgeConnection:
         # number of elements in the tuple
         argsnum = hton.unpack_int32(frb_read(&in_buf, 4))
 
+        if argsnum != len(query.query_unit.in_type_args or {}):
+            raise errors.QueryError(
+                f"invalid argument count required: "
+                f"{query.query_unit.in_type_args}, got: {argsnum}")
+
         if query.first_extra is not None:
             assert argsnum == query.first_extra, \
                 f"argument count mismatch {argsnum} != {query.first_extra}"
@@ -1615,29 +1620,31 @@ cdef class EdgeConnection:
         else:
             out_buf.write_int16(<int16_t>argsnum)
 
-        for i in range(argsnum):
-            if has_reserved:
-                frb_read(&in_buf, 4)  # reserved
-            in_len = hton.unpack_int32(frb_read(&in_buf, 4))
-            out_buf.write_int32(in_len)
+        if query.query_unit.in_type_args:
+            for param_name, optional in query.query_unit.in_type_args.items():
+                if has_reserved:
+                    frb_read(&in_buf, 4)  # reserved
+                in_len = hton.unpack_int32(frb_read(&in_buf, 4))
+                out_buf.write_int32(in_len)
 
-            if in_len < 0:
-                # This means argument value is NULL
-                name = query.query_unit.in_type_args[i]
-                raise errors.QueryError(f"parameter ${name} is required")
+                if in_len < 0:
+                    # This means argument value is NULL
+                    if not optional:
+                        raise errors.QueryError(
+                            f"parameter ${param_name} is required")
 
-            if in_len > 0:
-                data = frb_read(&in_buf, in_len)
-                array_tid = array_tids and array_tids.get(i)
-                # Ensure all array parameters have correct element OIDs as
-                # per Postgres' expectations.
-                if array_tid is not None:
-                    # ndimensions + flags
-                    out_buf.write_cstr(data, 8)
-                    out_buf.write_int32(<int32_t>array_tid)
-                    out_buf.write_cstr(&data[12], in_len - 12)
-                else:
-                    out_buf.write_cstr(data, in_len)
+                if in_len > 0:
+                    data = frb_read(&in_buf, in_len)
+                    array_tid = array_tids and array_tids.get(i)
+                    # Ensure all array parameters have correct element OIDs as
+                    # per Postgres' expectations.
+                    if array_tid is not None:
+                        # ndimensions + flags
+                        out_buf.write_cstr(data, 8)
+                        out_buf.write_int32(<int32_t>array_tid)
+                        out_buf.write_cstr(&data[12], in_len - 12)
+                    else:
+                        out_buf.write_cstr(data, in_len)
 
         if query.first_extra is not None:
             out_buf.write_bytes(query.extra_blob)

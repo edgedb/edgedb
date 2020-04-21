@@ -164,12 +164,16 @@ cdef class Protocol(http.HttpProtocol):
 
         args = []
         if query_unit.in_type_args:
-            for name in query_unit.in_type_args:
-                if variables is None or variables.get(name) is None:
+            for name, optional in query_unit.in_type_args.items():
+                if variables is None or name not in variables:
                     raise errors.QueryError(
                         f'no value for the ${name} query parameter')
                 else:
-                    args.append(variables[name])
+                    value = variables[name]
+                    if value is None and not optional:
+                        raise errors.QueryError(
+                            f'parameter ${name} is required')
+                    args.append(value)
 
         pgcon = await self.server.pgcons.get()
         try:

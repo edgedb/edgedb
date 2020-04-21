@@ -61,6 +61,11 @@ NonesFirst = NonesOrder.First
 NonesLast = NonesOrder.Last
 
 
+class CardinalityModifier(s_enum.StrEnum):
+    Optional = 'OPTIONAL'
+    Required = 'REQUIRED'
+
+
 class Base(ast.AST):
     __abstract_node__ = True
     __ast_hidden__ = {'context'}
@@ -384,6 +389,7 @@ class Path(Expr):
 class TypeCast(Expr):
     expr: Expr
     type: TypeExpr
+    modifier: typing.Optional[CardinalityModifier]
 
 
 class Introspect(Expr):

@@ -413,6 +413,9 @@ class Param:
     name: str
     """Parameter name"""
 
+    optional: bool
+    """Whether parameter is OPTIONAL or REQUIRED"""
+
     schema_type: s_types.Type
     """Schema type"""
 

@@ -392,6 +392,7 @@ class Compiler(BaseCompiler):
 
             if ir.params:
                 array_params = []
+                optional_params = set()
                 first_param = next(iter(ir.params))
                 named = not first_param.name.isdecimal()
                 if ctx.first_extracted_var is not None:
@@ -399,7 +400,12 @@ class Compiler(BaseCompiler):
                 else:
                     subtypes = [None] * len(ir.params)
                 for param in ir.params:
-                    idx = argmap[param.name] - 1
+                    sql_param = argmap[param.name]
+
+                    idx = sql_param.index - 1
+                    if sql_param.optional:
+                        optional_params.add(param.name)
+
                     if(ctx.first_extracted_var is not None and
                             idx >= ctx.first_extracted_var):
                         continue
@@ -415,16 +421,16 @@ class Compiler(BaseCompiler):
                     named=named)
                 if array_params:
                     in_array_backend_tids = {p[0]: p[1] for p in array_params}
+                in_type_args = {name: name in optional_params
+                                for name, _ in subtypes}
+
             else:
                 ir.schema, params_type = s_types.Tuple.create(
                     ir.schema, element_types={}, named=False)
+                in_type_args = None
 
             in_type_data, in_type_id = sertypes.TypeSerializer.describe(
                 ir.schema, params_type, {}, {})
-
-            in_type_args = [None] * len(argmap)
-            for argname, argpos in argmap.items():
-                in_type_args[argpos - 1] = argname
 
             sql_hash = self._hash_sql(
                 sql_bytes,

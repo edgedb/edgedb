@@ -814,7 +814,29 @@ class Expr(Nonterm):
     @parsing.precedence(precedence.P_TYPECAST)
     def reduce_LANGBRACKET_FullTypeExpr_RANGBRACKET_Expr(
             self, *kids):
-        self.val = qlast.TypeCast(expr=kids[3].val, type=kids[1].val)
+        self.val = qlast.TypeCast(
+            expr=kids[3].val,
+            type=kids[1].val,
+            modifier=None,
+        )
+
+    @parsing.precedence(precedence.P_TYPECAST)
+    def reduce_LANGBRACKET_OPTIONAL_FullTypeExpr_RANGBRACKET_Expr(
+            self, *kids):
+        self.val = qlast.TypeCast(
+            expr=kids[4].val,
+            type=kids[2].val,
+            modifier=qlast.CardinalityModifier.Optional,
+        )
+
+    @parsing.precedence(precedence.P_TYPECAST)
+    def reduce_LANGBRACKET_REQUIRED_FullTypeExpr_RANGBRACKET_Expr(
+            self, *kids):
+        self.val = qlast.TypeCast(
+            expr=kids[4].val,
+            type=kids[2].val,
+            modifier=qlast.CardinalityModifier.Required,
+        )
 
     def reduce_Expr_IF_Expr_ELSE_Expr(self, *kids):
         self.val = qlast.IfElse(

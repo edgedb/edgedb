@@ -208,7 +208,7 @@ class TypeCoverageTests(unittest.TestCase):
         self.assertFunctionCoverage(EDB_DIR / "common" / "markup", 0)
 
     def test_cqa_type_coverage_edgeql(self) -> None:
-        self.assertFunctionCoverage(EDB_DIR / "edgeql", 44.84)
+        self.assertFunctionCoverage(EDB_DIR / "edgeql", 44.77)
 
     def test_cqa_type_coverage_edgeqlcompiler(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "edgeql" / "compiler", 100.00)

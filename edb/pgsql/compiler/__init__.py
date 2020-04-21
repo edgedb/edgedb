@@ -51,11 +51,11 @@ def compile_ir_to_sql_tree(
         expected_cardinality_one: bool=False) -> pgast.Base:
     try:
         # Transform to sql tree
-        query_params = {}
+        query_params = []
 
         if isinstance(ir_expr, irast.Statement):
             scope_tree = ir_expr.scope_tree
-            query_params = {p.name: p.ir_type for p in ir_expr.params}
+            query_params = list(ir_expr.params)
             ir_expr = ir_expr.expr
         elif isinstance(ir_expr, irast.ConfigCommand):
             scope_tree = ir_expr.scope_tree
@@ -93,13 +93,14 @@ def compile_ir_to_sql_tree(
 
 
 def compile_ir_to_sql(
-        ir_expr: irast.Base, *,
-        output_format: Optional[OutputFormat]=None,
-        ignore_shapes: bool=False,
-        explicit_top_cast: Optional[irast.TypeRef]=None,
-        use_named_params: bool=False,
-        expected_cardinality_one: bool=False,
-        pretty: bool=True) -> Tuple[str, Dict[str, int]]:
+    ir_expr: irast.Base, *,
+    output_format: Optional[OutputFormat]=None,
+    ignore_shapes: bool=False,
+    explicit_top_cast: Optional[irast.TypeRef]=None,
+    use_named_params: bool=False,
+    expected_cardinality_one: bool=False,
+    pretty: bool=True
+) -> Tuple[str, Dict[str, pgast.Param]]:
 
     qtree = compile_ir_to_sql_tree(
         ir_expr,
