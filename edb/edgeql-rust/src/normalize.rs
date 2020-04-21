@@ -125,7 +125,7 @@ pub fn normalize<'x>(text: &'x str)
             && (tok.value != "1"
                 || !matches!(rewritten_tokens.last(),
                     Some(CowToken { kind: Kind::Keyword, ref value, .. })
-                    if value == "LIMIT"))
+                    if value.eq_ignore_ascii_case("LIMIT")))
             && tok.value != "9223372036854775808"
             => {
                 push_var(&mut rewritten_tokens, "int64",
@@ -145,7 +145,8 @@ pub fn normalize<'x>(text: &'x str)
             // Kind::DecimalConst => todo!(),
             // Kind::Str => todo!(),
             Kind::Keyword
-            if matches!(&tok.value[..], "CONFIGURE"|"CREATE"|"ALTER"|"DROP")
+            if (matches!(&(&tok.value[..].to_uppercase())[..],
+                "CONFIGURE"|"CREATE"|"ALTER"|"DROP"))
             => {
                 return Ok(Entry {
                     key: serialize_tokens(&tokens),

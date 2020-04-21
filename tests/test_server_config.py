@@ -380,8 +380,11 @@ class TestServerConfig(tb.QueryTestCase, tb.CLITestCaseMixin):
         self.assertEqual(conf['value'], 0)
         self.assertEqual(conf['source'], 'default')
 
+        # The "Configure" is spelled the way it's spelled on purpose
+        # to test that we handle keywords in a case-insensitive manner
+        # in constant extraction code.
         await self.con.fetchall('''
-            CONFIGURE SYSTEM SET __internal_testvalue := 1;
+            Configure SYSTEM SET __internal_testvalue := 1;
         ''')
 
         conf = await self.con.fetchone('''
