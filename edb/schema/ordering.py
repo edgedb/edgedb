@@ -39,7 +39,7 @@ if TYPE_CHECKING:
 def linearize_delta(
     delta: sd.DeltaRoot,
     old_schema: Optional[s_schema.Schema],
-    new_schema: s_schema.Schema
+    new_schema: s_schema.Schema,
 ) -> sd.DeltaRoot:
     """Sort delta operations to dependency order."""
 
@@ -68,7 +68,8 @@ def linearize_delta(
     ordered = list(topological.sort(depgraph, allow_unresolved=True,
                                     return_record=True))
 
-    parents: Dict[Tuple[Type[sd.ObjectCommand], str], sd.ObjectCommand]
+    parents: Dict[Tuple[Type[sd.ObjectCommand[so.Object]], str],
+                  sd.ObjectCommand[so.Object]]
     dependencies: Dict[sd.Command, Set[sd.Command]]
     parents = {}
     dependencies = collections.defaultdict(set)
@@ -107,12 +108,12 @@ def linearize_delta(
             mcls = ancestor_op.get_schema_metaclass()
             create_cmd_cls = sd.ObjectCommandMeta.get_command_class_or_die(
                 sd.CreateObject, mcls)
-            attached_root: Optional[sd.ObjectCommand] = None
+            attached_root: Optional[sd.ObjectCommand[so.Object]] = None
 
             # Try attaching to a "Create" op, if that doesn't work
             # attach to whatever the ancestor is right now.
             for ancestor_cls in [create_cmd_cls, type(ancestor_op)]:
-                ancestor_key: Tuple[Type[sd.ObjectCommand], str] = (
+                ancestor_key: Tuple[Type[sd.ObjectCommand[so.Object]], str] = (
                     ancestor_cls, ancestor_op.classname)
                 # The root operation is the top-level operation in the delta.
                 attached_root = parents.get(ancestor_key)
@@ -153,13 +154,17 @@ def linearize_delta(
     return delta
 
 
-def _get_parent_op(opstack: List[sd.Command]) -> sd.ObjectCommand:
+def _get_parent_op(opstack: List[sd.Command]) -> sd.ObjectCommand[so.Object]:
     parent_op = opstack[1]
     assert isinstance(parent_op, sd.ObjectCommand)
     return parent_op
 
 
-def _break_down(opmap, strongrefs, opstack):
+def _break_down(
+    opmap: Dict[sd.Command, List[sd.Command]],
+    strongrefs: Dict[str, str],
+    opstack: List[sd.Command],
+) -> None:
     if len(opstack) > 2:
         new_opstack = _extract_op(opstack)
     else:
@@ -173,6 +178,7 @@ def _break_down(opmap, strongrefs, opstack):
                                inheriting.RebaseInheritingObject)):
             _break_down(opmap, strongrefs, new_opstack + [sub_op])
         elif isinstance(sub_op, sd.AlterObjectProperty):
+            assert isinstance(op, sd.ObjectCommand)
             mcls = op.get_schema_metaclass()
             field = mcls.get_field(sub_op.property)
             # Break a possible reference cycle
@@ -362,8 +368,8 @@ def _trace_op(
 
 def get_object(
     schema: s_schema.Schema,
-    op: sd.ObjectCommand,
-    name: str
+    op: sd.ObjectCommand[so.Object],
+    name: str,
 ) -> so.Object:
     metaclass = op.get_schema_metaclass()
 
@@ -375,7 +381,9 @@ def get_object(
             assert t_id is not None
             return schema.get_by_id(t_id)
     elif not issubclass(metaclass, so.QualifiedObject):
-        return schema.get_global(metaclass, name)
+        obj = schema.get_global(metaclass, name)
+        assert isinstance(obj, so.Object)
+        return obj
     else:
         return schema.get(name)
 
@@ -403,11 +411,12 @@ def _get_referrers(
     return result
 
 
-def _extract_op(stack: List[sd.ObjectCommand]) -> List[sd.ObjectCommand]:
+def _extract_op(stack: Sequence[sd.Command]) -> List[sd.Command]:
     parent_op = stack[0]
     new_stack = [parent_op]
 
     for stack_op in stack[1:-1]:
+        assert isinstance(stack_op, sd.ObjectCommand)
         alter_class = sd.ObjectCommandMeta.get_command_class_or_die(
             sd.AlterObject, stack_op.get_schema_metaclass())
 

@@ -584,7 +584,7 @@ class CommandContextToken(Generic[Command_T]):
         op: Command_T,
         *,
         modaliases: Optional[Mapping[Optional[str], str]] = None,
-    ):
+    ) -> None:
         self.original_schema = schema
         self.op = op
         self.modaliases = modaliases if modaliases is not None else {}
@@ -2315,3 +2315,7 @@ def compile_ddl(
         cmd = cmdcls._cmd_tree_from_ast(schema, astnode, context)
 
     return cmd
+
+
+# See _dummy_command
+_dummy_object_command: ObjectCommand[Any] = ObjectCommand(classname="dummy")

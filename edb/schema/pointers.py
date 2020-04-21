@@ -627,7 +627,7 @@ class ComputableRef(so.Object):
 
     expr: qlast.Expr
 
-    def __init__(self, expr: qlast.Base):
+    def __init__(self, expr: qlast.Base) -> None:
         super().__init__(_private_init=True)
         self.__dict__['expr'] = expr
 

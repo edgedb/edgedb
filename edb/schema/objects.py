@@ -331,7 +331,7 @@ class SchemaField(Field[Type_T]):
         hashable: bool = True,
         allow_ddl_set: bool = False,
         **kwargs: Any,
-    ):
+    ) -> None:
         super().__init__(type, **kwargs)
         self.default = default
         self.hashable = hashable
