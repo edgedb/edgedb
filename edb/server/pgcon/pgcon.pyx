@@ -280,13 +280,14 @@ cdef class PGProto:
 
         return parse, store_stmt
 
-    async def _parse_execute_json(
+    async def _parse_execute_to_buf(
         self,
         sql,
         sql_hash,
         dbver,
         use_prep_stmt,
         args,
+        WriteBuffer out,
     ):
         cdef:
             WriteBuffer parse_buf
@@ -351,29 +352,7 @@ cdef class PGProto:
             try:
                 if mtype == b'D':
                     # DataRow
-                    if data is not None:
-                        error = RuntimeError(
-                            f'received more than one DataRow '
-                            f'for a JSON query {sql!r}')
-                        self.buffer.discard_message()
-                        continue
-
-                    ncol = self.buffer.read_int16()
-                    if ncol != 1:
-                        error = RuntimeError(
-                            f'received more than column in DataRow '
-                            f'for a JSON query {sql!r}')
-                        self.buffer.discard_message()
-                        continue
-
-                    coll = self.buffer.read_int32()
-                    if coll == -1:
-                        error = RuntimeError(
-                            f'received NULL for a JSON query {sql!r}')
-                        self.buffer.discard_message()
-                        continue
-
-                    data = self.buffer.read_bytes(coll)
+                    self.buffer.redirect_messages(out, b'D', 0)
 
                 elif mtype == b'E':
                     # ErrorResponse
@@ -409,6 +388,58 @@ cdef class PGProto:
 
         return data
 
+    async def _parse_execute_json(
+        self,
+        sql,
+        sql_hash,
+        dbver,
+        use_prep_stmt,
+        args,
+    ):
+        cdef:
+            WriteBuffer out
+            Py_buffer pybuf
+
+        out = WriteBuffer.new()
+        await self._parse_execute_to_buf(
+            sql, sql_hash, dbver, use_prep_stmt, args, out)
+
+        cpython.PyObject_GetBuffer(out, &pybuf, cpython.PyBUF_SIMPLE)
+        try:
+            if pybuf.len == 0:
+                return None
+
+            if pybuf.len < 11 or (<char*>pybuf.buf)[0] != b'D':
+                data = cpython.PyBytes_FromStringAndSize(
+                    <char*>pybuf.buf, pybuf.len)
+                raise RuntimeError(
+                    f'invalid protocol-level result of a JSON query '
+                    f'sql:{sql} buf-len:{pybuf.len} buf:{data}')
+
+            mlen = hton.unpack_int32(<char*>pybuf.buf + 1)
+
+            if pybuf.len > mlen + 1:
+                raise RuntimeError(
+                    f'received more than one DataRow '
+                    f'for a JSON query {sql!r}')
+
+            ncol = hton.unpack_int16(<char*>pybuf.buf + 5)
+            if ncol != 1:
+                raise RuntimeError(
+                    f'received more than column in DataRow '
+                    f'for a JSON query {sql!r}')
+
+            coll = hton.unpack_int32(<char*>pybuf.buf + 7)
+            if coll == -1:
+                raise RuntimeError(
+                    f'received NULL for a JSON query {sql!r}')
+
+            return cpython.PyBytes_FromStringAndSize(
+                <char*>pybuf.buf + 11, mlen - 4 - 2 - 4)
+
+        finally:
+            cpython.PyBuffer_Release(&pybuf)
+
     async def parse_execute_json(
         self,
         sql,
@@ -426,6 +457,30 @@ cdef class PGProto:
                 use_prep_stmt,
                 args,
             )
+        finally:
+            self.after_command()
+
+    async def parse_execute_notebook(
+        self,
+        sql,
+        dbver,
+    ):
+        cdef:
+            WriteBuffer out
+            Py_buffer pybuf
+
+        self.before_command()
+        try:
+            out = WriteBuffer.new()
+            await self._parse_execute_to_buf(sql, b'', dbver, False, (), out)
+
+            cpython.PyObject_GetBuffer(out, &pybuf, cpython.PyBUF_SIMPLE)
+            try:
+                return cpython.PyBytes_FromStringAndSize(
+                    <char*>pybuf.buf, pybuf.len)
+            finally:
+                cpython.PyBuffer_Release(&pybuf)
+
         finally:
             self.after_command()
 

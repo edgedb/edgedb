@@ -33,6 +33,7 @@ from edb.server import config
 from edb.server import defines
 from edb.server import http_edgeql_port
 from edb.server import http_graphql_port
+from edb.server import notebook_port
 from edb.server import mng_port
 from edb.server import pgcon
 
@@ -177,6 +178,8 @@ class Server:
             port_cls = http_graphql_port.HttpGraphQLPort
         elif portconf.protocol == 'edgeql+http':
             port_cls = http_edgeql_port.HttpEdgeQLPort
+        elif portconf.protocol == 'notebook':
+            port_cls = notebook_port.NotebookPort
         else:
             raise errors.InvalidReferenceError(
                 f'unknown protocol {portconf.protocol!r}')

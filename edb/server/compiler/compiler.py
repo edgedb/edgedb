@@ -1197,6 +1197,62 @@ class Compiler(BaseCompiler):
             'expected a ROLLBACK or ROLLBACK TO SAVEPOINT command'
         )  # pragma: no cover
 
+    async def compile_notebook(
+        self,
+        dbver: bytes,
+        queries: List[str],
+        implicit_limit: int = 0,
+    ) -> List[dbstate.QueryUnit]:
+
+        ctx = await self._ctx_new_con_state(
+            dbver=dbver,
+            io_format=enums.IoFormat.BINARY,
+            expect_one=False,
+            implicit_limit=implicit_limit,
+            modaliases=DEFAULT_MODULE_ALIASES_MAP,
+            session_config=EMPTY_MAP,
+            stmt_mode=enums.CompileStatementMode.SINGLE,
+            capability=enums.Capability.QUERY | enums.Capability.DDL,
+            json_parameters=False,
+        )
+
+        ctx.state.start_tx()
+        txid = ctx.state.current_tx().id
+
+        result: List[
+            Tuple[
+                bool,
+                Union[dbstate.QueryUnit, Tuple[str, str, Dict[str, str]]]
+            ]
+        ] = []
+
+        for query in queries:
+            ctx = await self._ctx_from_con_state(
+                txid=txid,
+                io_format=enums.IoFormat.BINARY,
+                expect_one=False,
+                implicit_limit=implicit_limit,
+                stmt_mode=enums.CompileStatementMode.SINGLE)
+
+            try:
+                tokens = tokenizer.tokenize(query)
+                result.append(
+                    (False, self._compile(ctx=ctx, tokens=tokens)[0]))
+            except Exception as ex:
+                fields = {}
+                typename = 'Error'
+                if (isinstance(ex, errors.EdgeDBError) and
+                        type(ex) is not errors.EdgeDBError):
+                    fields = ex._attrs
+                    typename = type(ex).__name__
+                result.append(
+                    (True, (typename, str(ex), fields)))
+                break
+
+        ctx.state.rollback_tx()
+
+        return result
+
     async def compile_eql_tokens(
         self,
         dbver: bytes,
