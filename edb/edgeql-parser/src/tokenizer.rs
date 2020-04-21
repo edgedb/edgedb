@@ -769,7 +769,8 @@ impl<'a> fmt::Display for Token<'a> {
 /// Check if the lowercase name is a keyword
 pub fn is_keyword(s: &str) -> bool {
     match s {
-        // Reserved keywords
+        // # Reserved keywords #
+          // Keep in sync with keywords::CURRENT_RESERVED_KEYWORDS
         | "__source__"
         | "__subject__"
         | "__type__"
@@ -821,7 +822,9 @@ pub fn is_keyword(s: &str) -> bool {
         | "union"
         | "variadic"
         | "with"
-        // Future reserved keywords
+          // Keep in sync with keywords::CURRENT_RESERVED_KEYWORDS
+        // # Future reserved keywords #
+          // Keep in sync with keywords::FUTURE_RESERVED_KEYWORDS
         | "analyze"
         | "anyarray"
         | "begin"
@@ -854,6 +857,7 @@ pub fn is_keyword(s: &str) -> bool {
         | "over"
         | "when"
         | "window"
+          // Keep in sync with keywords::FUTURE_RESERVED_KEYWORDS
         => true,
         _ => false,
     }
