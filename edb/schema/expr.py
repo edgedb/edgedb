@@ -52,11 +52,13 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer, s_abc.Expression):
         frozen=True,
     )
 
-    def __init__(self,
-                 *args: Any,
-                 _qlast: Optional[qlast_.Base] = None,
-                 _irast: Optional[irast_.Command] = None,
-                 **kwargs: Any):
+    def __init__(
+        self,
+        *args: Any,
+        _qlast: Optional[qlast_.Base] = None,
+        _irast: Optional[irast_.Command] = None,
+        **kwargs: Any
+    ) -> None:
         super().__init__(*args, **kwargs)
         self._qlast = _qlast
         self._irast = _irast

@@ -92,6 +92,7 @@ class CompileContext:
     json_parameters: bool = False
     implicit_limit: int = 0
     schema_object_ids: Optional[Mapping[str, uuid.UUID]] = None
+    first_extracted_var: Optional[int] = None
 
 
 EMPTY_MAP = immutables.Map()
@@ -391,11 +392,17 @@ class Compiler(BaseCompiler):
 
             if ir.params:
                 array_params = []
-                subtypes = [None] * len(ir.params)
                 first_param = next(iter(ir.params))
                 named = not first_param.name.isdecimal()
+                if ctx.first_extracted_var is not None:
+                    subtypes = [None] * ctx.first_extracted_var
+                else:
+                    subtypes = [None] * len(ir.params)
                 for param in ir.params:
                     idx = argmap[param.name] - 1
+                    if(ctx.first_extracted_var is not None and
+                            idx >= ctx.first_extracted_var):
+                        continue
                     subtypes[idx] = (param.name, param.schema_type)
                     if param.schema_type.is_array():
                         el_type = param.schema_type.get_element_type(ir.schema)
@@ -1083,6 +1090,7 @@ class Compiler(BaseCompiler):
         json_parameters: bool=False,
         schema: Optional[s_schema.Schema] = None,
         schema_object_ids: Optional[Mapping[str, uuid.UUID]] = None,
+        first_extracted_var: Optional[int] = None,
     ) -> CompileContext:
 
         if session_config is None:
@@ -1116,6 +1124,7 @@ class Compiler(BaseCompiler):
             stmt_mode=stmt_mode,
             json_parameters=json_parameters,
             schema_object_ids=schema_object_ids,
+            first_extracted_var=first_extracted_var,
         )
 
         return ctx
@@ -1124,7 +1133,8 @@ class Compiler(BaseCompiler):
                                   io_format: enums.IoFormat,
                                   expect_one: bool,
                                   implicit_limit: int,
-                                  stmt_mode: enums.CompileStatementMode):
+                                  stmt_mode: enums.CompileStatementMode,
+                                  first_extracted_var: Optional[int]=None):
         state = self._load_state(txid)
 
         of = _convert_format(io_format)
@@ -1134,7 +1144,8 @@ class Compiler(BaseCompiler):
             output_format=of,
             expected_cardinality_one=expect_one,
             implicit_limit=implicit_limit,
-            stmt_mode=stmt_mode)
+            stmt_mode=stmt_mode,
+            first_extracted_var=first_extracted_var)
 
         return ctx
 
@@ -1186,18 +1197,76 @@ class Compiler(BaseCompiler):
             'expected a ROLLBACK or ROLLBACK TO SAVEPOINT command'
         )  # pragma: no cover
 
+    async def compile_notebook(
+        self,
+        dbver: bytes,
+        queries: List[str],
+        implicit_limit: int = 0,
+    ) -> List[dbstate.QueryUnit]:
+
+        ctx = await self._ctx_new_con_state(
+            dbver=dbver,
+            io_format=enums.IoFormat.BINARY,
+            expect_one=False,
+            implicit_limit=implicit_limit,
+            modaliases=DEFAULT_MODULE_ALIASES_MAP,
+            session_config=EMPTY_MAP,
+            stmt_mode=enums.CompileStatementMode.SINGLE,
+            capability=enums.Capability.QUERY | enums.Capability.DDL,
+            json_parameters=False,
+        )
+
+        ctx.state.start_tx()
+        txid = ctx.state.current_tx().id
+
+        result: List[
+            Tuple[
+                bool,
+                Union[dbstate.QueryUnit, Tuple[str, str, Dict[str, str]]]
+            ]
+        ] = []
+
+        for query in queries:
+            ctx = await self._ctx_from_con_state(
+                txid=txid,
+                io_format=enums.IoFormat.BINARY,
+                expect_one=False,
+                implicit_limit=implicit_limit,
+                stmt_mode=enums.CompileStatementMode.SINGLE)
+
+            try:
+                tokens = tokenizer.tokenize(query)
+                result.append(
+                    (False, self._compile(ctx=ctx, tokens=tokens)[0]))
+            except Exception as ex:
+                fields = {}
+                typename = 'Error'
+                if (isinstance(ex, errors.EdgeDBError) and
+                        type(ex) is not errors.EdgeDBError):
+                    fields = ex._attrs
+                    typename = type(ex).__name__
+                result.append(
+                    (True, (typename, str(ex), fields)))
+                break
+
+        ctx.state.rollback_tx()
+
+        return result
+
     async def compile_eql_tokens(
-            self,
-            dbver: bytes,
-            eql_tokens: List[_edgeql_rust.Token],
-            sess_modaliases: Optional[immutables.Map],
-            sess_config: Optional[immutables.Map],
-            io_format: enums.IoFormat,
-            expect_one: bool,
-            implicit_limit: int,
-            stmt_mode: enums.CompileStatementMode,
-            capability: enums.Capability,
-            json_parameters: bool=False) -> List[dbstate.QueryUnit]:
+        self,
+        dbver: bytes,
+        eql_tokens: List[_edgeql_rust.Token],
+        sess_modaliases: Optional[immutables.Map],
+        sess_config: Optional[immutables.Map],
+        io_format: enums.IoFormat,
+        expect_one: bool,
+        implicit_limit: int,
+        stmt_mode: enums.CompileStatementMode,
+        capability: enums.Capability,
+        first_extracted_var: Optional[int]=None,
+        json_parameters: bool=False,
+    ) -> List[dbstate.QueryUnit]:
 
         ctx = await self._ctx_new_con_state(
             dbver=dbver,
@@ -1208,18 +1277,20 @@ class Compiler(BaseCompiler):
             session_config=sess_config,
             stmt_mode=enums.CompileStatementMode(stmt_mode),
             capability=capability,
-            json_parameters=json_parameters)
+            json_parameters=json_parameters,
+            first_extracted_var=first_extracted_var)
 
         return self._compile(ctx=ctx, tokens=eql_tokens)
 
     async def compile_eql_tokens_in_tx(
-            self,
-            txid: int,
-            eql_tokens: List[_edgeql_rust.Token],
-            io_format: enums.IoFormat,
-            expect_one: bool,
-            implicit_limit: int,
-            stmt_mode: enums.CompileStatementMode
+        self,
+        txid: int,
+        eql_tokens: List[_edgeql_rust.Token],
+        io_format: enums.IoFormat,
+        expect_one: bool,
+        implicit_limit: int,
+        stmt_mode: enums.CompileStatementMode,
+        first_extracted_var: Optional[int]=None,
     ) -> List[dbstate.QueryUnit]:
 
         ctx = await self._ctx_from_con_state(
@@ -1227,7 +1298,8 @@ class Compiler(BaseCompiler):
             io_format=io_format,
             expect_one=expect_one,
             implicit_limit=implicit_limit,
-            stmt_mode=enums.CompileStatementMode(stmt_mode))
+            stmt_mode=enums.CompileStatementMode(stmt_mode),
+            first_extracted_var=first_extracted_var)
 
         return self._compile(ctx=ctx, tokens=eql_tokens)
 

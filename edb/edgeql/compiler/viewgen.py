@@ -172,7 +172,9 @@ def _process_view(
                     if ptrcls.is_property(ctx.env.schema):
                         # If the target is a sequence, there's no need
                         # for an explicit value.
-                        if ptrcls.get_target(ctx.env.schema).issubclass(
+                        ptrcls_target = ptrcls.get_target(ctx.env.schema)
+                        assert ptrcls_target is not None
+                        if ptrcls_target.issubclass(
                                 ctx.env.schema,
                                 ctx.env.schema.get('std::sequence')):
                             continue

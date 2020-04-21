@@ -133,6 +133,10 @@ cdef class HttpProtocol:
             b'Content-Type: ', content_type, b'\r\n',
             b'Content-Length: ', f'{len(body)}'.encode(), b'\r\n',
         ]
+
+        if debug.flags.http_inject_cors:
+            data.append(b'Access-Control-Allow-Origin: *\r\n')
+
         if close_connection:
             data.append(b'Connection: close\r\n')
         data.append(b'\r\n')

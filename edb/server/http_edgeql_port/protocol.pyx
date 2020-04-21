@@ -140,6 +140,7 @@ cdef class Protocol(http.HttpProtocol):
                 0,              # no implicit limit
                 compiler.CompileStatementMode.SINGLE,
                 compiler.Capability.QUERY,
+                None,           # first_extracted_var
                 True,           # json parameters
             )
             return units[0]

@@ -37,7 +37,7 @@ __all__ = ('DatabaseIndex', 'DatabaseConnectionView')
 cdef class Database:
 
     # Global LRU cache of compiled anonymous queries
-    _eql_to_compiled: typing.Mapping[bytes, dbstate.QueryUnit]
+    _eql_to_compiled: typing.Mapping[str, dbstate.QueryUnit]
 
     def __init__(self, DatabaseIndex index, str name):
         self._name = name
@@ -168,7 +168,7 @@ cdef class DatabaseConnectionView:
     cdef in_tx_error(self):
         return self._tx_error
 
-    cdef cache_compiled_query(self, bytes eql, object io_format,
+    cdef cache_compiled_query(self, str eql, object io_format,
                               bint expect_one, int implicit_limit, query_unit):
 
         assert query_unit.cacheable
@@ -181,7 +181,7 @@ cdef class DatabaseConnectionView:
         else:
             self._db._cache_compiled_query(key, query_unit)
 
-    cdef lookup_compiled_query(self, bytes eql, object io_format,
+    cdef lookup_compiled_query(self, str eql, object io_format,
                                bint expect_one, int implicit_limit):
         if (self._tx_error or
                 not self._query_cache_enabled or

@@ -19,60 +19,78 @@
 
 from __future__ import annotations
 
+from typing import *
+
+
 from edb import errors
 from edb.edgeql import ast as qlast
 
 from . import scalars as s_scalars
 from . import annos as s_anno
+from . import objects as so
 from . import objtypes as s_objtypes
 from . import delta as sd
 from . import types as s_types
 
 
-class AliasCommandContext(sd.ObjectCommandContext,
-                          s_anno.AnnotationSubjectCommandContext):
+if TYPE_CHECKING:
+    from . import schema as s_schema
+
+
+class AliasCommandContext(
+    sd.ObjectCommandContext[so.Object],
+    s_anno.AnnotationSubjectCommandContext
+):
     pass
 
 
 class AliasCommand(
-    sd.QualifiedObjectCommand[s_types.Type],
-    s_types.TypeCommand,
+    sd.QualifiedObjectCommand[s_types.InheritingType],
+    s_types.TypeCommand[s_types.InheritingType],
     context_class=AliasCommandContext,
 ):
 
-    _scalar_cmd_map = {
+    _scalar_cmd_map: Dict[Type[qlast.NamedDDL], Type[sd.Command]] = {
         qlast.CreateAlias: s_scalars.CreateScalarType,
         qlast.AlterAlias: s_scalars.AlterScalarType,
         qlast.DropAlias: s_scalars.DeleteScalarType,
     }
 
-    _objtype_cmd_map = {
+    _objtype_cmd_map: Dict[Type[qlast.NamedDDL], Type[sd.Command]] = {
         qlast.CreateAlias: s_objtypes.CreateObjectType,
         qlast.AlterAlias: s_objtypes.AlterObjectType,
         qlast.DropAlias: s_objtypes.DeleteObjectType,
     }
 
-    _array_cmd_map = {
+    _array_cmd_map: Dict[Type[qlast.NamedDDL], Type[sd.Command]] = {
         qlast.CreateAlias: s_types.CreateArrayExprAlias,
         qlast.DropAlias: s_types.DeleteArrayExprAlias,
     }
 
-    _tuple_cmd_map = {
+    _tuple_cmd_map: Dict[Type[qlast.NamedDDL], Type[sd.Command]] = {
         qlast.CreateAlias: s_types.CreateTupleExprAlias,
         qlast.DropAlias: s_types.DeleteTupleExprAlias,
     }
 
     @classmethod
-    def command_for_ast_node(cls, astnode, schema, context):
+    def command_for_ast_node(
+        cls,
+        astnode: qlast.DDLOperation,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> Type[sd.Command]:
         modaliases = cls._modaliases_from_ast(schema, astnode, context)
         ctx = AliasCommandContext(
             schema,
-            op=sd._dummy_object,
+            op=sd._dummy_object_command,
             scls=sd._dummy_object,
             modaliases=modaliases,
         )
 
+        mapping: Dict[Type[qlast.NamedDDL], Type[sd.Command]]
+
         with context(ctx):
+            assert isinstance(astnode, qlast.NamedDDL)
             classname = cls._classname_from_ast(schema, astnode, context)
 
             if isinstance(astnode, qlast.CreateAlias):

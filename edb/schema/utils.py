@@ -880,6 +880,7 @@ def get_config_type_shape(
     stype: s_objtypes.ObjectType,
     path: List[qlast.Base],
 ) -> List[qlast.ShapeElement]:
+    from . import objtypes as s_objtypes
     shape = []
     seen: Set[str] = set()
 
@@ -909,8 +910,9 @@ def get_config_type_shape(
             elem_path.append(qlast.Ptr(ptr=qlast.ObjectRef(name=pn)))
 
             ptype = p.get_target(schema)
+            assert ptype is not None
 
-            if ptype.is_object_type():
+            if isinstance(ptype, s_objtypes.ObjectType):
                 subshape = get_config_type_shape(
                     schema, ptype, path + elem_path)
                 subshape.append(

@@ -51,6 +51,14 @@ cdef enum EdgeConnectionStatus:
 
 
 @cython.final
+cdef class CompiledQuery:
+    cdef public object query_unit
+    cdef public object first_extra  # Optional[int]
+    cdef public int extra_count
+    cdef public bytes extra_blob
+
+
+@cython.final
 cdef class EdgeConnection:
 
     cdef:
@@ -76,7 +84,7 @@ cdef class EdgeConnection:
 
         object _main_task
 
-        object _last_anon_compiled
+        CompiledQuery _last_anon_compiled
         WriteBuffer _write_buf
 
         bint debug
@@ -87,7 +95,7 @@ cdef class EdgeConnection:
 
         tuple protocol_version
         tuple max_protocol
-        
+
         object __weakref__
 
     cdef _parse_io_format(self, bytes mode)
@@ -103,9 +111,10 @@ cdef class EdgeConnection:
 
     cdef pgcon_last_sync_status(self)
 
-    cdef WriteBuffer recode_bind_args(self, bytes bind_args, dict array_tids)
+    cdef WriteBuffer recode_bind_args(self,
+        bytes bind_args, CompiledQuery compiled)
 
-    cdef WriteBuffer make_describe_msg(self, query_unit)
+    cdef WriteBuffer make_describe_msg(self, CompiledQuery query)
     cdef WriteBuffer make_command_complete_msg(self, query_unit)
 
     cdef inline reject_headers(self)

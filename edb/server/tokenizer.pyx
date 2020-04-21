@@ -3,6 +3,7 @@ import re
 from typing import Optional, List, Tuple
 
 from edb._edgeql_rust import tokenize as _tokenize, TokenizerError, Token
+from edb._edgeql_rust import normalize as _normalize, Entry
 
 from edb.errors import base as base_errors, EdgeQLSyntaxError
 
@@ -14,6 +15,17 @@ def tokenize(eql: bytes) -> List[Token]:
     try:
         eql_str = eql.decode()
         return _tokenize(eql_str)
+    except TokenizerError as e:
+        message, position = e.args
+        hint = _derive_hint(eql_str, message, position)
+        raise EdgeQLSyntaxError(
+            message, position=position, hint=hint) from e
+
+
+def normalize(eql: bytes) -> List[Entry]:
+    try:
+        eql_str = eql.decode()
+        return _normalize(eql_str)
     except TokenizerError as e:
         message, position = e.args
         hint = _derive_hint(eql_str, message, position)
