@@ -81,6 +81,9 @@ class flags(metaclass=FlagsMeta):
     edgeql_compile = Flag(
         doc="Dump EdgeQL/IR/SQL ASTs.")
 
+    edgeql_disable_normalization = Flag(
+        doc="Disable EdgeQL normalization (constant extraction etc)")
+
     graphql_compile = Flag(
         doc="Debug GraphQL compiler.")
 
