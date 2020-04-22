@@ -159,7 +159,7 @@ pub fn normalize<'x>(text: &'x str)
                 variables.push(Variable {
                     value: Value::BigInt(tok.value[..tok.value.len()-1].parse()
                         .map_err(|e| Error::Tokenizer(
-                            format!("can't parse bitint: {}", e),
+                            format!("can't parse bigint: {}", e),
                             tok.start))?),
                 });
                 continue;
@@ -185,7 +185,7 @@ pub fn normalize<'x>(text: &'x str)
                 variables.push(Variable {
                     value: Value::Str(decode_string(&tok.value)
                         .map_err(|e| Error::Tokenizer(
-                            format!("can't unqote string: {}", e),
+                            format!("can't unquote string: {}", e),
                             tok.start))?.into()),
                 });
                 continue;
