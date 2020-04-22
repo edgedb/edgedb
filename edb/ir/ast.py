@@ -513,7 +513,7 @@ class ConstantSet(ConstExpr):
 class Parameter(ImmutableExpr):
 
     name: str
-    optional: bool
+    required: bool
     typeref: TypeRef
 
 

@@ -438,14 +438,14 @@ def compile_TypeCast(
         param_name = expr.expr.name
         if expr.modifier:
             if expr.modifier == qlast.CardinalityModifier.Optional:
-                optional = True
+                required = False
             elif expr.modifier == qlast.CardinalityModifier.Required:
-                optional = False
+                required = True
             else:
                 raise NotImplementedError(
                     f"cardinality modifier {expr.modifier}")
         else:
-            optional = False
+            required = True
 
         if ctx.env.options.json_parameters:
             if param_name.isdecimal():
@@ -463,7 +463,7 @@ def compile_TypeCast(
                 irast.Parameter(
                     typeref=typeref,
                     name=param_name,
-                    optional=optional,
+                    required=required,
                     context=expr.expr.context,
                 ),
                 pt,
@@ -477,7 +477,7 @@ def compile_TypeCast(
                 irast.Parameter(
                     typeref=typeref,
                     name=param_name,
-                    optional=optional,
+                    required=required,
                     context=expr.expr.context,
                 ),
                 ctx=ctx,
@@ -499,7 +499,7 @@ def compile_TypeCast(
                             context=expr.expr.context)
             ctx.env.query_parameters[param_name] = irast.Param(
                 name=param_name,
-                required=not optional,
+                required=required,
                 schema_type=pt,
                 ir_type=typeref,
             )

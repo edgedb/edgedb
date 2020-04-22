@@ -136,7 +136,7 @@ def compile_Parameter(
                     index = next(ctx.next_argument)
                 ctx.argmap[expr.name] = pgast.Param(
                     index=index,
-                    required=not expr.optional,
+                    required=expr.required,
                 )
         result = pgast.ParamRef(number=index)
 

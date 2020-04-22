@@ -494,7 +494,7 @@ def __infer_param(
     singletons: Collection[irast.PathId],
     env: context.Environment,
 ) -> qltypes.Cardinality:
-    return AT_MOST_ONE if ir.optional else ONE
+    return ONE if ir.required else AT_MOST_ONE
 
 
 @_infer_cardinality.register
