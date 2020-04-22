@@ -1,12 +1,14 @@
-use std::convert::TryFrom;
+use std::convert::{TryFrom};
 
 use cpython::{Python, PyClone, PyDict, PyList, PyString, PyResult};
 use cpython::{PyTuple, PyInt, ToPyObject, PythonObject, PyBytes, PyErr};
+use cpython::{PyFloat};
 use cpython::exc::AssertionError;
 
 use bytes::{BytesMut, Bytes, BufMut};
 use edgeql_parser::position::Pos;
 use edgedb_protocol::codec;
+use edgedb_protocol::value::{BigInt, Decimal};
 
 use crate::errors::TokenizerError;
 use crate::normalize::{Error, Value, Variable, normalize as _normalize};
@@ -39,15 +41,25 @@ py_class!(pub class Entry |py| {
             };
             vars.set_item(py, s.to_py_object(py),
                 match var.value {
-                    Value::Int(ref v) => {
+                    Value::Int(ref v) => v.to_py_object(py).into_object(),
+                    Value::Str(ref v) => v.to_py_object(py).into_object(),
+                    Value::Float(ref v) => v.to_py_object(py).into_object(),
+                    Value::BigInt(ref v) => {
                         py.get_type::<PyInt>()
                         .call(py,
                             PyTuple::new(py, &[
-                                v.to_py_object(py).into_object(),
+                                v.to_string().to_py_object(py).into_object(),
                             ]),
                             None)?
                     }
-                    _ => todo!(),
+                    Value::Decimal(ref v) => {
+                        py.get_type::<PyFloat>()
+                        .call(py,
+                            PyTuple::new(py, &[
+                                v.to_string().to_py_object(py).into_object(),
+                            ]),
+                            None)?
+                    }
                 })?;
         }
         Ok(vars)
@@ -84,9 +96,28 @@ pub fn serialize_extra(variables: &[Variable]) -> Result<Bytes, String> {
         match var.value {
             Value::Int(v) => {
                 codec::Int64.encode(&mut buf, &P::Int64(v))
-                    .map_err(|e| format!("int can be encoded: {}", e))?;
+                    .map_err(|e| format!("int cannot be encoded: {}", e))?;
             }
-            _ => todo!(),
+            Value::Str(ref v) => {
+                codec::Str.encode(&mut buf, &P::Str(v.clone()))
+                    .map_err(|e| format!("str cannot be encoded: {}", e))?;
+            }
+            Value::Float(ref v) => {
+                codec::Float64.encode(&mut buf, &P::Float64(v.clone()))
+                    .map_err(|e| format!("float cannot be encoded: {}", e))?;
+            }
+            Value::BigInt(ref v) => {
+                let val = BigInt::try_from(v.clone())
+                    .map_err(|e| format!("bigint cannot be encoded: {}", e))?;
+                codec::BigInt.encode(&mut buf, &P::BigInt(val))
+                    .map_err(|e| format!("bigint cannot be encoded: {}", e))?;
+            }
+            Value::Decimal(ref v) => {
+                let val = Decimal::try_from(v.clone())
+                    .map_err(|e| format!("decimal cannot be encoded: {}", e))?;
+                codec::Decimal.encode(&mut buf, &P::Decimal(val))
+                    .map_err(|e| format!("decimal cannot be encoded: {}", e))?;
+            }
         }
         let len = buf.len()-pos-4;
         buf[pos..pos+4].copy_from_slice(&u32::try_from(len)
