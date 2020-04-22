@@ -16,7 +16,7 @@ Linux or macOS.  Windows is not currently supported.
 
 * GNU make version 3.80 or newer;
 * C compiler (GCC or clang);
-* Rust compiler 1.39 or later;
+* Rust compiler 1.42 or later;
 * autotools;
 * Python 3.8 dev package;
 * Bison 1.875 or later;
