@@ -60,7 +60,7 @@ def fini_stmt(
                     idx = len(argmap) + 1
                 argmap[param.name] = pgast.Param(
                     index=idx,
-                    optional=param.optional,
+                    required=param.required,
                 )
                 targets.append(pgast.ResTarget(val=pgast.TypeCast(
                     arg=pgast.ParamRef(number=idx),

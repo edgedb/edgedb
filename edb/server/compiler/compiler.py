@@ -403,7 +403,7 @@ class Compiler(BaseCompiler):
                     sql_param = argmap[param.name]
 
                     idx = sql_param.index - 1
-                    if sql_param.optional:
+                    if not sql_param.required:
                         optional_params.add(param.name)
 
                     if(ctx.first_extracted_var is not None and

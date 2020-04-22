@@ -373,8 +373,8 @@ class Param:
     #: postgres' variable index
     index: int
 
-    #: whether parameter is optional
-    optional: bool
+    #: whether parameter is required
+    required: bool
 
 
 class Query(ReturningQuery):

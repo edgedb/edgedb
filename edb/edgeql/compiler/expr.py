@@ -499,7 +499,7 @@ def compile_TypeCast(
                             context=expr.expr.context)
             ctx.env.query_parameters[param_name] = irast.Param(
                 name=param_name,
-                optional=optional,
+                required=not optional,
                 schema_type=pt,
                 ir_type=typeref,
             )
