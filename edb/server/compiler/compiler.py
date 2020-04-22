@@ -386,45 +386,49 @@ class Compiler(BaseCompiler):
                 out_type_data, out_type_id = \
                     sertypes.TypeSerializer.describe_json()
 
-            in_array_backend_tids: Optional[
-                Mapping[int, int]
-            ] = None
+            in_type_args = None
 
             if ir.params:
-                array_params = []
                 first_param = next(iter(ir.params))
                 named = not first_param.name.isdecimal()
                 if ctx.first_extracted_var is not None:
-                    subtypes = [None] * ctx.first_extracted_var
+                    user_params = ctx.first_extracted_var
                 else:
-                    subtypes = [None] * len(ir.params)
+                    user_params = len(ir.params)
+
+                subtypes = [None] * user_params
+                in_type_args = [None] * user_params
                 for param in ir.params:
-                    idx = argmap[param.name] - 1
+                    sql_param = argmap[param.name]
+
+                    idx = sql_param.index - 1
                     if(ctx.first_extracted_var is not None and
                             idx >= ctx.first_extracted_var):
                         continue
-                    subtypes[idx] = (param.name, param.schema_type)
+
+                    array_tid = None
                     if param.schema_type.is_array():
                         el_type = param.schema_type.get_element_type(ir.schema)
-                        array_params.append(
-                            (idx, el_type.get_backend_id(ir.schema)))
+                        array_tid = el_type.get_backend_id(ir.schema)
+
+                    subtypes[idx] = (param.name, param.schema_type)
+                    in_type_args[idx] = dbstate.Param(
+                        name=param.name,
+                        required=sql_param.required,
+                        array_tid=array_tid,
+                    )
 
                 ir.schema, params_type = s_types.Tuple.create(
                     ir.schema,
                     element_types=collections.OrderedDict(subtypes),
                     named=named)
-                if array_params:
-                    in_array_backend_tids = {p[0]: p[1] for p in array_params}
+
             else:
                 ir.schema, params_type = s_types.Tuple.create(
                     ir.schema, element_types={}, named=False)
 
             in_type_data, in_type_id = sertypes.TypeSerializer.describe(
                 ir.schema, params_type, {}, {})
-
-            in_type_args = [None] * len(argmap)
-            for argname, argpos in argmap.items():
-                in_type_args[argpos - 1] = argname
 
             sql_hash = self._hash_sql(
                 sql_bytes,
@@ -439,7 +443,6 @@ class Compiler(BaseCompiler):
                 in_type_id=in_type_id.bytes,
                 in_type_data=in_type_data,
                 in_type_args=in_type_args,
-                in_array_backend_tids=in_array_backend_tids,
                 out_type_id=out_type_id.bytes,
                 out_type_data=out_type_data,
             )
@@ -974,7 +977,6 @@ class Compiler(BaseCompiler):
                     unit.in_type_data = comp.in_type_data
                     unit.in_type_args = comp.in_type_args
                     unit.in_type_id = comp.in_type_id
-                    unit.in_array_backend_tids = comp.in_array_backend_tids
 
                     unit.cacheable = True
 

@@ -51,18 +51,21 @@ def fini_stmt(
         if not ctx.env.use_named_params:
             # Adding unused parameters into a CTE
             targets = []
-            for param_name, param in ctx.env.query_params.items():
-                if param_name in argmap:
+            for param in ctx.env.query_params:
+                if param.name in argmap:
                     continue
-                if param_name.isdecimal():
-                    idx = int(param_name) + 1
+                if param.name.isdecimal():
+                    idx = int(param.name) + 1
                 else:
                     idx = len(argmap) + 1
-                argmap[param_name] = idx
+                argmap[param.name] = pgast.Param(
+                    index=idx,
+                    required=param.required,
+                )
                 targets.append(pgast.ResTarget(val=pgast.TypeCast(
                     arg=pgast.ParamRef(number=idx),
                     type_name=pgast.TypeName(
-                        name=pg_types.pg_type_from_ir_typeref(param)
+                        name=pg_types.pg_type_from_ir_typeref(param.ir_type)
                     )
                 )))
             if targets:

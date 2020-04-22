@@ -413,6 +413,9 @@ class Param:
     name: str
     """Parameter name"""
 
+    required: bool
+    """Whether parameter is OPTIONAL or REQUIRED"""
+
     schema_type: s_types.Type
     """Schema type"""
 
@@ -510,7 +513,7 @@ class ConstantSet(ConstExpr):
 class Parameter(ImmutableExpr):
 
     name: str
-    optional: bool
+    required: bool
     typeref: TypeRef
 
 

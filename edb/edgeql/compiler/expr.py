@@ -401,6 +401,13 @@ def compile_TypeCast(
     target_typeref = typegen.ql_typeexpr_to_ir_typeref(expr.type, ctx=ctx)
     ir_expr: irast.Base
 
+    is_parameter = isinstance(expr.expr, qlast.Parameter)
+    if not is_parameter and expr.modifier:
+        raise errors.QueryError(
+            'cardinality modifiers REQUIRED and OPTIONAL only allowed '
+            'on paremeters',
+            context=expr.context)
+
     if (isinstance(expr.expr, qlast.Array) and not expr.expr.elements and
             irtyputils.is_array(target_typeref)):
         ir_expr = irast.Array()
@@ -429,6 +436,16 @@ def compile_TypeCast(
             )
 
         param_name = expr.expr.name
+        if expr.modifier:
+            if expr.modifier == qlast.CardinalityModifier.Optional:
+                required = False
+            elif expr.modifier == qlast.CardinalityModifier.Required:
+                required = True
+            else:
+                raise NotImplementedError(
+                    f"cardinality modifier {expr.modifier}")
+        else:
+            required = True
 
         if ctx.env.options.json_parameters:
             if param_name.isdecimal():
@@ -446,7 +463,7 @@ def compile_TypeCast(
                 irast.Parameter(
                     typeref=typeref,
                     name=param_name,
-                    optional=expr.expr.optional,
+                    required=required,
                     context=expr.expr.context,
                 ),
                 pt,
@@ -460,7 +477,7 @@ def compile_TypeCast(
                 irast.Parameter(
                     typeref=typeref,
                     name=param_name,
-                    optional=expr.expr.optional,
+                    required=required,
                     context=expr.expr.context,
                 ),
                 ctx=ctx,
@@ -482,6 +499,7 @@ def compile_TypeCast(
                             context=expr.expr.context)
             ctx.env.query_parameters[param_name] = irast.Param(
                 name=param_name,
+                required=required,
                 schema_type=pt,
                 ir_type=typeref,
             )

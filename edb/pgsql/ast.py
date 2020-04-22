@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import enum
+import dataclasses
 import typing
 import uuid
 
@@ -367,6 +368,15 @@ class NullRelation(ReturningQuery):
     where_clause: BaseExpr
 
 
+@dataclasses.dataclass(frozen=True)
+class Param:
+    #: postgres' variable index
+    index: int
+
+    #: whether parameter is required
+    required: bool
+
+
 class Query(ReturningQuery):
     """Generic superclass representing a query."""
 
@@ -380,7 +390,7 @@ class Query(ReturningQuery):
     # Map of RangeVars corresponding to paths.
     path_rvar_map: typing.Dict[typing.Tuple[irast.PathId, str], PathRangeVar]
 
-    argnames: typing.Dict[str, int]
+    argnames: typing.Dict[str, Param]
 
     ctes: typing.List[CommonTableExpr]
 

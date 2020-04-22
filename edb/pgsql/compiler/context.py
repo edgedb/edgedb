@@ -69,7 +69,7 @@ class CompilerContextLevel(compiler.ContextLevel):
     env: Environment
 
     #: mapping of named args to position
-    argmap: Dict[str, int]
+    argmap: Dict[str, pgast.Param]
 
     #: next argument number for named arguments
     next_argument: Iterator[int]
@@ -280,7 +280,7 @@ class Environment:
     ignore_object_shapes: bool
     explicit_top_cast: Optional[irast.TypeRef]
     singleton_mode: bool
-    query_params: Dict[str, irast.TypeRef]
+    query_params: List[irast.Param]
 
     def __init__(
         self,
@@ -291,7 +291,7 @@ class Environment:
         ignore_object_shapes: bool,
         singleton_mode: bool,
         explicit_top_cast: Optional[irast.TypeRef],
-        query_params: Dict[str, irast.TypeRef],
+        query_params: List[irast.Param],
     ) -> None:
         self.aliases = aliases.AliasGenerator()
         self.output_format = output_format

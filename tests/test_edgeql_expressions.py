@@ -861,7 +861,7 @@ class TestExpressions(tb.QueryTestCase):
                 r"parameter \$x is required"):
             await self.assert_query_result(
                 r'''SELECT <int64>$x;''',
-                {'std::int64'},
+                None,  # unused
                 variables={'x': None},
             )
 
@@ -870,8 +870,68 @@ class TestExpressions(tb.QueryTestCase):
                 r"parameter \$0 is required"):
             await self.assert_query_result(
                 r'''SELECT <int64>$0;''',
-                {'std::int64'},
+                None,  # unused
                 variables=(None,),
+            )
+
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"parameter \$x is required"):
+            await self.assert_query_result(
+                r'''SELECT <REQUIRED int64>$x;''',
+                None,  # unused
+                variables={'x': None},
+            )
+
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"parameter \$0 is required"):
+            await self.assert_query_result(
+                r'''SELECT <REQUIRED int64>$0;''',
+                None,  # unused
+                variables=(None,),
+            )
+
+        await self.assert_query_result(
+            r'''SELECT <OPTIONAL int64>$x ?? -1;''',
+            [-1],
+            variables={'x': None},
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <OPTIONAL int64>$0 ?? -1;''',
+            [-1],
+            variables=(None,),
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <REQUIRED int64>$x ?? -1;''',
+            [7],
+            variables={'x': 7},
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <REQUIRED int64>$0 ?? -1;''',
+            [11],
+            variables=(11,),
+        )
+
+        # Optional cardinality modifier doesn't affect type
+        await self.assert_query_result(
+            r'''SELECT (INTROSPECT TYPEOF <OPTIONAL int64>$x).name;''',
+            {"std::int64"},
+            variables={'x': None},
+        )
+
+        # Enforce parameter is passed even if we don't actually care
+        # about the value
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"parameter \$x is required"):
+            await self.assert_query_result(
+                r'''SELECT (INTROSPECT TYPEOF <int64>$x).name;''',
+                None,  # unused
+                variables={'x': None},
             )
 
     async def _test_boolop(self, left, right, op, not_op, result):
