@@ -1588,13 +1588,13 @@ cdef class EdgeConnection:
         cdef:
             FRBuffer in_buf
             WriteBuffer out_buf = WriteBuffer.new()
-            int32_t argsnum
+            int32_t recv_args
+            int32_t decl_args
             ssize_t in_len
             ssize_t i
             const char *data
             object array_tid
             has_reserved = self.protocol_version >= (0, 8)
-            dict array_tids = query.query_unit.in_array_backend_tids
 
         assert cpython.PyBytes_CheckExact(bind_args)
         frb_init(
@@ -1606,22 +1606,23 @@ cdef class EdgeConnection:
         out_buf.write_int32(0x00010001)
 
         # number of elements in the tuple
-        argsnum = hton.unpack_int32(frb_read(&in_buf, 4))
+        recv_args = hton.unpack_int32(frb_read(&in_buf, 4))
+        decl_args = len(query.query_unit.in_type_args or ())
 
-        if argsnum != len(query.query_unit.in_type_args or {}):
+        if recv_args != decl_args:
             raise errors.QueryError(
                 f"invalid argument count required: "
-                f"{query.query_unit.in_type_args}, got: {argsnum}")
+                f"{decl_args}, got: {recv_args}")
 
         if query.first_extra is not None:
-            assert argsnum == query.first_extra, \
-                f"argument count mismatch {argsnum} != {query.first_extra}"
-            out_buf.write_int16(<int16_t>(argsnum + query.extra_count))
+            assert recv_args == query.first_extra, \
+                f"argument count mismatch {recv_args} != {query.first_extra}"
+            out_buf.write_int16(<int16_t>(recv_args + query.extra_count))
         else:
-            out_buf.write_int16(<int16_t>argsnum)
+            out_buf.write_int16(<int16_t>recv_args)
 
         if query.query_unit.in_type_args:
-            for param_name, optional in query.query_unit.in_type_args.items():
+            for param in query.query_unit.in_type_args:
                 if has_reserved:
                     frb_read(&in_buf, 4)  # reserved
                 in_len = hton.unpack_int32(frb_read(&in_buf, 4))
@@ -1629,19 +1630,18 @@ cdef class EdgeConnection:
 
                 if in_len < 0:
                     # This means argument value is NULL
-                    if not optional:
+                    if param.required:
                         raise errors.QueryError(
-                            f"parameter ${param_name} is required")
+                            f"parameter ${param.name} is required")
 
                 if in_len > 0:
                     data = frb_read(&in_buf, in_len)
-                    array_tid = array_tids and array_tids.get(i)
                     # Ensure all array parameters have correct element OIDs as
                     # per Postgres' expectations.
-                    if array_tid is not None:
+                    if param.array_tid is not None:
                         # ndimensions + flags
                         out_buf.write_cstr(data, 8)
-                        out_buf.write_int32(<int32_t>array_tid)
+                        out_buf.write_int32(<int32_t>param.array_tid)
                         out_buf.write_cstr(&data[12], in_len - 12)
                     else:
                         out_buf.write_cstr(data, in_len)
