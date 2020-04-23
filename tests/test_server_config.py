@@ -635,7 +635,7 @@ class TestServerConfig(tb.QueryTestCase, tb.CLITestCaseMixin):
 
         with self.assertRaisesRegex(
                 edgedb.ConstraintViolationError,
-                "SystemConfig.name violates exclusivity constriant"):
+                "SystemConfig.name violates exclusivity constraint"):
             await self.con.fetchall('''
                 CONFIGURE SYSTEM INSERT SystemConfig {
                     name := 'test_04',

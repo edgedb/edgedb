@@ -154,7 +154,7 @@ class Operation(NamedTuple):
 
                 raise errors.ConstraintViolationError(
                     f'{setting.type.__name__}{props} '
-                    f'exclusivity constriant'
+                    f'exclusivity constraint'
                 )
 
             new_value = exist_value | {value}
