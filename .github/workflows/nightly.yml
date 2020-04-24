@@ -158,6 +158,7 @@ jobs:
 
   build-macos:
     runs-on: macos-latest
+    continue-on-error: true
 
     strategy:
       max-parallel: 4
@@ -200,7 +201,7 @@ jobs:
         path: artifacts/${{ matrix.target }}
 
   publish-linux:
-    needs: [build-linux, build-macos]
+    needs: [build-linux]
     runs-on: ubuntu-latest
     strategy:
       max-parallel: 4
