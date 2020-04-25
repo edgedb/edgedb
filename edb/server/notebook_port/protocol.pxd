@@ -25,3 +25,6 @@ cdef class Protocol(http.HttpProtocol):
     cdef:
         object server
         stmt_cache.StatementsCache query_cache
+
+    cdef handle_error(self, http.HttpRequest request,
+                      http.HttpResponse response, error)
