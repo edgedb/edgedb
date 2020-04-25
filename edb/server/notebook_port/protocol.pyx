@@ -146,18 +146,39 @@ cdef class Protocol(http.HttpProtocol):
                 else:
                     query_unit = unit_or_error
 
-                    data = await pgcon.parse_execute_notebook(
-                        query_unit.sql[0], query_unit.dbver)
+                    try:
+                        data = await pgcon.parse_execute_notebook(
+                            query_unit.sql[0], query_unit.dbver)
+                    except Exception as ex:
+                        if debug.flags.server:
+                            markup.dump(ex)
 
-                    result.append({
-                        'kind': 'data',
-                        'data': (
-                            base64.b64encode(query_unit.out_type_id).decode(),
-                            base64.b64encode(query_unit.out_type_data).decode(),
-                            base64.b64encode(data).decode(),
-                            base64.b64encode(query_unit.status).decode(),
-                        ),
-                    })
+                        # TODO: copy proper error reporting from edgecon
+                        if not issubclass(type(ex), errors.EdgeDBError):
+                            ex_type = 'Error'
+                        else:
+                            ex_type = type(ex).__name__
+
+                        result.append({
+                            'kind': 'error',
+                            'error': [ex_type, str(ex), {}],
+                        })
+
+                        break
+                    else:
+                        result.append({
+                            'kind': 'data',
+                            'data': (
+                                base64.b64encode(
+                                    query_unit.out_type_id).decode(),
+                                base64.b64encode(
+                                    query_unit.out_type_data).decode(),
+                                base64.b64encode(
+                                    data).decode(),
+                                base64.b64encode(
+                                    query_unit.status).decode(),
+                            ),
+                        })
 
         finally:
             await pgcon.simple_query(b'ROLLBACK;', True)
