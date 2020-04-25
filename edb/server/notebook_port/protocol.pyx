@@ -42,22 +42,43 @@ cdef class Protocol(http.HttpProtocol):
         self.server = server
         self.query_cache = query_cache
 
+    cdef handle_error(self, http.HttpRequest request,
+                      http.HttpResponse response, error):
+        if debug.flags.server:
+            markup.dump(error)
+
+        er_type = type(error)
+        if not issubclass(er_type, errors.EdgeDBError):
+            er_type = errors.InternalServerError
+
+        response.body = json.dumps({
+            'kind': 'error',
+            'error':{
+                'message': str(error),
+                'type': er_type.__name__,
+            }
+        }).encode()
+        response.status = http.HTTPStatus.BAD_REQUEST
+        response.close_connection = True
+
     async def handle_request(self, http.HttpRequest request,
                              http.HttpResponse response):
         url_path = request.url.path.strip(b'/')
         response.content_type = b'application/json'
 
+        if url_path == b'status' and request.method == b'GET':
+            try:
+                await self.heartbeat_check()
+            except Exception as ex:
+                return self.handle_error(request, response, ex)
+            else:
+                response.status = http.HTTPStatus.OK
+                response.body = b'{"kind": "status", "status": "OK"}'
+                return
+
         if url_path != b'':
-            response.body = json.dumps({
-                'kind': 'error',
-                'error': {
-                    'message': f'Unknown path: /{url_path.decode()!r}',
-                    'type': 'ServerError',
-                }
-            }).encode()
-            response.status = http.HTTPStatus.NOT_FOUND
-            response.close_connection = True
-            return
+            ex = Exception(f'Unknown path: /{url_path.decode()!r}')
+            return self.handle_error(request, response, ex)
 
         queries = None
 
@@ -77,40 +98,22 @@ cdef class Protocol(http.HttpProtocol):
                     'invalid notebook request: "queries" is missing')
 
         except Exception as ex:
-            if debug.flags.server:
-                markup.dump(ex)
-
-            response.body = json.dumps({
-                'kind': 'error',
-                'error':{
-                    'message': str(ex),
-                    'type': str(type(ex).__name__),
-                }
-            }).encode()
-            response.status = http.HTTPStatus.BAD_REQUEST
-            response.close_connection = True
-            return
+            return self.handle_error(request, response, ex)
 
         response.status = http.HTTPStatus.OK
         try:
             result = await self.execute(queries)
         except Exception as ex:
-            if debug.flags.server:
-                markup.dump(ex)
-
-            ex_type = type(ex)
-            if not issubclass(ex_type, errors.EdgeDBError):
-                ex_type = errors.InternalServerError
-
-            response.body = json.dumps({
-                'kind': 'error',
-                'error':{
-                    'message': str(ex),
-                    'type': str(ex_type.__name__),
-                }
-            }).encode()
+            return self.handle_error(request, response, ex)
         else:
             response.body = b'{"kind": "results", "results":' + result + b'}'
+
+    async def heartbeat_check(self):
+        pgcon = await self.server.pgcons.get()
+        try:
+            await pgcon.simple_query(b"SELECT 'OK';", True)
+        finally:
+            self.server.pgcons.put_nowait(pgcon)
 
     async def compile(self, dbver, list queries):
         comp = await self.server.compilers.get()
@@ -152,6 +155,7 @@ cdef class Protocol(http.HttpProtocol):
                             base64.b64encode(query_unit.out_type_id).decode(),
                             base64.b64encode(query_unit.out_type_data).decode(),
                             base64.b64encode(data).decode(),
+                            base64.b64encode(query_unit.status).decode(),
                         ),
                     })
 

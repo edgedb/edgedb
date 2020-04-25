@@ -62,7 +62,8 @@ class TestHttpNotebook(tb.BaseHttpTest, tb.server.QueryTestCase):
                         'data': [
                             'AAAAAAAAAAAAAAAAAAABBQ==',
                             'AgAAAAAAAAAAAAAAAAAAAQU=',
-                            'RAAAABIAAQAAAAgAAAAAAAAAAQ=='
+                            'RAAAABIAAQAAAAgAAAAAAAAAAQ==',
+                            'U0VMRUNU'
                         ]
                     },
                     {
@@ -70,7 +71,8 @@ class TestHttpNotebook(tb.BaseHttpTest, tb.server.QueryTestCase):
                         'data': [
                             'AAAAAAAAAAAAAAAAAAABAQ==',
                             'AgAAAAAAAAAAAAAAAAAAAQE=',
-                            'RAAAAA4AAQAAAARBQUFB'
+                            'RAAAAA4AAQAAAARBQUFB',
+                            'U0VMRUNU'
                         ]
                     },
                 ]
@@ -94,7 +96,8 @@ class TestHttpNotebook(tb.BaseHttpTest, tb.server.QueryTestCase):
                         'data': [
                             'AAAAAAAAAAAAAAAAAAABBQ==',
                             'AgAAAAAAAAAAAAAAAAAAAQU=',
-                            'RAAAABIAAQAAAAgAAAAAAAAAAQ=='
+                            'RAAAABIAAQAAAAgAAAAAAAAAAQ==',
+                            'U0VMRUNU'
                         ]
                     },
                     {
@@ -138,3 +141,10 @@ class TestHttpNotebook(tb.BaseHttpTest, tb.server.QueryTestCase):
                 ]
             }
         )
+
+    def test_http_notebook_04(self):
+        req = urllib.request.Request(self.http_addr + '/status',
+                                     method='GET')
+        response = urllib.request.urlopen(req)
+        resp_data = json.loads(response.read())
+        self.assertEqual(resp_data, {'kind': 'status', 'status': 'OK'})
