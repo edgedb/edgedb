@@ -3867,10 +3867,10 @@ class DeleteModule(ModuleMetaCommand, adapts=s_mod.DeleteModule):
         condition = dbops.SchemaExists(name=schema_name)
 
         table = self.get_table(schema)
-        cmd = dbops.CommandGroup()
+        cmd = dbops.CommandGroup(priority=4)
         cmd.add_command(
             dbops.DropSchema(
-                name=schema_name, conditions={condition}, priority=4))
+                name=schema_name, conditions={condition}))
         cmd.add_command(
             dbops.Delete(
                 table=table,

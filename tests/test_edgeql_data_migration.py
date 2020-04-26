@@ -43,12 +43,12 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         self._counter += 1
         return f'm{self._counter}'
 
-    async def _migrate(self, migration):
+    async def _migrate(self, migration, *, module: str = 'test'):
         async with self.con.transaction():
             mname = self.migration_name
             await self.con.execute(f"""
                 CREATE MIGRATION {mname} TO {{
-                    module test {{
+                    module {module} {{
                         {migration}
                     }}
                 }};
@@ -5230,4 +5230,18 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.assert_query_result(
             r"""SELECT CollAlias;""",
             [{'a': 'coll_21', 'b': 21.5}],
+        )
+
+    async def test_edgeql_migration_drop_module(self):
+        await self._migrate(r"""
+            type Base;
+        """, module='test')
+
+        await self._migrate(r"""
+            scalar type foo extending std::str;
+        """, module='newtest')
+
+        await self.assert_query_result(
+            'SELECT (SELECT schema::Module FILTER .name LIKE "%test").name;',
+            ['newtest']
         )
