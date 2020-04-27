@@ -149,11 +149,21 @@ def _process_view(
 
     for shape_el in elements:
         with ctx.newscope(fenced=True) as scopectx:
-            pointers.append(_normalize_view_ptr_expr(
+            pointer = _normalize_view_ptr_expr(
                 shape_el, view_scls, path_id=path_id,
                 path_id_namespace=path_id_namespace,
                 is_insert=is_insert, is_update=is_update,
-                view_rptr=view_rptr, ctx=scopectx))
+                view_rptr=view_rptr, ctx=scopectx)
+
+            if pointer in pointers:
+                schema = ctx.env.schema
+                vnp = pointer.get_verbosename(schema, with_parent=True)
+
+                raise errors.QueryError(
+                    f'duplicate definition of {vnp}',
+                    context=shape_el.context)
+
+            pointers.append(pointer)
 
     if is_insert:
         assert isinstance(stype, s_objtypes.ObjectType)

@@ -5560,3 +5560,48 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ''',
             [True],
         )
+
+    async def test_edgeql_select_duplicate_definition_01(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            "duplicate definition of property 'name' of object type "
+            "'test::User'",
+            _position=110,
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                SELECT User {
+                    name,
+                    name
+                }
+            """)
+
+    async def test_edgeql_select_duplicate_definition_02(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            "duplicate definition of property 'name' of object type "
+            "'test::User'",
+            _position=110,
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                SELECT User {
+                    name,
+                    name := "new_name"
+                }
+            """)
+
+    async def test_edgeql_select_duplicate_definition_03(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            "duplicate definition of link 'todo' of object type "
+            "'test::User'",
+            _position=110,
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                SELECT User {
+                    todo,
+                    todo
+                }
+            """)
