@@ -19,6 +19,7 @@
 from datetime import timedelta
 
 import edgedb
+import decimal
 
 from edb.testbase import server as tb
 from edb.tools import test
@@ -404,3 +405,22 @@ class TestEdgeQLDT(tb.QueryTestCase):
                     SELECT <decimal>(<float64>'Infinity' / <float64>'Infinity')
                 '''
             )
+
+    async def test_edgeql_dt_decimal_05(self):
+        await self.assert_query_result(
+            r'''SELECT (INTROSPECT TYPEOF 1e100n).name''',
+            ['std::bigint'],
+        )
+        await self.assert_query_result(
+            r'''SELECT (INTROSPECT TYPEOF 1.0e100n).name''',
+            ['std::decimal'],
+        )
+        await self.assert_query_result(
+            r'''SELECT 1e100n''',
+            [10**100],
+        )
+        await self.assert_query_result(
+            r'''SELECT 1.0e100n''',
+            [10.0**100],
+            [decimal.Decimal('1e100')],
+        )

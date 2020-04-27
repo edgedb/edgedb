@@ -84,6 +84,22 @@ fn test_bigint() {
 }
 
 #[test]
+fn test_bigint_exponent() {
+    let entry = normalize(r###"
+        SELECT 1e10n + 23e13n
+    "###).unwrap();
+    assert_eq!(entry.key, "SELECT(<bigint>$0)+(<bigint>$1)");
+    assert_eq!(entry.variables, vec![
+        Variable {
+            value: Value::BigInt(10000000000u64.into()),
+        },
+        Variable {
+            value: Value::BigInt(230000000000000u64.into()),
+        }
+    ]);
+}
+
+#[test]
 fn test_decimal() {
     let entry = normalize(r###"
         SELECT 1.33n + 23.77n

@@ -573,7 +573,7 @@ impl<'a> TokenStream<'a> {
         use self::Kind::*;
         let mut iter = self.buf[self.off+1..].char_indices();
         let mut suffix = None;
-        let mut float = false;
+        let mut decimal = false;
         // decimal part
         let (mut bstate, dec_len) = loop {
             match iter.next() {
@@ -596,7 +596,7 @@ impl<'a> TokenStream<'a> {
             return Ok((IntConst, dec_len));
         }
         if bstate == Break::Dot {
-            float = true;
+            decimal = true;
             bstate = loop {
                 if let Some((idx, c)) = iter.next() {
                     match c {
@@ -616,10 +616,12 @@ impl<'a> TokenStream<'a> {
             }
         }
         if bstate == Break::Exponent {
-            float = true;
             match iter.next() {
                 Some((_, '0'..='9')) => {},
-                Some((_, '+')) | Some((_, '-'))=> {
+                Some((_, c@'+')) | Some((_, c@'-'))=> {
+                    if c == '-' {
+                        decimal = true;
+                    }
                     match iter.next() {
                         Some((_, '0'..='9')) => {},
                         Some((_, '.')) => return Err(
@@ -661,7 +663,7 @@ impl<'a> TokenStream<'a> {
         };
         let suffix = &self.buf[self.off+soff..self.off+end];
         if suffix == "n" {
-            if float {
+            if decimal {
                 return Ok((DecimalConst, end));
             } else {
                 return Ok((BigIntConst, end));
@@ -682,7 +684,7 @@ impl<'a> TokenStream<'a> {
                     format_args!("suffix {:?} is invalid for \
                         numbers, perhaps mixed up letter `O` \
                         with zero `0`?", suffix)));
-            } else if float {
+            } else if decimal {
                 return Err(Error::unexpected_format(
                     format_args!("suffix {:?} is invalid for \
                         numbers, perhaps you wanted `{}n` (decimal)?",

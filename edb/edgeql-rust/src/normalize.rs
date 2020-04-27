@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use edgeql_parser::tokenizer::{TokenStream, Kind};
 use edgeql_parser::position::Pos;
-use num_bigint::BigInt;
+use num_bigint::{BigInt, ToBigInt};
 use bigdecimal::BigDecimal;
 use crate::tokenizer::{CowToken, decode_string};
 
@@ -34,6 +34,7 @@ pub struct Entry<'a> {
 #[derive(Debug)]
 pub enum Error {
     Tokenizer(String, Pos),
+    Assertion(String, Pos),
 }
 
 fn push_var<'x>(res: &mut Vec<CowToken<'x>>, typ: &'x str, var: String,
@@ -156,10 +157,14 @@ pub fn normalize<'x>(text: &'x str)
                 push_var(&mut rewritten_tokens, "bigint",
                     next_var(variables.len()),
                     tok.start, tok.end);
-                variables.push(Variable {
-                    value: Value::BigInt(tok.value[..tok.value.len()-1].parse()
+                let dec: BigDecimal = tok.value[..tok.value.len()-1].parse()
                         .map_err(|e| Error::Tokenizer(
                             format!("can't parse bigint: {}", e),
+                            tok.start))?;
+                variables.push(Variable {
+                    value: Value::BigInt(dec.to_bigint()
+                        .ok_or_else(|| Error::Assertion(
+                            format!("number is not integer"),
                             tok.start))?),
                 });
                 continue;
