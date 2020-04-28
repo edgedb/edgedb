@@ -39,7 +39,8 @@ pub struct PyToken {
 }
 
 impl PyToken {
-    pub fn new((token, position): (Token<'_>, Pos)) -> Result<PyToken, Error> {
+    pub fn new((token, position): &(Token<'_>, Pos)) -> Result<PyToken, Error>
+    {
         use edb_graphql_parser::tokenizer::Kind::*;
         use PyTokenKind as T;
 
@@ -67,7 +68,7 @@ impl PyToken {
         };
         Ok(PyToken {
             kind, value,
-            position: Some(position),
+            position: Some(*position),
         })
     }
 }

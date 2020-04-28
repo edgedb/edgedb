@@ -17,10 +17,11 @@
 #
 
 
+import cython
 import json
 import logging
 import urllib.parse
-from typing import Any, Dict, Tuple, List, Optional
+from typing import Any, Dict, Tuple, List, Optional, Union
 
 from graphql.language import lexer as gql_lexer
 
@@ -45,6 +46,16 @@ _USER_ERRORS = (
     _graphql_rewrite.SyntaxError,
     _graphql_rewrite.NotFoundError,
 )
+
+@cython.final
+cdef class CacheRedirect:
+    cdef public list key_vars  # List[str],  must be sorted
+
+    def __init__(self, key_vars: List[str]):
+        self.key_vars = key_vars
+
+
+CacheEntry = Union[CacheRedirect, compiler.CompiledOperation]
 
 
 cdef class Protocol(http.HttpProtocol):
@@ -183,6 +194,12 @@ cdef class Protocol(http.HttpProtocol):
     async def execute(self, query, operation_name, variables):
         dbver = self.server.get_dbver()
 
+        if variables:
+            for var_name in variables:
+                if var_name.startswith('_edb_arg__'):
+                    raise errors.QueryError(
+                        f"Variables starting with '_edb_arg__' are prohibited")
+
         if debug.flags.graphql_compile:
             debug.header('Input graphql')
             print(query)
@@ -190,6 +207,15 @@ cdef class Protocol(http.HttpProtocol):
 
         try:
             rewritten = _graphql_rewrite.rewrite(operation_name, query)
+
+            vars = rewritten.variables().copy()
+            if variables:
+                vars.update(variables)
+            key_var_names = rewritten.key_vars()
+            # on bad queries the following line can trigger KeyError
+            key_vars = tuple(vars[k] for k in key_var_names)
+        except _graphql_rewrite.QueryError as e:
+            raise errors.QueryError(e.args[0])
         except Exception as e:
             if isinstance(e, _USER_ERRORS):
                 logger.info("Error rewriting graphql query: %s", e)
@@ -199,24 +225,28 @@ cdef class Protocol(http.HttpProtocol):
             rewrite_error = e
             prepared_query = query
             vars = variables.copy() if variables else {}
+            key_var_names = []
+            key_vars = ()
         else:
             prepared_query = rewritten.key()
-            vars = rewritten.variables().copy()
-            if variables:
-                vars.update(variables)
 
             if debug.flags.graphql_compile:
                 debug.header('GraphQL optimized query')
                 print(rewritten.key())
+                print(f'key_vars: {key_var_names}')
                 print(f'variables: {vars}')
 
-        cache_key = (prepared_query, operation_name, dbver)
+        cache_key = (prepared_query, key_vars, operation_name, dbver)
         use_prep_stmt = False
 
-        op: compiler.CompiledOperation = self.query_cache.get(
-            cache_key, None)
+        entry: CacheEntry = self.query_cache.get(cache_key, None)
 
-        if op is None:
+        if isinstance(entry, CacheRedirect):
+            key_vars2 = tuple(vars[k] for k in entry.key_vars)
+            cache_key2 = (prepared_query, key_vars2, operation_name, dbver)
+            entry = self.query_cache.get(cache_key2, None)
+
+        if entry is None:
             if rewritten is not None:
                 op = await self.compile(
                     dbver, query,
@@ -226,18 +256,23 @@ cdef class Protocol(http.HttpProtocol):
             else:
                 op = await self.compile(
                     dbver, query, None, None, operation_name, vars)
-            self.query_cache[cache_key] = op
-        else:
-            if op.cache_deps_vars:
-                op = await self.compile(dbver,
-                    query,
-                    rewritten.tokens(gql_lexer.TokenKind),
-                    rewritten.substitutions(),
-                    operation_name, vars)
+
+            key_var_set = set(key_var_names)
+            if op.cache_deps_vars and op.cache_deps_vars != key_var_set:
+                key_var_set.update(op.cache_deps_vars)
+                key_var_names = sorted(key_var_set)
+                redir = CacheRedirect(key_vars=key_var_names)
+                self.query_cache[cache_key] = redir
+                key_vars2 = tuple(vars[k] for k in key_var_names)
+                cache_key2 = (prepared_query, key_vars2, operation_name, dbver)
+                self.query_cache[cache_key2] = op
             else:
-                # This is at least the second time this query is used
-                # and it's safe to cache.
-                use_prep_stmt = True
+                self.query_cache[cache_key] = op
+        else:
+            op = entry
+            # This is at least the second time this query is used
+            # and it's safe to cache.
+            use_prep_stmt = True
 
         args = []
         if op.sql_args:

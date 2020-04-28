@@ -18,6 +18,7 @@
 
 
 import asyncio
+import decimal
 import codecs
 import hashlib
 import json
@@ -294,7 +295,6 @@ cdef class PGProto:
             WriteBuffer bind_buf
             WriteBuffer execute_buf
             WriteBuffer buf
-            char *str
             ssize_t size
             bint parse = 1
             bint store_stmt = 0
@@ -325,7 +325,10 @@ cdef class PGProto:
         bind_buf.write_int16(<int16_t><uint16_t>(len(args)))
 
         for arg in args:
-            jarg = json.dumps(arg)
+            if isinstance(arg, decimal.Decimal):
+                jarg = str(arg)
+            else:
+                jarg = json.dumps(arg)
             pgproto.jsonb_encode(DEFAULT_CODEC_CONTEXT, bind_buf, jarg)
 
         bind_buf.write_int32(0x00010001)  # binary for the output

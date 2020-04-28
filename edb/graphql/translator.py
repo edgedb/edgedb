@@ -52,9 +52,30 @@ ARG_TYPES = {
 }
 
 REWRITE_TYPE_ERROR = re.compile(
-    r"Variable '\$(?P<var_name>_edb_arg__\d+)' of type 'String!'"
-    r" used in position expecting type '(?P<type>[^']+)'"
+    r"Variable '\$(?P<var_name>_edb_arg__\d+)' of type"
+    r" '(?P<used>\w+)!'"
+    r" used in position expecting type '(?P<expected>[^']+)'"
 )
+_STR_TYPES = frozenset(("ID", "ID!"))
+_INT_TYPES = frozenset(("Int64", "Int64!", "Bigint", "Decimal"))
+_INT64_TYPES = frozenset(("Bigint", "Decimal"))
+_IMPLICIT_CONVERSIONS = {
+    # Used, Expected
+    ("String", "ID"),
+    ("String", "ID!"),
+    ("Int", "Int64"),
+    ("Int", "Int64!"),
+    ("Int", "Bigint"),
+    ("Int", "Bigint!"),
+    ("Int", "Decimal"),
+    ("Int", "Decimal!"),
+    ("Int64", "Bigint"),
+    ("Int64", "Bigint!"),
+    ("Int64", "Decimal"),
+    ("Int64", "Decimal!"),
+    ("Decimal", "Float"),
+    ("Decimal", "Float!"),
+}
 INT_FLOAT_ERROR = re.compile(
     r"Variable '\$[^']+' of type 'Int!?'"
     r" used in position expecting type 'Float!?'"
@@ -119,7 +140,7 @@ class TranspiledOperation(NamedTuple):
 
     edgeql_ast: qlast.Base
     cacheable: bool
-    cache_deps_vars: dict
+    cache_deps_vars: Optional[FrozenSet[str]]
     variables_desc: dict
 
 
@@ -373,10 +394,7 @@ class GraphQLTranslator:
 
                 if isinstance(cond, gql_ast.VariableNode):
                     varname = cond.name.value
-                    var = self._context.vars[varname]
-                    # mark the variable as critical
-                    self._context.vars[varname] = var._replace(critical=True)
-                    value = var.val
+                    value = self._context.vars[varname].val
 
                     if value is None:
                         raise g_errors.GraphQLValidationError(
@@ -1002,14 +1020,27 @@ class GraphQLTranslator:
             if fname == 'set':
                 return self._visit_insert_value(field.value)
             elif fname == 'clear':
-                # just check if the value is True (we need the visit
-                # to resolve potential variables)
-                if self.visit(field.value).value == 'true':
+                cond = field.value
+                if isinstance(cond, gql_ast.VariableNode):
+                    var_name = cond.name.value
+                    var = self._context.vars[var_name]
+                    if not var.critical:
+                        self._context.vars[var_name] = \
+                            var._replace(critical=True)
+                    value = var.val
+                elif isinstance(cond, gql_ast.BooleanValueNode):
+                    value = cond.value
+                elif isinstance(cond, gql_ast.NullValueNode):
+                    value = None
+                else:
+                    # We assume that schema was validated,
+                    # so variable is of correct type
+                    raise AssertionError(f"Unexpected node {cond!r}")
+
+                if value:
                     # empty set to clear the value
                     return qlast.Set()
-                else:
-                    raise g_errors.GraphQLTranslationError(
-                        '"clear" parameter can only take the value of "true"')
+
             elif fname == 'increment':
                 return qlast.BinOp(
                     left=eqlpath,
@@ -1607,19 +1638,19 @@ def convert_errors(
     for err in errs:
         m = REWRITE_TYPE_ERROR.match(err.message)
         if not m:
-            # we allow convefsion from Int to Float, and that is allowed by
+            # we allow conversion from Int to Float, and that is allowed by
             # graphql spec. It's unclear why graphql-core chokes on this
             if INT_FLOAT_ERROR.match(err.message):
                 continue
 
             result.append(err)
             continue
-        if m.group("type") in ("ID", "ID!"):
+        if (m.group("used"), m.group("expected")) in _IMPLICIT_CONVERSIONS:
             # skip the error, we avoid it in the execution code
             continue
         value, line, col = substitutions[m.group("var_name")]
         err = gql_error.GraphQLError(
-            f"Expected type {m.group('type')}, found {value}.")
+            f"Expected type {m.group('expected')}, found {value}.")
         err.locations = [gql_lang.SourceLocation(line, col)]
         result.append(err)
     return result
@@ -1671,7 +1702,7 @@ def translate_ast(
     return TranspiledOperation(
         edgeql_ast=op.stmt,
         cacheable=True,
-        cache_deps_vars=dict(op.critvars) if op.critvars else None,
+        cache_deps_vars=frozenset(op.critvars) if op.critvars else None,
         variables_desc=op.vars,
     )
 
