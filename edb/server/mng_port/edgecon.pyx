@@ -1611,8 +1611,8 @@ cdef class EdgeConnection:
 
         if recv_args != decl_args:
             raise errors.QueryError(
-                f"invalid argument count required: "
-                f"{decl_args}, got: {recv_args}")
+                f"invalid argument count, "
+                f"expected: {decl_args}, got: {recv_args}")
 
         if query.first_extra is not None:
             assert recv_args == query.first_extra, \

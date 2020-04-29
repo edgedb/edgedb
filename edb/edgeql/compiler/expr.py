@@ -404,7 +404,7 @@ def compile_TypeCast(
     is_parameter = isinstance(expr.expr, qlast.Parameter)
     if not is_parameter and expr.modifier:
         raise errors.QueryError(
-            'cardinality modifiers REQUIRED and OPTIONAL only allowed '
+            'cardinality modifiers REQUIRED and OPTIONAL are only allowed '
             'on paremeters',
             context=expr.context)
 
