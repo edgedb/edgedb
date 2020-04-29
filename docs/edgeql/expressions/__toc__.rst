@@ -11,3 +11,4 @@ Expressions
     tuples
     paths
     shapes
+    parameters

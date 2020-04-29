@@ -137,7 +137,10 @@ statements.  The form of a parameter reference is:
 
 .. code-block:: edgeql
 
-    SELECT $name;
+    SELECT <str>$name;
+
+See :ref:`this section <ref_eql_expr_params>` for more information on
+parameters.
 
 
 .. _ref_eql_expr_index_operator:
