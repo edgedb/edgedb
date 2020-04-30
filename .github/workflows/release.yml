@@ -167,12 +167,12 @@ jobs:
       max-parallel: 4
       matrix:
         target: [
-          macos-latest,
+          macos-x86_64,
         ]
         include:
-          - target: macos-latest
+          - target: macos-x86_64
             platform: macos
-            platform_version: latest
+            platform_version: x86_64
 
     steps:
     - uses: actions/checkout@v1
@@ -383,12 +383,12 @@ jobs:
       max-parallel: 4
       matrix:
         target: [
-          macos-latest,
+          macos-x86_64,
         ]
         include:
-          - target: macos-latest
+          - target: macos-x86_64
             platform: macos
-            platform_version: latest
+            platform_version: x86_64
 
     steps:
     - uses: actions/download-artifact@v1

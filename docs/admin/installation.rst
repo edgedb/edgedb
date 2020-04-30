@@ -42,7 +42,7 @@ Step 2. Install the EdgeDB package:
 
 .. code-block:: bash
 
-    sudo yum install edgedb-1-alpha2
+    sudo yum install edgedb-1-alpha3
 
 
 ---------------
@@ -70,7 +70,7 @@ Step 3. Install the EdgeDB package:
 
 .. code-block:: bash
 
-    apt-get update && apt-get install edgedb-1-alpha2
+    apt-get update && apt-get install edgedb-1-alpha3
 
 
 -----
@@ -84,11 +84,11 @@ It is also possible to install the package from the command line:
 
 .. code-block:: bash
 
-    sudo installer -pkg /path/to/edgedb-1-alpha2_latest.pkg -target /
+    sudo installer -pkg /path/to/edgedb-1-alpha3_latest.pkg -target /
 
 
 .. _`macOS EdgeDB package`:
-        https://packages.edgedb.com/macos/edgedb-1-alpha2_latest.pkg
+      https://packages.edgedb.com/dist/macos-x86_64/edgedb-1-alpha3_latest.pkg
 
 
 .. _ref_admin_install_docker:

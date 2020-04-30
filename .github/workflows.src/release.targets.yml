@@ -26,7 +26,7 @@ targets:
           family: redhat
 
     macos:
-        - name: macos-latest
+        - name: macos-x86_64
           platform: macos
-          platform_version: latest
+          platform_version: x86_64
           family: macos
