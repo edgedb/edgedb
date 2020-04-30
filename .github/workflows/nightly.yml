@@ -247,7 +247,7 @@ jobs:
         target: "${{ matrix.target }}"
 
     - name: Publish (${{ matrix.target }})
-      uses: edgedb/edgedb-pkg/integration/linux/upload/debian@master
+      uses: edgedb/edgedb-pkg/integration/linux/upload/debian-stretch@master
       if: matrix.target == 'debian-stretch'
       env:
         PKG_SUBDIST: "nightly"
@@ -266,7 +266,7 @@ jobs:
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
     - name: Publish (${{ matrix.target }})
-      uses: edgedb/edgedb-pkg/integration/linux/upload/debian@master
+      uses: edgedb/edgedb-pkg/integration/linux/upload/debian-buster@master
       if: matrix.target == 'debian-buster'
       env:
         PKG_SUBDIST: "nightly"
@@ -285,7 +285,7 @@ jobs:
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
     - name: Publish (${{ matrix.target }})
-      uses: edgedb/edgedb-pkg/integration/linux/upload/debian@master
+      uses: edgedb/edgedb-pkg/integration/linux/upload/ubuntu-xenial@master
       if: matrix.target == 'ubuntu-xenial'
       env:
         PKG_SUBDIST: "nightly"
@@ -304,7 +304,7 @@ jobs:
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
     - name: Publish (${{ matrix.target }})
-      uses: edgedb/edgedb-pkg/integration/linux/upload/debian@master
+      uses: edgedb/edgedb-pkg/integration/linux/upload/ubuntu-bionic@master
       if: matrix.target == 'ubuntu-bionic'
       env:
         PKG_SUBDIST: "nightly"
@@ -323,7 +323,7 @@ jobs:
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
     - name: Publish (${{ matrix.target }})
-      uses: edgedb/edgedb-pkg/integration/linux/upload/redhat@master
+      uses: edgedb/edgedb-pkg/integration/linux/upload/centos-7@master
       if: matrix.target == 'centos-7'
       env:
         PKG_SUBDIST: "nightly"
@@ -342,7 +342,7 @@ jobs:
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
     - name: Publish (${{ matrix.target }})
-      uses: edgedb/edgedb-pkg/integration/linux/upload/redhat@master
+      uses: edgedb/edgedb-pkg/integration/linux/upload/centos-8@master
       if: matrix.target == 'centos-8'
       env:
         PKG_SUBDIST: "nightly"

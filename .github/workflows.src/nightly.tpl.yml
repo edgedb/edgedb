@@ -23,7 +23,7 @@ jobs:
     steps:
 <% for tgt in targets.linux %>
     - name: Build (${{ matrix.target }})
-      uses: edgedb/edgedb-pkg/integration/linux/build/<< tgt.name >>@master
+      uses: edgedb/edgedb-pkg/integration/linux/build/<< tgt.platform >><< "-{}".format(tgt.platform_version) if tgt.platform_version >>@master
       if: matrix.target == '<< tgt.name >>'
       env:
         PKG_REVISION: "<current-date>"
@@ -117,7 +117,7 @@ jobs:
         target: "${{ matrix.target }}"
 <% for tgt in targets.linux %>
     - name: Publish (${{ matrix.target }})
-      uses: edgedb/edgedb-pkg/integration/linux/upload/<< tgt.family >>@master
+      uses: edgedb/edgedb-pkg/integration/linux/upload/<< tgt.platform >><< "-{}".format(tgt.platform_version) if tgt.platform_version >>@master
       if: matrix.target == '<< tgt.name >>'
       env:
         PKG_SUBDIST: "nightly"
