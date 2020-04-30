@@ -234,11 +234,19 @@ fn bigint() {
     assert_eq!(tok_typ("*0n"), [Mul, BigIntConst]);
     assert_eq!(tok_str("123n"), ["123n"]);
     assert_eq!(tok_typ("123n"), [BigIntConst]);
+    assert_eq!(tok_str("123e3n"), ["123e3n"]);
+    assert_eq!(tok_typ("123e3n"), [BigIntConst]);
+    assert_eq!(tok_str("123e+99n"), ["123e+99n"]);
+    assert_eq!(tok_typ("123e+99n"), [BigIntConst]);
 
     assert_eq!(tok_str("0n "), ["0n"]);
     assert_eq!(tok_typ("0n "), [BigIntConst]);
     assert_eq!(tok_str("123n "), ["123n"]);
     assert_eq!(tok_typ("123n "), [BigIntConst]);
+    assert_eq!(tok_str("123e3n "), ["123e3n"]);
+    assert_eq!(tok_typ("123e3n "), [BigIntConst]);
+    assert_eq!(tok_str("123e+99n "), ["123e+99n"]);
+    assert_eq!(tok_typ("123e+99n "), [BigIntConst]);
     assert_eq!(tok_err("01n"),
         "Unexpected `leading zeros are not allowed in numbers`");
 }
@@ -301,10 +309,6 @@ fn decimal() {
     assert_eq!(tok_typ("123.999e+99n"), [DecimalConst]);
     assert_eq!(tok_str("2345.567e-7n"), ["2345.567e-7n"]);
     assert_eq!(tok_typ("2345.567e-7n"), [DecimalConst]);
-    assert_eq!(tok_str("123e3n"), ["123e3n"]);
-    assert_eq!(tok_typ("123e3n"), [DecimalConst]);
-    assert_eq!(tok_str("123e+99n"), ["123e+99n"]);
-    assert_eq!(tok_typ("123e+99n"), [DecimalConst]);
     assert_eq!(tok_str("2345e-7n"), ["2345e-7n"]);
     assert_eq!(tok_typ("2345e-7n"), [DecimalConst]);
 
@@ -320,10 +324,6 @@ fn decimal() {
     assert_eq!(tok_typ("123.999e+99n "), [DecimalConst]);
     assert_eq!(tok_str("2345.567e-7n "), ["2345.567e-7n"]);
     assert_eq!(tok_typ("2345.567e-7n "), [DecimalConst]);
-    assert_eq!(tok_str("123e3n "), ["123e3n"]);
-    assert_eq!(tok_typ("123e3n "), [DecimalConst]);
-    assert_eq!(tok_str("123e+99n "), ["123e+99n"]);
-    assert_eq!(tok_typ("123e+99n "), [DecimalConst]);
     assert_eq!(tok_str("2345e-7n "), ["2345e-7n"]);
     assert_eq!(tok_typ("2345e-7n "), [DecimalConst]);
 

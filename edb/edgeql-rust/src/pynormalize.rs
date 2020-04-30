@@ -149,5 +149,9 @@ pub fn normalize(py: Python<'_>, text: &PyString)
         Err(Error::Tokenizer(msg, pos)) => {
             return Err(TokenizerError::new(py, (msg, py_pos(py, &pos))))
         }
+        Err(Error::Assertion(msg, pos)) => {
+            return Err(PyErr::new::<AssertionError, _>(py,
+                format!("{}: {}", pos, msg)));
+        }
     }
 }
