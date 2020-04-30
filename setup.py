@@ -298,9 +298,9 @@ class develop(setuptools_develop.develop):
     def run(self, *args, **kwargs):
         _check_rust()
         build = self.get_finalized_command('build')
-        build_base = pathlib.Path('build').resolve()
         rust_tmp = pathlib.Path(build.build_temp) / 'rust' / 'cli'
-        rust_root = pathlib.Path(build.build_base) / 'cli'
+        build_base = pathlib.Path(build.build_base).resolve()
+        rust_root = build_base / 'cli'
         env = dict(os.environ)
         env['CARGO_TARGET_DIR'] = str(rust_tmp)
         env['PSQL_DEFAULT_PATH'] = build_base / 'postgres' / 'install' / 'bin'
@@ -334,7 +334,7 @@ class develop(setuptools_develop.develop):
 
         super().run(*args, **kwargs)
 
-        _compile_parsers(pathlib.Path('build/lib'), inplace=True)
+        _compile_parsers(build_base / 'lib', inplace=True)
         _compile_postgres(build_base)
 
 
@@ -385,7 +385,7 @@ class build_postgres(setuptools.Command):
 
     def run(self, *args, **kwargs):
         _compile_postgres(
-            pathlib.Path('build').resolve(),
+            pathlib.Path(build.build_base).resolve(),
             force_build=True,
             fresh_build=self.fresh_build,
             run_configure=self.configure,
