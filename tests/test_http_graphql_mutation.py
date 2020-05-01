@@ -2442,3 +2442,16 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
         """, {
             "SettingAlias": []
         })
+
+    def test_graphql_mutation_bigint(self):
+        self.assert_graphql_query_result(r"""
+            mutation insert_BigIntTest {
+                insert_BigIntTest(
+                    data: [{value: 1e100}]
+                ) {
+                    value
+                }
+            }
+        """, {
+            "insert_BigIntTest": [{"value": 10**100}]
+        })

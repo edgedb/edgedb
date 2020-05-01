@@ -96,6 +96,9 @@ type ScalarTest {
     property p_array_json -> array<json>;
     property p_array_bytes -> array<bytes>;
 }
+type BigIntTest {
+    property value -> bigint;
+}
 
 # Inheritance tests
 type Bar {
