@@ -48,7 +48,6 @@ jobs:
 
   build-macos:
     runs-on: macos-latest
-    continue-on-error: true
 
     strategy:
       max-parallel: 4
@@ -155,7 +154,7 @@ jobs:
 
   publish-macos:
     needs: [build-linux, build-macos]
-    runs-on: macos-10.14
+    runs-on: macos-latest
     strategy:
       max-parallel: 4
       matrix:
