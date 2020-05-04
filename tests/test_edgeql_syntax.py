@@ -1426,6 +1426,14 @@ aa';
         };
         """
 
+    def test_edgeql_syntax_shape_47(self):
+        """
+        UPDATE Foo
+        SET {
+            foo += Bar
+        };
+        """
+
     def test_edgeql_syntax_struct_01(self):
         """
         SELECT (

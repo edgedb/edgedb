@@ -210,7 +210,10 @@ def fini_expression(
         cardinality=cardinality,
         volatility=volatility,
         stype=expr_type,
-        view_shapes=ctx.env.view_shapes,
+        view_shapes={
+            src: [ptr for ptr, _ in ptrs]
+            for src, ptrs in ctx.env.view_shapes.items()
+        },
         view_shapes_metadata=ctx.env.view_shapes_metadata,
         schema=ctx.env.schema,
         schema_refs=frozenset(
@@ -482,12 +485,17 @@ def _infer_pointer_cardinality(
     irexpr: irast.Set,
     specified_card: Optional[qltypes.Cardinality] = None,
     is_mut_assignment: bool = False,
+    shape_op: qlast.ShapeOp = qlast.ShapeOp.ASSIGN,
     source_ctx: Optional[parsing.ParserContext] = None,
     ctx: context.ContextLevel,
 ) -> None:
 
     # Infer cardinality and convert it back to schema values of "ONE/MANY".
-    inferred_card = infer_expr_cardinality(irexpr=irexpr, ctx=ctx)
+    if shape_op is qlast.ShapeOp.APPEND:
+        # += in shape always means MANY
+        inferred_card = qltypes.Cardinality.MANY
+    else:
+        inferred_card = infer_expr_cardinality(irexpr=irexpr, ctx=ctx)
 
     if specified_card is None:
         ptr_card = inferred_card
@@ -568,6 +576,7 @@ def pend_pointer_cardinality_inference(
     ptrcls: s_pointers.Pointer,
     specified_required: bool = False,
     specified_card: Optional[qltypes.SchemaCardinality] = None,
+    shape_op: qlast.ShapeOp = qlast.ShapeOp.ASSIGN,
     is_mut_assignment: bool = False,
     source_ctx: Optional[parsing.ParserContext] = None,
     ctx: context.ContextLevel,
@@ -589,6 +598,7 @@ def pend_pointer_cardinality_inference(
     ctx.pending_cardinality[ptrcls] = context.PendingCardinality(
         specified_cardinality=sc,
         is_mut_assignment=is_mut_assignment,
+        shape_op=shape_op,
         source_ctx=source_ctx,
         callbacks=callbacks,
     )
@@ -616,6 +626,7 @@ def get_pointer_cardinality_later(
     irexpr: irast.Set,
     specified_card: Optional[qltypes.Cardinality] = None,
     is_mut_assignment: bool = False,
+    shape_op: qlast.ShapeOp = qlast.ShapeOp.ASSIGN,
     source_ctx: Optional[parsing.ParserContext] = None,
     ctx: context.ContextLevel,
 ) -> None:
@@ -627,6 +638,7 @@ def get_pointer_cardinality_later(
             irexpr=irexpr,
             specified_card=specified_card,
             is_mut_assignment=is_mut_assignment,
+            shape_op=shape_op,
             source_ctx=source_ctx,
         ),
         ctx=ctx,

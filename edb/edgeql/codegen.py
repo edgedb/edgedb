@@ -552,7 +552,19 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.visit(node.limit)
 
         if node.compexpr:
-            self.write(' := ')
+            if node.operation is None:
+                raise AssertionError(
+                    f'ShapeElement.operation is unexpectedly None'
+                )
+
+            if node.operation.op is qlast.ShapeOp.ASSIGN:
+                self.write(' := ')
+            elif node.operation.op is qlast.ShapeOp.APPEND:
+                self.write(' += ')
+            else:
+                raise NotImplementedError(
+                    f'unexpected shape operation: {node.operation.op!r}'
+                )
             self.visit(node.compexpr)
 
     def visit_Parameter(self, node: qlast.Parameter) -> None:

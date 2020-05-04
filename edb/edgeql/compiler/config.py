@@ -223,7 +223,7 @@ def _validate_config_object(
         level: str,
         ctx: context.ContextLevel) -> None:
 
-    for element in expr.shape:
+    for element, _ in expr.shape:
         if element.rptr.ptrref.shortname.name == 'id':
             continue
 

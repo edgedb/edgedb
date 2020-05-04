@@ -392,7 +392,7 @@ class Set(Base):
     rptr: Pointer
     anchor: typing.Optional[str]
     show_as_anchor: typing.Optional[str]
-    shape: typing.List[Set]
+    shape: typing.List[typing.Tuple[Set, qlast.ShapeOp]]
 
     def __repr__(self) -> str:
         return f'<ir.Set \'{self.path_id}\' at 0x{id(self):x}>'

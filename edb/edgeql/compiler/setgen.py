@@ -660,7 +660,7 @@ def _is_computable_ptr(
     ctx: context.ContextLevel,
 ) -> bool:
     try:
-        qlexpr = ctx.source_map[ptrcls][0]
+        qlexpr = ctx.source_map[ptrcls].qlexpr
     except KeyError:
         pass
     else:
@@ -930,8 +930,11 @@ def computable_ptr_set(
     inner_source_path_id: Optional[irast.PathId]
 
     try:
-        qlexpr, qlctx, inner_source_path_id, path_id_ns = \
-            ctx.source_map[ptrcls]
+        comp_info = ctx.source_map[ptrcls]
+        qlexpr = comp_info.qlexpr
+        qlctx = comp_info.context
+        inner_source_path_id = comp_info.path_id
+        path_id_ns = comp_info.path_id_ns
     except KeyError:
         comp_expr = ptrcls.get_expr(ctx.env.schema)
         if comp_expr is None:
@@ -1012,6 +1015,7 @@ def computable_ptr_set(
             irexpr=comp_ir_set_copy,
             specified_card=pending_cardinality.specified_cardinality,
             is_mut_assignment=pending_cardinality.is_mut_assignment,
+            shape_op=pending_cardinality.shape_op,
             source_ctx=pending_cardinality.source_ctx,
             ctx=ctx,
         )

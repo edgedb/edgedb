@@ -470,12 +470,25 @@ class SelectClauseMixin(OrderByMixin, OffsetLimitMixin, FilterMixin):
     implicit: bool = False
 
 
+class ShapeOp(s_enum.StrEnum):
+
+    APPEND = 'APPEND'
+    ASSIGN = 'ASSIGN'
+
+
+# Need indirection over ShapeOp to preserve the source context.
+class ShapeOperation(Base):
+
+    op: ShapeOp
+
+
 class ShapeElement(OffsetLimitMixin, OrderByMixin, FilterMixin, Expr):
     expr: Path
     elements: typing.List[ShapeElement]
     compexpr: Expr
     cardinality: qltypes.SchemaCardinality
     required: bool = False
+    operation: ShapeOperation = ShapeOperation(op=ShapeOp.ASSIGN)
 
 
 class Shape(Expr):

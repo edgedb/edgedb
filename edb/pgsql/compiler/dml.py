@@ -35,6 +35,7 @@ from __future__ import annotations
 import collections
 from typing import *
 
+from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
 from edb.ir import ast as irast
@@ -360,7 +361,9 @@ def process_insert_body(
         # Process the Insert IR and separate links that go
         # into the main table from links that are inserted into
         # a separate link table.
-        for shape_el in ir_stmt.subject.shape:
+        for shape_el, shape_op in ir_stmt.subject.shape:
+            assert shape_op is qlast.ShapeOp.ASSIGN
+
             rptr = shape_el.rptr
             ptrref = rptr.ptrref
             if ptrref.material_ptr is not None:
@@ -487,7 +490,7 @@ def process_update_body(
         subctx.parent_rel = update_stmt
         subctx.expr_exposed = False
 
-        for shape_el in ir_stmt.subject.shape:
+        for shape_el, shape_op in ir_stmt.subject.shape:
             ptrref = shape_el.rptr.ptrref
             updvalue = shape_el.expr
             ptr_info = pg_types.get_ptrref_storage_info(
@@ -527,7 +530,7 @@ def process_update_body(
                 ptrref, resolve_type=False, link_bias=True)
 
             if ptr_info and ptr_info.table_type == 'link':
-                external_updates.append((shape_el, props_only))
+                external_updates.append((shape_el, shape_op, props_only))
 
     if not update_stmt.targets:
         # No updates directly to the set target table,
@@ -552,11 +555,18 @@ def process_update_body(
     toplevel.ctes.append(update_cte)
 
     # Process necessary updates to the link tables.
-    for expr, _props_only in external_updates:
+    for expr, shape_op, _ in external_updates:
         process_link_update(
-            ir_stmt=ir_stmt, ir_set=expr, props_only=False,
-            wrapper=wrapper, dml_cte=update_cte, iterator_cte=None,
-            is_insert=False, ctx=ctx)
+            ir_stmt=ir_stmt,
+            ir_set=expr,
+            props_only=False,
+            wrapper=wrapper,
+            dml_cte=update_cte,
+            iterator_cte=None,
+            is_insert=False,
+            shape_op=shape_op,
+            ctx=ctx,
+        )
 
 
 def is_props_only_update(shape_el: irast.Set, *,
@@ -571,20 +581,22 @@ def is_props_only_update(shape_el: irast.Set, *,
     """
     return (
         bool(shape_el.shape) and
-        all(el.rptr.ptrref.source_ptr is not None for el in shape_el.shape)
+        all(el.rptr.ptrref.source_ptr is not None for el, _ in shape_el.shape)
     )
 
 
 def process_link_update(
-        *,
-        ir_stmt: irast.MutatingStmt,
-        ir_set: irast.Set,
-        props_only: bool,
-        is_insert: bool,
-        wrapper: pgast.Query,
-        dml_cte: pgast.CommonTableExpr,
-        iterator_cte: Optional[pgast.CommonTableExpr],
-        ctx: context.CompilerContextLevel) -> pgast.CommonTableExpr:
+    *,
+    ir_stmt: irast.MutatingStmt,
+    ir_set: irast.Set,
+    props_only: bool,
+    is_insert: bool,
+    shape_op: qlast.ShapeOp = qlast.ShapeOp.ASSIGN,
+    wrapper: pgast.Query,
+    dml_cte: pgast.CommonTableExpr,
+    iterator_cte: Optional[pgast.CommonTableExpr],
+    ctx: context.CompilerContextLevel,
+) -> pgast.CommonTableExpr:
     """Perform updates to a link relation as part of a DML statement.
 
     :param ir_stmt:
@@ -663,7 +675,7 @@ def process_link_update(
 
     delqry: Optional[pgast.DeleteStmt]
 
-    if not is_insert:
+    if not is_insert and shape_op is not qlast.ShapeOp.APPEND:
         # Drop all previous link records for this source.
         delqry = pgast.DeleteStmt(
             relation=target_rvar,
@@ -872,7 +884,8 @@ def process_linkprop_update(
     )
 
     targets = []
-    for prop_el in ir_expr.shape:
+    for prop_el, shape_op in ir_expr.shape:
+        assert shape_op is qlast.ShapeOp.ASSIGN
         ptrname = prop_el.rptr.ptrref.shortname
         with ctx.new() as input_rel_ctx:
             input_rel_ctx.expr_exposed = False
@@ -958,7 +971,10 @@ def process_link_values(
             shape_tuple = None
             if ir_expr.shape:
                 shape_tuple = shapecomp.compile_shape(
-                    ir_expr, ir_expr.shape, ctx=input_rel_ctx)
+                    ir_expr,
+                    [expr for expr, _ in ir_expr.shape],
+                    ctx=input_rel_ctx,
+                )
 
                 for element in shape_tuple.elements:
                     pathctx.put_path_var_if_not_exists(

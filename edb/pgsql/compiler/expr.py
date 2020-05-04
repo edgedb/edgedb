@@ -98,7 +98,11 @@ def _compile_set_impl(
         pathctx.put_path_value_var(ctx.rel, ir_set.path_id, value, env=ctx.env)
         if (output.in_serialization_ctx(ctx) and ir_set.shape
                 and not ctx.env.ignore_object_shapes):
-            _compile_shape(ir_set, shape=ir_set.shape, ctx=ctx)
+            _compile_shape(
+                ir_set,
+                shape=[expr for expr, _ in ir_set.shape],
+                ctx=ctx,
+            )
 
     elif ir_set.path_scope_id is not None and not is_toplevel:
         # This Set is behind a scope fence, so compute it
@@ -566,7 +570,11 @@ def _compile_set(
 
     if (output.in_serialization_ctx(ctx) and ir_set.shape
             and not ctx.env.ignore_object_shapes):
-        _compile_shape(ir_set, shape=ir_set.shape, ctx=ctx)
+        _compile_shape(
+            ir_set,
+            shape=[expr for expr, _ in ir_set.shape],
+            ctx=ctx,
+        )
 
 
 def _compile_shape(

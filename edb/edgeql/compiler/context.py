@@ -99,6 +99,16 @@ class ScopeInfo:
     )
 
 
+@dataclasses.dataclass
+class ComputableInfo:
+
+    qlexpr: qlast.Expr
+    context: ContextLevel
+    path_id: irast.PathId
+    path_id_ns: Optional[irast.WeakNamespace]
+    shape_op: qlast.ShapeOp
+
+
 class CompletionWorkCallback(Protocol):
 
     def __call__(
@@ -126,6 +136,7 @@ class PendingCardinality(NamedTuple):
     source_ctx: Optional[parsing.ParserContext]
     callbacks: List[PointerCardinalityCallback]
     is_mut_assignment: bool
+    shape_op: qlast.ShapeOp
 
 
 class PointerRefCache(
@@ -203,7 +214,7 @@ class Environment:
 
     view_shapes: Dict[
         Union[s_types.Type, s_pointers.PointerLike],
-        List[s_pointers.Pointer]
+        List[Tuple[s_pointers.Pointer, qlast.ShapeOp]]
     ]
     """Object output or modification shapes."""
 
@@ -337,15 +348,7 @@ class ContextLevel(compiler.ContextLevel):
     stmt_metadata: Dict[qlast.Statement, StatementMetadata]
     """Extra statement metadata needed by the compiler, but not in AST."""
 
-    source_map: Dict[
-        s_pointers.PointerLike,
-        Tuple[
-            qlast.Expr,
-            ContextLevel,
-            irast.PathId,
-            Optional[irast.WeakNamespace],
-        ],
-    ]
+    source_map: Dict[s_pointers.PointerLike, ComputableInfo]
     """A mapping of computable pointers to QL source AST and context."""
 
     view_nodes: Dict[str, s_types.Type]

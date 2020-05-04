@@ -474,32 +474,64 @@ class ComputableShapePointer(Nonterm):
         self.val = kids[1].val
         self.val.compexpr = kids[3].val
         self.val.required = True
+        self.val.operation = qlast.ShapeOperation(
+            op=qlast.ShapeOp.ASSIGN,
+            context=kids[2].context,
+        )
 
     def reduce_MULTI_SimpleShapePointer_ASSIGN_Expr(self, *kids):
         self.val = kids[1].val
         self.val.compexpr = kids[3].val
         self.val.cardinality = qltypes.SchemaCardinality.MANY
+        self.val.operation = qlast.ShapeOperation(
+            op=qlast.ShapeOp.ASSIGN,
+            context=kids[2].context,
+        )
 
     def reduce_SINGLE_SimpleShapePointer_ASSIGN_Expr(self, *kids):
         self.val = kids[1].val
         self.val.compexpr = kids[3].val
         self.val.cardinality = qltypes.SchemaCardinality.ONE
+        self.val.operation = qlast.ShapeOperation(
+            op=qlast.ShapeOp.ASSIGN,
+            context=kids[2].context,
+        )
 
     def reduce_REQUIRED_MULTI_SimpleShapePointer_ASSIGN_Expr(self, *kids):
         self.val = kids[2].val
         self.val.compexpr = kids[4].val
         self.val.required = True
         self.val.cardinality = qltypes.SchemaCardinality.MANY
+        self.val.operation = qlast.ShapeOperation(
+            op=qlast.ShapeOp.ASSIGN,
+            context=kids[3].context,
+        )
 
     def reduce_REQUIRED_SINGLE_SimpleShapePointer_ASSIGN_Expr(self, *kids):
         self.val = kids[2].val
         self.val.compexpr = kids[4].val
         self.val.required = True
         self.val.cardinality = qltypes.SchemaCardinality.ONE
+        self.val.operation = qlast.ShapeOperation(
+            op=qlast.ShapeOp.ASSIGN,
+            context=kids[3].context,
+        )
 
     def reduce_SimpleShapePointer_ASSIGN_Expr(self, *kids):
         self.val = kids[0].val
         self.val.compexpr = kids[2].val
+        self.val.operation = qlast.ShapeOperation(
+            op=qlast.ShapeOp.ASSIGN,
+            context=kids[1].context,
+        )
+
+    def reduce_SimpleShapePointer_ADDASSIGN_Expr(self, *kids):
+        self.val = kids[0].val
+        self.val.compexpr = kids[2].val
+        self.val.operation = qlast.ShapeOperation(
+            op=qlast.ShapeOp.APPEND,
+            context=kids[1].context,
+        )
 
 
 class FilterClause(Nonterm):

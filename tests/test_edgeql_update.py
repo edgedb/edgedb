@@ -1929,3 +1929,145 @@ class TestUpdate(tb.QueryTestCase):
                     },
                 };
             ''')
+
+    async def test_edgeql_update_append_01(self):
+        await self.con.execute("""
+            WITH MODULE test
+            INSERT UpdateTest {
+                name := 'update-test-append-1',
+            };
+
+            WITH MODULE test
+            INSERT UpdateTest {
+                name := 'update-test-append-2',
+            };
+
+            WITH MODULE test
+            INSERT UpdateTest {
+                name := 'update-test-append-3',
+            };
+        """)
+
+        await self.con.execute("""
+            WITH
+                MODULE test,
+                U2 := UpdateTest
+            UPDATE UpdateTest
+            FILTER .name = 'update-test-append-1'
+            SET {
+                annotated_tests := (
+                    SELECT U2 FILTER .name = 'update-test-append-2'
+                )
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest {
+                    name,
+                    annotated_tests: {
+                        name,
+                        @note
+                    } ORDER BY .name
+                } FILTER UpdateTest.name = 'update-test-append-1';
+            """,
+            [
+                {
+                    'name': 'update-test-append-1',
+                    'annotated_tests': [{
+                        'name': 'update-test-append-2',
+                        '@note': None,
+                    }],
+                },
+            ]
+        )
+
+        await self.con.execute("""
+            WITH
+                MODULE test,
+                U2 := UpdateTest
+            UPDATE UpdateTest
+            FILTER .name = 'update-test-append-1'
+            SET {
+                annotated_tests += (
+                    SELECT U2 { @note := 'foo' }
+                    FILTER .name = 'update-test-append-3'
+                )
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest {
+                    name,
+                    annotated_tests: {
+                        name,
+                        @note
+                    } ORDER BY .name
+                } FILTER UpdateTest.name = 'update-test-append-1';
+            """,
+            [
+                {
+                    'name': 'update-test-append-1',
+                    'annotated_tests': [{
+                        'name': 'update-test-append-2',
+                        '@note': None,
+                    }, {
+                        'name': 'update-test-append-3',
+                        '@note': 'foo',
+                    }],
+                },
+            ]
+        )
+
+    async def test_edgeql_update_append_02(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            "possibly more than one element returned by an expression"
+            " for a computable link 'annotated_status' declared as 'single'",
+            _position=147,
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                UPDATE UpdateTest
+                FILTER .name = 'foo'
+                SET {
+                    annotated_status += (
+                        SELECT Status FILTER .name = 'status'
+                    )
+                };
+            """)
+
+    async def test_edgeql_append_badness_01(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            r"unexpected '\+='",
+            _position=123,
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                INSERT UpdateTest
+                {
+                    annotated_status += (
+                        SELECT Status FILTER .name = 'status'
+                    )
+                };
+            """)
+
+    async def test_edgeql_append_badness_02(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            r"unexpected '\+='",
+            _position=123,
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                SELECT UpdateTest
+                {
+                    annotated_status += (
+                        SELECT Status FILTER .name = 'status'
+                    )
+                };
+            """)

@@ -57,7 +57,7 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
         if field is not None:
             shape = ir.expr.expr.result.shape
-            for el in shape:
+            for el, _ in shape:
                 if el.path_id.rptr_name().endswith(field):
                     card = el.rptr.ptrref.out_cardinality
                     self.assertEqual(card, expected_cardinality,

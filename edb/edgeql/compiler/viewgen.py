@@ -241,7 +241,13 @@ def _process_view(
             source = view_scls
 
         if is_defining_shape:
-            ctx.env.view_shapes[source].append(ptrcls)
+            cinfo = ctx.source_map.get(ptrcls)
+            if cinfo is not None:
+                shape_op = cinfo.shape_op
+            else:
+                shape_op = qlast.ShapeOp.ASSIGN
+
+            ctx.env.view_shapes[source].append((ptrcls, shape_op))
 
     if (view_rptr is not None and view_rptr.ptrcls is not None and
             view_scls is not stype):
@@ -540,6 +546,13 @@ def _normalize_view_ptr_expr(
             )
             irexpr = dispatch.compile(qlexpr, ctx=shape_expr_ctx)
 
+            if shape_el.operation.op is qlast.ShapeOp.APPEND:
+                if not is_update:
+                    raise errors.EdgeQLSyntaxError(
+                        "unexpected '+='",
+                        context=shape_el.operation.context,
+                    )
+
             irexpr.context = compexpr.context
 
             if base_ptrcls is None:
@@ -709,7 +722,13 @@ def _normalize_view_ptr_expr(
         )
 
     if qlexpr is not None:
-        ctx.source_map[ptrcls] = (qlexpr, ctx, path_id, path_id_namespace)
+        ctx.source_map[ptrcls] = context.ComputableInfo(
+            qlexpr=qlexpr,
+            context=ctx,
+            path_id=path_id,
+            path_id_ns=path_id_namespace,
+            shape_op=shape_el.operation.op,
+        )
 
     if compexpr is not None or is_polymorphic:
         ctx.env.schema = ptrcls.set_field_value(
@@ -759,6 +778,7 @@ def _normalize_view_ptr_expr(
             specified_required=specified_required,
             specified_card=specified_cardinality,
             is_mut_assignment=is_mutation,
+            shape_op=shape_el.operation.op,
             source_ctx=shape_el.context,
             ctx=ctx,
         )
@@ -851,9 +871,9 @@ def _link_has_shape(
     if not isinstance(ptrcls, s_links.Link):
         return False
 
+    ptr_shape = {p for p, _ in ctx.env.view_shapes[ptrcls]}
     for p in ptrcls.get_pointers(ctx.env.schema).objects(ctx.env.schema):
-        if (p.is_special_pointer(ctx.env.schema) or
-                p not in ctx.env.view_shapes[ptrcls]):
+        if p.is_special_pointer(ctx.env.schema) or p not in ptr_shape:
             continue
         else:
             return True
@@ -874,11 +894,12 @@ def has_implicit_tid(
 
 
 def _get_shape_configuration(
-        ir_set: irast.Set, *,
-        rptr: Optional[irast.Pointer]=None,
-        parent_view_type: Optional[s_types.ExprType]=None,
-        ctx: context.ContextLevel) \
-        -> List[Tuple[irast.Set, s_pointers.Pointer]]:
+    ir_set: irast.Set,
+    *,
+    rptr: Optional[irast.Pointer]=None,
+    parent_view_type: Optional[s_types.ExprType]=None,
+    ctx: context.ContextLevel
+) -> List[Tuple[irast.Set, s_pointers.Pointer, qlast.ShapeOp]]:
 
     """Return a list of (source_set, ptrcls) pairs as a shape for a given set.
     """
@@ -913,14 +934,14 @@ def _get_shape_configuration(
     shape_ptrs = []
 
     for source in sources:
-        for ptr in ctx.env.view_shapes[source]:
+        for ptr, shape_op in ctx.env.view_shapes[source]:
             if (ptr.is_link_property(ctx.env.schema) and
                     ir_set.path_id != rptr.target.path_id):
                 path_tip = rptr.target
             else:
                 path_tip = ir_set
 
-            shape_ptrs.append((path_tip, ptr))
+            shape_ptrs.append((path_tip, ptr, shape_op))
 
     if is_objtype:
         assert isinstance(stype, s_objtypes.ObjectType)
@@ -945,14 +966,16 @@ def _get_shape_configuration(
             # so insert it in the first position.
             pointers = stype.get_pointers(ctx.env.schema).objects(
                 ctx.env.schema)
+            view_shape = ctx.env.view_shapes[stype]
+            view_shape_ptrs = {p for p, _ in view_shape}
             for ptr in pointers:
                 if ptr.is_id_pointer(ctx.env.schema):
-                    view_shape = ctx.env.view_shapes[stype]
-                    if ptr not in view_shape:
+                    if ptr not in view_shape_ptrs:
                         shape_metadata = ctx.env.view_shapes_metadata[stype]
-                        view_shape.insert(0, ptr)
+                        view_shape.insert(0, (ptr, qlast.ShapeOp.ASSIGN))
                         shape_metadata.has_implicit_id = True
-                        shape_ptrs.insert(0, (ir_set, ptr))
+                        shape_ptrs.insert(
+                            0, (ir_set, ptr, qlast.ShapeOp.ASSIGN))
                     break
 
     is_mutation = parent_view_type in {
@@ -999,9 +1022,10 @@ def _get_shape_configuration(
                     ql, stype, path_id=ir_set.path_id, ctx=scopectx)
 
         view_shape = ctx.env.view_shapes[stype]
-        if ptr not in view_shape:
-            view_shape.insert(0, ptr)
-            shape_ptrs.insert(0, (ir_set, ptr))
+        view_shape_ptrs = {p for p, _ in view_shape}
+        if ptr not in view_shape_ptrs:
+            view_shape.insert(0, (ptr, qlast.ShapeOp.ASSIGN))
+            shape_ptrs.insert(0, (ir_set, ptr, qlast.ShapeOp.ASSIGN))
 
     return shape_ptrs
 
@@ -1029,7 +1053,7 @@ def _compile_view_shapes_in_set(
         pathctx.register_set_in_scope(ir_set, ctx=ctx)
         stype = setgen.get_set_type(ir_set, ctx=ctx)
 
-        for path_tip, ptr in shape_ptrs:
+        for path_tip, ptr, shape_op in shape_ptrs:
             element = setgen.extend_path(
                 path_tip,
                 ptr,
@@ -1056,7 +1080,7 @@ def _compile_view_shapes_in_set(
                     parent_view_type=stype.get_expr_type(ctx.env.schema),
                     ctx=scopectx)
 
-            ir_set.shape.append(element)
+            ir_set.shape.append((element, shape_op))
 
     elif ir_set.expr is not None:
         set_scope = pathctx.get_set_scope(ir_set, ctx=ctx)
