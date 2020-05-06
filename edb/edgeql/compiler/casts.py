@@ -461,12 +461,60 @@ def _cast_array(
                 ],
             )
 
+            enumerated = setgen.ensure_set(
+                dispatch.compile(
+                    qlast.FunctionCall(
+                        func=('std', 'enumerate'),
+                        args=[unpacked],
+                    ),
+                    ctx=subctx,
+                ),
+                ctx=subctx,
+            )
+
+            enumerated_alias = subctx.aliases.get('e')
+            subctx.anchors[enumerated_alias] = enumerated
+            enumerated_ref = qlast.Path(
+                steps=[qlast.ObjectRef(name=enumerated_alias)],
+            )
+
             elements = qlast.FunctionCall(
                 func=('std', 'array_agg'),
                 args=[
-                    qlast.TypeCast(
-                        expr=unpacked,
-                        type=typegen.type_to_ql_typeref(el_type, ctx=subctx),
+                    qlast.SelectQuery(
+                        result=qlast.TypeCast(
+                            expr=qlast.Path(
+                                steps=[
+                                    enumerated_ref,
+                                    qlast.Ptr(
+                                        ptr=qlast.ObjectRef(
+                                            name='1',
+                                            direction='>',
+                                        ),
+                                    ),
+                                ],
+                            ),
+                            type=typegen.type_to_ql_typeref(
+                                el_type,
+                                ctx=subctx,
+                            ),
+                        ),
+                        orderby=[
+                            qlast.SortExpr(
+                                path=qlast.Path(
+                                    steps=[
+                                        enumerated_ref,
+                                        qlast.Ptr(
+                                            ptr=qlast.ObjectRef(
+                                                name='0',
+                                                direction='>',
+                                            ),
+                                        ),
+                                    ],
+                                ),
+                                direction=qlast.SortOrder.Asc,
+                            ),
+                        ],
                     ),
                 ],
             )

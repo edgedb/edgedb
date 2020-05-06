@@ -454,6 +454,16 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [110, 120],
         )
 
+        await self.assert_query_result(
+            r'''SELECT enumerate(array_unpack([(1, '2')]))''',
+            [[0, [1, '2']]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT enumerate(array_unpack([(1, '2')])).1.1''',
+            ['2'],
+        )
+
     async def test_edgeql_functions_enumerate_02(self):
         await self.assert_query_result(
             r'''SELECT enumerate(array_unpack([(x:=1)])).1;''',

@@ -198,6 +198,22 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             [[2, 3, 5]],
         )
 
+    async def test_edgeql_json_cast_07(self):
+        """Check that JSON of array preserves order."""
+
+        await self.assert_query_result(
+            '''WITH MODULE test
+                SELECT <json>array_agg(
+                    (SELECT JSONTest{number}
+                     FILTER .number IN {0, 1}
+                     ORDER BY .j_string)
+                ) = to_json(
+                    '[{"number": 1}, {"number": 0}]'
+                )
+            ''',
+            [True]
+        )
+
     async def test_edgeql_json_accessor_01(self):
         await self.assert_query_result(
             r'''SELECT (to_json('[1, "a", 3]'))[0] = to_json('1');''',

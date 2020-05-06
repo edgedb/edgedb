@@ -1492,7 +1492,7 @@ def process_set_as_tuple_indirection(
 
             rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=subctx)
 
-    return new_simple_set_rvar(ir_set, rvar)
+    return new_simple_set_rvar(ir_set, rvar, aspects=('value',))
 
 
 def process_set_as_type_cast(
@@ -1698,7 +1698,7 @@ def _process_set_func_with_ordinality(
     if arg_is_tuple:
         subtypes = {}
         for i, st in enumerate(inner_rtype.subtypes):
-            colname = st.element_name or str(i)
+            colname = st.element_name or f'_t{i + 1}'
             subtypes[colname] = st
             coldeflist.append(
                 pgast.ColumnDef(
@@ -1718,7 +1718,7 @@ def _process_set_func_with_ordinality(
     fexpr = pgast.FuncCall(name=func_name, args=args, coldeflist=coldeflist)
 
     colnames.append(
-        rtype.subtypes[0].element_name or '0'
+        rtype.subtypes[0].element_name or '_i'
     )
 
     func_rvar = pgast.RangeFunction(
