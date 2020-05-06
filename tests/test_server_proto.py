@@ -2548,6 +2548,8 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
                 r"""
                     WITH MODULE test
                     SELECT FL_B {
+                        id,
+                        __type__,
                         a,
                     } ORDER BY .n
                 """,

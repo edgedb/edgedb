@@ -37,6 +37,7 @@ from edb.schema import pointers as s_pointers
 from edb.schema import types as s_types
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import qltypes
 
 from . import astutils
 from . import context
@@ -352,12 +353,19 @@ def _normalize_view_ptr_expr(
             name=ptrcls.get_shortname(ctx.env.schema).name,
         )
 
-        if (shape_el.where or shape_el.orderby or
-                shape_el.offset or shape_el.limit or
-                base_ptr_is_computable or
-                is_polymorphic or
-                target_typexpr is not None or
-                ctx.implicit_limit):
+        base_cardinality = base_ptrcls.get_cardinality(ctx.env.schema)
+        base_is_singleton = base_cardinality is qltypes.SchemaCardinality.ONE
+
+        if (
+            shape_el.where
+            or shape_el.orderby
+            or shape_el.offset
+            or shape_el.limit
+            or base_ptr_is_computable
+            or is_polymorphic
+            or target_typexpr is not None
+            or (ctx.implicit_limit and not base_is_singleton)
+        ):
 
             if target_typexpr is None:
                 qlexpr = qlast.Path(steps=[source, lexpr])
@@ -377,8 +385,12 @@ def _normalize_view_ptr_expr(
                 qlexpr.offset = shape_el.offset
                 qlexpr.limit = shape_el.limit
 
-            if ((ctx.expr_exposed or ctx.stmt is ctx.toplevel_stmt)
-                    and ctx.implicit_limit and not qlexpr.limit):
+            if (
+                (ctx.expr_exposed or ctx.stmt is ctx.toplevel_stmt)
+                and not qlexpr.limit
+                and ctx.implicit_limit
+                and not base_is_singleton
+            ):
                 qlexpr.limit = qlast.IntegerConstant(
                     value=str(ctx.implicit_limit),
                 )
