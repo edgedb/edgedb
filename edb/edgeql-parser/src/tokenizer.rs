@@ -796,7 +796,6 @@ pub fn is_keyword(s: &str) -> bool {
         | "false"
         | "filter"
         | "for"
-        | "function"
         | "group"
         | "if"
         | "ilike"
