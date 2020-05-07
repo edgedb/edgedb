@@ -418,9 +418,7 @@ class ParameterCommand(
     pass
 
 
-class CreateParameter(ParameterCommand,
-                      sd.CreateObject[Parameter],
-                      sd.CreateObjectFragment):
+class CreateParameter(ParameterCommand, sd.CreateObject[Parameter]):
 
     @classmethod
     def _cmd_tree_from_ast(
@@ -646,10 +644,12 @@ class CallableObject(
                 p for p in new_params
                 if not param_is_inherited(new_schema, new, p)
             ]
+            add = delta.add_prerequisite
         else:
+            add = delta.add
             newcoll = []
 
-        delta.add(
+        add(
             cls.delta_sets(
                 oldcoll,
                 newcoll,
@@ -800,7 +800,7 @@ class CreateCallableObject(CallableCommand, sd.CreateObject[CallableObject]):
         for param in params:
             # as_create_delta requires the specific type
             assert isinstance(cmd.classname, sn.SchemaName)
-            cmd.add(param.as_create_delta(
+            cmd.add_prerequisite(param.as_create_delta(
                 schema, cmd.classname, context=context))
 
         if hasattr(astnode, 'returning'):
