@@ -26,8 +26,8 @@ Set
     * - :eql:op:`OPTIONAL anytype ?? set <COALESCE>`
       - :eql:op-desc:`COALESCE`
 
-    * - :eql:op:`anytype IN set <IN>`
-      - :eql:op-desc:`IN`
+    * - :eql:op:`anytype [IS type] <ISINTERSECT>`
+      - :eql:op-desc:`ISINTERSECT`
 
     * - :eql:func:`count`
       - :eql:func-desc:`count`
@@ -91,6 +91,8 @@ Set
 .. eql:operator:: IN: anytype IN SET OF anytype -> bool
                       anytype NOT IN SET OF anytype -> bool
 
+    :index: intersection
+
     Test the membership of an element in a set.
 
     Set membership operators :eql:op:`IN` and :eql:op:`NOT IN<IN>`
@@ -106,6 +108,16 @@ Set
 
         db> SELECT {1, 2} IN {1, 3, 5};
         {true, false}
+
+    This operator can also be used to implement set intersection:
+
+    .. code-block:: edgeql-repl
+
+        db> WITH
+        ...     A := {1, 2, 3, 4},
+        ...     B := {2, 4, 6}
+        ... SELECT A FILTER A IN B;
+        {2, 4}
 
 
 ----------

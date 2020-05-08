@@ -117,3 +117,14 @@ result):
         Movie.title,
         Movie IN User.<author[IS Review].movie
     )
+
+Perform a set intersection of all actors with all directors:
+
+.. code-block:: edgeql
+
+    WITH
+        # get the set of actors and set of directors
+        Actor := Movie.actors,
+        Director := Movie.directors,
+    # set intersection is done via the FILTER clause
+    SELECT Actor FILTER Actor IN Director;
