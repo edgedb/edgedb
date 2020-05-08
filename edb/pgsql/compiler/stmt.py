@@ -54,7 +54,16 @@ def compile_SelectStmt(
             iterators = irutils.get_iterator_sets(stmt)
             for iterator_set in iterators:
                 # Process FOR clause.
-                clauses.compile_iterator_expr(query, iterator_set, ctx=ctx)
+                iterator_rvar = clauses.compile_iterator_expr(
+                    query, iterator_set, ctx=ctx)
+                for aspect in {'identity', 'value'}:
+                    pathctx.put_path_rvar(
+                        query,
+                        path_id=iterator_set.path_id,
+                        rvar=iterator_rvar,
+                        aspect=aspect,
+                        env=ctx.env,
+                    )
 
         # Process the result expression;
         outvar = clauses.compile_output(stmt.result, ctx=ctx)

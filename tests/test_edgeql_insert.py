@@ -900,6 +900,46 @@ class TestInsert(tb.QueryTestCase):
             [0, 0, 0, 0, 0]
         )
 
+    async def test_edgeql_insert_for_04(self):
+        await self.con.execute(r'''
+            WITH MODULE test
+            INSERT InsertTest {
+                name := 'nested-insert-for',
+                l2 := 999,
+                subordinates := (
+                    FOR x IN {('sub1', 'first'), ('sub2', 'second')}
+                    UNION (
+                        INSERT Subordinate {
+                            name := x.0,
+                            @comment := x.1,
+                        }
+                    )
+                )
+            };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT InsertTest {
+                    subordinates: {
+                        name,
+                        @comment,
+                    } ORDER BY .name
+                }
+                FILTER .name = 'nested-insert-for'
+            ''',
+            [{
+                'subordinates': [{
+                    'name': 'sub1',
+                    '@comment': 'first',
+                }, {
+                    'name': 'sub2',
+                    '@comment': 'second',
+                }]
+            }]
+        )
+
     async def test_edgeql_insert_default_01(self):
         await self.con.execute(r'''
             # create 10 DefaultTest3 objects, each object is defined
