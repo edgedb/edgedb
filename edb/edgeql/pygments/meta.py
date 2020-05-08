@@ -112,6 +112,7 @@ class EdgeQL:
         "deferred",
         "delegated",
         "desc",
+        "emit",
         "explicit",
         "expression",
         "final",
@@ -130,6 +131,7 @@ class EdgeQL:
         "named",
         "object",
         "of",
+        "oids",
         "on",
         "only",
         "operator",
@@ -137,6 +139,7 @@ class EdgeQL:
         "postfix",
         "prefix",
         "property",
+        "pseudo",
         "read",
         "rename",
         "repeatable",
@@ -170,6 +173,7 @@ class EdgeQL:
         "true",
     )
     type_builtins = (
+        "BaseObject",
         "Object",
         "anyenum",
         "anyfloat",
