@@ -1684,7 +1684,8 @@ def _process_set_func_with_ordinality(
         func_name: Tuple[str, ...],
         args: List[pgast.BaseExpr],
         ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
-
+    expr = ir_set.expr
+    assert isinstance(expr, irast.FunctionCall)
     rtype = outer_func_set.typeref
     outer_func_expr = outer_func_set.expr
     assert isinstance(outer_func_expr, irast.FunctionCall)
@@ -1713,6 +1714,10 @@ def _process_set_func_with_ordinality(
 
     else:
         colnames = [ctx.env.aliases.get('v')]
+        coldeflist = []
+
+    if expr.sql_func_has_out_params:
+        # SQL functions declared with OUT params reject column definitions.
         coldeflist = []
 
     fexpr = pgast.FuncCall(name=func_name, args=args, coldeflist=coldeflist)

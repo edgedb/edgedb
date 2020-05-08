@@ -806,6 +806,24 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             [[0, 0]],
         )
 
+    async def test_edgeql_json_object_unpack_05(self):
+        await self.assert_query_result(
+            r'''
+                WITH
+                    q := enumerate(
+                        json_object_unpack(to_json('{
+                            "q": 1,
+                            "w": 2
+                        }'))
+                    )
+                SELECT
+                    <int64>q.1.1
+                ORDER BY
+                    q.1.0;
+            ''',
+            [1, 2]
+        )
+
     async def test_edgeql_json_get_01(self):
         await self.con.execute('SET MODULE test')
 
