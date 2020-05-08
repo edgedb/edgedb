@@ -405,6 +405,11 @@ def apply_intersection(
         if len(narrowed_union) == 0:
             int_type = get_intersection_type((left, right), ctx=ctx)
             is_subtype = int_type.issubclass(ctx.env.schema, left)
+            assert isinstance(right, s_obj.InheritingObject)
+            empty_intersection = not any(
+                c.issubclass(ctx.env.schema, left)
+                for c in right.descendants(ctx.env.schema)
+            )
         elif len(narrowed_union) == 1:
             int_type = narrowed_union[0]
             is_subtype = int_type.issubclass(ctx.env.schema, left)

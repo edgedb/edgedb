@@ -103,7 +103,12 @@ class ObjectType(
             if intersection_of:
                 comps = sorted(intersection_of.objects(schema),
                                key=lambda o: o.id)
-                return ' & '.join(c.get_displayname(schema) for c in comps)
+                comp_dns = (c.get_displayname(schema) for c in comps)
+                # Elide BaseObject from display, because `& BaseObject`
+                # is a nop.
+                return ' & '.join(
+                    dn for dn in comp_dns if dn != 'std::BaseObject'
+                )
             elif mtype is self:
                 return super().get_displayname(schema)
             else:

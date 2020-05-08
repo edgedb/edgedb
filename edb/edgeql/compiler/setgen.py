@@ -274,6 +274,20 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     prefix_type = get_set_type(ind_prefix.rptr.source, ctx=ctx)
                     assert isinstance(prefix_type, s_sources.Source)
 
+                    if not ptrs:
+                        tip_type = get_set_type(path_tip, ctx=ctx)
+                        s_vn = prefix_type.get_verbosename(ctx.env.schema)
+                        t_vn = tip_type.get_verbosename(ctx.env.schema)
+                        ptr = ind_prefix.rptr.ptrref.shortname.name
+                        if direction is s_pointers.PointerDirection.Inbound:
+                            s_vn, t_vn = t_vn, s_vn
+                        raise errors.InvalidReferenceError(
+                            f"property '{ptr_name}' does not exist because"
+                            f" there are no '{ptr}' links between"
+                            f" {s_vn} and {t_vn}",
+                            context=ptr_expr.ptr.context,
+                        )
+
                     prefix_ptr_name = (
                         next(iter(ptrs)).get_shortname(ctx.env.schema).name)
 

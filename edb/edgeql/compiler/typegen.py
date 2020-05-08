@@ -195,8 +195,12 @@ def collapse_type_intersection_rptr(
     rptr_specialization: Set[irast.PointerRef] = set()
     for ind_ptr in ind_ptrs:
         for ind_ptr in ind_ptrs:
-            rptr_specialization.update(
-                ind_ptr.ptrref.rptr_specialization)
+            if ind_ptr.ptrref.rptr_specialization:
+                rptr_specialization.update(
+                    ind_ptr.ptrref.rptr_specialization)
+            elif not ind_ptr.ptrref.is_empty:
+                assert isinstance(ind_ptr.source.rptr.ptrref, irast.PointerRef)
+                rptr_specialization.add(ind_ptr.source.rptr.ptrref)
 
     ptrs = [ptrcls_from_ptrref(ptrref, ctx=ctx)
             for ptrref in rptr_specialization]
