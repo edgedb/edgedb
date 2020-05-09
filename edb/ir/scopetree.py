@@ -385,8 +385,14 @@ class ScopeTreeNode:
             # *always* singletons, and so there is no semantic ambiguity
             # as to the cardinality of the path prefix in different
             # contexts.
-            if (not (is_lprop or prefix.is_linkprop_path())
-                    and not prefix.is_tuple_indirection_path()):
+            #
+            # We could include other cases with invariant cardinality here,
+            # like type intersection, but we want to preserve the prefix
+            # visibility information for the sake of possible optimizations.
+            if (
+                not (is_lprop or prefix.is_linkprop_path())
+                and not prefix.is_tuple_indirection_path()
+            ):
                 parent = new_child
 
             # Skip through type intersections (i.e [IS Foo]) until
@@ -478,9 +484,24 @@ class ScopeTreeNode:
                     if parent_fence.find_child(path_id) is None:
                         assert existing.path_id is not None
 
-                        if (unnest_fence
-                                and parent_fence.find_child(
-                                    path_id, in_branches=True) is None):
+                        if (
+                            unnest_fence
+                            and (
+                                parent_fence.find_child(
+                                    path_id,
+                                    in_branches=True,
+                                    pfx_with_invariant_card=True,
+                                ) is None
+                            )
+                            and (
+                                not path_id.is_type_intersection_path()
+                                or (
+                                    (src_path := path_id.src_path())
+                                    and src_path is not None
+                                    and not self.is_visible(src_path)
+                                )
+                            )
+                        ):
                             path_ancestor = descendant.path_ancestor
                             if path_ancestor is not None:
                                 offending_node = path_ancestor
@@ -707,13 +728,31 @@ class ScopeTreeNode:
 
         return False
 
-    def find_child(self, path_id: pathid.PathId, in_branches: bool = False) \
-            -> Optional[ScopeTreeNode]:
+    def find_child(
+        self,
+        path_id: pathid.PathId,
+        *,
+        in_branches: bool = False,
+        pfx_with_invariant_card: bool = False,
+    ) -> Optional[ScopeTreeNode]:
         for child in self.children:
             if child.path_id == path_id:
                 return child
-            if in_branches and child.path_id is None and not child.fenced:
-                desc = child.find_child(path_id, in_branches=True)
+            if (
+                in_branches and child.path_id is None and not child.fenced
+                or (
+                    pfx_with_invariant_card
+                    and child.path_id is not None
+                    # Type intersections have invariant cardinality
+                    # regardless of prefix visiblity.
+                    and child.path_id.is_type_intersection_path()
+                )
+            ):
+                desc = child.find_child(
+                    path_id,
+                    in_branches=True,
+                    pfx_with_invariant_card=pfx_with_invariant_card,
+                )
                 if desc is not None:
                     return desc
 

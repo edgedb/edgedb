@@ -99,7 +99,9 @@ type Issue extending Named, Owned, Text {
 
     multi link related_to -> Issue;
 
-    multi link references -> File | URL | Publication;
+    multi link references -> File | URL | Publication {
+        property list_order -> int64;
+    };
 
     property tags -> array<str>;
 }
@@ -112,6 +114,9 @@ type URL extending Named {
 
 type Publication {
     required property title -> str;
+    multi link authors -> User {
+        property list_order -> int64;
+    };
 }
 
 abstract constraint my_one_of(one_of: array<anytype>) {

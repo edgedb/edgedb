@@ -228,6 +228,9 @@ class TestIntrospection(tb.QueryTestCase):
                     'name': 'test::Issue',
                 },
                 {
+                    'name': 'test::Publication',
+                },
+                {
                     'name': 'test::User',
                 }
             ]
@@ -251,6 +254,9 @@ class TestIntrospection(tb.QueryTestCase):
             [
                 {
                     'name': 'test::Issue',
+                },
+                {
+                    'name': 'test::Publication',
                 },
                 {
                     'name': 'test::User',

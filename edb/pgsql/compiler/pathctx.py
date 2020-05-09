@@ -322,8 +322,10 @@ def _find_rvar_in_intersection(
         tref = path_id.target
 
     for component_rvar in component_rvars:
-        assert component_rvar.typeref is not None
-        if irtyputils.type_contains(tref, component_rvar.typeref):
+        if (
+            component_rvar.typeref is not None
+            and irtyputils.type_contains(tref, component_rvar.typeref)
+        ):
             rel_rvar = component_rvar
             break
     else:

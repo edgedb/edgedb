@@ -1321,6 +1321,100 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [50000]
         )
 
+    async def test_edgeql_select_polymorphic_12(self):
+        await self.con.execute('''
+            WITH MODULE test
+            INSERT Issue {
+                name := 'Polymorphic Test 12',
+                body := 'foo',
+                number := '333',
+                owner := (SELECT User FILTER .name = 'Elvis'),
+                status := (SELECT Status FILTER .name = 'Open'),
+                references := (
+                    INSERT Publication {
+                        title := 'Introduction to EdgeDB',
+                        authors := (
+                            FOR v IN {enumerate({'Yury', 'Elvis'})}
+                            UNION (
+                                SELECT User { @list_order := v.0 }
+                                FILTER .name = v.1
+                            )
+                        ),
+                    }
+                )
+            }
+        ''')
+
+        await self.assert_query_result(
+            r'''
+            WITH MODULE test
+            SELECT Issue {
+                references: {
+                    [IS Publication].authors: {
+                        name
+                    } ORDER BY @list_order
+                }
+            }
+            FILTER .number = '333'
+            ''',
+            [
+                {
+                    'references': [{
+                        'authors': [{
+                            'name': 'Yury'
+                        }, {
+                            'name': 'Elvis'
+                        }]
+                    }],
+                },
+            ],
+        )
+
+    async def test_edgeql_select_polymorphic_13(self):
+        await self.con.execute('''
+            WITH MODULE test
+            INSERT Issue {
+                name := 'Polymorphic Test 13',
+                body := 'foo',
+                number := '333',
+                owner := (SELECT User FILTER .name = 'Elvis'),
+                status := (SELECT Status FILTER .name = 'Open'),
+                references := (
+                    FOR v IN {
+                        ('Introduction to EdgeDB Part Deux', 2),
+                        ('Introduction to EdgeDB', 1),
+                    }
+                    UNION (
+                        INSERT Publication {
+                            title := v.0,
+                            @list_order := v.1,
+                        }
+                    )
+                )
+            }
+        ''')
+
+        await self.assert_query_result(
+            r'''
+            WITH MODULE test
+            SELECT Issue {
+                references[IS Publication]: {
+                    title
+                } ORDER BY @list_order
+            }
+            FILTER .name = 'Polymorphic Test 13'
+            ''',
+            [
+                {
+                    'references': [{
+                        'title': 'Introduction to EdgeDB',
+                    }, {
+                        'title': 'Introduction to EdgeDB Part Deux',
+                    }],
+                },
+            ],
+        )
+
     async def test_edgeql_select_reverse_link_01(self):
         await self.assert_query_result(
             r'''
