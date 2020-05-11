@@ -67,7 +67,7 @@ def _object(o: edgedb.Object):
     for attr in dir(o):
         try:
             link = o[attr]
-        except KeyError:
+        except (KeyError, TypeError):
             link = None
 
         if link:
