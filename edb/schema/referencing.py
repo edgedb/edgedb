@@ -1146,14 +1146,21 @@ class DeleteReferencedInheritingObject(
                 sd.AlterObject, referrer_class)
 
             for child in referrer.children(schema):
+                assert isinstance(child, so.QualifiedObject)
                 child_coll = child.get_field_value(schema, refdict.attr)
-                existing = child_coll.get(schema, refname, None)
+                fq_refname_in_child = self._classname_from_name(
+                    self_name,
+                    child.get_name(schema),
+                )
+                child_refname = reftype.get_key_for_name(
+                    schema, fq_refname_in_child)
+                existing = child_coll.get(schema, child_refname, None)
 
                 if existing is not None:
                     alter = alter_cmd(classname=child.get_name(schema))
                     with alter.new_context(schema, context, child):
                         schema, cmd = self._propagate_ref_deletion(
-                            schema, context, refdict, self_name, child)
+                            schema, context, refdict, child, existing)
                         alter.add(cmd)
                     self.add(alter)
 
@@ -1164,29 +1171,23 @@ class DeleteReferencedInheritingObject(
         schema: s_schema.Schema,
         context: sd.CommandContext,
         refdict: so.RefDict,
-        parent_fq_refname: sn.SchemaName,
-        child: so.InheritingObject
+        child: so.InheritingObject,
+        child_ref: ReferencedInheritingObjectT,
     ) -> Tuple[s_schema.Schema, sd.Command]:
         get_cmd = sd.ObjectCommandMeta.get_command_class_or_die
         mcls = type(self.scls)
 
-        ref_field_type = type(child).get_field(refdict.attr).type
-        refname = ref_field_type.get_key_for_name(schema, parent_fq_refname)
-        child_coll = child.get_field_value(schema, refdict.attr)
-        existing = child_coll.get(schema, refname)
-
+        name = child_ref.get_name(schema)
         implicit_bases = self._get_implicit_ref_bases(
-            schema, context, child, refdict.attr, parent_fq_refname)
+            schema, context, child, refdict.attr, name)
 
         cmd: sd.Command
 
-        if existing.get_is_local(schema) or implicit_bases:
-            name = existing.get_name(schema)
-
+        if child_ref.get_is_local(schema) or implicit_bases:
             # Child is either defined locally or is inherited
             # from another parent, so we need to do a rebase.
             removed_bases, added_bases = self.get_ref_implicit_base_delta(
-                schema, context, existing, implicit_bases)
+                schema, context, child_ref, implicit_bases)
             rebase_cmd_cls = get_cmd(inheriting.RebaseInheritingObject, mcls)
             rebase_cmd = rebase_cmd_cls(
                 classname=name,
@@ -1195,13 +1196,13 @@ class DeleteReferencedInheritingObject(
             )
 
             ref_alter_cmd = get_cmd(sd.AlterObject, mcls)
-            cmd = ref_alter_cmd(classname=existing.get_name(schema))
+            cmd = ref_alter_cmd(classname=name)
             cmd.add(rebase_cmd)
 
         else:
             # The ref in child should no longer exist.
             ref_del_cmd = get_cmd(sd.DeleteObject, mcls)
-            cmd = ref_del_cmd(classname=existing.get_name(schema))
+            cmd = ref_del_cmd(classname=name)
 
         schema = cmd.apply(schema, context)
 
