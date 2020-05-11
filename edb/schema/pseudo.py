@@ -44,9 +44,6 @@ class PseudoType(so.InheritingObject, s_types.Type):
     def as_shell(self, schema: s_schema.Schema) -> PseudoTypeShell:
         return PseudoTypeShell(name=self.get_name(schema))
 
-    def get_shortname(self, schema: s_schema.Schema) -> str:
-        return self.get_name(schema)
-
     def get_bases(
         self,
         schema: s_schema.Schema,

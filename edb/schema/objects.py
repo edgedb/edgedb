@@ -649,11 +649,29 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
     def get_id(self, schema: s_schema.Schema) -> uuid.UUID:
         return self.id
 
+    @classmethod
+    def get_schema_class_displayname(cls) -> str:
+        return cls.__name__.lower()
+
+    @classmethod
+    def get_shortname_static(cls, name: str) -> str:
+        return name
+
+    @classmethod
+    def get_displayname_static(cls, name: str) -> str:
+        return str(cls.get_shortname_static(name))
+
+    @classmethod
+    def get_verbosename_static(cls, name: str) -> str:
+        clsname = cls.get_schema_class_displayname()
+        dname = cls.get_displayname_static(name)
+        return f"{clsname} '{dname}'"
+
     def get_shortname(self, schema: s_schema.Schema) -> str:
-        return sn.shortname_from_fullname(self.get_name(schema))
+        return type(self).get_shortname_static(self.get_name(schema))
 
     def get_displayname(self, schema: s_schema.Schema) -> str:
-        return str(self.get_shortname(schema))
+        return type(self).get_displayname_static(self.get_name(schema))
 
     def get_verbosename(
         self, schema: s_schema.Schema, *, with_parent: bool = False
@@ -672,10 +690,6 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
     def __hash__(self) -> int:
         return hash((self.id, type(self)))
-
-    @classmethod
-    def get_schema_class_displayname(cls) -> str:
-        return cls.__name__.lower()
 
     @classmethod
     def _prepare_id(
@@ -1481,10 +1495,14 @@ class QualifiedObject(Object):
         compcoef=0.670,
     )
 
-    def get_shortname(self, schema: s_schema.Schema) -> sn.Name:
-        shortname = super().get_shortname(schema)
+    @classmethod
+    def get_shortname_static(cls, name: str) -> sn.Name:
+        shortname = sn.shortname_from_fullname(name)
         assert isinstance(shortname, sn.Name)
         return shortname
+
+    def get_shortname(self, schema: s_schema.Schema) -> sn.Name:
+        return type(self).get_shortname_static(self.get_name(schema))
 
 
 QualifiedObject_T = TypeVar('QualifiedObject_T', bound='QualifiedObject')
@@ -2005,7 +2023,10 @@ class ObjectIndexByShortname(
         return sn.shortname_from_fullname(name)
 
 
-def _unqualified_object_key(schema: s_schema.Schema, o: Object) -> str:
+def _unqualified_object_key(
+    schema: s_schema.Schema,
+    o: QualifiedObject,
+) -> str:
     assert isinstance(o, QualifiedObject)
     return o.get_shortname(schema).name
 

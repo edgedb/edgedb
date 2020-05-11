@@ -22,6 +22,7 @@ from typing import *
 
 from edb import edgeql
 from edb import errors
+from edb.common import ast
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
 
@@ -60,10 +61,20 @@ class Index(referencing.ReferencedInheritingObject, s_anno.AnnotationSubject):
 
     __str__ = __repr__
 
-    def get_displayname(self, schema: s_schema.Schema) -> str:
-        expr = self.get_expr(schema)
-        assert expr.origtext is not None
-        return expr.origtext
+    @classmethod
+    def get_shortname_static(cls, name: str) -> sn.Name:
+        quals = sn.quals_from_fullname(name)
+        ptr_qual = quals[2]
+        expr_qual = quals[1]
+        return sn.Name(
+            module='__',
+            name=f'{ptr_qual}_{expr_qual[:8]}',
+        )
+
+    @classmethod
+    def get_displayname_static(cls, name: str) -> str:
+        shortname = cls.get_shortname_static(name)
+        return shortname.name
 
 
 class IndexableSubject(so.InheritingObject):
@@ -72,7 +83,7 @@ class IndexableSubject(so.InheritingObject):
         ref_cls=Index)
 
     indexes = so.SchemaField(
-        so.ObjectIndexByUnqualifiedName[Index],
+        so.ObjectIndexByFullname[Index],
         inheritable=False, ephemeral=True, coerce=True, compcoef=0.909,
         default=so.DEFAULT_CONSTRUCTOR)
 
@@ -157,9 +168,22 @@ class IndexCommand(
             expr_text = expr.origtext
 
         assert expr_text is not None
-        name = (cls._name_qual_from_exprs(schema, (expr_text,)),)
+        expr_qual = cls._name_qual_from_exprs(schema, (expr_text,))
 
-        return name
+        ptrs = ast.find_children(astnode, lambda n: isinstance(n, qlast.Ptr))
+        ptr_name_qual = '_'.join(ptr.ptr.name for ptr in ptrs)
+        if not ptr_name_qual:
+            ptr_name_qual = 'idx'
+
+        return (expr_qual, ptr_name_qual)
+
+    @classmethod
+    def _classname_quals_from_name(
+        cls,
+        name: sn.SchemaName
+    ) -> Tuple[str, ...]:
+        quals = sn.quals_from_fullname(name)
+        return tuple(quals[-2:])
 
     # type ignore below, because parent class defines a compatible overload
     def get_object(  # type: ignore

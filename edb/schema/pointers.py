@@ -224,12 +224,13 @@ class Pointer(referencing.ReferencedInheritingObject,
     def is_type_intersection(self) -> bool:
         return False
 
-    def get_displayname(self, schema: s_schema.Schema) -> str:
-        sn = self.get_shortname(schema)
-        if self.generic(schema):
-            return sn
-        else:
+    @classmethod
+    def get_displayname_static(cls, name: str) -> str:
+        sn = cls.get_shortname_static(name)
+        if sn.module == '__':
             return sn.name
+        else:
+            return sn
 
     def get_verbosename(
         self,

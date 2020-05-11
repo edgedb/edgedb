@@ -465,7 +465,7 @@ class ConstraintCommand(
     def _classname_quals_from_name(
         cls,
         name: sn.SchemaName
-    ) -> Tuple[str]:
+    ) -> Tuple[str, ...]:
         quals = sn.quals_from_fullname(name)
         return (quals[-1],)
 

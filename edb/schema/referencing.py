@@ -189,6 +189,21 @@ class ReferencedObject(so.DerivableObject):
 
         return schema, derived
 
+    def get_verbosename(
+        self,
+        schema: s_schema.Schema,
+        *,
+        with_parent: bool = False,
+    ) -> str:
+        vn = super().get_verbosename(schema)
+        if with_parent:
+            subject = self.get_subject(schema)
+            if subject is not None:
+                pn = subject.get_verbosename(schema, with_parent=True)
+                return f'{vn} of {pn}'
+
+        return vn
+
 
 class ReferencedInheritingObject(
     so.DerivableInheritingObject,

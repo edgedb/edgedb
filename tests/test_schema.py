@@ -630,6 +630,8 @@ _123456789_123456789_123456789 -> str
                         constraint max_len_value(10);
                     }
                 }
+
+                index on (.foo)
             };
         """)
 
@@ -661,13 +663,13 @@ _123456789_123456789_123456789 -> str
         fn = list(schema.get_functions('std::json_typeof'))[0]
         self.assertEqual(
             fn.get_verbosename(schema),
-            'function std::json_typeof(json: std::json)',
+            "function 'std::json_typeof(json: std::json)'",
         )
 
         fn_param = fn.get_params(schema).get_by_name(schema, 'json')
         self.assertEqual(
             fn_param.get_verbosename(schema, with_parent=True),
-            "parameter 'json' of function std::json_typeof(json: std::json)",
+            "parameter 'json' of function 'std::json_typeof(json: std::json)'",
         )
 
         op = list(schema.get_operators('std::AND'))[0]
@@ -733,6 +735,13 @@ _123456789_123456789_123456789 -> str
                     schema, with_parent=True),
             "constraint 'std::max_len_value' of property 'bar_prop' of "
             "link 'bar' of object type 'test::Object1'",
+        )
+
+        self.assertEqual(
+            next(iter(obj.get_indexes(
+                schema).objects(schema))).get_verbosename(
+                    schema, with_parent=True),
+            "index 'foo_7770702d' of object type 'test::Object1'",
         )
 
     def test_schema_advanced_types(self):

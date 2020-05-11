@@ -363,14 +363,18 @@ class Parameter(so.ObjectFragment, ParameterLike):
         else:
             return vn
 
-    def get_shortname(self, schema: s_schema.Schema) -> sn.Name:
+    @classmethod
+    def get_shortname_static(cls, name: str) -> sn.Name:
+        assert isinstance(name, sn.Name)
         return sn.Name(
-            module=self.get_name(schema).module,
-            name=self.get_parameter_name(schema),
+            module='__',
+            name=cls.paramname_from_fullname(name),
         )
 
-    def get_displayname(self, schema: s_schema.Schema) -> str:
-        return self.get_parameter_name(schema)
+    @classmethod
+    def get_displayname_static(cls, name: str) -> str:
+        shortname = cls.get_shortname_static(name)
+        return shortname.name
 
     def get_parameter_name(self, schema: s_schema.Schema) -> str:
         fullname = self.get_name(schema)
@@ -927,7 +931,7 @@ class Function(CallableObject, VolatilitySubject, s_abc.Function,
     ) -> str:
         params = self.get_params(schema)
         sn = self.get_shortname(schema)
-        return f'function {sn}{params.as_str(schema)}'
+        return f"function '{sn}{params.as_str(schema)}'"
 
 
 class FunctionCommandContext(CallableCommandContext):
