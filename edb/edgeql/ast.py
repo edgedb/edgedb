@@ -473,6 +473,7 @@ class SelectClauseMixin(OrderByMixin, OffsetLimitMixin, FilterMixin):
 class ShapeOp(s_enum.StrEnum):
 
     APPEND = 'APPEND'
+    SUBTRACT = 'SUBTRACT'
     ASSIGN = 'ASSIGN'
 
 

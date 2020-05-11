@@ -561,6 +561,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.write(' := ')
             elif node.operation.op is qlast.ShapeOp.APPEND:
                 self.write(' += ')
+            elif node.operation.op is qlast.ShapeOp.SUBTRACT:
+                self.write(' -= ')
             else:
                 raise NotImplementedError(
                     f'unexpected shape operation: {node.operation.op!r}'

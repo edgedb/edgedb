@@ -494,6 +494,10 @@ def _infer_pointer_cardinality(
     if shape_op is qlast.ShapeOp.APPEND:
         # += in shape always means MANY
         inferred_card = qltypes.Cardinality.MANY
+    elif shape_op is qlast.ShapeOp.SUBTRACT:
+        # -= does not increase cardinality, but it may result in an empty set,
+        # hence AT_MOST_ONE.
+        inferred_card = qltypes.Cardinality.AT_MOST_ONE
     else:
         inferred_card = infer_expr_cardinality(irexpr=irexpr, ctx=ctx)
 

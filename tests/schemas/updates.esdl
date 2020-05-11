@@ -61,6 +61,8 @@ type UpdateTest {
     property readonly_note -> str {
         readonly := true;
     }
+
+    multi property str_tags -> str;
 }
 
 type CollectionTest {

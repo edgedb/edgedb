@@ -2071,3 +2071,284 @@ class TestUpdate(tb.QueryTestCase):
                     )
                 };
             """)
+
+    async def test_edgeql_update_subtract_01(self):
+        await self.con.execute("""
+            WITH MODULE test
+            INSERT UpdateTest {
+                name := 'update-test-subtract-1',
+            };
+
+            WITH MODULE test
+            INSERT UpdateTest {
+                name := 'update-test-subtract-2',
+            };
+
+            WITH MODULE test
+            INSERT UpdateTest {
+                name := 'update-test-subtract-3',
+            };
+        """)
+
+        await self.con.execute("""
+            WITH
+                MODULE test,
+                U2 := UpdateTest
+            UPDATE UpdateTest
+            FILTER .name = 'update-test-subtract-1'
+            SET {
+                annotated_tests := (
+                    FOR v IN {
+                        ('update-test-subtract-2', 'one'),
+                        ('update-test-subtract-3', 'two'),
+                    }
+                    UNION (
+                        SELECT U2 {
+                            @note := v.1,
+                        } FILTER .name = v.0
+                    )
+                )
+            };
+        """)
+
+        await self.con.execute("""
+            WITH
+                MODULE test,
+                U2 := UpdateTest
+            UPDATE UpdateTest
+            FILTER .name = 'update-test-subtract-3'
+            SET {
+                annotated_tests := (
+                    FOR v IN {
+                        ('update-test-subtract-2', 'one'),
+                    }
+                    UNION (
+                        SELECT U2 {
+                            @note := v.1,
+                        } FILTER .name = v.0
+                    )
+                )
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest {
+                    name,
+                    annotated_tests: {
+                        name,
+                        @note
+                    } ORDER BY .name
+                } FILTER
+                    .name LIKE 'update-test-subtract-%';
+            """,
+            [
+                {
+                    'name': 'update-test-subtract-1',
+                    'annotated_tests': [{
+                        'name': 'update-test-subtract-2',
+                        '@note': 'one',
+                    }, {
+                        'name': 'update-test-subtract-3',
+                        '@note': 'two',
+                    }],
+                },
+                {
+                    'name': 'update-test-subtract-2',
+                    'annotated_tests': [],
+                },
+                {
+                    'name': 'update-test-subtract-3',
+                    'annotated_tests': [{
+                        'name': 'update-test-subtract-2',
+                        '@note': 'one',
+                    }],
+                },
+            ]
+        )
+
+        await self.con.execute("""
+            WITH
+                MODULE test,
+                U2 := UpdateTest
+            UPDATE UpdateTest
+            FILTER .name = 'update-test-subtract-1'
+            SET {
+                annotated_tests -= (
+                    SELECT U2
+                    FILTER .name = 'update-test-subtract-2'
+                )
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest {
+                    name,
+                    annotated_tests: {
+                        name,
+                        @note
+                    } ORDER BY .name
+                } FILTER
+                    .name LIKE 'update-test-subtract-%';
+            """,
+            [
+                {
+                    'name': 'update-test-subtract-1',
+                    'annotated_tests': [{
+                        'name': 'update-test-subtract-3',
+                        '@note': 'two',
+                    }],
+                },
+                {
+                    'name': 'update-test-subtract-2',
+                    'annotated_tests': [],
+                },
+                {
+                    'name': 'update-test-subtract-3',
+                    'annotated_tests': [{
+                        'name': 'update-test-subtract-2',
+                        '@note': 'one',
+                    }],
+                },
+            ]
+        )
+
+    async def test_edgeql_update_subtract_02(self):
+        await self.con.execute("""
+            WITH MODULE test
+            INSERT UpdateTest {
+                name := 'update-test-subtract-various',
+                annotated_status := (
+                    SELECT Status {
+                        @note := 'forever',
+                    } FILTER .name = 'Closed'
+                ),
+                comment := 'to remove',
+                str_tags := {'1', '2', '3'},
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest {
+                    annotated_status: {
+                        name,
+                        @note
+                    },
+                    comment,
+                    str_tags ORDER BY UpdateTest.str_tags
+                } FILTER
+                    .name = 'update-test-subtract-various';
+            """,
+            [
+                {
+                    'annotated_status': {
+                        'name': 'Closed',
+                        '@note': 'forever',
+                    },
+                    'comment': 'to remove',
+                    'str_tags': ['1', '2', '3'],
+                },
+            ],
+        )
+
+        # Check that singleton links work.
+        await self.con.execute("""
+            WITH
+                MODULE test
+            UPDATE UpdateTest
+            FILTER .name = 'update-test-subtract-various'
+            SET {
+                annotated_status -= (SELECT Status FILTER .name = 'Closed')
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest {
+                    annotated_status: {
+                        name,
+                        @note
+                    },
+                } FILTER
+                    .name = 'update-test-subtract-various';
+            """,
+            [
+                {
+                    'annotated_status': None,
+                },
+            ],
+        )
+
+        # And singleton properties too.
+        await self.con.execute("""
+            WITH
+                MODULE test
+            UPDATE UpdateTest
+            FILTER .name = 'update-test-subtract-various'
+            SET {
+                comment -= 'to remove'
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest {
+                    comment,
+                } FILTER
+                    .name = 'update-test-subtract-various';
+            """,
+            [
+                {
+                    'comment': None,
+                },
+            ],
+        )
+
+        # And multi properties as well.
+        await self.con.execute("""
+            WITH
+                MODULE test
+            UPDATE UpdateTest
+            FILTER .name = 'update-test-subtract-various'
+            SET {
+                str_tags -= '2'
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest {
+                    str_tags,
+                } FILTER
+                    .name = 'update-test-subtract-various';
+            """,
+            [
+                {
+                    'str_tags': {'1', '3'},
+                },
+            ],
+        )
+
+    async def test_edgeql_subtract_badness_01(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            r"unexpected '-='",
+            _position=123,
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                INSERT UpdateTest
+                {
+                    annotated_status -= (
+                        SELECT Status FILTER .name = 'status'
+                    )
+                };
+            """)

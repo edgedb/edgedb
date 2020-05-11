@@ -517,6 +517,15 @@ def process_update_body(
                             type_name=pgast.TypeName(name=ptr_info.column_type)
                         )
 
+                    if shape_op is qlast.ShapeOp.SUBTRACT:
+                        val = pgast.FuncCall(
+                            name=('nullif',),
+                            args=[
+                                pgast.ColumnRef(name=(ptr_info.column_name,)),
+                                val,
+                            ],
+                        )
+
                     updtarget = pgast.UpdateTarget(
                         name=ptr_info.column_name,
                         val=val,
@@ -675,23 +684,77 @@ def process_link_update(
 
     delqry: Optional[pgast.DeleteStmt]
 
-    if not is_insert and shape_op is not qlast.ShapeOp.APPEND:
-        # Drop all previous link records for this source.
-        delqry = pgast.DeleteStmt(
-            relation=target_rvar,
-            where_clause=astutils.new_binop(
-                lexpr=col_data['source'],
-                op='=',
-                rexpr=pgast.ColumnRef(
-                    name=[target_alias, 'source'])
+    data_select = pgast.SelectStmt(
+        target_list=[
+            pgast.ResTarget(
+                val=pgast.ColumnRef(
+                    name=[data_cte.name, pgast.Star()]
+                ),
             ),
-            using_clause=[dml_cte_rvar],
-            returning_list=[
-                pgast.ResTarget(
-                    val=pgast.ColumnRef(
-                        name=[target_alias, pgast.Star()]))
-            ]
-        )
+        ],
+        from_clause=[
+            pgast.RelRangeVar(relation=data_cte),
+        ],
+    )
+
+    if not is_insert and shape_op is not qlast.ShapeOp.APPEND:
+        if shape_op is qlast.ShapeOp.SUBTRACT:
+            data_rvar = relctx.rvar_for_rel(data_select, ctx=ctx)
+
+            # Drop requested link records.
+            delqry = pgast.DeleteStmt(
+                relation=target_rvar,
+                where_clause=astutils.new_binop(
+                    lexpr=astutils.new_binop(
+                        lexpr=col_data['source'],
+                        op='=',
+                        rexpr=pgast.ColumnRef(
+                            name=[target_alias, 'source'],
+                        ),
+                    ),
+                    op='AND',
+                    rexpr=astutils.new_binop(
+                        lexpr=pgast.ColumnRef(
+                            name=[target_alias, 'target'],
+                        ),
+                        op='=',
+                        rexpr=pgast.ColumnRef(
+                            name=[data_rvar.alias.aliasname, 'target'],
+                        ),
+                    ),
+                ),
+                using_clause=[
+                    dml_cte_rvar,
+                    data_rvar,
+                ],
+                returning_list=[
+                    pgast.ResTarget(
+                        val=pgast.ColumnRef(
+                            name=[target_alias, pgast.Star()],
+                        ),
+                    )
+                ]
+            )
+        else:
+            # Drop all previous link records for this source.
+            delqry = pgast.DeleteStmt(
+                relation=target_rvar,
+                where_clause=astutils.new_binop(
+                    lexpr=col_data['source'],
+                    op='=',
+                    rexpr=pgast.ColumnRef(
+                        name=[target_alias, 'source'],
+                    ),
+                ),
+                using_clause=[dml_cte_rvar],
+                returning_list=[
+                    pgast.ResTarget(
+                        val=pgast.ColumnRef(
+                            name=[target_alias, pgast.Star()],
+                        ),
+                    )
+                ]
+            )
 
         delcte = pgast.CommonTableExpr(
             name=ctx.env.aliases.get(hint='d'),
@@ -711,16 +774,8 @@ def process_link_update(
     else:
         delqry = None
 
-    data_select = pgast.SelectStmt(
-        target_list=[
-            pgast.ResTarget(
-                val=pgast.ColumnRef(
-                    name=[data_cte.name, pgast.Star()]))
-        ],
-        from_clause=[
-            pgast.RelRangeVar(relation=data_cte)
-        ]
-    )
+    if shape_op is qlast.ShapeOp.SUBTRACT:
+        return data_cte
 
     cols = [pgast.ColumnRef(name=[col]) for col in specified_cols]
     conflict_cols = ['source', 'target', 'ptr_item_id']

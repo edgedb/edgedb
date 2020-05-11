@@ -558,10 +558,17 @@ def _normalize_view_ptr_expr(
             )
             irexpr = dispatch.compile(qlexpr, ctx=shape_expr_ctx)
 
-            if shape_el.operation.op is qlast.ShapeOp.APPEND:
+            if (
+                shape_el.operation.op is qlast.ShapeOp.APPEND
+                or shape_el.operation.op is qlast.ShapeOp.SUBTRACT
+            ):
                 if not is_update:
+                    op = (
+                        '+=' if shape_el.operation.op is qlast.ShapeOp.APPEND
+                        else '-='
+                    )
                     raise errors.EdgeQLSyntaxError(
-                        "unexpected '+='",
+                        f"unexpected '{op}'",
                         context=shape_el.operation.context,
                     )
 

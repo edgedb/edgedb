@@ -1020,12 +1020,18 @@ def computable_ptr_set(
             ctx=ctx,
         )
 
-    stmtctx.enforce_pointer_cardinality(
-        ptrcls,
-        comp_ir_set_copy,
-        singletons={source_path_id},
-        ctx=ctx,
-    )
+    if (
+        pending_cardinality is None
+        or pending_cardinality.shape_op is not qlast.ShapeOp.SUBTRACT
+    ):
+        # When doing subtraction in shapes, the cardinality of the
+        # expression being subtracted does not matter.
+        stmtctx.enforce_pointer_cardinality(
+            ptrcls,
+            comp_ir_set_copy,
+            singletons={source_path_id},
+            ctx=ctx,
+        )
 
     comp_ir_set = new_set_from_set(
         comp_ir_set, path_id=result_path_id, rptr=rptr, ctx=ctx)

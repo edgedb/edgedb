@@ -533,6 +533,14 @@ class ComputableShapePointer(Nonterm):
             context=kids[1].context,
         )
 
+    def reduce_SimpleShapePointer_REMASSIGN_Expr(self, *kids):
+        self.val = kids[0].val
+        self.val.compexpr = kids[2].val
+        self.val.operation = qlast.ShapeOperation(
+            op=qlast.ShapeOp.SUBTRACT,
+            context=kids[1].context,
+        )
+
 
 class FilterClause(Nonterm):
     def reduce_FILTER_Expr(self, *kids):
