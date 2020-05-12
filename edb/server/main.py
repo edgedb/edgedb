@@ -515,6 +515,9 @@ _server_options = [
         '--max-protocol', type=str, callback=_protocol_version,
         default='.'.join(map(str, mng_port.CURRENT_PROTOCOL)),
         help='maximum supported and advertized client protocol version'),
+    click.option(
+        '--version', is_flag=True,
+        help='Show the version and exit.')
 ]
 
 
@@ -587,7 +590,10 @@ def server_main(*, insecure=False, **kwargs):
     'EdgeDB Server',
     context_settings=dict(help_option_names=['-h', '--help']))
 @server_options
-def main(**kwargs):
+def main(version=False, **kwargs):
+    if version:
+        print(f"edgedb-server, version {buildmeta.get_version()}")
+        sys.exit(0)
     server_main(**kwargs)
 
 

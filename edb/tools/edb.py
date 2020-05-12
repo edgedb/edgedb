@@ -20,12 +20,14 @@
 from __future__ import annotations
 
 import os
+import sys
 
 import click
 
 from edb.common import debug
 from edb.common import devmode as dm
 from edb.server import main as srv_main
+from edb.server import buildmeta
 
 
 @click.group(
@@ -40,10 +42,13 @@ def edbcommands(devmode: bool):
 
 @edbcommands.command()
 @srv_main.server_options
-def server(**kwargs):
+def server(version=False, **kwargs):
+    if version:
+        print(f"edb, version {buildmeta.get_version()}")
+        sys.exit(0)
+
     os.environ['EDGEDB_DEBUG_SERVER'] = '1'
     debug.init_debug_flags()
-
     srv_main.server_main(insecure=True, **kwargs)
 
 
