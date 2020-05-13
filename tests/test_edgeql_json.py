@@ -22,6 +22,8 @@ import os.path
 
 import edgedb
 
+from edb.schema import defines as s_defs
+
 from edb.testbase import server as tb
 from edb.tools import test
 
@@ -1639,3 +1641,42 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 await self.con.fetchall(r'''
                     SELECT to_str(<json>[1, 2, 3, 4], 'p');
                 ''')
+
+    async def test_edgeql_json_long_array(self):
+        count = s_defs.MAX_FUNC_ARG_COUNT + 11
+        await self.assert_query_result(
+            f'''SELECT to_str(<json>[
+                {", ".join(str(v) for v in range(count))}
+            ]);''',
+            {f'[{", ".join(str(v) for v in range(count))}]'},
+        )
+
+    async def test_edgeql_json_long_tuple(self):
+        count = s_defs.MAX_FUNC_ARG_COUNT + 11
+        await self.assert_query_result(
+            f'''SELECT to_str(<json>(
+                {", ".join(str(v) for v in range(count))}
+            ));''',
+            {f'[{", ".join(str(v) for v in range(count))}]'},
+        )
+
+    async def test_edgeql_json_long_named_tuple(self):
+        count = s_defs.MAX_FUNC_ARG_COUNT + 11
+        args = (f'_{i} := {v}' for i, v in enumerate(range(count)))
+        result = (f'"_{i}": {v}' for i, v in enumerate(range(count)))
+        await self.assert_query_result(
+            f'SELECT to_str(<json>({", ".join(args)}));',
+            {f'{{{", ".join(result)}}}'},
+        )
+
+    async def test_edgeql_json_long_shape(self):
+        count = s_defs.MAX_FUNC_ARG_COUNT + 11
+        args = (f'_{i} := {v}' for i, v in enumerate(range(count)))
+        result = (f'"_{i}": {v}' for i, v in enumerate(range(count)))
+        await self.assert_query_result(
+            f'''
+                SELECT to_str(<json>test::JSONTest{{ {", ".join(args)} }})
+                LIMIT 1
+            ''',
+            {f'{{{", ".join(result)}}}'},
+        )

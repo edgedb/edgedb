@@ -747,7 +747,7 @@ class RowExpr(ImmutableBaseExpr):
     """A ROW() expression."""
 
     # The fields.
-    args: typing.List[Base]
+    args: typing.List[BaseExpr]
     # Row expressions, while may contain NULLs, are not NULL themselves.
     nullable: bool = False
 
@@ -756,7 +756,7 @@ class ImplicitRowExpr(ImmutableBaseExpr):
     """A (a, b, c) expression."""
 
     # The fields.
-    args: typing.List[Base]
+    args: typing.List[BaseExpr]
     # Row expressions, while may contain NULLs, are not NULL themselves.
     nullable: bool = False
 

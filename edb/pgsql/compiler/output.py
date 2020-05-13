@@ -20,24 +20,36 @@
 """Compilation helpers for output formatting and serialization."""
 
 from __future__ import annotations
-
 from typing import *
+
+import itertools
 
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
 
+from edb.schema import defines as s_defs
+
 from edb.pgsql import ast as pgast
 from edb.pgsql import types as pgtypes
 
+from . import astutils
 from . import context
 
 
 _JSON_FORMATS = {context.OutputFormat.JSON, context.OutputFormat.JSON_ELEMENTS}
 
 
-def _get_json_func(name: str, *,
-                   env: context.Environment) -> Tuple[str, ...]:
-    if env.output_format in _JSON_FORMATS:
+def _get_json_func(
+    name: str,
+    *,
+    output_format: Optional[context.OutputFormat] = None,
+    env: context.Environment,
+) -> Tuple[str, ...]:
+
+    if output_format is None:
+        output_format = env.output_format
+
+    if output_format in _JSON_FORMATS:
         prefix_suffix = 'json'
     else:
         prefix_suffix = 'jsonb'
@@ -46,6 +58,76 @@ def _get_json_func(name: str, *,
         return (f'{name}_{prefix_suffix}',)
     else:
         return (f'{prefix_suffix}_{name}',)
+
+
+def _build_json(
+    name: str,
+    args: Sequence[pgast.BaseExpr],
+    *,
+    null_safe: bool = False,
+    ser_safe: bool = False,
+    nullable: Optional[bool] = None,
+    env: context.Environment,
+) -> pgast.BaseExpr:
+    # PostgreSQL has a limit on the maximum number of arguments
+    # passed to a function call, so we must chop input into chunks
+    # if the argument count is greater then the limit.
+
+    if len(args) > s_defs.MAX_FUNC_ARG_COUNT:
+        json_func = _get_json_func(
+            name,
+            output_format=context.OutputFormat.JSONB,
+            env=env,
+        )
+
+        chunk_iters = [iter(args)] * s_defs.MAX_FUNC_ARG_COUNT
+        chunks = list(itertools.zip_longest(*chunk_iters, fillvalue=None))
+        if len(args) != len(chunks) * s_defs.MAX_FUNC_ARG_COUNT:
+            chunks[-1] = tuple(filter(None, chunks[-1]))
+
+        result: pgast.BaseExpr = pgast.FuncCall(
+            name=json_func,
+            args=chunks[0],
+            null_safe=null_safe,
+            ser_safe=ser_safe,
+            nullable=nullable,
+        )
+
+        for chunk in chunks[1:]:
+            fc = pgast.FuncCall(
+                name=json_func,
+                args=chunk,
+                null_safe=null_safe,
+                ser_safe=ser_safe,
+                nullable=nullable,
+            )
+
+            result = astutils.new_binop(
+                lexpr=result,
+                rexpr=fc,
+                op='||',
+            )
+
+        if env.output_format in _JSON_FORMATS:
+            result = pgast.TypeCast(
+                arg=result,
+                type_name=pgast.TypeName(
+                    name=('json',)
+                )
+            )
+
+        return result
+
+    else:
+        json_func = _get_json_func(name, env=env)
+
+        return pgast.FuncCall(
+            name=json_func,
+            args=args,
+            null_safe=null_safe,
+            ser_safe=ser_safe,
+            nullable=nullable,
+        )
 
 
 def coll_as_json_object(
@@ -101,10 +183,7 @@ def array_as_json_object(
                     )
                 )
 
-        if is_named:
-            json_func = _get_json_func('build_object', env=env)
-        else:
-            json_func = _get_json_func('build_array', env=env)
+        json_func = 'build_object' if is_named else 'build_array'
 
         return pgast.SelectStmt(
             target_list=[
@@ -114,10 +193,7 @@ def array_as_json_object(
                             pgast.FuncCall(
                                 name=_get_json_func('agg', env=env),
                                 args=[
-                                    pgast.FuncCall(
-                                        name=json_func,
-                                        args=json_args,
-                                    )
+                                    _build_json(json_func, json_args, env=env)
                                 ]
                             ),
                             pgast.StringConstant(val='[]'),
@@ -182,10 +258,14 @@ def unnamed_tuple_as_json_object(
                 val = coll_as_json_object(val, styperef=el_type, env=env)
             vals.append(val)
 
-        return pgast.FuncCall(
-            name=_get_json_func('build_array', env=env),
-            args=vals, null_safe=True, ser_safe=True,
-            nullable=expr.nullable)
+        return _build_json(
+            'build_array',
+            args=vals,
+            null_safe=True,
+            ser_safe=True,
+            nullable=expr.nullable,
+            env=env,
+        )
 
     else:
         coldeflist = []
@@ -206,10 +286,14 @@ def unnamed_tuple_as_json_object(
 
             vals.append(val)
 
-        res = pgast.FuncCall(
-            name=_get_json_func('build_array', env=env),
-            args=vals, null_safe=True, ser_safe=True,
-            nullable=expr.nullable)
+        res = _build_json(
+            'build_array',
+            args=vals,
+            null_safe=True,
+            ser_safe=True,
+            nullable=expr.nullable,
+            env=env,
+        )
 
         return pgast.SelectStmt(
             target_list=[
@@ -258,10 +342,14 @@ def named_tuple_as_json_object(
                 val = coll_as_json_object(val, styperef=el_type, env=env)
             keyvals.append(val)
 
-        return pgast.FuncCall(
-            name=_get_json_func('build_object', env=env),
-            args=keyvals, null_safe=True, ser_safe=True,
-            nullable=expr.nullable)
+        return _build_json(
+            'build_object',
+            args=keyvals,
+            null_safe=True,
+            ser_safe=True,
+            nullable=expr.nullable,
+            env=env,
+        )
 
     else:
         coldeflist = []
@@ -283,10 +371,14 @@ def named_tuple_as_json_object(
 
             keyvals.append(val)
 
-        res = pgast.FuncCall(
-            name=_get_json_func('build_object', env=env),
-            args=keyvals, null_safe=True, ser_safe=True,
-            nullable=expr.nullable)
+        res = _build_json(
+            'build_object',
+            args=keyvals,
+            null_safe=True,
+            ser_safe=True,
+            nullable=expr.nullable,
+            env=env,
+        )
 
         return pgast.SelectStmt(
             target_list=[
@@ -320,13 +412,19 @@ def tuple_var_as_json_object(
 ) -> pgast.BaseExpr:
 
     if not tvar.named:
-        return pgast.FuncCall(
-            name=_get_json_func('build_array', env=env),
-            args=[
-                serialize_expr(t.val, path_id=t.path_id, nested=True, env=env)
-                for t in tvar.elements
-            ],
-            null_safe=True, ser_safe=True, nullable=tvar.nullable)
+        vals = [
+            serialize_expr(t.val, path_id=t.path_id, nested=True, env=env)
+            for t in tvar.elements
+        ]
+
+        return _build_json(
+            'build_array',
+            args=vals,
+            null_safe=True,
+            ser_safe=True,
+            nullable=tvar.nullable,
+            env=env,
+        )
     else:
         keyvals: List[pgast.BaseExpr] = []
 
@@ -341,10 +439,14 @@ def tuple_var_as_json_object(
                 element.val, path_id=element.path_id, nested=True, env=env)
             keyvals.append(val)
 
-        return pgast.FuncCall(
-            name=_get_json_func('build_object', env=env),
-            args=keyvals, null_safe=True, ser_safe=True,
-            nullable=tvar.nullable)
+        return _build_json(
+            'build_object',
+            args=keyvals,
+            null_safe=True,
+            ser_safe=True,
+            nullable=tvar.nullable,
+            env=env,
+        )
 
 
 def in_serialization_ctx(ctx: context.CompilerContextLevel) -> bool:
@@ -406,9 +508,13 @@ def serialize_expr_to_json(
         val = tuple_var_as_json_object(expr, path_id=path_id, env=env)
 
     elif isinstance(expr, (pgast.RowExpr, pgast.ImplicitRowExpr)):
-        val = pgast.FuncCall(
-            name=_get_json_func('build_array', env=env),
-            args=expr.args, null_safe=True, ser_safe=True,)
+        val = _build_json(
+            'build_array',
+            args=expr.args,
+            null_safe=True,
+            ser_safe=True,
+            env=env,
+        )
 
     elif path_id.is_collection_path() and not expr.ser_safe:
         val = coll_as_json_object(expr, styperef=path_id.target, env=env)
