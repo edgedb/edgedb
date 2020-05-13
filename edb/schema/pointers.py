@@ -751,9 +751,18 @@ class PointerCommandOrFragment(
             )
 
             if is_ptr_alias:
-                schema, base = irtyputils.ptrcls_from_ptrref(
+                new_schema, base = irtyputils.ptrcls_from_ptrref(
                     expr_rptr.ptrref, schema=schema
                 )
+                # Only pointers coming from the same source as the
+                # alias should be "inherited" (in order to preserve
+                # link props). Random paths coming from other sources
+                # get treated same as any other arbitrary expression
+                # in a computable.
+                if base.get_source(new_schema) != source:
+                    base = None
+                else:
+                    schema = new_schema
 
         self.set_attribute_value('expr', expression)
         required, card = expression.irast.cardinality.to_schema_value()

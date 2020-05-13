@@ -1612,6 +1612,31 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
+    def test_get_migration_33(self):
+        # Make sure that Course is defined before the schedule
+        # computable is defined.
+        #
+        # Issue #1383.
+        schema = r'''
+        type Class extending HasAvailability {
+            link schedule :=
+                .<class[IS Course].scheduledAt;
+        }
+        abstract type HasAvailability {
+            multi link availableAt -> TimeSpot;
+        }
+        abstract type HasSchedule {
+            multi link scheduledAt -> TimeSpot;
+        }
+        type Course extending HasSchedule{
+            required property name -> str;
+            link class -> Class;
+        }
+        type TimeSpot;
+        '''
+
+        self._assert_migration_consistency(schema)
+
     def test_get_migration_multi_module_01(self):
         schema = r'''
             # The two declared types declared are from different
