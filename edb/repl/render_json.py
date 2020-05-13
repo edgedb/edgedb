@@ -185,6 +185,7 @@ def _bool(
 def _empty(
     o: None,
     repl_ctx: context.ReplContext,
+    render_ctx: RenderContext,
     buf: terminal.Buffer
 ) -> None:
     buf.write('null', style.code_constant)
