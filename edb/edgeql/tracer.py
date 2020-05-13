@@ -65,7 +65,7 @@ class ObjectType(Type):
         super().__init__(name)
         self.pointers = {}
 
-    def is_pointer(self):
+    def is_pointer(self) -> bool:
         return False
 
     def getptr(self, schema, name):
@@ -86,7 +86,7 @@ class Pointer:
         self.target = target
         self.pointers = {}
 
-    def is_pointer(self):
+    def is_pointer(self) -> bool:
         return True
 
     def getptr(self, schema, name):
@@ -94,6 +94,9 @@ class Pointer:
 
     def get_target(self, schema):
         return self.target
+
+    def get_source(self, schema):
+        return self.source
 
     def get_name(self, schema):
         return self.name
@@ -425,7 +428,8 @@ def trace_Path(node: qlast.Path, *,
                     tip_name = tip.get_name(ctx.schema)
                     ctx.refs.add(f'{tip_name}@{prev_step.ptr.name}')
 
-                tip = ptr.get_target(ctx.schema)
+                # This is a backwards link, so we need the source.
+                tip = ptr.get_source(ctx.schema)
 
         else:
             tr = trace(step, ctx=ctx)
