@@ -87,7 +87,7 @@ class SchemaConstraintDomainConstraint(
         return f'CHECK ({expr})'
 
     def __repr__(self):
-        return '<{}.{} "{}" "%r">' % (
+        return '<{}.{} {!r} {!r}>'.format(
             self.__class__.__module__, self.__class__.__name__,
             self.domain_name, self._constraint)
 
