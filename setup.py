@@ -45,7 +45,7 @@ RUNTIME_DEPS = [
     'asyncpg~=0.20.0',
     'click~=6.7',
     'httptools>=0.0.13',
-    'immutables>=0.12',
+    'immutables>=0.13',
     'parsing~=1.6.1',
     'prompt_toolkit>=2.0.0',
     'psutil~=5.6.1',
@@ -78,19 +78,13 @@ RUST_VERSION = '1.42.0'  # Also update docs/internal/dev.rst
 
 EDGEDBCLI_REPO = 'https://github.com/edgedb/edgedb-cli'
 
-PYCODESTYLE_REPO = 'https://github.com/PyCQA/pycodestyle'
-PYCODESTYLE_COMMIT = 'd69c15eb7ecf77e94988fb55207a78936b48079c'
-
-PYFLAKES_REPO = 'https://github.com/PyCQA/pyflakes'
-PYFLAKES_COMMIT = 'be88036019005b769596ca82fb7b82dfdffdca0f'
-
 EXTRA_DEPS = {
     'test': [
         # Depend on unreleased version for Python 3.8 support,
-        f'pycodestyle @ {PYCODESTYLE_REPO}/archive/{PYCODESTYLE_COMMIT}.zip',
-        f'pyflakes @ {PYFLAKES_REPO}/archive/{PYFLAKES_COMMIT}.zip',
+        'pycodestyle~=2.6.0',
+        'pyflakes~=2.2.0',
         'black~=19.3b0',
-        'flake8~=3.7.9',
+        'flake8~=3.8.1',
         'flake8-bugbear~=19.8.0',
         'mypy==0.770',
         'coverage~=4.5.2',
