@@ -35,6 +35,9 @@ Array
     * - :eql:func:`to_str`
       - Render an array to a string.
 
+    * - :eql:func:`to_array`
+      - Split a string into an array using a delimiter.
+
     * - :eql:func:`array_agg`
       - :eql:func-desc:`array_agg`
 
@@ -191,3 +194,23 @@ Array
 
         db> SELECT array_unpack([2, 3, 5]);
         {3, 2, 5}
+
+
+----------
+
+.. eql:function:: std::to_array(s: std::str, delimiter: std::str) \
+                                -> array<std::str>
+
+    :index: split str_split explode
+
+    Split string into array elements using the supplied delimiter.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT to_array('1, 2, 3', ', ');
+        {['1', '2', '3']}
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT to_array('123', '');
+        {['1', '2', '3']}

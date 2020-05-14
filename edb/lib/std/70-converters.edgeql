@@ -248,6 +248,21 @@ std::to_str(array: array<std::str>, delimiter: std::str) -> std::str
 
 
 CREATE FUNCTION
+std::to_array(s: std::str, delimiter: std::str) -> array<std::str>
+{
+    SET volatility := 'IMMUTABLE';
+    USING SQL $$
+        SELECT (
+            CASE WHEN "delimiter" != ''
+            THEN string_to_array("s", "delimiter")
+            ELSE regexp_split_to_array("s", '')
+            END
+        );
+    $$;
+};
+
+
+CREATE FUNCTION
 std::to_json(str: std::str) -> std::json
 {
     # Casting of jsonb to and from text in PostgreSQL is IMMUTABLE.

@@ -2099,6 +2099,27 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [''],
         )
 
+    async def test_edgeql_functions_to_array_01(self):
+        await self.assert_query_result(
+            r'''SELECT to_array('one, two, three', ', ');''',
+            [['one', 'two', 'three']],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT to_array('', ', ');''',
+            [[]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT to_array('foo', ', ');''',
+            [['foo']],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT to_array('foo', '');''',
+            [['f', 'o', 'o']],
+        )
+
     async def test_edgeql_functions_to_int_01(self):
         await self.assert_query_result(
             r'''SELECT to_int64(' 123456789', '999999999');''',
