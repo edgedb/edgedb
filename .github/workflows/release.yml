@@ -15,6 +15,7 @@ jobs:
           debian-buster,
           ubuntu-xenial,
           ubuntu-bionic,
+          ubuntu-focal,
           centos-7,
           centos-8,
         ]
@@ -31,6 +32,9 @@ jobs:
           - target: ubuntu-bionic
             platform: ubuntu
             platform_version: bionic
+          - target: ubuntu-focal
+            platform: ubuntu
+            platform_version: focal
           - target: centos-7
             platform: centos
             platform_version: 7
@@ -114,6 +118,24 @@ jobs:
     - name: Test (${{ matrix.target }})
       uses: edgedb/edgedb-pkg/integration/linux/test/ubuntu-bionic@master
       if: matrix.target == 'ubuntu-bionic'
+      env:
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+
+    - name: Build (${{ matrix.target }})
+      uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-focal@master
+      if: matrix.target == 'ubuntu-focal'
+      env:
+        SRC_REF: "${{ github.event.client_payload.branch }}"
+        PKG_VERSION: "${{ steps.whichver.outputs.version }}"
+        PKG_REVISION: "<current-date>"
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        EXTRA_OPTIMIZATIONS: "true"
+
+    - name: Test (${{ matrix.target }})
+      uses: edgedb/edgedb-pkg/integration/linux/test/ubuntu-focal@master
+      if: matrix.target == 'ubuntu-focal'
       env:
         PKG_PLATFORM: "${{ matrix.platform }}"
         PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
@@ -221,6 +243,7 @@ jobs:
           debian-buster,
           ubuntu-xenial,
           ubuntu-bionic,
+          ubuntu-focal,
           centos-7,
           centos-8,
         ]
@@ -237,6 +260,9 @@ jobs:
           - target: ubuntu-bionic
             platform: ubuntu
             platform_version: bionic
+          - target: ubuntu-focal
+            platform: ubuntu
+            platform_version: focal
           - target: centos-7
             platform: centos
             platform_version: 7
@@ -319,6 +345,23 @@ jobs:
     - name: Test Published (${{ matrix.target }})
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-bionic@master
       if: matrix.target == 'ubuntu-bionic'
+      env:
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    - name: Publish (${{ matrix.target }})
+      uses: edgedb/edgedb-pkg/integration/linux/upload/debian@master
+      if: matrix.target == 'ubuntu-focal'
+      env:
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+    - name: Test Published (${{ matrix.target }})
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-focal@master
+      if: matrix.target == 'ubuntu-focal'
       env:
         PKG_PLATFORM: "${{ matrix.platform }}"
         PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
