@@ -55,11 +55,28 @@ Updating a multi link by adding one more item:
         AND
         .directors.last_name = 'Villeneuve'
     SET {
-        actors := .actors UNION (
+        actors += (
             INSERT Person {
                 first_name := 'Dave',
                 last_name := 'Bautista',
                 image := 'dbautista.jpg',
             }
+        )
+    }
+
+Updating a multi link by removing an item:
+
+.. code-block:: edgeql
+
+    UPDATE Movie
+    FILTER
+        .title = 'Dune'
+        AND
+        .directors.last_name = 'Villeneuve'
+    SET {
+        actors -= (
+            SELECT Person
+            FILTER
+                .full_name = 'Jason Momoa'
         )
     }
