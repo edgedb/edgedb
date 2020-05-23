@@ -43,12 +43,24 @@ selected by *update-selector-expr* and, optionally, filtered by
     information.
 
 :eql:synopsis:`SET <shape>`
-    A :ref:`shape <ref_eql_expr_shapes_update>` expression with
-    the new values for the links of the updated object.
+    A :ref:`shape <ref_eql_expr_shapes_update>` expression with the
+    new values for the links of the updated object. There are three
+    possible assignment operations permitted within the ``SET`` shape:
 
     .. eql:synopsis::
 
-        SET { <link> := <update-expr> [, ...] }
+        SET { <field> := <update-expr> [, ...] }
+
+        SET { <field> += <update-expr> [, ...] }
+
+        SET { <field> -= <update-expr> [, ...] }
+
+    The most basic assignment is the ``:=``, which just sets the
+    :eql:synopsis:`<field>` to the specified
+    :eql:synopsis:`<update-expr>`. The ``+=`` and ``-=`` either add or
+    remove the set of values specified by the
+    :eql:synopsis:`<update-expr>` from the *current* value of the
+    :eql:synopsis:`<field>`.
 
 Output
 ~~~~~~
@@ -60,7 +72,8 @@ set of updated objects.
 Examples
 ~~~~~~~~
 
-Here are a couple of examples of using the ``UPDATE`` statement:
+Here are a couple of examples of the ``UPDATE`` statement with simple
+assignments using ``:=``:
 
 .. code-block:: edgeql
 
@@ -77,8 +90,42 @@ Here are a couple of examples of using the ``UPDATE`` statement:
     UPDATE User
     FILTER .name LIKE 'Bob%'
     SET {
-        name := User.name + '*'
+        name := User.name ++ '*'
     };
+
+For usage of ``+=`` and ``-=`` consider the following ``Post`` type:
+
+.. code-block:: sdl
+
+    # ... Assume some User type is already defined
+    type Post {
+        required property title -> str;
+        required property body -> str;
+        # A "tags" property containing a set of strings
+        multi property tags -> str;
+        link author -> User;
+    }
+
+The following queries add or remove tags from some user's posts:
+
+.. code-block:: edgeql
+
+    WITH MODULE example
+    UPDATE Post
+    FILTER .author.name = 'Alice Smith'
+    SET {
+        # add tags
+        tags += {'example', 'edgeql'}
+    };
+
+    WITH MODULE example
+    UPDATE Post
+    FILTER .author.name = 'Alice Smith'
+    SET {
+        # remove a tag, if it exist
+        tags -= 'todo'
+    };
+
 
 The statement ``FOR <x> IN <expr>`` allows to express certain bulk
 updates more clearly. See
