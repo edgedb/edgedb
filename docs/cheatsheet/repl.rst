@@ -38,26 +38,23 @@ List scalar types:
 
     db> \lT
 
-List expression aliases (the ``+`` includes the expression value in
+List expression aliases (the ``-v`` includes the expression value in
 the listing):
 
 .. code-block:: edgeql-repl
 
-    db> \la+
+    db> \la -v
 
 Describe an object type:
 
 .. code-block:: edgeql-repl
 
-    db> \d std::Object
+    db> \d Object
     abstract type std::Object extending std::BaseObject {
         required single link __type__ -> schema::Type {
             readonly := true;
         };
-        required single property id extending std::id -> std::uuid {
-            default := (SELECT
-                std::uuid_generate_v1mc()
-            );
+        required single property id -> std::uuid {
             readonly := true;
         };
     };
@@ -82,11 +79,11 @@ Describe a function:
         volatility := 'IMMUTABLE';
         using sql
     ;};
-    function std::sum(s: SET OF std::bigint) ->  std::bigint {
+    function std::sum(s: SET OF std::float32) ->  std::float32 {
         volatility := 'IMMUTABLE';
         using sql
     ;};
-    function std::sum(s: SET OF std::float32) ->  std::float32 {
+    function std::sum(s: SET OF std::bigint) ->  std::bigint {
         volatility := 'IMMUTABLE';
         using sql
     ;};
