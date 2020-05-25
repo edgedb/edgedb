@@ -2083,7 +2083,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 await self.con.fetchall(
                     r'''SELECT to_str(<cal::local_time>'15:01:22', '');''',)
 
-    async def test_edgeql_functions_to_str_08(self):
+    async def test_edgeql_functions_array_join_01(self):
         await self.assert_query_result(
             r'''SELECT to_str(['one', 'two', 'three'], ', ');''',
             ['one, two, three'],
@@ -2099,7 +2099,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [''],
         )
 
-    async def test_edgeql_functions_to_array_01(self):
+    async def test_edgeql_functions_str_split_01(self):
         await self.assert_query_result(
             r'''SELECT to_array('one, two, three', ', ');''',
             [['one', 'two', 'three']],

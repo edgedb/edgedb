@@ -32,10 +32,10 @@ Array
     * - :eql:func:`find`
       - Find the index of an element in the array.
 
-    * - :eql:func:`to_str`
+    * - :eql:func:`array_join`
       - Render an array to a string.
 
-    * - :eql:func:`to_array`
+    * - :eql:func:`str_split`
       - Split a string into an array using a delimiter.
 
     * - :eql:func:`array_agg`
