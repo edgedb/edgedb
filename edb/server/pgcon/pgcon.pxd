@@ -102,3 +102,5 @@ cdef class PGProto:
 
     cdef make_clean_stmt_message(self, bytes stmt_name)
     cdef make_auth_password_md5_message(self, bytes salt)
+
+    cdef send_flush(self)

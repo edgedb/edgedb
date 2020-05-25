@@ -42,6 +42,14 @@ cdef class Connection:
     async def connect(self):
         await self._protocol.connect()
 
+    async def sync(self):
+        await self.send(messages.Sync())
+        reply = await self.recv()
+        if not isinstance(reply, messages.ReadyForCommand):
+            raise AssertionError(
+                f'invalid response for Sync request: {reply!r}')
+        return reply.transaction_state
+
     async def recv(self):
         while True:
             await self._protocol.wait_for_message()
@@ -74,13 +82,14 @@ cdef class Connection:
                         f'{msgcls.__name__}.{fieldname} value {val!r} '
                         f'does not equal to expected {expected!r}')
 
-    async def send(self, msg: messages.ClientMessage):
+    async def send(self, *msgs: messages.ClientMessage):
         cdef WriteBuffer buf
 
-        out = msg.dump()
-        buf = WriteBuffer.new()
-        buf.write_bytes(out)
-        self._protocol.write(buf)
+        for msg in msgs:
+            out = msg.dump()
+            buf = WriteBuffer.new()
+            buf.write_bytes(out)
+            self._protocol.write(buf)
 
     async def aclose(self):
         # TODO: Fix when edgedb-python implements proper cancellation

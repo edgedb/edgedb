@@ -217,6 +217,9 @@ cdef class PGProto:
             self.msg_waiter.set_exception(ConnectionAbortedError())
             self.msg_waiter = None
 
+    cdef send_flush(self):
+        self.write(FLUSH_MESSAGE)
+
     async def signal_ddl(self, dbver):
         query = f"""
             SELECT pg_notify('__edgedb_ddl__', {pg_ql(dbver.hex())})
