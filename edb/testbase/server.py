@@ -250,6 +250,20 @@ class ClusterTestCase(TestCase):
         super().setUpClass()
         cls.cluster = _start_cluster(cleanup_atexit=True)
 
+    @classmethod
+    def get_connect_args(cls, *,
+                         cluster=None,
+                         database=edgedb_defines.EDGEDB_SUPERUSER_DB,
+                         user=edgedb_defines.EDGEDB_SUPERUSER,
+                         password='test'):
+        if cluster is None:
+            cluster = cls.cluster
+        conargs = cluster.get_connect_args().copy()
+        conargs.update(dict(user=user,
+                            password=password,
+                            database=database))
+        return conargs
+
 
 class RollbackChanges:
     def __init__(self, test):
@@ -274,20 +288,6 @@ class ConnectedTestCaseMixin:
         conargs = cls.get_connect_args(
             cluster=cluster, database=database, user=user, password=password)
         return await edgedb.async_connect(**conargs)
-
-    @classmethod
-    def get_connect_args(cls, *,
-                         cluster=None,
-                         database=edgedb_defines.EDGEDB_SUPERUSER_DB,
-                         user=edgedb_defines.EDGEDB_SUPERUSER,
-                         password='test'):
-        if cluster is None:
-            cluster = cls.cluster
-        conargs = cluster.get_connect_args().copy()
-        conargs.update(dict(user=user,
-                            password=password,
-                            database=database))
-        return conargs
 
     def _run_and_rollback(self):
         return RollbackChanges(self)

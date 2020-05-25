@@ -29,10 +29,12 @@ class BinWrapper:
     i64 = struct.Struct('!q')
     i32 = struct.Struct('!l')
     i16 = struct.Struct('!h')
+    i8 = struct.Struct('!b')
 
     ui64 = struct.Struct('!Q')
     ui32 = struct.Struct('!L')
     ui16 = struct.Struct('!H')
+    ui8 = struct.Struct('!B')
 
     def __init__(self, buf: io.BytesIO) -> None:
         self.buf = buf
@@ -46,6 +48,9 @@ class BinWrapper:
     def write_ui16(self, val: int) -> None:
         self.buf.write(self.ui16.pack(val))
 
+    def write_ui8(self, val: int) -> None:
+        self.buf.write(self.ui8.pack(val))
+
     def write_i64(self, val: int) -> None:
         self.buf.write(self.i64.pack(val))
 
@@ -54,6 +59,9 @@ class BinWrapper:
 
     def write_i16(self, val: int) -> None:
         self.buf.write(self.i16.pack(val))
+
+    def write_i8(self, val: int) -> None:
+        self.buf.write(self.i8.pack(val))
 
     def write_len32_prefixed_bytes(self, val: bytes) -> None:
         self.write_ui32(len(val))
@@ -74,6 +82,10 @@ class BinWrapper:
         data = self.buf.read(2)
         return self.ui16.unpack(data)[0]
 
+    def read_ui8(self) -> int:
+        data = self.buf.read(1)
+        return self.ui8.unpack(data)[0]
+
     def read_i64(self) -> int:
         data = self.buf.read(8)
         return self.i64.unpack(data)[0]
@@ -85,6 +97,10 @@ class BinWrapper:
     def read_i16(self) -> int:
         data = self.buf.read(2)
         return self.i16.unpack(data)[0]
+
+    def read_i8(self) -> int:
+        data = self.buf.read(1)
+        return self.i8.unpack(data)[0]
 
     def read_bytes(self, size: int) -> bytes:
         data = self.buf.read(size)

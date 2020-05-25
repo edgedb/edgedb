@@ -118,34 +118,10 @@ Sent by: server.
 
 Format:
 
-.. code-block:: c
+.. eql:struct:: edb.testbase.protocol.ErrorResponse
 
-    struct ErrorResponse {
-        // Message type ('E')
-        int8                mtype = 0x45;
+.. eql:struct:: edb.testbase.protocol.ErrorSeverity
 
-        // Length of message contents in bytes,
-        // including self.
-        int32               message_length;
-
-        // Error severity.
-        int8<ErrorSeverity> severity;
-
-        // Error code.
-        int32               code;
-
-        // Error message
-        string              message;
-
-        // Other error attributes.
-        Headers             attributes;
-    };
-
-    enum ErrorSeverity {
-        ERROR = 120,
-        FATAL = 200,
-        PANIC = 255
-    };
 
 See the :ref:`list of error codes <ref_protocol_error_codes>` for all possible
 error codes.
@@ -160,35 +136,9 @@ Sent by: server.
 
 Format:
 
-.. code-block:: c
+.. eql:struct:: edb.testbase.protocol.LogMessage
 
-    struct LogMessage {
-        // Message type ('L')
-        int8                  mtype = 0x4c;
-
-        // Length of message contents in bytes,
-        // including self.
-        int32                 message_length;
-
-        // Message severity.
-        int8<MessageSeverity> severity;
-
-        // Message code.
-        int32                 code;
-
-        // Message text.
-        string                text;
-
-        // Other error attributes.
-        Headers               attributes;
-    };
-
-    enum MessageSeverity {
-        DEBUG = 20,
-        INFO = 40,
-        NOTICE = 60,
-        WARNING = 80
-    };
+.. eql:struct:: edb.testbase.protocol.MessageSeverity
 
 See the :ref:`list of error codes <ref_protocol_error_codes>` for all possible
 log message codes.
@@ -203,35 +153,9 @@ Sent by: server.
 
 Format:
 
-.. code-block:: c
+.. eql:struct:: edb.testbase.protocol.ReadyForCommand
 
-    struct ReadyForCommand {
-        // Message type ('Z')
-        int8                   mtype = 0x5a;
-
-        // Length of message contents in bytes,
-        // including self.
-        int32                  message_length;
-
-        // A set of message headers.
-        Headers                headers;
-
-        // Transaction state
-        int8<TransactionState> transaction_state;
-    };
-
-    enum TransactionState {
-        // Not in a transaction block.
-        NOT_IN_TRANSACTION = 0x49,
-
-        // In a transaction block.
-        IN_TRANSACTION = 0x54,
-
-        // In a failed transaction block
-        // (commands will be rejected until the block is ended).
-        IN_FAILED_TRANSACTION = 0x45
-    };
-
+.. eql:struct:: edb.testbase.protocol.TransactionState
 
 .. _ref_protocol_msg_restore_ready:
 
@@ -245,23 +169,7 @@ data. See :ref:`ref_protocol_restore_flow`.
 
 Format:
 
-.. code-block:: c
-
-    struct RestoreReady {
-        // Message type ('+')
-        int8                mtype = 0x2b;
-
-        // Length of message contents in bytes,
-        // including self.
-        int32               message_length;
-
-        // A set of extension headers.
-        Headers             headers;
-
-        // Number of parallel jobs for restore, currently always "1"
-        int16               jobs;
-    }
-
+.. eql:struct:: edb.testbase.protocol.RestoreReady
 
 .. _ref_protocol_msg_command_complete:
 
@@ -272,22 +180,7 @@ Sent by: server.
 
 Format:
 
-.. code-block:: c
-
-    struct CommandComplete {
-        // Message type ('C')
-        int8    mtype = 0x43;
-
-        // Length of message contents in bytes,
-        // including self.
-        int32   message_length;
-
-        // A set of message headers.
-        Headers     headers;
-
-        // Command status.
-        bytes   status_data;
-    };
+.. eql:struct:: edb.testbase.protocol.CommandComplete
 
 
 .. _ref_protocol_msg_execute_script:
@@ -299,23 +192,7 @@ Sent by: client.
 
 Format:
 
-.. code-block:: c
-
-    struct ExecuteScript {
-        // Message type ('Q')
-        int8    mtype = 0x51;
-
-        // Length of message contents in bytes,
-        // including self.
-        int32   message_length;
-
-        // A set of message headers.
-        Headers headers;
-
-        // Script text.
-        string  script_text;
-    };
-
+.. eql:struct:: edb.testbase.protocol.ExecuteScript
 
 .. _ref_protocol_msg_prepare:
 
@@ -324,58 +201,21 @@ Prepare
 
 Sent by: client.
 
-Format:
+.. eql:struct:: edb.testbase.protocol.Prepare
 
-.. code-block:: c
+.. eql:struct:: edb.testbase.protocol.IOFormat
 
-    struct Prepare {
-        // Message type ('P')
-        int8              mtype = 0x50;
+Use:
 
-        // Length of message contents in bytes,
-        // including self.
-        int32             message_length;
+* ``BINARY`` to return data encoded in binary.
 
-        // A set of message headers.
-        Headers           headers;
+* ``JSON`` to return data as single row and single field that contains
+  the resultset as a single JSON array".
 
-        // Data I/O format.
-        int8<IOFormat>    io_format;
+* ``JSON_ELEMENTS`` to return a single JSON string per top-level set element.
+  This can be used to iterate over a large result set efficiently.
 
-        // Expected result cardinality
-        int8<Cardinality> expected_cardinality;
-
-        // Prepared statement name.
-        // Currently must be empty.
-        bytes             statement_name;
-
-        // Command text.
-        string            command_text;
-    };
-
-    enum IOFormat {
-        // Default format that should be used in most cases
-        BINARY = 0x62,
-
-        // Returns a single row and single field that contains
-        // a resultset as a single JSON array
-        JSON = 0x6a,
-
-        // Returns a single JSON string per top-level set element.
-        // Preferred over JSON format because might be used for
-        // larger responses
-        JSON_ELEMENTS = 0x4a,
-    };
-
-    enum Cardinality {
-
-        // Zero cardinality is used in statements which don't return
-        // any result, such as CREATE DATABASE
-        ZERO = 0x6e,
-
-        ONE = 0x6f,
-        MANY = 0x6d
-    };
+.. eql:struct:: edb.testbase.protocol.Cardinality
 
 
 .. _ref_protocol_msg_describe_statement:
@@ -387,29 +227,9 @@ Sent by: client.
 
 Format:
 
-.. code-block:: c
+.. eql:struct:: edb.testbase.protocol.DescribeStatement
 
-    struct DescribeStatement {
-        // Message type ('D')
-        int8                 mtype = 0x44;
-
-        // Length of message contents in bytes,
-        // including self.
-        int32                message_length;
-
-        // A set of message headers.
-        Headers              headers;
-
-        // Aspect to describe.
-        int8<DescribeAspect> aspect;
-
-        // The name of the statement.
-        bytes                statement_name;
-    };
-
-    enum DescribeAspect {
-        DATA_DESCRIPTION = 0x54
-    };
+.. eql:struct:: edb.testbase.protocol.DescribeAspect
 
 
 .. _ref_protocol_msg_dump:
@@ -423,20 +243,7 @@ Initiates a database backup. See :ref:`ref_protocol_dump_flow`.
 
 Format:
 
-.. code-block:: c
-
-    struct Dump {
-        // Message type ('>')
-        int8                 mtype = 0x3e;
-
-        // Length of message contents in bytes,
-        // including self.
-        int32                message_length;
-
-        // A set of message headers.
-        Headers              headers;
-    };
-
+.. eql:struct:: edb.testbase.protocol.Dump
 
 
 .. _ref_protocol_msg_command_data_description:
@@ -448,44 +255,9 @@ Sent by: server.
 
 Format:
 
-.. code-block:: c
+.. eql:struct:: edb.testbase.protocol.CommandDataDescription
 
-    struct CommandDataDescription {
-        // Message type ('T')
-        int8              mtype = 0x54;
-
-        // Length of message contents in bytes,
-        // including self.
-        int32             message_length;
-
-        // A set of message headers.
-        Headers           headers;
-
-        // Actual result cardinality
-        int8<Cardinality> result_cardinality;
-
-        // Argument data descriptor ID.
-        uuid              input_typedesc_id;
-
-        // Argument data descriptor.
-        bytes             input_typedesc;
-
-        // Output data descriptor ID.
-        uuid              output_typedesc_id;
-
-        // Output data descriptor.
-        bytes             output_typedesc;
-    };
-
-    enum Cardinality {
-
-        // A cardinality used in statements which don't return
-        // any result, such as CREATE DATABASE
-        NO_RESULT = 0x6e,
-
-        ONE = 0x6f,
-        MANY = 0x6d
-    };
+.. eql:struct:: edb.testbase.protocol.Cardinality
 
 
 The format of the *input_typedesc* and *output_typedesc* fields is described
@@ -501,16 +273,7 @@ Sent by: client.
 
 Format:
 
-.. code-block:: c
-
-    struct Sync {
-        // Message type ('S')
-        int8          mtype = 0x53;
-
-        // Length of message contents in bytes,
-        // including self.
-        int32         message_length;
-    };
+.. eql:struct:: edb.testbase.protocol.Sync
 
 
 .. _ref_protocol_msg_flush:
@@ -522,16 +285,7 @@ Sent by: client.
 
 Format:
 
-.. code-block:: c
-
-    struct Flush {
-        // Message type ('H')
-        int8          mtype = 0x48;
-
-        // Length of message contents in bytes,
-        // including self.
-        int32         message_length;
-    };
+.. eql:struct:: edb.testbase.protocol.Flush
 
 
 .. _ref_protocol_msg_execute:
@@ -543,25 +297,7 @@ Sent by: client.
 
 Format:
 
-.. code-block:: c
-
-    struct Execute {
-        // Message type ('E')
-        int8            mtype = 0x45;
-
-        // Length of message contents in bytes,
-        // including self.
-        int32           message_length;
-
-        // A set of message headers.
-        Headers         headers;
-
-        // Prepared statement name.
-        bytes           statement_name;
-
-        // Encoded argument data.
-        bytes           arguments;
-    };
+.. eql:struct:: edb.testbase.protocol.Execute
 
 
 .. _ref_protocol_msg_restore:
@@ -576,26 +312,7 @@ See :ref:`ref_protocol_restore_flow`.
 
 Format:
 
-.. code-block:: c
-
-    struct Restore {
-        // Message type ('<')
-        int8                mtype = 0x3c;
-
-        // Length of message contents in bytes,
-        // including self.
-        int32               message_length;
-
-        // A set of extension headers.
-        Headers             headers;
-
-        // Number of parallel jobs for restore, only 1 is supported now
-        int16               jobs;
-
-        // Original DumpHeader packet data excluding mtype and message_length
-        bytes               dump_header[];
-    }
-
+.. eql:struct:: edb.testbase.protocol.Restore
 
 .. _ref_protocol_msg_restore_block:
 
@@ -609,19 +326,7 @@ See :ref:`ref_protocol_restore_flow`.
 
 Format:
 
-.. code-block:: c
-
-    struct RestoreBlock {
-        // Message type ('=')
-        int8                mtype = 0x3d;
-
-        // Length of message contents in bytes,
-        // including self.
-        int32               message_length;
-
-        // Original DumpBlock packet data excluding mtype and message_length
-        bytes               block_data[];
-    }
+.. eql:struct:: edb.testbase.protocol.RestoreBlock
 
 
 .. _ref_protocol_msg_restore_eof:
@@ -636,16 +341,7 @@ See :ref:`ref_protocol_restore_flow`.
 
 Format:
 
-.. code-block:: c
-
-    struct RestoreEof {
-        // Message type ('.')
-        int8                mtype = 0x2e;
-
-        // Length of message contents in bytes,
-        // including self.
-        int32               message_length;
-    }
+.. eql:struct:: edb.testbase.protocol.RestoreEof
 
 
 .. _ref_protocol_msg_optimistic_execute:
@@ -657,37 +353,8 @@ Sent by: client.
 
 Format:
 
-.. code-block:: c
+.. eql:struct:: edb.testbase.protocol.OptimisticExecute
 
-    struct OptimisticExecute {
-        // Message type ('O')
-        int8                mtype = 0x4f;
-
-        // Length of message contents in bytes,
-        // including self.
-        int32               message_length;
-
-        // A set of message headers.
-        Headers             headers;
-
-        // Data I/O format.
-        int8<IOFormat>      io_format;
-
-        // Expected result cardinality
-        byte<Cardinality>   expected_cardinality;
-
-        // Command text.
-        string              command_text;
-
-        // Argument data descriptor ID.
-        uuid                input_typedesc_id;
-
-        // Output data descriptor ID.
-        uuid                output_typedesc_id;
-
-        // Encoded argument data.
-        bytes               arguments;
-    };
 
 The data in *arguments* must be encoded as a
 :ref:`tuple value <ref_protocol_fmt_tuple>` described by
@@ -703,23 +370,8 @@ Sent by: server.
 
 Format:
 
-.. code-block:: c
+.. eql:struct:: edb.testbase.protocol.Data
 
-    struct Data {
-        // Message type ('D')
-        int8            mtype = 0x44;
-
-        // Length of message contents in bytes,
-        // including self.
-        int32           message_length;
-
-        // Number of data blocks that follow,
-        // currently always 1.
-        int16           num_data;
-
-        // Encoded output data.
-        bytes           data[num_data];
-    };
 
 The type of *data* is determined by the query output type descriptor.  Wire
 formats for the standard scalar types and collections are documented in
@@ -738,48 +390,11 @@ See :ref:`ref_protocol_dump_flow`.
 
 Format:
 
-.. code-block:: c
+.. eql:struct:: edb.testbase.protocol.DumpHeader
 
-    struct DumpHeader {
-        // Message type ('@')
-        int8            mtype = 0x40;
+.. eql:struct:: edb.testbase.protocol.DumpTypeInfo
 
-        // Length of message contents in bytes,
-        // including self.
-        int32           message_length;
-
-        // A set of message headers.
-        Headers         headers;
-
-        // Protocol version of the dump
-        int16           major_ver;
-        int16           minor_ver;
-
-        // Schema data
-        string          schema_ddl;
-
-        // Type identifiers
-        int32           num_types;
-        TypeInfo        types[num_types];
-
-        // Object descriptors
-        int32           num_descriptors;
-        ObjectDesc      descriptors[num_descriptors]
-    };
-
-    struct TypeInfo {
-        string          type_name;
-        string          type_class;
-        byte            type_id[16];
-    }
-
-    struct ObjectDesc {
-        byte            object_id[16];
-        bytes           description;
-
-        int16           num_dependencies;
-        byte            dependency_id[num_dependencies][16];
-    }
+.. eql:struct:: edb.testbase.protocol.DumpObjectDesc
 
 Known headers:
 
@@ -801,19 +416,8 @@ See :ref:`ref_protocol_dump_flow`.
 
 Format:
 
-.. code-block:: c
+.. eql:struct:: edb.testbase.protocol.DumpBlock
 
-    struct DumpBlock {
-        // Message type ('=')
-        int8            mtype = 0x3d;
-
-        // Length of message contents in bytes,
-        // including self.
-        int32           message_length;
-
-        // A set of message headers.
-        Headers         headers;
-    }
 
 Known headers:
 
@@ -832,19 +436,7 @@ Sent by: server.
 
 Format:
 
-.. code-block:: c
-
-    struct ServerKeyData {
-        // Message type ('K')
-        int8            mtype = 0x4b;
-
-        // Length of message contents in bytes,
-        // including self.
-        int32           message_length;
-
-        // Key data.
-        byte            data[32];
-    };
+.. eql:struct:: edb.testbase.protocol.ServerKeyData
 
 
 .. _ref_protocol_msg_server_parameter_status:
@@ -856,22 +448,7 @@ Sent by: server.
 
 Format:
 
-.. code-block:: c
-
-    struct ParameterStatus {
-        // Message type ('S')
-        int8            mtype = 0x53;
-
-        // Length of message contents in bytes,
-        // including self.
-        int32           message_length;
-
-        // Parameter name.
-        bytes           name;
-
-        // Parameter value.
-        bytes           value;
-    };
+.. eql:struct:: edb.testbase.protocol.ParameterStatus
 
 
 .. _ref_protocol_msg_prepare_complete:
@@ -883,38 +460,9 @@ Sent by: server.
 
 Format:
 
-.. code-block:: c
+.. eql:struct:: edb.testbase.protocol.PrepareComplete
 
-    struct PrepareComplete {
-        // Message type ('1')
-        int8                mtype = 0x31;
-
-        // Length of message contents in bytes,
-        // including self.
-        int32               message_length;
-
-        // A set of message headers.
-        Headers             headers;
-
-        // Result cardinality
-        int8<Cardinality>   cardinality;
-
-        // Argument data descriptor ID.
-        uuid                input_typedesc_id;
-
-        // Output data descriptor ID.
-        uuid                output_typedesc_id;
-    };
-
-    enum Cardinality {
-
-        // Zero cardinality is used in statements which don't return
-        // any result, such as CREATE DATABASE
-        ZERO = 0x6e,
-
-        ONE = 0x6f,
-        MANY = 0x6d
-    };
+.. eql:struct:: edb.testbase.protocol.Cardinality
 
 
 .. _ref_protocol_msg_client_handshake:
@@ -926,46 +474,11 @@ Sent by: client.
 
 Format:
 
-.. code-block:: c
+.. eql:struct:: edb.testbase.protocol.ClientHandshake
 
-    struct ClientHandshake {
-        // Message type ('V')
-        int8        mtype = 0x56;
+.. eql:struct:: edb.testbase.protocol.ConnectionParam
 
-        // Length of message contents in bytes,
-        // including self.
-        int32       message_length;
-
-        // Requested protocol major version.
-        int16       major_ver;
-
-        // Requested protocol minor version.
-        int16       minor_ver;
-
-        // Number of connection parameters.
-        int16       num_params;
-
-        // Connection parameters.
-        Param       params[num_params];
-
-        // Number of protocol extensions.
-        int16       num_exts;
-
-        // Requested protocol extensions.
-        ProtocolExt exts[num_exts];
-    };
-
-    struct Param {
-        string parameter_name;
-        string parameter_value;
-    };
-
-    struct ProtocolExt {
-        // Extension name.
-        string  extname;
-        // Extension headers.
-        Headers extheaders;
-    };
+.. eql:struct:: edb.testbase.protocol.ProtocolExtension
 
 The ``ClientHandshake`` message is the first message sent by the client.
 upon connecting to the server.  It is the first phase of protocol negotiation,
@@ -984,39 +497,10 @@ Sent by: server.
 
 Format:
 
-.. code-block:: c
+.. eql:struct:: edb.testbase.protocol.ServerHandshake
 
-    struct ServerHandshakeMessage {
-        // Message type ('v')
-        int8        mtype = 0x76;
+.. eql:struct:: edb.testbase.protocol.ProtocolExtension
 
-        // Length of message contents in bytes,
-        // including self.
-        int32       message_length;
-
-        // maximum supported or client-requested
-        // protocol major version, whichever is greater.
-        int16       major_ver;
-
-        // maximum supported or client-requests
-        // protocol minor version, whichever
-        // is greater.
-        int16       minor_ver;
-
-        // number of supported protocol extensions
-        int16       num_exts;
-
-        // supported protocol extensions
-        ProtocolExt exts[num_exts];
-    };
-
-    struct ProtocolExt {
-        // extension name
-        string  extname;
-
-        // extension headers
-        Headers extheaders;
-    };
 
 The ``ServerHandshake`` message is a direct response to the
 :ref:`ref_protocol_msg_client_handshake` message and is sent by the server.
@@ -1037,20 +521,7 @@ Sent by: server.
 
 Format:
 
-.. code-block:: c
-
-    struct AuthenticationOK {
-        // Message type ('R')
-        int8      mtype = 0x52;
-
-        // Length of message contents in bytes,
-        // including self.
-        int32     message_length = 0x8;
-
-        // Specifies that this message contains
-        // a successful authentication indicator.
-        int32     auth_status = 0x0;
-    };
+.. eql:struct:: edb.testbase.protocol.AuthenticationOK
 
 The ``AuthenticationOK`` message is sent by the server once it considers
 the authentication to be successful.
@@ -1065,28 +536,7 @@ Sent by: server.
 
 Format:
 
-.. code-block:: c
-
-    struct AuthenticationRequiredSASLMessage {
-        // Message type ('R')
-        int8      mtype = 0x52;
-
-        // Length of message contents in bytes,
-        // including self.
-        int32     message_length;
-
-        // Specifies that this message contains
-        // a SASL authentication request.
-        int32     auth_status = 0x0A;
-
-        // The number of supported SASL authentication
-        // methods.
-        int32     method_count;
-
-        // A list of supported SASL authentication
-        // methods.
-        string    methods[method_count];
-    };
+.. eql:struct:: edb.testbase.protocol.AuthenticationRequiredSASLMessage
 
 The ``AuthenticationSASL`` message is sent by the server if
 it determines that a SASL-based authentication method is required in
@@ -1122,24 +572,7 @@ Sent by: server.
 
 Format:
 
-.. code-block:: c
-
-    struct AuthenticationSASLContinue {
-        // Message type ('R')
-        int8      mtype = 0x52;
-
-        // Length of message contents in bytes,
-        // including self.
-        int32     message_length;
-
-        // Specifies that this message contains
-        // a SASL challenge.
-        int32     auth_status = 0x0B;
-
-        // Mechanism-specific SASL data.
-        bytes     sasl_data;
-    };
-
+.. eql:struct:: edb.testbase.protocol.AuthenticationSASLContinue
 
 .. _ref_protocol_msg_auth_sasl_final:
 
@@ -1150,24 +583,7 @@ Sent by: server.
 
 Format:
 
-.. code-block:: c
-
-    struct AuthenticationSASLFinal {
-        // Message type ('R')
-        int8      mtype = 0x52;
-
-        // Length of message contents in bytes,
-        // including self.
-        int32     message_length;
-
-        // Specifies that SASL authentication
-        // has completed.
-        int32     auth_status = 0x0C;
-
-        // Mechanism-specific SASL data.
-        bytes     sasl_data;
-    };
-
+.. eql:struct:: edb.testbase.protocol.AuthenticationSASLFinal
 
 .. _ref_protocol_msg_auth_sasl_initial_response:
 
@@ -1178,24 +594,7 @@ Sent by: client.
 
 Format:
 
-.. code-block:: c
-
-    struct AuthenticationSASLInitialResponse {
-        // Message type ('p')
-        int8      mtype = 0x70;
-
-        // Length of message contents in bytes,
-        // including self.
-        int32     message_length;
-
-        // Name of the SASL authentication mechanism
-        // that the client selected.
-        string    method;
-
-        // Mechanism-specific "Initial Response" data.
-        bytes     sasl_data;
-    };
-
+.. eql:struct:: edb.testbase.protocol.AuthenticationSASLInitialResponse
 
 .. _ref_protocol_msg_auth_sasl_response:
 
@@ -1206,19 +605,7 @@ Sent by: client.
 
 Format:
 
-.. code-block:: c
-
-    struct AuthenticationSASLResponse {
-        // Message type ('r')
-        int8      mtype = 0x72;
-
-        // Length of message contents in bytes,
-        // including self.
-        int32     message_length;
-
-        // Mechanism-specific response data.
-        bytes     sasl_data;
-    };
+.. eql:struct:: edb.testbase.protocol.AuthenticationSASLResponse
 
 
 .. _ref_protocol_msg_terminate:
@@ -1230,13 +617,4 @@ Sent by: client.
 
 Format:
 
-.. code-block:: c
-
-    struct Terminate {
-        // Message type ('X')
-        int8      mtype = 0x58;
-
-        // Length of message contents in bytes,
-        // including self.
-        int32     message_length;
-    };
+.. eql:struct:: edb.testbase.protocol.Terminate
