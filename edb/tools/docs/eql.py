@@ -201,6 +201,7 @@ To reference a keyword use a ":eql:kw:" role.  For instance:
 from __future__ import annotations
 
 import io
+import importlib
 import re
 
 import lxml.etree
@@ -213,6 +214,7 @@ from edb.edgeql import ast as ql_ast
 from edb.edgeql import codegen as ql_gen
 from edb.edgeql import qltypes
 from edb.common import markup  # NoQA
+from edb.testbase import protocol
 
 from docutils import nodes as d_nodes
 from docutils.parsers import rst as d_rst
@@ -603,6 +605,26 @@ class EQLReactElement(d_rst.Directive):
         return [node]
 
 
+class EQLStructElement(d_rst.Directive):
+
+    has_content = False
+    optional_arguments = 0
+    required_arguments = 1
+
+    def run(self):
+        fullname = self.arguments[0]
+        modname, _, name = fullname.rpartition('.')
+        mod = importlib.import_module(modname)
+        cls = getattr(mod, name)
+        try:
+            code = protocol.render(cls)
+        except Exception:
+            raise RuntimeError(f'could not render {fullname} struct')
+        node = d_nodes.literal_block(code, code)
+        node['language'] = 'c'
+        return [node]
+
+
 class EQLOperatorDirective(BaseEQLDirective):
 
     doc_field_types = [
@@ -920,6 +942,7 @@ class EdgeQLDomain(s_domains.Domain):
         'operator': EQLOperatorDirective,
         'synopsis': EQLSynopsisDirective,
         'react-element': EQLReactElement,
+        'struct': EQLStructElement,
     }
 
     roles = {

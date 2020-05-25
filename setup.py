@@ -549,6 +549,12 @@ setuptools.setup(
     },
     ext_modules=[
         distutils_extension.Extension(
+            "edb.testbase.protocol.protocol",
+            ["edb/testbase/protocol/protocol.pyx"],
+            extra_compile_args=EXT_CFLAGS,
+            extra_link_args=EXT_LDFLAGS),
+
+        distutils_extension.Extension(
             "edb.server.pgproto.pgproto",
             ["edb/server/pgproto/pgproto.pyx"],
             extra_compile_args=EXT_CFLAGS,

@@ -768,6 +768,28 @@ class TestEqlStatement(unittest.TestCase, BaseDomainTest):
             '''),
             ['DROP FUNCTION'])
 
+    def test_sphinx_eql_struct_01(self):
+        src = '''
+        .. eql:struct:: edb.testbase.protocol.AuthenticationSASLFinal
+
+        .. eql:struct:: edb.testbase.protocol.Cardinality
+        '''
+
+        out = self.build(src, format='xml')
+        x = requests_xml.XML(xml=out)
+
+        self.assertEqual(
+            x.xpath('''
+                literal_block/@language
+            '''),
+            ['c', 'c'])
+
+        val = x.xpath('''
+            literal_block/text()
+        ''')
+        self.assertIn('struct AuthenticationSASLFinal {', val[0])
+        self.assertIn('enum Cardinality {', val[1])
+
 
 @unittest.skipIf(requests_xml is None, 'requests-xml package is not installed')
 class TestEqlRoles(unittest.TestCase, BaseDomainTest):
