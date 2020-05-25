@@ -307,6 +307,7 @@ class develop(setuptools_develop.develop):
                 '--bin', 'edgedb',
                 '--root', rust_root,
                 '--features=dev_mode',
+                '--locked',
             ],
             env=env,
             check=True,
