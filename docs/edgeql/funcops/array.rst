@@ -35,9 +35,6 @@ Array
     * - :eql:func:`array_join`
       - Render an array to a string.
 
-    * - :eql:func:`str_split`
-      - Split a string into an array using a delimiter.
-
     * - :eql:func:`array_agg`
       - :eql:func-desc:`array_agg`
 

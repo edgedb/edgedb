@@ -202,3 +202,13 @@ std::str_trim(s: std::str, tr: std::str=' ') -> std::str
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'btrim';
 };
+
+
+CREATE FUNCTION
+std::str_split(array: array<std::str>, delimiter: std::str) -> std::str
+{
+    SET volatility := 'STABLE';
+    USING SQL $$
+    SELECT array_to_string("array", "delimiter");
+    $$;
+};

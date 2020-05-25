@@ -238,24 +238,14 @@ std::to_str(json: std::json, fmt: OPTIONAL str={}) -> std::str
 
 
 CREATE FUNCTION
-std::array_join(array: array<std::str>, delimiter: std::str) -> std::str
-{
-    SET volatility := 'STABLE';
-    USING SQL $$
-    SELECT array_array_join("array", "delimiter");
-    $$;
-};
-
-
-CREATE FUNCTION
-std::str_split(s: std::str, delimiter: std::str) -> array<std::str>
+std::array_join(s: std::str, delimiter: std::str) -> array<std::str>
 {
     SET volatility := 'IMMUTABLE';
     USING SQL $$
         SELECT (
             CASE WHEN "delimiter" != ''
-            THEN string_str_split("s", "delimiter")
-            ELSE regexp_split_str_split("s", '')
+            THEN string_to_array("s", "delimiter")
+            ELSE regexp_split_to_array("s", '')
             END
         );
     $$;

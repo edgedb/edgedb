@@ -79,6 +79,9 @@ String
     * - :eql:func:`re_test`
       - :eql:func-desc:`re_test`
 
+    * - :eql:func:`str_split`
+      - Split a string into an array using a delimiter.
+
 
 ----------
 
