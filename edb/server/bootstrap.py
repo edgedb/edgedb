@@ -541,8 +541,8 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
         json.dumps(stdlib.introquery),
     )
 
-    await metaschema.generate_views(conn, stdlib.reflschema)
     await metaschema.generate_support_views(conn, stdlib.reflschema)
+    await metaschema.generate_support_functions(conn, stdlib.reflschema)
 
     compiler = edbcompiler.new_compiler(
         std_schema=schema,

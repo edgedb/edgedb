@@ -22,25 +22,20 @@
 from __future__ import annotations
 from typing import *
 
-import collections
 import re
 import textwrap
-import uuid
 
-from edb.common import adapter, checked, debug
 from edb.common import context as parser_context
+from edb.common import debug
 from edb.common import exceptions
 from edb.common import uuidgen
 
 from edb.edgeql import qltypes
 
-from edb.schema import constraints as s_constraints
-from edb.schema import database as s_db
-from edb.schema import expr as s_expr
 from edb.schema import migrations  # NoQA
 from edb.schema import modules as s_mod
 from edb.schema import name as sn
-from edb.schema import objects as s_obj
+from edb.schema import objtypes as s_objtypes
 
 from edb.server import defines
 
@@ -536,26 +531,10 @@ class DeriveUUIDFunction(dbops.Function):
             text=self.text)
 
 
-class ResolveTypeNameFunction(dbops.Function):
-    text = '''
-        SELECT edgedb._resolve_type_name((type.types[1]).maintype)
-    '''
-
-    def __init__(self) -> None:
-        super().__init__(
-            name=('edgedb', '_resolve_type_name'),
-            args=[('type', ('edgedb', 'typedesc_t'))],
-            returns=('text',),
-            # Same volatility as _resolve_type_name(uuid)
-            volatility='stable',
-            text=self.text,
-            strict=True)
-
-
-class ResolveSimpleTypeNameFunction(dbops.Function):
+class GetSchemaObjectNameFunction(dbops.Function):
     text = '''
         SELECT coalesce(
-            (SELECT name FROM edgedb.Object
+            (SELECT name FROM edgedb."_SchemaObject"
              WHERE id = type::uuid),
             edgedb._raise_exception(
                 'resolve_type_name: unknown type: "' || type || '"',
@@ -566,33 +545,15 @@ class ResolveSimpleTypeNameFunction(dbops.Function):
 
     def __init__(self) -> None:
         super().__init__(
-            name=('edgedb', '_resolve_type_name'),
+            name=('edgedb', '_get_schema_object_name'),
             args=[('type', ('uuid',))],
             returns=('text',),
             # Max volatility of _raise_exception and a SELECT from a
             # table (stable).
             volatility='stable',
             text=self.text,
-            strict=True)
-
-
-class ResolveSimpleTypeNameListFunction(dbops.Function):
-    text = '''
-        SELECT
-            array_agg(edgedb._resolve_type_name(t.id) ORDER BY t.ordinality)
-        FROM
-            UNNEST(type_data) WITH ORDINALITY AS t(id)
-    '''
-
-    def __init__(self) -> None:
-        super().__init__(
-            name=('edgedb', '_resolve_type_name'),
-            args=[('type_data', ('uuid[]',))],
-            returns=('text[]',),
-            # Same volatility as _resolve_type_name(uuid)
-            volatility='stable',
-            text=self.text,
-            strict=True)
+            strict=True,
+        )
 
 
 class EdgeDBNameToPGNameFunction(dbops.Function):
@@ -680,9 +641,13 @@ class IssubclassFunction(dbops.Function):
     text = '''
         SELECT
             clsid = any(classes) OR (
-                SELECT classes && o.ancestors
-                FROM edgedb.InheritingObject o
-                WHERE o.id = clsid
+                SELECT classes && q.ancestors
+                FROM
+                    (SELECT
+                        array_agg(o.target) AS ancestors
+                        FROM edgedb."_SchemaInheritingObject__ancestors" o
+                        WHERE o.source = clsid
+                    ) AS q
             );
     '''
 
@@ -699,9 +664,13 @@ class IssubclassFunction2(dbops.Function):
     text = '''
         SELECT
             clsid = pclsid OR (
-                SELECT pclsid = any(o.ancestors)
-                FROM edgedb.InheritingObject o
-                WHERE o.id = clsid
+                SELECT
+                    pclsid IN (
+                        SELECT
+                            o.target
+                        FROM edgedb."_SchemaInheritingObject__ancestors" o
+                            WHERE o.source = clsid
+                    )
             );
     '''
 
@@ -725,7 +694,7 @@ class IsinstanceFunction(dbops.Function):
                 edgedb.objtype_name_to_table_name(split_part(name, '::', 1),
                                                   split_part(name, '::', 2))
             FROM
-                edgedb.ObjectType
+                edgedb."_SchemaObjectType"
             WHERE
                 id = pclsid
         );
@@ -2123,158 +2092,17 @@ class GetBaseScalarTypeMap(dbops.Function):
         )
 
 
-def _field_to_column(field):
-    ftype = field.type
-    coltype = None
-    required = False
-    default = None
-
-    if issubclass(ftype, (s_obj.ObjectSet, s_obj.ObjectList)):
-        # ObjectSet and ObjectList are exempt from typedesc_t encoding,
-        # as they always represent only non-collection types, and
-        # keeping the encoding simple is important for performance
-        # reasons.
-        coltype = 'uuid[]'
-
-    elif issubclass(ftype, (s_obj.Object, s_obj.ObjectCollection)):
-        coltype = 'edgedb.typedesc_t'
-
-    elif issubclass(ftype, s_expr.Expression):
-        coltype = 'edgedb.expression_t'
-
-    elif issubclass(ftype, s_expr.ExpressionList):
-        coltype = 'edgedb.expression_t[]'
-
-    elif (issubclass(ftype, (checked.CheckedList, checked.FrozenCheckedList,
-                             checked.CheckedSet, checked.FrozenCheckedSet))
-            and issubclass(ftype.type, str)):
-        coltype = 'text[]'
-
-    elif (issubclass(ftype, (checked.CheckedList, checked.FrozenCheckedList))
-            and issubclass(ftype.type, int)):
-        coltype = 'int[]'
-
-    elif issubclass(ftype, collections.abc.Mapping):
-        coltype = 'jsonb'
-
-    elif issubclass(ftype, str):
-        coltype = 'text'
-
-    elif issubclass(ftype, bool):
-        coltype = 'bool'
-
-    elif issubclass(ftype, int):
-        coltype = 'bigint'
-
-    elif issubclass(ftype, uuid.UUID):
-        coltype = 'uuid'
-        if field.name == 'id':
-            required = True
-            default = 'edgedb.uuid_generate_v1mc()'
-
-    else:
-        coltype = 'text'
-
-    return dbops.Column(
-        name=field.name,
-        type=coltype,
-        required=required,
-        default=default,
-    )
-
-
-metaclass_tables = collections.OrderedDict()
-
-
-def get_interesting_metaclasses():
-    metaclasses = []
-
-    for mcls in s_obj.ObjectMeta.get_schema_metaclasses():
-        if issubclass(mcls, s_db.Database):
-            continue
-
-        if isinstance(mcls, adapter.Adapter):
-            continue
-
-        metaclasses.append(mcls)
-
-    return metaclasses
-
-
-def init_metaclass_tables():
-    # The first MetaCLass is the abstract Object, which we created
-    # manually above.
-    metaclasses = get_interesting_metaclasses()
-
-    for mcls in metaclasses:
-        table = dbops.Table(name=('edgedb', mcls.__name__.lower()))
-
-        bases = []
-        seen_bases = set()
-        for parent in mcls.__mro__[1:-1]:
-            if not issubclass(parent, s_obj.Object):
-                continue
-
-            if any(issubclass(b, parent) for b in seen_bases):
-                continue
-
-            parent_tab = metaclass_tables.get(parent)
-            if parent_tab is None:
-                continue
-
-            bases.append(parent_tab)
-            seen_bases.add(parent)
-
-        table.add_bases(bases)
-
-        fields = mcls.get_ownfields()
-
-        cols = []
-
-        for fn in fields:
-            field = mcls.get_field(fn)
-            if field.ephemeral:
-                continue
-
-            cols.append(_field_to_column(field))
-
-        table.add_columns(cols)
-
-        if mcls is s_obj.Object:
-            table.add_constraint(
-                dbops.PrimaryKey(('edgedb', 'object'), columns=('id',)))
-
-        table.add_constraint(
-            dbops.UniqueConstraint(table, columns=('name',)))
-
-        metaclass_tables[mcls] = table
-
-
-init_metaclass_tables()
-
-
-def get_metaclass_table(mcls):
-    return metaclass_tables[mcls]
-
-
 async def bootstrap(conn):
     commands = dbops.CommandGroup()
     commands.add_commands([
         dbops.DropSchema(name='public'),
         dbops.CreateSchema(name='edgedb'),
+        dbops.CreateSchema(name='edgedbss'),
         dbops.CreateExtension(dbops.Extension(name='uuid-ossp')),
         dbops.CreateCompositeType(TypeDescNodeType()),
         dbops.CreateCompositeType(TypeDescType()),
         dbops.CreateCompositeType(ExpressionType()),
     ])
-
-    commands.add_commands(
-        dbops.CreateTable(table)
-        for table in list(metaclass_tables.values()))
-
-    commands.add_commands(
-        dbops.Comment(table, f'schema::{mcls.__name__}')
-        for mcls, table in list(metaclass_tables.items())[1:])
 
     commands.add_commands([
         dbops.CreateFunction(GetObjectMetadata()),
@@ -2287,16 +2115,10 @@ async def bootstrap(conn):
         dbops.CreateFunction(AssertJSONTypeFunction()),
         dbops.CreateFunction(ExtractJSONScalarFunction()),
         dbops.CreateFunction(DeriveUUIDFunction()),
-        dbops.CreateFunction(ResolveSimpleTypeNameFunction()),
-        dbops.CreateFunction(ResolveSimpleTypeNameListFunction()),
-        dbops.CreateFunction(ResolveTypeNameFunction()),
         dbops.CreateFunction(EdgeDBNameToPGNameFunction()),
         dbops.CreateFunction(ConvertNameFunction()),
         dbops.CreateFunction(ObjectTypeNameToTableNameFunction()),
         dbops.CreateFunction(LinkNameToTableNameFunction()),
-        dbops.CreateFunction(IssubclassFunction()),
-        dbops.CreateFunction(IssubclassFunction2()),
-        dbops.CreateFunction(IsinstanceFunction()),
         dbops.CreateFunction(NormalizeNameFunction()),
         dbops.CreateFunction(NullIfArrayNullsFunction()),
         dbops.CreateCompositeType(IndexDescType()),
@@ -2362,176 +2184,6 @@ tabname = lambda schema, obj: \
     ('edgedbss', common.get_backend_name(schema, obj, catenate=False)[1])
 
 
-def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
-    pn = ptr.get_shortname(schema)
-
-    if refdict:
-        props = []
-
-        if ptr.issubclass(schema, schema.get('schema::reference')):
-            props.append('COALESCE(is_local, false) AS is_local')
-
-        if props:
-            props_q = ',' + ',\n'.join(props)
-        else:
-            props_q = ''
-
-        link_query = '''
-            SELECT
-                (({refattr}).types[1]).maintype AS {src},
-                id                              AS {tgt}
-                {props_q}
-            FROM
-                {reftab}
-        '''.format(
-            reftab='edgedb.{}'.format(refdict.ref_cls.__name__),
-            refattr=qi(refdict.backref_attr),
-            src='source',
-            tgt='target',
-            props_q=props_q,
-        )
-
-        if pn.name == 'annotations':
-            link_query = '''
-                SELECT
-                    q.{src} AS {src},
-                    ((av.annotation).types[1]).maintype AS {tgt},
-                    av.value    AS {valprop}
-                FROM
-                    ({query}
-                    ) AS q
-                    INNER JOIN edgedb.AnnotationValue av ON q.{tgt} = av.id
-            '''.format(
-                query=link_query,
-                src='source',
-                tgt='target',
-                valprop='value',
-            )
-
-    else:
-        link_query = None
-        if field is not None:
-            ftype = field.type
-        else:
-            ftype = type(None)
-
-        if pn.name == 'params' and mcls is s_constraints.Constraint:
-            # Constraint params need special handling to support
-            # currying (@value property injection)
-            link_query = f'''
-                SELECT
-                    q.id            AS source,
-                    q.param_id      AS target,
-                    COALESCE(q.value, '')         AS value
-                FROM
-                    edgedb.{mcls.__name__} AS s,
-
-                    LATERAL (
-                        SELECT
-                            s.id        AS id,
-                            p.param_id  AS param_id,
-                            tv.value    AS value
-                        FROM
-                            UNNEST(s.params)
-                                WITH ORDINALITY AS p(param_id, num)
-
-                            INNER JOIN edgedb.Parameter AS param
-                                ON param.id = p.param_id
-
-                            LEFT JOIN
-                                UNNEST(s.args)
-                                    WITH ORDINALITY AS tv(_, value, _, num)
-                                ON (p.num = tv.num + 1)
-                        WHERE
-                            param.kind != 'VARIADIC'
-
-                        UNION ALL
-
-                        SELECT
-                            s.id            AS id,
-                            p.param_id      AS param_id,
-                            (SELECT '[' || string_agg(tv.value, ', ') || ']'
-                             FROM
-                                UNNEST(s.args[p.num - 1:]) AS tv(_, value, _)
-                            ) AS value
-                        FROM
-                            UNNEST(s.params)
-                                WITH ORDINALITY AS p(param_id, num)
-
-                            INNER JOIN edgedb.Parameter AS param
-                                ON param.id = p.param_id
-
-                        WHERE
-                            param.kind = 'VARIADIC'
-
-                    ) AS q
-            '''
-
-        elif pn.name == 'bases' or pn.name == 'ancestors':
-            link_query = f'''
-                SELECT
-                    s.id       AS source,
-                    t.id       AS target,
-                    t.pos      AS index
-                FROM
-                    edgedb.{mcls.__name__} AS s,
-                    LATERAL UNNEST (s.{qi(pn.name)})
-                        WITH ORDINALITY AS t(id, pos)
-            '''
-
-        elif issubclass(ftype, (s_obj.ObjectSet, s_obj.ObjectList)):
-            if ptr.singular(schema):
-                raise RuntimeError(
-                    'introspection schema error: {!r} must not be '
-                    'singular'.format(
-                        '(' + schema_cls.name + ')' + '.' + pn.name))
-
-            # ObjectSet and ObjectList fields are stored as uuid[],
-            # so we just need to unnest the array here.
-            refattr = 'UNNEST(' + qi(pn.name) + ')'
-
-        elif issubclass(ftype, (s_obj.Object, s_obj.ObjectCollection)):
-            # All other type fields are encoded as typedesc_t.
-            link_query = f'''
-                SELECT
-                    s.id        AS source,
-                    t.maintype  AS target
-                FROM
-                    edgedb.{mcls.__name__} AS s,
-                    LATERAL UNNEST ((s.{qi(pn.name)}).types) AS t(
-                        id, maintype, name, position, collection,
-                        subtypes, dimensions
-                    )
-                WHERE
-                    t.position IS NULL
-            '''
-
-        else:
-            if not ptr.singular(schema):
-                raise RuntimeError(
-                    'introspection schema error: {!r} must be '
-                    'singular'.format(
-                        '(' + schema_cls.name + ')' + '.' + pn.name))
-
-            refattr = qi(pn.name)
-
-        if link_query is None:
-            link_query = '''
-                SELECT
-                    id         AS {src},
-                    {refattr}  AS {tgt}
-                FROM
-                    {schematab}
-            '''.format(
-                schematab='edgedb.{}'.format(mcls.__name__),
-                refattr=refattr,
-                src='source',
-                tgt='target',
-            )
-
-    return dbops.View(name=tabname(schema, ptr), query=link_query)
-
-
 def _generate_database_views(schema):
     Database = schema.get('sys::Database')
 
@@ -2541,7 +2193,7 @@ def _generate_database_views(schema):
             datname                                     AS name,
             datname                                     AS name__internal,
             ((d.description)->>'builtin')::bool         AS builtin,
-            (SELECT id FROM edgedb.Object
+            (SELECT id FROM edgedb."_SchemaObjectType"
                  WHERE name = 'sys::Database')          AS __type__
         FROM
             pg_database dat
@@ -2616,7 +2268,7 @@ def _generate_role_views(schema):
     view_query = f'''
         SELECT
             ((d.description)->>'id')::uuid              AS id,
-            (SELECT id FROM edgedb.Object
+            (SELECT id FROM edgedb."_SchemaObjectType"
                  WHERE name = 'sys::Role')              AS __type__,
             a.rolname                                   AS name,
             a.rolname                                   AS name__internal,
@@ -2729,214 +2381,6 @@ def _generate_role_views(schema):
     ]
 
 
-def _lookup_type(qual):
-    return f'''(
-        SELECT
-            types.maintype AS id
-        FROM
-            types
-        WHERE
-            types.id = {qual}
-        LIMIT
-            1
-    )'''
-
-
-def _lookup_types(qual):
-    return f'''(
-        SELECT
-            types.maintype AS id
-        FROM
-            types
-        WHERE
-            types.id = any({qual})
-    )'''
-
-
-def _get_type_source(schema, type_fields):
-
-    source = '\nUNION\n'.join(f'''
-        (SELECT
-            t.*
-         FROM
-            {table},
-            LATERAL UNNEST (({table}.{qi(field)}).types)
-                AS t(
-                    id, maintype, name, position,
-                    collection, subtypes, dimensions
-                )
-        )
-    ''' for table, field in type_fields)
-
-    source = f'(SELECT DISTINCT ON (q.id) q.* FROM ({source}) AS q)'
-
-    return source
-
-
-def _generate_type_element_view(schema, type_fields):
-    TupleElement = schema.get('schema::TupleElement')
-
-    source = _get_type_source(schema, type_fields)
-
-    view_query = f'''
-        WITH
-            types AS ({source})
-        SELECT
-            q.id            AS id,
-            (SELECT id FROM edgedb.Object
-                 WHERE name = 'schema::TupleElement')
-                            AS __type__,
-            {_lookup_type('q.id')}
-                            AS type,
-            q.name          AS name
-        FROM
-            types AS q
-        WHERE
-            q.position IS NOT NULL
-    '''
-
-    return dbops.View(name=tabname(schema, TupleElement), query=view_query)
-
-
-def _generate_types_views(schema, type_fields):
-    views = []
-    link_views = []
-
-    Array = schema.get('schema::Array')
-    Tuple = schema.get('schema::Tuple')
-
-    source = _get_type_source(schema, type_fields)
-
-    view_query = f'''
-        WITH
-            types AS ({source})
-        SELECT DISTINCT ON (q.maintype)
-            q.maintype      AS id,
-            q.collection    AS name,
-            (SELECT id FROM edgedb.Object
-                 WHERE name = 'schema::Array')
-                            AS __type__,
-            {_lookup_type('q.subtypes[1]')}
-                            AS element_type,
-            q.dimensions    AS dimensions,
-            NULL            AS expr,
-            NULL::bigint    AS expr_type,
-            false           AS is_abstract,
-            true            AS is_final,
-            false           AS builtin,
-            false           AS alias_is_persistent,
-            NULL::uuid      AS rptr
-        FROM
-            types AS q
-        WHERE
-            q.collection = 'array'
-
-        UNION ALL
-
-        SELECT
-            id              AS id,
-            name            AS name,
-            (SELECT id FROM edgedb.Object
-                 WHERE name = 'schema::Array')
-                            AS __type__,
-            (q.element_type).types[0].maintype
-                            AS element_type,
-            dimensions      AS dimensions,
-            (q.expr).origtext
-                            AS expr,
-            NULL::bigint    AS expr_type,
-            false           AS is_abstract,
-            true            AS is_final,
-            false           AS builtin,
-            false           AS alias_is_persistent,
-            NULL::uuid      AS rptr
-        FROM
-            edgedb.ArrayExprAlias AS q
-
-    '''
-
-    views.append(dbops.View(name=tabname(schema, Array), query=view_query))
-
-    view_query = f'''
-        WITH
-            types AS ({source})
-        SELECT DISTINCT ON (q.maintype)
-            q.maintype      AS id,
-            q.collection    AS name,
-            (SELECT id FROM edgedb.Object
-                 WHERE name = 'schema::Tuple')
-                            AS __type__,
-            NULL            AS expr,
-            NULL::bigint    AS expr_type,
-            false           AS is_abstract,
-            true            AS is_final,
-            false           AS builtin,
-            false           AS alias_is_persistent,
-            NULL::uuid      AS rptr
-        FROM
-            types AS q
-        WHERE
-            q.collection = 'tuple'
-
-        UNION ALL
-
-        SELECT
-            id              AS id,
-            name            AS name,
-            (SELECT id FROM edgedb.Object
-                 WHERE name = 'schema::Tuple')
-                            AS __type__,
-            (q.expr).origtext
-                            AS expr,
-            NULL::bigint    AS expr_type,
-            false           AS is_abstract,
-            true            AS is_final,
-            false           AS builtin,
-            false           AS alias_is_persistent,
-            NULL::uuid      AS rptr
-        FROM
-            edgedb.TupleExprAlias q
-    '''
-
-    views.append(dbops.View(name=tabname(schema, Tuple), query=view_query))
-
-    link_view_query = f'''
-        WITH
-            types AS ({source})
-        SELECT
-            q.maintype      AS source,
-            st.id           AS target
-        FROM
-            types AS q,
-            LATERAL UNNEST (q.subtypes) AS st(id)
-        WHERE
-            q.collection = 'tuple'
-
-        UNION ALL
-
-        SELECT
-            q.id            AS source,
-            st.id           AS target
-        FROM
-            edgedb.TupleExprAlias AS q,
-            LATERAL UNNEST ((q.element_types).types) AS st(
-                id, maintype, name, position
-            )
-        WHERE
-            st.position IS NOT NULL
-
-    '''
-
-    link_views.append(
-        dbops.View(
-            name=tabname(schema, Tuple.getptr(schema, 'element_types')),
-            query=link_view_query,
-        )
-    )
-
-    return views, link_views
-
-
 def _make_json_caster(schema, json_casts, stype, context):
     cast = json_casts.get(stype)
 
@@ -2970,13 +2414,57 @@ def _make_json_caster(schema, json_casts, stype, context):
 async def generate_support_views(conn, schema):
     commands = dbops.CommandGroup()
 
+    schema_objs = schema.get_objects(
+        type=s_objtypes.ObjectType,
+        included_modules=('schema',),
+
+    )
+    for schema_obj in schema_objs:
+        bn = common.get_backend_name(schema, schema_obj, catenate=False)
+        alias_view = dbops.View(
+            name=('edgedb', f'_Schema{schema_obj.get_name(schema).name}'),
+            query=(f'SELECT * FROM {q(*bn)}')
+        )
+        commands.add_command(dbops.CreateView(alias_view))
+
+    InhObject = schema.get('schema::InheritingObject')
+    InhObject_ancestors = InhObject.getptr(schema, 'ancestors')
+    assert InhObject_ancestors is not None
+
+    # "issubclass" SQL functions rely on access to the ancestors link.
+    bn = common.get_backend_name(schema, InhObject_ancestors, catenate=False)
+    alias_view = dbops.View(
+        name=('edgedb', f'_SchemaInheritingObject__ancestors'),
+        query=(f'SELECT * FROM {q(*bn)}')
+    )
+    commands.add_command(dbops.CreateView(alias_view))
+
     conf = schema.get('cfg::Config')
-
-    views, _ = _generate_config_type_view(schema, conf, path=[], rptr=None)
-
+    cfg_views, _ = _generate_config_type_view(schema, conf, path=[], rptr=None)
     commands.add_commands([
         dbops.CreateView(dbops.View(name=tn, query=q))
-        for tn, q in views
+        for tn, q in cfg_views
+    ])
+
+    for dbview in _generate_database_views(schema):
+        commands.add_command(dbops.CreateView(dbview))
+
+    for roleview in _generate_role_views(schema):
+        commands.add_command(dbops.CreateView(roleview))
+
+    block = dbops.PLTopBlock(disable_ddl_triggers=True)
+    commands.generate(block)
+    await _execute_block(conn, block)
+
+
+async def generate_support_functions(conn, schema):
+    commands = dbops.CommandGroup()
+
+    commands.add_commands([
+        dbops.CreateFunction(IssubclassFunction()),
+        dbops.CreateFunction(IssubclassFunction2()),
+        dbops.CreateFunction(IsinstanceFunction()),
+        dbops.CreateFunction(GetSchemaObjectNameFunction()),
     ])
 
     block = dbops.PLTopBlock(disable_ddl_triggers=True)
@@ -3210,7 +2698,7 @@ def _generate_config_type_view(schema, stype, *, path, rptr, _memo=None):
 
         target_cols.append(textwrap.dedent(f'''\
             (SELECT id
-            FROM edgedb.Object
+            FROM edgedb."_SchemaObjectType"
             WHERE name = 'cfg::' || ({sval}->>'_tname')) AS __type__'''))
 
     else:
@@ -3218,7 +2706,7 @@ def _generate_config_type_view(schema, stype, *, path, rptr, _memo=None):
 
         target_cols.extend([
             f"{key_expr} AS id",
-            f"(SELECT id FROM edgedb.Object "
+            f'(SELECT id FROM edgedb."_SchemaObjectType" '
             f"WHERE name = 'cfg::Config') AS __type__",
         ])
 
@@ -3353,233 +2841,6 @@ def _generate_config_type_view(schema, stype, *, path, rptr, _memo=None):
         views.append((tabname(schema, prop), link_query))
 
     return views, exclusive_props
-
-
-async def generate_views(conn, schema):
-    """Setup views the introspection schema.
-
-    The introspection views emulate regular type and link tables
-    for the classes in the "schema" module by querying the actual
-    metadata tables.
-    """
-    commands = dbops.CommandGroup()
-
-    # We use a separate schema to make it easy to redirect queries.
-    commands.add_command(dbops.CreateSchema(name='edgedbss'))
-
-    metaclasses = get_interesting_metaclasses()
-    views = collections.OrderedDict()
-    type_fields = []
-
-    for mcls in metaclasses:
-        if mcls is s_obj.Object:
-            schema_name = 'Object'
-        else:
-            schema_name = mcls.__name__
-
-        schema_cls = schema.get(
-            sn.Name(module='schema', name=schema_name), default=None)
-
-        if schema_cls is None:
-            # Not all schema metaclasses are represented in the
-            # introspection schema, just ignore them.
-            continue
-
-        cols = []
-
-        for pn, ptr in schema_cls.get_pointers(schema).items(schema):
-            if ptr.is_pure_computable(schema):
-                continue
-
-            if mcls.has_field(pn):
-                field = mcls.get_field(pn)
-                if field.ephemeral or not field.introspectable:
-                    field = None
-            else:
-                field = None
-
-            refdict = None
-            if field is None:
-                fn = classref_attr_aliases.get(pn, pn)
-                if mcls.has_refdict(fn):
-                    refdict = mcls.get_refdict(fn)
-                    if ptr.singular(schema):
-                        raise RuntimeError(
-                            'introspection schema error: {!r} must not be '
-                            'singular'.format(
-                                '(' + schema_cls.name + ')' + '.' + pn))
-
-            if field is None and refdict is None:
-                if pn == 'id':
-                    # Id is present implicitly in schema tables.
-                    pass
-                else:
-                    continue
-
-            if field is not None:
-                ft = field.type
-                if (issubclass(ft, (s_obj.Object, s_obj.ObjectCollection)) and
-                        not issubclass(ft, (s_obj.ObjectSet,
-                                            s_obj.ObjectList))):
-                    type_fields.append(
-                        (f'edgedb.{mcls.__name__}', pn)
-                    )
-
-            ptrstor = types.get_pointer_storage_info(ptr, schema=schema)
-            ptrstor_link = types.get_pointer_storage_info(
-                ptr, link_bias=True, schema=schema)
-
-            if ptrstor.table_type == 'ObjectType':
-                col_default_expr = None
-
-                if pn == 'name':
-                    name_expr = f't.{qi(ptrstor.column_name)}'
-
-                    shortname_expr = (
-                        f'edgedb.shortname_from_fullname({name_expr})'
-                    )
-
-                    if issubclass(mcls, s_obj.InheritingObject):
-                        ptr = (
-                            "(SELECT ARRAY[id] FROM edgedb.Object "
-                            " WHERE name = 'schema::Pointer')"
-                        )
-
-                        col_expr = (
-                            f'(CASE WHEN no.ancestors @> {ptr} '
-                            f'AND strpos({name_expr}, \'@@\') > 0'
-                            f'THEN split_part({shortname_expr}, \'::\', 2) '
-                            f'ELSE {shortname_expr} END)'
-                        )
-                    else:
-                        col_expr = (
-                            f"replace({shortname_expr}, '__::', '')"
-                        )
-
-                elif pn == 'inherited_fields':
-                    col_expr = f't.{qi(ptrstor.column_name)}'
-                    col_default_expr = 'ARRAY[]::text[]'
-                elif field.type is s_expr.Expression:
-                    col_expr = f'(t.{qi(ptrstor.column_name)}).origtext'
-                elif field.type is s_expr.ExpressionList:
-                    col_expr = f'''
-                        (SELECT array_agg(qi.origtext)
-                         FROM unnest(t.{qi(ptrstor.column_name)})
-                                AS qi(text, origtext, refs))
-                    '''
-                elif issubclass(field.type, s_obj.Object):
-                    col_expr = textwrap.dedent(f'''\
-                        ((t.{qi(ptrstor.column_name)}).types[1]).maintype
-                    ''')
-                else:
-                    col_expr = f't.{qi(ptrstor.column_name)}'
-
-                coltype = ptrstor.column_type
-                col_expr = f'({col_expr})::{qt(coltype)}'
-
-                if (getattr(field, 'default', None) is not None
-                        and not field.required):
-                    if col_default_expr is not None:
-                        col_default = col_default_expr
-                    else:
-                        col_default = (
-                            f'{ql(str(field.default))}::{qt(coltype)}')
-                    col_expr = f'COALESCE({col_expr}, {col_default})'
-
-                cols.append((col_expr, pn))
-
-            if ptrstor_link is not None:
-                view = _get_link_view(mcls, schema_cls, mcls.get_field(pn),
-                                      ptr, refdict, schema)
-                if view.name not in views:
-                    views[view.name] = view
-
-        coltext = textwrap.indent(
-            ',\n'.join(
-                '{} AS {}'.format(*c) for c in sorted(cols, key=lambda c: c[1])
-            ),
-            ' ' * 16,
-        )
-
-        if issubclass(mcls, s_obj.InheritingObject):
-            objtab = 'edgedb.InheritingObject'
-        else:
-            objtab = 'edgedb.Object'
-
-        view_query = f'''
-            SELECT
-                {coltext.strip()},
-                no.id AS "__type__"
-            FROM
-                edgedb.{mcls.__name__} AS t
-                INNER JOIN pg_class AS c
-                    ON (t.tableoid = c.oid)
-                INNER JOIN pg_description AS cmt
-                    ON (c.oid = cmt.objoid AND c.tableoid = cmt.classoid)
-                INNER JOIN {objtab} AS no
-                    ON (no.name = cmt.description)
-                LEFT JOIN (
-                    edgedb.AnnotationValue av
-                    INNER JOIN edgedb.Annotation a
-                        ON (
-                            ((av.annotation).types[1]).maintype = a.id
-                            AND a.name = 'schema::_internal'
-                            AND av.value = 'true'
-                        )
-                )
-                ON (
-                    t.id = ((av.subject).types[1]).maintype
-                )
-            WHERE
-                av.id IS NULL
-        '''
-
-        view = dbops.View(name=tabname(schema, schema_cls), query=view_query)
-
-        views[view.name] = view
-
-    type_views, type_link_views = _generate_types_views(schema, type_fields)
-    views.update({v.name: v for v in type_views})
-    views.update({v.name: v for v in type_link_views})
-    for v in type_views + type_link_views:
-        views.move_to_end(v.name, last=False)
-
-    te_view = _generate_type_element_view(schema, type_fields)
-    views[te_view.name] = te_view
-
-    db_views = _generate_database_views(schema)
-    for db_view in db_views:
-        views[db_view.name] = db_view
-
-    role_views = _generate_role_views(schema)
-    for role_view in role_views:
-        views[role_view.name] = role_view
-
-    types_view = views[tabname(schema, schema.get('schema::Type'))]
-    types_view.query += '\nUNION ALL\n' + '\nUNION ALL\n'.join(f'''
-        (
-            SELECT
-                "alias_is_persistent",
-                "builtin",
-                "expr",
-                "expr_type",
-                "id",
-                "is_abstract",
-                "is_final",
-                "name",
-                "rptr",
-                "__type__"
-            FROM
-                {common.qname(*view.name)}
-        )
-    ''' for view in type_views)
-
-    for view in views.values():
-        commands.add_command(dbops.CreateView(view))
-
-    block = dbops.PLTopBlock()
-    commands.generate(block)
-    await _execute_block(conn, block)
 
 
 async def _execute_block(conn, block):

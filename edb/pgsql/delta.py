@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import collections.abc
 import itertools
-import json
 import textwrap
 from typing import *
 
@@ -61,8 +60,7 @@ from edb.ir import typeutils as irtyputils
 from edb.ir import utils as irutils
 
 from edb.pgsql import common
-
-from edb.pgsql import dbops, metaschema
+from edb.pgsql import dbops
 
 from . import ast as pg_ast
 from .common import qname as q
@@ -158,140 +156,6 @@ class ObjectMetaCommand(MetaCommand, sd.ObjectCommand,
                         metaclass=ObjectCommandMeta):
     op_priority = 0
 
-    def get_table(self, schema):
-        raise NotImplementedError
-
-    def _get_id(self, schema, value):
-        if isinstance(value, s_obj.Object):
-            obj_id = value.id
-        else:
-            raise ValueError(
-                f'expecting an Object, got {value!r}')
-
-        return obj_id
-
-    def _serialize_field(self, schema, value, col, *, use_defaults=False):
-        recvalue = None
-        result = value
-
-        if isinstance(value, (s_obj.ObjectSet, s_obj.ObjectList)):
-            result = tuple(self._get_id(schema, v)
-                           for v in value.objects(schema))
-            id_array = ', '.join(ql(str(v)) for v in result)
-            recvalue = dbops.Query(f'ARRAY[{id_array}]::uuid[]')
-
-        elif isinstance(value, (s_obj.ObjectIndexBase, s_obj.ObjectDict)):
-            schema, result = s_types.Tuple.from_subtypes(
-                schema,
-                dict(value.items(schema)),
-                {'named': True})
-            recvalue = types.TypeDesc.from_type(schema, result)
-
-        elif isinstance(value, s_obj.ObjectCollection):
-            schema, result = s_types.Tuple.from_subtypes(schema, value)
-            recvalue = types.TypeDesc.from_type(schema, result)
-
-        elif isinstance(value, s_obj.Object):
-            recvalue = types.TypeDesc.from_type(schema, value)
-
-        elif isinstance(value, sn.SchemaName):
-            recvalue = str(value)
-
-        elif isinstance(value, collections.abc.Mapping):
-            # Other dicts are JSON'ed by default
-            recvalue = json.dumps(dict(value))
-
-        elif isinstance(value, s_expr.Expression):
-            ref_ids = value.refs.ids(schema)
-            ref_ids_expr = ', '.join(ql(str(i)) for i in ref_ids)
-            recvalue = (value.text, value.origtext,
-                        dbops.Query(f'ARRAY[{ref_ids_expr}]::uuid[]'))
-
-        if recvalue is None:
-            if result is None and use_defaults:
-                recvalue = dbops.Default
-            else:
-                recvalue = result
-        elif isinstance(recvalue, types.TypeDesc):
-            recvalue = dbops.Query(recvalue.to_sql_expr())
-
-        return result, recvalue
-
-    def fill_record(self, schema, context, *, use_defaults=False):
-        updates = {}
-
-        rec = None
-        table = self.get_table(schema)
-
-        fields = self.get_resolved_attributes(schema, context)
-
-        for name, value in fields.items():
-            col = table.get_column(name)
-
-            v1, refqry = self._serialize_field(
-                schema, value, col, use_defaults=use_defaults)
-
-            updates[name] = v1
-            if col is not None:
-                if rec is None:
-                    rec = table.record()
-                setattr(rec, name, refqry)
-
-        return schema, rec, updates
-
-    def create_object(self, schema, context, scls):
-        schema, rec, updates = self.fill_record(
-            schema, context, use_defaults=True)
-        op = dbops.Insert(
-            table=self.get_table(schema),
-            records=[rec],
-            priority=self.op_priority)
-        return schema, updates, op
-
-    def update(self, schema, context):
-        schema, updaterec, updates = self.fill_record(schema, context)
-
-        if updaterec:
-            condition = [('id', self.scls.id)]
-            self.pgops.add(
-                dbops.Update(
-                    table=self.get_table(schema),
-                    record=updaterec,
-                    condition=condition,
-                    priority=self.op_priority))
-
-        return schema, updates
-
-    def update_fields(self, schema, context, **kwargs):
-        table = self.get_table(schema)
-        rec = table.record()
-        for k, v in kwargs.items():
-            setattr(rec, k, v)
-
-        condition = [('id', self.scls.id)]
-        self.pgops.add(
-            dbops.Update(
-                table=self.get_table(schema),
-                record=rec,
-                condition=condition,
-                priority=self.op_priority))
-
-    def rename(self, schema, orig_schema, context, obj):
-        table = self.get_table(schema)
-        new_name = obj.get_name(schema)
-        old_name = obj.get_name(orig_schema)
-        updaterec = table.record(name=str(new_name))
-        condition = [('name', str(old_name))]
-        self.pgops.add(
-            dbops.Update(
-                table=table, record=updaterec, condition=condition))
-
-    def delete(self, schema, context, scls):
-        table = self.get_table(schema)
-        self.pgops.add(
-            dbops.Delete(
-                table=table, condition=[('id', scls.id)]))
-
 
 class CreateObject(ObjectMetaCommand):
     def apply(
@@ -300,12 +164,7 @@ class CreateObject(ObjectMetaCommand):
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         schema = self.__class__.get_adaptee().apply(self, schema, context)
-        obj = self.scls
-        schema = ObjectMetaCommand.apply(self, schema, context)
-        schema, updates, op = self.create_object(schema, context, obj)
-        self.pgops.add(op)
-        self.updates = updates
-        return schema
+        return ObjectMetaCommand.apply(self, schema, context)
 
 
 class RenameObject(ObjectMetaCommand):
@@ -314,12 +173,8 @@ class RenameObject(ObjectMetaCommand):
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        ctx = context.get(sd.ObjectCommandContext)
         schema = self.__class__.get_adaptee().apply(self, schema, context)
-        obj = self.scls
-        schema = ObjectMetaCommand.apply(self, schema, context)
-        self.rename(schema, ctx.original_schema, context, obj)
-        return schema
+        return ObjectMetaCommand.apply(self, schema, context)
 
 
 class RebaseObject(ObjectMetaCommand):
@@ -329,9 +184,7 @@ class RebaseObject(ObjectMetaCommand):
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         schema = self.__class__.get_adaptee().apply(self, schema, context)
-        schema = ObjectMetaCommand.apply(self, schema, context)
-        schema, self.updates = self.update(schema, context)
-        return schema
+        return ObjectMetaCommand.apply(self, schema, context)
 
 
 class AlterObject(ObjectMetaCommand):
@@ -341,9 +194,7 @@ class AlterObject(ObjectMetaCommand):
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         schema = ObjectMetaCommand.apply(self, schema, context)
-        schema = self.__class__.get_adaptee().apply(self, schema, context)
-        schema, self.updates = self.update(schema, context)
-        return schema
+        return self.__class__.get_adaptee().apply(self, schema, context)
 
 
 class DeleteObject(ObjectMetaCommand):
@@ -353,9 +204,7 @@ class DeleteObject(ObjectMetaCommand):
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         schema = self.__class__.get_adaptee().apply(self, schema, context)
-        schema = ObjectMetaCommand.apply(self, schema, context)
-        self.delete(schema, context, self.scls)
-        return schema
+        return ObjectMetaCommand.apply(self, schema, context)
 
 
 class AlterObjectProperty(MetaCommand, adapts=sd.AlterObjectProperty):
@@ -363,11 +212,7 @@ class AlterObjectProperty(MetaCommand, adapts=sd.AlterObjectProperty):
 
 
 class PseudoTypeCommand(ObjectMetaCommand):
-
-    _table = metaschema.get_metaclass_table(s_pseudo.PseudoType)
-
-    def get_table(self, schema):
-        return self._table
+    pass
 
 
 class CreatePseudoType(
@@ -437,11 +282,7 @@ class DeleteTuple(TupleCommand, adapts=s_types.DeleteTuple):
 
 
 class TupleExprAliasCommand(ObjectMetaCommand):
-
-    _table = metaschema.get_metaclass_table(s_types.TupleExprAlias)
-
-    def get_table(self, schema):
-        return self._table
+    pass
 
 
 class CreateTupleExprAlias(
@@ -488,11 +329,7 @@ class DeleteArray(ArrayCommand, adapts=s_types.DeleteArray):
 
 
 class ArrayExprAliasCommand(ObjectMetaCommand):
-
-    _table = metaschema.get_metaclass_table(s_types.ArrayExprAlias)
-
-    def get_table(self, schema):
-        return self._table
+    pass
 
 
 class CreateArrayExprAlias(
@@ -511,11 +348,7 @@ class DeleteArrayExprAlias(
 
 class ParameterCommand(sd.ObjectCommand,
                        metaclass=ReferencedObjectCommandMeta):
-
-    _table = metaschema.get_metaclass_table(s_funcs.Parameter)
-
-    def get_table(self, schema):
-        return self._table
+    pass
 
 
 class CreateParameter(ParameterCommand, CreateObject,
@@ -531,10 +364,6 @@ class DeleteParameter(ParameterCommand, DeleteObject,
 
 
 class FunctionCommand:
-    _table = metaschema.get_metaclass_table(s_funcs.Function)
-
-    def get_table(self, schema):
-        return self._table
 
     def get_pgname(self, func: s_funcs.Function, schema):
         return common.get_backend_name(schema, func, catenate=False)
@@ -706,10 +535,6 @@ class DeleteFunction(
 
 
 class OperatorCommand(FunctionCommand):
-    _table = metaschema.get_metaclass_table(s_opers.Operator)
-
-    def get_table(self, schema):
-        return self._table
 
     def oper_name_to_pg_name(
         self,
@@ -922,10 +747,6 @@ class DeleteOperator(
 
 
 class CastCommand:
-    _table = metaschema.get_metaclass_table(s_casts.Cast)
-
-    def get_table(self, schema):
-        return self._table
 
     def make_cast_function(self, cast: s_casts.Cast, schema):
         name = common.get_backend_name(
@@ -1013,10 +834,7 @@ class DeleteCast(
 
 
 class AnnotationCommand:
-    _table = metaschema.get_metaclass_table(s_anno.Annotation)
-
-    def get_table(self, schema):
-        return self._table
+    pass
 
 
 class CreateAnnotation(
@@ -1038,11 +856,7 @@ class DeleteAnnotation(
 
 class AnnotationValueCommand(sd.ObjectCommand,
                              metaclass=ReferencedObjectCommandMeta):
-    _table = metaschema.get_metaclass_table(s_anno.AnnotationValue)
     op_priority = 4
-
-    def get_table(self, schema):
-        return self._table
 
 
 class CreateAnnotationValue(
@@ -1073,11 +887,7 @@ class DeleteAnnotationValue(
 
 class ConstraintCommand(sd.ObjectCommand,
                         metaclass=ReferencedObjectCommandMeta):
-    _table = metaschema.get_metaclass_table(s_constr.Constraint)
     op_priority = 3
-
-    def get_table(self, schema):
-        return self._table
 
     def constraint_is_effective(self, schema, constraint):
         is_local = constraint.get_is_local(schema)
@@ -1202,10 +1012,6 @@ class AliasCapableObjectMetaCommand(ObjectMetaCommand):
 
 
 class ScalarTypeMetaCommand(AliasCapableObjectMetaCommand):
-    _table = metaschema.get_metaclass_table(s_scalars.ScalarType)
-
-    def get_table(self, schema):
-        return self._table
 
     def is_sequence(self, schema, scalar):
         seq = schema.get('std::sequence', default=None)
@@ -1286,17 +1092,12 @@ class CreateScalarType(ScalarTypeMetaCommand,
 
         schema = ScalarTypeMetaCommand.apply(self, schema, context)
 
-        schema, updates, op = self.create_object(schema, context, scalar)
-        self.pgops.add(op)
-
         if scalar.get_is_abstract(schema):
             return schema
 
         new_domain_name = types.pg_type_from_scalar(schema, scalar)
 
         if types.is_builtin_scalar(schema, scalar):
-            self.update_fields(
-                schema, context, backend_id=dbops.type_oid(new_domain_name))
             return schema
 
         enum_values = scalar.get_enum_values(schema)
@@ -1306,8 +1107,6 @@ class CreateScalarType(ScalarTypeMetaCommand,
             self.pgops.add(dbops.CreateEnum(
                 name=new_enum_name, values=enum_values))
             base = q(*new_enum_name)
-            self.update_fields(
-                schema, context, backend_id=dbops.type_oid(new_enum_name))
 
         else:
             base = types.get_scalar_base(schema, scalar)
@@ -1320,22 +1119,22 @@ class CreateScalarType(ScalarTypeMetaCommand,
             domain = dbops.Domain(name=new_domain_name, base=base)
             self.pgops.add(dbops.CreateDomain(domain=domain))
 
-            default = updates.get('default')
-            if default:
-                if (default is not None
-                        and not isinstance(default, s_expr.Expression)):
-                    # We only care to support literal defaults here. Supporting
-                    # defaults based on queries has no sense on the database
-                    # level since the database forbids queries for DEFAULT and
-                    # pre- calculating the value does not make sense either
-                    # since the whole point of query defaults is for them to be
-                    # dynamic.
-                    self.pgops.add(
-                        dbops.AlterDomainAlterDefault(
-                            name=new_domain_name, default=default))
-
-            self.update_fields(
-                schema, context, backend_id=dbops.type_oid(new_domain_name))
+            default = self.get_resolved_attribute_value(
+                'default',
+                schema=schema,
+                context=context,
+            )
+            if (default is not None
+                    and not isinstance(default, s_expr.Expression)):
+                # We only care to support literal defaults here. Supporting
+                # defaults based on queries has no sense on the database
+                # level since the database forbids queries for DEFAULT and
+                # pre- calculating the value does not make sense either
+                # since the whole point of query defaults is for them to be
+                # dynamic.
+                self.pgops.add(
+                    dbops.AlterDomainAlterDefault(
+                        name=new_domain_name, default=default))
 
         return schema
 
@@ -1372,8 +1171,6 @@ class RenameScalarType(ScalarTypeMetaCommand,
             self.pgops.add(
                 dbops.RenameDomain(name=domain_name, new_name=new_domain_name))
 
-        self.rename(schema, orig_schema, context, scls)
-
         if self.is_sequence(schema, scls):
             seq_name = common.get_backend_name(
                 orig_schema, scls, catenate=False, aspect='sequence')
@@ -1406,18 +1203,9 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         orig_schema = schema
-        table = self.get_table(schema)
         schema = s_scalars.AlterScalarType.apply(self, schema, context)
         new_scalar = self.scls
         schema = ScalarTypeMetaCommand.apply(self, schema, context)
-
-        schema, updaterec, updates = self.fill_record(schema, context)
-
-        if updaterec:
-            condition = [('id', new_scalar.id)]
-            self.pgops.add(
-                dbops.Update(
-                    table=table, record=updaterec, condition=condition))
 
         old_enum_values = new_scalar.get_enum_values(orig_schema)
         new_enum_values = new_scalar.get_enum_values(schema)
@@ -1446,20 +1234,23 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
                     else:
                         old_idx += 1
 
-        if updates:
-            default_delta = updates.get('default')
-            if default_delta:
-                if (default_delta is None or
-                        isinstance(default_delta, s_expr.Expression)):
-                    new_default = None
-                else:
-                    new_default = default_delta
+        default_delta = self.get_resolved_attribute_value(
+            'default',
+            schema=schema,
+            context=context,
+        )
+        if default_delta:
+            if (default_delta is None or
+                    isinstance(default_delta, s_expr.Expression)):
+                new_default = None
+            else:
+                new_default = default_delta
 
-                domain_name = common.get_backend_name(
-                    schema, new_scalar, catenate=False)
-                adad = dbops.AlterDomainAlterDefault(
-                    name=domain_name, default=new_default)
-                self.pgops.add(adad)
+            domain_name = common.get_backend_name(
+                schema, new_scalar, catenate=False)
+            adad = dbops.AlterDomainAlterDefault(
+                name=domain_name, default=new_default)
+            self.pgops.add(adad)
 
         return schema
 
@@ -1487,8 +1278,6 @@ class DeleteScalarType(ScalarTypeMetaCommand,
 
         # Domain dropping gets low priority since other things may
         # depend on it.
-        table = self.get_table(schema)
-
         if scalar.is_enum(orig_schema):
             old_enum_name = common.get_backend_name(
                 orig_schema, scalar, catenate=False)
@@ -1501,11 +1290,6 @@ class DeleteScalarType(ScalarTypeMetaCommand,
             ops.add(
                 dbops.DropDomain(
                     name=old_domain_name, conditions=[cond], priority=3))
-
-        ops.add(
-            dbops.Delete(
-                table=table, condition=[(
-                    'name', str(self.classname))]))
 
         if self.is_sequence(orig_schema, scalar):
             seq_name = common.get_backend_name(
@@ -1586,8 +1370,6 @@ class CompositeObjectMetaCommand(ObjectMetaCommand):
         self._attach_multicommand(context, dbops.AlterTable)
 
     def rename(self, schema, orig_schema, context, obj):
-        super().rename(schema, orig_schema, context, obj)
-
         old_table_name = common.get_backend_name(
             orig_schema, obj, catenate=False)
 
@@ -1781,10 +1563,7 @@ class CompositeObjectMetaCommand(ObjectMetaCommand):
 
 
 class IndexCommand(sd.ObjectCommand, metaclass=ReferencedObjectCommandMeta):
-    _table = metaschema.get_metaclass_table(s_indexes.Index)
-
-    def get_table(self, schema):
-        return self._table
+    pass
 
 
 class CreateIndex(IndexCommand, CreateObject, adapts=s_indexes.CreateIndex):
@@ -1948,9 +1727,6 @@ class CreateUnionType(
 
 class ObjectTypeMetaCommand(AliasCapableObjectMetaCommand,
                             CompositeObjectMetaCommand):
-    def get_table(self, schema):
-        mcls = s_objtypes.ObjectType
-        return metaschema.get_metaclass_table(mcls)
 
     @classmethod
     def has_table(cls, objtype, schema):
@@ -1971,10 +1747,7 @@ class CreateObjectType(ObjectTypeMetaCommand,
         schema = s_objtypes.CreateObjectType.apply(self, schema, context)
         objtype = self.scls
         if objtype.is_compound_type(schema) or objtype.get_is_derived(schema):
-            schema = ObjectTypeMetaCommand.apply(self, schema, context)
-            schema, _, op = self.create_object(schema, context, objtype)
-            self.pgops.add(op)
-            return schema
+            return ObjectTypeMetaCommand.apply(self, schema, context)
 
         new_table_name = common.get_backend_name(
             schema, objtype, catenate=False)
@@ -1993,16 +1766,11 @@ class CreateObjectType(ObjectTypeMetaCommand,
 
         schema = ObjectTypeMetaCommand.apply(self, schema, context)
 
-        schema, _, op = self.create_object(schema, context, objtype)
-        self.pgops.add(op)
-
         constr_name = common.edgedb_name_to_pg_name(
             self.classname + '.class_check')
 
         constr_expr = dbops.Query(textwrap.dedent(f"""\
-            SELECT '"__type__" = ' || quote_literal(id)
-            FROM edgedb.ObjectType WHERE name =
-                {ql(objtype.get_name(schema))}
+            SELECT '"__type__" = ' || quote_literal({ql(str(objtype.id))})
         """), type='text')
 
         cid_constraint = dbops.CheckConstraint(
@@ -2104,7 +1872,6 @@ class RebaseObjectType(ObjectTypeMetaCommand,
         schema = s_objtypes.RebaseObjectType.apply(self, schema, context)
         result = self.scls
         schema = ObjectTypeMetaCommand.apply(self, schema, context)
-        schema, _ = self.update(schema, context)
 
         if self.has_table(result, schema):
             objtype_ctx = context.get(s_objtypes.ObjectTypeCommandContext)
@@ -2132,15 +1899,6 @@ class AlterObjectType(ObjectTypeMetaCommand,
 
         schema = ObjectTypeMetaCommand.apply(self, schema, context)
 
-        schema, updaterec, updates = self.fill_record(schema, context)
-
-        if updaterec:
-            table = self.get_table(schema)
-            condition = [('id', objtype.id)]
-            self.pgops.add(
-                dbops.Update(
-                    table=table, record=updaterec, condition=condition))
-
         if self.has_table(objtype, schema):
             self.attach_alter_table(context)
 
@@ -2164,8 +1922,6 @@ class DeleteObjectType(ObjectTypeMetaCommand,
             schema, objtype, catenate=False)
 
         schema = ObjectTypeMetaCommand.apply(self, schema, context)
-
-        self.delete(schema, context, objtype)
 
         if self.has_table(objtype, schema):
             self.pgops.add(dbops.DropTable(name=old_table_name, priority=3))
@@ -2193,21 +1949,6 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
             objtype = context.get(s_objtypes.ObjectTypeCommandContext)
             if objtype:
                 return objtype
-
-    def record_metadata(self, pointer, schema, orig_schema, context):
-        old_pointer = orig_schema.get_by_id(pointer.id, None)
-
-        schema, rec, updates = self.fill_record(
-            schema, use_defaults=old_pointer is None,
-            context=context)
-
-        table = self.get_table(schema)
-
-        if updates:
-            if not rec:
-                rec = table.record()
-
-        return rec, updates
 
     def alter_host_table_column(self, ptr, schema, orig_schema, context):
 
@@ -2242,7 +1983,11 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
         if ptr.is_pure_computable(schema):
             return None
 
-        default = self.updates.get('default')
+        default = self.get_resolved_attribute_value(
+            'default',
+            schema=schema,
+            context=context,
+        )
         default_value = None
 
         if default is not None:
@@ -2264,7 +2009,11 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
         return default_value
 
     def alter_pointer_default(self, pointer, schema, context):
-        default = self.updates.get('default')
+        default = self.get_resolved_attribute_value(
+            'default',
+            schema=schema,
+            context=context,
+        )
         if default:
             default_value = self.get_pointer_default(pointer, schema, context)
             source_ctx = context.get_ancestor(
@@ -2372,14 +2121,6 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
                                 table_name=table_name, column=dbops.Column(
                                     name=new_col_name, type='str'))
                             self.pgops.add(dbops.Comment(tabcol, new_name))
-
-        table = self.get_table(schema)
-        rec = table.record()
-        rec.name = str(self.new_name)
-        self.pgops.add(
-            dbops.Update(
-                table=table, record=rec, condition=[(
-                    'name', str(self.classname))], priority=1))
 
     @classmethod
     def has_table(cls, src, schema):
@@ -2536,10 +2277,6 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
 
 
 class LinkMetaCommand(CompositeObjectMetaCommand, PointerMetaCommand):
-    _table = metaschema.get_metaclass_table(s_links.Link)
-
-    def get_table(self, schema):
-        return self._table
 
     @classmethod
     def _create_table(
@@ -2670,8 +2407,6 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
         self.provide_table(link, schema, context)
 
         objtype = context.get(s_objtypes.ObjectTypeCommandContext)
-        rec, updates = self.record_metadata(link, schema, orig_schema, context)
-        self.updates = updates
         extra_ops = []
 
         source = link.get_source(schema)
@@ -2721,9 +2456,6 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
                 extra_ops.append(ci)
 
         objtype = context.get(s_objtypes.ObjectTypeCommandContext)
-        table = self.get_table(schema)
-        self.pgops.add(
-            dbops.Insert(table=table, records=[rec], priority=1))
 
         self.attach_alter_table(context)
 
@@ -2782,7 +2514,6 @@ class RebaseLink(LinkMetaCommand, adapts=s_links.RebaseLink):
     ) -> s_schema.Schema:
         schema = s_links.RebaseLink.apply(self, schema, context)
         schema = LinkMetaCommand.apply(self, schema, context)
-        schema, _ = self.update(schema, context)
 
         link_ctx = context.get(s_links.LinkCommandContext)
         source = link_ctx.scls
@@ -2804,9 +2535,7 @@ class SetLinkType(
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         schema = s_links.SetLinkType.apply(self, schema, context)
-        schema = LinkMetaCommand.apply(self, schema, context)
-        schema, _ = self.update(schema, context)
-        return schema
+        return LinkMetaCommand.apply(self, schema, context)
 
 
 class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
@@ -2822,19 +2551,7 @@ class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
 
         with context(s_links.LinkCommandContext(schema, self, link)) as ctx:
             ctx.original_schema = orig_schema
-            rec, updates = self.record_metadata(
-                link, schema, orig_schema, context)
-            self.updates = updates
-
             self.provide_table(link, schema, context)
-
-            if rec:
-                table = self.get_table(schema)
-                self.pgops.add(
-                    dbops.Update(
-                        table=table, record=rec,
-                        condition=[('id', link.id)], priority=1))
-
             self.attach_alter_table(context)
 
             if not link.generic(schema):
@@ -2864,8 +2581,12 @@ class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
             if isinstance(link.get_target(schema), s_scalars.ScalarType):
                 self.alter_pointer_default(link, schema, context)
 
-            if ('on_target_delete' in updates
-                    and not link.is_pure_computable(schema)):
+            otd = self.get_resolved_attribute_value(
+                'on_target_delete',
+                schema=schema,
+                context=context,
+            )
+            if otd and not link.is_pure_computable(schema):
                 self.schedule_endpoint_delete_action_update(
                     link, orig_schema, schema, context)
 
@@ -2925,20 +2646,10 @@ class DeleteLink(LinkMetaCommand, adapts=s_links.DeleteLink):
         self.pgops.add(
             dbops.DropTable(name=old_table_name, conditions=[condition]))
 
-        table = self.get_table(schema)
-        self.pgops.add(
-            dbops.Delete(
-                table=table,
-                condition=[('id', link.id)]))
-
         return schema
 
 
 class PropertyMetaCommand(CompositeObjectMetaCommand, PointerMetaCommand):
-    _table = metaschema.get_metaclass_table(s_props.Property)
-
-    def get_table(self, schema):
-        return self._table
 
     @classmethod
     def _create_table(
@@ -3036,7 +2747,6 @@ class CreateProperty(PropertyMetaCommand, adapts=s_props.CreateProperty):
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        orig_schema = schema
         schema = s_props.CreateProperty.apply(self, schema, context)
         prop = self.scls
         schema = PropertyMetaCommand.apply(self, schema, context)
@@ -3044,11 +2754,6 @@ class CreateProperty(PropertyMetaCommand, adapts=s_props.CreateProperty):
         src = context.get(s_sources.SourceCommandContext)
 
         self.provide_table(prop, schema, context)
-
-        with context(s_props.PropertyCommandContext(schema, self, prop)):
-            rec, updates = self.record_metadata(
-                prop, schema, orig_schema, context)
-            self.updates = updates
 
         if src and self.has_table(src.scls, schema):
             if isinstance(src, s_links.Link):
@@ -3085,12 +2790,6 @@ class CreateProperty(PropertyMetaCommand, adapts=s_props.CreateProperty):
                     cmd = dbops.AlterTableAddColumn(col)
                     alter_table.add_operation((cmd, None, (cond, )))
 
-        # Priority is set to 2 to make sure that INSERT is run after the host
-        # link is INSERTed into edgedb.link.
-        table = self.get_table(schema)
-        self.pgops.add(
-            dbops.Insert(table=table, records=[rec], priority=2))
-
         return schema
 
 
@@ -3123,7 +2822,6 @@ class RebaseProperty(
     ) -> s_schema.Schema:
         schema = s_props.RebaseProperty.apply(self, schema, context)
         schema = PropertyMetaCommand.apply(self, schema, context)
-        schema, _ = self.update(schema, context)
 
         prop_ctx = context.get(s_props.PropertyCommandContext)
         source = prop_ctx.scls
@@ -3145,9 +2843,7 @@ class SetPropertyType(
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         schema = s_props.SetPropertyType.apply(self, schema, context)
-        schema = PropertyMetaCommand.apply(self, schema, context)
-        schema, _ = self.update(schema, context)
-        return schema
+        return PropertyMetaCommand.apply(self, schema, context)
 
 
 class AlterProperty(
@@ -3166,19 +2862,7 @@ class AlterProperty(
                 s_props.PropertyCommandContext(schema, self, prop)) as ctx:
             ctx.original_schema = orig_schema
 
-            rec, updates = self.record_metadata(
-                prop, schema, orig_schema, context)
-            self.updates = updates
-
             self.provide_table(prop, schema, context)
-
-            if rec:
-                table = self.get_table(schema)
-                self.pgops.add(
-                    dbops.Update(
-                        table=table, record=rec,
-                        condition=[('id', prop.id)], priority=2))
-
             prop_target = prop.get_target(schema)
             old_prop_target = prop.get_target(orig_schema)
 
@@ -3250,11 +2934,6 @@ class DeleteProperty(
                              type=ptr_stor_info.column_type))
 
             alter_table.add_operation((col, (exists_cond,), (inherited_cond,)))
-
-        table = self.get_table(schema)
-        self.pgops.add(
-            dbops.Delete(
-                table=table, condition=[('id', prop.id)]))
 
         return schema
 
@@ -3383,10 +3062,10 @@ class UpdateEndpointDeleteActions(MetaCommand):
                     IF FOUND THEN
                         SELECT
                             edgedb.shortname_from_fullname(link.name),
-                            edgedb._resolve_type_name(link.{far_endpoint})
+                            edgedb._get_schema_object_name(link.{far_endpoint})
                             INTO linkname, endname
                         FROM
-                            edgedb.Link AS link
+                            edgedb."_SchemaLink" AS link
                         WHERE
                             link.id = link_type_id;
                         RAISE foreign_key_violation
@@ -3501,10 +3180,10 @@ class UpdateEndpointDeleteActions(MetaCommand):
                     IF FOUND THEN
                         SELECT
                             edgedb.shortname_from_fullname(link.name),
-                            edgedb._resolve_type_name(link.{far_endpoint})
+                            edgedb._get_schema_object_name(link.{far_endpoint})
                             INTO linkname, endname
                         FROM
-                            edgedb.Link AS link
+                            edgedb."_SchemaLink" AS link
                         WHERE
                             link.id = link_type_id;
                         RAISE foreign_key_violation
@@ -3795,10 +3474,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
 
 class ModuleMetaCommand(ObjectMetaCommand):
-    _table = metaschema.get_metaclass_table(s_mod.Module)
-
-    def get_table(self, schema):
-        return self._table
+    pass
 
 
 class CreateModule(ModuleMetaCommand, adapts=s_mod.CreateModule):
@@ -3821,9 +3497,6 @@ class CreateModule(ModuleMetaCommand, adapts=s_mod.CreateModule):
 
         cmd.add_command(dbops.CreateSchema(name=schema_name))
 
-        schema, _, op = self.create_object(schema, context, module)
-        cmd.add_command(op)
-
         self.pgops.add(cmd)
 
         return schema
@@ -3836,19 +3509,7 @@ class AlterModule(ModuleMetaCommand, adapts=s_mod.AlterModule):
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         schema = s_mod.AlterModule.apply(self, schema, context=context)
-        module = self.scls
-        schema = CompositeObjectMetaCommand.apply(self, schema, context)
-
-        schema, updaterec, updates = self.fill_record(schema, context)
-
-        if updaterec:
-            table = self.get_table(schema)
-            condition = [('id', module.id)]
-            self.pgops.add(
-                dbops.Update(
-                    table=table, record=updaterec, condition=condition))
-
-        return schema
+        return CompositeObjectMetaCommand.apply(self, schema, context)
 
 
 class DeleteModule(ModuleMetaCommand, adapts=s_mod.DeleteModule):
@@ -3865,16 +3526,10 @@ class DeleteModule(ModuleMetaCommand, adapts=s_mod.DeleteModule):
 
         condition = dbops.SchemaExists(name=schema_name)
 
-        table = self.get_table(schema)
         cmd = dbops.CommandGroup(priority=4)
         cmd.add_command(
             dbops.DropSchema(
                 name=schema_name, conditions={condition}))
-        cmd.add_command(
-            dbops.Delete(
-                table=table,
-                condition=[('id', module.id)]))
-
         self.pgops.add(cmd)
 
         return schema
