@@ -1274,7 +1274,6 @@ cdef class EdgeConnection:
         cdef:
             char mtype
             bint flush_sync_on_error
-            bint flush_on_error
 
         try:
             await self.auth()
@@ -1312,7 +1311,6 @@ cdef class EdgeConnection:
                 mtype = self.buffer.get_message_type()
 
                 flush_sync_on_error = False
-                flush_on_error = False
 
                 try:
                     if mtype == b'P':
@@ -1345,7 +1343,6 @@ cdef class EdgeConnection:
                         # The restore protocol cannot send SYNC beforehand,
                         # so if an error occurs the server should send an
                         # ERROR message immediately.
-                        flush_on_error = True
                         await self.restore()
 
                     else:
@@ -1370,8 +1367,7 @@ cdef class EdgeConnection:
                     self.buffer.finish_message()
 
                     await self.write_error(ex)
-                    if flush_on_error:
-                        self.flush()
+                    self.flush()
 
                     if self._backend is None:
                         # The connection was aborted while we were
@@ -1566,8 +1562,13 @@ cdef class EdgeConnection:
 
         if mtype == b'H':
             # Flush
+
+            pgcon = self.get_backend().pgcon
+            pgcon.send_flush()
+
             self.buffer.discard_message()
             self.flush()
+
             return
         elif mtype == b'X':
             # Terminate

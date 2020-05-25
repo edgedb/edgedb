@@ -112,3 +112,43 @@ class TestProtocol(protocol.ProtocolTestCase):
             protocol.ReadyForCommand,
             transaction_state=protocol.TransactionState.NOT_IN_TRANSACTION,
         )
+
+    async def test_proto_flush_01(self):
+
+        await self.con.connect()
+
+        await self.con.send(
+            protocol.Prepare(
+                headers=[],
+                io_format=protocol.IOFormat.BINARY,
+                expected_cardinality=protocol.Cardinality.ONE,
+                statement_name=b'',
+                command='SEL ECT 1',
+            )
+        )
+        # Should come through even without an explicit 'flush'
+        await self.con.recv_match(
+            protocol.ErrorResponse,
+            message="Unexpected 'SEL'"
+        )
+
+        # Recover the protocol state from the error
+        self.assertEqual(
+            await self.con.sync(),
+            protocol.TransactionState.NOT_IN_TRANSACTION)
+
+        # This Prepare should be handled alright
+        await self.con.send(
+            protocol.Prepare(
+                headers=[],
+                io_format=protocol.IOFormat.BINARY,
+                expected_cardinality=protocol.Cardinality.ONE,
+                statement_name=b'',
+                command='SELECT 1',
+            ),
+            protocol.Flush()
+        )
+        await self.con.recv_match(
+            protocol.PrepareComplete,
+            cardinality=protocol.Cardinality.ONE,
+        )
