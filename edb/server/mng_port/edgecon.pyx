@@ -1562,9 +1562,6 @@ cdef class EdgeConnection:
 
         if mtype == b'H':
             # Flush
-            pgcon = self.get_backend().pgcon
-            pgcon.send_flush()
-
             self.buffer.discard_message()
             self.flush()
 
