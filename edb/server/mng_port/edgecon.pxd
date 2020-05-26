@@ -107,7 +107,7 @@ cdef class EdgeConnection:
     cdef abort(self)
     cdef close(self)
 
-    cdef fallthrough(self, bint ignore_unhandled)
+    cdef fallthrough(self)
 
     cdef pgcon_last_sync_status(self)
 

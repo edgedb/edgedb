@@ -217,7 +217,7 @@ cdef class PGProto:
             self.msg_waiter.set_exception(ConnectionAbortedError())
             self.msg_waiter = None
 
-    cdef send_flush(self):
+    def send_flush(self):
         self.write(FLUSH_MESSAGE)
 
     async def signal_ddl(self, dbver):

@@ -152,3 +152,22 @@ class TestProtocol(protocol.ProtocolTestCase):
             protocol.PrepareComplete,
             cardinality=protocol.Cardinality.ONE,
         )
+
+        # Test that Flush has completed successfully -- the
+        # command should be executed and no exception should
+        # be received.
+        # While at it, rogue ROLLBACK should be allowed.
+        await self.con.send(
+            protocol.ExecuteScript(
+                headers=[],
+                script='ROLLBACK'
+            )
+        )
+        await self.con.recv_match(
+            protocol.CommandComplete,
+            status='ROLLBACK'
+        )
+        await self.con.recv_match(
+            protocol.ReadyForCommand,
+            transaction_state=protocol.TransactionState.NOT_IN_TRANSACTION,
+        )

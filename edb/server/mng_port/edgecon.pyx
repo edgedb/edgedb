@@ -1346,7 +1346,7 @@ cdef class EdgeConnection:
                         await self.restore()
 
                     else:
-                        self.fallthrough(False)
+                        self.fallthrough()
 
                 except ConnectionAbortedError:
                     raise
@@ -1556,28 +1556,23 @@ cdef class EdgeConnection:
                 'unknown postgres connection status')
         return buf.end_message()
 
-    cdef fallthrough(self, bint ignore_unhandled):
+    cdef fallthrough(self):
         cdef:
             char mtype = self.buffer.get_message_type()
 
         if mtype == b'H':
             # Flush
-
             pgcon = self.get_backend().pgcon
             pgcon.send_flush()
 
             self.buffer.discard_message()
             self.flush()
 
-            return
         elif mtype == b'X':
             # Terminate
             self.buffer.discard_message()
             self.abort()
-            return
 
-        if ignore_unhandled:
-            self.buffer.discard_message()
         else:
             raise errors.BinaryProtocolError(
                 f'unexpected message type {chr(mtype)!r}')
@@ -1998,7 +1993,7 @@ cdef class EdgeConnection:
                     break
 
                 else:
-                    self.fallthrough(False)
+                    self.fallthrough()
 
             await pgcon.simple_query(
                 enable_trigger_q.encode() + b'COMMIT;',
