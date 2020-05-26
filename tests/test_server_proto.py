@@ -748,6 +748,34 @@ class TestServerProto(tb.QueryTestCase):
                 ('1', 1, 1.1, decimal.Decimal('1.1'), 1)
             )
 
+    async def test_server_proto_args_10(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            r'invalid argument count, expected: 1, got: 0'
+        ):
+            await self.con.query_one('select <int64>$0')
+
+    async def test_server_proto_args_11(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            r'invalid argument count, expected: 1, got: 0'
+        ):
+            await self.con.query_one('select <int64>$0 + 50')
+
+    async def test_server_proto_args_12(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            r'invalid argument count, expected: 2, got: 0'
+        ):
+            await self.con.query_one('select <int64>$0 + <int64>$1')
+
+    async def test_server_proto_args_13(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            r'invalid argument count, expected: 2, got: 0'
+        ):
+            await self.con.query_one('select <int64>$a + <int64>$b')
+
     async def test_server_proto_wait_cancel_01(self):
         # Test that client protocol handles waits interrupted
         # by closing.
