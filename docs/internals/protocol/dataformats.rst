@@ -9,14 +9,14 @@ This section describes the data wire format of standard EdgeDB types.
 
 .. _ref_protocol_fmt_array:
 
-array<>
-=======
+Sets and array<>
+================
 
-The array values are represented as the following structure:
+The set and array values are represented as the following structure:
 
 .. code-block:: c
 
-    struct ArrayValue {
+    struct SetOrArrayValue {
         // Number of dimensions, currently must
         // always be 0 or 1.
         int32       ndims;
@@ -45,7 +45,7 @@ The array values are represented as the following structure:
         // Encoded element data length in bytes.
         int32       length;
         // Element data.
-        byte        data[length];
+        uint8       data[length];
     };
 
 
@@ -55,14 +55,14 @@ Note: zero-length arrays (and sets) are represented as a 12-byte value where
 
 .. _ref_protocol_fmt_tuple:
 
-tuple<>
-=======
+tuple<>,  namedtuple<>, and object<>
+====================================
 
-The tuple values are represented as the following structure:
+The values are represented as the following structure:
 
 .. code-block:: c
 
-    struct TupleValue {
+    struct TupleOrNamedTupleOrObjectValue {
         // Number of elements
         int32       nelems;
         // Element data.
@@ -75,8 +75,12 @@ The tuple values are represented as the following structure:
         // Encoded element data length in bytes.
         int32       length;
         // Element data.
-        byte        data[length];
+        uint8       data[length];
     };
+
+
+Note that for objects, ``Element.length`` can be set to ``-1``, which
+means an empty set.
 
 
 .. _ref_protocol_fmt_uuid:
@@ -102,7 +106,6 @@ std::str
 ========
 
 The :eql:type:`std::str` values are represented as a UTF-8 encoded byte string.
-
 For example, the ``str`` value ``'Hello! 🙂'`` is encoded as:
 
 .. code-block:: c
@@ -382,7 +385,7 @@ The :eql:type:`std::json` values are represented as the following structure:
 
     struct JSON {
         uint8   format;
-        byte    jsondata[];
+        uint8   jsondata[];
     };
 
 *format* is currently always ``1``, and *jsondata* is a UTF-8 encoded JSON
