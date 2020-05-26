@@ -372,9 +372,12 @@ Format:
 
 .. eql:struct:: edb.testbase.protocol.Data
 
+.. eql:struct:: edb.testbase.protocol.DataElement
 
-The type of *data* is determined by the query output type descriptor.  Wire
-formats for the standard scalar types and collections are documented in
+The exact encoding of ``DataElement.data`` is defined by the query output
+:ref:`type descriptor <ref_proto_typedesc>`.
+
+Wire formats for the standard scalar types and collections are documented in
 :ref:`ref_proto_dataformats`.
 
 

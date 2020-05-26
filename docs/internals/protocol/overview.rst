@@ -25,40 +25,43 @@ The following data types are used in the descriptions:
 
     * - ``int8``
       - 8-bit integer
-    * - ``int8<T>``
-      - an 8-bit integer enumeration, where *T* denotes the name of
-        the enumeration
+
     * - ``int16``
       - 16-bit integer, most significant byte first
+
     * - ``int32``
       - 32-bit integer, most significant byte first
+
     * - ``int64``
       - 64-bit integer, most significant byte first
-    * - ``byte``
+
+    * - ``uint8``
       - 8-bit unsigned integer
-    * - ``byte<T>``
-      - 8-bit unsigned integer enumeration, where *T* denotes the name of
-        the enumeration
+
+    * - ``uint16``
+      - 16-bit unsigned integer, most significant byte first
+
+    * - ``uint32``
+      - 32-bit unsigned integer, most significant byte first
+
+    * - ``uint64``
+      - 64-bit unsigned integer, most significant byte first
+
+    * - ``int8<T>`` or ``uint8<T>``
+      - an 8-bit signed or unsigned integer enumeration,
+        where *T* denotes the name of the enumeration
+
     * - ``string``
-      - a UTF-8 encoded text string prefixed with its byte length as ``int32``
+      - a UTF-8 encoded text string prefixed with its byte length as ``uint32``
+
     * - ``bytes``
-      - a byte string prefixed with its length as ``int32``
-    * - ``Headers``
-      - a key-value structure with the following layout:
+      - a byte string prefixed with its length as ``uint32``
 
-        .. code-block:: c
+    * - ``Header``
+      - .. eql:struct:: edb.testbase.protocol.Header
 
-           struct Headers {
-               int16  num_headers;
-               Header headers[num_headers];
-           };
-
-           struct Header {
-               int16  key;
-               bytes  value;
-           };
     * - ``uuid``
-      - a simple array of 16 bytes with no length prefix, equivalent to
+      - an array of 16 bytes with no length prefix, equivalent to
         ``byte[16]``
 
 
@@ -71,9 +74,9 @@ All messages in the EdgeDB wire protocol have the following format:
 .. code-block:: c
 
     struct {
-        int8  message_type;
-        int32 payload_length;
-        int8  payload[payload_length - 4];
+        uint8    message_type;
+        int32    payload_length;
+        uint8    payload[payload_length - 4];
     };
 
 The server and the client *MUST* not fragment messages. I.e the complete

@@ -36,13 +36,13 @@ Set Descriptor
 
     struct SetDescriptor {
         // Indicates that this is a Set value descriptor.
-        int8   type = 0;
+        uint8   type = 0;
 
         // Descriptor ID.
-        uuid   id;
+        uuid    id;
 
         // Set element type descriptor index.
-        int16  type_pos;
+        uint16  type_pos;
     };
 
 Set values are encoded on the wire as
@@ -57,13 +57,13 @@ Object Shape Descriptor
     struct ObjectShapeDescriptor {
         // Indicates that this is an
         // Object Shape descriptor.
-        int8            type = 1;
+        uint8           type = 1;
 
         // Descriptor ID.
         uuid            id;
 
         // Number of elements in shape.
-        int16           element_count;
+        uint16          element_count;
 
         ShapeElement    elements[element_count];
     };
@@ -73,13 +73,13 @@ Object Shape Descriptor
         //   1 << 0: the field is implicit
         //   1 << 1: the field is a link property
         //   1 << 2: the field is a link
-        int8            flags;
+        uint8           flags;
 
         // Field name.
         string          name;
 
         // Field type descriptor index.
-        int16           type_pos;
+        uint16          type_pos;
     };
 
 Objects are encoded on the wire as :ref:`tuples <ref_protocol_fmt_tuple>`.
@@ -93,7 +93,7 @@ Base Scalar Type Descriptor
     struct BaseScalarTypeDescriptor {
         // Indicates that this is an
         // Base Scalar Type descriptor.
-        int8            type = 2;
+        uint8           type = 2;
 
         // Descriptor ID.
         uuid            id;
@@ -166,13 +166,13 @@ Scalar Type Descriptor
     struct ScalarTypeDescriptor {
         // Indicates that this is a
         // Scalar Type descriptor.
-        int8            type = 3;
+        uint8           type = 3;
 
         // Descriptor ID.
         uuid            id;
 
         // Parent type descriptor index.
-        int16           base_type_pos;
+        uint16          base_type_pos;
     };
 
 
@@ -184,16 +184,16 @@ Tuple Type Descriptor
     struct TupleTypeDescriptor {
         // Indicates that this is a
         // Tuple Type descriptor.
-        int8      type = 4;
+        uint8     type = 4;
 
         // Descriptor ID.
         uuid      id;
 
         // The number of elements in tuple.
-        int16     element_count;
+        uint16    element_count;
 
         // Indexes of element type descriptors.
-        int16     element_types[element_count];
+        uint16    element_types[element_count];
     };
 
 An empty tuple type descriptor has an ID of
@@ -208,13 +208,13 @@ Named Tuple Type Descriptor
     struct NamedTupleTypeDescriptor {
         // Indicates that this is a
         // Named Tuple Type descriptor.
-        int8         type = 5;
+        uint8        type = 5;
 
         // Descriptor ID.
         uuid         id;
 
         // The number of elements in tuple.
-        int16        element_count;
+        uint16       element_count;
 
         // Indexes of element type descriptors.
         TupleElement elements[element_count];
@@ -237,20 +237,20 @@ Array Type Descriptor
     struct ArrayTypeDescriptor {
         // Indicates that this is an
         // Array Type descriptor.
-        int8         type = 6;
+        uint8        type = 6;
 
         // Descriptor ID.
         uuid         id;
 
         // Element type descriptor index.
-        int16        type_pos;
+        uint16       type_pos;
 
         // The number of array dimensions, at least 1.
-        int16        dimension_count;
+        uint16       dimension_count;
 
         // Sizes of array dimensions, -1 indicates
         // unbound dimension.
-        int32        dimensions[dimension_count];
+        uint32       dimensions[dimension_count];
     };
 
 
@@ -262,13 +262,13 @@ Enumeration Type Descriptor
     struct EnumerationTypeDescriptor {
         // Indicates that this is an
         // Enumeration Type descriptor.
-        int8         type = 7;
+        uint8        type = 7;
 
         // Descriptor ID.
         uuid         id;
 
         // The number of enumeration members.
-        int16        member_count;
+        uint16       member_count;
 
         // Names of enumeration members.
         string       members[member_count];
@@ -284,7 +284,7 @@ Type Annotation Descriptor
     struct TypeAnnotationDescriptor {
         // Indicates that this is an
         // Type Annotation descriptor.
-        int8         type = 0xf0..0xff;
+        uint8        type = 0xf0..0xff;
 
         // ID of the descriptor the
         // annotation is for.

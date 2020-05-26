@@ -36,6 +36,8 @@ class CType:
 
 class Scalar(CType):
 
+    cname = None
+
     def __init__(
         self,
         doc: typing.Optional[str]=None,
@@ -54,8 +56,29 @@ class Scalar(CType):
     def dump(self, val: typing.Any, buffer: binwrapper.BinWrapper) -> None:
         raise NotImplementedError
 
+    def render_field(
+        self,
+        fieldname: str,
+        buf: render_utils.RenderBuffer
+    ) -> None:
+        cname = self.cname
+        if cname is None:
+            raise NotImplementedError
+
+        if self.default and isinstance(self.default, int):
+            buf.write(
+                f'{cname.ljust(_PAD - 1)} {fieldname} = {self.default:#x};')
+        elif self.default:
+            buf.write(
+                f'{cname.ljust(_PAD - 1)} {fieldname} = {self.default};')
+        else:
+            buf.write(
+                f'{cname.ljust(_PAD - 1)} {fieldname};')
+
 
 class UInt8(Scalar):
+
+    cname = 'uint8'
 
     def validate(self, val: typing.Any) -> bool:
         return isinstance(val, int) and (0 <= val <= 255)
@@ -66,20 +89,10 @@ class UInt8(Scalar):
     def dump(self, val: int, buffer: binwrapper.BinWrapper) -> None:
         buffer.write_ui8(val)
 
-    def render_field(
-        self,
-        fieldname: str,
-        buf: render_utils.RenderBuffer
-    ) -> None:
-        if self.default:
-            buf.write(
-                f'{"int8".ljust(_PAD - 1)} {fieldname} = {self.default:#x};')
-        else:
-            buf.write(
-                f'{"int8".ljust(_PAD - 1)} {fieldname};')
-
 
 class UInt16(Scalar):
+
+    cname = 'uint16'
 
     def validate(self, val: typing.Any) -> bool:
         return isinstance(val, int) and (0 <= val <= 2 ** 16 - 1)
@@ -90,15 +103,10 @@ class UInt16(Scalar):
     def dump(self, val: int, buffer: binwrapper.BinWrapper) -> None:
         buffer.write_ui16(val)
 
-    def render_field(
-        self,
-        fieldname: str,
-        buf: render_utils.RenderBuffer
-    ) -> None:
-        buf.write(f'{"int16".ljust(_PAD - 1)} {fieldname};')
-
 
 class UInt32(Scalar):
+
+    cname = 'uint32'
 
     def validate(self, val: typing.Any) -> bool:
         return isinstance(val, int) and (0 <= val <= 2 ** 32 - 1)
@@ -109,15 +117,10 @@ class UInt32(Scalar):
     def dump(self, val: int, buffer: binwrapper.BinWrapper) -> None:
         buffer.write_ui32(val)
 
-    def render_field(
-        self,
-        fieldname: str,
-        buf: render_utils.RenderBuffer
-    ) -> None:
-        buf.write(f'{"int32".ljust(_PAD - 1)} {fieldname};')
-
 
 class Bytes(Scalar):
+
+    cname = 'bytes'
 
     def validate(self, val: typing.Any) -> bool:
         return isinstance(val, bytes)
@@ -128,15 +131,10 @@ class Bytes(Scalar):
     def dump(self, val: bytes, buffer: binwrapper.BinWrapper) -> None:
         buffer.write_len32_prefixed_bytes(val)
 
-    def render_field(
-        self,
-        fieldname: str,
-        buf: render_utils.RenderBuffer
-    ) -> None:
-        buf.write(f'{"bytes".ljust(_PAD - 1)} {fieldname};')
-
 
 class String(Scalar):
+
+    cname = 'string'
 
     def validate(self, val: typing.Any) -> bool:
         return isinstance(val, str)
@@ -147,15 +145,10 @@ class String(Scalar):
     def dump(self, val: str, buffer: binwrapper.BinWrapper) -> None:
         buffer.write_len32_prefixed_bytes(val.encode('utf-8'))
 
-    def render_field(
-        self,
-        fieldname: str,
-        buf: render_utils.RenderBuffer
-    ) -> None:
-        buf.write(f'{"string".ljust(_PAD - 1)} {fieldname};')
-
 
 class UUID(Scalar):
+
+    cname = 'uuid'
 
     def validate(self, val: typing.Any) -> bool:
         return isinstance(val, bytes) and len(val) == 16
@@ -167,13 +160,6 @@ class UUID(Scalar):
         assert isinstance(val, bytes) and len(val) == 16
         buffer.write_bytes(val)
 
-    def render_field(
-        self,
-        fieldname: str,
-        buf: render_utils.RenderBuffer
-    ) -> None:
-        buf.write(f'{"uuid".ljust(_PAD - 1)} {fieldname};')
-
 
 class ArrayOf(CType):
 
@@ -183,7 +169,7 @@ class ArrayOf(CType):
         element: typing.Union[CType, typing.Type[Struct]],
         doc: str = None,
     ) -> None:
-        self.length_in = length_in('')
+        self.length_in = length_in()
         self.element = element
         self.doc = doc
 
@@ -262,11 +248,11 @@ class EnumOf(CType):
 
     def __init__(
         self,
-        value_in: typing.Type[CType],
+        value_in: typing.Type[Scalar],
         enum: typing.Type[enum.Enum],
         doc: typing.Optional[str]=None,
     ) -> None:
-        self.value_in = value_in('')
+        self.value_in = value_in()
         self.enum = enum
         self.doc = doc
 
@@ -294,7 +280,8 @@ class EnumOf(CType):
         fieldname: str,
         buf: render_utils.RenderBuffer
     ) -> None:
-        buf.write(f'{self.enum.__name__.ljust(_PAD - 1)} {fieldname};')
+        typename = f'{self.value_in.cname}<{self.enum.__name__}>'
+        buf.write(f'{typename.ljust(_PAD - 1)} {fieldname};')
 
 
 class Struct:
@@ -573,13 +560,22 @@ class CommandDataDescription(ServerMessage):
     output_typedesc = Bytes('Output data descriptor.')
 
 
+class DataElement(Struct):
+
+    data = ArrayOf(UInt32, UInt8(), 'Encoded output data.')
+
+
 class Data(ServerMessage):
 
     mtype = MessageType('D')
     message_length = MessageLength
+    reserved = UInt32()
+
     data = ArrayOf(
-        UInt16, Bytes(''),
-        'Encoded output data. The array is currently always of size 1.')
+        UInt16,
+        DataElement,
+        'Encoded output data array. The array is currently always of size 1.'
+    )
 
 
 class DumpTypeInfo(Struct):
@@ -593,7 +589,7 @@ class DumpObjectDesc(Struct):
 
     object_id = UUID()
     description = Bytes()
-    dependencies = ArrayOf(UInt16, UUID(''))
+    dependencies = ArrayOf(UInt16, UUID())
 
 
 class DumpHeader(ServerMessage):
@@ -619,7 +615,7 @@ class ServerKeyData(ServerMessage):
 
     mtype = MessageType('K')
     message_length = MessageLength
-    data = FixedArrayOf(32, UInt8(''), 'Key data.')
+    data = FixedArrayOf(32, UInt8(), 'Key data.')
 
 
 class ParameterStatus(ServerMessage):
@@ -674,7 +670,7 @@ class AuthenticationRequiredSASLMessage(ServerMessage):
     auth_status = UInt32('Specifies that this message contains '
                          'a SASL authentication request.',
                          default=0x0A)
-    methods = ArrayOf(UInt32, String(''),
+    methods = ArrayOf(UInt32, String(),
                       'A list of supported SASL authentication methods.')
 
 
