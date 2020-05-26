@@ -2515,6 +2515,136 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
                 DROP SCALAR TYPE tid_prop_02;
             ''')
 
+    async def test_server_proto_backend_tid_propagation_03(self):
+        try:
+            await self.con.execute('''
+                START TRANSACTION;
+                CREATE MIGRATION test TO {
+                    module test {
+                        scalar type tid_prop_03 extending str;
+                    }
+                };
+                COMMIT MIGRATION test;
+                COMMIT;
+            ''')
+
+            result = await self.con.fetchone('''
+                SELECT (<array<test::tid_prop_03>>$input)[1]
+            ''', input=['A', 'B'])
+
+            self.assertEqual(result, 'B')
+
+        finally:
+            await self.con.execute('''
+                DROP SCALAR TYPE test::tid_prop_03;
+            ''')
+
+    async def test_server_proto_backend_tid_propagation_04(self):
+        try:
+            await self.con.execute('''
+                START TRANSACTION;
+                CREATE SCALAR TYPE tid_prop_04 EXTENDING str;
+            ''')
+
+            result = await self.con.fetchone('''
+                SELECT (<array<tid_prop_04>>$input)[1]
+            ''', input=['A', 'B'])
+
+            self.assertEqual(result, 'B')
+
+        finally:
+            await self.con.execute('''
+                ROLLBACK;
+            ''')
+
+    async def test_server_proto_backend_tid_propagation_05(self):
+        try:
+            await self.con.execute('''
+                START TRANSACTION;
+                DECLARE SAVEPOINT s1;
+                CREATE SCALAR TYPE tid_prop_051 EXTENDING str;
+                ROLLBACK TO SAVEPOINT s1;
+                CREATE SCALAR TYPE tid_prop_052 EXTENDING str;
+            ''')
+
+            result = await self.con.fetchone('''
+                SELECT (<array<tid_prop_052>>$input)[1]
+            ''', input=['A', 'C'])
+
+            self.assertEqual(result, 'C')
+
+        finally:
+            await self.con.execute('''
+                ROLLBACK;
+            ''')
+
+    async def test_server_proto_backend_tid_propagation_06(self):
+        async with self._run_and_rollback():
+            await self.con.fetchall('''
+                CREATE SCALAR TYPE tid_prop_06 EXTENDING str;
+            ''')
+
+            result = await self.con.fetchone('''
+                SELECT (<array<tid_prop_06>>$input)[1]
+            ''', input=['a', 'b'])
+
+            self.assertEqual(result, 'b')
+
+    async def test_server_proto_backend_tid_propagation_07(self):
+        try:
+            await self.con.fetchall('''
+                CREATE SCALAR TYPE tid_prop_07 EXTENDING str;
+            ''')
+
+            result = await self.con.fetchone('''
+                SELECT (<array<tid_prop_07>>$input)[1]
+            ''', input=['a', 'b'])
+
+            self.assertEqual(result, 'b')
+        finally:
+            await self.con.execute('''
+                DROP SCALAR TYPE tid_prop_07;
+            ''')
+
+    async def test_server_proto_backend_tid_propagation_08(self):
+        try:
+            await self.con.execute('''
+                START TRANSACTION;
+                CREATE SCALAR TYPE tid_prop_081 EXTENDING str;
+                COMMIT;
+
+                # This CREATE will be part of the transaction
+                # that explicitly starts *after* it
+                # (this semantics is inherited from Postgres.)
+                CREATE SCALAR TYPE tid_prop_082 EXTENDING str;
+                START TRANSACTION;
+            ''')
+
+            await self.con.execute('''
+                CREATE SCALAR TYPE tid_prop_083 EXTENDING str;
+            ''')
+
+            result = await self.con.fetchone('''
+                SELECT (<array<tid_prop_081>>$input)[0]
+            ''', input=['A', 'C'])
+            self.assertEqual(result, 'A')
+
+            result = await self.con.fetchone('''
+                SELECT (<array<tid_prop_082>>$input)[1]
+            ''', input=['A', 'C'])
+            self.assertEqual(result, 'C')
+
+            result = await self.con.fetchone('''
+                SELECT (<array<tid_prop_083>>$input)[1]
+            ''', input=['A', 'Z'])
+            self.assertEqual(result, 'Z')
+
+        finally:
+            await self.con.execute('''
+                ROLLBACK;
+                DROP SCALAR TYPE tid_prop_081;
+            ''')
+
     async def test_server_proto_fetch_limit_01(self):
         try:
             await self.con.execute('''
