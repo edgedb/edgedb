@@ -67,6 +67,9 @@ String
     * - :eql:func:`str_repeat`
       - :eql:func-desc:`str_repeat`
 
+    * - :eql:func:`str_split`
+      - Split a string into an array using a delimiter.
+
     * - :eql:func:`re_match`
       - :eql:func-desc:`re_match`
 
@@ -375,6 +378,27 @@ String
 ----------
 
 
+.. eql:function:: std::str_split(s: std::str, delimiter: std::str) \
+                                 -> array<std::str>
+
+    :index: split str_split explode
+
+    Split string into array elements using the supplied delimiter.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT str_split('1, 2, 3', ', ');
+        {['1', '2', '3']}
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT str_split('123', '');
+        {['1', '2', '3']}
+
+
+----------
+
+
 .. eql:function:: std::re_match(pattern: str, \
                                 string: str) -> array<str>
 
@@ -469,7 +493,6 @@ String
                   std::to_str(val: bigint, fmt: OPTIONAL str={}) -> str
                   std::to_str(val: decimal, fmt: OPTIONAL str={}) -> str
                   std::to_str(val: json, fmt: OPTIONAL str={}) -> str
-                  std::to_str(array: array<str>, delimiter: str) -> str
                   std::to_str(val: cal::local_datetime, \
                               fmt: OPTIONAL str={}) -> str
                   std::to_str(val: cal::local_date, \

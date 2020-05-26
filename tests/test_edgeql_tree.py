@@ -590,7 +590,7 @@ class TestTree(tb.QueryTestCase):
                 WITH MODULE test
                 UPDATE Tree
                 SET {
-                    val := to_str(
+                    val := array_join(
                         [.val, 'c'] ++ array_agg((
                             SELECT _ := .children.val
                             ORDER BY _
@@ -657,7 +657,7 @@ class TestTree(tb.QueryTestCase):
                 WITH MODULE test
                 UPDATE Eert
                 SET {
-                    val := to_str(
+                    val := array_join(
                         [.val, 'c'] ++ array_agg((
                             SELECT _ := .children.val
                             ORDER BY _

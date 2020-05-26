@@ -57,6 +57,16 @@ std::array_get(
 };
 
 
+CREATE FUNCTION
+std::array_join(array: array<std::str>, delimiter: std::str) -> std::str
+{
+    SET volatility := 'STABLE';
+    USING SQL $$
+    SELECT array_to_string("array", "delimiter");
+    $$;
+};
+
+
 ## Array operators
 
 

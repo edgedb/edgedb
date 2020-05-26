@@ -686,7 +686,7 @@ class Cli:
             WITH MODULE schema
             SELECT ScalarType {
                 name,
-                `extending` := to_str(array_agg(.bases.name), ', '),
+                `extending` := array_join(array_agg(.bases.name), ', '),
                 kind := (
                     'enum' IF 'std::anyenum' IN .ancestors.name ELSE
                     'sequence' IF 'std::sequence' IN .ancestors.name ELSE
@@ -757,7 +757,7 @@ class Cli:
             WITH MODULE schema
             SELECT ObjectType {
                 name,
-                `extending` := to_str(array_agg(.ancestors.name), ', '),
+                `extending` := array_join(array_agg(.ancestors.name), ', '),
             }
         '''
 
