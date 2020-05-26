@@ -1894,7 +1894,7 @@ class SysConfigFunction(dbops.Function):
                         (s.value->>'typeid')::uuid AS typeid,
                         (s.value->>'typemod') AS typemod
                     FROM
-                        jsonb_each(edgedb.__syscache_configspec()) AS s
+                        jsonb_each(edgedbinstdata.__syscache_configspec()) AS s
                     ),
 
                 config_defaults AS

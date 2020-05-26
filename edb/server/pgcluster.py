@@ -480,6 +480,71 @@ class Cluster(BaseCluster):
         if status == 'running':
             self.reload()
 
+    def dump_database(self, dbname, *, exclude_schema=None):
+        status = self.get_status()
+        if status != 'running':
+            raise ClusterError('cannot dump: cluster is not running')
+
+        pg_dump = self._find_pg_binary('pg_dump')
+        conn_spec = self.get_connection_spec()
+
+        args = [
+            pg_dump,
+            f'--dbname={dbname}',
+            f'--host={conn_spec["host"]}',
+            f'--port={conn_spec["port"]}',
+            f'--username={conn_spec["user"]}',
+        ]
+
+        if exclude_schema:
+            args.append(f'--exclude-schema={exclude_schema}')
+
+        process = subprocess.run(
+            args,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+        if process.returncode != 0:
+            raise ClusterError(
+                'pg_dump exited with status {:d}: {}'.format(
+                    process.returncode, process.stderr.decode()
+                )
+            )
+
+        return process.stdout
+
+    def restore_database(self, dbname, dump):
+        status = self.get_status()
+        if status != 'running':
+            raise ClusterError('cannot restore: cluster is not running')
+
+        psql = self._find_pg_binary('psql')
+        conn_spec = self.get_connection_spec()
+
+        args = [
+            psql,
+            f'--dbname={dbname}',
+            f'--host={conn_spec["host"]}',
+            f'--port={conn_spec["port"]}',
+            f'--username={conn_spec["user"]}',
+            f'--single-transaction',
+        ]
+
+        process = subprocess.run(
+            args,
+            input=dump,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+        if process.returncode != 0:
+            raise ClusterError(
+                'psql exited with status {:d}: {}'.format(
+                    process.returncode, process.stderr.decode()
+                )
+            )
+
     def _init_env(self):
         if not self._pg_bin_dir:
             pg_config = self._find_pg_config(self._pg_config_path)

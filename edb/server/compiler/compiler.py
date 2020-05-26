@@ -185,7 +185,8 @@ def new_compiler_context(
 
 
 async def load_cached_schema(backend_conn, key) -> s_schema.Schema:
-    data = await backend_conn.fetchval(f'SELECT edgedb.__syscache_{key}();')
+    data = await backend_conn.fetchval(
+        f'SELECT edgedbinstdata.__syscache_{key}();')
     try:
         return pickle.loads(data)
     except Exception as e:
@@ -199,12 +200,12 @@ async def load_std_schema(backend_conn) -> s_schema.Schema:
 
 async def load_schema_intro_query(backend_conn) -> str:
     return json.loads(await backend_conn.fetchval(
-        'SELECT edgedb.__syscache_introquery();'))
+        'SELECT edgedbinstdata.__syscache_introquery();'))
 
 
 async def load_schema_class_layout(backend_conn) -> s_schema.Schema:
     data = await backend_conn.fetchval(
-        'SELECT edgedb.__syscache_classlayout();',
+        'SELECT edgedbinstdata.__syscache_classlayout();',
     )
     try:
         return pickle.loads(data)

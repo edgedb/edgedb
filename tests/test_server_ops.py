@@ -54,6 +54,7 @@ class TestServerOps(tb.TestCase):
         cmd = [
             sys.executable, '-m', 'edb.server.main',
             '--port', 'auto',
+            '--testmode',
             '--temp-dir',
             '--auto-shutdown',
             '--echo-runtime-info'

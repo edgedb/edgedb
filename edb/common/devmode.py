@@ -124,27 +124,34 @@ def get_dev_mode_cache_dir() -> os.PathLike:
         raise RuntimeError('server is not running in dev mode')
 
 
-def read_dev_mode_cache(cache_key, path):
+def read_dev_mode_cache(cache_key, path, *, pickled=True):
     full_path = get_dev_mode_cache_dir() / path
 
     if full_path.exists():
         with open(full_path, 'rb') as f:
             src_hash = f.read(len(cache_key))
             if src_hash == cache_key:
-                try:
-                    return pickle.load(f)
-                except Exception:
-                    logging.exception(f'could not unpickle {path}')
+                if pickled:
+                    data = f.read()
+                    try:
+                        return pickle.loads(data)
+                    except Exception:
+                        logging.exception(f'could not unpickle {path}')
+                else:
+                    return f.read()
 
 
-def write_dev_mode_cache(obj, cache_key, path):
+def write_dev_mode_cache(obj, cache_key, path, *, pickled=True):
     full_path = get_dev_mode_cache_dir() / path
 
     try:
         with tempfile.NamedTemporaryFile(
                 mode='wb', dir=full_path.parent, delete=False) as f:
             f.write(cache_key)
-            pickle.dump(obj, file=f, protocol=pickle.HIGHEST_PROTOCOL)
+            if pickled:
+                pickle.dump(obj, file=f, protocol=pickle.HIGHEST_PROTOCOL)
+            else:
+                f.write(obj)
     except Exception:
         try:
             os.unlink(f.name)

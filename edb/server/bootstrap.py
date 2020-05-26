@@ -235,7 +235,8 @@ async def _ensure_edgedb_template_not_connectable(conn):
 async def _store_static_bin_cache(cluster, key: str, data: bytes) -> None:
 
     text = f"""\
-        CREATE OR REPLACE FUNCTION edgedb.__syscache_{key} () RETURNS bytea
+        CREATE OR REPLACE FUNCTION edgedbinstdata.__syscache_{key} ()
+        RETURNS bytea
         AS $$
             SELECT {pg_common.quote_bytea_literal(data)};
         $$ LANGUAGE SQL IMMUTABLE;
@@ -254,7 +255,8 @@ async def _store_static_bin_cache(cluster, key: str, data: bytes) -> None:
 async def _store_static_json_cache(cluster, key: str, data: str) -> None:
 
     text = f"""\
-        CREATE OR REPLACE FUNCTION edgedb.__syscache_{key} () RETURNS jsonb
+        CREATE OR REPLACE FUNCTION edgedbinstdata.__syscache_{key} ()
+        RETURNS jsonb
         AS $$
             SELECT {pg_common.quote_literal(data)}::jsonb;
         $$ LANGUAGE SQL IMMUTABLE;
@@ -466,20 +468,35 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
 
     cache_hit = False
     stdlib = None
+    tpldbdump = None
 
     if in_dev_mode:
         stdlib_cache = 'backend-stdlib.pickle'
+        tpldbdump_cache = 'backend-tpldbdump.sql'
         src_hash = devmode.hash_dirs(CACHE_SRC_DIRS)
         if testmode:
-            src_hash += b'testmode'
+            src_hash = b'testmode' + src_hash
         stdlib = devmode.read_dev_mode_cache(src_hash, stdlib_cache)
+        tpldbdump = devmode.read_dev_mode_cache(
+            src_hash, tpldbdump_cache, pickled=False)
 
     if stdlib is None:
         stdlib = await _make_stdlib(testmode, global_ids)
     else:
         cache_hit = True
 
-    await _execute_ddl(conn, stdlib.sqltext)
+    if tpldbdump is None:
+        await _ensure_meta_schema(conn)
+        await _execute_ddl(conn, stdlib.sqltext)
+
+        if in_dev_mode:
+            tpldbdump = cluster.dump_database(
+                edbdef.EDGEDB_TEMPLATE_DB, exclude_schema='edgedbinstdata')
+            devmode.write_dev_mode_cache(
+                tpldbdump, src_hash, tpldbdump_cache, pickled=False)
+    else:
+        cluster.restore_database(edbdef.EDGEDB_TEMPLATE_DB, tpldbdump)
+
     schema = stdlib.stdschema
 
     if not cache_hit:
@@ -746,7 +763,16 @@ async def _compile_sys_queries(schema, compiler, cluster):
     )
 
 
-async def _populate_misc_instance_data(cluster):
+async def _populate_misc_instance_data(cluster, conn):
+
+    commands = dbops.CommandGroup()
+    commands.add_commands([
+        dbops.CreateSchema(name='edgedbinstdata'),
+    ])
+
+    block = dbops.PLTopBlock(disable_ddl_triggers=True)
+    commands.generate(block)
+    await _execute_block(conn, block)
 
     mock_auth_nonce = scram.generate_nonce()
     json_instance_data = {
@@ -816,7 +842,7 @@ def _pg_log_listener(conn, msg):
 async def _get_instance_data(conn: Any) -> Dict[str, Any]:
 
     data = await conn.fetchval(
-        'SELECT edgedb.__syscache_instancedata()'
+        'SELECT edgedbinstdata.__syscache_instancedata()'
     )
 
     return json.loads(data)
@@ -864,8 +890,10 @@ async def bootstrap(cluster, args) -> bool:
             try:
                 conn.add_log_listener(_pg_log_listener)
 
-                await _ensure_meta_schema(conn)
-                instancedata = await _populate_misc_instance_data(cluster)
+                instancedata = await _populate_misc_instance_data(
+                    cluster,
+                    conn,
+                )
 
                 std_schema, refl_schema, compiler = await _init_stdlib(
                     cluster,
