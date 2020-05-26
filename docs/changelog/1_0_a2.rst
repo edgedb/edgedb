@@ -297,7 +297,7 @@ Other Fixes and Enhancements
 ----------------------------
 
 * Fix backward links in aliases (:eql:gh:`#990`).
-* Fix covarinat types support (:eql:gh:`#709`).
+* Fix covariant types support (:eql:gh:`#709`).
 * Implement explicit handling of 64-bit integers, and arbitrary precision
   integers and decimals (:eql:gh:`#1138`).
 
