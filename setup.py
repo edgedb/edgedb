@@ -127,7 +127,7 @@ def _compile_parsers(build_lib, inplace=False):
 
 
 def _compile_build_meta(build_lib, version, pg_config, runstatedir,
-                        version_suffix):
+                        shared_dir, version_suffix):
     import pkg_resources
     from edb.server import buildmeta
 
@@ -153,8 +153,14 @@ def _compile_build_meta(build_lib, version, pg_config, runstatedir,
 
         PG_CONFIG_PATH = {pg_config!r}
         RUNSTATE_DIR = {runstatedir!r}
+        SHARED_DATA_DIR = {shared_dir!r}
         VERSION = {version!r}
-    ''').format(version=vertuple, pg_config=pg_config, runstatedir=runstatedir)
+    ''').format(
+        version=vertuple,
+        pg_config=pg_config,
+        runstatedir=runstatedir,
+        shared_dir=shared_dir,
+    )
 
     directory = build_lib / 'edb' / 'server'
     if not directory.exists():
@@ -242,6 +248,7 @@ def _compile_postgres(build_base, *,
         with open(postgres_build_stamp, 'w') as f:
             f.write(source_stamp)
 
+
 def _check_rust():
     try:
         ver = subprocess.check_output(["rustc", '-V']).split()[1]
@@ -261,6 +268,7 @@ class build(distutils_build.build):
     user_options = distutils_build.build.user_options + [
         ('pg-config=', None, 'path to pg_config to use with this build'),
         ('runstatedir=', None, 'directory to use for the runtime state'),
+        ('shared-dir=', None, 'directory to use for shared data'),
         ('version-suffix=', None, 'dot-separated local version suffix'),
     ]
 
@@ -268,6 +276,7 @@ class build(distutils_build.build):
         super().initialize_options()
         self.pg_config = None
         self.runstatedir = None
+        self.shared_dir = None
         self.version_suffix = None
 
     def finalize_options(self):
@@ -283,6 +292,7 @@ class build(distutils_build.build):
                 self.distribution.metadata.version,
                 self.pg_config,
                 self.runstatedir,
+                self.shared_dir,
                 self.version_suffix,
             )
 
@@ -341,7 +351,7 @@ class gen_build_cache_key(setuptools.Command):
 
     def run(self, *args, **kwargs):
         import edb as _edb
-        from edb.common.devmode import hash_dirs
+        from edb.server.buildmeta import hash_dirs
 
         parser_hash = hash_dirs([(
             os.path.join(_edb.__path__[0], 'edgeql/parser/grammar'),

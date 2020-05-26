@@ -20,13 +20,10 @@
 from __future__ import annotations
 
 import contextlib
-import hashlib
 import json
 import logging
 import os
 import pathlib
-import pickle
-import tempfile
 from typing import *
 
 
@@ -122,63 +119,3 @@ def get_dev_mode_cache_dir() -> os.PathLike:
         return cache_dir
     else:
         raise RuntimeError('server is not running in dev mode')
-
-
-def read_dev_mode_cache(cache_key, path, *, pickled=True):
-    full_path = get_dev_mode_cache_dir() / path
-
-    if full_path.exists():
-        with open(full_path, 'rb') as f:
-            src_hash = f.read(len(cache_key))
-            if src_hash == cache_key:
-                if pickled:
-                    data = f.read()
-                    try:
-                        return pickle.loads(data)
-                    except Exception:
-                        logging.exception(f'could not unpickle {path}')
-                else:
-                    return f.read()
-
-
-def write_dev_mode_cache(obj, cache_key, path, *, pickled=True):
-    full_path = get_dev_mode_cache_dir() / path
-
-    try:
-        with tempfile.NamedTemporaryFile(
-                mode='wb', dir=full_path.parent, delete=False) as f:
-            f.write(cache_key)
-            if pickled:
-                pickle.dump(obj, file=f, protocol=pickle.HIGHEST_PROTOCOL)
-            else:
-                f.write(obj)
-    except Exception:
-        try:
-            os.unlink(f.name)
-        except OSError:
-            pass
-        finally:
-            raise
-    else:
-        os.rename(f.name, full_path)
-
-
-def hash_dirs(dirs: Tuple[str, str]) -> bytes:
-    def hash_dir(dirname, ext, paths):
-        with os.scandir(dirname) as it:
-            for entry in it:
-                if entry.is_file() and entry.name.endswith(ext):
-                    paths.append(entry.path)
-                elif entry.is_dir():
-                    hash_dir(entry.path, ext, paths)
-
-    paths = []
-    for dirname, ext in dirs:
-        hash_dir(dirname, ext, paths)
-
-    h = hashlib.sha1()  # sha1 is the fastest one.
-    for path in sorted(paths):
-        with open(path, 'rb') as f:
-            h.update(f.read())
-
-    return h.digest()

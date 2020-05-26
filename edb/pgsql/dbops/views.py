@@ -35,12 +35,23 @@ class View(base.DBObject):
 
 
 class CreateView(ddl.SchemaObjectOperation):
-    def __init__(self, view, *,
-                 conditions=None, neg_conditions=None, priority=0):
+    def __init__(
+        self,
+        view,
+        *,
+        conditions=None,
+        neg_conditions=None,
+        or_replace=False,
+        priority=0,
+    ):
         super().__init__(view.name, conditions=conditions,
                          neg_conditions=neg_conditions, priority=priority)
         self.view = view
+        self.or_replace = or_replace
 
     def code(self, block: base.PLBlock) -> str:
         query = textwrap.indent(textwrap.dedent(self.view.query), '    ')
-        return f'CREATE VIEW {qn(*self.view.name)} AS\n{query}'
+        return (
+            f'CREATE {"OR REPLACE" if self.or_replace else ""}'
+            f' VIEW {qn(*self.view.name)} AS\n{query}'
+        )
