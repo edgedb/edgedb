@@ -1,0 +1,136 @@
+===========
+1.0 Alpha 3
+===========
+
+This changelog summarizes new features and breaking changes in
+EdgeDB 1.0 alpha 3.
+
+
+CLI
+===
+
+The EdgeDB command-line tools are now written in Rust. The tools are
+a single binary now and can run on multiple different platforms,
+including Windows.
+
+A few more commands have been added to REPL:
+
+.. code-block::
+
+      \dump FILENAME           dump current database into a file
+      \restore FILENAME        restore the database from file into
+                               the current one
+      \s, \history             show history
+      \e, \edit [N]            spawn $EDITOR to edit history entry N
+                               then use the output as the input
+      \set [OPTION [VALUE]]    show/change setting
+      \set                     Show setting descriptions (without
+                               arguments)
+
+Existing introspection commands have been slightly updated to use a
+different way of supplying command options. Commands now also have
+long-form names that are more human-readable.
+
+Also, there are a few settings that control the look and feel of the
+REPL (and can be changed via the ``\set`` command:
+
+.. code-block::
+
+    expand-strings             Stop escaping newlines in quoted
+                               strings
+    implicit-properties        Print implicit properties of objects:
+                               id, type id
+    input-mode                 Set input mode. One of: vi, emacs
+    introspect-types           Print type names instead of `Object`
+                               in default output mode (may fail if
+                               schema is updated after enabling
+                               option)
+    limit                      Set implicit LIMIT. Defaults to 100,
+                               specify 0 to disable
+    output-mode                Set output mode. One of: json, json-
+                               elements, default, tab-separated
+    verbose-errors             Print all errors with maximum
+                               verbosity
+
+
+EdgeQL
+======
+
+* Add ``+=`` and ``-=`` operations for use in :eql:stmt:`UPDATE`
+  (:eql:gh:`#165`).
+* Distinguish ``REQUIRED`` and ``OPTIONAL`` query parameters
+  (:eql:gh:`#1352`, :eql:gh:`#1355`)
+* Allow tuple arrays in schema definitions (:eql:gh:`73125882`).
+* Get rid of ``schema::CompoundType`` in favor of ``is_compound_type``
+  property (:eql:gh:`c30c1c4f`).
+* Add :eql:type:`anytype` and :eql:type:`anytuple` as proper abstract
+  types to the schema (:eql:gh:`affb65de`).
+* ``schema::Constraint`` no longer has ``args``, use ``params`` instead
+  (:eql:gh:`14cec6f1`).
+* Make ``std::Object`` the implicit base type for all user-defined
+  object types only.
+* Make ``std::BaseObject`` the root type for all object types both
+  user-defined and system object types.
+* Accept ``1e100n`` format as a valid ``bigint`` constant rather than
+  ``decimal`` (:eql:gh:`#1372`)
+* Make self-referencing (recursive) aliases forbidden.
+* Fix dependency tracking affecting index creation (:eql:gh:`#1181`).
+* Fix derivation of link targets in certain cases of multiple
+  inheritance (:eql:gh:`52c6b2d4`).
+* Fix handling of ad-hoc tuples (:eql:gh:`#1255`).
+* Fix incorrect implicit limit injection in subqueries in computables
+  (:eql:gh:`#1271`).
+* Computables cardinality must now be declared explicitly as
+  ``required``, ``single`` or ``multi``. The expression is validated
+  to be within the upper and lower limits implied by the declaration
+  (:eql:gh:`#1201`, :eql:gh:`#349`).
+* Prohibit database names longer than 63 characters (:eql:gh:`#1158`).
+* Prohibit duplicate elements in shapes (:eql:gh:`#1368`).
+
+
+GraphQL
+=======
+
+* Reflect "description" annotations into GraphQL descriptions
+  (:eql:gh:`#1228`).
+* Change the auto-generated type name template to use "\_Type" suffix
+  (:eql:gh:`#1175`).
+* Fix incorrect reflection of enums (:eql:gh:`#1227`).
+* Fix deeply nested insert issue (:eql:gh:`#1243`).
+
+
+Standard Library
+================
+
+* Add :eql:func:`sys::get_current_database`
+* Rename ``std::to_str()`` array-joining function to
+  :eql:func:`array_join`.
+* Rename ``std::to_array()`` string-splitting function to
+  :eql:func:`str_split`.
+
+
+Server
+======
+
+* Convert EdgeQL lexer (:eql:gh:`#1178`)
+* Convert GraphQL parser to Rust and perform constant extraction
+  (:eql:gh:`#1299`).
+* Constant extraction from EdgeQL queries (:eql:gh:`#1356`)
+* Make it possible to use different EdgeDB servers connected to the
+  same Postgres cluster (:eql:gh:`#1197`).
+* Protocol: implement ``JSON_ELEMENTS`` IO format for responses
+  (:eql:gh:`#1169`).
+
+
+
+Misc
+====
+
+* Add :ref:`cheatsheet <ref_cheatsheet_repl>` to documentation.
+* Strictly type-annotate the core schema module.
+* Clean-up and improve schema and introspection code to make the
+  internal APIs more consistent (:eql:gh:`#1408`).
+* Update the `edgedb-js <https://github.com/edgedb/edgedb-js>`_ driver
+  to v0.7.3.
+* Update the `edgedb-python <https://github.com/edgedb/edgedb-python>`_
+  driver to v0.8.0.
