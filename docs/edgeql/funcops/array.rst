@@ -32,11 +32,8 @@ Array
     * - :eql:func:`find`
       - Find the index of an element in the array.
 
-    * - :eql:func:`to_str`
+    * - :eql:func:`array_join`
       - Render an array to a string.
-
-    * - :eql:func:`to_array`
-      - Split a string into an array using a delimiter.
 
     * - :eql:func:`array_agg`
       - :eql:func-desc:`array_agg`
@@ -198,19 +195,16 @@ Array
 
 ----------
 
-.. eql:function:: std::to_array(s: std::str, delimiter: std::str) \
-                                -> array<std::str>
 
-    :index: split str_split explode
+.. eql:function:: std::array_join(array: array<str>, delimiter: str) -> str
 
-    Split string into array elements using the supplied delimiter.
+    :index: join array_to_string implode
 
-    .. code-block:: edgeql-repl
+    Render an array to a string.
 
-        db> SELECT to_array('1, 2, 3', ', ');
-        {['1', '2', '3']}
+    Join a string array into a single string using a specified *delimiter*:
 
     .. code-block:: edgeql-repl
 
-        db> SELECT to_array('123', '');
-        {['1', '2', '3']}
+        db> SELECT to_str(['one', 'two', 'three'], ', ');
+        {'one, two, three'}

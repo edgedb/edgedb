@@ -175,7 +175,8 @@ sys::get_version_as_str() -> std::str
             ++ '.' ++ <str>v.minor
             ++ (('-' ++ <str>v.stage ++ '.' ++ <str>v.stage_no)
                 IF v.stage != <sys::version_stage>'final' ELSE '')
-            ++ (('+' ++ std::to_str(v.local, '.')) IF len(v.local) > 0 ELSE '')
+            ++ (('+' ++ std::array_join(v.local, '.')) IF len(v.local) > 0
+                ELSE '')
     );
 };
 

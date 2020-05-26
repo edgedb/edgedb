@@ -203,6 +203,17 @@ std::to_str(d: std::decimal, fmt: OPTIONAL str={}) -> std::str
 };
 
 
+# TODO: This converter function is deprecated and
+# is scheduled to be removed before 1.0.
+# Use std::array_join() instead.
+CREATE FUNCTION
+std::to_str(array: array<std::str>, delimiter: std::str) -> std::str
+{
+    SET volatility := 'STABLE';
+    USING (
+        SELECT std::array_join(array, delimiter)
+    );
+};
 
 
 # JSON can be prettified by specifying 'pretty' as the format, any
@@ -233,31 +244,6 @@ std::to_str(json: std::json, fmt: OPTIONAL str={}) -> std::str
             )
         END
     )
-    $$;
-};
-
-
-CREATE FUNCTION
-std::to_str(array: array<std::str>, delimiter: std::str) -> std::str
-{
-    SET volatility := 'STABLE';
-    USING SQL $$
-    SELECT array_to_string("array", "delimiter");
-    $$;
-};
-
-
-CREATE FUNCTION
-std::to_array(s: std::str, delimiter: std::str) -> array<std::str>
-{
-    SET volatility := 'IMMUTABLE';
-    USING SQL $$
-        SELECT (
-            CASE WHEN "delimiter" != ''
-            THEN string_to_array("s", "delimiter")
-            ELSE regexp_split_to_array("s", '')
-            END
-        );
     $$;
 };
 

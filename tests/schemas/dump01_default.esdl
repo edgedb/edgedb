@@ -30,7 +30,7 @@ function user_func_0(x: int64) -> str {
 
 function user_func_1(x: array<int64>, y: str) -> str {
     using (
-        SELECT to_str(<array<str>>x, y)
+        SELECT array_join(<array<str>>x, y)
     );
     volatility := 'IMMUTABLE';
 };
@@ -172,7 +172,7 @@ type I {
     };
     required link i2 -> C {
         default := (
-            SELECT C FILTER .val = to_str(['D', '0', '2'], '') LIMIT 1
+            SELECT C FILTER .val = array_join(['D', '0', '2'], '') LIMIT 1
         );
     };
 }
@@ -184,7 +184,7 @@ type J {
         SELECT C FILTER .val = 'D0' ++ user_func_0(1)[-1] LIMIT 1
     );
     link j2 := (
-        SELECT C FILTER .val = to_str(['D', '0', '2'], '') LIMIT 1
+        SELECT C FILTER .val = array_join(['D', '0', '2'], '') LIMIT 1
     );
 }
 
