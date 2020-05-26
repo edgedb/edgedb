@@ -704,6 +704,7 @@ cdef class EdgeConnection:
         eql_tokens = tokenize(eql)
         units = await self._compile(eql_tokens, stmt_mode=stmt_mode)
 
+        new_type_ids = frozenset()
         for query_unit in units:
             self.dbview.start(query_unit)
             try:
@@ -739,8 +740,16 @@ cdef class EdgeConnection:
                     await self.get_backend().pgcon.signal_ddl(
                         self.dbview.dbver
                     )
-                if query_unit.new_types and self.dbview.in_tx():
-                    await self._update_type_ids(query_unit)
+                if query_unit.new_types:
+                    new_type_ids |= query_unit.new_types
+
+        if new_type_ids and self.dbview.in_tx():
+            # This is a single script, potentially containing multiple
+            # transactions (each of which would consist of multiple
+            # query units).  In the end, if we're still in transaction
+            # after executing the script and there were new types added
+            # we want to update type IDs in the linked compiler.
+            await self._update_type_ids(new_type_ids)
 
         packet = WriteBuffer.new()
         packet.write_buffer(self.make_command_complete_msg(query_unit))
@@ -1121,7 +1130,7 @@ cdef class EdgeConnection:
                 self.buffer.finish_message()
 
             if query_unit.new_types and self.dbview.in_tx():
-                await self._update_type_ids(query_unit)
+                await self._update_type_ids(query_unit.new_types)
 
     async def _get_backend_tids(self, tids):
         conn = self.get_backend().pgcon
@@ -1137,14 +1146,14 @@ cdef class EdgeConnection:
         else:
             return None
 
-    async def _update_type_ids(self, query_unit):
+    async def _update_type_ids(self, new_types):
         # Inform the compiler process about the newly
         # appearing types, so type descriptors contain
         # the necessary backend data.  We only do this
         # when in a transaction, since otherwise the entire
         # schema will reload anyway due to a bumped dbver.
         try:
-            ret = await self._get_backend_tids(query_unit.new_types)
+            ret = await self._get_backend_tids(new_types)
         except Exception:
             if self.dbview.in_tx():
                 self.dbview.abort_tx()
