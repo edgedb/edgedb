@@ -374,7 +374,7 @@ def __infer_slice(
         # the base type is not valid
         raise errors.QueryError(
             f'{node_type.get_verbosename(env.schema)} cannot be sliced',
-            context=ir.start.context)
+            context=ir.expr.context)
 
     for index in [ir.start, ir.stop]:
         if index is not None:
@@ -463,7 +463,7 @@ def __infer_index(
         raise errors.QueryError(
             f'index indirection cannot be applied to '
             f'{node_type.get_verbosename(env.schema)}',
-            context=ir.index.context)
+            context=ir.expr.context)
 
     return result
 
