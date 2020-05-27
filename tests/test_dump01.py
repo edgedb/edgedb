@@ -25,7 +25,8 @@ import edgedb
 from edb.testbase import server as tb
 
 
-class TestDump01(tb.QueryTestCase, tb.CLITestCaseMixin):
+class DumpTestMxin:
+
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'dump01_test.esdl')
     SCHEMA_DEFAULT = os.path.join(os.path.dirname(__file__), 'schemas',
@@ -37,19 +38,21 @@ class TestDump01(tb.QueryTestCase, tb.CLITestCaseMixin):
     ISOLATED_METHODS = False
     SERIALIZED = True
 
-    async def test_dump01_basic(self):
-        await self.ensure_schema_data_integrity()
-
     async def test_dump01_dump_restore(self):
-        with tempfile.NamedTemporaryFile() as f:
-            self.run_cli('dump', '-d', 'dump01', f.name)
+        assert type(self).__name__.startswith('Test')
+        # The name of the database created for this test case by
+        # the test runner:
+        dbname = type(self).__name__[4:].lower()
 
-            await self.con.execute('CREATE DATABASE dump01_restored')
+        with tempfile.NamedTemporaryFile() as f:
+            self.run_cli('-d', dbname, 'dump', f.name)
+
+            await self.con.execute(f'CREATE DATABASE {dbname}_restored')
             try:
-                self.run_cli('restore', '-d', 'dump01_restored', f.name)
-                con2 = await self.connect(database='dump01_restored')
+                self.run_cli('-d', f'{dbname}_restored', 'restore', f.name)
+                con2 = await self.connect(database=f'{dbname}_restored')
             except Exception:
-                await self.con.execute('DROP DATABASE dump01_restored')
+                await self.con.execute(f'DROP DATABASE {dbname}_restored')
                 raise
 
         oldcon = self.con
@@ -59,7 +62,7 @@ class TestDump01(tb.QueryTestCase, tb.CLITestCaseMixin):
         finally:
             self.__class__.con = oldcon
             await con2.aclose()
-            await self.con.execute('DROP DATABASE dump01_restored')
+            await self.con.execute(f'DROP DATABASE {dbname}_restored')
 
     async def test_dump01_restore_compatibility(self):
         dumpsdir = os.path.join(os.path.dirname(__file__), 'dumps', 'dump01')
@@ -67,11 +70,11 @@ class TestDump01(tb.QueryTestCase, tb.CLITestCaseMixin):
             if not entry.is_file():
                 continue
 
-            dbname = entry.name
-            dumpfn = os.path.join(dumpsdir, dbname)
+            dbname = f'{type(self).__name__}_{entry.name}'
+            dumpfn = os.path.join(dumpsdir, entry.name)
             await self.con.execute(f'CREATE DATABASE `{dbname}`')
             try:
-                self.run_cli('restore', '-d', dbname, dumpfn)
+                self.run_cli('-d', dbname, 'restore', dumpfn)
                 con2 = await self.connect(database=dbname)
             except Exception:
                 await self.con.execute(f'DROP DATABASE `{dbname}`')
@@ -1932,3 +1935,21 @@ class TestDump01(tb.QueryTestCase, tb.CLITestCaseMixin):
                         rol1: {@rolp11 := 1},
                     };
                     ''')
+
+
+class TestDump01_OldCLI(
+    DumpTestMxin,
+    tb.QueryTestCase,
+    tb.OldCLITestCaseMixin,
+):
+
+    async def test_dump01_basic(self):
+        await self.ensure_schema_data_integrity()
+
+
+class TestDump01_NewCLI(
+    DumpTestMxin,
+    tb.QueryTestCase,
+    tb.CLITestCaseMixin,
+):
+    pass

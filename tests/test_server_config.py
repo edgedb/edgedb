@@ -313,7 +313,7 @@ class TestServerConfigUtils(unittest.TestCase):
         )
 
 
-class TestServerConfig(tb.QueryTestCase, tb.CLITestCaseMixin):
+class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
 
     ISOLATED_METHODS = False
     SERIALIZED = True

@@ -22,7 +22,7 @@ import edgedb
 from edb.testbase import server as tb
 
 
-class TestCLI(tb.ConnectedTestCase, tb.CLITestCaseMixin):
+class TestCLI(tb.ConnectedTestCase, tb.OldCLITestCaseMixin):
 
     ISOLATED_METHODS = False
     SERIALIZED = True

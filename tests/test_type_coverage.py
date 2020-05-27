@@ -288,7 +288,7 @@ class TypeCoverageTests(unittest.TestCase):
         self.assertFunctionCoverage(EDB_DIR / "server" / "procpool", 5.36)
 
     def test_cqa_type_coverage_testbase(self) -> None:
-        self.assertFunctionCoverage(EDB_DIR / "testbase", 32.08)
+        self.assertFunctionCoverage(EDB_DIR / "testbase", 31.88)
 
     def test_cqa_type_coverage_tools(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "tools", 21.74)
