@@ -934,6 +934,21 @@ class TestExpressions(tb.QueryTestCase):
                 variables={'x': None},
             )
 
+    async def test_edgeql_expr_variables_05(self):
+        for typ in {'bigint', 'decimal', 'int64', 'int32', 'int16'}:
+            with self.annotate(type=typ):
+                await self.assert_query_result(
+                    f'''SELECT <{typ}>$x;''',
+                    [123],
+                    variables={'x': 123},
+                )
+
+                await self.assert_query_result(
+                    f'''SELECT <array<{typ}>>$x;''',
+                    [[123]],
+                    variables={'x': [123]},
+                )
+
     async def _test_boolop(self, left, right, op, not_op, result):
         if isinstance(result, bool):
             # this operation should be valid and produce opposite
