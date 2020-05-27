@@ -984,6 +984,12 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         )
         self.assertEqual('1986-05-30T00:00:00+00:00', dt)
 
+    async def test_edgeql_functions_unix_to_datetime_04(self):
+        dt = await self.con.fetchone(
+            'SELECT <str>to_datetime(517795200.00n);'
+        )
+        self.assertEqual('1986-05-30T00:00:00+00:00', dt)
+
     async def test_edgeql_functions_datetime_current_01(self):
         # make sure that datetime as a str gets serialized to a
         # particular format
