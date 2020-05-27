@@ -318,6 +318,16 @@ std::to_datetime(year: std::int64, month: std::int64, day: std::int64,
 
 
 CREATE FUNCTION
+std::to_datetime(epochseconds: std::float64) -> std::datetime
+{
+    SET volatility := 'STABLE';
+    USING SQL $$
+    SELECT to_timestamp("epochseconds")
+    $$;
+};
+
+
+CREATE FUNCTION
 std::to_duration(
         NAMED ONLY hours: std::int64=0,
         NAMED ONLY minutes: std::int64=0,
