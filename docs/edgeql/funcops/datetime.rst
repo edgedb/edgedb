@@ -386,7 +386,9 @@ Date and Time
                   std::to_datetime(year: int64, month: int64, day: int64, \
                     hour: int64, min: int64, sec: float64, timezone: str) \
                     -> datetime
+                  std::to_datetime(epochseconds: decimal) -> datetime
                   std::to_datetime(epochseconds: float64) -> datetime
+                  std::to_datetime(epochseconds: int64) -> datetime
 
     :index: parse datetime
 

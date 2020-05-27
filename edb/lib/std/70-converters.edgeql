@@ -328,6 +328,16 @@ std::to_datetime(epochseconds: std::float64) -> std::datetime
 
 
 CREATE FUNCTION
+std::to_datetime(epochseconds: std::int64) -> std::datetime
+{
+    SET volatility := 'STABLE';
+    USING SQL $$
+    SELECT to_timestamp("epochseconds")
+    $$;
+};
+
+
+CREATE FUNCTION
 std::to_datetime(epochseconds: std::decimal) -> std::datetime
 {
     SET volatility := 'STABLE';
