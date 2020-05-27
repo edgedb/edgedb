@@ -3751,11 +3751,11 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             type Parent {
                 multi property name -> str;
-                index on (.name);
             }
 
             type Parent2 {
                 link foo -> Foo;
+                index on (.foo);
             }
 
             type Child extending Parent, Parent2 {
@@ -3789,7 +3789,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             """
             type test::Child extending test::Parent, test::Parent2 {
                 annotation test::anno := 'annotated';
-                index on (.name);
+                index on (.foo);
                 required single link __type__ -> schema::Type {
                     readonly := true;
                 };
