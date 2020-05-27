@@ -5113,3 +5113,41 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ''',
             [1],
         )
+
+    async def test_edgeql_ddl_index_01(self):
+        with self.assertRaisesRegex(
+            edgedb.ResultCardinalityMismatchError,
+            r"possibly more than one element returned by the index expression"
+        ):
+            await self.con.execute(r"""
+                CREATE TYPE Foo {
+                    CREATE MULTI PROPERTY a -> int64;
+                    CREATE INDEX ON (.a);
+                }
+            """)
+
+    async def test_edgeql_ddl_index_02(self):
+        with self.assertRaisesRegex(
+            edgedb.ResultCardinalityMismatchError,
+            r"possibly more than one element returned by the index expression"
+        ):
+            await self.con.execute(r"""
+                CREATE TYPE Foo {
+                    CREATE PROPERTY a -> int64;
+                    CREATE PROPERTY b -> int64;
+                    CREATE INDEX ON ({.a, .b});
+                }
+            """)
+
+    async def test_edgeql_ddl_index_03(self):
+        with self.assertRaisesRegex(
+            edgedb.ResultCardinalityMismatchError,
+            r"possibly more than one element returned by the index expression"
+        ):
+            await self.con.execute(r"""
+                CREATE TYPE Foo {
+                    CREATE PROPERTY a -> int64;
+                    CREATE PROPERTY b -> int64;
+                    CREATE INDEX ON (array_unpack([.a, .b]));
+                }
+            """)

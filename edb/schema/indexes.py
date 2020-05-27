@@ -291,7 +291,7 @@ class CreateIndex(
                 singletons = [subject]
                 path_prefix_anchor = qlast.Subject().name
 
-            return type(value).compiled(
+            expr = type(value).compiled(
                 value,
                 schema=schema,
                 options=qlcompiler.CompilerOptions(
@@ -302,6 +302,15 @@ class CreateIndex(
                     singletons=frozenset(singletons),
                 ),
             )
+
+            # Check that the inferred cardinality is no more than 1
+            if expr.irast.cardinality.is_multi():
+                raise errors.ResultCardinalityMismatchError(
+                    f'possibly more than one element returned by '
+                    f'the index expression where only singletons '
+                    f'are allowed')
+
+            return expr
         else:
             return super().compile_expr_field(schema, context, field, value)
 
