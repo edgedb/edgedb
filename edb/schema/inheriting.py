@@ -21,6 +21,7 @@ from __future__ import annotations
 from typing import *
 
 from edb import errors
+from edb.errors import compiler as c_errors
 
 from edb.common import struct
 from edb.edgeql import ast as qlast
@@ -592,7 +593,10 @@ class CreateInheritingObject(
         schema: s_schema.Schema,
         context: sd.CommandContext
     ) -> s_schema.Schema:
-        schema = super()._create_begin(schema, context)
+        try:
+            schema = super()._create_begin(schema, context)
+        except c_errors.BadTypeObject as e:
+            raise e.update(statement=self)
 
         if not context.canonical:
             ancestors = so.ObjectList[so.InheritingObjectT].create(

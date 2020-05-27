@@ -4071,6 +4071,20 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             {}
         )
 
+    async def test_edgeql_ddl_extending_06(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidReferenceError,
+                r"schema object `std::str`"
+                r" \(uuid: 00000000-0000-0000-0000-000000000101\) exists,"
+                r" but is not object type",
+                # Details is not exposed in edgedb-python yet
+                # _details='consider using CREATE SCALAR TYPE'
+                _hint='name refers to the scalar type'):
+
+            await self.con.execute(r"""
+                CREATE TYPE test::ScalarType06 EXTENDING str;
+            """)
+
     async def test_edgeql_ddl_modules_01(self):
         try:
             await self.con.execute(r"""

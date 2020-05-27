@@ -29,6 +29,7 @@ import itertools
 import immutables as immu
 
 from edb import errors
+from edb.errors import compiler as c_errors
 
 from . import casts as s_casts
 from . import functions as s_func
@@ -1171,9 +1172,9 @@ class FlatSchema(Schema):
         else:
             obj = so.Object.schema_restore((sclass_name, obj_id))
             if type is not None and not isinstance(obj, type):
-                raise errors.InvalidReferenceError(
-                    f'schema object {obj_id!r} exists, but is not '
-                    f'{type.get_schema_class_displayname()}'
+                raise c_errors.BadTypeObject(
+                    obj_id=obj_id, obj_type=obj.__class__,
+                    target_type=type,
                 )
 
             # Avoid the overhead of cast(Object_T) below
@@ -1229,7 +1230,10 @@ class FlatSchema(Schema):
             if obj_id is None:
                 return None
 
-            obj = schema.get_by_id(obj_id, type=type, default=None)
+            try:
+                obj = schema.get_by_id(obj_id, type=type, default=None)
+            except c_errors.BadTypeObject as e:
+                raise e.update(obj_name=name)
             if obj is not None and condition is not None:
                 if not condition(obj):
                     obj = None
