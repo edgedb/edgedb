@@ -497,39 +497,66 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
     else:
         cluster.restore_database(edbdef.EDGEDB_TEMPLATE_DB, tpldbdump)
 
-    schema = stdlib.stdschema
-
-    if not cache_hit:
-        tids_query = '''
-            SELECT schema::ScalarType {
-                id,
-                backend_id,
-            } FILTER .id IN <uuid>json_array_unpack(<json>$ids);
-        '''
+        # When we restore a database from a dump, OIDs for non-system
+        # Postgres types might get skewed as they are not part of the dump.
+        # A good example of that is `std::bigint` which is implemented as
+        # a custom domain type. The OIDs are stored under
+        # `schema::Object.backend_id` property and are injected into
+        # array query arguments.
+        #
+        # The code below re-syncs backend_id properties of EdgeDB builtin
+        # types with the actual OIDs in the DB.
 
         compiler = edbcompiler.new_compiler(
-            std_schema=schema,
+            std_schema=stdlib.stdschema,
             reflection_schema=stdlib.reflschema,
             schema_class_layout=stdlib.classlayout,
             bootstrap_mode=True,
         )
-
-        schema, sql = compile_bootstrap_script(
+        _, sql = compile_bootstrap_script(
             compiler,
             stdlib.reflschema,
-            tids_query,
+            '''
+            UPDATE schema::ScalarType
+            FILTER .builtin AND NOT .is_abstract
+            SET {
+                backend_id := sys::_get_pg_type_for_scalar_type(.id)
+            }
+            ''',
             expected_cardinality_one=False,
             single_statement=True,
         )
+        await conn.execute(sql)
 
-        typemap = await conn.fetchval(
-            sql, json.dumps([str(t) for t in stdlib.types]))
-        for entry in json.loads(typemap):
-            t = schema.get_by_id(uuidgen.UUID(entry['id']))
-            schema = t.set_field_value(
-                schema, 'backend_id', entry['backend_id'])
+    # Make sure that schema backend_id properties are in sync with
+    # the database.
 
-        stdlib = stdlib._replace(stdschema=schema)
+    compiler = edbcompiler.new_compiler(
+        std_schema=stdlib.stdschema,
+        reflection_schema=stdlib.reflschema,
+        schema_class_layout=stdlib.classlayout,
+        bootstrap_mode=True,
+    )
+    _, sql = compile_bootstrap_script(
+        compiler,
+        stdlib.reflschema,
+        '''
+        SELECT schema::ScalarType {
+            id,
+            backend_id,
+        } FILTER .builtin AND NOT .is_abstract;
+        ''',
+        expected_cardinality_one=False,
+        single_statement=True,
+    )
+    schema = stdlib.stdschema
+    typemap = await conn.fetchval(sql)
+    for entry in json.loads(typemap):
+        t = schema.get_by_id(uuidgen.UUID(entry['id']))
+        schema = t.set_field_value(
+            schema, 'backend_id', entry['backend_id'])
+
+    stdlib = stdlib._replace(stdschema=schema)
 
     if not cache_hit and in_dev_mode:
         devmode.write_dev_mode_cache(stdlib, src_hash, stdlib_cache)
