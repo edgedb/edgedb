@@ -254,6 +254,7 @@ def _load_reflection_schema():
     if _refl_schema is None:
         std_dirs_hash = devmode.hash_dirs(s_std.CACHE_SRC_DIRS)
 
+        cache = None
         if devmode.is_in_dev_mode():
             cache = devmode.read_dev_mode_cache(
                 std_dirs_hash, 'transient-reflschema.pickle')
