@@ -4498,3 +4498,40 @@ aa \
             ''',
             [[1, 3], [2, 1], [3, 2]]
         )
+
+    async def test_edgeql_expr_slice_01(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"scalar type 'std::int64' cannot be sliced"):
+
+            await self.con.execute("""
+                SELECT 1[1:3];
+            """)
+
+    async def test_edgeql_expr_slice_02(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"scalar type 'std::int64' cannot be sliced"):
+
+            await self.con.execute("""
+                SELECT 1[:3];
+            """)
+
+    async def test_edgeql_expr_slice_03(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"scalar type 'std::int64' cannot be sliced"):
+
+            await self.con.execute("""
+                SELECT 1[1:];
+            """)
+
+    async def test_edgeql_expr_index_01(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"index indirection cannot be applied to scalar type "
+                r"'std::int64'"):
+
+            await self.con.execute("""
+                SELECT 1[1];
+            """)
