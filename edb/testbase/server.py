@@ -33,6 +33,7 @@ import os
 import pprint
 import re
 import subprocess
+import sys
 import unittest
 import uuid
 
@@ -291,6 +292,36 @@ class ConnectedTestCaseMixin:
         conargs = cls.get_connect_args(
             cluster=cluster, database=database, user=user, password=password)
         return await edgedb.async_connect(**conargs)
+
+    def repl(self):
+        """Open interactive EdgeQL REPL right in the test.
+
+        This is obviously only for debugging purposes.  Just add
+        `self.repl()` at any point in your test.
+        """
+
+        conargs = self.get_connect_args()
+
+        cmd = [
+            # TODO: switch to 'edgedb' when it understands EDGEDB_PASSWORD
+            'python', '-m', 'edb.cli',
+            '--host', conargs['host'],
+            '--port', str(conargs['port']),
+            '--database', self.con.dbname,
+            '--user', conargs['user'],
+        ]
+
+        env = os.environ.copy()
+        if password := conargs.get('password'):
+            env['EDGEDB_PASSWORD'] = password
+
+        proc = subprocess.Popen(
+            cmd, stdin=sys.stdin, stdout=sys.stdout, env=env)
+        while proc.returncode is None:
+            try:
+                proc.wait()
+            except KeyboardInterrupt:
+                pass
 
     def _run_and_rollback(self):
         return RollbackChanges(self)
