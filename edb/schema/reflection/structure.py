@@ -258,7 +258,7 @@ def generate_structure(
 
                             edgedb._raise_specific_exception(
                                 'invalid_parameter_value',
-                                'cannot detemine OID of ' || typeid::text,
+                                'cannot determine OID of ' || typeid::text,
                                 '',
                                 NULL::bigint
                             )
