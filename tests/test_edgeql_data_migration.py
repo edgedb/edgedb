@@ -64,8 +64,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self._migrate("""
             type NamedObject {
                 required property name -> str;
-                multi link related -> NamedObject {
-                    property lang -> str;
+                optional multi link related -> NamedObject {
+                    optional property lang -> str;
                 };
             };
         """)
@@ -191,7 +191,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         # Migration without making the property required.
         await self._migrate("""
             type Base {
-                property name -> str;
+                optional property name -> str;
             }
         """)
 
@@ -228,7 +228,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         # Inherit from the Base, making name required.
         await self._migrate("""
             type Base {
-                property name -> str;
+                optional property name -> str;
             }
 
             type Derived extending Base {
@@ -254,7 +254,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             type Base {
-                property foo -> str;
+                optional property foo -> str;
             }
 
             type Derived extending Base {
@@ -273,7 +273,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self._migrate(r"""
             type Base {
                 # rename 'foo'
-                property foo2 -> str;
+                optional property foo2 -> str;
             }
 
             type Derived extending Base {
@@ -304,7 +304,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             type Base {
-                property foo -> str;
+                optional property foo -> str;
             }
 
             type Derived extending Base {
@@ -326,7 +326,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
             type Derived extending Base {
                 # completely different property
-                property foo2 -> str;
+                optional property foo2 -> str;
             }
         """)
 
@@ -352,7 +352,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             type Base {
-                property foo -> str;
+                optional property foo -> str;
             }
 
             type Derived extending Base;
@@ -381,7 +381,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
             type Further extending Derived {
                 # completely different property
-                property foo2 -> str;
+                optional property foo2 -> str;
             };
         """)
 
@@ -410,7 +410,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             type Base {
-                property foo -> int64;
+                optional property foo -> int64;
             }
 
             type Derived extending Base {
@@ -440,7 +440,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self._migrate(r"""
             type Base {
                 # change property type (can't preserve value)
-                property foo -> str;
+                optional property foo -> str;
             }
 
             type Derived extending Base {
@@ -469,7 +469,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Child;
 
             type Base {
-                link bar -> Child;
+                optional link bar -> Child;
             }
         """)
         res = await self.con.fetchall(r"""
@@ -510,7 +510,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             type Base {
-                property foo -> str;
+                optional property foo -> str;
             }
         """)
         await self.con.execute(r"""
@@ -565,7 +565,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 constraint max_len_value(10);
             }
             type Base {
-                property foo -> constraint_length;
+                optional property foo -> constraint_length;
             }
         """)
         await self.con.execute(r"""
@@ -583,7 +583,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 constraint min_len_value(5);
             }
             type Base {
-                property foo -> constraint_length;
+                optional property foo -> constraint_length;
             }
         """
         with self.assertRaisesRegex(
@@ -619,7 +619,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             type Base {
-                property foo -> str;
+                optional property foo -> str;
             }
         """)
         await self.con.execute(r"""
@@ -633,7 +633,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
             type Base {
                 # change property to link with same name
-                link foo -> Child {
+                optional link foo -> Child {
                     # add a constraint
                     constraint exclusive;
                 }
@@ -659,11 +659,11 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Child;
 
             type Base {
-                property foo -> str {
+                optional property foo -> str {
                     constraint exclusive;
                 }
 
-                link bar -> Child {
+                optional link bar -> Child {
                     constraint exclusive;
                 }
             }
@@ -685,8 +685,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
             type Base {
                 # drop constraints
-                property foo -> str;
-                link bar -> Child;
+                optional property foo -> str;
+                optional link bar -> Child;
             }
         """)
 
@@ -721,7 +721,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Child;
 
             type Base {
-                link bar -> Child;
+                optional link bar -> Child;
             }
 
             type Derived extending Base {
@@ -746,7 +746,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
             type Derived extending Base {
                 # no longer inherit link 'bar'
-                link bar -> Child;
+                optional link bar -> Child;
             }
         """)
 
@@ -769,7 +769,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Base;
 
             type Derived extending Base {
-                property foo -> str;
+                optional property foo -> str;
             }
         """)
         await self.con.execute(r"""
@@ -781,7 +781,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self._migrate(r"""
             type Base {
                 # move the property earlier in the inheritance
-                property foo -> str;
+                optional property foo -> str;
             }
 
             type Derived extending Base {
@@ -810,7 +810,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Base;
 
             type Derived extending Base {
-                link bar -> Child;
+                optional link bar -> Child;
             }
         """)
         data = await self.con.fetchall(r"""
@@ -828,7 +828,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
             type Base {
                 # move the link earlier in the inheritance
-                link bar -> Child;
+                optional link bar -> Child;
             }
 
             type Derived extending Base;
@@ -849,7 +849,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Child;
 
             type Base {
-                link bar -> Child;
+                optional link bar -> Child;
             }
 
             type Derived extending Base {
@@ -885,7 +885,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self._migrate(r"""
             type Base {
                 # change a property from a computable to regular with a default
-                property name -> str {
+                optional property name -> str {
                     default := 'something'
                 }
             }
@@ -915,7 +915,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             type Base {
-                property name -> str
+                optional property name -> str
             }
         """)
         await self.con.execute(r"""
@@ -948,7 +948,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             type Base {
-                property foo -> str;
+                optional property foo -> str;
             }
         """)
         await self.con.execute(r"""
@@ -959,9 +959,9 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self._migrate(r"""
             type Base {
-                property foo -> str;
+                optional property foo -> str;
                 # add a property
-                property bar -> int64;
+                optional property bar -> int64;
             }
         """)
 
@@ -987,8 +987,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self._migrate(r"""
             type Base {
                 # make the old property into a computable
-                property foo := <str>__source__.bar;
-                property bar -> int64;
+                optional property foo := <str>__source__.bar;
+                optional property bar -> int64;
             }
         """)
 
@@ -1011,7 +1011,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             type Base {
-                property foo -> str;
+                optional property foo -> str;
             }
         """)
         await self.con.execute(r"""
@@ -1024,7 +1024,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             # rename the type, although this test doesn't ensure that
             # renaming actually took place
             type NewBase {
-                property foo -> str;
+                optional property foo -> str;
             }
         """)
 
@@ -1041,9 +1041,9 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self._migrate(r"""
             type NewBase {
-                property foo -> str;
+                optional property foo -> str;
                 # add a property
-                property bar -> int64;
+                optional property bar -> int64;
             }
         """)
 
@@ -1069,7 +1069,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self._migrate(r"""
             type NewBase {
                 # drop 'foo'
-                property bar -> int64;
+                optional property bar -> int64;
             }
 
             # add a alias to emulate the original
@@ -1104,11 +1104,11 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             type Child {
-                property foo -> str;
+                optional property foo -> str;
             }
 
             type Base {
-                link bar -> Child;
+                optional link bar -> Child;
             }
 
             alias Alias01 := (
@@ -1129,7 +1129,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self._migrate(r"""
             type Child {
-                property foo -> str;
+                optional property foo -> str;
             }
 
             # exchange a type for a alias
@@ -1167,7 +1167,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Child;
 
             type Base {
-                link bar -> Child;
+                optional link bar -> Child;
             }
         """)
         data = await self.con.fetchall(r"""
@@ -1185,7 +1185,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
             type Base {
                 # increase link cardinality
-                multi link bar -> Child;
+                optional multi link bar -> Child;
             }
         """)
 
@@ -1208,7 +1208,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Child;
 
             type Base {
-                multi link bar -> Child;
+                optional multi link bar -> Child;
             }
         """)
         data = await self.con.fetchall(r"""
@@ -1226,7 +1226,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
             type Base {
                 # reduce link cardinality
-                link bar -> Child;
+                optional link bar -> Child;
             }
         """)
 
@@ -1245,7 +1245,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Child;
 
             type Base {
-                link bar -> Child {
+                optional link bar -> Child {
                     # further restrict the link
                     constraint exclusive
                 }
@@ -1271,7 +1271,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Child;
 
             type Parent {
-                link bar -> Child;
+                optional link bar -> Child;
             }
         """)
         await self.con.execute(r"""
@@ -1284,7 +1284,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Child;
 
             type Parent {
-                link bar -> Child;
+                optional link bar -> Child;
             }
 
             # derive a type
@@ -1310,12 +1310,12 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type DerivedChild extending Child;
 
             type Parent {
-                link bar -> Child;
+                optional link bar -> Child;
             }
 
             # derive a type with a more restrictive link
             type DerivedParent extending Parent {
-                overloaded link bar -> DerivedChild;
+                overloaded optional link bar -> DerivedChild;
             }
         """)
 
@@ -1346,7 +1346,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             abstract type Named {
-                property name -> str;
+                optional property name -> str;
             }
 
             type Foo extending Named;
@@ -1363,17 +1363,17 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self._migrate(r"""
             abstract type Named {
-                property name -> str;
+                optional property name -> str;
             }
 
             # the types stop extending named, but retain the property
             # 'name'
             type Foo {
-                property name -> str;
+                optional property name -> str;
             };
 
             type Bar {
-                property name -> str;
+                optional property name -> str;
             };
         """)
 
@@ -1396,16 +1396,16 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self._migrate(r"""
             abstract type Named {
-                property name -> str;
+                optional property name -> str;
             }
 
             type Foo {
-                property name -> str;
+                optional property name -> str;
             };
 
             type Bar {
                 # rename 'name' to 'title'
-                property title -> str;
+                optional property title -> str;
             };
         """)
 
@@ -1432,7 +1432,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             type Child {
-                property foo -> str;
+                optional property foo -> str;
             }
 
             alias Base := (
@@ -1457,11 +1457,11 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             type Foo {
-                property name -> str;
+                optional property name -> str;
             };
 
             type Bar {
-                property title -> str;
+                optional property title -> str;
             };
         """)
         await self.con.execute(r"""
@@ -1475,12 +1475,12 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self._migrate(r"""
             type Foo {
-                property name -> str;
+                optional property name -> str;
             };
 
             type Bar {
                 # rename 'title' to 'name'
-                property name -> str;
+                optional property name -> str;
             };
         """)
 
@@ -1505,7 +1505,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             # both types have a name, so the name prop is factored out
             # into a more basic type.
             abstract type Named {
-                property name -> str;
+                optional property name -> str;
             }
 
             type Foo extending Named;
@@ -1580,7 +1580,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
             type Comment extending Text, Owned {
               required link issue -> Issue;
-              link parent -> Comment;
+              optional link parent -> Comment;
             }
             # issue_num_t is defined as a concrete
             # sequence type, used to generate
@@ -1597,31 +1597,31 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 readonly := true;
               }
 
-              property time_estimate -> int64;
+              optional property time_estimate -> int64;
 
-              property start_date -> datetime {
+              optional property start_date -> datetime {
                 # The default value of start_date will be a
                 # result of the EdgeQL expression above.
                 default := (SELECT datetime_current());
               }
 
-              property due_date -> datetime;
+              optional property due_date -> datetime;
 
               required link status -> Status;
 
-              link priority -> Priority;
+              optional link priority -> Priority;
 
               # The watchers link is mapped to User
               # type in many-to-many relation.
-              multi link watchers -> User;
+              optional multi link watchers -> User;
 
-              multi link time_spent_log -> LogEntry {
+              optional multi link time_spent_log -> LogEntry {
                 # Exclusive multi-link represents
                 # a one-to-many relation.
                 constraint exclusive;
               }
 
-              multi link related_to -> Issue;
+              optional multi link related_to -> Issue;
             }
         """)
         await self.con.execute(r"""
@@ -1672,7 +1672,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
               required property spent_time -> int64;
             }
             type Issue {
-              multi link time_spent_log -> LogEntry {
+              optional multi link time_spent_log -> LogEntry {
                 constraint exclusive;
               }
             }
@@ -1733,7 +1733,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Child;
 
             type Base {
-                link foo -> Child;
+                optional link foo -> Child;
             }
         """)
         await self.con.execute(r"""
@@ -1764,7 +1764,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
             type Base {
                 # change link type
-                link foo -> Child2;
+                optional link foo -> Child2;
             }
         """)
 
@@ -1820,7 +1820,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Child;
 
             type Base {
-                link foo -> Child {
+                optional link foo -> Child {
                     constraint exclusive;
                 }
             }
@@ -1850,7 +1850,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self._migrate(r"""
             type Base {
                 # change link to property with same name
-                property foo -> str;
+                optional property foo -> str;
             }
         """)
 
@@ -1928,7 +1928,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
             type Base {
                 # change a link from a computable to regular
-                multi link foo -> Child;
+                optional multi link foo -> Child;
             }
         """)
 
@@ -1983,7 +1983,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
 
             type Base {
-                multi link foo -> Child;
+                optional multi link foo -> Child;
             }
         """)
         await self.con.execute(r"""
@@ -2150,7 +2150,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Base;
 
             type Foo {
-                property name -> str
+                optional property name -> str
             }
 
             alias BaseAlias := (
@@ -2183,7 +2183,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Base;
 
             type Foo {
-                property name -> str
+                optional property name -> str
             }
 
             alias BaseAlias := (
@@ -2231,11 +2231,11 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Base;
 
             type Foo {
-                property name -> str
+                optional property name -> str
             }
 
             type Bar {
-                property name -> str
+                optional property name -> str
             }
 
             alias BaseAlias := (
@@ -2269,11 +2269,11 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Base;
 
             type Foo {
-                property name -> str
+                optional property name -> str
             }
 
             type Bar {
-                property name -> str
+                optional property name -> str
             }
 
             alias BaseAlias := (
@@ -2314,7 +2314,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Base;
 
             type Foo {
-                property name -> str
+                optional property name -> str
             }
 
             alias BaseAlias := (
@@ -2354,7 +2354,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Base;
 
             type Foo {
-                property name -> str
+                optional property name -> str
             }
 
             alias BaseAlias := (
@@ -2417,7 +2417,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Base;
 
             type Foo {
-                property name -> str
+                optional property name -> str
             }
 
             alias BaseAlias := (
@@ -2457,7 +2457,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Base;
 
             type Foo {
-                property name -> str
+                optional property name -> str
             }
 
             alias BaseAlias := (
@@ -2679,7 +2679,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 $$;
 
             type Base {
-                property foo -> int64 {
+                optional property foo -> int64 {
                     # use the function in default value computation
                     default := len(hello06(2) ++ hello06(123))
                 }
@@ -2702,7 +2702,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 $$;
 
             type Base {
-                property foo -> int64 {
+                optional property foo -> int64 {
                     # use the function in default value computation
                     default := len(hello06(2) ++ hello06(123))
                 }
@@ -3116,7 +3116,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             type Foo16 {
-                property name -> str {
+                optional property name -> str {
                     default := str_upper('some_name');
                 };
             }
@@ -3147,7 +3147,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Child;
 
             type Base {
-                link foo -> Child;
+                optional link foo -> Child;
             };
         """)
         await self.con.execute(r"""
@@ -3161,8 +3161,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Child;
 
             type Base {
-                link foo -> Child {
-                    property bar -> str
+                optional link foo -> Child {
+                    optional property bar -> str
                 }
             };
         """)
@@ -3195,8 +3195,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Child;
 
             type Base {
-                link foo -> Child {
-                    property bar -> str
+                optional link foo -> Child {
+                    optional property bar -> str
                 }
             };
         """)
@@ -3212,9 +3212,9 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Child;
 
             type Base {
-                link foo -> Child {
+                optional link foo -> Child {
                     # change the link property name
-                    property bar2 -> str
+                    optional property bar2 -> str
                 }
             };
         """)
@@ -3236,8 +3236,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Child;
 
             type Base {
-                link foo -> Child {
-                    property bar -> int64
+                optional link foo -> Child {
+                    optional property bar -> int64
                 }
             };
         """)
@@ -3253,9 +3253,9 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Child;
 
             type Base {
-                link foo -> Child {
+                optional link foo -> Child {
                     # change the link property type
-                    property bar -> str
+                    optional property bar -> str
                 }
             };
         """)
@@ -3282,8 +3282,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Child;
 
             type Base {
-                link foo -> Child {
-                    property bar -> str
+                optional link foo -> Child {
+                    optional property bar -> str
                 }
             };
         """)
@@ -3300,8 +3300,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
             type Base {
                 # change the link cardinality
-                multi link foo -> Child {
-                    property bar -> str
+                optional multi link foo -> Child {
+                    optional property bar -> str
                 }
             };
         """)
@@ -3323,8 +3323,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Child;
 
             type Base {
-                multi link foo -> Child {
-                    property bar -> str
+                optional multi link foo -> Child {
+                    optional property bar -> str
                 }
             };
         """)
@@ -3341,8 +3341,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
             type Base {
                 # change the link cardinality
-                link foo -> Child {
-                    property bar -> str
+                optional link foo -> Child {
+                    optional property bar -> str
                 }
             };
         """)
@@ -3364,8 +3364,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Child;
 
             type Base {
-                link child -> Child {
-                    property foo -> str;
+                optional link child -> Child {
+                    optional property foo -> str;
                 }
             };
         """)
@@ -3383,10 +3383,10 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Child;
 
             type Base {
-                link child -> Child {
-                    property foo -> str;
+                optional link child -> Child {
+                    optional property foo -> str;
                     # add another link prop
-                    property bar -> int64;
+                    optional property bar -> int64;
                 }
             };
         """)
@@ -3425,12 +3425,12 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Child;
 
             type Base {
-                link child -> Child
+                optional link child -> Child
             };
 
             type Derived extending Base {
-                overloaded link child -> Child {
-                    property foo -> str
+                overloaded optional link child -> Child {
+                    optional property foo -> str
                 }
             };
         """)
@@ -3449,8 +3449,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
             type Base {
                 # move the link property earlier in the inheritance tree
-                link child -> Child {
-                    property foo -> str
+                optional link child -> Child {
+                    optional property foo -> str
                 }
             };
 
@@ -3487,8 +3487,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Child;
 
             type Base {
-                link child -> Child {
-                    property foo -> str
+                optional link child -> Child {
+                    optional property foo -> str
                 }
             };
 
@@ -3510,13 +3510,13 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Child;
 
             type Base {
-                link child -> Child
+                optional link child -> Child
             };
 
             type Derived extending Base {
-                overloaded link child -> Child {
+                overloaded optional link child -> Child {
                     # move the link property later in the inheritance tree
-                    property foo -> str
+                    optional property foo -> str
                 }
             };
         """)
@@ -3544,12 +3544,12 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Child;
 
             type Base {
-                link child -> Child
+                optional link child -> Child
             };
 
             type Derived extending Base {
-                overloaded link child -> Child {
-                    property foo -> str
+                overloaded optional link child -> Child {
+                    optional property foo -> str
                 }
             };
         """)
@@ -3568,11 +3568,11 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
             # factor out link property all the way to an abstract link
             abstract link base_child {
-                property foo -> str;
+                optional property foo -> str;
             }
 
             type Base {
-                link child extending base_child -> Child;
+                optional link child extending base_child -> Child;
             };
 
             type Derived extending Base;
@@ -3609,11 +3609,11 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Child;
 
             abstract link base_child {
-                property foo -> str;
+                optional property foo -> str;
             }
 
             type Base {
-                link child extending base_child -> Child;
+                optional link child extending base_child -> Child;
             };
 
             type Derived extending Base;
@@ -3632,13 +3632,13 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Child;
 
             type Base {
-                link child -> Child
+                optional link child -> Child
             };
 
             type Derived extending Base {
-                overloaded link child -> Child {
+                overloaded optional link child -> Child {
                     # move the link property later in the inheritance tree
-                    property foo -> str
+                    optional property foo -> str
                 }
             };
         """)
@@ -3667,14 +3667,14 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Thing;
 
             type Owner {
-                link item -> Thing {
-                    property foo -> str;
+                optional link item -> Thing {
+                    optional property foo -> str;
                 }
             };
 
             type Renter {
-                link item -> Thing {
-                    property foo -> str;
+                optional link item -> Thing {
+                    optional property foo -> str;
                 }
             };
         """)
@@ -3700,8 +3700,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Thing;
 
             type Base {
-                link item -> Thing {
-                    property foo -> str;
+                optional link item -> Thing {
+                    optional property foo -> str;
                 }
             };
 
@@ -3753,14 +3753,14 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Thing;
 
             type Owner {
-                link item -> Thing {
-                    property foo -> str;
+                optional link item -> Thing {
+                    optional property foo -> str;
                 }
             };
 
             type Renter {
-                link item -> Thing {
-                    property bar -> str;
+                optional link item -> Thing {
+                    optional property bar -> str;
                 }
             };
         """)
@@ -3786,9 +3786,9 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Thing;
 
             type Base {
-                link item -> Thing {
-                    property foo -> str;
-                    property bar -> str;
+                optional link item -> Thing {
+                    optional property foo -> str;
+                    optional property bar -> str;
                 }
             };
 
@@ -4196,7 +4196,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             type Base {
-                property name -> str;
+                optional property name -> str;
             }
         """)
 
@@ -4219,7 +4219,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self._migrate(r"""
             type Base {
-                property name -> str;
+                optional property name -> str;
                 # an index
                 index on (.name);
             }
@@ -4247,7 +4247,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self._migrate(r"""
             type Base {
                 # rename the indexed property
-                property title -> str;
+                optional property title -> str;
                 index on (.title);
             }
         """)
@@ -4277,7 +4277,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             type Base {
-                property name -> str;
+                optional property name -> str;
                 index on (.name);
             }
         """)
@@ -4303,7 +4303,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self._migrate(r"""
             type Base {
-                property name -> str;
+                optional property name -> str;
                 # remove the index
             }
         """)
@@ -4331,7 +4331,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             type Base {
-                property name -> int64;
+                optional property name -> int64;
             }
         """)
 
@@ -4354,7 +4354,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self._migrate(r"""
             type Base {
-                property name -> int64;
+                optional property name -> int64;
                 # an index
                 index on (.name);
             }
@@ -4382,7 +4382,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self._migrate(r"""
             type Base {
                 # change the indexed property type
-                property name -> str;
+                optional property name -> str;
                 index on (.name);
             }
         """)
@@ -4412,9 +4412,9 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             type Base {
-                property first_name -> str;
-                property last_name -> str;
-                property name := .first_name ++ ' ' ++ .last_name;
+                optional property first_name -> str;
+                optional property last_name -> str;
+                optional property name := .first_name ++ ' ' ++ .last_name;
             }
         """)
 
@@ -4437,9 +4437,9 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self._migrate(r"""
             type Base {
-                property first_name -> str;
-                property last_name -> str;
-                property name := .first_name ++ ' ' ++ .last_name;
+                optional property first_name -> str;
+                optional property last_name -> str;
+                optional property name := .first_name ++ ' ' ++ .last_name;
                 # an index on a computable
                 index on (.name);
             }
@@ -4470,7 +4470,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             type Base {
-                property name -> str;
+                optional property name -> str;
                 # an index with a verbose definition (similar to
                 # DESCRIBE AS SDL)
                 index on (
@@ -4515,7 +4515,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self._migrate(r"""
             type Base {
-                property foo -> array<float32>;
+                optional property foo -> array<float32>;
             }
         """)
 
@@ -4552,7 +4552,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self._migrate(r"""
             type Base {
-                property foo -> tuple<str, int32>;
+                optional property foo -> tuple<str, int32>;
             }
         """)
 
@@ -4590,7 +4590,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self._migrate(r"""
             type Base {
                 # nested collection
-                property foo -> tuple<str, int32, array<float32>>;
+                optional property foo -> tuple<str, int32, array<float32>>;
             }
         """)
 
@@ -4619,7 +4619,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self._migrate(r"""
             type Base {
-                property foo -> tuple<a: str, b: int32>;
+                optional property foo -> tuple<a: str, b: int32>;
             }
         """)
 
@@ -4640,7 +4640,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             type Base {
-                property foo -> array<int32>;
+                optional property foo -> array<int32>;
             }
         """)
 
@@ -4657,7 +4657,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self._migrate(r"""
             type Base {
-                property foo -> array<float32>;
+                optional property foo -> array<float32>;
             }
         """)
 
@@ -4681,7 +4681,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self._migrate(r"""
             type Base {
                 # convert property type to tuple
-                property foo -> tuple<str, int32>;
+                optional property foo -> tuple<str, int32>;
             }
         """)
 
@@ -4694,7 +4694,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self._migrate(r"""
             type Base {
                 # convert property type to a bigger tuple
-                property foo -> tuple<str, int32, int32>;
+                optional property foo -> tuple<str, int32, int32>;
             }
         """)
 
@@ -4729,7 +4729,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             type Base {
-                property foo -> tuple<int32, int32>;
+                optional property foo -> tuple<int32, int32>;
             }
         """)
 
@@ -4743,7 +4743,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Base {
                 # convert property type to a tuple with different (but
                 # cast-compatible) element types
-                property foo -> tuple<str, int32>;
+                optional property foo -> tuple<str, int32>;
             }
         """)
 
@@ -4769,7 +4769,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             type Base {
-                property foo -> tuple<str, int32>;
+                optional property foo -> tuple<str, int32>;
             }
         """)
 
@@ -4782,7 +4782,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self._migrate(r"""
             type Base {
                 # convert property type from unnamed to named tuple
-                property foo -> tuple<a: str, b: int32>;
+                optional property foo -> tuple<a: str, b: int32>;
             }
         """)
 
@@ -4800,7 +4800,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             type Base {
-                property foo -> float32;
+                optional property foo -> float32;
             };
 
             # aliass that don't have arrays
@@ -4826,7 +4826,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self._migrate(r"""
             type Base {
-                property foo -> float32;
+                optional property foo -> float32;
             };
 
             # "same" aliass that now have arrays
@@ -4849,8 +4849,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             type Base {
-                property name -> str;
-                property foo -> float32;
+                optional property name -> str;
+                optional property foo -> float32;
             };
 
             # aliass that don't have tuples
@@ -4877,8 +4877,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self._migrate(r"""
             type Base {
-                property name -> str;
-                property foo -> float32;
+                optional property name -> str;
+                optional property foo -> float32;
             };
 
             # "same" aliass that now have tuples
@@ -4901,9 +4901,9 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             type Base {
-                property name -> str;
-                property number -> int32;
-                property foo -> float32;
+                optional property name -> str;
+                optional property number -> int32;
+                optional property foo -> float32;
             };
 
             # aliass that don't have nested collections
@@ -4931,9 +4931,9 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self._migrate(r"""
             type Base {
-                property name -> str;
-                property number -> int32;
-                property foo -> float32;
+                optional property name -> str;
+                optional property number -> int32;
+                optional property foo -> float32;
             };
 
             # "same" aliass that now have nested collections
@@ -4958,8 +4958,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             type Base {
-                property name -> str;
-                property foo -> float32;
+                optional property name -> str;
+                optional property foo -> float32;
             };
 
             # aliass that don't have named tuples
@@ -4986,8 +4986,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self._migrate(r"""
             type Base {
-                property name -> str;
-                property foo -> float32;
+                optional property name -> str;
+                optional property foo -> float32;
             };
 
             # "same" aliass that now have named tuples
@@ -5012,8 +5012,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             type Base {
-                property foo -> float32;
-                property bar -> int32;
+                optional property foo -> float32;
+                optional property bar -> int32;
             };
 
             # aliass with array<int32>
@@ -5040,8 +5040,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self._migrate(r"""
             type Base {
-                property foo -> float32;
-                property bar -> int32;
+                optional property foo -> float32;
+                optional property bar -> int32;
             };
 
             # aliass with array<flaot32>
@@ -5064,9 +5064,9 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             type Base {
-                property name -> str;
-                property number -> int32;
-                property foo -> float32;
+                optional property name -> str;
+                optional property number -> int32;
+                optional property foo -> float32;
             };
 
             # aliass with tuple<str, int32>
@@ -5096,9 +5096,9 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self._migrate(r"""
             type Base {
-                property name -> str;
-                property number -> int32;
-                property foo -> float32;
+                optional property name -> str;
+                optional property number -> int32;
+                optional property foo -> float32;
             };
 
             # aliass with tuple<str, int32, float32>
@@ -5123,9 +5123,9 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             type Base {
-                property name -> str;
-                property number -> int32;
-                property foo -> float32;
+                optional property name -> str;
+                optional property number -> int32;
+                optional property foo -> float32;
             };
 
             # aliass with tuple<str, int32>
@@ -5155,9 +5155,9 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self._migrate(r"""
             type Base {
-                property name -> str;
-                property number -> int32;
-                property foo -> float32;
+                optional property name -> str;
+                optional property number -> int32;
+                optional property foo -> float32;
             };
 
             # aliass with tuple<str, float32>
@@ -5182,8 +5182,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             type Base {
-                property name -> str;
-                property foo -> float32;
+                optional property name -> str;
+                optional property foo -> float32;
             };
 
             # aliass with tuple<str, float32>
@@ -5212,8 +5212,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self._migrate(r"""
             type Base {
-                property name -> str;
-                property foo -> float32;
+                optional property name -> str;
+                optional property foo -> float32;
             };
 
             # aliass with named tuple<a: str, b: float32>

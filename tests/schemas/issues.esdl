@@ -39,8 +39,8 @@ abstract type Dictionary extending Named {
 }
 
 type User extending Dictionary {
-    multi link todo -> Issue {
-        property rank -> int64 {
+    optional multi link todo -> Issue {
+        optional property rank -> int64 {
             default := 42;
         }
     }
@@ -49,7 +49,7 @@ type User extending Dictionary {
 abstract type Owned {
     # By default links are optional.
     required link owner -> User {
-        property note -> str;
+        optional property note -> str;
     }
 }
 
@@ -68,12 +68,12 @@ scalar type issue_num_t extending std::str;
 
 type Comment extending Text, Owned {
     required link issue -> Issue;
-    link parent -> Comment;
+    optional link parent -> Comment;
 }
 
 type Issue extending Named, Owned, Text {
     overloaded required link owner {
-        property since -> datetime;
+        optional property since -> datetime;
     }
 
     required property number -> issue_num_t {
@@ -82,28 +82,28 @@ type Issue extending Named, Owned, Text {
     }
     required link status -> Status;
 
-    link priority -> Priority;
+    optional link priority -> Priority;
 
-    multi link watchers -> User;
+    optional multi link watchers -> User;
 
-    property time_estimate -> int64;
+    optional property time_estimate -> int64;
 
-    multi link time_spent_log -> LogEntry;
+    optional multi link time_spent_log -> LogEntry;
 
-    property start_date -> datetime {
+    optional property start_date -> datetime {
         default := (SELECT datetime_current());
         # The default value of start_date will be a
         # result of the EdgeQL expression above.
     }
-    property due_date -> datetime;
+    optional property due_date -> datetime;
 
-    multi link related_to -> Issue;
+    optional multi link related_to -> Issue;
 
-    multi link references -> File | URL | Publication {
-        property list_order -> int64;
+    optional multi link references -> File | URL | Publication {
+        optional property list_order -> int64;
     };
 
-    property tags -> array<str>;
+    optional property tags -> array<str>;
 }
 
 type File extending Named;
@@ -114,8 +114,8 @@ type URL extending Named {
 
 type Publication {
     required property title -> str;
-    multi link authors -> User {
-        property list_order -> int64;
+    optional multi link authors -> User {
+        optional property list_order -> int64;
     };
 }
 

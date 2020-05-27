@@ -343,7 +343,7 @@ EdgeDB.  A few examples:
     db> DESCRIBE TYPE Movie AS DDL;
     {
       'CREATE TYPE default::Movie EXTENDING default::HasImage {
-        CREATE SINGLE PROPERTY avg_rating := (WITH
+        CREATE OPTIONAL SINGLE PROPERTY avg_rating := (WITH
           MODULE default
         SELECT
           math::mean(.<movie[IS Review].rating)

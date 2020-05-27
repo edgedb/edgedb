@@ -924,6 +924,8 @@ async def _setup_database(dbname, setup_script, conn_args):
     try:
         async with dbconn.transaction():
             await dbconn.execute(setup_script)
+    except Exception as exc:
+        print(exc)
     finally:
         await dbconn.aclose()
 

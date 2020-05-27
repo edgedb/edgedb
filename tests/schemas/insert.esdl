@@ -22,17 +22,17 @@ type Subordinate {
 }
 
 type InsertTest {
-    property name -> str;
-    property l1 -> int64;
+    optional property name -> str;
+    optional property l1 -> int64;
     required property l2 -> int64;
-    property l3 -> str {
+    optional property l3 -> str {
         default := "test";
     }
-    multi link subordinates -> Subordinate {
-        property comment -> str;
+    optional multi link subordinates -> Subordinate {
+        optional property comment -> str;
     }
-    link sub -> Subordinate {
-        property note -> str;
+    optional link sub -> Subordinate {
+        optional property note -> str;
     }
 }
 
@@ -40,19 +40,19 @@ type DerivedTest extending InsertTest;
 
 type Note {
     required property name -> str;
-    property note -> str;
-    link subject -> Object;
+    optional property note -> str;
+    optional link subject -> Object;
 }
 
 type DefaultTest1 {
-    property num -> int64 {
+    optional property num -> int64 {
         default := 42;
     }
-    property foo -> str;
+    optional property foo -> str;
 }
 
 type DefaultTest2 {
-    property foo -> str;
+    optional property foo -> str;
     required property num -> int64 {
         # XXX: circumventing sequence deficiency
         default := (
@@ -79,7 +79,7 @@ type DefaultTest4 {
 
 type DefaultTest5 {
     required property name -> str;
-    link other -> Subordinate {
+    optional link other -> Subordinate {
         # statically defined value
         default := (
             SELECT Subordinate
@@ -91,7 +91,7 @@ type DefaultTest5 {
 
 type DefaultTest6 {
     required property name -> str;
-    link other -> DefaultTest5 {
+    optional link other -> DefaultTest5 {
         # staticly defined insert
         default := (
             INSERT DefaultTest5 {
@@ -103,7 +103,7 @@ type DefaultTest6 {
 
 type DefaultTest7 {
     required property name -> str;
-    link other -> DefaultTest6 {
+    optional link other -> DefaultTest6 {
         # staticly defined insert that creates an implicit insert chain
         default := (
             INSERT DefaultTest6 {
@@ -127,17 +127,17 @@ type DefaultTest8 {
 
 # types to test some inheritance issues
 type InputValue {
-    property val -> str;
+    optional property val -> str;
 }
 
 abstract type Callable {
-    multi link args -> InputValue;
+    optional multi link args -> InputValue;
 }
 
 type Field extending Callable {
     # This link 'args' appears to be overriding the overloaded 'args'
     # from Callable.
-    overloaded multi link args -> InputValue;
+    overloaded optional multi link args -> InputValue;
 }
 
 type Directive extending Callable;
@@ -145,11 +145,11 @@ type Directive extending Callable;
 
 type SelfRef {
     required property name -> str;
-    multi link ref -> SelfRef;
+    optional multi link ref -> SelfRef;
 }
 
 type CollectionTest {
-    property some_tuple -> tuple<str, int64>;
-    property str_array -> array<str>;
-    property float_array -> array<float32>;
+    optional property some_tuple -> tuple<str, int64>;
+    optional property str_array -> array<str>;
+    optional property float_array -> array<float32>;
 }

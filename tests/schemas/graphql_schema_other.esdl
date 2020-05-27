@@ -24,7 +24,7 @@ scalar type ColorEnum extending enum<'RED', 'GREEN', 'BLUE'> {
 type Foo {
     annotation description := 'Test type "Foo"';
 
-    property `select` -> str;
-    property after -> str;
+    optional property `select` -> str;
+    optional property after -> str;
     required property color -> ColorEnum;
 }

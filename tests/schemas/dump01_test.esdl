@@ -32,11 +32,11 @@ type TestA {
 
 type TestB {
     required property b -> str;
-    link blink -> TestA;
+    optional link blink -> TestA;
 }
 
 
 type TestC {
     required property c -> str;
-    link clink -> default::DefC;
+    optional link clink -> default::DefC;
 }

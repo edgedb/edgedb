@@ -96,6 +96,7 @@ class CompileContext:
     implicit_limit: int = 0
     schema_object_ids: Optional[Mapping[str, uuid.UUID]] = None
     first_extracted_var: Optional[int] = None
+    dumprestore: bool = False
 
 
 EMPTY_MAP = immutables.Map()
@@ -362,6 +363,7 @@ class Compiler(BaseCompiler):
         context.testmode = self._in_testmode(ctx)
         context.stdmode = self._bootstrap_mode
         context.schema_object_ids = ctx.schema_object_ids
+        context.dumprestore = ctx.dumprestore
         return context
 
     def _process_delta(self, ctx: CompileContext, delta):
@@ -766,6 +768,7 @@ class Compiler(BaseCompiler):
             modaliases=current_tx.get_modaliases(),
             testmode=self._in_testmode(ctx),
             schema_object_ids=ctx.schema_object_ids,
+            dumprestore=ctx.dumprestore,
         )
 
         return self._compile_command(ctx, cmd)
@@ -1287,6 +1290,7 @@ class Compiler(BaseCompiler):
         schema: Optional[s_schema.Schema] = None,
         schema_object_ids: Optional[Mapping[str, uuid.UUID]] = None,
         first_extracted_var: Optional[int] = None,
+        dumprestore: bool=False,
     ) -> CompileContext:
 
         if session_config is None:
@@ -1324,6 +1328,7 @@ class Compiler(BaseCompiler):
             json_parameters=json_parameters,
             schema_object_ids=schema_object_ids,
             first_extracted_var=first_extracted_var,
+            dumprestore=dumprestore,
         )
 
         return ctx
@@ -1724,7 +1729,8 @@ class Compiler(BaseCompiler):
             capability=enums.Capability.ALL,
             json_parameters=False,
             schema=schema,
-            schema_object_ids=schema_object_ids)
+            schema_object_ids=schema_object_ids,
+            dumprestore=True)
         ctx.state.start_tx()
 
         units = self._compile(

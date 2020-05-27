@@ -26,12 +26,12 @@ type A extending R;
 
 type S extending R {
     required property s -> str;
-    multi link l_a -> A;
+    optional multi link l_a -> A;
 }
 
 type T extending R {
     required property t -> str;
-    multi link l_a -> A;
+    optional multi link l_a -> A;
 }
 
 abstract type U {
@@ -44,7 +44,7 @@ type W {
     required property name -> str {
         constraint exclusive;
     }
-    link w -> W;
+    optional link w -> W;
 }
 
 type X extending W, U;
@@ -55,7 +55,7 @@ type Z {
     };
 
     # have 'name' in common
-    multi link stw0 -> S | T | W;
+    optional multi link stw0 -> S | T | W;
 }
 
 # 3 abstract base types and their concrete permutations

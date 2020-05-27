@@ -34,11 +34,11 @@ class TestEdgeQLDT(tb.QueryTestCase):
                 scalar type enum_t extending enum<'foo', 'bar'>;
 
                 type Obj {
-                    property seq_prop -> seq_t;
+                    optional property seq_prop -> seq_t;
                 };
 
                 type Obj2 {
-                    property seq_prop -> seq2_t;
+                    optional property seq_prop -> seq2_t;
                 };
             };
         };

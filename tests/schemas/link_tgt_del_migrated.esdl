@@ -27,31 +27,31 @@ type Target1 extending Named;
 type Target1Child extending Target1;
 
 type Source1 extending Named {
-    link tgt1_restrict -> Target1 {
+    optional link tgt1_restrict -> Target1 {
         on target delete restrict;
     }
-    link tgt1_allow -> Target1 {
+    optional link tgt1_allow -> Target1 {
         on target delete allow;
     }
-    link tgt1_del_source -> Target1 {
+    optional link tgt1_del_source -> Target1 {
         on target delete delete source;
     }
-    link tgt1_deferred_restrict -> Target1 {
+    optional link tgt1_deferred_restrict -> Target1 {
         on target delete restrict;
     }
-    multi link tgt1_m2m_restrict -> Target1 {
+    optional multi link tgt1_m2m_restrict -> Target1 {
         on target delete restrict;
     }
-    multi link tgt1_m2m_allow -> Target1 {
+    optional multi link tgt1_m2m_allow -> Target1 {
         on target delete allow;
     }
-    multi link tgt1_m2m_del_source -> Target1 {
+    optional multi link tgt1_m2m_del_source -> Target1 {
         on target delete delete source;
     }
 }
 
 type Source2 extending Named {
-    link src1_del_source -> Source1 {
+    optional link src1_del_source -> Source1 {
         on target delete delete source;
     }
 }
@@ -59,7 +59,7 @@ type Source2 extending Named {
 type Source3 extending Source1;
 
 abstract type AbstractObjectType {
-    link foo -> Target1;
+    optional link foo -> Target1;
 }
 
 type ObjectType4 extending AbstractObjectType;

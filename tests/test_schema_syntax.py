@@ -157,7 +157,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type LogEntry extending OwnedObject, Text {
-               link start_date := (SELECT datetime::datetime_current());
+               optional link start_date := (SELECT datetime::datetime_current());
             };
         };
         """
@@ -166,7 +166,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type LogEntry extending OwnedObject, Text {
-                property start_date -> datetime {
+                optional property start_date -> datetime {
                    default :=
                         (SELECT datetime::datetime_current());
                    title := 'Start Date';
@@ -185,27 +185,27 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
 
                 required link status -> Status;
 
-                link priority -> Priority;
+                optional link priority -> Priority;
 
-                multi link watchers extending orderable -> User {
-                    property foo extending bar -> str;
+                optional multi link watchers extending orderable -> User {
+                    optional property foo extending bar -> str;
                 };
 
-                multi link time_spent_log -> LogEntry;
+                optional multi link time_spent_log -> LogEntry;
 
-                link start_date := (SELECT datetime::datetime_current());
+                optional link start_date := (SELECT datetime::datetime_current());
 
-                multi link related_to -> Issue;
+                optional multi link related_to -> Issue;
 
-                property time_estimate -> int64;
+                optional property time_estimate -> int64;
 
-                property start_date -> datetime {
+                optional property start_date -> datetime {
                    default :=
                         (SELECT datetime::datetime_current());
                    title := 'Start Date';
                 };
 
-                property due_date -> datetime;
+                optional property due_date -> datetime;
             };
         };
         """
@@ -216,8 +216,23 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type Foo {
-                property time_estimate -> int64 {
+                optional property time_estimate -> int64 {
                     property unit {
+                        default := 'minute';
+                    };
+                };
+            };
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "Unexpected 'optional'", line=5, col=21)
+    def test_eschema_syntax_type_08_optional(self):
+        """
+        module test {
+            type Foo {
+                optional property time_estimate -> int64 {
+                    optional property unit {
                         default := 'minute';
                     };
                 };
@@ -315,16 +330,16 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type Foo {
-                link bar0 -> Bar {
+                optional link bar0 -> Bar {
                     on target delete restrict;
                 };
-                link bar1 -> Bar {
+                optional link bar1 -> Bar {
                     on target delete delete source;
                 };
-                link bar2 -> Bar {
+                optional link bar2 -> Bar {
                     on target delete allow;
                 };
-                link bar3 -> Bar {
+                optional link bar3 -> Bar {
                     on target delete deferred restrict;
                 };
             };
@@ -338,7 +353,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type Foo {
-                link bar0 -> Bar {
+                optional link bar0 -> Bar {
                     on target delete restrict;
                     on target delete delete source;
                 };
@@ -350,7 +365,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type Foo {
-                property foo -> str {
+                optional property foo -> str {
                     default := some_func(
         1, 2, 3);
                 };
@@ -362,18 +377,18 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type Foo {
-                property foo -> str {
+                optional property foo -> str {
                     # if it's defined on the same line as :=
                     # the definition must be a one-liner
                     default := some_func(1, 2, 3);
                 };
-                property bar -> str {
+                optional property bar -> str {
                     # multi-line definition with correct indentation
                     default :=
                         some_func('
                         1, 2, 3');
                 };
-                property baz -> str {
+                optional property baz -> str {
                     # multi-line definition with correct indentation
                     default :=
                         $$some_func(
@@ -386,17 +401,17 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
 
         module test {
             type Foo {
-                property foo -> str {
+                optional property foo -> str {
                     # if it's defined on the same line as :=
                     # the definition must be a one-liner
                     default := some_func(1, 2, 3);
                 };
-                property bar -> str {
+                optional property bar -> str {
                     # multi-line definition with correct indentation
                     default := some_func('
                         1, 2, 3');
                 };
-                property baz -> str {
+                optional property baz -> str {
                     # multi-line definition with correct indentation
                     default := 'some_func(
                         1, 2, 3)';
@@ -409,18 +424,18 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type Foo {
-                single link foo -> Foo;
-                multi link bar -> Bar;
+                optional single link foo -> Foo;
+                optional multi link bar -> Bar;
                 required single link baz -> Baz;
                 required multi link spam -> Spam;
                 overloaded required single link ham -> Ham;
                 overloaded required multi link eggs -> Egg;
-                overloaded link knight;
-                overloaded link clinic {
-                    property argument -> int64;
+                overloaded optional link knight;
+                overloaded optional link clinic {
+                    optional property argument -> int64;
                 };
-                overloaded property castle;
-                overloaded property tower {
+                overloaded optional property castle;
+                overloaded optional property tower {
                     constraint exclusive;
                 };
             };
@@ -431,8 +446,8 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type Foo {
-                single property foo -> str;
-                multi property bar -> str;
+                optional single property foo -> str;
+                optional multi property bar -> str;
                 required single property baz -> str;
                 required multi property spam -> str;
                 overloaded required single property ham -> str;
@@ -445,11 +460,11 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type Foo {
-                single property foo -> str
+                optional single  property foo -> str
             }
 
             type Bar {
-                multi property bar -> str
+                optional multi property bar -> str
             }
 
             type Baz {
@@ -473,11 +488,11 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
 
         module test {
             type Foo {
-                single property foo -> str;
+                optional single property foo -> str;
             };
 
             type Bar {
-                multi property bar -> str;
+                optional multi property bar -> str;
             };
 
             type Baz {
@@ -502,11 +517,11 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type Foo {
-                single property foo -> str {
+                optional single property foo -> str {
                     constraint max_len_value (10000)
                 }
 
-                multi property bar -> str {
+                optional multi property bar -> str {
                     constraint max_len_value (10000)
                 }
             }
@@ -516,11 +531,11 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
 
         module test {
             type Foo {
-                single property foo -> str {
+                optional single property foo -> str {
                     constraint max_len_value (10000);
                 };
 
-                multi property bar -> str {
+                optional multi property bar -> str {
                     constraint max_len_value (10000);
                 };
             };
@@ -530,7 +545,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
     def test_eschema_syntax_type_27(self):
         """
         type foo::Bar {
-            property name -> str;
+            optional property name -> str;
         };
         """
 
@@ -538,7 +553,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module foo {
             type Bar {
-                property name -> str;
+                optional property name -> str;
             };
         };
         """
@@ -551,7 +566,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module foo {
             type foo::Bar {
-                property name -> str;
+                optional property name -> str;
             };
         };
         """
@@ -560,17 +575,17 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module foo {
             type Bar {
-                property name -> str;
+                optional property name -> str;
             };
         };
 
         type foo::Bar2 {
-            property name -> str;
+            optional property name -> str;
         };
 
         module foo {
             type Bar3 {
-                property name -> str;
+                optional property name -> str;
             };
         };
         """
@@ -579,17 +594,17 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module foo {
             type Bar {
-                property name -> str;
+                optional property name -> str;
             };
         };
 
         type bar::Bar {
-            property name -> str;
+            optional property name -> str;
         };
 
         module baz {
             type Bar {
-                property name -> str;
+                optional property name -> str;
             };
         };
         """
@@ -636,7 +651,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             abstract link foobar {
-                property foo -> str {
+                optional property foo -> str {
                     title := 'Sample property';
                 };
                 index on (__subject__@foo);
@@ -660,7 +675,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type User {
-                property name -> str;
+                optional property name -> str;
                 index on (.name);
             };
         };
@@ -670,7 +685,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type User {
-                property name -> str;
+                optional property name -> str;
 
                 index on (.name) {
                     annotation title := 'User name index';
@@ -688,7 +703,7 @@ type LogEntry extending    OwnedObject,    Text {
             # irrelevant comment indent
         # irrelevant comment indent
 
-  property start_date -> datetime {
+  optional property start_date -> datetime {
 
 
                        default := (
@@ -1041,6 +1056,15 @@ abstract property test::foo {
         };
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected 'optional'",
+                  line=3, col=13)
+    def test_eschema_syntax_property_05_optional(self):
+        """
+        module test {
+            optional property foo;
+        };
+        """
+
     def test_eschema_syntax_link_01(self):
         """
         module test {
@@ -1059,7 +1083,7 @@ abstract property test::foo {
         """
         module test {
             abstract link coollink {
-                property foo -> int64;
+                optional property foo -> int64;
             };
         };
         """
@@ -1067,8 +1091,8 @@ abstract property test::foo {
     def test_eschema_syntax_link_04(self):
         """
         abstract link test::coollink {
-            property foo -> int64;
-            property bar -> int64;
+            optional property foo -> int64;
+            optional property bar -> int64;
 
             constraint expr {
                 using (self.foo = self.bar);
@@ -1087,7 +1111,7 @@ abstract property test::foo {
             };
 
             abstract link coollink {
-                property foo -> int64 {
+                optional property foo -> int64 {
                     constraint min_value(0);
                     constraint max_value(123456);
                     constraint expr on (__subject__ % 2 = 0) {
@@ -1096,7 +1120,7 @@ abstract property test::foo {
                     default := 2;
                 };
 
-                property bar -> int64;
+                optional property bar -> int64;
 
                 constraint expr on (self.foo = self.bar);
             };
@@ -1117,7 +1141,7 @@ abstract property test::foo {
         """
         module test {
             abstract link time_estimate {
-               property unit -> str {
+               optional property unit -> str {
                    constraint my_constraint(0);
                };
             };
@@ -1128,7 +1152,7 @@ abstract property test::foo {
         """
         module test {
             abstract link time_estimate {
-               property unit -> str {
+               optional property unit -> str {
                    constraint my_constraint(0, <str>(42^2));
                };
             };
@@ -1139,7 +1163,7 @@ abstract property test::foo {
         """
         module test {
             abstract link time_estimate {
-               property unit -> str{
+               optional property unit -> str{
                    constraint my_constraint(')', `)`($$)$$));
                };
             };
@@ -1149,7 +1173,7 @@ abstract property test::foo {
 
         module test {
             abstract link time_estimate {
-               property unit -> str{
+               optional property unit -> str{
                    constraint my_constraint(')', `)`(')'));
                };
             };
@@ -1172,13 +1196,23 @@ abstract property test::foo {
         };
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected 'optional'",
+                  line=3, col=13)
+    def test_eschema_syntax_link_11_optional(self):
+        """
+        module test {
+            optional link foo;
+        };
+        """
+
+
     @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected '::'",
-                  line=4, col=25)
+                  line=4, col=34)
     def test_eschema_syntax_link_12(self):
         """
         module test {
             type Foo {
-                link mod::name to std::str;
+                optional link mod::name to std::str;
             }
         };
         """

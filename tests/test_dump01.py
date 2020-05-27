@@ -277,7 +277,7 @@ class DumpTestMxin:
                             'annotations': [
                                 {
                                     'name': 'std::title',
-                                    '@value': 'multi link to C',
+                                    '@value': 'optional multi link to C',
                                 },
                             ],
                         },
@@ -286,7 +286,7 @@ class DumpTestMxin:
                             'annotations': [
                                 {
                                     'name': 'std::title',
-                                    '@value': 'single link to C',
+                                    '@value': 'optional single link to C',
                                 },
                             ],
                         },

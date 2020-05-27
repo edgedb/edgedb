@@ -31,42 +31,42 @@ type Tag {
 
 type UpdateTest {
     required property name -> str;
-    property comment -> str;
+    optional property comment -> str;
 
     # for testing singleton links
-    link status -> Status;
-    link annotated_status -> Status {
-        property note -> str;
+    optional link status -> Status;
+    optional link annotated_status -> Status {
+        optional property note -> str;
     }
 
     # for testing links to sets
-    multi link tags -> Tag;
-    multi link weighted_tags -> Tag {
-        property weight -> int64;
-        property readonly_note -> str {
+    optional multi link tags -> Tag;
+    optional multi link weighted_tags -> Tag {
+        optional property weight -> int64;
+        optional property readonly_note -> str {
             readonly := true;
         }
     }
 
     # for testing links to sets of the same type as originator
-    multi link related -> UpdateTest;
-    multi link annotated_tests -> UpdateTest {
-        property note -> str;
+    optional multi link related -> UpdateTest;
+    optional multi link annotated_tests -> UpdateTest {
+        optional property note -> str;
     }
 
-    link readonly_tag -> Tag {
+    optional link readonly_tag -> Tag {
         readonly := true;
     }
 
-    property readonly_note -> str {
+    optional property readonly_note -> str {
         readonly := true;
     }
 
-    multi property str_tags -> str;
+    optional multi property str_tags -> str;
 }
 
 type CollectionTest {
     required property name -> str;
-    property some_tuple -> tuple<str, int64>;
-    property str_array -> array<str>;
+    optional property some_tuple -> tuple<str, int64>;
+    optional property str_array -> array<str>;
 }

@@ -200,7 +200,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
                 r'cannot alter.*module std is read-only'):
             await self.con.execute('''
                 ALTER TYPE std::Object {
-                    CREATE PROPERTY foo_15 -> std::str;
+                    CREATE OPTIONAL PROPERTY foo_15 -> std::str;
                 };
             ''')
 
@@ -210,7 +210,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
                 r'cannot alter.*module stdgraphql is read-only'):
             await self.con.execute('''
                 ALTER TYPE stdgraphql::Query {
-                    CREATE PROPERTY foo_15 -> std::str;
+                    CREATE OPTIONAL PROPERTY foo_15 -> std::str;
                 };
             ''')
 

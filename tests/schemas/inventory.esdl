@@ -24,7 +24,7 @@ abstract type Named {
 }
 
 type Item extending Named {
-    multi property tag_set1 -> str;
-    multi property tag_set2 -> str;
-    property tag_array -> array<str>;
+    optional multi property tag_set1 -> str;
+    optional multi property tag_set2 -> str;
+    optional property tag_array -> array<str>;
 }

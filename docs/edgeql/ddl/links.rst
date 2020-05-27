@@ -21,7 +21,7 @@ CREATE LINK
     [ WITH <with-item> [, ...] ]
     {CREATE|ALTER} TYPE <TypeName> "{"
       [ ... ]
-      CREATE [ REQUIRED ] [{SINGLE | MULTI}] LINK <name>
+      CREATE {REQUIRED | OPTIONAL} [{SINGLE | MULTI}] LINK <name>
         [ EXTENDING <base> [, ...] ] -> <type>
         [ "{" <subcommand>; [...] "}" ] ;
       [ ... ]
@@ -32,7 +32,7 @@ CREATE LINK
     [ WITH <with-item> [, ...] ]
     {CREATE|ALTER} TYPE <TypeName> "{"
       [ ... ]
-      CREATE [REQUIRED] [{SINGLE | MULTI}] LINK <name> := <expression>;
+      CREATE {REQUIRED | OPTIONAL} [{SINGLE | MULTI}] LINK <name> := <expression>;
       [ ... ]
     "}"
 
@@ -74,11 +74,18 @@ Parameters
 ----------
 
 :eql:synopsis:`REQUIRED`
-    If specified, the link is considered *required* for the parent
+    Specifies the link is considered *required* for the parent
     object type.  It is an error for an object to have a required
     link resolve to an empty value.  Child links **always** inherit
     the *required* attribute, i.e it is not possible to make a
-    required link non-required by extending it.
+    required link optional by extending it.
+
+:eql:synopsis:`OPTIONAL`
+    Specifies the link is considered *optional* for the parent
+    object type.  It is **not** an error for an object to have such
+    a link resolve to an empty value.  Child links **always** inherit
+    the *required* attribute, i.e it is not possible to make a
+    required link optional by extending it.
 
 :eql:synopsis:`MULTI`
     Specifies that there may be more than one instance of this link
@@ -150,7 +157,7 @@ Define a new link ``interests`` on the ``User`` object type:
 .. code-block:: edgeql
 
     ALTER TYPE User {
-        CREATE MULTI LINK friends -> User
+        CREATE OPTIONAL MULTI LINK friends -> User
     };
 
 Define a new link ``friends_in_same_town`` as a computable on the
@@ -159,7 +166,7 @@ Define a new link ``friends_in_same_town`` as a computable on the
 .. code-block:: edgeql
 
     ALTER TYPE User {
-        CREATE LINK friends_in_same_town := (
+        CREATE OPTIONAL LINK friends_in_same_town := (
             SELECT __source__.friends FILTER .town = __source__.town)
     };
 
@@ -169,11 +176,11 @@ Define a new abstract link ``orderable``, and then a concrete link
 .. code-block:: edgeql
 
     CREATE ABSTRACT LINK orderable {
-        CREATE PROPERTY weight -> std::int64
+        CREATE OPTIONAL PROPERTY weight -> std::int64
     };
 
     ALTER TYPE User {
-        CREATE MULTI LINK interests EXTENDING orderable -> Interest
+        CREATE OPTIONAL MULTI LINK interests EXTENDING orderable -> Interest
     };
 
 
@@ -216,7 +223,7 @@ Change the definition of a :ref:`link <ref_datamodel_links>`.
       CREATE ANNOTATION <annotation-name> := <value>
       ALTER ANNOTATION <annotation-name> := <value>
       DROP ANNOTATION <annotation-name>
-      CREATE PROPERTY <property-name> ...
+      CREATE OPTIONAL PROPERTY <property-name> ...
       ALTER PROPERTY <property-name> ...
       DROP PROPERTY <property-name> ...
       CREATE CONSTRAINT <constraint-name> ...
@@ -272,7 +279,7 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
     Make the link *required*.
 
 :eql:synopsis:`DROP REQUIRED`
-    Make the link no longer *required*.
+    Make the link *optional*, i.e. no longer *required*.
 
 :eql:synopsis:`SET SINGLE`
     Change the maximum cardinality of the link set to *one*.  Only

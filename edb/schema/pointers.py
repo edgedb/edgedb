@@ -31,6 +31,7 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
 from edb.edgeql import quote as qlquote
+from edb.errors import EdgeQLSyntaxError
 
 from . import abc as s_abc
 from . import annos as s_anno
@@ -1049,7 +1050,14 @@ class PointerCommand(
 
         This may be called in the context of either Create or Alter.
         """
-        if astnode.is_required is not None:
+        if astnode.is_required is None:
+            if not context.dumprestore:
+                raise EdgeQLSyntaxError(
+                    f'specify an explicit REQUIRED or OPTIONAL qualifier for'
+                    f' {astnode.name.name}',
+                    context=context,
+                )
+        else:
             self.set_attribute_value('required', astnode.is_required)
 
         if astnode.cardinality is not None:

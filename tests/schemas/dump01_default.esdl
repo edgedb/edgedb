@@ -45,24 +45,24 @@ function user_func_2(x: OPTIONAL int64, y: str = 'x') -> SET OF str {
 type A {
     annotation title := 'A';
 
-    property p_bool -> bool {
+    optional property p_bool -> bool {
         annotation title := 'single bool';
     }
-    property p_str -> str;
-    property p_datetime -> datetime;
-    property p_local_datetime -> cal::local_datetime;
-    property p_local_date -> cal::local_date;
-    property p_local_time -> cal::local_time;
-    property p_duration -> duration;
-    property p_int16 -> int16;
-    property p_int32 -> int32;
-    property p_int64 -> int64;
-    property p_float32 -> float32;
-    property p_float64 -> float64;
-    property p_bigint -> bigint;
-    property p_decimal -> decimal;
-    property p_json -> json;
-    property p_bytes -> bytes;
+    optional property p_str -> str;
+    optional property p_datetime -> datetime;
+    optional property p_local_datetime -> cal::local_datetime;
+    optional property p_local_date -> cal::local_date;
+    optional property p_local_time -> cal::local_time;
+    optional property p_duration -> duration;
+    optional property p_int16 -> int16;
+    optional property p_int32 -> int32;
+    optional property p_int64 -> int64;
+    optional property p_float32 -> float32;
+    optional property p_float64 -> float64;
+    optional property p_bigint -> bigint;
+    optional property p_decimal -> decimal;
+    optional property p_json -> json;
+    optional property p_bytes -> bytes;
 }
 
 
@@ -108,11 +108,11 @@ type D {
 
     required property num -> int64;
 
-    link single_link -> C {
-        annotation title := 'single link to C';
+    optional link single_link -> C {
+        annotation title := 'optional single link to C';
     }
-    multi link multi_link -> C {
-        annotation title := 'multi link to C';
+    optional multi link multi_link -> C {
+        annotation title := 'optional multi link to C';
     }
 }
 
@@ -120,13 +120,13 @@ type D {
 type E extending D {
     annotation title := 'E';
 
-    overloaded link single_link -> C {
-        property lp0 -> str {
+    overloaded optional link single_link -> C {
+        optional property lp0 -> str {
             annotation title := 'single lp0';
         }
     }
-    overloaded multi link multi_link -> C {
-        property lp1 -> str {
+    overloaded optional multi link multi_link -> C {
+        optional property lp1 -> str {
             annotation title := 'single lp1';
         }
     }
@@ -155,9 +155,9 @@ type G {
 
 
 type H {
-    property h0 := 'fixed';
-    property h1 := user_func_0(1);
-    property h2 := to_str(2);
+    optional property h0 := 'fixed';
+    optional property h1 := user_func_0(1);
+    optional property h2 := to_str(2);
 }
 
 
@@ -179,11 +179,11 @@ type I {
 
 
 type J {
-    link j0 := (SELECT C FILTER .val = 'D00' LIMIT 1);
-    link j1 := (
+    optional link j0 := (SELECT C FILTER .val = 'D00' LIMIT 1);
+    optional link j1 := (
         SELECT C FILTER .val = 'D0' ++ user_func_0(1)[-1] LIMIT 1
     );
-    link j2 := (
+    optional link j2 := (
         SELECT C FILTER .val = array_join(['D', '0', '2'], '') LIMIT 1
     );
 }
@@ -247,17 +247,17 @@ type O {
     required property o1 -> UserEnum {
         default := <UserEnum>'Lorem';
     };
-    property o2 := <UserEnum>'dolor';
+    optional property o2 := <UserEnum>'dolor';
 }
 
 
 # collection props
 type P {
     required link plink0 -> C {
-        property p0 -> array<str>;
+        optional property p0 -> array<str>;
     };
     required link plink1 -> C {
-        property p1 -> array<float64>;
+        optional property p1 -> array<float64>;
     };
     required property p2 -> array<str>;
     required property p3 -> array<float64>;
@@ -316,28 +316,28 @@ type W {
     required property name -> str {
         constraint exclusive;
     }
-    link w -> W;
+    optional link w -> W;
 }
 
 
 type X {
     required property name -> str;
-    link y -> Y;
+    optional link y -> Y;
 }
 
 
 type Y {
     required property name -> str;
-    link x -> X;
+    optional link x -> X;
 }
 
 
 # link target as a union type
 type Z {
     # have only 'id' in common
-    link ck -> C | K;
+    optional link ck -> C | K;
     # have 'name' in common
-    multi link stw -> S | T | W;
+    optional multi link stw -> S | T | W;
 }
 
 
@@ -349,7 +349,7 @@ type DefB {
     required property name -> str {
         default := test::user_func_3(0);
     }
-    link other -> test::TestB;
+    optional link other -> test::TestB;
 }
 
 
@@ -357,7 +357,7 @@ type DefC {
     required property name -> str {
         default := test::user_func_3(1);
     }
-    link other -> test::TestC;
+    optional link other -> test::TestC;
 }
 
 
@@ -373,16 +373,16 @@ type SourceA {
         constraint exclusive;
     }
 
-    link link0 -> TargetA {
+    optional link link0 -> TargetA {
         on target delete restrict;
     };
-    link link1 -> TargetA {
+    optional link link1 -> TargetA {
         on target delete delete source;
     };
-    link link2 -> TargetA {
+    optional link link2 -> TargetA {
         on target delete allow;
     };
-    link link3 -> TargetA {
+    optional link link3 -> TargetA {
         on target delete deferred restrict;
     };
 };
@@ -394,7 +394,7 @@ type ROPropsA {
         constraint exclusive;
     }
 
-    property rop0 -> int64 {
+    optional property rop0 -> int64 {
         readonly := True;
     }
     required property rop1 -> int64 {
@@ -409,7 +409,7 @@ type ROLinksA {
         constraint exclusive;
     }
 
-    link rol0 -> C {
+    optional link rol0 -> C {
         readonly := True;
     }
     required link rol1 -> C {
@@ -428,20 +428,20 @@ type ROLinksB {
         constraint exclusive;
     }
 
-    link rol0 -> C {
-        property rolp00 -> int64 {
+    optional link rol0 -> C {
+        optional property rolp00 -> int64 {
             readonly := True;
         }
-        property rolp01 -> int64 {
+        optional property rolp01 -> int64 {
             readonly := True;
             default := <int64>round(10 * random());
         }
     }
-    multi link rol1 -> C {
-        property rolp10 -> int64 {
+    optional multi link rol1 -> C {
+        optional property rolp10 -> int64 {
             readonly := True;
         }
-        property rolp11 -> int64 {
+        optional property rolp11 -> int64 {
             readonly := True;
             default := <int64>round(10 * random());
         }

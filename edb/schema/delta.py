@@ -636,6 +636,7 @@ class CommandContext:
         declarative: bool = False,
         stdmode: bool = False,
         testmode: bool = False,
+        dumprestore: bool = False,
         disable_dep_verification: bool = False,
         descriptive_mode: bool = False,
         schema_object_ids: Optional[
@@ -650,6 +651,7 @@ class CommandContext:
         self._modaliases = modaliases if modaliases is not None else {}
         self.stdmode = stdmode
         self.testmode = testmode
+        self.dumprestore = dumprestore
         self.descriptive_mode = descriptive_mode
         self.disable_dep_verification = disable_dep_verification
         self.renames: Dict[str, str] = {}

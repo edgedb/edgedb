@@ -1227,6 +1227,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             keywords.append('OVERLOADED')
         if node.is_required:
             keywords.append('REQUIRED')
+        else:
+            keywords.append('OPTIONAL')
         if node.cardinality:
             keywords.append(node.cardinality.as_ptr_qual().upper())
         keywords.append('PROPERTY')
@@ -1270,7 +1272,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 if kw[0] == 'SET':
                     keywords.append(kw[1])
 
-        order = ['REQUIRED', 'SINGLE', 'MULTI']
+        order = ['OPTIONAL', 'REQUIRED', 'SINGLE', 'MULTI']
         keywords.sort(key=lambda i: order.index(i))
 
         return keywords, frozenset(specials)
@@ -1335,6 +1337,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             keywords.append('OVERLOADED')
         if node.is_required:
             keywords.append('REQUIRED')
+        else:
+            keywords.append('OPTIONAL')
         if node.cardinality:
             keywords.append(node.cardinality.as_ptr_qual().upper())
         keywords.append('LINK')

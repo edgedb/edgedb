@@ -18,19 +18,19 @@
 
 
 type Target0 {
-    property name -> str;
+    optional property name -> str;
 }
 
 type Target1 extending Target0 {
-    overloaded property name -> str;
+    overloaded optional property name -> str;
 }
 
 type ObjectType0 {
-    link target -> Target0;
+    optional link target -> Target0;
 }
 
 type ObjectType1 {
-    link target -> Target0;
+    optional link target -> Target0;
 }
 
 type ObjectType01 extending ObjectType0;

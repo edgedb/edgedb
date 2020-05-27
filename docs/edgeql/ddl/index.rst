@@ -24,9 +24,9 @@ another, the other type has to be created first. For example:
     db> CREATE TYPE Movie {
     ...     CREATE REQUIRED PROPERTY title -> str;
     ...     # the year of release
-    ...     CREATE PROPERTY year -> int64;
+    ...     CREATE OPTIONAL PROPERTY year -> int64;
     ...     CREATE REQUIRED LINK director -> Person;
-    ...     CREATE MULTI LINK actors -> Person;
+    ...     CREATE OPTIONAL MULTI LINK actors -> Person;
     ... };
     CREATE
 

@@ -123,9 +123,9 @@ Now a ``Movie`` :ref:`type <ref_eql_ddl_object_types>` can be created with
     tutorial> CREATE TYPE Movie {
     .........     CREATE REQUIRED PROPERTY title -> str;
     .........     # the year of release
-    .........     CREATE PROPERTY year -> int64;
+    .........     CREATE OPTIONAL PROPERTY year -> int64;
     .........     CREATE REQUIRED LINK director -> Person;
-    .........     CREATE MULTI LINK actors -> Person;
+    .........     CREATE OPTIONAL MULTI LINK actors -> Person;
     ......... };
     CREATE
 

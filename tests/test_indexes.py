@@ -30,8 +30,8 @@ class TestIndexes(tb.DDLTestCase):
             CREATE MIGRATION d1 TO {
                 module test {
                     type Person {
-                        property first_name -> str;
-                        property last_name -> str;
+                        optional property first_name -> str;
+                        optional property last_name -> str;
 
                         index on ((.first_name, .last_name));
                     };
@@ -108,7 +108,7 @@ class TestIndexes(tb.DDLTestCase):
         await self.con.execute(r"""
             # setup delta
             CREATE TYPE test::User {
-                CREATE PROPERTY title -> str;
+                CREATE OPTIONAL PROPERTY title -> str;
                 CREATE INDEX ON (.title);
             };
         """)
@@ -138,8 +138,8 @@ class TestIndexes(tb.DDLTestCase):
     async def test_index_03(self):
         await self.con.execute(r"""
             CREATE TYPE test::User {
-                CREATE PROPERTY name -> str;
-                CREATE PROPERTY title -> str;
+                CREATE OPTIONAL PROPERTY name -> str;
+                CREATE OPTIONAL PROPERTY title -> str;
                 CREATE INDEX ON (.title);
             }
         """)

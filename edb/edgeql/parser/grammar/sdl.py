@@ -624,6 +624,7 @@ class ConcretePropertyBlock(Nonterm):
             target=kids[3].val,
             commands=kids[4].val,
         )
+        reject_unqualified(self.val)
 
     def reduce_CreateRegularQualifiedProperty(self, *kids):
         """%reduce
@@ -653,6 +654,7 @@ class ConcretePropertyBlock(Nonterm):
             target=kids[5].val,
             commands=kids[6].val,
         )
+        reject_unqualified(self.val)
 
 
 class ConcretePropertyShort(Nonterm):
@@ -665,6 +667,7 @@ class ConcretePropertyShort(Nonterm):
             bases=kids[2].val,
             target=kids[3].val,
         )
+        reject_unqualified(self.val)
 
     def reduce_CreateRegularQualifiedProperty(self, *kids):
         """%reduce
@@ -691,6 +694,7 @@ class ConcretePropertyShort(Nonterm):
             cardinality=kids[1].val.cardinality,
             target=kids[5].val,
         )
+        reject_unqualified(self.val)
 
     def reduce_CreateComputableProperty(self, *kids):
         """%reduce
@@ -700,6 +704,7 @@ class ConcretePropertyShort(Nonterm):
             name=kids[1].val,
             target=kids[3].val,
         )
+        reject_unqualified(self.val)
 
     def reduce_CreateQualifiedComputableProperty(self, *kids):
         """%reduce
@@ -777,6 +782,7 @@ class ConcreteLinkBlock(Nonterm):
                         context=cmd.context)
                 else:
                     on_target_delete = cmd
+        reject_unqualified(self.val)
 
     def reduce_CreateRegularLink(self, *kids):
         """%reduce
@@ -835,6 +841,7 @@ class ConcreteLinkShort(Nonterm):
             bases=kids[2].val,
             target=kids[3].val,
         )
+        reject_unqualified(self.val)
 
     def reduce_CreateRegularQualifiedLink(self, *kids):
         """%reduce
@@ -862,6 +869,7 @@ class ConcreteLinkShort(Nonterm):
             bases=kids[4].val,
             target=kids[5].val,
         )
+        reject_unqualified(self.val)
 
     def reduce_CreateComputableLink(self, *kids):
         """%reduce
@@ -871,6 +879,7 @@ class ConcreteLinkShort(Nonterm):
             name=kids[1].val,
             target=kids[3].val,
         )
+        reject_unqualified(self.val)
 
     def reduce_CreateQualifiedComputableLink(self, *kids):
         """%reduce
@@ -1035,4 +1044,15 @@ class FunctionDeclarationShort(Nonterm, commondl.ProcessFunctionBlockMixin):
             returning=kids[5].val,
             returning_typemod=kids[4].val,
             **self._process_function_body(kids[6]),
+        )
+
+
+def reject_unqualified(val):
+    if getattr(val, 'is_required', False) is not None:
+        return
+
+    for cmd in val.commands:
+        raise errors.EdgeQLSyntaxError(
+            f"specify an explicit OPTIONAL or REQUIRED qualifier",
+            context=cmd.context,
         )

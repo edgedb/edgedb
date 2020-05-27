@@ -47,11 +47,11 @@ CREATE ABSTRACT TYPE schema::Object EXTENDING std::BaseObject {
 
 
 CREATE ABSTRACT TYPE schema::SubclassableObject EXTENDING schema::Object {
-    CREATE PROPERTY is_abstract -> std::bool {
+    CREATE OPTIONAL PROPERTY is_abstract -> std::bool {
         SET default := false;
     };
 
-    CREATE PROPERTY is_final -> std::bool {
+    CREATE OPTIONAL PROPERTY is_final -> std::bool {
         SET default := false;
     };
 };
@@ -62,25 +62,25 @@ CREATE ABSTRACT TYPE schema::Type EXTENDING schema::SubclassableObject;
 CREATE TYPE schema::PseudoType EXTENDING schema::Type;
 
 ALTER TYPE schema::Type {
-    CREATE PROPERTY expr -> std::str;
-    CREATE PROPERTY is_from_alias := EXISTS(.expr);
+    CREATE OPTIONAL PROPERTY expr -> std::str;
+    CREATE OPTIONAL PROPERTY is_from_alias := EXISTS(.expr);
 };
 
 
 ALTER TYPE std::BaseObject {
-    CREATE LINK __type__ -> schema::Type {
+    CREATE OPTIONAL LINK __type__ -> schema::Type {
         SET readonly := True;
     };
 };
 
 
 CREATE ABSTRACT LINK schema::reference {
-    CREATE PROPERTY is_local -> std::bool;
+    CREATE OPTIONAL PROPERTY is_local -> std::bool;
 };
 
 
 CREATE ABSTRACT LINK schema::ordered {
-    CREATE PROPERTY index -> std::int64;
+    CREATE OPTIONAL PROPERTY index -> std::int64;
 };
 
 
@@ -92,18 +92,18 @@ CREATE ABSTRACT TYPE schema::CollectionType EXTENDING schema::Type;
 
 CREATE TYPE schema::Array EXTENDING schema::CollectionType {
     CREATE REQUIRED LINK element_type -> schema::Type;
-    CREATE PROPERTY dimensions -> array<std::int16>;
+    CREATE OPTIONAL PROPERTY dimensions -> array<std::int16>;
 };
 
 
 CREATE TYPE schema::TupleElement {
     CREATE REQUIRED LINK type -> schema::Type;
-    CREATE PROPERTY name -> std::str;
+    CREATE OPTIONAL PROPERTY name -> std::str;
 };
 
 
 CREATE TYPE schema::Tuple EXTENDING schema::CollectionType {
-    CREATE MULTI LINK element_types EXTENDING schema::ordered
+    CREATE OPTIONAL MULTI LINK element_types EXTENDING schema::ordered
     -> schema::TupleElement {
         CREATE CONSTRAINT std::exclusive;
     }
@@ -111,30 +111,30 @@ CREATE TYPE schema::Tuple EXTENDING schema::CollectionType {
 
 
 CREATE TYPE schema::Delta EXTENDING schema::Object {
-    CREATE MULTI LINK parents -> schema::Delta;
+    CREATE OPTIONAL MULTI LINK parents -> schema::Delta;
 };
 
 
 CREATE TYPE schema::Annotation EXTENDING schema::Object {
-    CREATE PROPERTY inheritable -> std::bool;
+    CREATE OPTIONAL PROPERTY inheritable -> std::bool;
 };
 
 
 CREATE ABSTRACT TYPE schema::AnnotationSubject EXTENDING schema::Object {
-    CREATE MULTI LINK annotations EXTENDING schema::reference
+    CREATE OPTIONAL MULTI LINK annotations EXTENDING schema::reference
     -> schema::Annotation {
-        CREATE PROPERTY value -> std::str;
+        CREATE OPTIONAL PROPERTY value -> std::str;
     };
 };
 
 
 CREATE ABSTRACT TYPE schema::InheritingObject
 EXTENDING schema::SubclassableObject {
-    CREATE MULTI LINK bases EXTENDING schema::ordered
+    CREATE OPTIONAL MULTI LINK bases EXTENDING schema::ordered
         -> schema::InheritingObject;
-    CREATE MULTI LINK ancestors EXTENDING schema::ordered
+    CREATE OPTIONAL MULTI LINK ancestors EXTENDING schema::ordered
         -> schema::InheritingObject;
-    CREATE PROPERTY inherited_fields -> array<std::str>;
+    CREATE OPTIONAL PROPERTY inherited_fields -> array<std::str>;
 };
 
 
@@ -143,25 +143,25 @@ CREATE TYPE schema::Parameter EXTENDING schema::Object {
     CREATE REQUIRED PROPERTY typemod -> std::str;
     CREATE REQUIRED PROPERTY kind -> std::str;
     CREATE REQUIRED PROPERTY num -> std::int64;
-    CREATE PROPERTY default -> std::str;
+    CREATE OPTIONAL PROPERTY default -> std::str;
 };
 
 
 CREATE ABSTRACT TYPE schema::CallableObject
     EXTENDING schema::AnnotationSubject
 {
-    CREATE MULTI LINK params -> schema::Parameter {
+    CREATE OPTIONAL MULTI LINK params -> schema::Parameter {
         CREATE CONSTRAINT std::exclusive;
         ON TARGET DELETE ALLOW;
     };
 
-    CREATE LINK return_type -> schema::Type;
-    CREATE PROPERTY return_typemod -> std::str;
+    CREATE OPTIONAL LINK return_type -> schema::Type;
+    CREATE OPTIONAL PROPERTY return_typemod -> std::str;
 };
 
 
 CREATE ABSTRACT TYPE schema::VolatilitySubject EXTENDING schema::Object {
-    CREATE PROPERTY volatility -> schema::Volatility {
+    CREATE OPTIONAL PROPERTY volatility -> schema::Volatility {
         # NOTE: this default indicates the default value in the python
         # implementation, but is not itself a source of truth
         SET default := 'VOLATILE';
@@ -173,18 +173,18 @@ CREATE TYPE schema::Constraint
     EXTENDING schema::CallableObject, schema::InheritingObject
 {
     ALTER LINK params {
-        CREATE PROPERTY value -> std::str;
+        CREATE OPTIONAL PROPERTY value -> std::str;
     };
-    CREATE PROPERTY expr -> std::str;
-    CREATE PROPERTY subjectexpr -> std::str;
-    CREATE PROPERTY finalexpr -> std::str;
-    CREATE PROPERTY errmessage -> std::str;
-    CREATE PROPERTY delegated -> std::bool;
+    CREATE OPTIONAL PROPERTY expr -> std::str;
+    CREATE OPTIONAL PROPERTY subjectexpr -> std::str;
+    CREATE OPTIONAL PROPERTY finalexpr -> std::str;
+    CREATE OPTIONAL PROPERTY errmessage -> std::str;
+    CREATE OPTIONAL PROPERTY delegated -> std::bool;
 };
 
 
 CREATE ABSTRACT TYPE schema::ConsistencySubject EXTENDING schema::Object {
-    CREATE MULTI LINK constraints EXTENDING schema::reference
+    CREATE OPTIONAL MULTI LINK constraints EXTENDING schema::reference
     -> schema::Constraint {
         CREATE CONSTRAINT std::exclusive;
     };
@@ -192,17 +192,17 @@ CREATE ABSTRACT TYPE schema::ConsistencySubject EXTENDING schema::Object {
 
 
 ALTER TYPE schema::Constraint {
-    CREATE LINK subject := .<constraints[IS schema::ConsistencySubject];
+    CREATE OPTIONAL LINK subject := .<constraints[IS schema::ConsistencySubject];
 };
 
 
 CREATE TYPE schema::Index EXTENDING schema::AnnotationSubject {
-    CREATE PROPERTY expr -> std::str;
+    CREATE OPTIONAL PROPERTY expr -> std::str;
 };
 
 
 CREATE ABSTRACT TYPE schema::Source EXTENDING schema::Object {
-    CREATE MULTI LINK indexes -> schema::Index {
+    CREATE OPTIONAL MULTI LINK indexes -> schema::Index {
         CREATE CONSTRAINT std::exclusive;
     };
 };
@@ -213,15 +213,15 @@ CREATE ABSTRACT TYPE schema::Pointer
         schema::InheritingObject, schema::ConsistencySubject,
         schema::AnnotationSubject
 {
-    CREATE PROPERTY cardinality -> schema::Cardinality;
-    CREATE PROPERTY required -> std::bool;
-    CREATE PROPERTY default -> std::str;
-    CREATE PROPERTY expr -> std::str;
+    CREATE OPTIONAL PROPERTY cardinality -> schema::Cardinality;
+    CREATE OPTIONAL PROPERTY required -> std::bool;
+    CREATE OPTIONAL PROPERTY default -> std::str;
+    CREATE OPTIONAL PROPERTY expr -> std::str;
 };
 
 
 ALTER TYPE schema::Source {
-    CREATE MULTI LINK pointers EXTENDING schema::reference -> schema::Pointer {
+    CREATE OPTIONAL MULTI LINK pointers EXTENDING schema::reference -> schema::Pointer {
         CREATE CONSTRAINT std::exclusive;
     };
 };
@@ -232,8 +232,8 @@ CREATE TYPE schema::ScalarType
         schema::InheritingObject, schema::ConsistencySubject,
         schema::AnnotationSubject, schema::Type
 {
-    CREATE PROPERTY default -> std::str;
-    CREATE PROPERTY enum_values -> array<std::str>;
+    CREATE OPTIONAL PROPERTY default -> std::str;
+    CREATE OPTIONAL PROPERTY enum_values -> array<std::str>;
 };
 
 
@@ -244,9 +244,9 @@ CREATE TYPE schema::ObjectType
 
 
 ALTER TYPE schema::ObjectType {
-    CREATE MULTI LINK union_of -> schema::ObjectType;
-    CREATE MULTI LINK intersection_of -> schema::ObjectType;
-    CREATE PROPERTY is_compound_type := (
+    CREATE OPTIONAL MULTI LINK union_of -> schema::ObjectType;
+    CREATE OPTIONAL MULTI LINK intersection_of -> schema::ObjectType;
+    CREATE OPTIONAL PROPERTY is_compound_type := (
         EXISTS .union_of OR EXISTS .intersection_of
     );
 };
@@ -259,27 +259,27 @@ CREATE TYPE schema::Property EXTENDING schema::Pointer;
 
 
 ALTER TYPE schema::Pointer {
-    CREATE LINK source -> schema::Source;
-    CREATE LINK target -> schema::Type;
+    CREATE OPTIONAL LINK source -> schema::Source;
+    CREATE OPTIONAL LINK target -> schema::Type;
 };
 
 
 ALTER TYPE schema::Link {
-    CREATE MULTI LINK properties := .pointers;
-    CREATE PROPERTY on_target_delete -> schema::TargetDeleteAction;
+    CREATE OPTIONAL MULTI LINK properties := .pointers;
+    CREATE OPTIONAL PROPERTY on_target_delete -> schema::TargetDeleteAction;
 };
 
 
 ALTER TYPE schema::ObjectType {
-    CREATE MULTI LINK links := .pointers[IS schema::Link];
-    CREATE MULTI LINK properties := .pointers[IS schema::Property];
+    CREATE OPTIONAL MULTI LINK links := .pointers[IS schema::Link];
+    CREATE OPTIONAL MULTI LINK properties := .pointers[IS schema::Property];
 };
 
 
 CREATE TYPE schema::Function
     EXTENDING schema::CallableObject, schema::VolatilitySubject
 {
-    CREATE PROPERTY session_only -> std::bool {
+    CREATE OPTIONAL PROPERTY session_only -> std::bool {
         SET default := false;
     };
 };
@@ -288,8 +288,8 @@ CREATE TYPE schema::Function
 CREATE TYPE schema::Operator
     EXTENDING schema::CallableObject, schema::VolatilitySubject
 {
-    CREATE PROPERTY operator_kind -> schema::OperatorKind;
-    CREATE PROPERTY is_abstract -> std::bool {
+    CREATE OPTIONAL PROPERTY operator_kind -> schema::OperatorKind;
+    CREATE OPTIONAL PROPERTY is_abstract -> std::bool {
         SET default := false;
     };
 };
@@ -298,8 +298,8 @@ CREATE TYPE schema::Operator
 CREATE TYPE schema::Cast
     EXTENDING schema::AnnotationSubject, schema::VolatilitySubject
 {
-    CREATE LINK from_type -> schema::Type;
-    CREATE LINK to_type -> schema::Type;
-    CREATE PROPERTY allow_implicit -> std::bool;
-    CREATE PROPERTY allow_assignment -> std::bool;
+    CREATE OPTIONAL LINK from_type -> schema::Type;
+    CREATE OPTIONAL LINK to_type -> schema::Type;
+    CREATE OPTIONAL PROPERTY allow_implicit -> std::bool;
+    CREATE OPTIONAL PROPERTY allow_assignment -> std::bool;
 };

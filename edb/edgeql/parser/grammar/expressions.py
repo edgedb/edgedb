@@ -437,6 +437,9 @@ class PtrQualsSpec(typing.NamedTuple):
 
 
 class PtrQuals(Nonterm):
+    def reduce_OPTIONAL(self, *kids):
+        self.val = PtrQualsSpec(required=False)
+
     def reduce_REQUIRED(self, *kids):
         self.val = PtrQualsSpec(required=True)
 
@@ -445,6 +448,14 @@ class PtrQuals(Nonterm):
 
     def reduce_MULTI(self, *kids):
         self.val = PtrQualsSpec(cardinality=qltypes.SchemaCardinality.MANY)
+
+    def reduce_OPTIONAL_SINGLE(self, *kids):
+        self.val = PtrQualsSpec(
+            required=False, cardinality=qltypes.SchemaCardinality.ONE)
+
+    def reduce_OPTIONAL_MULTI(self, *kids):
+        self.val = PtrQualsSpec(
+            required=False, cardinality=qltypes.SchemaCardinality.MANY)
 
     def reduce_REQUIRED_SINGLE(self, *kids):
         self.val = PtrQualsSpec(

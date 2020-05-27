@@ -58,7 +58,7 @@ Create an object type ``User`` with an indexed ``name`` property:
 .. code-block:: edgeql
 
     CREATE TYPE User {
-        CREATE PROPERTY name -> str {
+        CREATE OPTIONAL PROPERTY name -> str {
             SET default := '';
         };
 
