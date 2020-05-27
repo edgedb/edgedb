@@ -24,7 +24,7 @@ import tempfile
 from edb.testbase import server as tb
 
 
-class TestDumpBasics(tb.DatabaseTestCase, tb.CLITestCaseMixin):
+class TestDumpBasics(tb.DatabaseTestCase, tb.OldCLITestCaseMixin):
 
     ISOLATED_METHODS = False
     SERIALIZED = True
