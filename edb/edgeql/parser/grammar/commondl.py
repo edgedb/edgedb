@@ -331,13 +331,13 @@ class FromFunction(Nonterm):
 
 
 class ProcessFunctionBlockMixin:
-    def _process_function_body(self, block):
+    def _process_function_body(self, block, *, optional_using: bool=False):
         props = {}
 
         commands = []
         code = None
         nativecode = None
-        language = qlast.Language.SQL
+        language = qlast.Language.EdgeQL
         from_expr = False
         from_function = None
 
@@ -349,6 +349,7 @@ class ProcessFunctionBlockMixin:
                             'more than one USING FUNCTION clause',
                             context=node.context)
                     from_function = node.from_function
+                    language = qlast.Language.SQL
 
                 elif node.nativecode:
                     if code is not None or nativecode is not None:
@@ -369,6 +370,7 @@ class ProcessFunctionBlockMixin:
                 else:
                     # USING SQL EXPRESSION
                     from_expr = True
+                    language = qlast.Language.SQL
             else:
                 commands.append(node)
 
@@ -376,10 +378,11 @@ class ProcessFunctionBlockMixin:
             nativecode is None and
             code is None and
             from_function is None and
-            not from_expr
+            not from_expr and
+            not optional_using
         ):
             raise EdgeQLSyntaxError(
-                'CREATE FUNCTION requires at least one USING clause',
+                'missing a USING clause',
                 context=block.context)
 
         else:

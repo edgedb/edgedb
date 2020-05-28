@@ -16,8 +16,20 @@
 # limitations under the License.
 #
 
+abstract annotation `🍿`;
+
+function `💯`(NAMED ONLY `🙀`: int64) -> int64 {
+    using (
+        SELECT 100 - `🙀`
+    );
+
+    annotation `🍿` := 'fun!';
+    volatility := 'IMMUTABLE';
+}
+
 type `S p a M` {
     required property `🚀` -> int32;
+    property c100 := (SELECT `💯`(`🙀` := .`🚀`));
 }
 
 type A {

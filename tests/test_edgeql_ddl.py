@@ -1774,6 +1774,124 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 $$;
             """)
 
+    async def test_edgeql_ddl_function_26(self):
+        await self.con.execute(r"""
+            CREATE ABSTRACT ANNOTATION foo26;
+
+            CREATE FUNCTION test::edgeql_func26(a: std::str) -> std::str {
+                USING EdgeQL $$
+                    SELECT a ++ 'aaa'
+                $$;
+                SET volatility := 'VOLATILE';
+            };
+
+            ALTER FUNCTION test::edgeql_func26(a: std::str) {
+                CREATE ANNOTATION foo26 := 'aaaa';
+            };
+
+            ALTER FUNCTION test::edgeql_func26(a: std::str) {
+                SET volatility := 'IMMUTABLE';
+            };
+        """)
+
+        await self.assert_query_result(
+            r'''
+                SELECT test::edgeql_func26('b')
+            ''',
+            [
+                'baaa'
+            ],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT Function {
+                    name,
+                    annotations: {
+                        name,
+                        @value,
+                    },
+                    vol := <str>.volatility,
+                }
+                FILTER
+                    .name = 'test::edgeql_func26';
+            ''',
+            [
+                {
+                    'name': 'test::edgeql_func26',
+                    'annotations': [
+                        {
+                            'name': 'default::foo26',
+                            '@value': 'aaaa',
+                        },
+                    ],
+                    'vol': 'IMMUTABLE',
+                },
+            ]
+        )
+
+        await self.con.execute(r"""
+            ALTER FUNCTION test::edgeql_func26(a: std::str) {
+                DROP ANNOTATION foo26;
+            };
+        """)
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT Function {
+                    name,
+                    annotations: {
+                        name,
+                        @value,
+                    },
+                }
+                FILTER
+                    .name = 'test::edgeql_func26';
+            ''',
+            [
+                {
+                    'name': 'test::edgeql_func26',
+                    'annotations': [],
+                },
+            ]
+        )
+
+        await self.con.execute(r"""
+            ALTER FUNCTION test::edgeql_func26(a: std::str) {
+                USING (
+                    SELECT a ++ 'bbb'
+                )
+            };
+        """)
+
+        await self.assert_query_result(
+            r'''
+                SELECT test::edgeql_func26('b')
+            ''',
+            [
+                'bbbb'
+            ],
+        )
+
+        await self.con.execute(r"""
+            ALTER FUNCTION test::edgeql_func26(a: std::str) {
+                USING EdgeQL $$
+                    SELECT a ++ 'zzz'
+                $$
+            };
+        """)
+
+        await self.assert_query_result(
+            r'''
+                SELECT test::edgeql_func26('b')
+            ''',
+            [
+                'bzzz'
+            ],
+        )
+
     async def test_edgeql_ddl_module_01(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaError,

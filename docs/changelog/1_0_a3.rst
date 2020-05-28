@@ -86,6 +86,7 @@ EdgeQL
   (:eql:gh:`#1201`, :eql:gh:`#349`).
 * Prohibit database names longer than 63 characters (:eql:gh:`#1158`).
 * Prohibit duplicate elements in shapes (:eql:gh:`#1368`).
+* Implement :eql:stmt:`ALTER FUNCTION` (:eql:gh:`#1433`).
 
 
 GraphQL

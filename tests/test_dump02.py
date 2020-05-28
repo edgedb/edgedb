@@ -76,14 +76,18 @@ class TestDump02(tb.QueryTestCase, tb.CLITestCaseMixin):
             r'''
                 SELECT A {
                     `s p A m 🤞`: {
-                        `🚀`
+                        `🚀`,
+                        c100,
+                        c101 := `💯`(`🙀` := .`🚀` + 1)
                     }
                 }
             ''',
             [
                 {
                     's p A m 🤞': {
-                        '🚀': 42
+                        '🚀': 42,
+                        'c100': 58,
+                        'c101': 57,
                     }
                 }
             ]

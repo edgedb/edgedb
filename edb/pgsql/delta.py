@@ -430,10 +430,6 @@ class FunctionCommand:
 
         return args
 
-
-class CreateFunction(FunctionCommand, CreateObject,
-                     adapts=s_funcs.CreateFunction):
-
     def make_function(self, func: s_funcs.Function, code, schema):
         func_return_typemod = func.get_return_typemod(schema)
         func_params = func.get_params(schema)
@@ -465,19 +461,19 @@ class CreateFunction(FunctionCommand, CreateObject,
 
         return self.make_function(func, sql_text, schema)
 
-    def apply(
+    def make_op(
         self,
+        func: s_funcs.Function,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-    ) -> s_schema.Schema:
-        schema = super().apply(schema, context)
-        func = self.scls
-
+        *,
+        or_replace: bool=False,
+    ) -> Tuple[s_schema.Schema, dbops.CreateFunction]:
         if (
             func.get_code(schema) is None
             and func.get_nativecode(schema) is None
         ):
-            return schema
+            return schema, None
 
         func_language = func.get_language(schema)
 
@@ -491,8 +487,22 @@ class CreateFunction(FunctionCommand, CreateObject,
                 f'unsupported language {func_language}',
                 context=self.source_context)
 
-        op = dbops.CreateFunction(dbf)
-        self.pgops.add(op)
+        op = dbops.CreateFunction(dbf, or_replace=or_replace)
+        return schema, op
+
+
+class CreateFunction(FunctionCommand, CreateObject,
+                     adapts=s_funcs.CreateFunction):
+
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super().apply(schema, context)
+        schema, op = self.make_op(self.scls, schema, context)
+        if op is not None:
+            self.pgops.add(op)
         return schema
 
 
@@ -503,7 +513,24 @@ class RenameFunction(
 
 class AlterFunction(
         FunctionCommand, AlterObject, adapts=s_funcs.AlterFunction):
-    pass
+
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super().apply(schema, context)
+
+        if (
+            self.get_attribute_value('volatility') is not None or
+            self.get_attribute_value('nativecode') is not None
+        ):
+            schema, op = self.make_op(
+                self.scls, schema, context, or_replace=True)
+            if op is not None:
+                self.pgops.add(op)
+
+        return schema
 
 
 class DeleteFunction(
