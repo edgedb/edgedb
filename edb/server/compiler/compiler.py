@@ -1631,7 +1631,7 @@ class Compiler(BaseCompiler):
                     link_bias=True,
                 )
 
-                cols.append(pg_common.quote_ident(stor_info.column_name))
+                cols.append(stor_info.column_name)
 
                 props[ptr.get_shortname(schema).name] = ptr.get_target(schema)
 
@@ -1661,7 +1661,7 @@ class Compiler(BaseCompiler):
                 )
 
                 if stor_info.table_type == 'ObjectType':
-                    cols.append(pg_common.quote_ident(stor_info.column_name))
+                    cols.append(stor_info.column_name)
                     shape.append(ptr)
 
                 link_stor_info = pg_types.get_pointer_storage_info(
@@ -1687,7 +1687,8 @@ class Compiler(BaseCompiler):
         )
 
         stmt = (
-            f'COPY {table_name} ({", ".join(c for c in cols)}) '
+            f'COPY {table_name} '
+            f'({", ".join(pg_common.quote_ident(c) for c in cols)}) '
             f'TO STDOUT WITH BINARY'
         ).encode()
 
@@ -1761,7 +1762,7 @@ class Compiler(BaseCompiler):
                         link_bias=True,
                     )
 
-                    cols.append(pg_common.quote_ident(stor_info.column_name))
+                    cols.append(stor_info.column_name)
 
                 if set(desc_cols) != set(cols):
                     raise RuntimeError(
@@ -1783,8 +1784,7 @@ class Compiler(BaseCompiler):
                     )
 
                     if stor_info.table_type == 'ObjectType':
-                        cols.append(pg_common.quote_ident(
-                            stor_info.column_name))
+                        cols.append(stor_info.column_name)
 
                 if set(desc_cols) != set(cols):
                     raise RuntimeError(
@@ -1794,7 +1794,8 @@ class Compiler(BaseCompiler):
                 schema, obj, catenate=True)
 
             stmt = (
-                f'COPY {table_name} ({", ".join(c for c in desc_cols)}) '
+                f'COPY {table_name} '
+                f'({", ".join(pg_common.quote_ident(c) for c in desc_cols)}) '
                 f'FROM STDIN WITH BINARY'
             ).encode()
 
