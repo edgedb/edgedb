@@ -124,7 +124,10 @@ def compile_Parameter(
     is_decimal: bool = expr.name.isdecimal()
 
     if not is_decimal and ctx.env.use_named_params:
-        result = pgast.NamedParamRef(name=expr.name)
+        result = pgast.NamedParamRef(
+            name=expr.name,
+            nullable=not expr.required,
+        )
     else:
         try:
             index = ctx.argmap[expr.name].index
@@ -142,7 +145,7 @@ def compile_Parameter(
                     index=index,
                     required=expr.required,
                 )
-        result = pgast.ParamRef(number=index)
+        result = pgast.ParamRef(number=index, nullable=not expr.required)
 
     return pgast.TypeCast(
         arg=result,
