@@ -386,6 +386,9 @@ Date and Time
                   std::to_datetime(year: int64, month: int64, day: int64, \
                     hour: int64, min: int64, sec: float64, timezone: str) \
                     -> datetime
+                  std::to_datetime(epochseconds: decimal) -> datetime
+                  std::to_datetime(epochseconds: float64) -> datetime
+                  std::to_datetime(epochseconds: int64) -> datetime
 
     :index: parse datetime
 
@@ -416,7 +419,7 @@ Date and Time
         ...   <cal::local_datetime>'January 1, 2019 12:00AM', 'HKT');
         {<datetime>'2018-12-31T16:00:00+00:00'}
 
-    Yet another way to construct a the :eql:type:`datetime` value
+    Another way to construct a the :eql:type:`datetime` value
     is to specify it in terms of its component parts: *year*, *month*,
     *day*, *hour*, *min*, *sec*, and *timezone*
 
@@ -426,6 +429,13 @@ Date and Time
         ...     2018, 5, 7, 15, 1, 22.306916, 'UTC');
         {<datetime>'2018-05-07T15:01:22.306916+00:00'}
 
+    Finally, it is also possible to convert a Unix timestamp to a
+    :eql:type:`datetime`
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT to_datetime(1590595184.584);
+        {<datetime>'2020-05-27T15:59:44.584000000Z'}
 
 ------------
 
