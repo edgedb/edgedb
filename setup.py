@@ -308,6 +308,7 @@ class develop(setuptools_develop.develop):
                 '--root', rust_root,
                 '--features=dev_mode',
                 '--locked',
+                '--debug',
             ],
             env=env,
             check=True,
