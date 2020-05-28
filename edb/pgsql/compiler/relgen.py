@@ -70,27 +70,38 @@ class SetRVars:
 
 
 def new_simple_set_rvar(
-        ir_set: irast.Set, rvar: pgast.PathRangeVar,
-        aspects: Optional[Iterable[str]]=None) -> SetRVars:
-
-    if aspects is None:
-        if ir_set.path_id.is_objtype_path():
-            aspects = ('source', 'value')
-        else:
-            aspects = ('value',)
-
+    ir_set: irast.Set,
+    rvar: pgast.PathRangeVar,
+    aspects: Iterable[str],
+) -> SetRVars:
     srvar = SetRVar(rvar=rvar, path_id=ir_set.path_id, aspects=aspects)
     return SetRVars(main=srvar, new=[srvar])
 
 
 def new_source_set_rvar(
-        ir_set: irast.Set, rvar: pgast.PathRangeVar) -> SetRVars:
-
+    ir_set: irast.Set,
+    rvar: pgast.PathRangeVar,
+) -> SetRVars:
     aspects = ['value']
     if ir_set.path_id.is_objtype_path():
         aspects.append('source')
 
     return new_simple_set_rvar(ir_set, rvar, aspects)
+
+
+def new_stmt_set_rvar(
+    ir_set: irast.Set,
+    stmt: pgast.Query,
+    *,
+    aspects: Optional[Iterable[str]]=None,
+    ctx: context.CompilerContextLevel,
+) -> SetRVars:
+    rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
+    if aspects is not None:
+        aspects = tuple(aspects)
+    else:
+        aspects = pathctx.list_path_aspects(stmt, ir_set.path_id, env=ctx.env)
+    return new_simple_set_rvar(ir_set, rvar, aspects=aspects)
 
 
 class OptionalRel(NamedTuple):
@@ -809,8 +820,8 @@ def process_set_as_path(
                     env=ctx.env,
                 )
 
-        sub_rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
-        return new_simple_set_rvar(ir_set, sub_rvar, ['value', 'source'])
+        return new_stmt_set_rvar(
+            ir_set, stmt, aspects=['value', 'source'], ctx=ctx)
 
     ptr_info = pg_types.get_ptrref_storage_info(
         ptrref, resolve_type=False, link_bias=False)
@@ -1085,8 +1096,7 @@ def process_set_as_subquery(
         # over-represent it in terms of the exposed aspects.
         aspects -= {'serialized'}
 
-    sub_rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
-    return new_simple_set_rvar(ir_set, sub_rvar, aspects)
+    return new_stmt_set_rvar(ir_set, stmt, aspects=aspects, ctx=ctx)
 
 
 def process_set_as_membership_expr(
@@ -1148,8 +1158,7 @@ def process_set_as_membership_expr(
     pathctx.put_path_value_var_if_not_exists(
         stmt, ir_set.path_id, set_expr, env=ctx.env)
 
-    rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
-    return new_simple_set_rvar(ir_set, rvar)
+    return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
 
 def process_set_as_setop(
@@ -1185,9 +1194,7 @@ def process_set_as_setop(
         union_rvar = relctx.rvar_for_rel(subqry, lateral=True, ctx=subctx)
         relctx.include_rvar(stmt, union_rvar, ir_set.path_id, ctx=subctx)
 
-    rvar = relctx.rvar_for_rel(
-        stmt, typeref=ir_set.typeref, lateral=True, ctx=ctx)
-    return new_simple_set_rvar(ir_set, rvar)
+    return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
 
 def process_set_as_distinct(
@@ -1212,9 +1219,7 @@ def process_set_as_distinct(
     stmt.distinct_clause = pathctx.get_rvar_output_var_as_col_list(
         subrvar, value_var, aspect='value', env=ctx.env)
 
-    rvar = relctx.rvar_for_rel(
-        stmt, typeref=ir_set.typeref, lateral=True, ctx=ctx)
-    return new_simple_set_rvar(ir_set, rvar)
+    return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
 
 def process_set_as_ifelse(
@@ -1289,8 +1294,7 @@ def process_set_as_ifelse(
             union_rvar = relctx.rvar_for_rel(subqry, lateral=True, ctx=subctx)
             relctx.include_rvar(stmt, union_rvar, ir_set.path_id, ctx=subctx)
 
-    rvar = relctx.rvar_for_rel(stmt, lateral=True, ctx=ctx)
-    return new_simple_set_rvar(ir_set, rvar)
+    return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
 
 def process_set_as_coalesce(
@@ -1417,8 +1421,7 @@ def process_set_as_coalesce(
                 stmt.where_clause,
                 astutils.get_column(subrvar, marker, nullable=False))
 
-    rvar = relctx.rvar_for_rel(stmt, lateral=True, ctx=ctx)
-    return new_simple_set_rvar(ir_set, rvar)
+    return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
 
 def process_set_as_tuple(
@@ -1461,8 +1464,8 @@ def process_set_as_tuple(
     relctx.ensure_bond_for_expr(ir_set, stmt, ctx=ctx)
     pathctx.put_path_value_var(stmt, ir_set.path_id, set_expr, env=ctx.env)
 
-    rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
-    return new_simple_set_rvar(ir_set, rvar, ['value', 'source'])
+    return new_stmt_set_rvar(
+        ir_set, stmt, aspects=['value', 'source'], ctx=ctx)
 
 
 def process_set_as_tuple_indirection(
@@ -1562,8 +1565,7 @@ def process_set_as_type_cast(
     pathctx.put_path_value_var_if_not_exists(
         stmt, ir_set.path_id, set_expr, env=ctx.env)
 
-    rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
-    return new_simple_set_rvar(ir_set, rvar)
+    return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
 
 def process_set_as_type_introspection(
@@ -1585,9 +1587,9 @@ def process_set_as_type_introspection(
     relctx.include_rvar(substmt, type_rvar, ir_set.path_id, ctx=ctx)
     substmt.where_clause = astutils.extend_binop(
         substmt.where_clause, condition)
-    set_rvar = relctx.new_rel_rvar(ir_set, substmt, ctx=ctx)
 
-    return new_simple_set_rvar(ir_set, set_rvar, ['value', 'source'])
+    return new_stmt_set_rvar(
+        ir_set, substmt, aspects=['value', 'source'], ctx=ctx)
 
 
 def process_set_as_const_set(
@@ -1604,8 +1606,7 @@ def process_set_as_const_set(
     vals_rvar = relctx.new_rel_rvar(ir_set, vals_rel, ctx=ctx)
     relctx.include_rvar(stmt, vals_rvar, ir_set.path_id, ctx=ctx)
 
-    rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
-    return new_simple_set_rvar(ir_set, rvar)
+    return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
 
 def process_set_as_expr(
@@ -1618,8 +1619,7 @@ def process_set_as_expr(
     pathctx.put_path_value_var_if_not_exists(
         stmt, ir_set.path_id, set_expr, env=ctx.env)
 
-    rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
-    return new_simple_set_rvar(ir_set, rvar)
+    return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
 
 def process_set_as_enumerate(
@@ -1678,9 +1678,7 @@ def process_set_as_enumerate(
     relctx.include_rvar(stmt, func_rvar, ir_set.path_id,
                         pull_namespace=False, aspects=aspects, ctx=ctx)
 
-    rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
-
-    return new_simple_set_rvar(ir_set, rvar, aspects=aspects)
+    return new_stmt_set_rvar(ir_set, stmt, aspects=aspects, ctx=ctx)
 
 
 def _process_set_func_with_ordinality(
@@ -1907,8 +1905,6 @@ def _compile_func_epilogue(
     relctx.include_rvar(stmt, func_rvar, ir_set.path_id,
                         pull_namespace=False, aspects=aspects, ctx=ctx)
 
-    rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
-
     if (ir_set.path_id.is_tuple_path()
             and expr.typemod is qltypes.TypeModifier.SET_OF):
         # Functions returning a set of tuples are compiled with an
@@ -1918,7 +1914,7 @@ def _compile_func_epilogue(
         # `tuple_getattr()`.
         aspects += ('source',)
 
-    return new_simple_set_rvar(ir_set, rvar, aspects=aspects)
+    return new_stmt_set_rvar(ir_set, stmt, aspects=aspects, ctx=ctx)
 
 
 def _compile_func_args(
@@ -2230,8 +2226,7 @@ def process_set_as_agg_expr(
     pathctx.put_path_value_var_if_not_exists(
         stmt, ir_set.path_id, set_expr, env=ctx.env)
 
-    rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
-    return new_simple_set_rvar(ir_set, rvar)
+    return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
 
 def process_set_as_exists_expr(
@@ -2260,8 +2255,7 @@ def process_set_as_exists_expr(
         )
 
     pathctx.put_path_value_var(stmt, ir_set.path_id, set_expr, env=ctx.env)
-    rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
-    return new_simple_set_rvar(ir_set, rvar)
+    return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
 
 def build_array_expr(
@@ -2347,5 +2341,4 @@ def process_set_as_array_expr(
         pathctx.put_path_serialized_var(
             stmt, ir_set.path_id, s_set_expr, env=ctx.env)
 
-    rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
-    return new_simple_set_rvar(ir_set, rvar)
+    return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
