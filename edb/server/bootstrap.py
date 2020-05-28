@@ -22,6 +22,7 @@ from typing import *
 
 import json
 import logging
+import os
 import pathlib
 import pickle
 import re
@@ -338,7 +339,7 @@ async def _make_stdlib(testmode: bool, global_ids) -> StdlibBits:
     schema = s_schema.Schema()
     schema, _ = s_mod.Module.create_in_schema(schema, name='__derived__')
 
-    current_block = None
+    current_block = dbops.PLTopBlock()
 
     std_texts = []
     for modname in s_schema.STD_LIB + ('stdgraphql',):
@@ -364,25 +365,7 @@ async def _make_stdlib(testmode: bool, global_ids) -> StdlibBits:
         schema, plan = _process_delta(delta_command, schema)
         std_plans.append(delta_command)
 
-        if isinstance(plan, (s_db.CreateDatabase, s_db.DropDatabase)):
-            if (current_block is not None and
-                    not isinstance(current_block, dbops.SQLBlock)):
-                raise errors.QueryError(
-                    'cannot mix DATABASE commands with regular DDL '
-                    'commands in a single block')
-            if current_block is None:
-                current_block = dbops.SQLBlock()
-
-        else:
-            types.update(plan.new_types)
-            if (current_block is not None and
-                    not isinstance(current_block, dbops.PLTopBlock)):
-                raise errors.QueryError(
-                    'cannot mix DATABASE commands with regular DDL '
-                    'commands in a single block')
-            if current_block is None:
-                current_block = dbops.PLTopBlock()
-
+        types.update(plan.new_types)
         plan.generate(current_block)
 
     stdglobals = '\n'.join([
@@ -463,25 +446,76 @@ async def _make_stdlib(testmode: bool, global_ids) -> StdlibBits:
     )
 
 
+async def _amend_stdlib(
+    ddl_text: str,
+    stdlib: StdlibBits,
+) -> Tuple[StdlibBits, str]:
+    schema = stdlib.stdschema
+    reflschema = stdlib.reflschema
+
+    topblock = dbops.PLTopBlock()
+    plans = []
+
+    context = sd.CommandContext()
+    context.stdmode = True
+
+    for ddl_cmd in edgeql.parse_block(ddl_text):
+        delta_command = s_ddl.delta_from_ddl(
+            ddl_cmd, modaliases={}, schema=schema, stdmode=True)
+
+        if debug.flags.delta_plan_input:
+            debug.header('Delta Plan Input')
+            debug.dump(delta_command)
+
+        # Apply and adapt delta, build native delta plan, which
+        # will also update the schema.
+        schema, plan = _process_delta(delta_command, schema)
+        reflschema = delta_command.apply(reflschema, context)
+        plan.generate(topblock)
+        plans.append(plan)
+
+    compiler = edbcompiler.new_compiler(
+        std_schema=schema,
+        reflection_schema=reflschema,
+        schema_class_layout=stdlib.classlayout,
+        bootstrap_mode=True,
+    )
+
+    compilerctx = edbcompiler.new_compiler_context(schema)
+
+    for plan in plans:
+        compiler._compile_schema_storage_in_delta(
+            ctx=compilerctx,
+            delta=plan,
+            block=topblock,
+            stdmode=True,
+        )
+
+    sqltext = topblock.to_string()
+
+    return stdlib._replace(stdschema=schema, reflschema=reflschema), sqltext
+
+
 async def _init_stdlib(cluster, conn, testmode, global_ids):
     in_dev_mode = devmode.is_in_dev_mode()
 
-    cache_hit = False
-    stdlib = None
-    tpldbdump = None
+    specified_cache_dir = os.environ.get('_EDGEDB_WRITE_DATA_CACHE_TO')
+    if specified_cache_dir:
+        cache_dir = pathlib.Path(specified_cache_dir)
+    else:
+        cache_dir = None
 
-    if in_dev_mode:
-        stdlib_cache = 'backend-stdlib.pickle'
-        tpldbdump_cache = 'backend-tpldbdump.sql'
-        src_hash = devmode.hash_dirs(CACHE_SRC_DIRS)
-        if testmode:
-            src_hash = b'testmode' + src_hash
-        stdlib = devmode.read_dev_mode_cache(src_hash, stdlib_cache)
-        tpldbdump = devmode.read_dev_mode_cache(
-            src_hash, tpldbdump_cache, pickled=False)
+    stdlib_cache = 'backend-stdlib.pickle'
+    tpldbdump_cache = 'backend-tpldbdump.sql'
+    src_hash = buildmeta.hash_dirs(CACHE_SRC_DIRS)
+    stdlib = buildmeta.read_data_cache(
+        src_hash, stdlib_cache, source_dir=cache_dir)
+    tpldbdump = buildmeta.read_data_cache(
+        src_hash, tpldbdump_cache, source_dir=cache_dir, pickled=False)
 
     if stdlib is None:
-        stdlib = await _make_stdlib(testmode, global_ids)
+        stdlib = await _make_stdlib(in_dev_mode or testmode, global_ids)
+        cache_hit = False
     else:
         cache_hit = True
 
@@ -489,11 +523,16 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
         await _ensure_meta_schema(conn)
         await _execute_ddl(conn, stdlib.sqltext)
 
-        if in_dev_mode:
+        if in_dev_mode or specified_cache_dir:
             tpldbdump = cluster.dump_database(
                 edbdef.EDGEDB_TEMPLATE_DB, exclude_schema='edgedbinstdata')
-            devmode.write_dev_mode_cache(
-                tpldbdump, src_hash, tpldbdump_cache, pickled=False)
+            buildmeta.write_data_cache(
+                tpldbdump,
+                src_hash,
+                tpldbdump_cache,
+                pickled=False,
+                target_dir=cache_dir,
+            )
     else:
         cluster.restore_database(edbdef.EDGEDB_TEMPLATE_DB, tpldbdump)
 
@@ -528,6 +567,15 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
         )
         await conn.execute(sql)
 
+    if not in_dev_mode and testmode:
+        # Running tests on a production build.
+        stdlib, testmode_sql = await _amend_stdlib(
+            s_std.get_std_module_text('_testmode'),
+            stdlib,
+        )
+        await conn.execute(testmode_sql)
+        await metaschema.generate_support_views(conn, stdlib.reflschema)
+
     # Make sure that schema backend_id properties are in sync with
     # the database.
 
@@ -558,8 +606,13 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
 
     stdlib = stdlib._replace(stdschema=schema)
 
-    if not cache_hit and in_dev_mode:
-        devmode.write_dev_mode_cache(stdlib, src_hash, stdlib_cache)
+    if not cache_hit and (in_dev_mode or specified_cache_dir):
+        buildmeta.write_data_cache(
+            stdlib,
+            src_hash,
+            stdlib_cache,
+            target_dir=cache_dir,
+        )
 
     await _store_static_bin_cache(
         cluster,
@@ -678,11 +731,10 @@ async def _configure(
     cluster: pgcluster.BaseCluster,
     *,
     insecure: bool = False,
-    testmode: bool = False,
 ) -> None:
     scripts = []
 
-    if cluster.is_managed() and not testmode:
+    if cluster.is_managed() and not devmode.is_in_dev_mode():
         memory_kb = psutil.virtual_memory().total // 1024
         settings: Mapping[str, str] = {
             'shared_buffers': f'"{int(memory_kb * 0.2)}kB"',
@@ -936,8 +988,7 @@ async def bootstrap(cluster, args) -> bool:
                 schema = await _init_defaults(std_schema, compiler, conn)
                 schema = await _populate_data(std_schema, compiler, conn)
                 await _configure(schema, compiler, conn, cluster,
-                                 insecure=args['insecure'],
-                                 testmode=args['testmode'])
+                                 insecure=args['insecure'])
             finally:
                 await conn.close()
 

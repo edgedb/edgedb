@@ -2425,7 +2425,7 @@ async def generate_support_views(conn, schema):
             name=('edgedb', f'_Schema{schema_obj.get_name(schema).name}'),
             query=(f'SELECT * FROM {q(*bn)}')
         )
-        commands.add_command(dbops.CreateView(alias_view))
+        commands.add_command(dbops.CreateView(alias_view, or_replace=True))
 
     InhObject = schema.get('schema::InheritingObject')
     InhObject_ancestors = InhObject.getptr(schema, 'ancestors')
@@ -2437,20 +2437,20 @@ async def generate_support_views(conn, schema):
         name=('edgedb', f'_SchemaInheritingObject__ancestors'),
         query=(f'SELECT * FROM {q(*bn)}')
     )
-    commands.add_command(dbops.CreateView(alias_view))
+    commands.add_command(dbops.CreateView(alias_view, or_replace=True))
 
     conf = schema.get('cfg::Config')
     cfg_views, _ = _generate_config_type_view(schema, conf, path=[], rptr=None)
     commands.add_commands([
-        dbops.CreateView(dbops.View(name=tn, query=q))
+        dbops.CreateView(dbops.View(name=tn, query=q), or_replace=True)
         for tn, q in cfg_views
     ])
 
     for dbview in _generate_database_views(schema):
-        commands.add_command(dbops.CreateView(dbview))
+        commands.add_command(dbops.CreateView(dbview, or_replace=True))
 
     for roleview in _generate_role_views(schema):
-        commands.add_command(dbops.CreateView(roleview))
+        commands.add_command(dbops.CreateView(roleview, or_replace=True))
 
     block = dbops.PLTopBlock(disable_ddl_triggers=True)
     commands.generate(block)

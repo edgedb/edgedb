@@ -21,9 +21,13 @@ from __future__ import annotations
 from typing import *
 
 import enum
+import hashlib
 import json
+import logging
 import os
 import pathlib
+import pickle
+import tempfile
 
 import immutables as immu
 
@@ -46,6 +50,10 @@ class MetadataError(Exception):
 
 
 def get_build_metadata_value(prop: str) -> str:
+    env_val = os.environ.get(f'_EDGEDB_BUILDMETA_{prop}')
+    if env_val:
+        return env_val
+
     try:
         from . import _buildmeta  # type: ignore
         return getattr(_buildmeta, prop)
@@ -88,6 +96,90 @@ def get_runstate_path(data_dir: pathlib.Path) -> pathlib.Path:
         return data_dir
     else:
         return pathlib.Path(get_build_metadata_value('RUNSTATE_DIR'))
+
+
+def get_shared_data_dir_path() -> pathlib.Path:
+    if devmode.is_in_dev_mode():
+        return devmode.get_dev_mode_cache_dir()
+    else:
+        return pathlib.Path(get_build_metadata_value('SHARED_DATA_DIR'))
+
+
+def hash_dirs(dirs: Tuple[str, str]) -> bytes:
+    def hash_dir(dirname, ext, paths):
+        with os.scandir(dirname) as it:
+            for entry in it:
+                if entry.is_file() and entry.name.endswith(ext):
+                    paths.append(entry.path)
+                elif entry.is_dir():
+                    hash_dir(entry.path, ext, paths)
+
+    paths = []
+    for dirname, ext in dirs:
+        hash_dir(dirname, ext, paths)
+
+    h = hashlib.sha1()  # sha1 is the fastest one.
+    for path in sorted(paths):
+        with open(path, 'rb') as f:
+            h.update(f.read())
+
+    return h.digest()
+
+
+def read_data_cache(
+    cache_key: bytes,
+    path: os.PathLike,
+    *,
+    pickled: bool=True,
+    source_dir: Optional[pathlib.Path] = None,
+) -> Any:
+    if source_dir is None:
+        source_dir = get_shared_data_dir_path()
+    full_path = source_dir / path
+
+    if full_path.exists():
+        with open(full_path, 'rb') as f:
+            src_hash = f.read(len(cache_key))
+            if src_hash == cache_key:
+                if pickled:
+                    data = f.read()
+                    try:
+                        return pickle.loads(data)
+                    except Exception:
+                        logging.exception(f'could not unpickle {path}')
+                else:
+                    return f.read()
+
+
+def write_data_cache(
+    obj: Any,
+    cache_key: bytes,
+    path: os.PathLike,
+    *,
+    pickled: bool = True,
+    target_dir: Optional[pathlib.Path] = None,
+):
+    if target_dir is None:
+        target_dir = get_shared_data_dir_path()
+    full_path = target_dir / path
+
+    try:
+        with tempfile.NamedTemporaryFile(
+                mode='wb', dir=full_path.parent, delete=False) as f:
+            f.write(cache_key)
+            if pickled:
+                pickle.dump(obj, file=f, protocol=pickle.HIGHEST_PROTOCOL)
+            else:
+                f.write(obj)
+    except Exception:
+        try:
+            os.unlink(f.name)
+        except OSError:
+            pass
+        finally:
+            raise
+    else:
+        os.rename(f.name, full_path)
 
 
 class VersionStage(enum.IntEnum):
