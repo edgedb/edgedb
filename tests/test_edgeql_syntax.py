@@ -2589,7 +2589,7 @@ aa';
     def test_edgeql_syntax_function_02(self):
         """
         SELECT str_lower(string := User.name);
-        SELECT baz(age := User.age, of := User.name, select := 1);
+        SELECT baz(age := User.age, of := User.name, `select` := 1);
         """
 
     def test_edgeql_syntax_function_03(self):
@@ -3232,7 +3232,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "CREATE FUNCTION requires at least one USING clause", line=2)
+                  "missing a USING clause", line=2)
     def test_edgeql_syntax_ddl_function_27(self):
         """
         CREATE FUNCTION foo() -> std::str {

@@ -614,7 +614,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_FunctionCall(self, node: qlast.FunctionCall) -> None:
         if isinstance(node.func, tuple):
-            self.write('::'.join(node.func))
+            self.write(
+                f'{ident_to_str(node.func[0])}::{ident_to_str(node.func[1])}')
         else:
             self.write(ident_to_str(node.func))
 
@@ -632,7 +633,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             for i, (name, arg) in enumerate(node.kwargs.items()):
                 if i > 0:
                     self.write(', ')
-                self.write(f'{name} := ')
+                self.write(f'{edgeql_quote.quote_ident(name)} := ')
                 self.visit(arg)
 
         self.write(')')
@@ -1517,7 +1518,12 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                                  render_commands=False)
 
     def visit_AlterFunction(self, node: qlast.AlterFunction) -> None:
-        self._visit_AlterObject(node, 'FUNCTION')
+        def after_name() -> None:
+            self.write('(')
+            self.visit_list(node.params, newlines=False)
+            self.write(')')
+
+        self._visit_AlterObject(node, 'FUNCTION', after_name=after_name)
 
     def visit_DropFunction(self, node: qlast.DropFunction) -> None:
         self._visit_DropObject(node, 'FUNCTION')

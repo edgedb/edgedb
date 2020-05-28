@@ -397,6 +397,16 @@ class Parameter(so.ObjectFragment, ParameterLike):
     def as_str(self, schema: s_schema.Schema) -> str:
         return param_as_str(schema, self)
 
+    def get_ast(self, schema: s_schema.Schema) -> qlast.FuncParam:
+        default = self.get_default(schema)
+        return qlast.FuncParam(
+            name=self.get_parameter_name(schema),
+            type=utils.typeref_to_ast(schema, self.get_type(schema)),
+            typemod=self.get_typemod(schema),
+            kind=self.get_kind(schema),
+            default=default.qlast if default else None,
+        )
+
 
 class CallableCommandContext(sd.ObjectCommandContext['CallableObject'],
                              s_anno.AnnotationSubjectCommandContext):
@@ -545,6 +555,12 @@ class FuncParameterList(so.ObjectList[Parameter], ParameterLikeList):
         schema: s_schema.Schema,
     ) -> Tuple[Parameter, ...]:
         return canonical_param_sort(schema, self.objects(schema))
+
+    def get_ast(self, schema: s_schema.Schema) -> List[qlast.FuncParam]:
+        result = []
+        for param in self.objects(schema):
+            result.append(param.get_ast(schema))
+        return result
 
 
 class VolatilitySubject(so.Object):
@@ -768,6 +784,23 @@ class CallableCommand(sd.QualifiedObjectCommand[CallableObject]):
 
 class AlterCallableObject(CallableCommand,
                           sd.AlterObject[CallableObject]):
+
+    def get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.CallableObject]:
+        node = cast(
+            qlast.CallableObject,
+            super()._get_ast(schema, context, parent_node=parent_node)
+        )
+
+        scls = self.get_object(schema, context)
+        node.params = scls.get_params(schema).get_ast(schema)
+
+        return node
 
     def _alter_innards(
         self,
@@ -1368,6 +1401,49 @@ class RenameFunction(sd.RenameObject, FunctionCommand):
 class AlterFunction(AlterCallableObject, FunctionCommand):
 
     astnode = qlast.AlterFunction
+
+    @classmethod
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> sd.Command:
+
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        assert isinstance(astnode, qlast.AlterFunction)
+
+        if astnode.code is not None:
+            if (
+                astnode.code.language is not qlast.Language.EdgeQL or
+                astnode.code.from_function is not None or
+                astnode.code.from_expr
+            ):
+                raise errors.EdgeQLSyntaxError(
+                    'altering function code is only supported for '
+                    'pure EdgeQL functions',
+                    context=astnode.context
+                )
+
+            nativecode_expr: Optional[qlast.Expr] = None
+            if astnode.nativecode is not None:
+                nativecode_expr = astnode.nativecode
+            elif astnode.code.code is not None:
+                nativecode_expr = qlparser.parse(astnode.code.code)
+
+            if nativecode_expr is not None:
+                nativecode = expr.Expression.from_ast(
+                    nativecode_expr,
+                    schema,
+                    context.modaliases,
+                )
+
+                cmd.set_attribute_value(
+                    'nativecode',
+                    nativecode,
+                )
+
+        return cmd
 
     def _get_attribute_value(
         self,

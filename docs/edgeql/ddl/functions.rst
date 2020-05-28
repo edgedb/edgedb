@@ -47,9 +47,10 @@ CREATE FUNCTION
 
       [ <typequal> ] <rettype>
 
-    # where <subcommand> is one of
+    # and <subcommand> is one of
 
       SET session_only := {true | false} ;
+      SET volatility := {'VOLATILE' | 'IMMUTABLE' | 'STABLE'} ;
       CREATE ANNOTATION <annotation-name> := <value> ;
       USING ( <expr> ) ;
       USING <language> <functionbody> ;
@@ -156,6 +157,24 @@ block:
     :eql:func:`sys::advisory_lock`, :eql:func:`sys::advisory_unlock`,
     :eql:func:`sys::advisory_unlock_all`.
 
+:eql:synopsis:`SET volatility := {'VOLATILE' | 'IMMUTABLE' | 'STABLE'}`
+    Function volatility determines how aggressively the compiler can
+    optimize its invocations.
+
+    If not explicitly specified the function volatility is set to
+    ``IMMUTABLE`` by default.
+
+    * A ``VOLATILE`` function can modify the database and can return
+      different results on successive calls with the same arguments.
+
+    * A ``STABLE`` function cannot modify the database and is
+      guaranteed to return the same results given the same
+      arguments *within a single statement*.
+
+    * An ``IMMUTABLE`` function cannot modify the database and is
+      guaranteed to return the same results given the same arguments
+      *forever*.
+
 :eql:synopsis:`CREATE ANNOTATION <annotation-name> := <value>`
     Set the function's :eql:synopsis:`<annotation-name>` to
     :eql:synopsis:`<value>`.
@@ -199,6 +218,73 @@ Define a function using the block syntax:
     };
 
 
+ALTER FUNCTION
+==============
+
+:eql-statement:
+:eql-haswith:
+
+Change the definition of a function.
+
+.. eql:synopsis::
+
+    [ WITH <with-item> [, ...] ]
+    ALTER FUNCTION <name> ([ <argspec> ] [, ... ]) "{"
+        <subcommand> [, ...]
+    "}"
+
+    # where <argspec> is:
+
+    [ <argkind> ] <argname>: [ <typequal> ] <argtype> [ = <default> ]
+
+    # and <subcommand> is one of
+
+      SET session_only := {true | false} ;
+      SET volatility := {'VOLATILE' | 'IMMUTABLE' | 'STABLE'} ;
+      CREATE ANNOTATION <annotation-name> := <value> ;
+      ALTER ANNOTATION <annotation-name> := <value> ;
+      DROP ANNOTATION <annotation-name> ;
+      USING ( <expr> ) ;
+      USING <language> <functionbody> ;
+
+
+Description
+-----------
+
+``ALTER FUNCTION`` changes the definition of a function. The command
+allows to change annotations, the volatility level, and other attributes.
+
+
+Subcommands
+-----------
+
+Refer to :eql:stmt:`CREATE FUNCTION` for details.
+
+
+Example
+-------
+
+.. code-block:: edgeql
+
+    CREATE FUNCTION mysum(a: int64, b: int64) -> int64 {
+        USING (
+            SELECT a + b
+        );
+        CREATE ANNOTATION title := "My sum function.";
+    };
+
+    ALTER FUNCTION mysum(a: int64, b: int64) {
+        SET volatility := 'IMMUTABLE';
+        DROP ANNOTATION title;
+    };
+
+    ALTER FUNCTION mysum(a: int64, b: int64) {
+        USING (
+            SELECT (a + b) * 100
+        )
+    };
+
+
 DROP FUNCTION
 =============
 
@@ -215,7 +301,7 @@ Remove a function.
 
     # where <argspec> is:
 
-    [ <argname>: ] [ <argmode> ] <argtype>
+    [ <argkind> ] <argname>: [ <typequal> ] <argtype> [ = <default> ]
 
 
 Description

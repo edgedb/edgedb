@@ -916,8 +916,9 @@ class CreateFunction(CreateObject, CallableObject):
     returning_typemod: qltypes.TypeModifier = qltypes.TypeModifier.SINGLETON
 
 
-class AlterFunction(AlterObject):
-    value: Base
+class AlterFunction(AlterObject, CallableObject):
+    code: FunctionCode
+    nativecode: typing.Optional[Expr]
 
 
 class DropFunction(DropObject, CallableObject):
