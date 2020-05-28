@@ -949,6 +949,25 @@ class TestExpressions(tb.QueryTestCase):
                     variables={'x': [123]},
                 )
 
+    async def test_edgeql_expr_variables_06(self):
+        await self.assert_query_result(
+            f'''SELECT <OPTIONAL int64>$x + <int64>$y;''',
+            [5],
+            variables={'x': 2, 'y': 3},
+        )
+
+        await self.assert_query_result(
+            f'''SELECT <OPTIONAL int64>$x + <int64>$y;''',
+            [],
+            variables={'x': None, 'y': 3},
+        )
+
+        await self.assert_query_result(
+            f'''SELECT len(<OPTIONAL str>$x);''',
+            [],
+            variables={'x': None},
+        )
+
     async def _test_boolop(self, left, right, op, not_op, result):
         if isinstance(result, bool):
             # this operation should be valid and produce opposite
