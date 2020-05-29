@@ -53,8 +53,10 @@ class SchemaName(str):
 
             if not _module:
                 if not module:
-                    err = 'improperly formed name: ' \
-                          'module is not specified: {}'.format(name)
+                    err = (
+                        f'improperly formed name {name!r}: '
+                        f'module is not specified'
+                    )
                     raise errors.InvalidReferenceError(err)
                 else:
                     _module = module
@@ -125,7 +127,13 @@ def unmangle_name(name: str) -> str:
 
 @functools.lru_cache(4096)
 def shortname_from_fullname(fullname: SchemaName) -> SchemaName:
-    parts = str(fullname.name).split('@@', 1)
+    if isinstance(fullname, SchemaName):
+        name = fullname.name
+    else:
+        # `name` is a str
+        name = fullname
+
+    parts = str(name).split('@@', 1)
     if len(parts) == 2:
         return SchemaName(unmangle_name(parts[0]))
     else:

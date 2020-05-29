@@ -1371,7 +1371,8 @@ class QualifiedObjectCommand(ObjectCommand[so.QualifiedObject_T]):
         metaclass = self.get_schema_metaclass()
         return cast(
             Optional[so.QualifiedObject_T],
-            schema.get(name, type=metaclass, default=default),
+            schema.get(name, type=metaclass, default=default,
+                       sourcectx=self.source_context),
         )
 
 
