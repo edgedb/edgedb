@@ -5269,3 +5269,256 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     CREATE INDEX ON (array_unpack([.a, .b]));
                 }
             """)
+
+    async def test_edgeql_ddl_errors_01(self):
+        await self.con.execute('''
+            WITH MODULE test
+            CREATE TYPE Err1 {
+                CREATE REQUIRED PROPERTY foo -> str;
+            };
+
+            WITH MODULE test
+            ALTER TYPE Err1
+            CREATE REQUIRED LINK bar -> Err1;
+        ''')
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.errors.InvalidReferenceError,
+                    "property 'b' does not exist"):
+                await self.con.execute('''
+                    WITH MODULE test
+                    ALTER TYPE Err1 ALTER PROPERTY b
+                    CREATE CONSTRAINT std::regexp(r'b');
+                ''')
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.errors.InvalidReferenceError,
+                    "property 'b' does not exist"):
+                await self.con.execute('''
+                    WITH MODULE test
+                    ALTER TYPE Err1 DROP PROPERTY b
+                ''')
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.errors.InvalidReferenceError,
+                    "constraint 'test::a' does not exist"):
+                await self.con.execute('''
+                    WITH MODULE test
+                    ALTER TYPE Err1 ALTER PROPERTY foo
+                    DROP CONSTRAINT a;
+                ''')
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.errors.InvalidReferenceError,
+                    "constraint 'test::a' does not exist"):
+                await self.con.execute('''
+                    WITH MODULE test
+                    ALTER TYPE Err1 ALTER PROPERTY foo
+                    ALTER CONSTRAINT a ON (foo > 0) {
+                        CREATE ANNOTATION title := 'test'
+                    }
+                ''')
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.errors.InvalidReferenceError,
+                    "annotation 'std::title' does not exist"):
+                await self.con.execute('''
+                    WITH MODULE test
+                    ALTER TYPE Err1 ALTER PROPERTY foo
+                    ALTER ANNOTATION title := 'aaa'
+                ''')
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.errors.InvalidReferenceError,
+                    "annotation 'std::title' does not exist"):
+                await self.con.execute('''
+                    WITH MODULE test
+                    ALTER TYPE Err1 ALTER PROPERTY foo
+                    DROP ANNOTATION title;
+                ''')
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.errors.InvalidReferenceError,
+                    "annotation 'std::title' does not exist"):
+                await self.con.execute('''
+                    WITH MODULE test
+                    ALTER TYPE Err1
+                    ALTER ANNOTATION title := 'aaa'
+                ''')
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.errors.InvalidReferenceError,
+                    "annotation 'std::title' does not exist"):
+                await self.con.execute('''
+                    WITH MODULE test
+                    ALTER TYPE Err1
+                    DROP ANNOTATION title
+                ''')
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.errors.InvalidReferenceError,
+                    "index '.foo' does not exist on object type 'test::Err1'"):
+                await self.con.execute('''
+                    WITH MODULE test
+                    ALTER TYPE Err1
+                    DROP INDEX ON (.foo)
+                ''')
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.errors.InvalidReferenceError,
+                    "index '.zz' does not exist on object type 'test::Err1'"):
+                await self.con.execute('''
+                    WITH MODULE test
+                    ALTER TYPE Err1
+                    DROP INDEX ON (.zz)
+                ''')
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.errors.InvalidReferenceError,
+                    "object type 'test::Err1' has no link or property 'zz'"):
+                await self.con.execute('''
+                    WITH MODULE test
+                    ALTER TYPE Err1
+                    CREATE INDEX ON (.zz)
+                ''')
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.errors.InvalidReferenceError,
+                    "object type 'test::Err1' has no link or property 'zz'"):
+                await self.con.execute('''
+                    WITH MODULE test
+                    ALTER TYPE Err1
+                    CREATE INDEX ON ((.foo, .zz))
+                ''')
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.errors.InvalidReferenceError,
+                    "improperly formed name 'blah': module is not specified"):
+                await self.con.execute('''
+                    WITH MODULE test
+                    CREATE TYPE Err1 EXTENDING blah {
+                        CREATE PROPERTY foo -> str;
+                    };
+                ''')
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.errors.InvalidReferenceError,
+                    "object type 'test::blah' does not exist"):
+                await self.con.execute('''
+                    WITH MODULE test
+                    CREATE TYPE Err2 EXTENDING test::blah {
+                        CREATE PROPERTY foo -> str;
+                    };
+                ''')
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.errors.InvalidReferenceError,
+                    "link 'b' does not exist"):
+                await self.con.execute('''
+                    WITH MODULE test
+                    ALTER TYPE Err1 ALTER LINK b
+                    CREATE CONSTRAINT std::regexp(r'b');
+                ''')
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.errors.InvalidReferenceError,
+                    "link 'b' does not exist"):
+                await self.con.execute('''
+                    WITH MODULE test
+                    ALTER TYPE Err1 DROP LINK b;
+                ''')
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.errors.InvalidReferenceError,
+                    "annotation 'std::title' does not exist"):
+                await self.con.execute('''
+                    WITH MODULE test
+                    ALTER TYPE Err1 ALTER LINK bar
+                    DROP ANNOTATION title;
+                ''')
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.errors.InvalidReferenceError,
+                    "constraint 'std::min_value' does not exist"):
+                await self.con.execute('''
+                    WITH MODULE test
+                    ALTER TYPE Err1 ALTER LINK bar
+                    DROP CONSTRAINT min_value(0);
+                ''')
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.errors.InvalidReferenceError,
+                    "property 'spam' does not exist"):
+                await self.con.execute('''
+                    WITH MODULE test
+                    ALTER TYPE Err1
+                    ALTER LINK bar
+                    DROP PROPERTY spam;
+                ''')
+
+    @test.xfail('''
+        The test currently fails with "property 'spam' does not exist",
+        but it should fail with "link 'foo' does not exist", as
+        `ALTER LINK foo` is the preceeding invalid command.
+    ''')
+    async def test_edgeql_ddl_errors_02(self):
+        await self.con.execute('''
+            WITH MODULE test
+            CREATE TYPE Err2 {
+                CREATE REQUIRED PROPERTY foo -> str;
+            };
+
+            WITH MODULE test
+            ALTER TYPE Err2
+            CREATE REQUIRED LINK bar -> Err2;
+        ''')
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.errors.InvalidReferenceError,
+                    "link 'foo' does not exist"):
+                await self.con.execute('''
+                    WITH MODULE test
+                    ALTER TYPE Err2
+                    ALTER LINK foo
+                    DROP PROPERTY spam;
+                ''')
+
+    async def test_edgeql_ddl_errors_03(self):
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.errors.InvalidReferenceError,
+                    "function 'test::foo___1' does not exist"):
+                await self.con.execute('''
+                    WITH MODULE test
+                    ALTER FUNCTION foo___1(a: int64)
+                    SET volatility := 'STABLE';
+                ''')
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.errors.InvalidReferenceError,
+                    "function 'test::foo___1' does not exist"):
+                await self.con.execute('''
+                    WITH MODULE test
+                    DROP FUNCTION foo___1(a: int64);
+                ''')

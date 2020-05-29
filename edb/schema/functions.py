@@ -898,7 +898,10 @@ class DeleteCallableObject(CallableCommand,
             cmd.add(param.as_delete_delta(
                 schema, cmd.classname, context=context))
 
-        obj: CallableObject = schema.get(cmd.classname)
+        obj: CallableObject = schema.get(
+            cmd.classname,
+            type=cls.get_schema_metaclass(),
+            sourcectx=astnode.context)
 
         return_type = obj.get_return_type(schema)
         if return_type.is_collection():

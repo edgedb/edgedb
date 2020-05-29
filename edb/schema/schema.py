@@ -863,6 +863,9 @@ class Schema(s_abc.Schema):
         if refname is None:
             refname = name
 
+        if type is not None:
+            refname = type.get_displayname_static(refname)
+
         raise errors.InvalidReferenceError(
             f'{label} {refname!r} does not exist',
             context=sourcectx)

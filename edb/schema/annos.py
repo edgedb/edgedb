@@ -231,7 +231,7 @@ class CreateAnnotationValue(
 
         if not isinstance(value, str):
             raise ValueError(
-                f'unexpected value type in AnnotationValue: {value!r}')
+                f'unexpected value type in annotation: {value!r}')
 
         attr: Annotation = schema.get(propname)
 

@@ -156,7 +156,8 @@ class Constraint(referencing.ReferencedInheritingObject,
         from edb.edgeql import utils as qlutils
         from edb.ir import ast as ir_ast
 
-        constr_base: Constraint = schema.get(name, module_aliases=modaliases)
+        constr_base: Constraint = schema.get(
+            name, type=cls, module_aliases=modaliases)
 
         module_aliases: Mapping[Optional[str], str] = {}
 
@@ -293,7 +294,8 @@ class Constraint(referencing.ReferencedInheritingObject,
                 qlparser.parse(arg.text) for arg in args
             )
 
-            constr_base: Constraint = schema.get(self.get_name(schema))
+            constr_base: Constraint = schema.get(
+                self.get_name(schema), type=type(self))
 
             index_parameters = qlutils.index_parameters(
                 args_ql,
