@@ -614,6 +614,110 @@ class CreateConstraint(
 
         return params
 
+    def _validate_params(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> None:
+        # Must be set after _create_begin
+        assert self.scls is not None
+        scls: Constraint = self.scls
+        # Must be an abstract constraint
+        assert scls.generic(schema)
+
+        base_params: Optional[s_func.FuncParameterList] = None
+        base_with_params: Optional[Constraint] = None
+
+        for base in scls.get_bases(schema).objects(schema):
+            params = base.get_params(schema)
+            if params and len(params) > 1:
+                # All constraints have __subject__ parameter
+                # auto-injected, hence the "> 1" check.
+                if base_params is not None:
+                    raise errors.InvalidConstraintDefinitionError(
+                        f'{scls.get_verbosename(schema)} '
+                        f'extends multiple constraints '
+                        f'with parameters',
+                        context=self.source_context,
+                    )
+                base_params = params
+                base_with_params = base
+
+        if base_params:
+            assert base_with_params is not None
+
+            params = scls.get_params(schema)
+            if not params or len(params) == 1:
+                # All constraints have __subject__ parameter
+                # auto-injected, hence the "== 1" check.
+                raise errors.InvalidConstraintDefinitionError(
+                    f'{scls.get_verbosename(schema)} '
+                    f'must define parameters to reflect parameters of '
+                    f'the {base_with_params.get_verbosename(schema)} '
+                    f'it extends',
+                    context=self.source_context,
+                )
+
+            if len(params) < len(base_params):
+                raise errors.InvalidConstraintDefinitionError(
+                    f'{scls.get_verbosename(schema)} '
+                    f'has fewer parameters than the '
+                    f'{base_with_params.get_verbosename(schema)} '
+                    f'it extends',
+                    context=self.source_context,
+                )
+
+            # Skipping the __subject__ param
+            for base_param, param in zip(base_params.objects(schema)[1:],
+                                         params.objects(schema)[1:]):
+
+                param_name = param.get_parameter_name(schema)
+                base_param_name = base_param.get_parameter_name(schema)
+
+                if param_name != base_param_name:
+                    raise errors.InvalidConstraintDefinitionError(
+                        f'the {param_name!r} parameter of the '
+                        f'{scls.get_verbosename(schema)} '
+                        f'must be renamed to {base_param_name!r} '
+                        f'to match the signature of the base '
+                        f'{base_with_params.get_verbosename(schema)} ',
+                        context=self.source_context,
+                    )
+
+                param_type = param.get_type(schema)
+                base_param_type = base_param.get_type(schema)
+
+                if (
+                    not base_param_type.is_polymorphic(schema)
+                    and param_type.is_polymorphic(schema)
+                ):
+                    raise errors.InvalidConstraintDefinitionError(
+                        f'the {param_name!r} parameter of the '
+                        f'{scls.get_verbosename(schema)} cannot '
+                        f'be of generic type because the corresponding '
+                        f'parameter of the '
+                        f'{base_with_params.get_verbosename(schema)} '
+                        f'it extends has a concrete type',
+                        context=self.source_context,
+                    )
+
+                if (
+                    not base_param_type.is_polymorphic(schema) and
+                    not param_type.is_polymorphic(schema) and
+                    not param_type.implicitly_castable_to(
+                        base_param_type, schema)
+                ):
+                    raise errors.InvalidConstraintDefinitionError(
+                        f'the {param_name!r} parameter of the '
+                        f'{scls.get_verbosename(schema)} has type of '
+                        f'{param_type.get_displayname(schema)} that '
+                        f'is not implicitly castable to the '
+                        f'corresponding parameter of the '
+                        f'{base_with_params.get_verbosename(schema)} with '
+                        f'type {base_param_type.get_displayname(schema)}',
+                        context=self.source_context,
+                    )
+
     def _create_begin(
         self,
         schema: s_schema.Schema,
@@ -621,7 +725,10 @@ class CreateConstraint(
     ) -> s_schema.Schema:
         referrer_ctx = self.get_referrer_context(context)
         if referrer_ctx is None:
-            return super()._create_begin(schema, context)
+            schema = super()._create_begin(schema, context)
+            if not context.canonical:
+                self._validate_params(schema, context)
+            return schema
 
         subject = referrer_ctx.scls
         assert isinstance(subject, ConsistencySubject)

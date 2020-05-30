@@ -215,6 +215,32 @@ class TestDump02(tb.QueryTestCase, tb.CLITestCaseMixin):
             ]
         )
 
+        # Check that abstract constraint was applied properly
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT Constraint {
+                    name,
+                    params: {
+                        @value
+                    } FILTER .num > 0
+                }
+                FILTER
+                    .name = 'default::🚀🍿' AND
+                    NOT .is_abstract AND
+                    Constraint.<constraints[IS ScalarType].name =
+                        'default::🚀🚀🚀';
+            ''',
+            [
+                {
+                    'name': 'default::🚀🍿',
+                    'params': [
+                        {'@value': '100'}
+                    ]
+                },
+            ]
+        )
+
         # Check the default value
         await self.con.execute(r'INSERT Łukasz')
         await self.assert_query_result(

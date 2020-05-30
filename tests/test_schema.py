@@ -584,6 +584,111 @@ _123456789_123456789_123456789 -> str
             'there should be no constraints on alias links or properties',
         )
 
+    @tb.must_fail(errors.InvalidConstraintDefinitionError,
+                  "abstract constraint 'test::aaa' must define parameters "
+                  "to reflect parameters of the abstract constraint "
+                  "'std::max_len_value' it extends",
+                  line=2, col=13)
+    def test_schema_constraint_inheritance_05(self):
+        """
+            abstract constraint aaa extending std::max_len_value;
+        """
+
+    @tb.must_fail(errors.InvalidConstraintDefinitionError,
+                  "abstract constraint 'test::zzz' extends multiple "
+                  "constraints with parameters",
+                  line=8, col=13)
+    def test_schema_constraint_inheritance_06(self):
+        """
+            abstract constraint aaa(max: std::int64)
+                extending std::max_len_value;
+
+            abstract constraint bbb(min: std::int64)
+                extending std::min_len_value;
+
+            abstract constraint zzz(max: std::int64)
+                extending aaa, bbb;
+        """
+
+    @tb.must_fail(errors.InvalidConstraintDefinitionError,
+                  "abstract constraint 'test::zzz' has fewer parameters "
+                  "than the abstract constraint 'test::aaa' it extends",
+                  line=5, col=13)
+    def test_schema_constraint_inheritance_07(self):
+        """
+            abstract constraint aaa(max: std::int64, foo: str)
+                extending std::max_len_value;
+
+            abstract constraint zzz(max: std::int64)
+                extending aaa;
+        """
+
+    def test_schema_constraint_inheritance_08(self):
+        """
+            abstract constraint aaa(max: std::int64)
+                extending std::max_len_value;
+
+            abstract constraint zzz(max: std::int64)
+                extending aaa;
+        """
+
+    @tb.must_fail(errors.InvalidConstraintDefinitionError,
+                  "abstract constraint 'test::zzz' has fewer parameters "
+                  "than the abstract constraint 'test::aaa' it extends",
+                  line=5, col=13)
+    def test_schema_constraint_inheritance_09(self):
+        """
+            abstract constraint aaa(max: std::int64, foo: str)
+                extending std::max_len_value;
+
+            abstract constraint zzz(max: std::str)
+                extending aaa;
+        """
+
+    @tb.must_fail(errors.InvalidConstraintDefinitionError,
+                  "the 'min' parameter of the abstract constraint 'test::zzz' "
+                  "must be renamed to 'max' to match the signature of the "
+                  "base abstract constraint 'test::aaa'",
+                  line=5, col=13)
+    def test_schema_constraint_inheritance_10(self):
+        """
+            abstract constraint aaa(max: std::int64)
+                extending std::max_len_value;
+
+            abstract constraint zzz(min: std::str)
+                extending aaa;
+        """
+
+    @tb.must_fail(errors.InvalidConstraintDefinitionError,
+                  "the 'max' parameter of the abstract constraint 'test::zzz' "
+                  "has type of std::str that is not implicitly castable to "
+                  "the corresponding parameter of the abstract constraint "
+                  "'test::aaa' with type std::int64",
+                  line=5, col=13)
+    def test_schema_constraint_inheritance_11(self):
+        """
+            abstract constraint aaa(max: std::int64)
+                extending std::max_len_value;
+
+            abstract constraint zzz(max: std::str)
+                extending aaa;
+        """
+
+    @tb.must_fail(errors.InvalidConstraintDefinitionError,
+                  "the 'max' parameter of the abstract constraint 'test::zzz' "
+                  "cannot be of generic type because the corresponding "
+                  "parameter of the abstract constraint 'test::aaa' it "
+                  "extends has a concrete type",
+                  line=5, col=13)
+    def test_schema_constraint_inheritance_12(self):
+        """
+            abstract constraint aaa(max: std::int64)
+                extending std::max_len_value;
+
+            abstract constraint zzz(max: anyscalar)
+                extending aaa;
+        """
+
     def test_schema_ref_diamond_inheritance(self):
         schema = tb._load_std_schema()
 
