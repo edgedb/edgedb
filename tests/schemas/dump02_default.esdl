@@ -18,7 +18,7 @@
 
 abstract annotation `🍿`;
 
-abstract constraint `🚀🍿` extending max_len_value;
+abstract constraint `🚀🍿`(max: int64) extending max_len_value;
 
 function `💯`(NAMED ONLY `🙀`: int64) -> int64 {
     using (
@@ -40,8 +40,9 @@ type A {
 
 scalar type 你好 extending str;
 
-scalar type مرحبا extending 你好;
-    # constraint `🚀🍿`(10);
+scalar type مرحبا extending 你好 {
+    constraint `🚀🍿`(100);
+};
 
 scalar type `🚀🚀🚀` extending مرحبا;
 
@@ -53,7 +54,8 @@ type Łukasz {
 
     link `Ł💯` -> A {
         property `🙀🚀🚀🚀🙀` -> `🚀🚀🚀`;
-        property `🙀مرحبا🙀` -> مرحبا;
-            # constraint `🚀🍿`(2);
+        property `🙀مرحبا🙀` -> مرحبا {
+            constraint `🚀🍿`(200);
+        }
     };
 }

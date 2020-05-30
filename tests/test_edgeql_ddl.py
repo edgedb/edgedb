@@ -4282,6 +4282,21 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             }]
         )
 
+    async def test_edgeql_ddl_constraint_04(self):
+        # Regression test for #1441.
+        with self.assertRaisesRegex(
+            edgedb.InvalidConstraintDefinitionError,
+            "must define parameters"
+        ):
+            async with self._run_and_rollback():
+                await self.con.execute('''
+                    CREATE ABSTRACT CONSTRAINT aaa EXTENDING max_len_value;
+
+                    CREATE SCALAR TYPE foo EXTENDING str {
+                        CREATE CONSTRAINT aaa(10);
+                    };
+                ''')
+
     async def test_edgeql_ddl_drop_inherited_link(self):
         await self.con.execute(r"""
             CREATE TYPE test::Target;

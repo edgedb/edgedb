@@ -344,7 +344,7 @@ class ConstraintDeclarationShort(Nonterm):
         self.val = qlast.CreateConstraint(
             name=kids[2].val,
             subject=kids[3].val,
-            extends=kids[4].val,
+            bases=kids[4].val,
         )
 
     def reduce_CreateConstraint_CreateFunctionArgs(self, *kids):
@@ -354,7 +354,7 @@ class ConstraintDeclarationShort(Nonterm):
             name=kids[2].val,
             params=kids[3].val,
             subject=kids[4].val,
-            extends=kids[5].val,
+            bases=kids[5].val,
         )
 
 
