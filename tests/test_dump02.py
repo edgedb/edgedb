@@ -41,17 +41,17 @@ class TestDump02(tb.QueryTestCase, tb.CLITestCaseMixin):
         assert type(self).__name__.startswith('Test')
         # The name of the database created for this test case by
         # the test runner:
-        dbname = type(self).__name__[4:].lower()
+        dbname = f'{type(self).__name__[4:].lower()}'
 
         with tempfile.NamedTemporaryFile() as f:
             self.run_cli('-d', dbname, 'dump', f.name)
 
-            await self.con.execute(f'CREATE DATABASE {dbname}_restored')
+            await self.con.execute(f'CREATE DATABASE `💯{dbname}_restored`')
             try:
-                self.run_cli('-d', f'{dbname}_restored', 'restore', f.name)
-                con2 = await self.connect(database=f'{dbname}_restored')
+                self.run_cli('-d', f'💯{dbname}_restored', 'restore', f.name)
+                con2 = await self.connect(database=f'💯{dbname}_restored')
             except Exception:
-                await self.con.execute(f'DROP DATABASE {dbname}_restored')
+                await self.con.execute(f'DROP DATABASE `💯{dbname}_restored`')
                 raise
 
         oldcon = self.con
@@ -61,7 +61,7 @@ class TestDump02(tb.QueryTestCase, tb.CLITestCaseMixin):
         finally:
             self.__class__.con = oldcon
             await con2.aclose()
-            await self.con.execute(f'DROP DATABASE {dbname}_restored')
+            await self.con.execute(f'DROP DATABASE `💯{dbname}_restored`')
 
     async def ensure_schema_data_integrity(self):
         tx = self.con.transaction()
@@ -90,5 +90,142 @@ class TestDump02(tb.QueryTestCase, tb.CLITestCaseMixin):
                         'c101': 57,
                     }
                 }
+            ]
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT Łukasz {
+                    `Ł🤞`,
+                    `Ł💯`: {
+                        @`🙀🚀🚀🚀🙀`,
+                        @`🙀مرحبا🙀`,
+                        `s p A m 🤞`: {
+                            `🚀`,
+                            c100,
+                            c101 := `💯`(`🙀` := .`🚀` + 1)
+                        }
+                    }
+                } ORDER BY .`Ł💯` EMPTY LAST
+            ''',
+            [
+                {
+                    'Ł🤞': 'simple 🚀',
+                    'Ł💯': {
+                        '@🙀🚀🚀🚀🙀': None,
+                        '@🙀مرحبا🙀': None,
+                        's p A m 🤞': {
+                            '🚀': 42,
+                            'c100': 58,
+                            'c101': 57,
+                        }
+                    }
+                },
+                {
+                    'Ł🤞': '你好🤞',
+                    'Ł💯': None,
+                },
+            ]
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT `💯💯💯`::`🚀🙀🚀`('Łink prop 🙀مرحبا🙀');
+            ''',
+            [
+                'Łink prop 🙀مرحبا🙀Ł🙀',
+            ]
+        )
+
+        # Check that annotation exists
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT Function {
+                    name,
+                    annotations: {
+                        name,
+                        @value
+                    },
+                } FILTER .name = 'default::💯';
+            ''',
+            [
+                {
+                    'name': 'default::💯',
+                    'annotations': [{
+                        'name': 'default::🍿',
+                        '@value': 'fun!🚀',
+                    }]
+                }
+            ]
+        )
+
+        # Check that index exists
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT ObjectType {
+                    name,
+                    indexes: {
+                        expr,
+                    },
+                    properties: {
+                        name,
+                        default,
+                    } FILTER .name != 'id',
+                } FILTER .name = 'default::Łukasz';
+            ''',
+            [
+                {
+                    'name': 'default::Łukasz',
+                    'indexes': [{
+                        'expr': '.`Ł🤞`'
+                    }],
+                }
+            ]
+        )
+
+        # Check that scalar types exist
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT (
+                    SELECT ScalarType {
+                        name,
+                    } FILTER .name LIKE 'default%'
+                ).name;
+            ''',
+            {
+                'default::你好',
+                'default::مرحبا',
+                'default::🚀🚀🚀',
+            }
+        )
+
+        # Check that abstract constraint exists
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT Constraint {
+                    name,
+                } FILTER .name LIKE 'default%' AND .is_abstract;
+            ''',
+            [
+                {'name': 'default::🚀🍿'},
+            ]
+        )
+
+        # Check the default value
+        await self.con.execute(r'INSERT Łukasz')
+        await self.assert_query_result(
+            r'''
+                SELECT Łukasz {
+                    `Ł🤞`,
+                } FILTER NOT EXISTS .`Ł💯`;
+            ''',
+            [
+                # We had one before and expect one more now.
+                {'Ł🤞': '你好🤞'},
+                {'Ł🤞': '你好🤞'},
             ]
         )

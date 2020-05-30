@@ -18,12 +18,14 @@
 
 abstract annotation `🍿`;
 
+abstract constraint `🚀🍿` extending max_len_value;
+
 function `💯`(NAMED ONLY `🙀`: int64) -> int64 {
     using (
         SELECT 100 - `🙀`
     );
 
-    annotation `🍿` := 'fun!';
+    annotation `🍿` := 'fun!🚀';
     volatility := 'IMMUTABLE';
 }
 
@@ -34,4 +36,24 @@ type `S p a M` {
 
 type A {
     required link `s p A m 🤞` -> `S p a M`;
+}
+
+scalar type 你好 extending str;
+
+scalar type مرحبا extending 你好;
+    # constraint `🚀🍿`(10);
+
+scalar type `🚀🚀🚀` extending مرحبا;
+
+type Łukasz {
+    required property `Ł🤞` -> `🚀🚀🚀` {
+        default := <`🚀🚀🚀`>'你好🤞'
+    }
+    index on (.`Ł🤞`);
+
+    link `Ł💯` -> A {
+        property `🙀🚀🚀🚀🙀` -> `🚀🚀🚀`;
+        property `🙀مرحبا🙀` -> مرحبا;
+            # constraint `🚀🍿`(2);
+    };
 }
