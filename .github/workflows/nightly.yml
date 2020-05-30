@@ -5,6 +5,9 @@ on:
     - cron: "0 0 * * *"
   repository_dispatch:
     types: ["nightly-build"]
+  push:
+    branches:
+      - nightly
 
 jobs:
   build-linux:
