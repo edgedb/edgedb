@@ -426,7 +426,7 @@ jobs:
         buildargs: version=${{ steps.describe.outputs.version-slot }},subdist=.nightly
 
   publish-macos:
-    needs: [build-linux, build-macos]
+    needs: [build-macos]
     runs-on: macos-latest
     strategy:
       max-parallel: 4
