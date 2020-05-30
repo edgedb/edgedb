@@ -19,10 +19,36 @@
 
 SET MODULE default;
 
+# Not sure if the esdl filename will handle this on all systems, so
+# I'm adding stuff here.
+CREATE MODULE `💯💯💯`;
+
+CREATE FUNCTION `💯💯💯`::`🚀🙀🚀`(`🤞`: default::`🚀🚀🚀`) -> `🚀🚀🚀`
+USING (
+    SELECT <`🚀🚀🚀`>(`🤞` ++ 'Ł🙀')
+);
+# end of DDL
+
 INSERT `S p a M` {
     `🚀` := 42
 };
 
 INSERT A {
     `s p A m 🤞` := (SELECT `S p a M` FILTER .`🚀` = 42)
+};
+
+INSERT Łukasz;
+
+INSERT Łukasz {
+    `Ł🤞` := 'simple 🚀',
+    `Ł💯` := (
+        SELECT A
+        # {
+        #     `🙀🚀🚀🚀🙀`:= 'Łink prop 🙀🚀🚀🚀🙀',
+        #     `🙀مرحبا🙀`:=
+        #         `💯💯💯`::`🚀🙀🚀`('Łink prop 🙀مرحبا🙀'),
+        # }
+        FILTER .`s p A m 🤞`.`🚀` = 42
+        LIMIT 1
+    )
 };
