@@ -207,7 +207,7 @@ class IndexCommand(
     ) -> Optional[Index]:
         ...
 
-    def get_object( # NoQA: F811
+    def get_object(  # NoQA: F811
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
