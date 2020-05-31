@@ -23,8 +23,8 @@ type Tree {
         constraint exclusive;
     }
 
-    link parent -> Tree;
-    link children := .<parent[IS Tree];
+    optional link parent -> Tree;
+    optional link children := .<parent[IS Tree];
 }
 
 
@@ -35,8 +35,8 @@ type Eert {
         constraint exclusive;
     }
 
-    link parent := .<children[IS Eert];
-    multi link children -> Eert {
+    optional link parent := .<children[IS Eert];
+    optional multi link children -> Eert {
         constraint exclusive;
     }
 }

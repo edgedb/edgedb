@@ -33,11 +33,11 @@ class TestLinkTargetDeleteSchema(tb.BaseSchemaLoadTest):
     def test_schema_on_target_delete_01(self):
         schema = self.load_schema("""
             type Object {
-                link foo -> Object {
+                optional link foo -> Object {
                     on target delete allow
                 };
 
-                link bar -> Object;
+                optional link bar -> Object;
             };
         """)
 
@@ -54,19 +54,19 @@ class TestLinkTargetDeleteSchema(tb.BaseSchemaLoadTest):
     def test_schema_on_target_delete_02(self):
         schema = self.load_schema("""
             type Object {
-                link foo -> Object {
+                optional link foo -> Object {
                     on target delete allow
                 }
             };
 
             type Object2 extending Object {
-                overloaded link foo -> Object {
+                overloaded optional link foo -> Object {
                     annotation title := "Foo"
                 }
             };
 
             type Object3 extending Object {
-                overloaded link foo -> Object {
+                overloaded optional link foo -> Object {
                     on target delete restrict
                 }
             };
@@ -88,13 +88,13 @@ class TestLinkTargetDeleteSchema(tb.BaseSchemaLoadTest):
     def test_schema_on_target_delete_03(self):
         """
             type A {
-                link foo -> Object {
+                optional link foo -> Object {
                     on target delete restrict
                 }
             };
 
             type B {
-                link foo -> Object {
+                optional link foo -> Object {
                     on target delete allow
                 }
             };

@@ -765,7 +765,7 @@ class DropProperty(DropObject):
 
 
 class CreateConcretePointer(CreateObject, BasesMixin):
-    is_required: bool = False
+    is_required: typing.Optional[bool] = None
     declared_overloaded: bool = False
     target: typing.Optional[typing.Union[Expr, TypeExpr]]
     cardinality: qltypes.SchemaCardinality

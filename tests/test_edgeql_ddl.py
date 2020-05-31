@@ -33,12 +33,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_02(self):
         await self.con.execute("""
             CREATE ABSTRACT LINK test::test_object_link {
-                CREATE PROPERTY test_link_prop -> std::int64;
+                CREATE OPTIONAL PROPERTY test_link_prop -> std::int64;
             };
 
             CREATE TYPE test::TestObjectType {
-                CREATE LINK test_object_link -> std::Object {
-                    CREATE PROPERTY test_link_prop -> std::int64 {
+                CREATE OPTIONAL LINK test_object_link -> std::Object {
+                    CREATE OPTIONAL PROPERTY test_link_prop -> std::int64 {
                         CREATE ANNOTATION title := 'Test Property';
                     };
                 };
@@ -48,7 +48,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_03(self):
         await self.con.execute("""
             CREATE ABSTRACT LINK test::test_object_link_prop {
-                CREATE PROPERTY link_prop1 -> std::str;
+                CREATE OPTIONAL PROPERTY link_prop1 -> std::str;
             };
         """)
 
@@ -62,7 +62,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
 
             CREATE TYPE test::Object2 {
-                CREATE LINK a -> test::B;
+                CREATE OPTIONAL LINK a -> test::B;
             };
 
             CREATE TYPE test::Object_12
@@ -155,12 +155,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_type_06(self):
         await self.con.execute("""
             CREATE TYPE test::A6 {
-                CREATE PROPERTY name -> str;
+                CREATE OPTIONAL PROPERTY name -> str;
             };
 
             CREATE TYPE test::Object6 {
-                CREATE SINGLE LINK a -> test::A6;
-                CREATE SINGLE PROPERTY b -> str;
+                CREATE OPTIONAL SINGLE LINK a -> test::A6;
+                CREATE OPTIONAL SINGLE PROPERTY b -> str;
             };
 
             INSERT test::A6 { name := 'a6' };
@@ -331,10 +331,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_11(self):
         await self.con.execute(r"""
             CREATE TYPE test::TestContainerLinkObjectType {
-                CREATE PROPERTY test_array_link -> array<std::str>;
+                CREATE OPTIONAL PROPERTY test_array_link -> array<std::str>;
                 # FIXME: for now dimension specs on the array are
                 # disabled pending a syntax change
-                # CREATE PROPERTY test_array_link_2 ->
+                # CREATE OPTIONAL PROPERTY test_array_link_2 ->
                 #     array<std::str[10]>;
             };
         """)
@@ -346,7 +346,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 r"are forbidden"):
             await self.con.execute(r"""
                 CREATE TYPE test::TestBadContainerLinkObjectType {
-                    CREATE PROPERTY foo -> std::str {
+                    CREATE OPTIONAL PROPERTY foo -> std::str {
                         CREATE CONSTRAINT expression
                             ON (`__subject__` = 'foo');
                     };
@@ -359,7 +359,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 "object type or alias 'self' does not exist"):
             await self.con.execute(r"""
                 CREATE TYPE test::TestBadContainerLinkObjectType {
-                    CREATE PROPERTY foo -> std::str {
+                    CREATE OPTIONAL PROPERTY foo -> std::str {
                         CREATE CONSTRAINT expression ON (`self` = 'foo');
                     };
                 };
@@ -371,8 +371,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 f'__source__ cannot be used in this expression'):
             await self.con.execute("""
                 CREATE TYPE test::TestSelfLink1 {
-                    CREATE PROPERTY foo1 -> std::str;
-                    CREATE PROPERTY bar1 -> std::str {
+                    CREATE OPTIONAL PROPERTY foo1 -> std::str;
+                    CREATE OPTIONAL PROPERTY bar1 -> std::str {
                         SET default := __source__.foo1;
                     };
                 };
@@ -381,8 +381,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_15(self):
         await self.con.execute(r"""
             CREATE TYPE test::TestSelfLink2 {
-                CREATE PROPERTY foo2 -> std::str;
-                CREATE MULTI PROPERTY bar2 -> std::str {
+                CREATE OPTIONAL PROPERTY foo2 -> std::str;
+                CREATE OPTIONAL MULTI PROPERTY bar2 -> std::str {
                     # NOTE: this is a set of all TestSelfLink2.foo2
                     SET default := test::TestSelfLink2.foo2;
                 };
@@ -420,8 +420,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 'possibly more than one element'):
             await self.con.execute(r"""
                 CREATE TYPE test::TestSelfLink3 {
-                    CREATE PROPERTY foo3 -> std::str;
-                    CREATE PROPERTY bar3 -> std::str {
+                    CREATE OPTIONAL PROPERTY foo3 -> std::str;
+                    CREATE OPTIONAL PROPERTY bar3 -> std::str {
                         # NOTE: this is a set of all TestSelfLink3.foo3
                         SET default := test::TestSelfLink3.foo3;
                     };
@@ -443,12 +443,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE SCALAR TYPE b::bar_t EXTENDING int64;
 
             CREATE TYPE Obj {
-                CREATE PROPERTY foo -> foo_t;
-                CREATE PROPERTY bar -> b::bar_t;
+                CREATE OPTIONAL PROPERTY foo -> foo_t;
+                CREATE OPTIONAL PROPERTY bar -> b::bar_t;
             };
 
             CREATE TYPE b::Obj2 {
-                CREATE LINK obj -> Obj;
+                CREATE OPTIONAL LINK obj -> Obj;
             };
         """)
 
@@ -546,7 +546,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
 
             CREATE TYPE B20 {
-                CREATE LINK l -> A20;
+                CREATE OPTIONAL LINK l -> A20;
             };
         """)
 
@@ -652,7 +652,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
             CREATE TYPE User;
             CREATE TYPE Award {
-                CREATE LINK user -> User;
+                CREATE OPTIONAL LINK user -> User;
             };
 
             CREATE ALIAS Alias1 := (SELECT User {
@@ -686,7 +686,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 'expected std::str'):
             await self.con.execute(r"""
                 CREATE TYPE test::TestDefault01 {
-                    CREATE PROPERTY def01 -> str {
+                    CREATE OPTIONAL PROPERTY def01 -> str {
                         # int64 doesn't have an assignment cast into str
                         SET default := 42;
                     };
@@ -700,7 +700,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 'expected std::str'):
             await self.con.execute(r"""
                 CREATE TYPE test::TestDefault02 {
-                    CREATE PROPERTY def01 -> str {
+                    CREATE OPTIONAL PROPERTY def01 -> str {
                         SET default := '42';
                     };
                 };
@@ -713,7 +713,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_default_circular(self):
         await self.con.execute(r"""
             CREATE TYPE test::TestDefaultCircular {
-                CREATE PROPERTY def01 -> int64 {
+                CREATE OPTIONAL PROPERTY def01 -> int64 {
                     SET default := (SELECT count(test::TestDefaultCircular));
                 };
             };
@@ -722,13 +722,13 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_property_alter_01(self):
         await self.con.execute(r"""
             CREATE TYPE test::Foo {
-                CREATE PROPERTY bar -> float32;
+                CREATE OPTIONAL PROPERTY bar -> float32;
             };
         """)
 
         await self.con.execute(r"""
             CREATE TYPE test::TestDefaultCircular {
-                CREATE PROPERTY def01 -> int64 {
+                CREATE OPTIONAL PROPERTY def01 -> int64 {
                     SET default := (SELECT count(test::TestDefaultCircular));
                 };
             };
@@ -742,10 +742,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE TYPE B;
 
             CREATE TYPE Base0 {
-                CREATE LINK foo -> A;
+                CREATE OPTIONAL LINK foo -> A;
             };
             CREATE TYPE Base1 {
-                CREATE LINK foo -> B;
+                CREATE OPTIONAL LINK foo -> B;
             };
         ''')
 
@@ -766,10 +766,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE TYPE C;
 
             CREATE TYPE Base0 {
-                CREATE LINK foo -> A | B;
+                CREATE OPTIONAL LINK foo -> A | B;
             };
             CREATE TYPE Base1 {
-                CREATE LINK foo -> C;
+                CREATE OPTIONAL LINK foo -> C;
             };
         ''')
 
@@ -789,10 +789,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE TYPE B EXTENDING A;
 
             CREATE TYPE Base0 {
-                CREATE LINK foo -> B;
+                CREATE OPTIONAL LINK foo -> B;
             };
             CREATE TYPE Base1 {
-                CREATE LINK foo -> A;
+                CREATE OPTIONAL LINK foo -> A;
             };
             CREATE TYPE Derived EXTENDING Base0, Base1;
         ''')
@@ -806,10 +806,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE TYPE C;
 
             CREATE TYPE Base0 {
-                CREATE LINK foo -> A;
+                CREATE OPTIONAL LINK foo -> A;
             };
             CREATE TYPE Base1 {
-                CREATE LINK foo -> A | B;
+                CREATE OPTIONAL LINK foo -> A | B;
             };
             CREATE TYPE Derived EXTENDING Base0, Base1;
         ''')
@@ -817,7 +817,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_link_target_alter_01(self):
         await self.con.execute(r"""
             CREATE TYPE test::GrandParent01 {
-                CREATE PROPERTY foo -> int64;
+                CREATE OPTIONAL PROPERTY foo -> int64;
             };
 
             CREATE TYPE test::Parent01 EXTENDING test::GrandParent01;
@@ -860,11 +860,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 "cannot change the target type of inherited property 'foo'"):
             await self.con.execute("""
                 CREATE TYPE test::Parent01 {
-                    CREATE PROPERTY foo -> int64;
+                    CREATE OPTIONAL PROPERTY foo -> int64;
                 };
 
                 CREATE TYPE test::Parent02 {
-                    CREATE PROPERTY foo -> int64;
+                    CREATE OPTIONAL PROPERTY foo -> int64;
                 };
 
                 CREATE TYPE test::Child
@@ -882,11 +882,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 "because it is used in an expression"):
             await self.con.execute("""
                 CREATE TYPE test::Foo {
-                    CREATE PROPERTY bar -> int64;
+                    CREATE OPTIONAL PROPERTY bar -> int64;
                 };
 
                 CREATE TYPE test::Bar {
-                    CREATE MULTI PROPERTY foo -> int64 {
+                    CREATE OPTIONAL MULTI PROPERTY foo -> int64 {
                         SET default := (SELECT test::Foo.bar);
                     }
                 };
@@ -902,7 +902,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE TYPE B;
 
             CREATE TYPE Base0 {
-                CREATE LINK foo -> A | B;
+                CREATE OPTIONAL LINK foo -> A | B;
             };
 
             CREATE TYPE Derived EXTENDING Base0 {
@@ -918,14 +918,14 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE TYPE B EXTENDING A;
 
             CREATE TYPE Base0 {
-                CREATE LINK foo -> B;
+                CREATE OPTIONAL LINK foo -> B;
             };
 
             CREATE TYPE Base1;
 
             CREATE TYPE Derived EXTENDING Base0, Base1;
 
-            ALTER TYPE Base1 CREATE LINK foo -> A;
+            ALTER TYPE Base1 CREATE OPTIONAL LINK foo -> A;
         ''')
 
     async def test_edgeql_ddl_link_property_01(self):
@@ -934,7 +934,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 r"link properties cannot be required"):
             await self.con.execute("""
                 CREATE TYPE test::TestLinkPropType_01 {
-                    CREATE LINK test_linkprop_link_01 -> std::Object {
+                    CREATE OPTIONAL LINK test_linkprop_link_01 -> std::Object {
                         CREATE REQUIRED PROPERTY test_link_prop_01
                             -> std::int64;
                     };
@@ -947,8 +947,9 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 r"multi properties aren't supported for links"):
             await self.con.execute("""
                 CREATE TYPE test::TestLinkPropType_02 {
-                    CREATE LINK test_linkprop_link_02 -> std::Object {
-                        CREATE MULTI PROPERTY test_link_prop_02 -> std::int64;
+                    CREATE OPTIONAL LINK test_linkprop_link_02 -> std::Object {
+                        CREATE OPTIONAL MULTI PROPERTY
+                            test_link_prop_02 -> std::int64;
                     };
                 };
             """)
@@ -959,7 +960,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 r"link properties cannot be required"):
             await self.con.execute("""
                 CREATE TYPE test::TestLinkPropType_03 {
-                    CREATE LINK test_linkprop_link_03 -> std::Object;
+                    CREATE OPTIONAL LINK test_linkprop_link_03 -> std::Object;
                 };
 
                 ALTER TYPE test::TestLinkPropType_03 {
@@ -976,12 +977,13 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 r"multi properties aren't supported for links"):
             await self.con.execute("""
                 CREATE TYPE test::TestLinkPropType_04 {
-                    CREATE LINK test_linkprop_link_04 -> std::Object;
+                    CREATE OPTIONAL LINK test_linkprop_link_04 -> std::Object;
                 };
 
                 ALTER TYPE test::TestLinkPropType_04 {
                     ALTER LINK test_linkprop_link_04 {
-                        CREATE MULTI PROPERTY test_link_prop_04 -> std::int64;
+                        CREATE OPTIONAL MULTI PROPERTY
+                            test_link_prop_04 -> std::int64;
                     };
                 };
             """)
@@ -992,8 +994,9 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 r"link properties cannot be required"):
             await self.con.execute("""
                 CREATE TYPE test::TestLinkPropType_05 {
-                    CREATE LINK test_linkprop_link_05 -> std::Object {
-                        CREATE PROPERTY test_link_prop_05 -> std::int64;
+                    CREATE OPTIONAL LINK test_linkprop_link_05 -> std::Object {
+                        CREATE OPTIONAL PROPERTY
+                            test_link_prop_05 -> std::int64;
                     };
                 };
 
@@ -1012,8 +1015,9 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 r"multi properties aren't supported for links"):
             await self.con.execute("""
                 CREATE TYPE test::TestLinkPropType_06 {
-                    CREATE LINK test_linkprop_link_06 -> std::Object {
-                        CREATE MULTI PROPERTY test_link_prop_06 -> std::int64;
+                    CREATE OPTIONAL LINK test_linkprop_link_06 -> std::Object {
+                        CREATE OPTIONAL MULTI PROPERTY
+                            test_link_prop_06 -> std::int64;
                     };
                 };
 
@@ -1032,7 +1036,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 r"type 'array' does not exist"):
             await self.con.execute(r"""
                 CREATE TYPE test::Foo {
-                    CREATE PROPERTY bar -> array;
+                    CREATE OPTIONAL PROPERTY bar -> array;
                 };
             """)
 
@@ -1042,7 +1046,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 r"type 'tuple' does not exist"):
             await self.con.execute(r"""
                 CREATE TYPE test::Foo {
-                    CREATE PROPERTY bar -> tuple;
+                    CREATE OPTIONAL PROPERTY bar -> tuple;
                 };
             """)
 
@@ -1052,7 +1056,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 r'unexpected number of subtypes, expecting 1'):
             await self.con.execute(r"""
                 CREATE TYPE test::Foo {
-                    CREATE PROPERTY bar -> array<int64, int64, int64>;
+                    CREATE OPTIONAL PROPERTY bar -> array<int64, int64, int64>;
                 };
             """)
 
@@ -1062,7 +1066,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 r'nested arrays are not supported'):
             await self.con.execute(r"""
                 CREATE TYPE test::Foo {
-                    CREATE PROPERTY bar -> array<array<int64>>;
+                    CREATE OPTIONAL PROPERTY bar -> array<array<int64>>;
                 };
             """)
 
@@ -1073,7 +1077,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 r'supported'):
             await self.con.execute(r"""
                 CREATE TYPE test::Foo {
-                    CREATE PROPERTY bar -> tuple<int64, foo:int64>;
+                    CREATE OPTIONAL PROPERTY bar -> tuple<int64, foo:int64>;
                 };
             """)
 
@@ -1083,7 +1087,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 r'unexpected number of subtypes, expecting 1'):
             await self.con.execute(r"""
                 CREATE TYPE test::Foo {
-                    CREATE PROPERTY bar -> array<>;
+                    CREATE OPTIONAL PROPERTY bar -> array<>;
                 };
             """)
 
@@ -1103,7 +1107,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             async with self.con.transaction():
                 await self.con.execute("""
                     CREATE TYPE test::Foo {
-                        CREATE LINK f123456789_123456789_123456789_\
+                        CREATE OPTIONAL LINK f123456789_123456789_123456789_\
 123456789_123456789_123456789_123456789_123456789 -> test::Foo;
                     };
                 """)
@@ -1115,7 +1119,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             async with self.con.transaction():
                 await self.con.execute("""
                     CREATE TYPE test::Foo {
-                        CREATE LINK foo::bar -> test::Foo;
+                        CREATE OPTIONAL LINK foo::bar -> test::Foo;
                     };
                 """)
 
@@ -1146,8 +1150,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             async with self.con.transaction():
                 await self.con.execute("""
                     CREATE TYPE test::Foo {
-                        CREATE PROPERTY f123456789_123456789_123456789_\
-123456789_123456789_123456789_123456789_123456789 -> std::str;
+                        CREATE OPTIONAL PROPERTY f123456789_123456789_\
+123456789_123456789_123456789_123456789_123456789_123456789 -> std::str;
                     };
                 """)
 
@@ -1158,7 +1162,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             async with self.con.transaction():
                 await self.con.execute("""
                     CREATE TYPE test::Foo {
-                        CREATE PROPERTY foo::bar -> test::Foo;
+                        CREATE OPTIONAL PROPERTY foo::bar -> test::Foo;
                     };
                 """)
 
@@ -2284,7 +2288,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute('''\
             CREATE TYPE test::CompProp;
             ALTER TYPE test::CompProp {
-                CREATE PROPERTY prop := 'I am a computable';
+                CREATE OPTIONAL PROPERTY prop := 'I am a computable';
             };
             INSERT test::CompProp;
         ''')
@@ -2327,7 +2331,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_property_computable_circular(self):
         await self.con.execute('''\
             CREATE TYPE test::CompPropCircular {
-                CREATE PROPERTY prop := (SELECT count(test::CompPropCircular))
+                CREATE OPTIONAL PROPERTY prop :=
+                    (SELECT count(test::CompPropCircular))
             };
         ''')
 
@@ -2338,14 +2343,16 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             await self.con.execute('''\
                 CREATE TYPE test::CompPropBad;
                 ALTER TYPE test::CompPropBad {
-                    CREATE PROPERTY prop := (SELECT std::Object LIMIT 1);
+                    CREATE OPTIONAL PROPERTY prop :=
+                        (SELECT std::Object LIMIT 1);
                 };
             ''')
 
     async def test_edgeql_ddl_link_computable_circular_01(self):
         await self.con.execute('''\
             CREATE TYPE test::CompLinkCircular {
-                CREATE LINK l := (SELECT test::CompLinkCircular LIMIT 1)
+                CREATE OPTIONAL LINK l :=
+                    (SELECT test::CompLinkCircular LIMIT 1)
             };
         ''')
 
@@ -2354,7 +2361,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute('''\
             CREATE TYPE test::LinkCircularA;
             CREATE TYPE test::LinkCircularB {
-                CREATE LINK l -> test::LinkCircularA
+                CREATE OPTIONAL LINK l -> test::LinkCircularA
                                  | test::LinkCircularB;
             };
         ''')
@@ -2539,7 +2546,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_annotation_05(self):
         await self.con.execute(r'''
             CREATE TYPE test::BaseAnno05 {
-                CREATE PROPERTY name -> str;
+                CREATE OPTIONAL PROPERTY name -> str;
                 CREATE INDEX ON (.name) {
                     CREATE ANNOTATION title := 'name index'
                 }
@@ -2575,7 +2582,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_annotation_06(self):
         await self.con.execute(r'''
             CREATE TYPE test::BaseAnno06 {
-                CREATE PROPERTY name -> str;
+                CREATE OPTIONAL PROPERTY name -> str;
                 CREATE INDEX ON (.name);
             };
         ''')
@@ -2649,7 +2656,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         # Create index annotation using DDL, then drop annotation using SDL.
         await self.con.execute(r'''
             CREATE TYPE test::BaseAnno07 {
-                CREATE PROPERTY name -> str;
+                CREATE OPTIONAL PROPERTY name -> str;
                 CREATE INDEX ON (.name) {
                     CREATE ANNOTATION title := 'name index'
                 }
@@ -2686,7 +2693,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE MIGRATION m TO {
                 module test {
                     type BaseAnno07 {
-                        property name -> str;
+                        optional property name -> str;
                         index ON (.name);
                     }
                 }
@@ -2721,7 +2728,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         # Create index using DDL, then add annotation to it using SDL.
         await self.con.execute(r'''
             CREATE TYPE test::BaseAnno08 {
-                CREATE PROPERTY name -> str;
+                CREATE OPTIONAL PROPERTY name -> str;
                 CREATE INDEX ON (.name);
             };
         ''')
@@ -2753,7 +2760,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE MIGRATION m TO {
                 module test {
                     type BaseAnno08 {
-                        property name -> str;
+                        optional property name -> str;
                         index ON (.name) {
                             annotation title := 'name index';
                         }
@@ -2925,7 +2932,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
             await self.con.execute("""
                 CREATE ABSTRACT LINK test::test_object_link_prop {
-                    CREATE PROPERTY link_prop1 -> anytype;
+                    CREATE OPTIONAL PROPERTY link_prop1 -> anytype;
                 };
             """)
 
@@ -2936,7 +2943,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
             await self.con.execute("""
                 CREATE TYPE test::AnyObject2 {
-                    CREATE LINK a -> anytype;
+                    CREATE OPTIONAL LINK a -> anytype;
                 };
             """)
 
@@ -2947,7 +2954,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
             await self.con.execute("""
                 CREATE TYPE test::AnyObject3 {
-                    CREATE PROPERTY a -> anytype;
+                    CREATE OPTIONAL PROPERTY a -> anytype;
                 };
             """)
 
@@ -2958,7 +2965,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
             await self.con.execute("""
                 CREATE TYPE test::AnyObject4 {
-                    CREATE PROPERTY a -> anyscalar;
+                    CREATE OPTIONAL PROPERTY a -> anyscalar;
                 };
             """)
 
@@ -2969,7 +2976,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
             await self.con.execute("""
                 CREATE TYPE test::AnyObject5 {
-                    CREATE PROPERTY a -> anyint;
+                    CREATE OPTIONAL PROPERTY a -> anyint;
                 };
             """)
 
@@ -3072,17 +3079,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         # Check that descendants are recomputed properly on rebase.
         await self.con.execute(r"""
             CREATE TYPE test::ExtA4 {
-                CREATE PROPERTY a -> int64;
+                CREATE OPTIONAL PROPERTY a -> int64;
             };
 
             CREATE ABSTRACT INHERITABLE ANNOTATION a_anno;
 
             CREATE TYPE test::ExtB4 {
-                CREATE PROPERTY a -> int64 {
+                CREATE OPTIONAL PROPERTY a -> int64 {
                     CREATE ANNOTATION a_anno := 'anno';
                 };
 
-                CREATE PROPERTY b -> str;
+                CREATE OPTIONAL PROPERTY b -> str;
             };
 
             CREATE TYPE test::Ext4Child EXTENDING test::ExtA4;
@@ -3163,13 +3170,13 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         # Check that field alters are propagated.
         await self.con.execute(r"""
             CREATE TYPE test::ExtA5 {
-                CREATE PROPERTY a -> int64 {
+                CREATE OPTIONAL PROPERTY a -> int64 {
                     SET default := 1;
                 };
             };
 
             CREATE TYPE test::ExtB5 {
-                CREATE PROPERTY a -> int64 {
+                CREATE OPTIONAL PROPERTY a -> int64 {
                     SET default := 2;
                 };
             };
@@ -3252,11 +3259,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 CREATE MODULE test_other;
 
                 CREATE TYPE test::ModuleTest01 {
-                    CREATE PROPERTY clash -> str;
+                    CREATE OPTIONAL PROPERTY clash -> str;
                 };
 
                 CREATE TYPE test_other::ModuleTest01 {
-                    CREATE LINK clash -> Object;
+                    CREATE OPTIONAL LINK clash -> Object;
                 };
             """)
 
@@ -3502,7 +3509,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_rename_01(self):
         await self.con.execute(r"""
             CREATE TYPE test::RenameObj01 {
-                CREATE PROPERTY name -> str;
+                CREATE OPTIONAL PROPERTY name -> str;
             };
 
             INSERT test::RenameObj01 {name := 'rename 01'};
@@ -3522,7 +3529,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_rename_02(self):
         await self.con.execute(r"""
             CREATE TYPE test::RenameObj02 {
-                CREATE PROPERTY name -> str;
+                CREATE OPTIONAL PROPERTY name -> str;
             };
 
             INSERT test::RenameObj02 {name := 'rename 02'};
@@ -3546,7 +3553,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             SET MODULE test;
 
             CREATE TYPE test::RenameObj03 {
-                CREATE PROPERTY name -> str;
+                CREATE OPTIONAL PROPERTY name -> str;
             };
 
             INSERT RenameObj03 {name := 'rename 03'};
@@ -3570,13 +3577,13 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_rename_04(self):
         await self.con.execute("""
             CREATE ABSTRACT LINK test::rename_link_04 {
-                CREATE PROPERTY rename_prop_04 -> std::int64;
+                CREATE OPTIONAL PROPERTY rename_prop_04 -> std::int64;
             };
 
             CREATE TYPE test::LinkedObj04;
             CREATE TYPE test::RenameObj04 {
-                CREATE MULTI LINK rename_link_04 EXTENDING test::rename_link_04
-                    -> test::LinkedObj04;
+                CREATE OPTIONAL MULTI LINK rename_link_04
+                    EXTENDING test::rename_link_04 -> test::LinkedObj04;
             };
 
             INSERT test::LinkedObj04;
@@ -3601,7 +3608,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_rename_05(self):
         await self.con.execute("""
             CREATE TYPE test::GrandParent01 {
-                CREATE PROPERTY foo -> int64;
+                CREATE OPTIONAL PROPERTY foo -> int64;
             };
 
             CREATE TYPE test::Parent01 EXTENDING test::GrandParent01;
@@ -3627,11 +3634,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 "cannot rename inherited property 'foo'"):
             await self.con.execute("""
                 CREATE TYPE test::Parent01 {
-                    CREATE PROPERTY foo -> int64;
+                    CREATE OPTIONAL PROPERTY foo -> int64;
                 };
 
                 CREATE TYPE test::Parent02 {
-                    CREATE PROPERTY foo -> int64;
+                    CREATE OPTIONAL PROPERTY foo -> int64;
                 };
 
                 CREATE TYPE test::Child
@@ -3651,7 +3658,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 CREATE TYPE test::Foo;
 
                 CREATE TYPE test::Bar {
-                    CREATE MULTI LINK foo -> test::Foo {
+                    CREATE OPTIONAL MULTI LINK foo -> test::Foo {
                         SET default := (SELECT test::Foo);
                     }
                 };
@@ -3675,7 +3682,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
 
             CREATE TYPE Award {
-                CREATE LINK user -> User;
+                CREATE OPTIONAL LINK user -> User;
             };
 
             CREATE ALIAS Alias1 := Award {
@@ -3766,7 +3773,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             SET MODULE test;
 
             CREATE TYPE BaseType05 {
-                CREATE PROPERTY name -> str;
+                CREATE OPTIONAL PROPERTY name -> str;
             };
 
             CREATE ALIAS BT05Alias1 := BaseType05 {
@@ -3817,7 +3824,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             SET MODULE test;
 
             CREATE TYPE BaseType06 {
-                CREATE PROPERTY name -> str;
+                CREATE OPTIONAL PROPERTY name -> str;
             };
 
             CREATE ALIAS BT06Alias1 := BaseType06 {
@@ -3865,7 +3872,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             SET MODULE test;
 
             CREATE TYPE BaseType06 {
-                CREATE PROPERTY name -> str;
+                CREATE OPTIONAL PROPERTY name -> str;
             };
 
             CREATE ALIAS BT06Alias1 := BaseType06 {
@@ -3890,7 +3897,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_inheritance_alter_01(self):
         await self.con.execute(r"""
             CREATE TYPE test::InhTest01 {
-                CREATE PROPERTY testp -> int64;
+                CREATE OPTIONAL PROPERTY testp -> int64;
             };
 
             CREATE TYPE test::InhTest01_child EXTENDING test::InhTest01;
@@ -3905,7 +3912,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_inheritance_alter_02(self):
         await self.con.execute(r"""
             CREATE TYPE test::InhTest01 {
-                CREATE PROPERTY testp -> int64;
+                CREATE OPTIONAL PROPERTY testp -> int64;
             };
 
             CREATE TYPE test::InhTest01_child EXTENDING test::InhTest01;
@@ -3927,12 +3934,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
             CREATE TYPE test::Stuff1 {
                 # same link name, but NOT related via explicit inheritance
-                CREATE LINK owner -> test::Owner
+                CREATE OPTIONAL LINK owner -> test::Owner
             };
 
             CREATE TYPE test::Stuff2 {
                 # same link name, but NOT related via explicit inheritance
-                CREATE LINK owner -> test::Owner
+                CREATE OPTIONAL LINK owner -> test::Owner
             };
         """)
 
@@ -3943,7 +3950,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_inheritance_alter_04(self):
         await self.con.execute(r"""
             CREATE TYPE test::InhTest04 {
-                CREATE PROPERTY testp -> int64;
+                CREATE OPTIONAL PROPERTY testp -> int64;
             };
 
             CREATE TYPE test::InhTest04_child EXTENDING test::InhTest04;
@@ -3983,7 +3990,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE ABSTRACT TYPE test::BaseTypeCon01;
             CREATE TYPE test::TypeCon01 EXTENDING test::BaseTypeCon01;
             ALTER TYPE test::BaseTypeCon01
-                CREATE SINGLE PROPERTY name -> std::str;
+                CREATE OPTIONAL SINGLE PROPERTY name -> std::str;
             # make sure that we can create a constraint in the base
             # type now
             ALTER TYPE test::BaseTypeCon01
@@ -4031,7 +4038,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_constraint_alter_01(self):
         await self.con.execute(r"""
             CREATE TYPE test::ConTest01 {
-                CREATE PROPERTY con_test -> int64;
+                CREATE OPTIONAL PROPERTY con_test -> int64;
             };
 
             ALTER TYPE test::ConTest01
@@ -4301,7 +4308,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute(r"""
             CREATE TYPE test::Target;
             CREATE TYPE test::Parent {
-                CREATE LINK dil_foo -> test::Target;
+                CREATE OPTIONAL LINK dil_foo -> test::Target;
             };
 
             CREATE TYPE test::Child EXTENDING test::Parent;
@@ -4361,7 +4368,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         # dropped.
         await self.con.execute("""
             CREATE TYPE test::C1 {
-                CREATE PROPERTY l1 -> std::str {
+                CREATE OPTIONAL PROPERTY l1 -> std::str {
                     CREATE ANNOTATION description := 'test_delta_drop_02_link';
                 };
             };
@@ -4404,7 +4411,9 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE ABSTRACT ANNOTATION test::dropattr;
             CREATE ABSTRACT LINK test::l1_parent;
             CREATE TYPE test::DropB {
-                CREATE LINK l1 EXTENDING test::l1_parent -> test::DropA {
+                CREATE OPTIONAL LINK l1 EXTENDING
+                    test::l1_parent -> test::DropA
+                {
                     CREATE ANNOTATION test::dropattr := 'foo';
                 };
             };
@@ -4469,15 +4478,15 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_tuple_properties(self):
         await self.con.execute(r"""
             CREATE TYPE test::TupProp01 {
-                CREATE PROPERTY p1 -> tuple<int64, str>;
-                CREATE PROPERTY p2 -> tuple<foo: int64, bar: str>;
-                CREATE PROPERTY p3 -> tuple<foo: int64,
+                CREATE OPTIONAL PROPERTY p1 -> tuple<int64, str>;
+                CREATE OPTIONAL PROPERTY p2 -> tuple<foo: int64, bar: str>;
+                CREATE OPTIONAL PROPERTY p3 -> tuple<foo: int64,
                                             bar: tuple<json, json>>;
             };
 
             CREATE TYPE test::TupProp02 {
-                CREATE PROPERTY p1 -> tuple<int64, str>;
-                CREATE PROPERTY p2 -> tuple<json, json>;
+                CREATE OPTIONAL PROPERTY p1 -> tuple<int64, str>;
+                CREATE OPTIONAL PROPERTY p2 -> tuple<json, json>;
             };
         """)
 
@@ -4499,7 +4508,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         # composite type was actually removed.
         await self.con.execute(r"""
             ALTER TYPE test::TupProp02 {
-                CREATE PROPERTY p1 -> tuple<int64, str>;
+                CREATE OPTIONAL PROPERTY p1 -> tuple<int64, str>;
             };
         """)
 
@@ -4521,14 +4530,14 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         # Re-create to assure cleanup.
         await self.con.execute(r"""
             ALTER TYPE test::TupProp02 {
-                CREATE PROPERTY p3 -> tuple<json, json>;
-                CREATE PROPERTY p4 -> tuple<a: json, b: json>;
+                CREATE OPTIONAL PROPERTY p3 -> tuple<json, json>;
+                CREATE OPTIONAL PROPERTY p4 -> tuple<a: json, b: json>;
             };
         """)
 
         await self.con.execute(r"""
             ALTER TYPE test::TupProp02 {
-                CREATE PROPERTY p5 -> array<tuple<int64>>;
+                CREATE OPTIONAL PROPERTY p5 -> array<tuple<int64>>;
             };
         """)
 
@@ -4540,7 +4549,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
             await self.con.execute(r"""
                 ALTER TYPE test::TupProp02 {
-                    CREATE PROPERTY p6 -> tuple<test::TupProp02>;
+                    CREATE OPTIONAL PROPERTY p6 -> tuple<test::TupProp02>;
                 };
             """)
 
@@ -4566,7 +4575,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         await self.con.execute('''
             CREATE TYPE test::EnumHost {
-                CREATE PROPERTY foo -> test::my_enum;
+                CREATE OPTIONAL PROPERTY foo -> test::my_enum;
             }
         ''')
 
@@ -4656,7 +4665,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_quoting_01(self):
         await self.con.execute("""
             CREATE TYPE test::`U S``E R` {
-                CREATE PROPERTY `n ame` -> str;
+                CREATE OPTIONAL PROPERTY `n ame` -> str;
             };
         """)
 
@@ -4689,7 +4698,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute("""
             CREATE TYPE T;
             CREATE TYPE A {
-                CREATE MULTI LINK t -> T;
+                CREATE OPTIONAL MULTI LINK t -> T;
             };
             CREATE TYPE B EXTENDING A;
             INSERT T;
@@ -4722,7 +4731,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 SET MODULE test;
 
                 CREATE TYPE Base {
-                    CREATE PROPERTY foo -> str;
+                    CREATE OPTIONAL PROPERTY foo -> str;
                 };
                 CREATE TYPE Derived EXTENDING Base {
                     ALTER PROPERTY foo {
@@ -4744,7 +4753,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 SET MODULE test;
 
                 CREATE TYPE Base {
-                    CREATE PROPERTY foo -> str {
+                    CREATE OPTIONAL PROPERTY foo -> str {
                         SET readonly := True;
                     };
                 };
@@ -4768,10 +4777,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 SET MODULE test;
 
                 CREATE TYPE Base0 {
-                    CREATE PROPERTY foo -> str;
+                    CREATE OPTIONAL PROPERTY foo -> str;
                 };
                 CREATE TYPE Base1 {
-                    CREATE PROPERTY foo -> str {
+                    CREATE OPTIONAL PROPERTY foo -> str {
                         SET readonly := True;
                     };
                 };
@@ -4785,10 +4794,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             SET MODULE test;
 
             CREATE TYPE Base0 {
-                CREATE PROPERTY foo -> str;
+                CREATE OPTIONAL PROPERTY foo -> str;
             };
             CREATE TYPE Base1 {
-                CREATE PROPERTY foo -> str;
+                CREATE OPTIONAL PROPERTY foo -> str;
             };
             CREATE TYPE Derived EXTENDING Base0, Base1;
         ''')
@@ -4823,7 +4832,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 SET MODULE test;
 
                 CREATE TYPE Base {
-                    CREATE LINK foo -> Object;
+                    CREATE OPTIONAL LINK foo -> Object;
                 };
                 CREATE TYPE Derived EXTENDING Base {
                     ALTER LINK foo {
@@ -4845,7 +4854,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 SET MODULE test;
 
                 CREATE TYPE Base {
-                    CREATE LINK foo -> Object {
+                    CREATE OPTIONAL LINK foo -> Object {
                         SET readonly := True;
                     };
                 };
@@ -4869,10 +4878,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 SET MODULE test;
 
                 CREATE TYPE Base0 {
-                    CREATE LINK foo -> Object;
+                    CREATE OPTIONAL LINK foo -> Object;
                 };
                 CREATE TYPE Base1 {
-                    CREATE LINK foo -> Object {
+                    CREATE OPTIONAL LINK foo -> Object {
                         SET readonly := True;
                     };
                 };
@@ -4886,10 +4895,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             SET MODULE test;
 
             CREATE TYPE Base0 {
-                CREATE LINK foo -> Object;
+                CREATE OPTIONAL LINK foo -> Object;
             };
             CREATE TYPE Base1 {
-                CREATE LINK foo -> Object;
+                CREATE OPTIONAL LINK foo -> Object;
             };
             CREATE TYPE Derived EXTENDING Base0, Base1;
         ''')
@@ -4925,8 +4934,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 SET MODULE test;
 
                 CREATE TYPE Base {
-                    CREATE LINK foo -> Object {
-                        CREATE PROPERTY bar -> str;
+                    CREATE OPTIONAL LINK foo -> Object {
+                        CREATE OPTIONAL PROPERTY bar -> str;
                     };
                 };
                 CREATE TYPE Derived EXTENDING Base {
@@ -4952,8 +4961,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 SET MODULE test;
 
                 CREATE TYPE Base {
-                    CREATE LINK foo -> Object {
-                        CREATE PROPERTY bar -> str {
+                    CREATE OPTIONAL LINK foo -> Object {
+                        CREATE OPTIONAL PROPERTY bar -> str {
                             SET readonly := True;
                         };
                     };
@@ -4981,13 +4990,13 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 SET MODULE test;
 
                 CREATE TYPE Base0 {
-                    CREATE LINK foo -> Object {
-                        CREATE PROPERTY bar -> str;
+                    CREATE OPTIONAL LINK foo -> Object {
+                        CREATE OPTIONAL PROPERTY bar -> str;
                     };
                 };
                 CREATE TYPE Base1 {
-                    CREATE LINK foo -> Object {
-                        CREATE PROPERTY bar -> str {
+                    CREATE OPTIONAL LINK foo -> Object {
+                        CREATE OPTIONAL PROPERTY bar -> str {
                             SET readonly := True;
                         };
                     };
@@ -5002,13 +5011,13 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             SET MODULE test;
 
             CREATE TYPE Base0 {
-                CREATE LINK foo -> Object {
-                    CREATE PROPERTY bar -> str;
+                CREATE OPTIONAL LINK foo -> Object {
+                    CREATE OPTIONAL PROPERTY bar -> str;
                 };
             };
             CREATE TYPE Base1 {
-                CREATE LINK foo -> Object {
-                    CREATE PROPERTY bar -> str;
+                CREATE OPTIONAL LINK foo -> Object {
+                    CREATE OPTIONAL PROPERTY bar -> str;
                 };
             };
             CREATE TYPE Derived EXTENDING Base0, Base1;
@@ -5043,7 +5052,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 SET MODULE test;
 
                 CREATE TYPE Base {
-                    CREATE PROPERTY foo -> str;
+                    CREATE OPTIONAL PROPERTY foo -> str;
                 };
                 ALTER TYPE Base {
                     ALTER PROPERTY foo {
@@ -5098,7 +5107,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 SET MODULE test;
 
                 CREATE TYPE Base {
-                    CREATE LINK foo -> Object;
+                    CREATE OPTIONAL LINK foo -> Object;
                 };
                 ALTER TYPE Base {
                     ALTER LINK foo {
@@ -5153,8 +5162,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 SET MODULE test;
 
                 CREATE TYPE Base {
-                    CREATE LINK foo -> Object {
-                        CREATE PROPERTY bar -> str;
+                    CREATE OPTIONAL LINK foo -> Object {
+                        CREATE OPTIONAL PROPERTY bar -> str;
                     };
                 };
                 CREATE TYPE Derived EXTENDING Base {
@@ -5254,7 +5263,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         ):
             await self.con.execute(r"""
                 CREATE TYPE Foo {
-                    CREATE MULTI PROPERTY a -> int64;
+                    CREATE OPTIONAL MULTI PROPERTY a -> int64;
                     CREATE INDEX ON (.a);
                 }
             """)
@@ -5266,8 +5275,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         ):
             await self.con.execute(r"""
                 CREATE TYPE Foo {
-                    CREATE PROPERTY a -> int64;
-                    CREATE PROPERTY b -> int64;
+                    CREATE OPTIONAL PROPERTY a -> int64;
+                    CREATE OPTIONAL PROPERTY b -> int64;
                     CREATE INDEX ON ({.a, .b});
                 }
             """)
@@ -5279,8 +5288,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         ):
             await self.con.execute(r"""
                 CREATE TYPE Foo {
-                    CREATE PROPERTY a -> int64;
-                    CREATE PROPERTY b -> int64;
+                    CREATE OPTIONAL PROPERTY a -> int64;
+                    CREATE OPTIONAL PROPERTY b -> int64;
                     CREATE INDEX ON (array_unpack([.a, .b]));
                 }
             """)
@@ -5425,7 +5434,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 await self.con.execute('''
                     WITH MODULE test
                     CREATE TYPE Err1 EXTENDING blah {
-                        CREATE PROPERTY foo -> str;
+                        CREATE OPTIONAL PROPERTY foo -> str;
                     };
                 ''')
 
@@ -5436,7 +5445,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 await self.con.execute('''
                     WITH MODULE test
                     CREATE TYPE Err2 EXTENDING test::blah {
-                        CREATE PROPERTY foo -> str;
+                        CREATE OPTIONAL PROPERTY foo -> str;
                     };
                 ''')
 

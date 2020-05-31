@@ -408,7 +408,7 @@ class ProcessFunctionBlockMixin:
 
 
 #
-# CREATE TYPE ... { CREATE LINK ... { ON TARGET DELETE ...
+# CREATE TYPE ... { CREATE OPTIONAL LINK ... { ON TARGET DELETE ...
 #
 class OnTargetDeleteStmt(Nonterm):
     def reduce_ON_TARGET_DELETE_RESTRICT(self, *kids):

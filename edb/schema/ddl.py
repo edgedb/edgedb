@@ -398,9 +398,11 @@ def apply_ddl(
     modaliases: Mapping[Optional[str], str],
     stdmode: bool=False,
     testmode: bool=False,
+    dumprestore: bool = False,
 ) -> s_schema.Schema:
     schema, _ = _delta_from_ddl(ddl_stmt, schema=schema, modaliases=modaliases,
-                                stdmode=stdmode, testmode=testmode)
+                                stdmode=stdmode, testmode=testmode,
+                                dumprestore=dumprestore)
     return schema
 
 
@@ -411,6 +413,7 @@ def apply_ddl_script(
     modaliases: Optional[Mapping[Optional[str], str]] = None,
     stdmode: bool = False,
     testmode: bool = False,
+    dumprestore: bool = False,
 ) -> s_schema.Schema:
 
     schema, _ = apply_ddl_script_ex(
@@ -419,6 +422,7 @@ def apply_ddl_script(
         modaliases=modaliases,
         stdmode=stdmode,
         testmode=testmode,
+        dumprestore=dumprestore,
     )
 
     return schema
@@ -431,6 +435,7 @@ def apply_ddl_script_ex(
     modaliases: Optional[Mapping[Optional[str], str]] = None,
     stdmode: bool = False,
     testmode: bool = False,
+    dumprestore: bool = False,
 ) -> Tuple[s_schema.Schema, sd.DeltaRoot]:
 
     delta = sd.DeltaRoot()
@@ -445,6 +450,7 @@ def apply_ddl_script_ex(
             modaliases=modaliases,
             stdmode=stdmode,
             testmode=testmode,
+            dumprestore=dumprestore,
         )
 
         delta.add(cmd)
@@ -459,12 +465,14 @@ def delta_from_ddl(
     modaliases: Mapping[Optional[str], str],
     stdmode: bool=False,
     testmode: bool=False,
+    dumprestore: bool=False,
     schema_object_ids: Optional[
         Mapping[Tuple[str, Optional[str]], uuid.UUID]
     ]=None,
 ) -> sd.DeltaRoot:
     _, cmd = _delta_from_ddl(ddl_stmt, schema=schema, modaliases=modaliases,
                              stdmode=stdmode, testmode=testmode,
+                             dumprestore=dumprestore,
                              schema_object_ids=schema_object_ids)
     return cmd
 
@@ -476,6 +484,7 @@ def _delta_from_ddl(
     modaliases: Mapping[Optional[str], str],
     stdmode: bool=False,
     testmode: bool=False,
+    dumprestore: bool=False,
     schema_object_ids: Optional[
         Mapping[Tuple[str, Optional[str]], uuid.UUID]
     ]=None,
@@ -486,6 +495,7 @@ def _delta_from_ddl(
         schema=schema,
         stdmode=stdmode,
         testmode=testmode,
+        dumprestore=dumprestore,
         schema_object_ids=schema_object_ids,
     )
 

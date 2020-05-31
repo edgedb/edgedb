@@ -21,7 +21,7 @@ CREATE PROPERTY
     [ WITH <with-item> [, ...] ]
     {CREATE|ALTER} {TYPE|LINK} <SourceName> "{"
       [ ... ]
-      CREATE [ REQUIRED ] [{SINGLE | MULTI}] PROPERTY <name>
+      CREATE {REQUIRED | OPTIONAL} ] [{SINGLE | MULTI}] PROPERTY <name>
         [ EXTENDING <base> [, ...] ] -> <type>
         [ "{" <subcommand>; [...] "}" ] ;
       [ ... ]
@@ -32,7 +32,7 @@ CREATE PROPERTY
     [ WITH <with-item> [, ...] ]
     {CREATE|ALTER} {TYPE|LINK} <SourceName> "{"
       [ ... ]
-      CREATE [REQUIRED] [{SINGLE | MULTI}]
+      CREATE {REQUIRED | OPTIONAL} [{SINGLE | MULTI}]
         PROPERTY <name> := <expression>;
       [ ... ]
     "}"
@@ -72,11 +72,18 @@ Parameters
 ----------
 
 :eql:synopsis:`REQUIRED`
-    If specified, the property is considered *required* for the parent
+    Specifies the property is considered *required* for the parent
     object type.  It is an error for an object to have a required
     property resolve to an empty value.  Child properties **always**
     inherit the *required* attribute, i.e it is not possible to make a
-    required property non-required by extending it.
+    required property optional by extending it.
+
+:eql:synopsis:`OPTIONAL`
+    Specifies the property is considered *optional* for the parent
+    object type.  It is **not** an error for an object to have such
+    a property resolve to an empty value.  Child properties **always**
+    inherit the *required* attribute, i.e it is not possible to make a
+    required property optional by extending it.
 
 :eql:synopsis:`MULTI`
     Specifies that there may be more than one instance of this property
@@ -131,7 +138,7 @@ Define a new link ``address`` on the ``User`` object type:
 .. code-block:: edgeql
 
     ALTER TYPE User {
-        CREATE PROPERTY address -> str
+        CREATE OPTIONAL PROPERTY address -> str
     };
 
 Define a new property ``number_of_friends`` as a computable on the
@@ -140,7 +147,7 @@ Define a new property ``number_of_friends`` as a computable on the
 .. code-block:: edgeql
 
     ALTER TYPE User {
-        CREATE PROPERTY number_of_friends :=
+        CREATE OPTIONAL PROPERTY number_of_friends :=
             count(__source__.friends)
     };
 
@@ -149,7 +156,7 @@ Define a new abstract link ``orderable`` with ``weight`` property:
 .. code-block:: edgeql
 
     CREATE ABSTRACT LINK orderable {
-        CREATE PROPERTY weight -> std::int64
+        CREATE OPTIONAL PROPERTY weight -> std::int64
     };
 
 

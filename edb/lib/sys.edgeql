@@ -40,12 +40,12 @@ CREATE TYPE sys::Role EXTENDING sys::SystemObject {
     };
 
     CREATE REQUIRED PROPERTY is_superuser -> std::bool;
-    CREATE PROPERTY password -> std::str;
+    CREATE OPTIONAL PROPERTY password -> std::str;
 };
 
 
 ALTER TYPE sys::Role {
-    CREATE MULTI LINK member_of -> sys::Role;
+    CREATE OPTIONAL MULTI LINK member_of -> sys::Role;
 };
 
 

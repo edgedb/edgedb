@@ -624,6 +624,7 @@ class ConcretePropertyBlock(Nonterm):
             target=kids[3].val,
             commands=kids[4].val,
         )
+        reject_unqualified(self.val)
 
     def reduce_CreateRegularQualifiedProperty(self, *kids):
         """%reduce
@@ -665,6 +666,7 @@ class ConcretePropertyShort(Nonterm):
             bases=kids[2].val,
             target=kids[3].val,
         )
+        reject_unqualified(self.val)
 
     def reduce_CreateRegularQualifiedProperty(self, *kids):
         """%reduce
@@ -700,6 +702,7 @@ class ConcretePropertyShort(Nonterm):
             name=kids[1].val,
             target=kids[3].val,
         )
+        reject_unqualified(self.val)
 
     def reduce_CreateQualifiedComputableProperty(self, *kids):
         """%reduce
@@ -835,6 +838,7 @@ class ConcreteLinkShort(Nonterm):
             bases=kids[2].val,
             target=kids[3].val,
         )
+        reject_unqualified(self.val)
 
     def reduce_CreateRegularQualifiedLink(self, *kids):
         """%reduce
@@ -871,6 +875,7 @@ class ConcreteLinkShort(Nonterm):
             name=kids[1].val,
             target=kids[3].val,
         )
+        reject_unqualified(self.val)
 
     def reduce_CreateQualifiedComputableLink(self, *kids):
         """%reduce
@@ -1035,4 +1040,15 @@ class FunctionDeclarationShort(Nonterm, commondl.ProcessFunctionBlockMixin):
             returning=kids[5].val,
             returning_typemod=kids[4].val,
             **self._process_function_body(kids[6]),
+        )
+
+
+def reject_unqualified(val):
+    if getattr(val, 'is_required', False) is not None:
+        return
+
+    for cmd in val.commands:
+        raise errors.EdgeQLSyntaxError(
+            f"specify an explicit OPTIONAL or REQUIRED qualifier",
+            context=cmd.context,
         )

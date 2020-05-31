@@ -25,7 +25,7 @@ class TestServerCompiler(tb.BaseSchemaLoadTest):
 
     SCHEMA = '''
         type Foo {
-            property bar -> str;
+            optional property bar -> str;
         }
     '''
 

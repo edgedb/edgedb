@@ -1263,7 +1263,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
     async def test_edgeql_calls_38(self):
         # Test a function taking an object as an argument.
         await self.con.execute('''
-            CREATE TYPE C38 { CREATE PROPERTY name -> str };
+            CREATE TYPE C38 { CREATE OPTIONAL PROPERTY name -> str };
             INSERT C38 { name := 'yay' };
             CREATE FUNCTION test::call38(
                 a: C38

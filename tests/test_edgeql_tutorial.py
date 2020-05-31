@@ -34,9 +34,9 @@ class TestEdgeQLTutorial(tb.QueryTestCase):
                     type Movie {
                         required property title -> str;
                         # the year of release
-                        property year -> int64;
+                        optional property year -> int64;
                         required link director -> Person;
-                        multi link cast -> Person;
+                        optional multi link cast -> Person;
                     }
                     type Person {
                         required property first_name -> str;
@@ -209,14 +209,14 @@ class TestEdgeQLTutorial(tb.QueryTestCase):
                     type Movie {
                         required property title -> str;
                         # the year of release
-                        property year -> int64;
+                        optional property year -> int64;
                         required link director -> Person;
-                        multi link cast -> Person;
+                        optional multi link cast -> Person;
                     }
                     type Person {
-                        property first_name -> str;
+                        optional property first_name -> str;
                         required property last_name -> str;
-                        property name :=
+                        optional property name :=
                             .first_name ++ ' ' ++ .last_name
                             IF EXISTS .first_name
                             ELSE .last_name;

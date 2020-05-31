@@ -66,16 +66,16 @@ CREATE TYPE cfg::Auth EXTENDING cfg::ConfigObject {
         SET readonly := true;
     };
 
-    CREATE MULTI PROPERTY user -> std::str {
+    CREATE OPTIONAL MULTI PROPERTY user -> std::str {
         SET readonly := true;
         SET default := {'*'};
     };
 
-    CREATE SINGLE LINK method -> cfg::AuthMethod {
+    CREATE OPTIONAL SINGLE LINK method -> cfg::AuthMethod {
         CREATE CONSTRAINT std::exclusive;
     };
 
-    CREATE PROPERTY comment -> std::str {
+    CREATE OPTIONAL PROPERTY comment -> std::str {
         SET readonly := true;
     };
 };
@@ -91,11 +91,11 @@ CREATE TYPE cfg::Config extending cfg::ConfigObject {
         CREATE ANNOTATION cfg::system := 'true';
     };
 
-    CREATE MULTI LINK ports -> cfg::Port {
+    CREATE OPTIONAL MULTI LINK ports -> cfg::Port {
         CREATE ANNOTATION cfg::system := 'true';
     };
 
-    CREATE MULTI LINK auth -> cfg::Auth {
+    CREATE OPTIONAL MULTI LINK auth -> cfg::Auth {
         CREATE ANNOTATION cfg::system := 'true';
     };
 
@@ -103,29 +103,29 @@ CREATE TYPE cfg::Config extending cfg::ConfigObject {
     # When exposing a new setting, remember to modify
     # the _read_sys_config function to select the value
     # from pg_settings in the config_backend CTE.
-    CREATE PROPERTY shared_buffers -> std::str {
+    CREATE OPTIONAL PROPERTY shared_buffers -> std::str {
         CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"shared_buffers"';
         CREATE ANNOTATION cfg::requires_restart := 'true';
         SET default := '-1';
     };
 
-    CREATE PROPERTY query_work_mem -> std::str {
+    CREATE OPTIONAL PROPERTY query_work_mem -> std::str {
         CREATE ANNOTATION cfg::backend_setting := '"work_mem"';
         SET default := '-1';
     };
 
-    CREATE PROPERTY effective_cache_size -> std::str {
+    CREATE OPTIONAL PROPERTY effective_cache_size -> std::str {
         CREATE ANNOTATION cfg::backend_setting := '"effective_cache_size"';
         SET default := '-1';
     };
 
-    CREATE PROPERTY effective_io_concurrency -> std::str {
+    CREATE OPTIONAL PROPERTY effective_io_concurrency -> std::str {
         CREATE ANNOTATION cfg::backend_setting := '"effective_io_concurrency"';
         SET default := '50';
     };
 
-    CREATE PROPERTY default_statistics_target -> std::str {
+    CREATE OPTIONAL PROPERTY default_statistics_target -> std::str {
         CREATE ANNOTATION cfg::backend_setting := '"default_statistics_target"';
         SET default := '100';
     };

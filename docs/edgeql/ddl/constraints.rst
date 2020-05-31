@@ -335,7 +335,7 @@ constraint:
 
 .. code-block:: edgeql
 
-    ALTER TYPE User CREATE PROPERTY score -> int64 {
+    ALTER TYPE User CREATE OPTIONAL PROPERTY score -> int64 {
         CREATE CONSTRAINT min_value(0)
     };
 

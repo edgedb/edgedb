@@ -28,7 +28,7 @@ class TestSession(tb.QueryTestCase):
             module default {
                 type User {
                     required property name -> str;
-                    property name_len := len(User.name);
+                    optional property name_len := len(User.name);
                 };
 
                 type Flag {
@@ -158,9 +158,9 @@ class TestSession(tb.QueryTestCase):
 
             await self.con.execute('''
                 ALTER TYPE User {
-                    CREATE PROPERTY aaa := len(
+                    CREATE OPTIONAL PROPERTY aaa := len(
                         'yes' IF __source__ IS User ELSE 'no');
-                    CREATE PROPERTY name_upper := str_upper(.name);
+                    CREATE OPTIONAL PROPERTY name_upper := str_upper(.name);
                 }
             ''')
 
@@ -238,7 +238,7 @@ class TestSession(tb.QueryTestCase):
                                     r'called in a non-session context'):
             await self.con.execute(r"""
                 CREATE TYPE BadType {
-                    CREATE PROPERTY bad -> bool {
+                    CREATE OPTIONAL PROPERTY bad -> bool {
                         SET default := sys::sleep(0)
                     }
                 };
@@ -291,7 +291,7 @@ class TestSession(tb.QueryTestCase):
                 await self.con.execute(r"""
                     CREATE MIGRATION bad TO {
                         type test::BadType {
-                            property bad -> bool {
+                            optional property bad -> bool {
                                 default := sys::sleep(0)
                             }
                         }

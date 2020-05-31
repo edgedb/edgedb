@@ -23,15 +23,15 @@ type JSONTest {
     }
 
     # these properties are intended to have specific JSON types in them
-    property j_string -> json;
-    property j_number -> json;
-    property j_boolean -> json;
-    property j_array -> json;
-    property j_object -> json;
+    optional property j_string -> json;
+    optional property j_number -> json;
+    optional property j_boolean -> json;
+    optional property j_array -> json;
+    optional property j_object -> json;
 
     # this property is for more generic JSON handling
-    property data -> json;
+    optional property data -> json;
 
     # these properties are used for testing casting
-    property edb_string -> str;
+    optional property edb_string -> str;
 }

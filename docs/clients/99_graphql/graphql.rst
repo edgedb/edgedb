@@ -17,9 +17,9 @@ containing the following schema:
         # to make the examples simpler only the title is
         # a required property
         required property title -> str;
-        property synopsis -> str;
-        link author -> Author;
-        property isbn -> str {
+        optional property synopsis -> str;
+        optional link author -> Author;
+        optional property isbn -> str {
             constraint max_len_value(10);
         }
     }

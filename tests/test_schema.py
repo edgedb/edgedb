@@ -41,7 +41,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
     def test_schema_overloaded_01(self):
         """
             type UniqueName {
-                property name -> str {
+                optional property name -> str {
                     constraint exclusive
                 }
             };
@@ -54,17 +54,17 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(errors.SchemaDefinitionError,
                   "'name'.*must be declared using the `overloaded` keyword",
-                  position=228)
+                  position=237)
     def test_schema_overloaded_02(self):
         """
             type UniqueName {
-                property name -> str {
+                optional property name -> str {
                     constraint exclusive
                 }
             };
 
             type UniqueName_2 extending UniqueName {
-                property name -> str {
+                optional property name -> str {
                     constraint exclusive
                 }
             };
@@ -82,21 +82,21 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(errors.InvalidLinkTargetError,
                   'invalid link target, expected object type, got scalar type',
-                  position=69)
+                  position=78)
     def test_schema_bad_link_01(self):
         """
             type Object {
-                link foo -> str
+                optional link foo -> str
             };
         """
 
     @tb.must_fail(errors.InvalidLinkTargetError,
                   'invalid link target, expected object type, got scalar type',
-                  position=69)
+                  line=3, col=38)
     def test_schema_bad_link_02(self):
         """
             type Object {
-                link foo := 1 + 1
+                required link foo := 1 + 1
             };
         """
 
@@ -114,22 +114,22 @@ _123456789_123456789_123456789 -> Object
     @tb.must_fail(errors.InvalidPropertyTargetError,
                   "invalid property type: expected a scalar type, "
                   "or a scalar collection, got object type 'test::Object'",
-                  position=73)
+                  position=82)
     def test_schema_bad_prop_01(self):
         """
             type Object {
-                property foo -> Object
+                optional property foo -> Object
             };
         """
 
     @tb.must_fail(errors.InvalidPropertyTargetError,
                   "invalid property type: expected a scalar type, "
                   "or a scalar collection, got object type 'test::Object'",
-                  position=73)
+                  line=3, col=42)
     def test_schema_bad_prop_02(self):
         """
             type Object {
-                property foo := (SELECT Object)
+                required property foo := (SELECT Object)
             };
         """
 
@@ -146,60 +146,61 @@ _123456789_123456789_123456789 -> str
 
     @tb.must_fail(errors.InvalidReferenceError,
                   "type 'int' does not exist",
-                  position=73,
+                  position=82,
                   hint='did you mean one of these: int16, int32, int64?')
     def test_schema_bad_type_01(self):
         """
             type Object {
-                property foo -> int
+                optional property foo -> int
             };
         """
 
     @tb.must_fail(errors.InvalidPropertyTargetError,
                   "expected a scalar type, or a scalar collection, "
                   "got collection 'array<test::Foo>'",
-                  position=94)
+                  position=103)
     def test_schema_bad_type_02(self):
         """
             type Foo;
 
             type Base {
-                property foo -> array<Foo>;
+                optional property foo -> array<Foo>;
             }
         """
 
     @tb.must_fail(errors.InvalidPropertyTargetError,
                   "expected a scalar type, or a scalar collection, "
                   "got collection 'tuple<test::Foo>'",
-                  position=94)
+                  position=103)
     def test_schema_bad_type_03(self):
         """
             type Foo;
 
             type Base {
-                property foo -> tuple<Foo>;
+                optional property foo -> tuple<Foo>;
             }
         """
 
     @tb.must_fail(errors.InvalidPropertyTargetError,
                   "expected a scalar type, or a scalar collection, "
                   "got collection 'tuple<std::str, array<test::Foo>>'",
-                  position=94)
+                  position=103)
     def test_schema_bad_type_04(self):
         """
             type Foo;
 
             type Base {
-                property foo -> tuple<str, array<Foo>>;
+                optional property foo -> tuple<str, array<Foo>>;
             }
         """
 
     def test_schema_computable_cardinality_inference_01(self):
         schema = self.load_schema("""
             type Object {
-                property foo -> str;
-                property bar -> str;
-                property foo_plus_bar := __source__.foo ++ __source__.bar;
+                optional property foo -> str;
+                optional property bar -> str;
+                optional property foo_plus_bar :=
+                    __source__.foo ++ __source__.bar;
             };
         """)
 
@@ -211,9 +212,10 @@ _123456789_123456789_123456789 -> str
     def test_schema_computable_cardinality_inference_02(self):
         schema = self.load_schema("""
             type Object {
-                multi property foo -> str;
-                property bar -> str;
-                property foo_plus_bar := __source__.foo ++ __source__.bar;
+                optional multi property foo -> str;
+                optional property bar -> str;
+                optional property foo_plus_bar :=
+                    __source__.foo ++ __source__.bar;
             };
         """)
 
@@ -226,12 +228,12 @@ _123456789_123456789_123456789 -> str
         schema = self.load_schema("""
             type Object1;
             type Object2 {
-                link foo -> Object1
+                optional link foo -> Object1
             };
             type Object3 extending Object1;
             type Object4 extending Object1;
             type Object5 {
-                link bar -> Object2
+                optional link bar -> Object2
             };
             type Object6 extending Object4;
         """)
@@ -371,7 +373,7 @@ _123456789_123456789_123456789 -> str
     def test_schema_refs_02(self):
         schema = self.load_schema("""
             type Object1 {
-                property num -> int64;
+                optional property num -> int64;
             };
             type Object2 {
                 required property num -> int64 {
@@ -401,7 +403,7 @@ _123456789_123456789_123456789 -> str
     def test_schema_refs_03(self):
         schema = self.load_schema("""
             type Object1 {
-                property num -> int64;
+                optional property num -> int64;
             };
             type Object2 {
                 required property num -> int64 {
@@ -482,7 +484,8 @@ _123456789_123456789_123456789 -> str
             CREATE MODULE default;
             CREATE ABSTRACT TYPE default::Named;
             CREATE TYPE default::User EXTENDING default::Named;
-            ALTER TYPE default::Named CREATE SINGLE PROPERTY name -> std::str;
+            ALTER TYPE default::Named
+                CREATE OPTIONAL SINGLE PROPERTY name -> std::str;
             # unusual ordering of constraint definition
             ALTER TYPE default::Named
                 ALTER PROPERTY name
@@ -509,7 +512,8 @@ _123456789_123456789_123456789 -> str
             CREATE MODULE default;
             CREATE ABSTRACT TYPE default::Named;
             CREATE TYPE default::User EXTENDING default::Named;
-            ALTER TYPE default::Named CREATE SINGLE PROPERTY name -> std::str;
+            ALTER TYPE default::Named
+                CREATE OPTIONAL SINGLE PROPERTY name -> std::str;
             # unusual ordering of constraint definition
             ALTER TYPE default::User
                 ALTER PROPERTY name
@@ -533,7 +537,7 @@ _123456789_123456789_123456789 -> str
         schema = self.run_ddl(schema, r'''
             CREATE MODULE default;
             CREATE ABSTRACT TYPE default::Named {
-                CREATE SINGLE PROPERTY name -> std::str;
+                CREATE OPTIONAL SINGLE PROPERTY name -> std::str;
             };
             ALTER TYPE default::Named {
                 ALTER PROPERTY name {
@@ -561,7 +565,7 @@ _123456789_123456789_123456789 -> str
         schema = self.run_ddl(schema, r'''
             CREATE MODULE default;
             CREATE ABSTRACT TYPE default::Named {
-                CREATE SINGLE PROPERTY name -> std::str;
+                CREATE OPTIONAL SINGLE PROPERTY name -> std::str;
             };
             CREATE TYPE default::Recipe EXTENDING default::Named;
             CREATE ALIAS default::VegRecipes := (
@@ -709,7 +713,7 @@ _123456789_123456789_123456789 -> str
 
         try:
             schema = self.run_ddl(schema, '''
-                ALTER TYPE default::A CREATE PROPERTY foo -> str;
+                ALTER TYPE default::A CREATE OPTIONAL PROPERTY foo -> str;
             ''')
         finally:
             type(schema).get_children = orig_get_children
@@ -722,15 +726,15 @@ _123456789_123456789_123456789 -> str
 
             type Object1 {
                 annotation attr := 'inherit me';
-                property foo -> std::str {
+                optional property foo -> std::str {
                     annotation attr := 'propprop';
                     constraint max_len_value(10)
                 }
 
-                link bar -> Object {
+                optional link bar -> Object {
                     constraint exclusive;
                     annotation attr := 'bbb';
-                    property bar_prop -> std::str {
+                    optional property bar_prop -> std::str {
                         annotation attr := 'aaa';
                         constraint max_len_value(10);
                     }
@@ -853,26 +857,26 @@ _123456789_123456789_123456789 -> str
         schema = self.load_schema("""
             type D;
             abstract type F {
-                property f -> int64;
-                link d -> D {
-                    property f_d_prop -> str;
+                optional property f -> int64;
+                optional link d -> D {
+                    optional property f_d_prop -> str;
                 }
             }
             type T1 {
-                property n -> str;
-                link d -> D {
-                    property t1_d_prop -> str;
+                optional property n -> str;
+                optional link d -> D {
+                    optional property t1_d_prop -> str;
                 }
             };
             type T2 extending F {
-                property n -> str;
+                optional property n -> str;
             };
             type T3;
 
             type A {
-                link t -> T1 | T2;
-                link t2 := .t[IS T2];
-                link tf := .t[IS F];
+                optional link t -> T1 | T2;
+                optional link t2 := .t[IS T2];
+                optional link tf := .t[IS F];
             }
         """)
 
@@ -968,7 +972,7 @@ _123456789_123456789_123456789 -> str
     def test_schema_correct_ancestors_on_explicit_derive_ref(self):
         schema = self.load_schema("""
             type A {
-                property name -> str;
+                optional property name -> str;
             }
             type B extending A;
         """)
@@ -1142,7 +1146,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             abstract inheritable annotation my_anno;
 
             abstract type Named {
-                property name -> str {
+                optional property name -> str {
                     annotation title := 'Name';
                     delegated constraint exclusive {
                         annotation title := 'uniquely named';
@@ -1172,7 +1176,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
     def test_get_migration_02(self):
         schema = r'''
             abstract type Named {
-                property name -> str {
+                optional property name -> str {
                     # legal, albeit superfluous std
                     delegated constraint std::exclusive;
                 }
@@ -1192,13 +1196,13 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
     def test_get_migration_03(self):
         schema = '''
             abstract type Named {
-                property name -> str {
+                optional property name -> str {
                     delegated constraint exclusive;
                 }
             }
 
             type Ingredient extending Named {
-                property vegetarian -> bool {
+                optional property vegetarian -> bool {
                     default := false;
                 }
             }
@@ -1206,11 +1210,11 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             scalar type unit extending enum<'ml', 'g', 'oz'>;
 
             type Recipe extending Named {
-                multi link ingredients -> Ingredient {
-                    property quantity -> decimal {
+                optional multi link ingredients -> Ingredient {
+                    optional property quantity -> decimal {
                         annotation title := 'ingredient quantity';
                     };
-                    property unit -> unit;
+                    optional property unit -> unit;
                 }
             }
 
@@ -1234,7 +1238,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             alias X := (SELECT Foo{num := .bar});
 
             type Foo {
-                property bar -> int64;
+                optional property bar -> int64;
             };
         '''
 
@@ -1246,7 +1250,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             alias X := (SELECT Foo FILTER .bar > 2);
 
             type Foo {
-                property bar -> int64;
+                optional property bar -> int64;
             };
         '''
 
@@ -1266,7 +1270,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # validate that we can trace DELETE
         schema = r'''
             type Bar {
-                property data -> str;
+                optional property data -> str;
             }
 
             type Foo {
@@ -1283,7 +1287,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
     def test_get_migration_08(self):
         schema = r'''
             type Bar {
-                property data -> str {
+                optional property data -> str {
                     constraint min_value(10) on (len(<str>__subject__))
                 }
             }
@@ -1295,8 +1299,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         schema = r'''
             type Foo;
             type Spam {
-                link foo -> Foo;
-                property name -> str;
+                optional link foo -> Foo;
+                optional property name -> str;
             };
             type Ham extending Spam {
                 overloaded link foo {
@@ -1314,11 +1318,11 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         schema = r'''
             # The two types declared are mutually dependent.
             type Foo {
-                link bar -> Bar;
+                optional link bar -> Bar;
             };
 
             type Bar {
-                link foo -> Foo;
+                optional link foo -> Foo;
             };
         '''
 
@@ -1328,23 +1332,23 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         schema = r'''
             # The two types declared are mutually dependent.
             type Foo {
-                link bar -> Bar {
+                optional link bar -> Bar {
                     default := (
                         SELECT Bar FILTER .name > 'a'
                         LIMIT 1
                     );
                 };
-                property name -> str;
+                optional property name -> str;
             };
 
             type Bar {
-                link foo -> Foo {
+                optional link foo -> Foo {
                     default := (
                         SELECT Foo FILTER .name < 'z'
                         LIMIT 1
                     );
                 };
-                property name -> str;
+                optional property name -> str;
             };
         '''
 
@@ -1371,7 +1375,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             alias X := (SELECT Foo.name);
 
             type Foo {
-                property name -> str;
+                optional property name -> str;
             }
         '''
 
@@ -1384,7 +1388,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             alias X := (DETACHED Foo.name);
 
             type Foo {
-                property name -> str;
+                optional property name -> str;
             }
         '''
 
@@ -1393,7 +1397,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
     def test_get_migration_15(self):
         schema = r'''
             type Foo {
-                property bar -> int64;
+                optional property bar -> int64;
                 annotation title := 'Foo';
             };
         '''
@@ -1411,7 +1415,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         DDL text was:
         CREATE TYPE default::Foo {
-            CREATE SINGLE PROPERTY bar -> std::int64;
+            CREATE OPTIONAL SINGLE PROPERTY bar -> std::int64;
         };
         CREATE ALIAS default::X {
             USING (WITH
@@ -1425,7 +1429,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
     def test_get_migration_16(self):
         schema = r'''
             type Foo {
-                property bar -> int64;
+                optional property bar -> int64;
             };
 
             alias X {
@@ -1440,7 +1444,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # Test abstract and concrete constraints order of declaration.
         schema = r'''
         type Foo {
-            property color -> str {
+            optional property color -> str {
                 constraint my_one_of(['red', 'green', 'blue']);
             }
         }
@@ -1456,7 +1460,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # Test abstract and concrete constraints order of declaration.
         schema = r'''
         type Foo {
-            property color -> constraint_my_enum;
+            optional property color -> constraint_my_enum;
         }
 
         scalar type constraint_my_enum extending str {
@@ -1474,7 +1478,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # Test abstract and concrete annotations order of declaration.
         schema = r'''
         type Foo {
-            property name -> str;
+            optional property name -> str;
             annotation my_anno := 'Foo';
         }
 
@@ -1487,7 +1491,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # Test abstract and concrete annotations order of declaration.
         schema = r'''
         type Foo {
-            property name -> str {
+            optional property name -> str {
                 annotation my_anno := 'Foo';
             }
         }
@@ -1503,7 +1507,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         type Foo {
             # an index defined before property & function
             index on (idx(.bar));
-            property bar -> int64;
+            optional property bar -> int64;
         }
 
         function idx(num: int64) -> bool {
@@ -1518,7 +1522,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # Test prop default and function order of definition.
         schema = r'''
         type Foo {
-            property name -> str {
+            optional property name -> str {
                 default := name_def();
             };
         }
@@ -1536,7 +1540,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # that the function `default::to_upper` will actually be used.
         schema = r'''
         type Foo {
-            property name -> str {
+            optional property name -> str {
                 default := str_upper('some_name');
             };
         }
@@ -1553,7 +1557,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # the same SDL.
         schema = r'''
         type Tagged {
-            property tag := make_tag(.title);
+            optional property tag := make_tag(.title);
             required property title -> str {
                 constraint exclusive on (make_tag(__subject__))
             }
@@ -1586,7 +1590,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         type User extending Named;
 
         abstract type Named {
-            property name -> str;
+            optional property name -> str;
         }
         '''
 
@@ -1607,16 +1611,17 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # Test index issues.
         schema = r'''
         abstract link translated_label {
-            property lang -> str;
-            property prop1 -> str;
+            optional property lang -> str;
+            optional property prop1 -> str;
         }
 
         type Label {
-            property text -> str;
+            optional property text -> str;
         }
 
         type UniqueName {
-            link translated_label extending translated_label -> Label {
+            optional link translated_label extending translated_label -> Label
+            {
                 constraint exclusive on
                     ((__subject__@source, __subject__@lang));
                 constraint exclusive on
@@ -1656,7 +1661,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         );
 
         type Child {
-            property foo -> str;
+            optional property foo -> str;
         }
         '''
 
@@ -1678,16 +1683,16 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # Test "on target delete".
         schema = r'''
         type Foo {
-            link link0 -> Object {
+            optional link link0 -> Object {
                 on target delete restrict;
             };
-            link link1 -> Object {
+            optional link link1 -> Object {
                 on target delete delete source;
             };
-            link link2 -> Object {
+            optional link link2 -> Object {
                 on target delete allow;
             };
-            link link3 -> Object {
+            optional link link3 -> Object {
                 on target delete deferred restrict;
             };
         }
@@ -1724,18 +1729,18 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # Issue #1383.
         schema = r'''
         type Class extending HasAvailability {
-            link schedule :=
+            optional link schedule :=
                 .<class[IS Course].scheduledAt;
         }
         abstract type HasAvailability {
-            multi link availableAt -> TimeSpot;
+            optional multi link availableAt -> TimeSpot;
         }
         abstract type HasSchedule {
-            multi link scheduledAt -> TimeSpot;
+            optional multi link scheduledAt -> TimeSpot;
         }
         type Course extending HasSchedule{
             required property name -> str;
-            link class -> Class;
+            optional link class -> Class;
         }
         type TimeSpot;
         '''
@@ -1748,13 +1753,13 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             # modules and have linear dependency.
             module default {
                 type Foo extending other::Bar {
-                    property foo -> str;
+                    optional property foo -> str;
                 };
             }
 
             module other {
                 type Bar {
-                    property bar -> str;
+                    optional property bar -> str;
                 };
             }
         '''
@@ -1766,11 +1771,11 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             # The two types declared are mutually dependent and are from
             # different modules.
             type default::Foo {
-                link bar -> other::Bar;
+                optional link bar -> other::Bar;
             };
 
             type other::Bar {
-                link foo -> default::Foo;
+                optional link foo -> default::Foo;
             };
         '''
 
@@ -1781,7 +1786,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # when the components are spread across different modules.
         schema = r'''
         type default::Foo {
-            property color -> scal_mod::constraint_my_enum;
+            optional property color -> scal_mod::constraint_my_enum;
         }
 
         scalar type scal_mod::constraint_my_enum extending str {
@@ -1801,7 +1806,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             alias default::X := (SELECT other::Foo.name);
 
             type other::Foo {
-                property name -> str;
+                optional property name -> str;
             }
         '''
 
@@ -1813,7 +1818,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             alias default::X := (SELECT other::Foo FILTER .name > 'a');
 
             type other::Foo {
-                property name -> str;
+                optional property name -> str;
             }
         '''
 
@@ -1823,7 +1828,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # Type and annotation from different modules.
         schema = r'''
         type default::Foo {
-            property name -> str;
+            optional property name -> str;
             annotation other::my_anno := 'Foo';
         }
 
@@ -1836,7 +1841,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # Type and annotation from different modules.
         schema = r'''
         type default::Foo {
-            property name -> str {
+            optional property name -> str {
                 annotation other::my_anno := 'Foo';
             }
         }
@@ -1863,7 +1868,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
     def test_get_migration_multi_module_09(self):
         schema = r'''
         type default::Foo {
-            property bar -> int64;
+            optional property bar -> int64;
             # an index
             index on (other::idx(.bar));
         }
@@ -1880,7 +1885,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # Test prop default and function order of definition.
         schema = r'''
         type default::Foo {
-            property name -> str {
+            optional property name -> str {
                 default := other::name_def();
             };
         }
@@ -1896,7 +1901,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # Test prop default and function order of definition.
         schema = r'''
         type default::Foo {
-            property name -> str {
+            optional property name -> str {
                 # use WITH instead of fully-qualified name
                 default := (WITH MODULE other SELECT name_def());
             };
@@ -1913,7 +1918,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # Test prop default and function order of definition.
         schema = r'''
         type default::Foo {
-            property name -> str {
+            optional property name -> str {
                 # use WITH instead of fully-qualified name
                 default := (
                     WITH mod AS MODULE other
@@ -1934,11 +1939,11 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Base;
         """, r"""
             type Base {
-                property name -> str;
+                optional property name -> str;
             }
         """, r"""
             type Base {
-                property name -> str;
+                optional property name -> str;
             }
 
             type Derived extending Base {
@@ -1949,7 +1954,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
     def test_migrations_equivalence_02(self):
         self._assert_migration_equivalence([r"""
             type Base {
-                property foo -> str;
+                optional property foo -> str;
             }
 
             type Derived extending Base {
@@ -1958,7 +1963,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         """, r"""
             type Base {
                 # rename 'foo'
-                property foo2 -> str;
+                optional property foo2 -> str;
             }
 
             type Derived extending Base {
@@ -1969,7 +1974,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
     def test_migrations_equivalence_03(self):
         self._assert_migration_equivalence([r"""
             type Base {
-                property foo -> str;
+                optional property foo -> str;
             }
 
             type Derived extending Base {
@@ -1981,14 +1986,14 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
             type Derived extending Base {
                 # completely different property
-                property foo2 -> str;
+                optional property foo2 -> str;
             }
         """])
 
     def test_migrations_equivalence_04(self):
         self._assert_migration_equivalence([r"""
             type Base {
-                property foo -> str;
+                optional property foo -> str;
             }
 
             type Derived extending Base;
@@ -2004,14 +2009,14 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
             type Further extending Derived {
                 # completely different property
-                property foo2 -> str;
+                optional property foo2 -> str;
             };
         """])
 
     def test_migrations_equivalence_05(self):
         self._assert_migration_equivalence([r"""
             type Base {
-                property foo -> str;
+                optional property foo -> str;
             }
 
             type Derived extending Base {
@@ -2023,14 +2028,14 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
             type Derived extending Base {
                 # no longer inherited property 'foo'
-                property foo -> str;
+                optional property foo -> str;
             }
         """])
 
     def test_migrations_equivalence_06(self):
         self._assert_migration_equivalence([r"""
             type Base {
-                property foo -> int64;
+                optional property foo -> int64;
             }
 
             type Derived extending Base {
@@ -2039,7 +2044,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         """, r"""
             type Base {
                 # change property type
-                property foo -> str;
+                optional property foo -> str;
             }
 
             type Derived extending Base {
@@ -2052,7 +2057,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Child;
 
             type Base {
-                link bar -> Child;
+                optional link bar -> Child;
             }
         """, r"""
             type Child;
@@ -2068,7 +2073,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
     def test_migrations_equivalence_08(self):
         self._assert_migration_equivalence([r"""
             type Base {
-                property foo -> str;
+                optional property foo -> str;
             }
         """, r"""
             type Base {
@@ -2095,28 +2100,28 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
     def test_migrations_equivalence_10(self):
         self._assert_migration_equivalence([r"""
             type Base {
-                property foo -> str;
+                optional property foo -> str;
             }
         """, r"""
             type Child;
 
             type Base {
                 # change property to link with same name
-                link foo -> Child;
+                optional link foo -> Child;
             }
         """])
 
     def test_migrations_equivalence_11(self):
         self._assert_migration_equivalence([r"""
             type Base {
-                property foo -> str;
+                optional property foo -> str;
             }
         """, r"""
             type Child;
 
             type Base {
                 # change property to link with same name
-                link foo -> Child {
+                optional link foo -> Child {
                     # add a constraint
                     constraint exclusive;
                 }
@@ -2128,11 +2133,11 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Child;
 
             type Base {
-                property foo -> str {
+                optional property foo -> str {
                     constraint exclusive;
                 }
 
-                link bar -> Child {
+                optional link bar -> Child {
                     constraint exclusive;
                 }
             }
@@ -2141,8 +2146,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
             type Base {
                 # drop constraints
-                property foo -> str;
-                link bar -> Child;
+                optional property foo -> str;
+                optional link bar -> Child;
             }
         """])
 
@@ -2151,7 +2156,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Child;
 
             type Base {
-                link bar -> Child;
+                optional link bar -> Child;
             }
 
             type Derived extending Base {
@@ -2165,7 +2170,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
             type Derived extending Base {
                 # no longer inherit link 'bar'
-                link bar -> Child;
+                optional link bar -> Child;
             }
         """])
 
@@ -2174,12 +2179,12 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Base;
 
             type Derived extending Base {
-                property foo -> str;
+                optional property foo -> str;
             }
         """, r"""
             type Base {
                 # move the property earlier in the inheritance
-                property foo -> str;
+                optional property foo -> str;
             }
 
             type Derived extending Base {
@@ -2194,14 +2199,14 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Base;
 
             type Derived extending Base {
-                link bar -> Child;
+                optional link bar -> Child;
             }
         """, r"""
             type Child;
 
             type Base {
                 # move the link earlier in the inheritance
-                link bar -> Child;
+                optional link bar -> Child;
             }
 
             type Derived extending Base;
@@ -2214,14 +2219,14 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Base;
 
             type Derived extending Base {
-                link bar -> Child;
+                optional link bar -> Child;
             }
         """, r"""
             type Child;
 
             type Base {
                 # move the link earlier in the inheritance
-                link bar -> Child;
+                optional link bar -> Child;
             }
 
             type Derived extending Base;
@@ -2229,7 +2234,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Child;
 
             type Base {
-                link bar -> Child;
+                optional link bar -> Child;
             }
 
             type Derived extending Base {
@@ -2241,24 +2246,24 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
     def test_migrations_equivalence_17(self):
         self._assert_migration_equivalence([r"""
             type Base {
-                property name := 'computable'
+                optional property name := 'computable'
             }
         """, r"""
             type Base {
                 # change a property from a computable to regular
-                property name -> str
+                optional property name -> str
             }
         """])
 
     def test_migrations_equivalence_18(self):
         self._assert_migration_equivalence([r"""
             type Base {
-                property name := 'something'
+                required property name := 'something'
             }
         """, r"""
             type Base {
                 # change a property from a computable to regular with a default
-                property name -> str {
+                optional property name -> str {
                     default := 'something'
                 }
             }
@@ -2267,69 +2272,69 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
     def test_migrations_equivalence_19(self):
         self._assert_migration_equivalence([r"""
             type Base {
-                property name -> str
+                optional property name -> str
             }
         """, r"""
             type Base {
                 # change a regular property to a computable
-                property name := 'computable'
+                optional property name := 'computable'
             }
         """])
 
     def test_migrations_equivalence_20(self):
         self._assert_migration_equivalence([r"""
             type Base {
-                property name -> str {
+                optional property name -> str {
                     default := 'something'
                 }
             }
         """, r"""
             type Base {
                 # change a regular property to a computable
-                property name := 'something'
+                optional property name := 'something'
             }
         """])
 
     def test_migrations_equivalence_21(self):
         self._assert_migration_equivalence([r"""
             type Base {
-                property foo -> str;
+                optional property foo -> str;
             }
         """, r"""
             type Base {
-                property foo -> str;
+                optional property foo -> str;
                 # add a property
-                property bar -> int64;
+                optional property bar -> int64;
             }
         """, r"""
             type Base {
                 # make the old property into a computable
-                property foo := <str>__source__.bar;
-                property bar -> int64;
+                optional property foo := <str>__source__.bar;
+                optional property bar -> int64;
             }
         """])
 
     def test_migrations_equivalence_22(self):
         self._assert_migration_equivalence([r"""
             type Base {
-                property foo -> str;
+                optional property foo -> str;
             }
         """, r"""
             # rename the type, although this test doesn't ensure that
             # renaming actually took place
             type NewBase {
-                property foo -> str;
+                optional property foo -> str;
             }
         """, r"""
             type NewBase {
-                property foo -> str;
+                optional property foo -> str;
                 # add a property
-                property bar -> int64;
+                optional property bar -> int64;
             }
         """, r"""
             type NewBase {
                 # drop 'foo'
-                property bar -> int64;
+                optional property bar -> int64;
             }
 
             # add an alias to emulate the original
@@ -2343,11 +2348,11 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
     def test_migrations_equivalence_23(self):
         self._assert_migration_equivalence([r"""
             type Child {
-                property foo -> str;
+                optional property foo -> str;
             }
 
             type Base {
-                link bar -> Child;
+                optional link bar -> Child;
             }
 
             alias Alias01 := (
@@ -2357,7 +2362,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             );
         """, r"""
             type Child {
-                property foo -> str;
+                optional property foo -> str;
             }
 
             # exchange a type for an alias
@@ -2381,14 +2386,14 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Child;
 
             type Base {
-                link bar -> Child;
+                optional link bar -> Child;
             }
         """, r"""
             type Child;
 
             type Base {
                 # increase link cardinality
-                multi link bar -> Child;
+                optional multi link bar -> Child;
             }
         """])
 
@@ -2397,20 +2402,20 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Child;
 
             type Base {
-                multi link bar -> Child;
+                optional multi link bar -> Child;
             }
         """, r"""
             type Child;
 
             type Base {
                 # reduce link cardinality
-                link bar -> Child;
+                optional link bar -> Child;
             }
         """, r"""
             type Child;
 
             type Base {
-                link bar -> Child {
+                optional link bar -> Child {
                     # further restrict the link
                     constraint exclusive
                 }
@@ -2422,13 +2427,13 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Child;
 
             type Parent {
-                link bar -> Child;
+                optional link bar -> Child;
             }
         """, r"""
             type Child;
 
             type Parent {
-                link bar -> Child;
+                optional link bar -> Child;
             }
 
             # derive a type
@@ -2439,7 +2444,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type DerivedChild extending Child;
 
             type Parent {
-                link bar -> Child;
+                optional link bar -> Child;
             }
 
             # derive a type with a more restrictive link
@@ -2451,44 +2456,44 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
     def test_migrations_equivalence_27(self):
         self._assert_migration_equivalence([r"""
             abstract type Named {
-                property name -> str;
+                optional property name -> str;
             }
 
             type Foo extending Named;
             type Bar extending Named;
         """, r"""
             abstract type Named {
-                property name -> str;
+                optional property name -> str;
             }
 
             # the types stop extending named, but retain the property
             # 'name'
             type Foo {
-                property name -> str;
+                optional property name -> str;
             };
 
             type Bar {
-                property name -> str;
+                optional property name -> str;
             };
         """, r"""
             abstract type Named {
-                property name -> str;
+                optional property name -> str;
             }
 
             type Foo {
-                property name -> str;
+                optional property name -> str;
             };
 
             type Bar {
                 # rename 'name' to 'title'
-                property title -> str;
+                optional property title -> str;
             };
         """])
 
     def test_migrations_equivalence_28(self):
         self._assert_migration_equivalence([r"""
             type Child {
-                property foo -> str;
+                optional property foo -> str;
             }
         """, r"""
             # drop everything
@@ -2497,7 +2502,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
     def test_migrations_equivalence_29(self):
         self._assert_migration_equivalence([r"""
             type Child {
-                property foo -> str;
+                optional property foo -> str;
             }
 
             alias Base := (
@@ -2515,26 +2520,26 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # property.
         self._assert_migration_equivalence([r"""
             type Foo {
-                property name -> str;
+                optional property name -> str;
             };
 
             type Bar {
-                property title -> str;
+                optional property title -> str;
             };
         """, r"""
             type Foo {
-                property name -> str;
+                optional property name -> str;
             };
 
             type Bar {
                 # rename 'title' to 'name'
-                property name -> str;
+                optional property name -> str;
             };
         """, r"""
             # both types have a name, so the name prop is factored out
             # into a more basic type.
             abstract type Named {
-                property name -> str;
+                optional property name -> str;
             }
 
             type Foo extending Named;
@@ -2589,7 +2594,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
             type Comment extending Text, Owned {
               required link issue -> Issue;
-              link parent -> Comment;
+              optional link parent -> Comment;
             }
             # issue_num_t is defined as a concrete
             # sequence type, used to generate
@@ -2606,31 +2611,31 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 readonly := true;
               }
 
-              property time_estimate -> int64;
+              optional property time_estimate -> int64;
 
-              property start_date -> datetime {
+              optional property start_date -> datetime {
                 # The default value of start_date will be a
                 # result of the EdgeQL expression above.
                 default := (SELECT datetime_current());
               }
 
-              property due_date -> datetime;
+              optional property due_date -> datetime;
 
               required link status -> Status;
 
-              link priority -> Priority;
+              optional link priority -> Priority;
 
               # The watchers link is mapped to User
               # type in many-to-many relation.
-              multi link watchers -> User;
+              optional multi link watchers -> User;
 
-              multi link time_spent_log -> LogEntry {
+              optional multi link time_spent_log -> LogEntry {
                 # Exclusive multi-link represents
                 # a one-to-many relation.
                 constraint exclusive;
               }
 
-              multi link related_to -> Issue;
+              optional multi link related_to -> Issue;
             }
         """, r"""
             type User {
@@ -2647,7 +2652,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
               required property spent_time -> int64;
             }
             type Issue {
-              multi link time_spent_log -> LogEntry {
+              optional multi link time_spent_log -> LogEntry {
                 constraint exclusive;
               }
             }
@@ -2664,7 +2669,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Child;
 
             type Base {
-                link foo -> Child;
+                optional link foo -> Child;
             }
         """, r"""
             type Child;
@@ -2672,7 +2677,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
             type Base {
                 # change link type
-                link foo -> Child2;
+                optional link foo -> Child2;
             }
         """])
 
@@ -2682,14 +2687,14 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Child;
 
             type Base {
-                link foo -> Child {
+                optional link foo -> Child {
                     constraint exclusive;
                 }
             }
         """, r"""
             type Base {
                 # change link to property with same name
-                property foo -> str;
+                optional property foo -> str;
             }
         """])
 
@@ -2700,7 +2705,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
 
             type Base {
-                link foo := (
+                optional link foo := (
                     SELECT Child FILTER .name = 'computable_35'
                 )
             }
@@ -2711,7 +2716,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
             type Base {
                 # change a link from a computable to regular
-                multi link foo -> Child;
+                optional multi link foo -> Child;
             }
         """])
 
@@ -2722,7 +2727,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
 
             type Base {
-                multi link foo -> Child;
+                optional multi link foo -> Child;
             }
         """, r"""
             type Child {
@@ -2731,7 +2736,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
             type Base {
                 # change a regular link to a computable
-                link foo := (
+                optional link foo := (
                     SELECT Child FILTER .name = 'computable_36'
                 )
             }
@@ -2787,7 +2792,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Base;
 
             type Foo {
-                property name -> str
+                optional property name -> str
             }
 
             alias BaseAlias := (
@@ -2799,7 +2804,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Base;
 
             type Foo {
-                property name -> str
+                optional property name -> str
             }
 
             alias BaseAlias := (
@@ -2818,11 +2823,11 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Base;
 
             type Foo {
-                property name -> str
+                optional property name -> str
             }
 
             type Bar {
-                property name -> str
+                optional property name -> str
             }
 
             alias BaseAlias := (
@@ -2834,11 +2839,11 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Base;
 
             type Foo {
-                property name -> str
+                optional property name -> str
             }
 
             type Bar {
-                property name -> str
+                optional property name -> str
             }
 
             alias BaseAlias := (
@@ -2855,7 +2860,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Base;
 
             type Foo {
-                property name -> str
+                optional property name -> str
             }
 
             alias BaseAlias := (
@@ -2872,7 +2877,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Base;
 
             type Foo {
-                property name -> str
+                optional property name -> str
             }
 
             alias BaseAlias := (
@@ -2897,7 +2902,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Base;
 
             type Foo {
-                property name -> str
+                optional property name -> str
             }
 
             alias BaseAlias := (
@@ -2914,7 +2919,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Base;
 
             type Foo {
-                property name -> str
+                optional property name -> str
             }
 
             alias BaseAlias := (
@@ -2928,6 +2933,18 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                     )
                 }
             )
+        """])
+
+    def test_migrations_equivalence_43(self):
+        self._assert_migration_equivalence([r"""
+            type Base {
+                optional property name -> str
+            }
+        """, r"""
+            type Base {
+                # change a regular property to a computable
+                required property name := 'computable'
+            }
         """])
 
     def test_migrations_equivalence_function_01(self):
@@ -2951,7 +2968,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 $$;
 
             type Base {
-                property foo -> int64 {
+                optional property foo -> int64 {
                     # use the function in default value computation
                     default := len(hello06(2) ++ hello06(123))
                 }
@@ -2963,7 +2980,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 );
 
             type Base {
-                property foo -> int64 {
+                optional property foo -> int64 {
                     # use the function in default value computation
                     default := len(hello06(2) ++ hello06(123))
                 }
@@ -3086,17 +3103,17 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Child;
 
             type Base {
-                link foo -> Child {
-                    property bar -> int64
+                optional link foo -> Child {
+                    optional property bar -> int64
                 }
             };
         """, r"""
             type Child;
 
             type Base {
-                link foo -> Child {
+                optional link foo -> Child {
                     # change the link property type
-                    property bar -> str
+                    optional property bar -> str
                 }
             };
         """])
@@ -3106,12 +3123,12 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Child;
 
             type Base {
-                link child -> Child
+                optional link child -> Child
             };
 
             type Derived extending Base {
                 overloaded link child -> Child {
-                    property foo -> str
+                    optional property foo -> str
                 }
             };
         """, r"""
@@ -3119,8 +3136,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
             type Base {
                 # move the link property earlier in the inheritance tree
-                link child -> Child {
-                    property foo -> str
+                optional link child -> Child {
+                    optional property foo -> str
                 }
             };
 
@@ -3132,8 +3149,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Child;
 
             type Base {
-                link child -> Child {
-                    property foo -> str
+                optional link child -> Child {
+                    optional property foo -> str
                 }
             };
 
@@ -3142,13 +3159,13 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Child;
 
             type Base {
-                link child -> Child
+                optional link child -> Child
             };
 
             type Derived extending Base {
                 overloaded link child -> Child {
                     # move the link property later in the inheritance tree
-                    property foo -> str
+                    optional property foo -> str
                 }
             };
         """])
@@ -3158,12 +3175,12 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Child;
 
             type Base {
-                link child -> Child
+                optional link child -> Child
             };
 
             type Derived extending Base {
                 overloaded link child -> Child {
-                    property foo -> str
+                    optional property foo -> str
                 }
             };
         """, r"""
@@ -3171,11 +3188,11 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
             # factor out link property all the way to an abstract link
             abstract link base_child {
-                property foo -> str;
+                optional property foo -> str;
             }
 
             type Base {
-                link child extending base_child -> Child;
+                optional link child extending base_child -> Child;
             };
 
             type Derived extending Base;
@@ -3186,11 +3203,11 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Child;
 
             abstract link base_child {
-                property foo -> str;
+                optional property foo -> str;
             }
 
             type Base {
-                link child extending base_child -> Child;
+                optional link child extending base_child -> Child;
             };
 
             type Derived extending Base;
@@ -3198,13 +3215,13 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Child;
 
             type Base {
-                link child -> Child
+                optional link child -> Child
             };
 
             type Derived extending Base {
                 overloaded link child -> Child {
                     # move the link property later in the inheritance tree
-                    property foo -> str
+                    optional property foo -> str
                 }
             };
         """])
@@ -3214,22 +3231,22 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Thing;
 
             type Owner {
-                link item -> Thing {
-                    property foo -> str;
+                optional link item -> Thing {
+                    optional property foo -> str;
                 }
             };
 
             type Renter {
-                link item -> Thing {
-                    property foo -> str;
+                optional link item -> Thing {
+                    optional property foo -> str;
                 }
             };
         """, r"""
             type Thing;
 
             type Base {
-                link item -> Thing {
-                    property foo -> str;
+                optional link item -> Thing {
+                    optional property foo -> str;
                 }
             };
 
@@ -3243,23 +3260,23 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Thing;
 
             type Owner {
-                link item -> Thing {
-                    property foo -> str;
+                optional link item -> Thing {
+                    optional property foo -> str;
                 }
             };
 
             type Renter {
-                link item -> Thing {
-                    property bar -> str;
+                optional link item -> Thing {
+                    optional property bar -> str;
                 }
             };
         """, r"""
             type Thing;
 
             type Base {
-                link item -> Thing {
-                    property foo -> str;
-                    property bar -> str;
+                optional link item -> Thing {
+                    optional property foo -> str;
+                    optional property bar -> str;
                 }
             };
 
@@ -3353,18 +3370,18 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
     def test_migrations_equivalence_index_01(self):
         self._assert_migration_equivalence([r"""
             type Base {
-                property name -> str;
+                optional property name -> str;
             }
         """, r"""
             type Base {
-                property name -> str;
+                optional property name -> str;
                 # an index
                 index on (.name);
             }
         """, r"""
             type Base {
                 # rename the indexed property
-                property title -> str;
+                optional property title -> str;
                 index on (.title);
             }
         """])
@@ -3372,12 +3389,12 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
     def test_migrations_equivalence_index_02(self):
         self._assert_migration_equivalence([r"""
             type Base {
-                property name -> str;
+                optional property name -> str;
                 index on (.name);
             }
         """, r"""
             type Base {
-                property name -> str;
+                optional property name -> str;
                 # remove the index
             }
         """])
@@ -3385,18 +3402,18 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
     def test_migrations_equivalence_index_03(self):
         self._assert_migration_equivalence([r"""
             type Base {
-                property name -> int64;
+                optional property name -> int64;
             }
         """, r"""
             type Base {
-                property name -> int64;
+                optional property name -> int64;
                 # an index
                 index on (.name);
             }
         """, r"""
             type Base {
                 # change the indexed property type
-                property name -> str;
+                optional property name -> str;
                 index on (.name);
             }
         """])
@@ -3404,15 +3421,15 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
     def test_migrations_equivalence_index_04(self):
         self._assert_migration_equivalence([r"""
             type Base {
-                property first_name -> str;
-                property last_name -> str;
-                property name := .first_name ++ ' ' ++ .last_name;
+                optional property first_name -> str;
+                optional property last_name -> str;
+                optional property name := .first_name ++ ' ' ++ .last_name;
             }
         """, r"""
             type Base {
-                property first_name -> str;
-                property last_name -> str;
-                property name := .first_name ++ ' ' ++ .last_name;
+                optional property first_name -> str;
+                optional property last_name -> str;
+                optional property name := .first_name ++ ' ' ++ .last_name;
                 # an index on a computable
                 index on (.name);
             }
@@ -3427,7 +3444,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Base;
         """, r"""
             type Base {
-                property foo -> array<float32>;
+                optional property foo -> array<float32>;
             }
         """])
 
@@ -3436,7 +3453,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Base;
         """, r"""
             type Base {
-                property foo -> tuple<str, int32>;
+                optional property foo -> tuple<str, int32>;
             }
         """])
 
@@ -3446,7 +3463,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         """, r"""
             type Base {
                 # nested collection
-                property foo -> tuple<str, int32, array<float32>>;
+                optional property foo -> tuple<str, int32, array<float32>>;
             }
         """])
 
@@ -3455,31 +3472,31 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Base;
         """, r"""
             type Base {
-                property foo -> tuple<a: str, b: int32>;
+                optional property foo -> tuple<a: str, b: int32>;
             }
         """])
 
     def test_migrations_equivalence_collections_05(self):
         self._assert_migration_equivalence([r"""
             type Base {
-                property foo -> float32;
+                optional property foo -> float32;
             }
         """, r"""
             type Base {
                 # convert property type to array
-                property foo -> array<float32>;
+                optional property foo -> array<float32>;
             }
         """])
 
     def test_migrations_equivalence_collections_06(self):
         self._assert_migration_equivalence([r"""
             type Base {
-                property foo -> array<int32>;
+                optional property foo -> array<int32>;
             }
         """, r"""
             type Base {
                 # change the array type (old type is castable into new)
-                property foo -> array<float32>;
+                optional property foo -> array<float32>;
             }
         """])
 
@@ -3487,37 +3504,37 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         self._assert_migration_equivalence([r"""
             type Base {
                 # convert property type to tuple
-                property foo -> tuple<str, int32>;
+                optional property foo -> tuple<str, int32>;
             }
         """, r"""
             type Base {
                 # convert property type to a bigger tuple
-                property foo -> tuple<str, int32, int32>;
+                optional property foo -> tuple<str, int32, int32>;
             }
         """])
 
     def test_migrations_equivalence_collections_08(self):
         self._assert_migration_equivalence([r"""
             type Base {
-                property foo -> tuple<int32, int32>;
+                optional property foo -> tuple<int32, int32>;
             }
         """, r"""
             type Base {
                 # convert property type to a tuple with different (but
                 # cast-compatible) element types
-                property foo -> tuple<str, int32>;
+                optional property foo -> tuple<str, int32>;
             }
         """])
 
     def test_migrations_equivalence_collections_09(self):
         self._assert_migration_equivalence([r"""
             type Base {
-                property foo -> tuple<str, int32>;
+                optional property foo -> tuple<str, int32>;
             }
         """, r"""
             type Base {
                 # convert property type from unnamed to named tuple
-                property foo -> tuple<a: str, b: int32>;
+                optional property foo -> tuple<a: str, b: int32>;
             }
         """])
 
@@ -3536,7 +3553,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 type Foo;
             """, r"""
                 type Base {
-                    property foo -> array<Foo>;
+                    optional property foo -> array<Foo>;
                 }
 
                 type Foo;
@@ -3558,7 +3575,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 type Foo;
             """, r"""
                 type Base {
-                    property foo -> tuple<str, Foo>;
+                    optional property foo -> tuple<str, Foo>;
                 }
 
                 type Foo;
@@ -3576,15 +3593,15 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
             self._assert_migration_equivalence([r"""
             type Base {
-                property foo -> array<Foo>;
+                optional property foo -> array<Foo>;
             }
 
             type Foo;
         """, r"""
             type Base {
-                property foo -> array<Foo>;
+                optional property foo -> array<Foo>;
                 # nested collection
-                property bar -> tuple<str, array<Foo>>;
+                optional property bar -> tuple<str, array<Foo>>;
             }
 
             type Foo;
@@ -3594,7 +3611,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # schema aliases & collection test
         self._assert_migration_equivalence([r"""
             type Base {
-                property foo -> float32;
+                optional property foo -> float32;
             };
 
             # aliases that don't have arrays
@@ -3602,7 +3619,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             alias CollAlias := Base.foo;
         """, r"""
             type Base {
-                property foo -> float32;
+                optional property foo -> float32;
             };
 
             # "same" aliases that now have arrays
@@ -3614,8 +3631,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # schema aliases & collection test
         self._assert_migration_equivalence([r"""
             type Base {
-                property name -> str;
-                property foo -> float32;
+                optional property name -> str;
+                optional property foo -> float32;
             };
 
             # aliases that don't have tuples
@@ -3623,8 +3640,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             alias CollAlias := Base.foo;
         """, r"""
             type Base {
-                property name -> str;
-                property foo -> float32;
+                optional property name -> str;
+                optional property foo -> float32;
             };
 
             # "same" aliases that now have tuples
@@ -3636,9 +3653,9 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # schema aliases & collection test
         self._assert_migration_equivalence([r"""
             type Base {
-                property name -> str;
-                property number -> int32;
-                property foo -> float32;
+                optional property name -> str;
+                optional property number -> int32;
+                optional property foo -> float32;
             };
 
             # aliases that don't have nested collections
@@ -3646,9 +3663,9 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             alias CollAlias := Base.foo;
         """, r"""
             type Base {
-                property name -> str;
-                property number -> int32;
-                property foo -> float32;
+                optional property name -> str;
+                optional property number -> int32;
+                optional property foo -> float32;
             };
 
             # "same" aliases that now have nested collections
@@ -3662,8 +3679,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # schema aliases & collection test
         self._assert_migration_equivalence([r"""
             type Base {
-                property name -> str;
-                property foo -> float32;
+                optional property name -> str;
+                optional property foo -> float32;
             };
 
             # aliases that don't have named tuples
@@ -3671,8 +3688,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             alias CollAlias := Base.foo;
         """, r"""
             type Base {
-                property name -> str;
-                property foo -> float32;
+                optional property name -> str;
+                optional property foo -> float32;
             };
 
             # "same" aliases that now have named tuples
@@ -3686,8 +3703,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # schema aliases & collection test
         self._assert_migration_equivalence([r"""
             type Base {
-                property foo -> float32;
-                property bar -> int32;
+                optional property foo -> float32;
+                optional property bar -> int32;
             };
 
             # aliases with array<int32>
@@ -3695,8 +3712,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             alias CollAlias := [Base.bar];
         """, r"""
             type Base {
-                property foo -> float32;
-                property bar -> int32;
+                optional property foo -> float32;
+                optional property bar -> int32;
             };
 
             # aliases with array<flaot32>
@@ -3708,9 +3725,9 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # schema aliases & collection test
         self._assert_migration_equivalence([r"""
             type Base {
-                property name -> str;
-                property number -> int32;
-                property foo -> float32;
+                optional property name -> str;
+                optional property number -> int32;
+                optional property foo -> float32;
             };
 
             # aliases with tuple<str, int32>
@@ -3720,9 +3737,9 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             alias CollAlias := (Base.name, Base.number);
         """, r"""
             type Base {
-                property name -> str;
-                property number -> int32;
-                property foo -> float32;
+                optional property name -> str;
+                optional property number -> int32;
+                optional property foo -> float32;
             };
 
             # aliases with tuple<str, int32, float32>
@@ -3736,9 +3753,9 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # schema aliases & collection test
         self._assert_migration_equivalence([r"""
             type Base {
-                property name -> str;
-                property number -> int32;
-                property foo -> float32;
+                optional property name -> str;
+                optional property number -> int32;
+                optional property foo -> float32;
             };
 
             # aliases with tuple<str, int32>
@@ -3748,9 +3765,9 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             alias CollAlias := (Base.name, Base.number);
         """, r"""
             type Base {
-                property name -> str;
-                property number -> int32;
-                property foo -> float32;
+                optional property name -> str;
+                optional property number -> int32;
+                optional property foo -> float32;
             };
 
             # aliases with tuple<str, float32>
@@ -3764,8 +3781,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # schema aliases & collection test
         self._assert_migration_equivalence([r"""
             type Base {
-                property name -> str;
-                property foo -> float32;
+                optional property name -> str;
+                optional property foo -> float32;
             };
 
             # aliases with tuple<str, float32>
@@ -3775,8 +3792,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             alias CollAlias := (Base.name, Base.foo);
         """, r"""
             type Base {
-                property name -> str;
-                property foo -> float32;
+                optional property name -> str;
+                optional property foo -> float32;
             };
 
             # aliases with named tuple<a: str, b: float32>
@@ -3848,18 +3865,18 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             }
 
             abstract link f {
-                property p -> int_t {
+                optional property p -> int_t {
                     annotation anno := 'annotated link property';
                     constraint max_value(10);
                 }
             }
 
             type Parent {
-                multi property name -> str;
+                optional multi property name -> str;
             }
 
             type Parent2 {
-                link foo -> Foo;
+                optional link foo -> Foo;
                 index on (.foo);
             }
 
@@ -3903,7 +3920,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                     constraint std::exclusive {
                         annotation test::anno := 'annotated constraint';
                     };
-                    single property p -> test::int_t {
+                    optional single property p -> test::int_t {
                         constraint std::max_value(10);
                     };
                 };
@@ -3911,7 +3928,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                     readonly := true;
                     constraint std::exclusive;
                 };
-                multi property name -> std::str;
+                optional multi property name -> std::str;
             };
             """,
 
@@ -3923,12 +3940,12 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                     readonly := true;
                 };
                 overloaded single link foo extending test::f -> test::Foo {
-                    single property p -> test::int_t;
+                    optional single property p -> test::int_t;
                 };
                 required single property id -> std::uuid {
                     readonly := true;
                 };
-                multi property name -> std::str;
+                optional multi property name -> std::str;
             };
             """,
 
@@ -3984,7 +4001,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             type Foo;
             type Bar;
             type Spam {
-                link foobar -> Foo | Bar
+                optional link foobar -> Foo | Bar
             }
             """,
 
@@ -3995,12 +4012,12 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             [
                 """
                 type test::Spam {
-                    single link foobar -> (test::Foo | test::Bar);
+                    optional single link foobar -> (test::Foo | test::Bar);
                 };
                 """,
                 """
                 type test::Spam {
-                    single link foobar -> (test::Bar | test::Foo);
+                    optional single link foobar -> (test::Bar | test::Foo);
                 };
                 """,
             ]
@@ -4142,7 +4159,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
 
             type User extending HasImage {
-                property name -> str;
+                optional property name -> str;
             }
             """,
 
@@ -4159,7 +4176,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                     constraint std::exclusive;
                 };
                 required single property image -> std::str;
-                single property name -> std::str;
+                optional single property name -> std::str;
             };
             """,
 
@@ -4174,7 +4191,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                     readonly := true;
                 };
                 required single property image -> std::str;
-                single property name -> std::str;
+                optional single property name -> std::str;
             };
             """,
 
@@ -4182,7 +4199,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             '''
             type test::User extending test::HasImage {
-                single property name -> std::str;
+                optional single property name -> std::str;
             };
             ''',
 
@@ -4263,16 +4280,18 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             }
 
             abstract link translated_label {
-                property lang -> str;
-                property prop1 -> str;
+                optional property lang -> str;
+                optional property prop1 -> str;
             }
 
             type Label {
-                property text -> str;
+                optional property text -> str;
             }
 
             type UniqueName {
-                link translated_label extending translated_label -> Label {
+                optional link translated_label
+                    extending translated_label -> Label
+                {
                     constraint exclusive on (
                         (__subject__@source, __subject__@lang)
                     );
@@ -4308,8 +4327,9 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             '''
             type test::UniqueName {
-                single link translated_label extending test::translated_label
-                        -> test::Label {
+                optional single link translated_label
+                    extending test::translated_label -> test::Label
+                {
                     constraint std::exclusive on (WITH
                         MODULE test
                     SELECT
@@ -4336,11 +4356,11 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 required single link __type__ -> schema::Type {
                     readonly := true;
                 };
-                single link translated_label extending test::translated_label
-                    -> test::Label
+                optional single link translated_label
+                    extending test::translated_label -> test::Label
                 {
-                    single property lang -> std::str;
-                    single property prop1 -> std::str;
+                    optional single property lang -> std::str;
+                    optional single property prop1 -> std::str;
                 };
                 required single property id -> std::uuid {
                     readonly := true;
@@ -4355,14 +4375,14 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 required single link __type__ -> schema::Type {
                     readonly := true;
                 };
-                single link translated_label extending test::translated_label
-                    -> test::Label
+                optional single link translated_label
+                    extending test::translated_label -> test::Label
                 {
                     constraint std::exclusive on (__subject__@prop1);
                     constraint std::exclusive on (
                         (__subject__@source, __subject__@lang));
-                    single property lang -> std::str;
-                    single property prop1 -> std::str;
+                    optional single property lang -> std::str;
+                    optional single property prop1 -> std::str;
                 };
                 required single property id -> std::uuid {
                     readonly := true;
@@ -4415,7 +4435,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
         self._assert_describe(
             """
             type Foo {
-                property bar -> str {
+                optional property bar -> str {
                     readonly := False;
                 }
             };
@@ -4425,7 +4445,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             """
             CREATE TYPE test::Foo {
-                CREATE SINGLE PROPERTY bar -> std::str {
+                CREATE OPTIONAL SINGLE PROPERTY bar -> std::str {
                     SET readonly := false;
                 };
             };
@@ -4434,7 +4454,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             """
             type test::Foo {
-                single property bar -> std::str {
+                optional single property bar -> std::str {
                     readonly := false;
                 };
             };
@@ -4445,7 +4465,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
         self._assert_describe(
             """
             type Foo {
-                property name -> str;
+                optional property name -> str;
             };
 
             alias Bar := (SELECT Foo {name, calc := 1});
@@ -4456,7 +4476,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             """
             CREATE MODULE test IF NOT EXISTS;
             CREATE TYPE test::Foo {
-                CREATE SINGLE PROPERTY name -> std::str;
+                CREATE OPTIONAL SINGLE PROPERTY name -> std::str;
             };
             CREATE ALIAS test::Bar :=
                 (WITH
@@ -4474,7 +4494,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
         self._assert_describe(
             """
             type Foo {
-                property name -> str;
+                optional property name -> str;
             };
 
             alias Bar {
@@ -4488,7 +4508,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             """
             CREATE MODULE test IF NOT EXISTS;
             CREATE TYPE test::Foo {
-                CREATE SINGLE PROPERTY name -> std::str;
+                CREATE OPTIONAL SINGLE PROPERTY name -> std::str;
             };
             CREATE ALIAS test::Bar {
                 USING (WITH
@@ -4549,13 +4569,13 @@ class TestDescribe(tb.BaseSchemaLoadTest):
         self._assert_describe(
             """
             type Foo {
-                property compprop := 'foo';
-                link complink := (SELECT Foo LIMIT 1);
-                property annotated_compprop -> str {
+                optional property compprop := 'foo';
+                optional link complink := (SELECT Foo LIMIT 1);
+                optional property annotated_compprop -> str {
                     using ('foo');
                     annotation title := 'compprop';
                 };
-                link annotated_link -> Foo {
+                optional link annotated_link -> Foo {
                     using (SELECT Foo LIMIT 1);
                     annotation title := 'complink';
                 };
@@ -4567,11 +4587,11 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             """
             CREATE MODULE test IF NOT EXISTS;
             CREATE TYPE test::Foo {
-                CREATE SINGLE PROPERTY annotated_compprop {
+                CREATE OPTIONAL SINGLE PROPERTY annotated_compprop {
                     USING ('foo');
                     CREATE ANNOTATION std::title := 'compprop';
                 };
-                CREATE SINGLE LINK annotated_link {
+                CREATE OPTIONAL SINGLE LINK annotated_link {
                     USING (WITH
                         MODULE test
                     SELECT
@@ -4581,7 +4601,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                     );
                     CREATE ANNOTATION std::title := 'complink';
                 };
-                CREATE SINGLE LINK complink := (WITH
+                CREATE OPTIONAL SINGLE LINK complink := (WITH
                     MODULE test
                 SELECT
                     Foo
@@ -4597,13 +4617,13 @@ class TestDescribe(tb.BaseSchemaLoadTest):
         self._assert_describe(
             """
             type Foo {
-                property compprop := 'foo';
-                link complink := (SELECT Foo LIMIT 1);
-                property annotated_compprop -> str {
+                optional property compprop := 'foo';
+                optional link complink := (SELECT Foo LIMIT 1);
+                optional property annotated_compprop -> str {
                     using ('foo');
                     annotation title := 'compprop';
                 };
-                link annotated_link -> Foo {
+                optional link annotated_link -> Foo {
                     using (SELECT Foo LIMIT 1);
                     annotation title := 'complink';
                 };
@@ -4614,11 +4634,11 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             """
             CREATE TYPE test::Foo {
-                CREATE SINGLE PROPERTY annotated_compprop {
+                CREATE OPTIONAL SINGLE PROPERTY annotated_compprop {
                     USING ('foo');
                     CREATE ANNOTATION std::title := 'compprop';
                 };
-                CREATE SINGLE LINK annotated_link {
+                CREATE OPTIONAL SINGLE LINK annotated_link {
                     USING (WITH
                         MODULE test
                     SELECT
@@ -4628,7 +4648,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                     );
                     CREATE ANNOTATION std::title := 'complink';
                 };
-                CREATE SINGLE LINK complink := (WITH
+                CREATE OPTIONAL SINGLE LINK complink := (WITH
                     MODULE test
                 SELECT
                     Foo
@@ -4656,15 +4676,16 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                       schema::Type,
                       schema::Source
             {
-                CREATE MULTI LINK intersection_of -> schema::ObjectType;
-                CREATE MULTI LINK union_of -> schema::ObjectType;
-                CREATE SINGLE PROPERTY is_compound_type := (
+                CREATE OPTIONAL MULTI LINK
+                    intersection_of -> schema::ObjectType;
+                CREATE OPTIONAL MULTI LINK union_of -> schema::ObjectType;
+                CREATE OPTIONAL SINGLE PROPERTY is_compound_type := (
                     (EXISTS (.union_of) OR EXISTS (.intersection_of))
                 );
-                CREATE MULTI LINK links := (
+                CREATE OPTIONAL MULTI LINK links := (
                     .pointers[IS schema::Link]
                 );
-                CREATE MULTI LINK properties := (
+                CREATE OPTIONAL MULTI LINK properties := (
                     .pointers[IS schema::Property]
                 );
             };
@@ -4680,11 +4701,12 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                     schema::Type,
                     schema::Source
             {
-                multi link intersection_of -> schema::ObjectType;
-                multi link links := (.pointers[IS schema::Link]);
-                multi link properties := (.pointers[IS schema::Property]);
-                multi link union_of -> schema::ObjectType;
-                single property is_compound_type := (
+                optional multi link intersection_of -> schema::ObjectType;
+                optional multi link links := (.pointers[IS schema::Link]);
+                optional multi link properties :=
+                    (.pointers[IS schema::Property]);
+                optional multi link union_of -> schema::ObjectType;
+                optional single property is_compound_type := (
                     (EXISTS (.union_of) OR EXISTS (.intersection_of))
                 );
             };
@@ -4710,7 +4732,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
         self._assert_describe(
             """
             type Foo {
-                link bar -> Object {
+                optional link bar -> Object {
                     on target delete allow;
                 };
             }
@@ -4720,7 +4742,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             """
             CREATE TYPE test::Foo {
-                CREATE SINGLE LINK bar -> std::Object {
+                CREATE OPTIONAL SINGLE LINK bar -> std::Object {
                     ON TARGET DELETE ALLOW;
                 };
             };
@@ -4730,7 +4752,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             """
             type test::Foo {
-                single link bar -> std::Object {
+                optional single link bar -> std::Object {
                     on target delete  allow;
                 };
             };
@@ -4743,7 +4765,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 required single link __type__ -> schema::Type {
                     readonly := true;
                 };
-                single link bar -> std::Object {
+                optional single link bar -> std::Object {
                     on target delete  allow;
                 };
                 required single property id -> std::uuid {

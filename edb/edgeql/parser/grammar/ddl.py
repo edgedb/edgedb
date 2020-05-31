@@ -951,7 +951,7 @@ class SetLinkTypeStmt(Nonterm):
 
 
 #
-# CREATE PROPERTY
+# CREATE OPTIONAL PROPERTY
 #
 class CreatePropertyStmt(Nonterm):
     def reduce_CreateProperty(self, *kids):
@@ -1004,7 +1004,7 @@ class DropPropertyStmt(Nonterm):
 
 
 #
-# CREATE LINK ... { CREATE PROPERTY
+# CREATE OPTIONAL LINK ... { CREATE OPTIONAL PROPERTY
 #
 
 commands_block(
@@ -1157,7 +1157,7 @@ class DropConcretePropertyStmt(Nonterm):
 
 
 #
-# CREATE LINK
+# CREATE OPTIONAL LINK
 #
 
 commands_block(
@@ -1247,7 +1247,7 @@ class DropLinkStmt(Nonterm):
 
 
 #
-# CREATE TYPE ... { CREATE LINK
+# CREATE TYPE ... { CREATE OPTIONAL LINK
 #
 
 commands_block(

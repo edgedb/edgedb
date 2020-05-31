@@ -47,38 +47,38 @@ CREATE TYPE cfg::SystemConfig {
         CREATE CONSTRAINT std::exclusive;
     };
 
-    CREATE LINK obj -> cfg::Base;
+    CREATE OPTIONAL LINK obj -> cfg::Base;
 };
 
 
 ALTER TYPE cfg::Config {
-    CREATE MULTI LINK sessobj -> cfg::SessionConfig;
-    CREATE MULTI LINK sysobj -> cfg::SystemConfig;
+    CREATE OPTIONAL MULTI LINK sessobj -> cfg::SessionConfig;
+    CREATE OPTIONAL MULTI LINK sysobj -> cfg::SystemConfig;
 
-    CREATE PROPERTY __internal_testvalue -> std::int64 {
+    CREATE OPTIONAL PROPERTY __internal_testvalue -> std::int64 {
         CREATE ANNOTATION cfg::internal := 'true';
         CREATE ANNOTATION cfg::system := 'true';
         SET default := 0;
     };
 
-    CREATE PROPERTY __internal_no_const_folding -> std::bool {
+    CREATE OPTIONAL PROPERTY __internal_no_const_folding -> std::bool {
         CREATE ANNOTATION cfg::internal := 'true';
         SET default := false;
     };
 
-    CREATE PROPERTY __internal_testmode -> std::bool {
+    CREATE OPTIONAL PROPERTY __internal_testmode -> std::bool {
         CREATE ANNOTATION cfg::internal := 'true';
         SET default := false;
     };
 
-    CREATE PROPERTY __internal_restart -> std::bool {
+    CREATE OPTIONAL PROPERTY __internal_restart -> std::bool {
         CREATE ANNOTATION cfg::internal := 'true';
         CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION cfg::requires_restart := 'true';
         SET default := false;
     };
 
-    CREATE MULTI PROPERTY multiprop -> std::str {
+    CREATE OPTIONAL MULTI PROPERTY multiprop -> std::str {
         CREATE ANNOTATION cfg::internal := 'true';
     };
 };

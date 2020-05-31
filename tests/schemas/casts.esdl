@@ -22,54 +22,54 @@ scalar type custom_str_t extending str {
 }
 
 type Test {
-    property p_bool -> bool;
-    property p_str -> str;
-    property p_datetime -> datetime;
-    property p_local_datetime -> cal::local_datetime;
-    property p_local_date -> cal::local_date;
-    property p_local_time -> cal::local_time;
-    property p_duration -> duration;
-    property p_int16 -> int16;
-    property p_int32 -> int32;
-    property p_int64 -> int64;
-    property p_float32 -> float32;
-    property p_float64 -> float64;
-    property p_bigint -> bigint;
-    property p_decimal -> decimal;
+    optional property p_bool -> bool;
+    optional property p_str -> str;
+    optional property p_datetime -> datetime;
+    optional property p_local_datetime -> cal::local_datetime;
+    optional property p_local_date -> cal::local_date;
+    optional property p_local_time -> cal::local_time;
+    optional property p_duration -> duration;
+    optional property p_int16 -> int16;
+    optional property p_int32 -> int32;
+    optional property p_int64 -> int64;
+    optional property p_float32 -> float32;
+    optional property p_float64 -> float64;
+    optional property p_bigint -> bigint;
+    optional property p_decimal -> decimal;
 }
 
 type JSONTest {
-    property j_bool -> json;
-    property j_str -> json;
-    property j_datetime -> json;
-    property j_local_datetime -> json;
-    property j_local_date -> json;
-    property j_local_time -> json;
-    property j_duration -> json;
-    property j_int16 -> json;
-    property j_int32 -> json;
-    property j_int64 -> json;
-    property j_float32 -> json;
-    property j_float64 -> json;
-    property j_bigint -> json;
-    property j_decimal -> json;
+    optional property j_bool -> json;
+    optional property j_str -> json;
+    optional property j_datetime -> json;
+    optional property j_local_datetime -> json;
+    optional property j_local_date -> json;
+    optional property j_local_time -> json;
+    optional property j_duration -> json;
+    optional property j_int16 -> json;
+    optional property j_int32 -> json;
+    optional property j_int64 -> json;
+    optional property j_float32 -> json;
+    optional property j_float64 -> json;
+    optional property j_bigint -> json;
+    optional property j_decimal -> json;
 }
 
 type ScalarTest {
-    property p_bool -> bool;
-    property p_uuid -> uuid;
-    property p_str -> str;
-    property p_datetime -> datetime;
-    property p_local_datetime -> cal::local_datetime;
-    property p_local_date -> cal::local_date;
-    property p_local_time -> cal::local_time;
-    property p_duration -> duration;
-    property p_int16 -> int16;
-    property p_int32 -> int32;
-    property p_int64 -> int64;
-    property p_float32 -> float32;
-    property p_float64 -> float64;
-    property p_bigint -> bigint;
-    property p_decimal -> decimal;
-    property p_json -> json;
+    optional property p_bool -> bool;
+    optional property p_uuid -> uuid;
+    optional property p_str -> str;
+    optional property p_datetime -> datetime;
+    optional property p_local_datetime -> cal::local_datetime;
+    optional property p_local_date -> cal::local_date;
+    optional property p_local_time -> cal::local_time;
+    optional property p_duration -> duration;
+    optional property p_int16 -> int16;
+    optional property p_int32 -> int32;
+    optional property p_int64 -> int64;
+    optional property p_float32 -> float32;
+    optional property p_float64 -> float64;
+    optional property p_bigint -> bigint;
+    optional property p_decimal -> decimal;
+    optional property p_json -> json;
 }

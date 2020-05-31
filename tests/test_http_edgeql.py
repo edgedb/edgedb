@@ -167,7 +167,9 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
         queries = [
             'START TRANSACTION;',
             'SET ALIAS blah AS MODULE std;',
-            'CREATE TYPE default::Tmp { CREATE PROPERTY tmp -> std::str; };',
+            '''CREATE TYPE default::Tmp {
+                CREATE OPTIONAL PROPERTY tmp -> std::str;
+            };''',
         ]
 
         for query in queries:

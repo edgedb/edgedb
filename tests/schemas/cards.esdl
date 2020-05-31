@@ -24,33 +24,33 @@ abstract type Named {
 }
 
 type User extending Named {
-    multi link deck -> Card {
-        property count -> int64;
+    optional multi link deck -> Card {
+        optional property count -> int64;
     }
 
-    property deck_cost := sum(.deck.cost);
+    optional property deck_cost := sum(.deck.cost);
 
-    multi link friends -> User {
-        property nickname -> str;
+    optional multi link friends -> User {
+        optional property nickname -> str;
         # how the friend responded to requests for a favor
         #property favor -> array<bool>
     }
 
-    multi link awards -> Award {
+    optional multi link awards -> Award {
         constraint exclusive;
     }
 
-    link avatar -> Card {
-        property text -> str;
+    optional link avatar -> Card {
+        optional property text -> str;
     }
 }
 
 type Card extending Named {
     required property element -> str;
     required property cost -> int64;
-    link owners := __source__.<deck[IS User];
+    optional link owners := __source__.<deck[IS User];
     # computable property
-    property elemental_cost := <str>.cost ++ ' ' ++ .element;
+    optional property elemental_cost := <str>.cost ++ ' ' ++ .element;
 }
 
 type SpecialCard extending Card;

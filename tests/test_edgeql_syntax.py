@@ -2843,7 +2843,7 @@ aa';
         """
         CREATE MIGRATION d_links01_0 TO {
             type test::Foo {
-                property bar -> str
+                optional property bar -> str
             }
         };
 
@@ -2851,7 +2851,7 @@ aa';
 
         CREATE MIGRATION d_links01_0 TO {
             type test::Foo {
-                property bar -> str;
+                optional property bar -> str;
             };
         };
         """
@@ -3043,7 +3043,7 @@ aa';
     def test_edgeql_syntax_ddl_constraint_09(self):
         """
         CREATE TYPE Foo {
-            CREATE LINK bar -> Bar {
+            CREATE OPTIONAL LINK bar -> Bar {
                 CREATE CONSTRAINT my_constraint ON (
                     # It's possible to use shapes in the "ON" expression.
                     # This would be ambiguous without parentheses.
@@ -3059,7 +3059,7 @@ aa';
 % OK %
 
         CREATE TYPE Foo {
-            CREATE LINK bar -> Bar {
+            CREATE OPTIONAL LINK bar -> Bar {
                 CREATE CONSTRAINT my_constraint ON (
                     (__source__{
                         baz := (__source__.a + __source__.b)
@@ -3500,12 +3500,12 @@ aa';
         CREATE TYPE schema::TypeElement {
             CREATE REQUIRED LINK type -> schema::Type;
             CREATE REQUIRED LINK num -> std::int64;
-            CREATE PROPERTY name EXTENDING foo, bar -> std::str;
-            CREATE LINK lnk EXTENDING l1 -> schema::Type;
-            CREATE LINK lnk1 EXTENDING l1, l2 -> schema::Type;
-            CREATE LINK lnk2 EXTENDING l1, l2 -> schema::Type {
-                CREATE PROPERTY lnk2_prop -> std::str;
-                CREATE PROPERTY lnk2_prop2 EXTENDING foo -> std::str;
+            CREATE OPTIONAL PROPERTY name EXTENDING foo, bar -> std::str;
+            CREATE OPTIONAL LINK lnk EXTENDING l1 -> schema::Type;
+            CREATE OPTIONAL LINK lnk1 EXTENDING l1, l2 -> schema::Type;
+            CREATE OPTIONAL LINK lnk2 EXTENDING l1, l2 -> schema::Type {
+                CREATE OPTIONAL PROPERTY lnk2_prop -> std::str;
+                CREATE OPTIONAL PROPERTY lnk2_prop2 EXTENDING foo -> std::str;
             };
         };
         """
@@ -3513,29 +3513,29 @@ aa';
     def test_edgeql_syntax_ddl_type_03(self):
         """
         ALTER TYPE schema::Object {
-            CREATE MULTI LINK attributes -> schema::Attribute;
+            CREATE OPTIONAL MULTI LINK attributes -> schema::Attribute;
         };
 
 % OK %
 
         ALTER TYPE schema::Object {
-            CREATE MULTI LINK attributes -> schema::Attribute;
+            CREATE OPTIONAL MULTI LINK attributes -> schema::Attribute;
         };
         """
 
     def test_edgeql_syntax_ddl_type_04(self):
         """
         CREATE TYPE mymod::Foo {
-            CREATE LINK bar0 -> mymod::Bar {
+            CREATE OPTIONAL LINK bar0 -> mymod::Bar {
                 ON TARGET DELETE RESTRICT;
             };
-            CREATE LINK bar1 -> mymod::Bar {
+            CREATE OPTIONAL LINK bar1 -> mymod::Bar {
                 ON TARGET DELETE DELETE SOURCE;
             };
-            CREATE LINK bar2 -> mymod::Bar {
+            CREATE OPTIONAL LINK bar2 -> mymod::Bar {
                 ON TARGET DELETE ALLOW;
             };
-            CREATE LINK bar3 -> mymod::Bar {
+            CREATE OPTIONAL LINK bar3 -> mymod::Bar {
                 ON TARGET DELETE DEFERRED RESTRICT;
             };
         };
@@ -3544,8 +3544,8 @@ aa';
     def test_edgeql_syntax_ddl_type_05(self):
         """
         CREATE TYPE mymod::Foo {
-            CREATE SINGLE LINK foo -> mymod::Foo;
-            CREATE MULTI LINK bar -> mymod::Bar;
+            CREATE OPTIONAL SINGLE LINK foo -> mymod::Foo;
+            CREATE OPTIONAL MULTI LINK bar -> mymod::Bar;
             CREATE REQUIRED SINGLE LINK baz -> mymod::Baz;
             CREATE REQUIRED MULTI LINK spam -> mymod::Spam;
         };
@@ -3554,8 +3554,8 @@ aa';
     def test_edgeql_syntax_ddl_type_06(self):
         """
         CREATE TYPE mymod::Foo {
-            CREATE SINGLE PROPERTY foo -> str;
-            CREATE MULTI PROPERTY bar -> str;
+            CREATE OPTIONAL SINGLE PROPERTY foo -> str;
+            CREATE OPTIONAL MULTI PROPERTY bar -> str;
             CREATE REQUIRED SINGLE PROPERTY baz -> str;
             CREATE REQUIRED MULTI PROPERTY spam -> str;
         };

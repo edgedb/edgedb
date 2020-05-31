@@ -65,12 +65,12 @@ scalar type constraint_my_enum extending str {
 
 
 abstract link translated_label {
-    property lang -> str;
-    property prop1 -> str;
+    optional property lang -> str;
+    optional property prop1 -> str;
 }
 
 abstract link link_with_unique_property {
-    property unique_property -> str {
+    optional property unique_property -> str {
         constraint exclusive;
     }
 }
@@ -79,7 +79,7 @@ abstract link link_with_unique_property_inherited
     extending link_with_unique_property;
 
 abstract link another_link_with_unique_property {
-    property unique_property -> str {
+    optional property unique_property -> str {
         constraint exclusive;
     }
 }
@@ -89,56 +89,56 @@ abstract link another_link_with_unique_property_inherited
 
 
 type Label {
-    property text -> str;
+    optional property text -> str;
 }
 
 type Object {
-    property name -> str;
-    property c_length -> constraint_length;
-    property c_length_2 -> constraint_length_2;
-    property c_length_3 -> constraint_length_2 {
+    optional property name -> str;
+    optional property c_length -> constraint_length;
+    optional property c_length_2 -> constraint_length_2;
+    optional property c_length_3 -> constraint_length_2 {
         constraint min_len_value(10);
     }
 
-    property c_minmax -> constraint_minmax;
-    property c_strvalue -> constraint_strvalue;
-    property c_enum -> constraint_enum;
-    property c_enum2 -> constraint_enum2 {
+    optional property c_minmax -> constraint_minmax;
+    optional property c_strvalue -> constraint_strvalue;
+    optional property c_enum -> constraint_enum;
+    optional property c_enum2 -> constraint_enum2 {
         default := 'notfoo';
     }
-    property c_my_enum -> constraint_my_enum;
+    optional property c_my_enum -> constraint_my_enum;
 }
 
 type UniqueName {
-    property name -> str {
+    optional property name -> str {
         constraint exclusive;
     }
 
-    link link_with_unique_property
+    optional link link_with_unique_property
         extending link_with_unique_property -> Object;
 
-    link link_with_unique_property_inherited
+    optional link link_with_unique_property_inherited
         extending link_with_unique_property_inherited -> Object;
 
-    link translated_label extending translated_label -> Label {
+    optional link translated_label extending translated_label -> Label {
         constraint exclusive on ((__subject__@source, __subject__@lang));
         constraint exclusive on (__subject__@prop1);
     }
 }
 
 type UniqueNameInherited extending UniqueName {
-    overloaded property name -> str;
+    overloaded optional property name -> str;
 }
 
 type UniqueDescription {
-    property description -> str {
+    optional property description -> str {
         constraint exclusive;
     }
 
-    link another_link_with_unique_property
+    optional link another_link_with_unique_property
         extending another_link_with_unique_property -> Object;
 
-    link another_link_with_unique_property_inherited
+    optional link another_link_with_unique_property_inherited
         extending another_link_with_unique_property  -> Object;
 }
 
@@ -146,7 +146,7 @@ type UniqueDescriptionInherited extending UniqueDescription;
 
 
 type UniqueName_2 {
-    property name -> str {
+    optional property name -> str {
         constraint exclusive;
     }
 }
@@ -155,7 +155,7 @@ type UniqueName_2_Inherited extending UniqueName_2;
 
 
 type UniqueName_3 extending UniqueName_2 {
-    overloaded property name -> str {
+    overloaded optional property name -> str {
         constraint exclusive on (str_lower(__subject__));
     }
 }
@@ -163,37 +163,37 @@ type UniqueName_3 extending UniqueName_2 {
 type UniqueName_4 extending UniqueName_2_Inherited;
 
 type MultiConstraint {
-    property name -> str {
+    optional property name -> str {
         constraint exclusive;
         constraint exclusive on (str_lower(__subject__));
     }
 
-    property m1 -> str;
+    optional property m1 -> str;
 }
 
 type ParentUniqueName {
-    property name -> str {
+    optional property name -> str {
         constraint exclusive;
     }
 }
 
 type ReceivingParent {
-    property name -> str;
+    optional property name -> str;
 }
 
 type LosingParent extending ParentUniqueName {
-    overloaded property name -> str;
-    property lp -> str;
+    overloaded optional property name -> str;
+    optional property lp -> str;
 }
 
 type AbstractConstraintParent {
-    property name -> str {
+    optional property name -> str {
         delegated constraint exclusive;
     }
 }
 
 type AbstractConstraintParent2 {
-    property name -> str {
+    optional property name -> str {
         delegated constraint exclusive on (str_lower(__subject__));
     }
 }
@@ -201,19 +201,19 @@ type AbstractConstraintParent2 {
 type AbstractConstraintPureChild extending AbstractConstraintParent;
 
 type AbstractConstraintMixedChild extending AbstractConstraintParent {
-    overloaded property name -> str {
+    overloaded optional property name -> str {
         constraint exclusive on (str_lower(__subject__));
     }
 }
 
 type AbstractConstraintPropagated extending AbstractConstraintParent {
-    overloaded property name -> str {
+    overloaded optional property name -> str {
         delegated constraint exclusive;
     }
 }
 
 type AbstractConstraintParent3 {
-    property name -> str {
+    optional property name -> str {
         delegated constraint exclusive;
         delegated constraint exclusive on (str_lower(__subject__));
     }
@@ -221,7 +221,7 @@ type AbstractConstraintParent3 {
 
 type AbstractConstraintMultipleParentsFlattening
         extending AbstractConstraintParent, AbstractConstraintParent2 {
-    property flat -> str;
+    optional property flat -> str;
 }
 
 type LosingAbstractConstraintParent extending AbstractConstraintParent;
@@ -229,7 +229,7 @@ type LosingAbstractConstraintParent extending AbstractConstraintParent;
 type LosingAbstractConstraintParent2 extending AbstractConstraintParent;
 
 type BecomingAbstractConstraint {
-    property name -> str {
+    optional property name -> str {
         constraint exclusive;
     }
 }
@@ -237,7 +237,7 @@ type BecomingAbstractConstraint {
 type BecomingAbstractConstraintChild extending BecomingAbstractConstraint;
 
 type BecomingConcreteConstraint {
-    property name -> str {
+    optional property name -> str {
         delegated constraint exclusive;
     }
 }
@@ -245,7 +245,7 @@ type BecomingConcreteConstraint {
 type BecomingConcreteConstraintChild extending BecomingConcreteConstraint;
 
 type AbstractInheritingNonAbstract extending ParentUniqueName {
-    overloaded property name -> str {
+    overloaded optional property name -> str {
         delegated constraint exclusive;
     }
 }

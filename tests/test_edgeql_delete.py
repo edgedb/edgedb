@@ -27,11 +27,11 @@ class TestDelete(tb.QueryTestCase):
         CREATE MIGRATION d_delete01 TO {
             module test {
                 type DeleteTest {
-                    property name -> str;
+                    optional property name -> str;
                 };
 
                 type DeleteTest2 {
-                    property name -> str;
+                    optional property name -> str;
                 };
             };
         };

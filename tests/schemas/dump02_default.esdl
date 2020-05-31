@@ -31,7 +31,7 @@ function `💯`(NAMED ONLY `🙀`: int64) -> int64 {
 
 type `S p a M` {
     required property `🚀` -> int32;
-    property c100 := (SELECT `💯`(`🙀` := .`🚀`));
+    optional property c100 := (SELECT `💯`(`🙀` := .`🚀`));
 }
 
 type A {
@@ -52,9 +52,9 @@ type Łukasz {
     }
     index on (.`Ł🤞`);
 
-    link `Ł💯` -> A {
-        property `🙀🚀🚀🚀🙀` -> `🚀🚀🚀`;
-        property `🙀مرحبا🙀` -> مرحبا {
+    optional link `Ł💯` -> A {
+        optional property `🙀🚀🚀🚀🙀` -> `🚀🚀🚀`;
+        optional property `🙀مرحبا🙀` -> مرحبا {
             constraint `🚀🍿`(200);
         }
     };

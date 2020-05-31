@@ -43,7 +43,7 @@ class TestServerProto(tb.QueryTestCase):
         };
 
         CREATE TYPE test::TransactionTest EXTENDING std::Object {
-            CREATE PROPERTY name -> std::str;
+            CREATE OPTIONAL PROPERTY name -> std::str;
         };
 
         CREATE SCALAR TYPE test::RGB
@@ -1652,11 +1652,11 @@ class TestServerProto(tb.QueryTestCase):
             try:
                 await self.con.execute('''
                     CREATE TYPE test::Tmp_tx_13 {
-                        CREATE PROPERTY tmp_tx_13_1 -> int64;
+                        CREATE OPTIONAL PROPERTY tmp_tx_13_1 -> int64;
                     };
 
                     ALTER TYPE test::Tmp_tx_13 {
-                        CREATE LINK tmp_tx_13_2 -> test::Tmp_tx_13 {
+                        CREATE OPTIONAL LINK tmp_tx_13_2 -> test::Tmp_tx_13 {
                             ON TARGET DELETE DEFERRED RESTRICT;
                         };
                     };
@@ -1950,7 +1950,7 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
 
         await self.con.execute('''
             CREATE TYPE Test {
-                CREATE PROPERTY foo -> int16;
+                CREATE OPTIONAL PROPERTY foo -> int16;
             };
 
             INSERT Test { foo := 123 };
@@ -2005,7 +2005,7 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
 
                 await self.con.execute('''
                     CREATE TYPE Test2 {
-                        CREATE PROPERTY foo -> str;
+                        CREATE OPTIONAL PROPERTY foo -> str;
                     };
 
                     INSERT Test2 { foo := 'text' };
@@ -2356,7 +2356,7 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
                 CREATE TYPE test::Foo{typename};
 
                 CREATE ABSTRACT LINK test::link1 {{
-                    CREATE PROPERTY prop1 -> std::str;
+                    CREATE OPTIONAL PROPERTY prop1 -> std::str;
                 }};
 
                 CREATE TYPE test::{typename} {{
@@ -2387,7 +2387,7 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
                 }};
 
                 ALTER ABSTRACT LINK test::link1 {{
-                    CREATE PROPERTY prop1 -> std::int64;
+                    CREATE OPTIONAL PROPERTY prop1 -> std::int64;
                 }};
 
                 INSERT test::{typename} {{
@@ -2649,11 +2649,11 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
         try:
             await self.con.execute('''
                 CREATE TYPE test::FL_A {
-                    CREATE PROPERTY n -> int64;
+                    CREATE OPTIONAL PROPERTY n -> int64;
                 };
                 CREATE TYPE test::FL_B {
-                    CREATE PROPERTY n -> int64;
-                    CREATE MULTI LINK a -> test::FL_A;
+                    CREATE OPTIONAL PROPERTY n -> int64;
+                    CREATE OPTIONAL MULTI LINK a -> test::FL_A;
                 };
 
                 WITH MODULE test
