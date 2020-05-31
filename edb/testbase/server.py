@@ -876,7 +876,7 @@ def get_test_cases_setup(cases):
     return result
 
 
-def setup_test_cases(cases, conn, num_jobs):
+def setup_test_cases(cases, conn, num_jobs, verbose=False):
     setup = get_test_cases_setup(cases)
 
     async def _run():
@@ -884,6 +884,8 @@ def setup_test_cases(cases, conn, num_jobs):
             # Special case for --jobs=1
             for _case, dbname, setup_script in setup:
                 await _setup_database(dbname, setup_script, conn)
+                if verbose:
+                    print(f' -> {dbname}: OK')
         else:
             async with taskgroup.TaskGroup(name='setup test cases') as g:
                 # Use a semaphore to limit the concurrency of bootstrap
@@ -892,9 +894,11 @@ def setup_test_cases(cases, conn, num_jobs):
                 # things faster.)
                 sem = asyncio.BoundedSemaphore(num_jobs)
 
-                async def controller(coro, *args):
+                async def controller(coro, dbname, *args):
                     async with sem:
-                        await coro(*args)
+                        await coro(dbname, *args)
+                        if verbose:
+                            print(f' -> {dbname}: OK')
 
                 for _case, dbname, setup_script in setup:
                     g.create_task(controller(

@@ -681,23 +681,41 @@ class ParallelTextTestRunner:
 
         try:
             if setup:
-                self._echo('Populating test databases... ',
-                           fg='white', nl=False)
+                if self.verbosity == 1:
+                    self._echo(
+                        'Populating test databases... ',
+                        fg='white',
+                        nl=False,
+                    )
+
+                if self.verbosity > 1:
+                    self._echo(
+                        '\n -> Bootstrapping EdgeDB instance...',
+                        fg='white',
+                        nl=False,
+                    )
 
                 cluster = tb._init_cluster(cleanup_atexit=False)
+
+                if self.verbosity > 1:
+                    self._echo(' OK')
 
                 conn = cluster.get_connect_args()
                 tb.setup_test_cases(
                     cases,
                     conn,
-                    self.num_workers)
+                    self.num_workers,
+                    verbose=self.verbosity > 1,
+                )
 
                 os.environ.update({
                     'EDGEDB_TEST_CASES_SET_UP': "1"
                 })
 
                 bootstrap_time_taken = time.monotonic() - session_start
-                self._echo('OK.')
+
+                if self.verbosity == 1:
+                    self._echo(' OK')
 
             start = time.monotonic()
 
