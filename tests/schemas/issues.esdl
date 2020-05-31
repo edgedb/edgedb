@@ -114,6 +114,14 @@ type URL extending Named {
 
 type Publication {
     required property title -> str;
+
+    property title1 := (SELECT ident(.title));
+    required property title2 := (SELECT ident(.title));
+    required single property title3 := (SELECT ident(.title));
+    single property title4 := (SELECT ident(.title));
+    multi property title5 := (SELECT ident(.title));
+    required multi property title6 := (SELECT ident(.title));
+
     multi link authors -> User {
         property list_order -> int64;
     };
@@ -125,4 +133,8 @@ abstract constraint my_one_of(one_of: array<anytype>) {
 
 scalar type EmulatedEnum extending str {
     constraint one_of('v1', 'v2');
+}
+
+function ident(a: str) -> str {
+    USING (SELECT a)
 }

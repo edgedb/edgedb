@@ -487,6 +487,42 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     };
             """)
 
+    async def test_edgeql_select_computable_18(self):
+        async with self._run_and_rollback():
+            await self.con.execute(
+                '''
+                    WITH MODULE test
+                    INSERT Publication {
+                        title := 'aaa'
+                    }
+                '''
+            )
+
+            await self.assert_query_result(
+                r"""
+                    WITH MODULE test
+                    SELECT Publication {
+                        title,
+                        title1,
+                        title2,
+                        title3,
+                        title4,
+                        title5,
+                        title6,
+                    }
+                    FILTER .title = 'aaa'
+                """,
+                [{
+                    'title': 'aaa',
+                    'title1': 'aaa',
+                    'title2': 'aaa',
+                    'title3': 'aaa',
+                    'title4': 'aaa',
+                    'title5': ['aaa'],
+                    'title6': ['aaa'],
+                }]
+            )
+
     async def test_edgeql_select_match_01(self):
         await self.assert_query_result(
             r"""

@@ -213,7 +213,8 @@ _123456789_123456789_123456789 -> str
             type Object {
                 multi property foo -> str;
                 property bar -> str;
-                property foo_plus_bar := __source__.foo ++ __source__.bar;
+                multi property foo_plus_bar :=
+                    __source__.foo ++ __source__.bar;
             };
         """)
 
@@ -221,6 +222,58 @@ _123456789_123456789_123456789 -> str
         self.assertEqual(
             obj.getptr(schema, 'foo_plus_bar').get_cardinality(schema),
             qltypes.SchemaCardinality.MANY)
+
+    @tb.must_fail(errors.SchemaDefinitionError,
+                  "possibly more than one element returned by an expression "
+                  "for the computable 'ham' declared as 'single'",
+                  line=5, col=29)
+    def test_schema_computable_cardinality_inference_03(self):
+        """
+            type Spam {
+                required property title -> str;
+                multi link spams -> Spam;
+                link ham := .spams;
+            }
+        """
+
+    @tb.must_fail(errors.SchemaDefinitionError,
+                  "possibly more than one element returned by an expression "
+                  "for the computable 'hams' declared as 'single'",
+                  line=5, col=34)
+    def test_schema_computable_cardinality_inference_04(self):
+        """
+            type Spam {
+                required property title -> str;
+                multi link spams -> Spam;
+                property hams := .spams.title;
+            }
+        """
+
+    @tb.must_fail(errors.SchemaDefinitionError,
+                  "possibly more than one element returned by an expression "
+                  "for the computable 'hams' declared as 'single'",
+                  line=5, col=41)
+    def test_schema_computable_cardinality_inference_05(self):
+        """
+            type Spam {
+                required property title -> str;
+                multi link spams -> Spam;
+                single property hams := .spams.title;
+            }
+        """
+
+    @tb.must_fail(errors.SchemaDefinitionError,
+                  "possibly an empty set returned by an expression for "
+                  "the computable 'hams' declared as 'required'",
+                  line=5, col=43)
+    def test_schema_computable_cardinality_inference_06(self):
+        """
+            type Spam {
+                required property title -> str;
+                multi link spams -> Spam;
+                required property hams := .spams.title;
+            }
+        """
 
     def test_schema_refs_01(self):
         schema = self.load_schema("""
@@ -1724,7 +1777,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # Issue #1383.
         schema = r'''
         type Class extending HasAvailability {
-            link schedule :=
+            multi link schedule :=
                 .<class[IS Course].scheduledAt;
         }
         abstract type HasAvailability {
@@ -2700,7 +2753,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
 
             type Base {
-                link foo := (
+                multi link foo := (
                     SELECT Child FILTER .name = 'computable_35'
                 )
             }
@@ -2731,7 +2784,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
             type Base {
                 # change a regular link to a computable
-                link foo := (
+                multi link foo := (
                     SELECT Child FILTER .name = 'computable_36'
                 )
             }

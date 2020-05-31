@@ -924,6 +924,10 @@ async def _setup_database(dbname, setup_script, conn_args):
     try:
         async with dbconn.transaction():
             await dbconn.execute(setup_script)
+    except Exception as ex:
+        raise RuntimeError(
+            f'exception during initialization of {dbname!r} test DB: {ex}'
+        ) from ex
     finally:
         await dbconn.aclose()
 
