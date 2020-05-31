@@ -192,9 +192,12 @@ class IndexCommand(
         context: sd.CommandContext,
         *,
         name: Optional[str] = None,
+        default: Union[so.Object_T, so.NoDefaultT, None] = so.NoDefault,
     ) -> Optional[Index]:
         try:
-            return super().get_object(schema, context, name=name)
+            return super().get_object(
+                schema, context, name=name, default=default
+            )
         except errors.InvalidReferenceError:
             referrer_ctx = self.get_referrer_context_or_die(context)
             referrer = referrer_ctx.scls

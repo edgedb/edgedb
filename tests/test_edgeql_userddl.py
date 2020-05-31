@@ -311,3 +311,20 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
             'user-defined pseudotypes are not supported'
         ):
             await self.con.execute('CREATE PSEUDO TYPE foo;')
+
+    async def test_edgeql_userddl_24(self):
+        await self.con.execute('''
+            CREATE SCALAR TYPE Slug EXTENDING str {
+                CREATE CONSTRAINT regexp(r'^[a-z0-9][.a-z0-9-]+$')
+            };
+            CREATE ABSTRACT TYPE Named {
+                CREATE REQUIRED PROPERTY name -> Slug
+            };
+            CREATE TYPE User EXTENDING Named;
+        ''')
+
+        await self.con.execute('''
+            ALTER TYPE Named {
+                CREATE INDEX ON (__subject__.name)
+            };
+        ''')
