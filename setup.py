@@ -390,6 +390,7 @@ class build_postgres(setuptools.Command):
         pass
 
     def run(self, *args, **kwargs):
+        build = self.get_finalized_command('build')
         _compile_postgres(
             pathlib.Path(build.build_base).resolve(),
             force_build=True,
