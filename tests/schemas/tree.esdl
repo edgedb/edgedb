@@ -24,7 +24,7 @@ type Tree {
     }
 
     link parent -> Tree;
-    link children := .<parent[IS Tree];
+    multi link children := .<parent[IS Tree];
 }
 
 

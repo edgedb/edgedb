@@ -1894,7 +1894,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
 
             type Base {
-                link foo := (
+                multi link foo := (
                     SELECT Child FILTER .name = 'computable_35'
                 )
             }
@@ -2009,6 +2009,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 # change a regular link to a computable
                 link foo := (
                     SELECT Child FILTER .name = 'computable_36'
+                    LIMIT 1
                 )
             }
         """)
@@ -2022,9 +2023,9 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 };
             """,
             [{
-                'foo': [{
+                'foo': {
                     'name': 'computable_36'
-                }]
+                }
             }]
         )
 

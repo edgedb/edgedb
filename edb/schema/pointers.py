@@ -76,7 +76,7 @@ def merge_cardinality(target: Pointer, sources: List[Pointer],
                 other_repr = source.get_verbosename(
                     schema, with_parent=True)
 
-                raise errors.SchemaError(
+                raise errors.SchemaDefinitionError(
                     f'cannot redefine the target cardinality of '
                     f'{tgt_repr}: it is defined '
                     f'as {current.as_ptr_qual()!r} in {cf_repr} and '
@@ -853,45 +853,38 @@ class PointerCommandOrFragment(
         spec_required = self.get_attribute_value('required')
         spec_card = self.get_attribute_value('cardinality')
 
-        # If cardinality was unspecified and the computable is not
-        # required, use the inferred cardinality.
-        if spec_card is None and not spec_required:
-            self.set_attribute_value('required', required)
+        if spec_required and not required:
+            ptr_name = sn.shortname_from_fullname(
+                self.get_attribute_value('name')).name
+            srcctx = self.get_attribute_source_context('target')
+            raise errors.SchemaDefinitionError(
+                f'possibly an empty set returned by an '
+                f'expression for the computable '
+                f'{ptr_name!r} '
+                f"declared as 'required'",
+                context=srcctx
+            )
+
+        if (
+            spec_card in {None, qltypes.SchemaCardinality.ONE} and
+            card is not qltypes.SchemaCardinality.ONE
+        ):
+            ptr_name = sn.shortname_from_fullname(
+                self.get_attribute_value('name')).name
+            srcctx = self.get_attribute_source_context('target')
+            raise errors.SchemaDefinitionError(
+                f'possibly more than one element returned by an '
+                f'expression for the computable '
+                f'{ptr_name!r} '
+                f"declared as 'single'",
+                context=srcctx
+            )
+
+        if spec_card is None:
             self.set_attribute_value('cardinality', card)
-        else:
-            # Otherwise honor the spec, so no cardinality change, but check
-            # that it's valid.
 
-            if spec_card is None:
-                # A computable link is marked explicitly as
-                # "required", so we assume that omitted cardinality is
-                # "single". Basically, to infer the cardinality both
-                # cardinality-related qualifiers need to be omitted.
-                spec_card = qltypes.SchemaCardinality.ONE
-
-            if spec_required and not required:
-                ptr_name = sn.shortname_from_fullname(
-                    self.get_attribute_value('name')).name
-                srcctx = self.get_attribute_source_context('target')
-                raise errors.QueryError(
-                    f'possibly an empty set returned by an '
-                    f'expression for a computable '
-                    f'{ptr_name!r} '
-                    f"declared as 'required'",
-                    context=srcctx
-                )
-            if (spec_card is qltypes.SchemaCardinality.ONE
-                    and card != spec_card):
-                ptr_name = sn.shortname_from_fullname(
-                    self.get_attribute_value('name')).name
-                srcctx = self.get_attribute_source_context('target')
-                raise errors.QueryError(
-                    f'possibly more than one element returned by an '
-                    f'expression for a computable '
-                    f'{ptr_name!r} '
-                    f"declared as 'single'",
-                    context=srcctx
-                )
+        if not spec_required:
+            self.set_attribute_value('required', required)
 
         self.set_attribute_value('computable', True)
 
