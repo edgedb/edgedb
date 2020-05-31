@@ -185,14 +185,35 @@ class IndexCommand(
         quals = sn.quals_from_fullname(name)
         return tuple(quals[-2:])
 
-    # type ignore below, because parent class defines a compatible overload
-    def get_object(  # type: ignore
+    @overload
+    def get_object(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
         *,
         name: Optional[str] = None,
-        default: Union[so.Object_T, so.NoDefaultT, None] = so.NoDefault,
+        default: Union[Index, so.NoDefaultT] = so.NoDefault,
+    ) -> Index:
+        ...
+
+    @overload
+    def get_object(  # NoQA: F811
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        name: Optional[str] = None,
+        default: None = None,
+    ) -> Optional[Index]:
+        ...
+
+    def get_object( # NoQA: F811
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        name: Optional[str] = None,
+        default: Union[Index, so.NoDefaultT, None] = so.NoDefault,
     ) -> Optional[Index]:
         try:
             return super().get_object(
