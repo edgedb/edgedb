@@ -681,7 +681,7 @@ class ParallelTextTestRunner:
 
         try:
             if setup:
-                if self.verbosity == 1:
+                if self.verbosity >= 1:
                     self._echo(
                         'Populating test databases... ',
                         fg='white',
@@ -714,7 +714,7 @@ class ParallelTextTestRunner:
 
                 bootstrap_time_taken = time.monotonic() - session_start
 
-                if self.verbosity == 1:
+                if self.verbosity >= 1:
                     self._echo(' OK')
 
             start = time.monotonic()

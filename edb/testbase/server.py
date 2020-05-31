@@ -885,7 +885,7 @@ def setup_test_cases(cases, conn, num_jobs, verbose=False):
             for _case, dbname, setup_script in setup:
                 await _setup_database(dbname, setup_script, conn)
                 if verbose:
-                    print(f' -> {dbname}: OK')
+                    print(f' -> {dbname}: OK', flush=True)
         else:
             async with taskgroup.TaskGroup(name='setup test cases') as g:
                 # Use a semaphore to limit the concurrency of bootstrap
@@ -898,7 +898,7 @@ def setup_test_cases(cases, conn, num_jobs, verbose=False):
                     async with sem:
                         await coro(dbname, *args)
                         if verbose:
-                            print(f' -> {dbname}: OK')
+                            print(f' -> {dbname}: OK', flush=True)
 
                 for _case, dbname, setup_script in setup:
                     g.create_task(controller(
