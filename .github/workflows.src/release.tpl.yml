@@ -5,6 +5,7 @@ on:
     types: ["release"]
 
 jobs:
+<% if targets.linux %>
   build-linux:
     runs-on: ubuntu-latest
     strategy:
@@ -49,7 +50,9 @@ jobs:
       with:
         name: builds-${{ matrix.target }}
         path: artifacts/${{ matrix.target }}
+<% endif %>
 
+<% if targets.macos %>
   build-macos:
     runs-on: macos-latest
 
@@ -99,9 +102,11 @@ jobs:
       with:
         name: builds-${{ matrix.target }}
         path: artifacts/${{ matrix.target }}
+<% endif %>
 
+<% if targets.linux %>
   publish-linux:
-    needs: [build-linux, build-macos]
+    needs: [build-linux]
     runs-on: ubuntu-latest
     strategy:
       max-parallel: 4
@@ -160,9 +165,11 @@ jobs:
         snapshot: true
         workdir: dockerfile
         buildargs: version=${{ steps.describe.outputs.version-slot }}
+<% endif %>
 
+<% if targets.macos %>
   publish-macos:
-    needs: [build-linux, build-macos]
+    needs: [build-macos]
     runs-on: macos-latest
     strategy:
       max-parallel: 4
@@ -203,3 +210,5 @@ jobs:
       run: |
         edgedb-pkg/integration/macos/publish.sh
 <% endfor %>
+
+<% endif %>

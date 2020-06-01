@@ -5,6 +5,7 @@ on:
     types: ["release"]
 
 jobs:
+
   build-linux:
     runs-on: ubuntu-latest
     strategy:
@@ -182,6 +183,8 @@ jobs:
         name: builds-${{ matrix.target }}
         path: artifacts/${{ matrix.target }}
 
+
+
   build-macos:
     runs-on: macos-latest
 
@@ -232,8 +235,10 @@ jobs:
         name: builds-${{ matrix.target }}
         path: artifacts/${{ matrix.target }}
 
+
+
   publish-linux:
-    needs: [build-linux, build-macos]
+    needs: [build-linux]
     runs-on: ubuntu-latest
     strategy:
       max-parallel: 4
@@ -419,8 +424,10 @@ jobs:
         workdir: dockerfile
         buildargs: version=${{ steps.describe.outputs.version-slot }}
 
+
+
   publish-macos:
-    needs: [build-linux, build-macos]
+    needs: [build-macos]
     runs-on: macos-latest
     strategy:
       max-parallel: 4
@@ -460,4 +467,6 @@ jobs:
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
       run: |
         edgedb-pkg/integration/macos/publish.sh
+
+
 
