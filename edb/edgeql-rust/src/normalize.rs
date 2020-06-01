@@ -130,7 +130,7 @@ pub fn normalize<'x>(text: &'x str)
                     if value.eq_ignore_ascii_case("LIMIT")))
             && tok.value != "9223372036854775808"
             => {
-                push_var(&mut rewritten_tokens, "int64",
+                push_var(&mut rewritten_tokens, "std::int64",
                     next_var(variables.len()),
                     tok.start, tok.end);
                 variables.push(Variable {
@@ -142,7 +142,7 @@ pub fn normalize<'x>(text: &'x str)
                 continue;
             }
             Kind::FloatConst => {
-                push_var(&mut rewritten_tokens, "float64",
+                push_var(&mut rewritten_tokens, "std::float64",
                     next_var(variables.len()),
                     tok.start, tok.end);
                 variables.push(Variable {
@@ -154,7 +154,7 @@ pub fn normalize<'x>(text: &'x str)
                 continue;
             }
             Kind::BigIntConst => {
-                push_var(&mut rewritten_tokens, "bigint",
+                push_var(&mut rewritten_tokens, "std::bigint",
                     next_var(variables.len()),
                     tok.start, tok.end);
                 let dec: BigDecimal = tok.value[..tok.value.len()-1].parse()
@@ -170,7 +170,7 @@ pub fn normalize<'x>(text: &'x str)
                 continue;
             }
             Kind::DecimalConst => {
-                push_var(&mut rewritten_tokens, "decimal",
+                push_var(&mut rewritten_tokens, "std::decimal",
                     next_var(variables.len()),
                     tok.start, tok.end);
                 variables.push(Variable {
@@ -184,7 +184,7 @@ pub fn normalize<'x>(text: &'x str)
                 continue;
             }
             Kind::Str => {
-                push_var(&mut rewritten_tokens, "str",
+                push_var(&mut rewritten_tokens, "std::str",
                     next_var(variables.len()),
                     tok.start, tok.end);
                 variables.push(Variable {

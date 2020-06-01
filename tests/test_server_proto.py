@@ -17,6 +17,7 @@
 #
 
 import asyncio
+import decimal
 import json
 import uuid
 import subprocess
@@ -684,6 +685,35 @@ class TestServerProto(tb.QueryTestCase):
                                     r'missing a type cast.*parameter'):
             await self.con.fetchone(
                 'select schema::Object {name} filter .id=$id', id='asd')
+
+    async def test_server_proto_args_08(self):
+        async with self._run_and_rollback():
+            await self.con.execute(
+                '''
+                CREATE TYPE str;
+                CREATE TYPE int64;
+                CREATE TYPE float64;
+                CREATE TYPE decimal;
+                CREATE TYPE bigint;
+                '''
+            )
+
+            self.assertEqual(
+                await self.con.fetchone('select ("1", 1, 1.1, 1.1n, 1n)'),
+                ('1', 1, 1.1, decimal.Decimal('1.1'), 1)
+            )
+
+    @test.xfail('''
+        Overriding the 'std' module breaks things.
+    ''')
+    async def test_server_proto_args_09(self):
+        async with self._run_and_rollback():
+            self.assertEqual(
+                await self.con.fetchone(
+                    'WITH std AS MODULE math SELECT ("1", 1, 1.1, 1.1n, 1n)'
+                ),
+                ('1', 1, 1.1, decimal.Decimal('1.1'), 1)
+            )
 
     async def test_server_proto_wait_cancel_01(self):
         # Test that client protocol handles waits interrupted
