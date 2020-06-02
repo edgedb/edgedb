@@ -776,6 +776,7 @@ pub fn is_keyword(s: &str) -> bool {
         | "__source__"
         | "__subject__"
         | "__type__"
+        | "__std__"
         | "alter"
         | "and"
         | "anytuple"

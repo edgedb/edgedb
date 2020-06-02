@@ -70,7 +70,7 @@ def needs_quoting(string: str, allow_reserved: bool) -> bool:
     string = string.lower()
 
     is_reserved = (
-        string != '__type__'
+        string not in {'__type__', '__std__'}
         and string in keywords.by_type[keywords.RESERVED_KEYWORD]
     )
 

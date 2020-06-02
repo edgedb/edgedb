@@ -703,9 +703,6 @@ class TestServerProto(tb.QueryTestCase):
                 ('1', 1, 1.1, decimal.Decimal('1.1'), 1)
             )
 
-    @test.xfail('''
-        Overriding the 'std' module breaks things.
-    ''')
     async def test_server_proto_args_09(self):
         async with self._run_and_rollback():
             self.assertEqual(

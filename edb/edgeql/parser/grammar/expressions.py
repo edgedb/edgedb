@@ -1256,7 +1256,18 @@ class AnyIdentifier(Nonterm):
         self.val = kids[0].val
 
     def reduce_ReservedKeyword(self, *kids):
-        self.val = kids[0].val
+        name = kids[0].val
+        if name[:2] == '__' and name[-2:] == '__':
+            # There are a few reserved keywords like __std__ and __subject__
+            # that can be used in paths but are prohibited to be used
+            # anywhere else. So just as the tokenizer prohibits using
+            # __names__ in general, we enforce the rule here for the
+            # few remaining reserved __keywords__.
+            raise EdgeQLSyntaxError(
+                "identifiers surrounded by double underscores are forbidden",
+                context=kids[0].context)
+
+        self.val = name
 
 
 class ModuleName(ListNonterm, element=AnyIdentifier, separator=tokens.T_DOT):
@@ -1270,6 +1281,9 @@ class BaseName(Nonterm):
 
     def reduce_Identifier_DOUBLECOLON_AnyIdentifier(self, *kids):
         self.val = [kids[0].val, kids[2].val]
+
+    def reduce_DUNDERSTD_DOUBLECOLON_AnyIdentifier(self, *kids):
+        self.val = ['__std__', kids[2].val]
 
 
 # Non-collection type.
