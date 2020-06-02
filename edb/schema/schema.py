@@ -513,6 +513,14 @@ class Schema(s_abc.Schema):
         name, module, shortname = sn.split_name(name)
         implicit_builtins = module is None
 
+        if module == '__std__':
+            fqname = sn.SchemaName(shortname, 'std')
+            result = getter(self, fqname)
+            if result is not None:
+                return result
+            else:
+                return default
+
         if module_aliases is not None:
             fq_module = module_aliases.get(module)
             if fq_module is not None:

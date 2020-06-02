@@ -2503,7 +2503,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         )
 
         await self.assert_query_result(
-            r'''SELECT len({'hello', 'world'});''',
+            r'''SELECT __std__::len({'hello', 'world'});''',
             [5, 5]
         )
 

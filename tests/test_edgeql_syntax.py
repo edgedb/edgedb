@@ -2036,6 +2036,24 @@ aa';
         SELECT Bar;
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=21)
+    def test_edgeql_syntax_with_10(self):
+        """
+        WITH MODULE __std__ SELECT Foo;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=26)
+    def test_edgeql_syntax_with_11(self):
+        """
+        WITH a AS MODULE __std__ SELECT Foo;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=26)
+    def test_edgeql_syntax_with_12(self):
+        """
+        WITH a AS MODULE `__std__` SELECT Foo;
+        """
+
     def test_edgeql_syntax_detached_01(self):
         """
         WITH F := DETACHED Foo
@@ -3433,6 +3451,15 @@ aa';
             std::int64 USING SQL FUNCTION 'aaa';
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=32)
+    def test_edgeql_syntax_ddl_function_48(self):
+        """
+        CREATE FUNCTION __std__(
+            f: int64
+        ) ->
+            std::int64 USING SQL FUNCTION 'aaa';
+        """
+
     def test_edgeql_syntax_ddl_property_01(self):
         """
         CREATE ABSTRACT PROPERTY std::property {
@@ -3488,6 +3515,30 @@ aa';
         CREATE MODULE foo;
         CREATE MODULE `foo.bar`;
         CREATE MODULE `all.abstract.bar`;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=23)
+    def test_edgeql_syntax_ddl_module_02(self):
+        """
+        CREATE MODULE __subject__;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=23)
+    def test_edgeql_syntax_ddl_module_03(self):
+        """
+        CREATE MODULE __std__.a;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=25)
+    def test_edgeql_syntax_ddl_module_04(self):
+        """
+        CREATE MODULE a.__std__;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=23)
+    def test_edgeql_syntax_ddl_module_05(self):
+        """
+        CREATE MODULE `__std__`;
         """
 
     def test_edgeql_syntax_ddl_type_01(self):

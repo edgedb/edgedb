@@ -2373,6 +2373,16 @@ class TestExpressions(tb.QueryTestCase):
             [{'a': 'foo', 'b': 42}],
         )
 
+        await self.assert_query_result(
+            r'''SELECT <tuple<__std__::str, int64>> ('foo', 42);''',
+            [['foo', 42]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <__std__::int16>1;''',
+            [1],
+        )
+
     async def test_edgeql_expr_implicit_cast_01(self):
         await self.assert_query_result(
             r'''SELECT (INTROSPECT TYPEOF(<int32>1 + 3)).name;''',

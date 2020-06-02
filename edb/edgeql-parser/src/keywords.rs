@@ -122,6 +122,7 @@ pub const CURRENT_RESERVED_KEYWORDS: &[&str] = &[
     "__source__",
     "__subject__",
     "__type__",
+    "__std__",
     "alter",
     "and",
     "anytuple",
