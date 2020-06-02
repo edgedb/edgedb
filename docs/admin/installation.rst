@@ -86,16 +86,25 @@ It is also possible to install the package from the command line:
 
     sudo installer -pkg /path/to/edgedb-1-alpha3_latest.pkg -target /
 
+Next, download the EdgeDB CLI executable:
+
+.. code-block:: bash
+
+    mkdir -p ~/.edgedb/bin/ \
+    && curl https://packages.edgedb.com/dist/macos-x86_64/edgedb-cli_latest \
+        > ~/.edgedb/bin/edgedb \
+    && chmod +x ~/.edgedb/bin/edgedb
+
 
 .. _`macOS EdgeDB package`:
-      https://packages.edgedb.com/dist/macos-x86_64/edgedb-1-alpha3_latest.pkg
+      https://packages.edgedb.com/dist/macos-x86_64/
+      edgedb-server-1-alpha3_latest.pkg
 
 
 .. _ref_admin_install_docker:
 
-------
 Docker
-------
+======
 
 Step 1. Pull the EdgeDB server Docker image:
 
@@ -120,15 +129,57 @@ the ``docker run`` command. The command above exposes the default ports used by
 :ref:`EdgeQL over HTTP <ref_edgeql_index>` (8889), and
 :ref:`GraphQL over HTTP <ref_graphql_index>` (8888).
 
+Step3. Download the EdgeDB CLI executable as described below.
 
-Running EdgeDB shell in a linked container
-------------------------------------------
 
-To run the EdgeDB shell using Docker, start it another container, linking
-to the server container:
+CLI Installation
+================
+
+To download the EdgeDB CLI tool, follow the instructions below.
+
+-----
+Linux
+-----
+
+Download the executable:
 
 .. code-block:: bash
 
-    docker run --link=edgedb-server --rm -it \
-        edgedb/edgedb:latest \
-        edgedb -u edgedb -H edgedb-server
+    mkdir -p ~/.local/bin/ \
+    && curl https://packages.edgedb.com/dist/linux-x86_64/edgedb-cli_latest \
+        > ~/.local/bin/edgedb \
+    && chmod +x ~/.local/bin/edgedb
+
+Add ``~/.local/bin`` to ``$PATH`` in ``~/.bash_profile`` or, if you don't
+use Bash, ``~/.profile``:
+
+.. code-block::
+
+   export PATH="$HOME/.local/bin:$PATH"
+
+Apply the ``$PATH`` change to the current shell by running
+``source ~/.bash_profile`` or ``source ~/.profile``.
+
+
+-----
+macOS
+-----
+
+Download the executable:
+
+.. code-block:: bash
+
+    mkdir -p ~/.edgedb/bin/ \
+    && curl https://packages.edgedb.com/dist/macos-x86_64/edgedb-cli_latest \
+        > ~/.edgedb/bin/edgedb \
+    && chmod +x ~/.edgedb/bin/edgedb
+
+Add ``~/.edgedb/bin`` to ``$PATH`` in ``~/.bash_profile`` or, if you don't
+use Bash, ``~/.profile``:
+
+.. code-block::
+
+   export PATH="$HOME/.edgedb/bin:$PATH"
+
+Apply the ``$PATH`` change to the current shell by running
+``source ~/.bash_profile`` or ``source ~/.profile``.
