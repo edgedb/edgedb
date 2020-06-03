@@ -679,8 +679,7 @@ def _normalize_view_ptr_expr(
                     )
                 ):
                     qlexpr = astutils.ensure_qlstmt(qlast.TypeCast(
-                        type=astutils.type_to_ql_typeref(
-                            base_target, schema=ctx.env.schema),
+                        type=typegen.type_to_ql_typeref(base_target, ctx=ctx),
                         expr=compexpr,
                     ))
                     ptr_target = base_target

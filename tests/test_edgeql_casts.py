@@ -1385,6 +1385,37 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             [[[1.0]]],
         )
 
+    async def test_edgeql_casts_collections_02(self):
+        await self.assert_query_result(
+            R'''
+                WITH
+                    std AS MODULE math,
+                    foo := (SELECT [1, 2, 3])
+                SELECT <array<str>>foo;
+            ''',
+            [['1', '2', '3']],
+        )
+
+        await self.assert_query_result(
+            R'''
+                WITH
+                    std AS MODULE math,
+                    foo := (SELECT [<int32>1, <int32>2, <int32>3])
+                SELECT <array<str>>foo;
+            ''',
+            [['1', '2', '3']],
+        )
+
+        await self.assert_query_result(
+            R'''
+                WITH
+                    std AS MODULE math,
+                    foo := (SELECT [(1,), (2,), (3,)])
+                SELECT <array<tuple<str>>>foo;
+            ''',
+            [[['1'], ['2'], ['3']]],
+        )
+
     # casting into an abstract scalar should be illegal
     async def test_edgeql_casts_illegal_01(self):
         with self.assertRaisesRegex(

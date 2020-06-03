@@ -33,6 +33,7 @@ from edb.edgeql import parser as ql_parser
 from edb.edgeql.compiler import astutils as ql_astutils
 
 from edb.schema import scalars as s_scalars
+from edb.schema import utils as s_utils
 
 from edb.common import ast
 
@@ -411,8 +412,8 @@ def ptr_default_to_col_default(schema, ptr, expr):
         eql = ql_parser.parse(expr.text)
         eql = ql_astutils.ensure_qlstmt(
             qlast.TypeCast(
-                type=ql_astutils.type_to_ql_typeref(
-                    ptr.get_target(schema), schema=schema),
+                type=s_utils.typeref_to_ast(
+                    schema, ptr.get_target(schema)),
                 expr=eql,
             )
         )

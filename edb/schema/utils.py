@@ -276,6 +276,7 @@ def typeref_to_ast(
     ref: Union[so.Object, so.ObjectShell],
     *,
     _name: Optional[str] = None,
+    disambiguate_std: bool=False,
 ) -> qlast.TypeExpr:
     from . import types as s_types
 
@@ -298,7 +299,8 @@ def typeref_to_ast(
                 name=t.schema_name
             ),
             subtypes=[
-                typeref_to_ast(schema, st, _name=sn)
+                typeref_to_ast(schema, st, _name=sn,
+                               disambiguate_std=disambiguate_std)
                 for sn, st in t.iter_subtypes(schema)
             ]
         )
@@ -311,7 +313,8 @@ def typeref_to_ast(
                 name=t.schema_name
             ),
             subtypes=[
-                typeref_to_ast(schema, st)
+                typeref_to_ast(schema, st,
+                               disambiguate_std=disambiguate_std)
                 for st in t.get_subtypes(schema)
             ]
         )
@@ -321,19 +324,28 @@ def typeref_to_ast(
         assert object_set is not None
 
         component_objects = tuple(object_set.objects(schema))
-        result = typeref_to_ast(schema, component_objects[0])
+        result = typeref_to_ast(schema, component_objects[0],
+                                disambiguate_std=disambiguate_std)
         for component_object in component_objects[1:]:
             result = qlast.TypeOp(
                 left=result,
                 op='|',
-                right=typeref_to_ast(schema, component_object),
+                right=typeref_to_ast(schema, component_object,
+                                     disambiguate_std=disambiguate_std),
             )
     elif isinstance(t, so.QualifiedObject):
+        t_name = t.get_name(schema)
+        module = t_name.module
+        if disambiguate_std and module == 'std':
+            # If the type is defined in 'std::', replace the module to
+            # '__std__' to handle cases where 'std' name is aliased to
+            # another module.
+            module = '__std__'
         result = qlast.TypeName(
             name=_name,
             maintype=qlast.ObjectRef(
-                module=t.get_name(schema).module,
-                name=t.get_name(schema).name
+                module=module,
+                name=t_name.name
             )
         )
     else:
