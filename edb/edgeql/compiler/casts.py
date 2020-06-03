@@ -453,7 +453,7 @@ def _cast_array(
             subctx.anchors[source_alias] = ir_set
 
             unpacked = qlast.FunctionCall(
-                func=('std', 'array_unpack'),
+                func=('__std__', 'array_unpack'),
                 args=[
                     qlast.Path(
                         steps=[qlast.ObjectRef(name=source_alias)],
@@ -464,7 +464,7 @@ def _cast_array(
             enumerated = setgen.ensure_set(
                 dispatch.compile(
                     qlast.FunctionCall(
-                        func=('std', 'enumerate'),
+                        func=('__std__', 'enumerate'),
                         args=[unpacked],
                     ),
                     ctx=subctx,
@@ -479,7 +479,7 @@ def _cast_array(
             )
 
             elements = qlast.FunctionCall(
-                func=('std', 'array_agg'),
+                func=('__std__', 'array_agg'),
                 args=[
                     qlast.SelectQuery(
                         result=qlast.TypeCast(

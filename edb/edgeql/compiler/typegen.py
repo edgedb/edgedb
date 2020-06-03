@@ -33,10 +33,10 @@ from edb.ir import utils as irutils
 from edb.schema import abc as s_abc
 from edb.schema import pointers as s_pointers
 from edb.schema import types as s_types
+from edb.schema import utils as s_utils
 
 from edb.edgeql import ast as qlast
 
-from . import astutils
 from . import context
 from . import dispatch
 from . import schemactx
@@ -49,8 +49,11 @@ def type_to_ql_typeref(
     _name: Optional[str] = None,
     ctx: context.ContextLevel,
 ) -> qlast.TypeExpr:
-
-    return astutils.type_to_ql_typeref(t, schema=ctx.env.schema)
+    return s_utils.typeref_to_ast(
+        ctx.env.schema,
+        t,
+        disambiguate_std='std' in ctx.modaliases,
+    )
 
 
 def ql_typeexpr_to_ir_typeref(

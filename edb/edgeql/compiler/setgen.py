@@ -1002,8 +1002,8 @@ def computable_ptr_set(
         assert target_scls is not None
         if not target_scls.is_object_type():
             schema_qlexpr = qlast.TypeCast(
-                type=astutils.type_to_ql_typeref(
-                    target_scls, schema=ctx.env.schema),
+                type=typegen.type_to_ql_typeref(
+                    target_scls, ctx=ctx),
                 expr=schema_qlexpr,
             )
         qlexpr = astutils.ensure_qlstmt(schema_qlexpr)

@@ -25,10 +25,6 @@ from typing import *
 
 from edb.edgeql import ast as qlast
 
-from edb.schema import schema as s_schema
-from edb.schema import types as s_types
-from edb.schema import utils as s_utils
-
 
 def extend_binop(
     binop: Optional[qlast.Expr],
@@ -76,8 +72,3 @@ def is_ql_path(qlexpr: qlast.Expr) -> bool:
     start = qlexpr.steps[0]
 
     return isinstance(start, (qlast.Source, qlast.ObjectRef, qlast.Ptr))
-
-
-def type_to_ql_typeref(t: s_types.Type, *,
-                       schema: s_schema.Schema) -> qlast.TypeExpr:
-    return s_utils.typeref_to_ast(schema, t)
