@@ -60,30 +60,6 @@ class Context:
         self.db = conn
 
 
-class TypeDescNodeType(dbops.CompositeType):
-    def __init__(self) -> None:
-        super().__init__(name=('edgedb', 'type_desc_node_t'))
-
-        self.add_columns([
-            dbops.Column(name='id', type='uuid'),
-            dbops.Column(name='maintype', type='uuid'),
-            dbops.Column(name='name', type='text'),
-            dbops.Column(name='position', type='smallint'),
-            dbops.Column(name='collection', type='text'),
-            dbops.Column(name='subtypes', type='uuid[]'),
-            dbops.Column(name='dimensions', type='smallint[]'),
-        ])
-
-
-class TypeDescType(dbops.CompositeType):
-    def __init__(self) -> None:
-        super().__init__(name=('edgedb', 'typedesc_t'))
-
-        self.add_columns([
-            dbops.Column(name='types', type='edgedb.type_desc_node_t[]'),
-        ])
-
-
 class ExpressionType(dbops.CompositeType):
     def __init__(self) -> None:
         super().__init__(name=('edgedb', 'expression_t'))
@@ -2099,8 +2075,6 @@ async def bootstrap(conn):
         dbops.CreateSchema(name='edgedb'),
         dbops.CreateSchema(name='edgedbss'),
         dbops.CreateExtension(dbops.Extension(name='uuid-ossp')),
-        dbops.CreateCompositeType(TypeDescNodeType()),
-        dbops.CreateCompositeType(TypeDescType()),
         dbops.CreateCompositeType(ExpressionType()),
     ])
 

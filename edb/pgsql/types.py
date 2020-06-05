@@ -19,11 +19,8 @@
 
 from __future__ import annotations
 
-import collections
 import functools
 from typing import *
-
-from edb.common import uuidgen
 
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
@@ -34,10 +31,8 @@ from edb.schema import objtypes as s_objtypes
 from edb.schema import name as sn
 from edb.schema import objects as s_obj
 from edb.schema import schema as s_schema
-from edb.schema import types as s_types
 
 from . import common
-from .common import quote_literal as ql
 
 
 base_type_name_map = {
@@ -469,124 +464,3 @@ def _storable_in_pointer(ptrref: irast.PointerRef) -> bool:
             ptrref.out_cardinality.is_multi()
             or ptrref.has_properties
         )
-
-
-_TypeDescNode = collections.namedtuple(
-    '_TypeDescNode', ['id', 'maintype', 'name', 'position',
-                      'collection', 'subtypes', 'dimensions'],
-    module=__name__)
-
-
-class TypeDescNode(_TypeDescNode):
-
-    def __new__(cls, **kwargs):
-        if not kwargs.get('id'):
-            kwargs['id'] = cls._get_id(kwargs)
-        return super().__new__(cls, **kwargs)
-
-    @classmethod
-    def _get_id(cls, data):
-        if data['collection'] == 'tuple' and not data['subtypes']:
-            return s_obj.get_known_type_id('empty-tuple')
-        if data['name'] == 'anytype':
-            return s_obj.get_known_type_id('anytype')
-
-        # A type desc node is uniquely identified by it's type,
-        # and the name and position within a parent type.
-        id_str = f"{data['maintype']!r}::{data['name']!r}::{data['position']}"
-        return uuidgen.uuid5(s_types.TYPE_ID_NAMESPACE, id_str)
-
-    def to_sql_expr(self):
-        if self.subtypes:
-            subtype_list = ', '.join(ql(str(st)) for st in self.subtypes)
-            subtypes = f'ARRAY[{subtype_list}]::uuid[]'
-        else:
-            subtypes = 'ARRAY[]::uuid[]'
-
-        if self.dimensions:
-            dimensions_list = ', '.join(str(d) for d in self.dimensions)
-            dimensions = f'ARRAY[{dimensions_list}]::smallint[]'
-        else:
-            dimensions = 'ARRAY[]::smallint[]'
-
-        items = [
-            ql(str(self.id)),
-            ql(str(self.maintype)),
-            ql(self.name) if self.name else 'NULL',
-            str(self.position) if self.position is not None else 'NULL',
-            ql(self.collection) if self.collection else 'NULL',
-            subtypes,
-            dimensions,
-        ]
-
-        return 'ROW(' + ', '.join(items) + ')::edgedb.type_desc_node_t'
-
-
-class TypeDesc:
-
-    def __init__(self, types: List[TypeDescNode]) -> None:
-        self.types = types
-
-    def to_sql_expr(self):
-        nodes = ', '.join(node.to_sql_expr() for node in self.types)
-        return (
-            f'ROW(ARRAY[{nodes}]::edgedb.type_desc_node_t[])'
-            f'::edgedb.typedesc_t'
-        )
-
-    @classmethod
-    def from_type(cls, schema, type: s_abc.Type) -> TypeDesc:
-        nodes = []
-        cls._get_typedesc(schema, [(type.get_name(schema), type)], nodes)
-        return cls(nodes)
-
-    @classmethod
-    def _get_typedesc(cls, schema, types, typedesc, *, is_root=True):
-        result = []
-        indexes = []
-        for _ in types:
-            # Fill the result with placeholders as we want the
-            # parent types to go first.
-            typedesc.append(())
-            indexes.append(len(typedesc) - 1)
-
-        for i, (tn, t) in enumerate(types):
-            if isinstance(t, s_abc.Collection):
-                if isinstance(t, s_abc.Tuple) and t.is_named(schema):
-                    stypes = list(t.iter_subtypes(schema))
-                else:
-                    stypes = [(None, st) for st in t.get_subtypes(schema)]
-
-                subtypes = cls._get_typedesc(
-                    schema, stypes, typedesc, is_root=False)
-                if isinstance(t, s_abc.Array):
-                    dimensions = t.get_dimensions(schema)
-                else:
-                    dimensions = []
-                desc = TypeDescNode(
-                    maintype=t.id, name=tn, collection=t.schema_name,
-                    subtypes=subtypes, dimensions=dimensions,
-                    position=i if not is_root else None)
-            elif t.is_type() and t.is_any(schema):
-                desc = TypeDescNode(
-                    maintype=t.id, name=tn, collection=None,
-                    subtypes=[], dimensions=[],
-                    position=i if not is_root else None)
-            elif t.is_type() and t.is_anytuple(schema):
-                desc = TypeDescNode(
-                    maintype=t.id, name=tn, collection=None,
-                    subtypes=[], dimensions=[],
-                    position=i if not is_root else None)
-            else:
-                desc = TypeDescNode(
-                    maintype=t.id,
-                    name=tn,
-                    collection=None,
-                    subtypes=[],
-                    dimensions=[],
-                    position=i if not is_root else None)
-
-            typedesc[indexes[i]] = desc
-            result.append(desc.id)
-
-        return result
