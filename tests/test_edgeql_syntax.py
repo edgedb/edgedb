@@ -755,6 +755,11 @@ aa';
         SELECT REQUIRED (User.groups.description);
         """
 
+    def test_edgeql_syntax_optional_01(self):
+        """
+        SELECT OPTIONAL (User.groups.description);
+        """
+
     def test_edgeql_syntax_list_01(self):
         """
         SELECT (some_list_fn())[2];

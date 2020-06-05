@@ -418,11 +418,12 @@ def generate_structure(
             ptr = schema_objtype.getptr(schema, fn)
 
             if fn in ownfields:
+                qual = "REQUIRED" if field.required else "OPTIONAL"
                 if ptr is None:
                     schema = _run_ddl(
                         f'''
                             ALTER TYPE {rschema_name} {{
-                                CREATE {'REQUIRED' if field.required else ''}
+                                CREATE {qual}
                                 {storage.ptrkind} {fn} -> {storage.ptrtype};
                             }}
                         ''',

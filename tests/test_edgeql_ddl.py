@@ -5247,6 +5247,88 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             [1],
         )
 
+    async def test_edgeql_ddl_required_09(self):
+        # Test normal that required qualifier behavior.
+
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            CREATE TYPE Base {
+                CREATE OPTIONAL PROPERTY foo -> str;
+            };
+            CREATE TYPE Derived EXTENDING Base {
+                ALTER PROPERTY foo {
+                    # overloading the property to be required
+                    # regardless of the ancestors
+                    SET REQUIRED;
+                };
+            };
+        """)
+
+        with self.assertRaisesRegex(
+                edgedb.MissingRequiredError,
+                r'Derived.foo'):
+
+            async with self.con.transaction():
+                await self.con.execute("""
+                    INSERT Derived;
+                """)
+
+        await self.con.execute("""
+            INSERT Base;
+        """)
+        await self.assert_query_result(
+            r'''
+                SELECT count(Base);
+            ''',
+            [1],
+        )
+
+        with self.assertRaisesRegex(
+                edgedb.MissingRequiredError,
+                r'Derived.foo'):
+
+            async with self.con.transaction():
+                await self.con.execute("""
+                    INSERT Derived;
+                """)
+
+        await self.con.execute("""
+            ALTER TYPE Derived {
+                ALTER PROPERTY foo {
+                    DROP REQUIRED;
+                };
+            };
+        """)
+
+        await self.con.execute("""
+            INSERT Derived;
+        """)
+        await self.assert_query_result(
+            r'''
+                SELECT count(Derived);
+            ''',
+            [1],
+        )
+
+    async def test_edgeql_ddl_required_10(self):
+        # Test that required qualifier cannot be dropped if it was not
+        # actually set on the particular property.
+        with self.assertRaisesRegex(
+                edgedb.SchemaError, "cannot drop required"):
+            await self.con.execute('''
+                SET MODULE test;
+
+                CREATE TYPE Base {
+                    CREATE OPTIONAL PROPERTY foo -> str;
+                };
+                ALTER TYPE Base {
+                    ALTER PROPERTY foo {
+                        DROP REQUIRED;
+                    };
+                };
+            ''')
+
     async def test_edgeql_ddl_index_01(self):
         with self.assertRaisesRegex(
             edgedb.ResultCardinalityMismatchError,

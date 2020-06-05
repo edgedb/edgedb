@@ -20,3 +20,7 @@ postgres:
 pygments:
 	out=$$(edb gen-meta-grammars edgeql) && \
 		echo "$$out" > edb/edgeql/pygments/meta.py
+
+
+update:
+	pip install -Ue .[test]
