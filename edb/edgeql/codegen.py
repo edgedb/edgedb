@@ -1225,8 +1225,14 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         keywords = []
         if self.sdlmode and node.declared_overloaded:
             keywords.append('OVERLOADED')
-        if node.is_required:
-            keywords.append('REQUIRED')
+            if node.is_required:
+                keywords.append('REQUIRED')
+        else:
+            if node.is_required is True:
+                keywords.append('REQUIRED')
+            elif node.is_required is False:
+                keywords.append('OPTIONAL')
+            # else: `is_required` is None
         if node.cardinality:
             keywords.append(node.cardinality.as_ptr_qual().upper())
         keywords.append('PROPERTY')
@@ -1265,12 +1271,19 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         for command in node.commands:
             if isinstance(command, qlast.SetSpecialField):
-                kw = self._process_SetSpecialField(command)
-                specials.add(command)
-                if kw[0] == 'SET':
-                    keywords.append(kw[1])
+                if command.name == "required":
+                    if command.value is True:
+                        keywords.append("REQUIRED")
+                    elif command.value is False:
+                        keywords.append("OPTIONAL")
+                    # else: command.value is None
+                else:
+                    kw = self._process_SetSpecialField(command)
+                    specials.add(command)
+                    if kw[0] == 'SET':
+                        keywords.append(kw[1])
 
-        order = ['REQUIRED', 'SINGLE', 'MULTI']
+        order = ['OPTIONAL', 'REQUIRED', 'SINGLE', 'MULTI']
         keywords.sort(key=lambda i: order.index(i))
 
         return keywords, frozenset(specials)
@@ -1333,8 +1346,14 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         if self.sdlmode and node.declared_overloaded:
             keywords.append('OVERLOADED')
-        if node.is_required:
-            keywords.append('REQUIRED')
+            if node.is_required:
+                keywords.append('REQUIRED')
+        else:
+            if node.is_required is True:
+                keywords.append("REQUIRED")
+            elif node.is_required is False:
+                keywords.append("OPTIONAL")
+            # else: node.is_required is None
         if node.cardinality:
             keywords.append(node.cardinality.as_ptr_qual().upper())
         keywords.append('LINK')

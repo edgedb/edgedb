@@ -418,11 +418,12 @@ def generate_structure(
             ptr = schema_objtype.getptr(schema, fn)
 
             if fn in ownfields:
+                qual = "REQUIRED" if field.required else "OPTIONAL"
                 if ptr is None:
                     schema = _run_ddl(
                         f'''
                             ALTER TYPE {rschema_name} {{
-                                CREATE {'REQUIRED' if field.required else ''}
+                                CREATE {qual}
                                 {storage.ptrkind} {fn} -> {storage.ptrtype};
                             }}
                         ''',
@@ -441,8 +442,7 @@ def generate_structure(
                         schema = _run_ddl(
                             f'''
                                 ALTER TYPE {rschema_name} {{
-                                    CREATE
-                                    {'REQUIRED' if field.required else ''}
+                                    CREATE {qual}
                                     {ptrkind} {pn} -> {ptrtype};
                                 }}
                             ''',
@@ -520,7 +520,7 @@ def generate_structure(
                 schema = _run_ddl(
                     f'''
                         ALTER TYPE {rschema_name} {{
-                            CREATE MULTI LINK {shadow_pn}
+                            CREATE OPTIONAL MULTI LINK {shadow_pn}
                             EXTENDING schema::reference
                              -> {get_schema_name_for_pycls(ref_cls)} {{
                                  ON TARGET DELETE ALLOW;
@@ -540,7 +540,7 @@ def generate_structure(
                 schema = _run_ddl(
                     f'''
                         ALTER TYPE {rschema_name} {{
-                            CREATE MULTI LINK {refdict.attr}
+                            CREATE OPTIONAL MULTI LINK {refdict.attr}
                             EXTENDING schema::reference
                              -> {ptr_type} {{
                                  ON TARGET DELETE ALLOW;
@@ -598,11 +598,12 @@ def generate_structure(
             for fn, storage in {**props, **extra_props}.items():
                 prop_ptr = ref_ptr.getptr(schema, fn)
                 if prop_ptr is None:
+                    pty = storage.ptrtype
                     schema = _run_ddl(
                         f'''
                             ALTER TYPE {rschema_name} {{
                                 ALTER LINK {refdict.attr} {{
-                                    CREATE PROPERTY {fn} -> {storage.ptrtype};
+                                    CREATE OPTIONAL PROPERTY {fn} -> {pty};
                                 }}
                             }}
                         ''',
@@ -616,12 +617,12 @@ def generate_structure(
                 for fn, storage in props.items():
                     prop_ptr = shadow_ref_ptr.getptr(schema, fn)
                     if prop_ptr is None:
+                        pty = storage.ptrtype
                         schema = _run_ddl(
                             f'''
                                 ALTER TYPE {rschema_name} {{
                                     ALTER LINK {shadow_pn} {{
-                                        CREATE PROPERTY {fn} ->
-                                            {storage.ptrtype};
+                                        CREATE OPTIONAL PROPERTY {fn} -> {pty};
                                     }}
                                 }}
                             ''',

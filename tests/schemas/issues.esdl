@@ -68,7 +68,7 @@ scalar type issue_num_t extending std::str;
 
 type Comment extending Text, Owned {
     required link issue -> Issue;
-    link parent -> Comment;
+    optional link parent -> Comment;
 }
 
 type Issue extending Named, Owned, Text {
@@ -84,9 +84,9 @@ type Issue extending Named, Owned, Text {
 
     link priority -> Priority;
 
-    multi link watchers -> User;
+    optional multi link watchers -> User;
 
-    property time_estimate -> int64;
+    optional property time_estimate -> int64;
 
     multi link time_spent_log -> LogEntry;
 
@@ -118,8 +118,8 @@ type Publication {
     property title1 := (SELECT ident(.title));
     required property title2 := (SELECT ident(.title));
     required single property title3 := (SELECT ident(.title));
-    single property title4 := (SELECT ident(.title));
-    multi property title5 := (SELECT ident(.title));
+    optional single property title4 := (SELECT ident(.title));
+    optional multi property title5 := (SELECT ident(.title));
     required multi property title6 := (SELECT ident(.title));
 
     multi link authors -> User {
