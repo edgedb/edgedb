@@ -1,4 +1,5 @@
-.PHONY: docs cython postgres postgres-ext pygments
+.PHONY: build docs cython postgres postgres-ext pygments
+.DEFAULT_GOAL := build
 
 SPHINXOPTS:="-W -n"
 
@@ -22,5 +23,5 @@ pygments:
 		echo "$$out" > edb/edgeql/pygments/meta.py
 
 
-update:
-	pip install -Ue .[test]
+build:
+	pip install -Ue .[docs,test]
