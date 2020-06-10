@@ -3457,11 +3457,10 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         )
 
     @test.xfail('''
-        edgedb.errors.InternalServerError: relation
-        "edgedb_f1a94eb6-dbf2-11e9-a3fb-214b780369d9.f20ba958-dbf2-11e9-8884-5764a7d0627a"
-        does not exist
+        The link is preserved, but not the link property value. Which
+        is a bit odd.
 
-        See `test_edgeql_insert_derived_02` first.
+        See also `test_migrations_equivalence_linkprops_08`.
     ''')
     async def test_edgeql_migration_linkprops_08(self):
         await self.con.execute("""
@@ -3507,7 +3506,18 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self.assert_query_result(
             r"""
-                SELECT Base {
+                SELECT Derived {
+                    children := count(.child)
+                };
+            """,
+            [{
+                'children': 1,
+            }],
+        )
+
+        await self.assert_query_result(
+            r"""
+                SELECT Derived {
                     child: {
                         @foo,
                     }

@@ -1134,12 +1134,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         ddl_plan = migration.get_delta(schema)
         baseline_schema = ddl_plan.apply(schema, context)
-        import edb.common.debug
-        edb.common.debug.dump(ddl_plan)
-
         ddl_text = s_ddl.ddl_text_from_delta(baseline_schema, ddl_plan)
-
-        print(ddl_text)
 
         try:
             test_schema = self.run_ddl(schema, ddl_text)
