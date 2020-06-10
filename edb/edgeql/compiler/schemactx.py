@@ -185,6 +185,7 @@ def derive_view(
             inheritance_merge=inheritance_merge,
             refdict_whitelist={'pointers'},
             mark_derived=True,
+            transient=True,
             preserve_path_id=preserve_path_id,
             attrs=attrs,
         )
@@ -250,6 +251,7 @@ def derive_ptr(
         inheritance_merge=inheritance_merge,
         refdict_whitelist={'pointers'},
         mark_derived=True,
+        transient=True,
         preserve_path_id=preserve_path_id,
         attrs=attrs)
 
@@ -455,7 +457,9 @@ def derive_dummy_ptr(
                 'cardinality': qltypes.SchemaCardinality.MANY,
             },
             name=derived_name,
-            mark_derived=True)
+            mark_derived=True,
+            transient=True,
+        )
         ctx.env.created_schema_objects.add(derived)
 
     return derived

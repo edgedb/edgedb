@@ -1036,6 +1036,7 @@ _123456789_123456789_123456789 -> str
             name=B_name.get_name(schema),
             inheritance_merge=False,
             mark_derived=True,
+            transient=True,
         )
 
         self.assertEqual(

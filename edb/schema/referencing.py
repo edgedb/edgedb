@@ -94,6 +94,7 @@ class ReferencedObject(so.DerivableObject):
         inheritance_merge: bool = True,
         preserve_path_id: Optional[bool] = None,
         refdict_whitelist: Optional[AbstractSet[str]] = None,
+        transient: bool = False,
         name: Optional[str] = None,
         **kwargs: Any,
     ) -> Tuple[s_schema.Schema, ReferencedT]:
@@ -180,6 +181,9 @@ class ReferencedObject(so.DerivableObject):
 
             if mark_derived:
                 context.current().mark_derived = True
+
+            if transient:
+                context.current().transient_derivation = True
 
             if preserve_path_id:
                 context.current().preserve_path_id = True

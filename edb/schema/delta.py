@@ -587,6 +587,7 @@ class CommandContextToken(Generic[Command_T]):
     mark_derived: Optional[bool]
     preserve_path_id: Optional[bool]
     enable_recursion: Optional[bool]
+    transient_derivation: Optional[bool]
 
     def __init__(
         self,
@@ -603,6 +604,7 @@ class CommandContextToken(Generic[Command_T]):
         self.mark_derived = None
         self.preserve_path_id = None
         self.enable_recursion = None
+        self.transient_derivation = None
 
 
 class CommandContextWrapper(Generic[Command_T]):
@@ -698,6 +700,14 @@ class CommandContext:
                 return ctx.enable_recursion
 
         return True
+
+    @property
+    def transient_derivation(self) -> bool:
+        for ctx in reversed(self.stack):
+            if ctx.transient_derivation is not None:
+                return ctx.transient_derivation
+
+        return False
 
     @property
     def canonical(self) -> bool:
@@ -1138,6 +1148,10 @@ class ObjectCommand(
                     f'module {modname} is read-only',
                     context=self.source_context)
 
+    def get_verbosename(self) -> str:
+        mcls = self.get_schema_metaclass()
+        return mcls.get_verbosename_static(self.classname)
+
     @overload
     def get_object(
         self,
@@ -1437,6 +1451,13 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
 
         return cmd
 
+    def validate_create(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> None:
+        pass
+
     def _create_begin(
         self,
         schema: s_schema.Schema,
@@ -1465,6 +1486,7 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         if not context.canonical:
             self.set_attribute_value('builtin', context.stdmode)
             schema = self.resolve_refs(schema, context)
+            self.validate_create(schema, context)
 
         props = self.get_resolved_attributes(schema, context)
         metaclass = self.get_schema_metaclass()

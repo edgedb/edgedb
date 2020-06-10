@@ -1200,8 +1200,15 @@ class SetPointerType(
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
+        orig_schema = schema
         schema = super()._alter_begin(schema, context)
         scls = self.scls
+
+        orig_target = scls.get_target(orig_schema)
+        new_target = scls.get_target(schema)
+
+        if orig_target == new_target:
+            return schema
 
         context.altered_targets.add(scls)
 

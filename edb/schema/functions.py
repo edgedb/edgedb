@@ -737,11 +737,16 @@ class CallableCommand(sd.QualifiedObjectCommand[CallableObject]):
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> FuncParameterList:
-        params = []
-        for cr_param in self.get_subcommands(type=ParameterCommand):
-            param = schema.get(cr_param.classname, type=Parameter)
-            params.append(param)
-        return FuncParameterList.create(schema, params)  # type: ignore
+        params = self.get_attribute_value('params')
+        if params is None:
+            param_list = []
+            for cr_param in self.get_subcommands(type=ParameterCommand):
+                param = schema.get(cr_param.classname, type=Parameter)
+                param_list.append(param)
+            params = FuncParameterList.create(schema, param_list)
+
+        assert isinstance(params, FuncParameterList)
+        return params
 
     @classmethod
     def _get_param_desc_from_ast(
@@ -867,11 +872,7 @@ class CreateCallableObject(CallableCommand, sd.CreateObject[CallableObject]):
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> Dict[str, Any]:
-        params = self.get_attribute_value('params')
-
-        if params is None:
-            params = self._get_params(schema, context)
-
+        params = self._get_params(schema, context)
         props = super().get_resolved_attributes(schema, context)
         props['params'] = params
         return props

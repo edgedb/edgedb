@@ -122,6 +122,7 @@ class Type(
         attrs: Optional[Mapping[str, Any]] = None,
         inheritance_merge: bool = True,
         preserve_path_id: bool = False,
+        transient: bool = False,
         refdict_whitelist: Optional[AbstractSet[str]] = None,
         **kwargs: Any,
     ) -> typing.Tuple[s_schema.Schema, TypeT]:
@@ -162,6 +163,9 @@ class Type(
 
             if mark_derived:
                 context.current().mark_derived = True
+
+            if transient:
+                context.current().transient_derivation = True
 
             if preserve_path_id:
                 context.current().preserve_path_id = True

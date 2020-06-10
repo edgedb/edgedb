@@ -25,6 +25,7 @@ from edb.edgeql import ast as qlast
 from edb.schema import schema as s_schema
 
 from . import delta as sd
+from . import expr as s_expr
 from . import name as sn
 from . import objects as so
 from . import utils
@@ -85,21 +86,22 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
 
         return schema
 
-    def inherit_fields(self,
-                       schema: s_schema.Schema,
-                       context: sd.CommandContext,
-                       scls: so.InheritingObjectT,
-                       bases: Tuple[so.Object, ...],
-                       *,
-                       fields: Optional[Iterable[str]] = None
-                       ) -> s_schema.Schema:
+    def inherit_fields(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        bases: Tuple[so.Object, ...],
+        *,
+        fields: Optional[Iterable[str]] = None,
+    ) -> s_schema.Schema:
         mcls = self.get_schema_metaclass()
+        scls = self.scls
 
         if fields is not None:
             field_names: Iterable[str] = set(scls.inheritable_fields()) \
                 & set(fields)
         else:
-            field_names = scls.inheritable_fields()
+            field_names = list(scls.inheritable_fields())
 
         inherited_fields = scls.get_inherited_fields(schema)
         inherited_fields_update = {}
@@ -116,15 +118,38 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
             inherited = result is not None and ours is None
             inherited_fields_update[field_name] = inherited
 
-            if ((result is not None or ours is not None)
-                    and result != ours):
-                schema = scls.set_field_value(schema, field_name, result)
-                self.set_attribute_value(field_name, result,
-                                         inherited=inherited)
+            if (result is not None or ours is not None) and result != ours:
+                schema = self.inherit_field(
+                    schema,
+                    context,
+                    field=field,
+                    value=result,
+                    inherited=inherited,
+                )
 
         schema = self._update_inherited_fields(
             schema, context, inherited_fields_update)
 
+        return schema
+
+    def inherit_field(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        field: so.Field[Any],
+        value: Any,
+        inherited: bool,
+    ) -> s_schema.Schema:
+        if (
+            inherited
+            and not context.transient_derivation
+            and isinstance(value, s_expr.Expression)
+        ):
+            value = self.compile_expr_field(
+                schema, context, field=field, value=value)
+        schema = self.scls.set_field_value(schema, field.name, value)
+        self.set_attribute_value(field.name, value, inherited=inherited)
         return schema
 
     def get_inherited_ref_layout(
@@ -252,7 +277,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         self.set_attribute_value('ancestors', new_ancestors)
 
         bases = scls.get_bases(schema).objects(schema)
-        self.inherit_fields(schema, context, scls, bases)
+        self.inherit_fields(schema, context, bases)
 
         for refdict in mcls.get_refdicts():
             schema = self._reinherit_classref_dict(schema, context, refdict)
@@ -597,7 +622,7 @@ class CreateInheritingObject(
                     'path_id_name', base_name)
 
             if context.inheritance_merge is None or context.inheritance_merge:
-                schema = self.inherit_fields(schema, context, self.scls, bases)
+                schema = self.inherit_fields(schema, context, bases)
 
         return schema
 
@@ -781,7 +806,7 @@ class AlterInheritingObject(
                 if context.enable_recursion:
                     self._propagate_field_alter(schema, context, scls, props)
                 bases = scls.get_bases(schema).objects(schema)
-                self.inherit_fields(schema, context, scls, bases, fields=props)
+                self.inherit_fields(schema, context, bases, fields=props)
 
         return schema
 
@@ -802,7 +827,7 @@ class AlterInheritingObject(
             with descendant_alter.new_context(schema, context, descendant):
                 d_bases = descendant.get_bases(schema).objects(schema)
                 schema = descendant_alter.inherit_fields(
-                    schema, context, descendant, d_bases, fields=props)
+                    schema, context, d_bases, fields=props)
 
             droot, dcmd = descendant_alter._build_alter_cmd_stack(
                 schema, context, descendant
