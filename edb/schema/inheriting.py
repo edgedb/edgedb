@@ -95,7 +95,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         mcls = self.get_schema_metaclass()
         for op in self.get_subcommands(type=sd.AlterObjectProperty):
             field = mcls.get_field(op.property)
-            if field.inheritable:
+            if field.inheritable and not field.ephemeral:
                 result[op.property] = op.source == 'inheritance'
 
         return result

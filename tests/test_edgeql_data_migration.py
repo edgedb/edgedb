@@ -2013,7 +2013,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         )
 
     async def test_edgeql_migration_37(self):
-        # testing schema aliass
+        # testing schema alias
         await self.con.execute("""
             SET MODULE test;
         """)
@@ -2075,7 +2075,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             """)
 
     async def test_edgeql_migration_38(self):
-        # testing schema aliass
+        # testing schema alias
         await self.con.execute("""
             SET MODULE test;
         """)
@@ -2126,7 +2126,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         )
 
     async def test_edgeql_migration_39(self):
-        # testing schema aliass
+        # testing schema alias
         await self.con.execute("""
             SET MODULE test;
         """)
@@ -2207,7 +2207,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             """)
 
     async def test_edgeql_migration_40(self):
-        # testing schema aliass
+        # testing schema alias
         await self.con.execute("""
             SET MODULE test;
         """)
@@ -2290,7 +2290,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         The error appears to be the same as for test_migrations_equivalence_41
     ''')
     async def test_edgeql_migration_41(self):
-        # testing schema aliass
+        # testing schema alias
         await self.con.execute("""
             SET MODULE test;
         """)
@@ -2393,7 +2393,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         The error appears to be the same as for test_migrations_equivalence_42
     ''')
     async def test_edgeql_migration_42(self):
-        # testing schema aliass
+        # testing schema alias
         await self.con.execute("""
             SET MODULE test;
         """)
@@ -3457,11 +3457,10 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         )
 
     @test.xfail('''
-        edgedb.errors.InternalServerError: relation
-        "edgedb_f1a94eb6-dbf2-11e9-a3fb-214b780369d9.f20ba958-dbf2-11e9-8884-5764a7d0627a"
-        does not exist
+        The link is preserved, but not the link property value. Which
+        is a bit odd.
 
-        See `test_edgeql_insert_derived_02` first.
+        See also `test_migrations_equivalence_linkprops_08`.
     ''')
     async def test_edgeql_migration_linkprops_08(self):
         await self.con.execute("""
@@ -3507,7 +3506,18 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self.assert_query_result(
             r"""
-                SELECT Base {
+                SELECT Derived {
+                    children := count(.child)
+                };
+            """,
+            [{
+                'children': 1,
+            }],
+        )
+
+        await self.assert_query_result(
+            r"""
+                SELECT Derived {
                     child: {
                         @foo,
                     }
@@ -4783,7 +4793,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property foo -> float32;
             };
 
-            # aliass that don't have arrays
+            # alias that don't have arrays
             alias BaseAlias := Base { bar := Base.foo };
             alias CollAlias := Base.foo;
         """)
@@ -4794,7 +4804,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
         """)
 
-        # make sure that the aliass initialized correctly
+        # make sure that the alias initialized correctly
         await self.assert_query_result(
             r"""SELECT BaseAlias{bar};""",
             [{'bar': 13.5}],
@@ -4809,7 +4819,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property foo -> float32;
             };
 
-            # "same" aliass that now have arrays
+            # "same" alias that now have arrays
             alias BaseAlias := Base { bar := [Base.foo] };
             alias CollAlias := [Base.foo];
         """)
@@ -4833,7 +4843,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property foo -> float32;
             };
 
-            # aliass that don't have tuples
+            # alias that don't have tuples
             alias BaseAlias := Base { bar := Base.foo };
             alias CollAlias := Base.foo;
         """)
@@ -4845,7 +4855,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
         """)
 
-        # make sure that the aliass initialized correctly
+        # make sure that the alias initialized correctly
         await self.assert_query_result(
             r"""SELECT BaseAlias{bar};""",
             [{'bar': 14.5}],
@@ -4861,7 +4871,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property foo -> float32;
             };
 
-            # "same" aliass that now have tuples
+            # "same" alias that now have tuples
             alias BaseAlias := Base { bar := (Base.name, Base.foo) };
             alias CollAlias := (Base.name, Base.foo);
         """)
@@ -4886,7 +4896,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property foo -> float32;
             };
 
-            # aliass that don't have nested collections
+            # alias that don't have nested collections
             alias BaseAlias := Base { bar := Base.foo };
             alias CollAlias := Base.foo;
         """)
@@ -4899,7 +4909,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
         """)
 
-        # make sure that the aliass initialized correctly
+        # make sure that the alias initialized correctly
         await self.assert_query_result(
             r"""SELECT BaseAlias{bar};""",
             [{'bar': 15.5}],
@@ -4916,7 +4926,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property foo -> float32;
             };
 
-            # "same" aliass that now have nested collections
+            # "same" alias that now have nested collections
             alias BaseAlias := Base {
                 bar := (Base.name, Base.number, [Base.foo])
             };
@@ -4942,7 +4952,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property foo -> float32;
             };
 
-            # aliass that don't have named tuples
+            # alias that don't have named tuples
             alias BaseAlias := Base { bar := Base.foo };
             alias CollAlias := Base.foo;
         """)
@@ -4954,7 +4964,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
         """)
 
-        # make sure that the aliass initialized correctly
+        # make sure that the alias initialized correctly
         await self.assert_query_result(
             r"""SELECT BaseAlias{bar};""",
             [{'bar': 16.5}],
@@ -4970,7 +4980,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property foo -> float32;
             };
 
-            # "same" aliass that now have named tuples
+            # "same" alias that now have named tuples
             alias BaseAlias := Base {
                 bar := (a := Base.name, b := Base.foo)
             };
@@ -4996,7 +5006,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property bar -> int32;
             };
 
-            # aliass with array<int32>
+            # alias with array<int32>
             alias BaseAlias := Base { data := [Base.bar] };
             alias CollAlias := [Base.bar];
         """)
@@ -5008,7 +5018,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
         """)
 
-        # make sure that the aliass initialized correctly
+        # make sure that the alias initialized correctly
         await self.assert_query_result(
             r"""SELECT BaseAlias{data};""",
             [{'data': [17]}],
@@ -5024,7 +5034,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property bar -> int32;
             };
 
-            # aliass with array<flaot32>
+            # alias with array<float32>
             alias BaseAlias := Base { data := [Base.foo] };
             alias CollAlias := [Base.foo];
         """)
@@ -5049,7 +5059,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property foo -> float32;
             };
 
-            # aliass with tuple<str, int32>
+            # alias with tuple<str, int32>
             alias BaseAlias := Base {
                 data := (Base.name, Base.number)
             };
@@ -5064,7 +5074,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
         """)
 
-        # make sure that the aliass initialized correctly
+        # make sure that the alias initialized correctly
         await self.assert_query_result(
             r"""SELECT BaseAlias{data};""",
             [{'data': ['coll_18', 18]}],
@@ -5081,7 +5091,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property foo -> float32;
             };
 
-            # aliass with tuple<str, int32, float32>
+            # alias with tuple<str, int32, float32>
             alias BaseAlias := Base {
                 data := (Base.name, Base.number, Base.foo)
             };
@@ -5108,7 +5118,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property foo -> float32;
             };
 
-            # aliass with tuple<str, int32>
+            # alias with tuple<str, int32>
             alias BaseAlias := Base {
                 data := (Base.name, Base.number)
             };
@@ -5123,7 +5133,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
         """)
 
-        # make sure that the aliass initialized correctly
+        # make sure that the alias initialized correctly
         await self.assert_query_result(
             r"""SELECT BaseAlias{data};""",
             [{'data': ['test20', 20]}],
@@ -5140,7 +5150,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property foo -> float32;
             };
 
-            # aliass with tuple<str, float32>
+            # alias with tuple<str, float32>
             alias BaseAlias := Base {
                 data := (Base.name, Base.foo)
             };
@@ -5166,7 +5176,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property foo -> float32;
             };
 
-            # aliass with tuple<str, float32>
+            # alias with tuple<str, float32>
             alias BaseAlias := Base {
                 data := (Base.name, Base.foo)
             };
@@ -5180,7 +5190,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
         """)
 
-        # make sure that the aliass initialized correctly
+        # make sure that the alias initialized correctly
         await self.assert_query_result(
             r"""SELECT BaseAlias{data};""",
             [{'data': ['coll_21', 21.5]}],
@@ -5196,7 +5206,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property foo -> float32;
             };
 
-            # aliass with named tuple<a: str, b: float32>
+            # alias with named tuple<a: str, b: float32>
             alias BaseAlias := Base {
                 data := (a := Base.name, b := Base.foo)
             };

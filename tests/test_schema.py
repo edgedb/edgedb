@@ -34,8 +34,6 @@ from edb.schema import ddl as s_ddl
 from edb.schema import links as s_links
 from edb.schema import objtypes as s_objtypes
 
-from edb.tools import test
-
 
 class TestSchema(tb.BaseSchemaLoadTest):
     def test_schema_overloaded_01(self):
@@ -1185,6 +1183,9 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # avoid having two different instances of 'test' module in
         # different evolution branches.
         base_schema = self.load_schema('')
+
+        # Validate that the final schema state has consistent migration.
+        self._assert_migration_consistency(migrations[-1])
 
         # Evolve a schema in a series of migrations.
         multi_migration = base_schema
@@ -2983,6 +2984,20 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             )
         """])
 
+    def test_migrations_equivalence_43(self):
+        # change a prop used in a computable
+        self._assert_migration_equivalence([r"""
+            type Foo {
+                property val -> int64;
+                property comp := .val + 2;
+            };
+        """, r"""
+            type Foo {
+                property val -> float64;
+                property comp := .val + 2;
+            };
+        """])
+
     def test_migrations_equivalence_function_01(self):
         self._assert_migration_equivalence([r"""
             function hello01(a: int64) -> str
@@ -3131,6 +3146,58 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             function hello15(a: tuple<str, str>) -> str
                 using (
                     SELECT a.0 ++ a.1
+                )
+        """])
+
+    def test_migrations_equivalence_function_16(self):
+        # change prop type without changing the affected function.
+        self._assert_migration_equivalence([r"""
+            type Foo {
+                property bar -> array<int64>;
+            };
+
+            function hello16() -> int64
+                using (
+                    SELECT len((SELECT Foo LIMIT 1).bar)
+                )
+        """, r"""
+            type Foo {
+                property bar -> str;
+            };
+
+            function hello16() -> int64
+                using (
+                    SELECT len((SELECT Foo LIMIT 1).bar)
+                )
+        """])
+
+    def test_migrations_equivalence_function_17(self):
+        # change prop type without changing the affected function.
+        self._assert_migration_equivalence([r"""
+            type Foo {
+                property bar -> array<int64>;
+            };
+
+            type Bar;
+
+            function hello17() -> Bar
+                using (
+                    SELECT Bar
+                    OFFSET len((SELECT Foo.bar LIMIT 1)) ?? 0
+                    LIMIT 1
+                )
+        """, r"""
+            type Foo {
+                property bar -> str;
+            };
+
+            type Bar;
+
+            function hello17() -> Bar
+                using (
+                    SELECT Bar
+                    OFFSET len((SELECT Foo.bar LIMIT 1)) ?? 0
+                    LIMIT 1
                 )
         """])
 
@@ -3395,14 +3462,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Derived extending Base;
         """])
 
-    @test.xfail('''
-        Fails on the last migration that attempts to rename the
-        property being indexed.
-
-        This is an example of a general problem that any renaming
-        needs to be done in such a way so that the existing
-        expressions are still valid.
-    ''')
     def test_migrations_equivalence_index_01(self):
         self._assert_migration_equivalence([r"""
             type Base {
@@ -3837,6 +3896,30 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 data := (a := Base.name, b := Base.foo)
             };
             alias CollAlias := (a := Base.name, b := Base.foo);
+        """])
+
+    def test_migrations_equivalence_collections_22(self):
+        # change prop type without changing the affected expression.
+        self._assert_migration_equivalence([r"""
+            type Foo {
+                property bar -> array<int64>;
+            };
+
+            type Bar {
+                property val -> int64 {
+                    default := len((SELECT Foo LIMIT 1).bar)
+                };
+            };
+        """, r"""
+            type Foo {
+                property bar -> str;
+            };
+
+            type Bar {
+                property val -> int64 {
+                    default := len((SELECT Foo LIMIT 1).bar)
+                };
+            };
         """])
 
 

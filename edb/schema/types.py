@@ -371,23 +371,25 @@ class Type(
         return not self.is_view(schema)
 
     def as_shell(self, schema: s_schema.Schema) -> TypeShell:
+        name = typing.cast(s_name.Name, self.get_name(schema))
+
         if union_of := self.get_union_of(schema):
             return UnionTypeShell(
                 components=[
                     o.as_shell(schema) for o in union_of.objects(schema)
                 ],
-                module=self.get_name(schema).module,
+                module=name.module,
             )
         elif intersection_of := self.get_intersection_of(schema):
             return IntersectionTypeShell(
                 components=[
                     o.as_shell(schema) for o in intersection_of.objects(schema)
                 ],
-                module=self.get_name(schema).module,
+                module=name.module,
             )
         else:
             return TypeShell(
-                name=self.get_name(schema),
+                name=name,
                 schemaclass=type(self),
                 is_abstract=self.get_is_abstract(schema),
             )

@@ -1240,7 +1240,7 @@ class SetPointerType(
         # alter to the type that is compatible (i.e. does not change)
         # with all expressions it is used in.
         vn = scls.get_verbosename(schema)
-        self._prohibit_if_expr_refs(
+        schema, finalize_ast = self._propagate_if_expr_refs(
             schema, context, action=f'alter the type of {vn}')
 
         if not context.canonical:
@@ -1351,7 +1351,7 @@ class SetPointerType(
 
         ctx = context.current()
         assert isinstance(ctx, sd.ObjectCommandContext)
-        ptr = ctx.op.get_object(schema, context, default=None)
+        ptr = ctx.op.get_object(schema, context, default=None)  # type: ignore
         if ptr is not None:
             orig_type = ptr.get_target(schema)
             if orig_type.is_collection():
