@@ -359,6 +359,20 @@ class DeleteIndex(
 ):
     astnode = qlast.DropIndex
 
+    def _apply_fields_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        node: qlast.DDLOperation,
+    ) -> None:
+        # When deleting index the original expression acts as a way to
+        # identify the index, so we must retrieve it and write it as "expr".
+        for fop in self.get_subcommands(type=sd.AlterObjectProperty):
+            if fop.property == 'expr':
+                assert isinstance(fop.old_value, s_expr.Expression)
+                node.expr = fop.old_value.origqlast
+                return
+
     @classmethod
     def _cmd_tree_from_ast(
         cls,

@@ -1026,17 +1026,14 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
         fields = cls.get_fields(sorted=True)
 
-        for field_name, field in fields.items():
+        for field in fields.values():
             if field.compcoef is None:
                 continue
 
-            our_value = self.get_field_value(our_schema, field_name)
-            their_value = other.get_field_value(their_schema, field_name)
-
-            fcoef = cls.compare_field_value(
+            fcoef = cls.compare_obj_field_value(
                 field,
-                our_value,
-                their_value,
+                self,
+                other,
                 our_schema=our_schema,
                 their_schema=their_schema,
                 context=context,
@@ -1052,7 +1049,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         return True
 
     @classmethod
-    def compare_field_value(
+    def _compare_field_value(
         cls,
         field: Field[Type[T]],
         our_value: T,
@@ -1088,6 +1085,37 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             return field.compcoef
         else:
             return 1.0
+
+    @classmethod
+    def compare_obj_field_value(
+        cls: Type[Object_T],
+        field: Field[Type[T]],
+        ours: Object_T,
+        theirs: Object_T,
+        *,
+        our_schema: s_schema.Schema,
+        their_schema: s_schema.Schema,
+        context: ComparisonContext,
+        explicit: bool = False,
+    ) -> float:
+        fname = field.name
+        if explicit:
+            our_value = ours.get_explicit_field_value(
+                our_schema, fname, None)
+            their_value = theirs.get_explicit_field_value(
+                their_schema, fname, None)
+        else:
+            our_value = ours.get_field_value(our_schema, fname)
+            their_value = theirs.get_field_value(their_schema, fname)
+
+        return cls._compare_field_value(
+            field,
+            our_value,
+            their_value,
+            our_schema=our_schema,
+            their_schema=their_schema,
+            context=context,
+        )
 
     @classmethod
     def compare_values(
@@ -1346,18 +1374,23 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                     new_v = newattr_v
 
                 if f.compcoef is not None:
-                    fcoef = cls.compare_field_value(
+                    fcoef = cls.compare_obj_field_value(
                         f,
-                        oldattr_v,
-                        newattr_v,
+                        old,
+                        new,
                         our_schema=old_schema,
                         their_schema=new_schema,
-                        context=context)
+                        context=context,
+                        explicit=True,
+                    )
 
                     if fcoef != 1.0:
-                        delta.set_attribute_value(
+                        cls.delta_property(
+                            new_schema,
+                            new,
+                            delta,
                             fn,
-                            new_v,
+                            value=new_v,
                             orig_value=old_v,
                         )
         elif new:
@@ -1403,8 +1436,9 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         delta: sd.ObjectCommand[Object],
         fname: str,
         value: Any,
+        orig_value: Any = None,
     ) -> None:
-        delta.set_attribute_value(fname, value)
+        delta.set_attribute_value(fname, value, orig_value=orig_value)
 
     @classmethod
     def delta_rename(
@@ -1448,8 +1482,6 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                                       new_schema=new_schema))
             return adds_mods
         elif new is None:
-            if old is None:
-                raise ValueError("`old` and `new` cannot be both None.")
             for o in old:
                 dels.add(o.delta(o, None, context=context,
                                  old_schema=old_schema,
@@ -1593,6 +1625,39 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
     def __repr__(self) -> str:
         return f'<{type(self).__name__} {self.id} at 0x{id(self):#x}>'
+
+    def _get_command_stack(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        command_cls: sd.ObjectCommandMeta,
+    ) -> Tuple[sd.DeltaRoot, sd.Command]:
+        from edb.schema import delta as sd
+        cmdcls = sd.ObjectCommandMeta.get_command_class_or_die(
+            command_cls, type(self))
+        cmd = cmdcls(classname=self.get_name(schema))
+        delta, parent_cmd = cmd._build_alter_cmd_stack(
+            schema, context, self)
+        parent_cmd.add(cmd)
+
+        return delta, cmd
+
+    def _create_command(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> Tuple[sd.DeltaRoot, sd.Command]:
+        from edb.schema import delta as sd
+        delta, cmd = self._get_command_stack(schema, context, sd.CreateObject)
+
+        # Copy own fields into the create command.
+        fields = type(self).get_fields()
+        for fname, _ in fields.items():
+            value = self.get_explicit_field_value(schema, fname, None)
+            if value is not None:
+                cmd.set_attribute_value(fname, value)
+
+        return delta, cmd
 
 
 class QualifiedObject(Object):
@@ -2567,14 +2632,60 @@ class InheritingObject(SubclassableObject):
         delta: sd.Command,
         fname: str,
         value: Any,
+        orig_value: Any = None,
     ) -> None:
         assert isinstance(scls, InheritingObject)
         inherited_fields = scls.get_inherited_fields(schema)
         delta.set_attribute_value(
             fname,
             value,
+            orig_value=orig_value,
             inherited=fname in inherited_fields,
         )
+
+    @classmethod
+    def compare_obj_field_value(
+        cls: Type[Object_T],
+        field: Field[Type[T]],
+        ours: Object_T,
+        theirs: Object_T,
+        *,
+        our_schema: s_schema.Schema,
+        their_schema: s_schema.Schema,
+        context: ComparisonContext,
+        explicit: bool = False,
+    ) -> float:
+        assert isinstance(ours, InheritingObject)
+        assert isinstance(theirs, InheritingObject)
+        fname = field.name
+        if explicit:
+            our_value = ours.get_explicit_field_value(
+                our_schema, fname, None)
+            their_value = theirs.get_explicit_field_value(
+                their_schema, fname, None)
+        else:
+            our_value = ours.get_field_value(our_schema, fname)
+            their_value = theirs.get_field_value(their_schema, fname)
+
+        similarity = cls._compare_field_value(
+            field,
+            our_value,
+            their_value,
+            our_schema=our_schema,
+            their_schema=their_schema,
+            context=context,
+        )
+
+        # Check to see if this field's inherited status has changed.
+        # If so, this is defintely a change.
+        our_ifs = ours.get_inherited_fields(our_schema)
+        their_ifs = theirs.get_inherited_fields(their_schema)
+
+        if (fname in our_ifs) != (fname in their_ifs):
+            # The change in inherited status decreases the similarity.
+            similarity *= 0.95
+
+        return similarity
 
 
 DerivableInheritingObjectT = TypeVar(

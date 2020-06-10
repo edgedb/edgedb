@@ -875,23 +875,19 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             """)
 
     async def test_edgeql_ddl_link_target_alter_03(self):
-        with self.assertRaisesRegex(
-                edgedb.SchemaDefinitionError,
-                "cannot alter the type of property 'bar' "
-                "because it is used in an expression"):
-            await self.con.execute("""
-                CREATE TYPE test::Foo {
-                    CREATE PROPERTY bar -> int64;
-                };
+        await self.con.execute("""
+            CREATE TYPE test::Foo {
+                CREATE PROPERTY bar -> int64;
+            };
 
-                CREATE TYPE test::Bar {
-                    CREATE MULTI PROPERTY foo -> int64 {
-                        SET default := (SELECT test::Foo.bar);
-                    }
-                };
+            CREATE TYPE test::Bar {
+                CREATE MULTI PROPERTY foo -> int64 {
+                    SET default := (SELECT test::Foo.bar);
+                }
+            };
 
-                ALTER TYPE test::Foo ALTER PROPERTY bar SET TYPE int32;
-            """)
+            ALTER TYPE test::Foo ALTER PROPERTY bar SET TYPE int32;
+        """)
 
     async def test_edgeql_ddl_link_target_alter_04(self):
         await self.con.execute('''
@@ -3644,21 +3640,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             """)
 
     async def test_edgeql_ddl_rename_07(self):
-        with self.assertRaisesRegex(
-                edgedb.SchemaDefinitionError,
-                "cannot rename object type 'test::Foo' "
-                "because it is used in an expression"):
-            await self.con.execute("""
-                CREATE TYPE test::Foo;
+        await self.con.execute("""
+            CREATE TYPE test::Foo;
 
-                CREATE TYPE test::Bar {
-                    CREATE MULTI LINK foo -> test::Foo {
-                        SET default := (SELECT test::Foo);
-                    }
-                };
+            CREATE TYPE test::Bar {
+                CREATE MULTI LINK foo -> test::Foo {
+                    SET default := (SELECT test::Foo);
+                }
+            };
 
-                ALTER TYPE test::Foo RENAME TO test::FooRenamed;
-            """)
+            ALTER TYPE test::Foo RENAME TO test::FooRenamed;
+        """)
 
     @test.xfail('''
         Fails with the below on "CREATE ALIAS Alias2":

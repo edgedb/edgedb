@@ -62,21 +62,13 @@ class ReferencedObject(so.DerivableObject):
         return self.get_subject(schema)
 
     def delete(self, schema: s_schema.Schema) -> s_schema.Schema:
-        cmdcls = sd.ObjectCommandMeta.get_command_class_or_die(
-            sd.DeleteObject, type(self))
-
-        cmd = cmdcls(classname=self.get_name(schema))
-
         context = sd.CommandContext(
             modaliases={},
             schema=schema,
             disable_dep_verification=True,
         )
+        delta, cmd = self._get_command_stack(schema, context, sd.DeleteObject)
 
-        delta, parent_cmd = cmd._build_alter_cmd_stack(
-            schema, context, self)
-
-        parent_cmd.add(cmd)
         with context(sd.DeltaRootContext(schema=schema, op=delta)):
             schema = delta.apply(schema, context)
 
@@ -964,6 +956,18 @@ class AlterReferencedInheritingObject(
     ReferencedInheritingObjectCommand[ReferencedInheritingObjectT],
     inheriting.AlterInheritingObject[ReferencedInheritingObjectT],
 ):
+
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
+        if self.get_attribute_value('is_from_alias'):
+            return None
+        else:
+            return super()._get_ast(schema, context, parent_node=parent_node)
 
     @classmethod
     def _cmd_tree_from_ast(

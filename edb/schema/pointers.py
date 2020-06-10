@@ -1240,7 +1240,7 @@ class SetPointerType(
         # alter to the type that is compatible (i.e. does not change)
         # with all expressions it is used in.
         vn = scls.get_verbosename(schema)
-        self._prohibit_if_expr_refs(
+        schema, finalize_ast = self._propagate_if_expr_refs(
             schema, context, action=f'alter the type of {vn}')
 
         if not context.canonical:

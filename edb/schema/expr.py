@@ -62,6 +62,7 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer, s_abc.Expression):
         super().__init__(*args, **kwargs)
         self._qlast = _qlast
         self._irast = _irast
+        self._origqlast: Optional[qlast_.Expr] = None
 
     def __getstate__(self) -> Dict[str, Any]:
         return {
@@ -77,6 +78,12 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer, s_abc.Expression):
         if self._qlast is None:
             self._qlast = qlparser.parse_fragment(self.text)
         return self._qlast
+
+    @property
+    def origqlast(self) -> qlast_.Base:
+        if self._origqlast is None:
+            self._origqlast = qlparser.parse_fragment(self.origtext)
+        return self._origqlast
 
     @property
     def irast(self) -> Optional[irast_.Command]:
@@ -215,6 +222,7 @@ class ExpressionShell(so.Shell):
         self.refs = tuple(refs) if refs is not None else None
         self._qlast = _qlast
         self._irast = _irast
+        self._origqlast: Optional[qlast_.Expr] = None
 
     def resolve(self, schema: s_schema.Schema) -> Expression:
         return Expression(
@@ -240,6 +248,12 @@ class ExpressionShell(so.Shell):
         else:
             refs = ', '.join(repr(obj) for obj in self.refs)
         return f'<ExpressionShell {self.origtext} refs=({refs})>'
+
+    @property
+    def origqlast(self) -> qlast_.Base:
+        if self._origqlast is None:
+            self._origqlast = qlparser.parse_fragment(self.origtext)
+        return self._origqlast
 
 
 class ExpressionList(checked.FrozenCheckedList[Expression]):

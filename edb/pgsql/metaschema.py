@@ -2871,8 +2871,6 @@ async def _execute_block(conn, block):
     try:
         await conn.execute(sql_text)
     except Exception as e:
-        import edb.common.debug
-        edb.common.debug.dump(e.__dict__)
         position = getattr(e, 'position', None)
         internal_position = getattr(e, 'internal_position', None)
         context = getattr(e, 'context', '')
