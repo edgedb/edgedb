@@ -69,7 +69,8 @@ jobs:
 
     - name: Cargo test
       uses: actions-rs/cargo@v1
-
+      with:
+        command: test
     - name: Test
       run: |
         edb test -j2 -v
