@@ -352,12 +352,12 @@ class BaseRenderer:
             else:
                 return str(test)
 
-    def report(self, test, marker, description=None):
+    def report(self, test, marker, description=None, *, currently_running):
         raise NotImplementedError
 
 
 class SimpleRenderer(BaseRenderer):
-    def report(self, test, marker, description=None):
+    def report(self, test, marker, description=None, *, currently_running):
         click.echo(self.styles_map[marker.value](marker.value),
                    nl=False, file=self.stream)
 
@@ -380,7 +380,7 @@ class VerboseRenderer(BaseRenderer):
         else:
             return f'{test_title}: {self.fullnames[marker]}'
 
-    def report(self, test, marker, description=None):
+    def report(self, test, marker, description=None, *, currently_running):
         style = self.styles_map[marker.value]
         click.echo(style(self._render_test(test, marker, description)),
                    file=self.stream)
@@ -389,8 +389,10 @@ class VerboseRenderer(BaseRenderer):
 class MultiLineRenderer(BaseRenderer):
 
     FT_LABEL = 'First few failed: '
-    FT_LABEL_LEN = len(FT_LABEL)
     FT_MAX_LINES = 3
+
+    R_LABEL = 'Running: '
+    R_MAX_LINES = 3
 
     def __init__(self, *, tests, stream):
         super().__init__(tests=tests, stream=stream)
@@ -409,7 +411,7 @@ class MultiLineRenderer(BaseRenderer):
         self.last_lines = -1
         self.max_lines = 0
 
-    def report(self, test, marker, description=None):
+    def report(self, test, marker, description=None, *, currently_running):
         if marker in {Markers.failed, Markers.errored}:
             test_name = test.id().rpartition('.')[2]
             if ' ' in test_name:
@@ -418,7 +420,7 @@ class MultiLineRenderer(BaseRenderer):
 
         self.buffer[test.__class__.__module__] += marker.value
         self.completed_tests += 1
-        self._render()
+        self._render(currently_running)
 
     def _render_modname(self, name):
         return name.replace('.', '/') + '.py'
@@ -426,7 +428,7 @@ class MultiLineRenderer(BaseRenderer):
     def _color_second_column(self, line, style):
         return line[:self.first_col_width] + style(line[self.first_col_width:])
 
-    def _render(self):
+    def _render(self, currently_running):
 
         def print_line(line):
             if len(line) < cols:
@@ -439,6 +441,52 @@ class MultiLineRenderer(BaseRenderer):
         last_render = self.completed_tests == self.total_tests
         cols, rows = click.get_terminal_size()
         second_col_width = cols - self.first_col_width
+
+        def _render_test_list(label, max_lines, tests, style):
+
+            if (
+                len(label) > self.first_col_width
+                or cols - self.first_col_width <= 40
+            ):
+                return
+
+            print_empty_line()
+
+            line = f'{label}{" " * (self.first_col_width - len(label))}'
+            tests_lines = 1
+            for testi, test in enumerate(tests, 1):
+                last = testi == len(tests)
+
+                if not last:
+                    test += ', '
+
+                test_name_len = len(test)
+
+                if len(line) + test_name_len < cols:
+                    line += test
+
+                else:
+                    if tests_lines == max_lines:
+                        if len(line) + 3 < cols:
+                            line += '...'
+                        break
+
+                    else:
+                        line += (cols - len(line)) * ' '
+                        line = self._color_second_column(line, style)
+                        lines.append(line)
+
+                        tests_lines += 1
+                        line = self.first_col_width * ' '
+
+                        if len(line) + test_name_len > cols:
+                            continue
+
+                        line += test
+
+            line += (cols - len(line)) * ' '
+            line = self._color_second_column(line, style)
+            lines.append(line)
 
         clear_cmd = ''
         if self.last_lines > 0:
@@ -466,53 +514,31 @@ class MultiLineRenderer(BaseRenderer):
                 if line[0] != ' ':
                     line = ' ' * self.first_col_width
 
-        if (not last_render and
-                self.failed_tests and
-                self.FT_LABEL_LEN <= self.first_col_width and
-                cols - self.first_col_width > 40):
+        if not last_render:
+            if self.failed_tests:
+                _render_test_list(
+                    self.FT_LABEL,
+                    self.FT_MAX_LINES,
+                    self.failed_tests,
+                    styles.marker_errored,
+                )
 
-            print_empty_line()
+            running_tests = []
+            for test in currently_running:
+                test_name = test.id().rpartition('.')[2]
+                if ' ' in test_name:
+                    test_name = test_name.split(' ')[0]
+                running_tests.append(test_name)
 
-            line = (
-                self.FT_LABEL +
-                ' ' * (self.first_col_width - self.FT_LABEL_LEN)
+            if not running_tests:
+                running_tests.append('...')
+
+            _render_test_list(
+                self.R_LABEL,
+                self.R_MAX_LINES,
+                running_tests,
+                styles.marker_passed
             )
-
-            failed_tests_lines = 1
-            for testi, test in enumerate(self.failed_tests, 1):
-                last = testi == len(self.failed_tests)
-
-                if not last:
-                    test += ', '
-
-                test_name_len = len(test)
-
-                if len(line) + test_name_len < cols:
-                    line += test
-
-                else:
-                    if failed_tests_lines == self.FT_MAX_LINES:
-                        if len(line) + 3 < cols:
-                            line += '...'
-                        break
-
-                    else:
-                        line += (cols - len(line)) * ' '
-                        line = self._color_second_column(
-                            line, styles.marker_errored)
-                        lines.append(line)
-
-                        failed_tests_lines += 1
-                        line = self.first_col_width * ' '
-
-                        if len(line) + test_name_len > cols:
-                            continue
-
-                        line += test
-
-            line += (cols - len(line)) * ' '
-            line = self._color_second_column(line, styles.marker_errored)
-            lines.append(line)
 
         print_empty_line()
         print_line(
@@ -561,6 +587,7 @@ class ParallelTextTestResult(unittest.result.TestResult):
         self.test_stats = []
         self.warnings = []
         self.notImplemented = []
+        self.currently_running = {}
         # An index of all seen warnings to keep track
         # of repeated warnings.
         self._warnings = {}
@@ -577,6 +604,15 @@ class ParallelTextTestResult(unittest.result.TestResult):
         else:
             self.ren = SimpleRenderer(tests=tests, stream=stream)
 
+    def report_progress(self, test, marker, description=None):
+        self.ren.report(
+            test,
+            marker,
+            description,
+            currently_running=list(self.currently_running),
+        )
+        self.currently_running.pop(test)
+
     def record_test_stats(self, test, stats):
         self.test_stats.append((test, stats))
 
@@ -587,19 +623,23 @@ class ParallelTextTestResult(unittest.result.TestResult):
     def getDescription(self, test):
         return self.ren.format_test(test)
 
+    def startTest(self, test):
+        super().startTest(test)
+        self.currently_running[test] = True
+
     def addSuccess(self, test):
         super().addSuccess(test)
-        self.ren.report(test, Markers.passed)
+        self.report_progress(test, Markers.passed)
 
     def addError(self, test, err):
         super().addError(test, err)
-        self.ren.report(test, Markers.errored)
+        self.report_progress(test, Markers.errored)
         if self.failfast:
             self.suite.stop_requested = True
 
     def addFailure(self, test, err):
         super().addFailure(test, err)
-        self.ren.report(test, Markers.failed)
+        self.report_progress(test, Markers.failed)
         if self.failfast:
             self.suite.stop_requested = True
 
@@ -614,7 +654,7 @@ class ParallelTextTestResult(unittest.result.TestResult):
 
     def addSkip(self, test, reason):
         super().addSkip(test, reason)
-        self.ren.report(test, Markers.skipped)
+        self.report_progress(test, Markers.skipped)
 
     def addExpectedFailure(self, test, err):
         method = getattr(test, test._testMethodName)
@@ -633,11 +673,11 @@ class ParallelTextTestResult(unittest.result.TestResult):
         else:
             super().addExpectedFailure(test, err)
 
-        self.ren.report(test, marker, reason)
+        self.report_progress(test, marker, reason)
 
     def addUnexpectedSuccess(self, test):
         super().addUnexpectedSuccess(test)
-        self.ren.report(test, Markers.upassed)
+        self.report_progress(test, Markers.upassed)
 
     def addWarning(self, test, wmsg):
         if not self.catch_warnings:
