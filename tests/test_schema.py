@@ -1122,19 +1122,30 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             },
         )
 
+        from edb.common.markup import dump
+
         migration_cmd = s_ddl.compile_migration(
             migration_cmd,
             self.std_schema,
             base_schema,
         )
 
+        dump(migration_cmd, marker='test_schema.py:1111')
+
         context = s_delta.CommandContext()
         schema = migration_cmd.apply(base_schema, context)
         migration = migration_cmd.scls
 
+        dump(migration, marker='test_schema.py:1117')
+
         ddl_plan = migration.get_delta(schema)
+
+        dump(ddl_plan, marker='test_schema.py:1121')
+
         baseline_schema = ddl_plan.apply(schema, context)
         ddl_text = s_ddl.ddl_text_from_delta(baseline_schema, ddl_plan)
+
+        print(f'AAA ddl_text: {ddl_text}', flush=True)
 
         try:
             test_schema = self.run_ddl(schema, ddl_text)
@@ -1158,7 +1169,9 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         sdl_text = s_ddl.sdl_text_from_schema(baseline_schema)
 
         try:
+            print(f'AAA0: {ddl_text}', flush=True)
             ddl_schema = self.run_ddl(self.std_schema, ddl_text)
+            print(f'AAA1: {sdl_text}', flush=True)
             sdl_schema = self.run_ddl(
                 self.std_schema,
                 f'''

@@ -22,6 +22,7 @@ from typing import *
 
 import collections
 import collections.abc
+import contextlib
 import itertools
 import uuid
 
@@ -826,6 +827,13 @@ class CommandContext:
 
     def get_value(self, key: Hashable) -> Any:
         return self._values.get(key)
+
+    @contextlib.contextmanager
+    def suspend_dep_verification(self):
+        dep_ver = self.disable_dep_verification
+        self.disable_dep_verification = True
+        yield self
+        self.disable_dep_verification = dep_ver
 
     def __call__(
         self,

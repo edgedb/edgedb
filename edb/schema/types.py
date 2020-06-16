@@ -1860,7 +1860,28 @@ class TypeCommand(sd.ObjectCommand[TypeT]):
         expr = s_expr.Expression.from_ast(
             view_expr, schema, context.modaliases)
 
-        ir = cls._compile_view_expr(expr.qlast, classname, schema, context)
+        # If we're processing an alter alias, we expect a
+        # disable_dep_verification flag. Upon seeing the flag we must
+        # purge the existing generated aliased type from the schema to
+        # avoid a clash.
+
+        from edb.common.markup import dump
+        dump(classname, marker='types.py:1868')
+
+        if (isinstance(astnode, qlast.AlterAlias) and
+                context.disable_dep_verification):
+
+            from . import ddl as s_ddl
+            drop_cmd = s_ddl.cmd_from_ddl(
+                qlast.DropAlias(name=utils.name_to_ast_ref(classname)),
+                schema=schema,
+                modaliases={None: 'default'},
+            )
+            new_schema = drop_cmd.apply(schema, context)
+        else:
+            new_schema = schema
+
+        ir = cls._compile_view_expr(expr.qlast, classname, new_schema, context)
         new_schema = ir.schema
 
         expr = s_expr.Expression.from_ir(expr, ir, schema=schema)
@@ -1885,6 +1906,10 @@ class TypeCommand(sd.ObjectCommand[TypeT]):
             prev = typing.cast(Type, schema.get(classname))
             prev_expr = prev.get_expr(schema)
             assert prev_expr is not None
+
+            # XXX: crashes on next line, why are we re-compiling the
+            # view for the old schema? We already have everything in
+            # the `schema`.
             prev_ir = cls._compile_view_expr(
                 prev_expr.qlast, classname, schema, context)
             old_schema = prev_ir.schema

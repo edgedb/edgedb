@@ -437,7 +437,15 @@ class AlterObjectType(ObjectTypeCommand,
         assert isinstance(astnode, qlast.ObjectDDL)
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         assert isinstance(cmd, sd.QualifiedObjectCommand)
-        cmd = cls._handle_view_op(schema, cmd, astnode, context)
+
+        if isinstance(astnode, qlast.AlterAlias):
+            # Need to disable dependency verification in order to allow
+            # force-recreating a new aliased type.
+            with context.suspend_dep_verification():
+                cmd = cls._handle_view_op(schema, cmd, astnode, context)
+        else:
+            cmd = cls._handle_view_op(schema, cmd, astnode, context)
+
         return cmd
 
     def _get_ast_node(

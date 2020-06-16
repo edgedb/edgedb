@@ -970,6 +970,23 @@ class AlterReferencedInheritingObject(
     inheriting.AlterInheritingObject[ReferencedInheritingObjectT],
 ):
 
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
+        if self.get_attribute_value('is_from_alias'):
+            return None
+        else:
+            r = super()._get_ast(schema, context, parent_node=parent_node)
+
+            # from edb.common.markup import dump
+            # dump(r, marker='referencing.py:986')
+
+            return r
+
     @classmethod
     def _cmd_tree_from_ast(
         cls,

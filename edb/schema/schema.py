@@ -442,6 +442,11 @@ class Schema(s_abc.Schema):
         name = data['name']
 
         if name in self._name_to_id:
+
+            from edb.common.markup import dump
+            dump(self.get(name), schema=self, marker='schema.py:446')
+            dump(self.get(name).is_view(self), schema=self, marker='schema.py:447')
+
             raise errors.SchemaError(
                 f'{type(scls).__name__} {name!r} is already present '
                 f'in the schema {self!r}')

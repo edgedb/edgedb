@@ -267,6 +267,32 @@ class Pointer(referencing.ReferencedInheritingObject,
             else:
                 return vn
 
+    @classmethod
+    def delta_properties(
+        cls,
+        delta: sd.ObjectCommand[so.Object],
+        old: Optional[so.Object],
+        new: Optional[so.Object],
+        *,
+        context: so.ComparisonContext,
+        old_schema: Optional[s_schema.Schema],
+        new_schema: s_schema.Schema,
+    ) -> None:
+        super().delta_properties(
+            delta, old, new, context=context,
+            old_schema=old_schema, new_schema=new_schema)
+
+        # If we have an alter, make sure to retain 'is_from_alias'.
+        if old and new:
+            assert isinstance(new, Pointer)
+
+            newattr_v = new.get_explicit_field_value(
+                new_schema, 'is_from_alias', None)
+            delta.set_attribute_value(
+                'is_from_alias',
+                newattr_v,
+            )
+
     def is_scalar(self) -> bool:
         return False
 
