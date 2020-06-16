@@ -50,7 +50,7 @@ async def worker(cls, cls_args, sockname):
 
     con = await amsg.worker_connect(sockname)
     try:
-        worker = cls(*cls_args)
+        worker = cls(**cls_args)
 
         while True:
             try:

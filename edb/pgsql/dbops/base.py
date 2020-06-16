@@ -18,11 +18,12 @@
 
 
 from __future__ import annotations
+from typing import *
 
 import collections
+import enum
 import numbers
 import textwrap
-from typing import *
 
 from edb.common import markup
 from edb.common import struct
@@ -32,6 +33,13 @@ from ..common import quote_ident as qi
 from ..common import quote_literal as ql
 from ..common import quote_type as qt
 from ..common import qname as qn
+
+
+class NotSpecifiedT(enum.Enum):
+    NotSpecified = 0
+
+
+NotSpecified: Final = NotSpecifiedT.NotSpecified
 
 
 def encode_value(val: Any) -> str:

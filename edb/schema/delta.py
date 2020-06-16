@@ -642,7 +642,8 @@ class CommandContext:
         descriptive_mode: bool = False,
         schema_object_ids: Optional[
             Mapping[Tuple[str, Optional[str]], uuid.UUID]
-        ] = None
+        ] = None,
+        backend_superuser_role: Optional[str] = None,
     ) -> None:
         self.stack: List[CommandContextToken[Command]] = []
         self._cache: Dict[Hashable, Any] = {}
@@ -658,6 +659,7 @@ class CommandContext:
         self.renamed_objs: Set[so.Object] = set()
         self.altered_targets: Set[so.Object] = set()
         self.schema_object_ids = schema_object_ids
+        self.backend_superuser_role = backend_superuser_role
 
     @property
     def modaliases(self) -> Mapping[Optional[str], str]:

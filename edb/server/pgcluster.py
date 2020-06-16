@@ -73,10 +73,13 @@ class ClusterError(Exception):
 
 class BaseCluster:
 
-    def __init__(self):
+    def __init__(self, *, pg_config_path=None):
         self._connection_addr = None
         self._connection_params = None
         self._default_session_auth = None
+        self._pg_config_path = pg_config_path
+        self._pg_bin_dir = None
+        self._init_env()
 
     async def connect(self, loop=None, **kwargs):
         conn_info = self.get_connection_spec()
@@ -133,14 +136,148 @@ class BaseCluster:
     def is_managed(self) -> bool:
         raise NotImplementedError
 
+    def dump_database(self, dbname, *, exclude_schema=None):
+        status = self.get_status()
+        if status != 'running':
+            raise ClusterError('cannot dump: cluster is not running')
+
+        pg_dump = self._find_pg_binary('pg_dump')
+        conn_spec = self.get_connection_spec()
+
+        args = [
+            pg_dump,
+            f'--dbname={dbname}',
+            f'--host={conn_spec["host"]}',
+            f'--port={conn_spec["port"]}',
+            f'--username={conn_spec["user"]}',
+        ]
+
+        env = os.environ.copy()
+        if conn_spec.get("password"):
+            env['PGPASSWORD'] = conn_spec["password"]
+
+        if exclude_schema:
+            args.append(f'--exclude-schema={exclude_schema}')
+
+        process = subprocess.run(
+            args,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=env,
+        )
+
+        if process.returncode != 0:
+            raise ClusterError(
+                'pg_dump exited with status {:d}: {}'.format(
+                    process.returncode, process.stderr.decode()
+                )
+            )
+
+        return process.stdout
+
+    def restore_database(self, dbname, dump):
+        status = self.get_status()
+        if status != 'running':
+            raise ClusterError('cannot restore: cluster is not running')
+
+        psql = self._find_pg_binary('psql')
+        conn_spec = self.get_connection_spec()
+
+        args = [
+            psql,
+            f'--dbname={dbname}',
+            f'--host={conn_spec["host"]}',
+            f'--port={conn_spec["port"]}',
+            f'--username={conn_spec["user"]}',
+            f'--single-transaction',
+        ]
+
+        env = os.environ.copy()
+        if conn_spec.get("password"):
+            env['PGPASSWORD'] = conn_spec["password"]
+
+        process = subprocess.run(
+            args,
+            input=dump,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=env,
+        )
+
+        if process.returncode != 0:
+            raise ClusterError(
+                'psql exited with status {:d}: {}'.format(
+                    process.returncode, process.stderr.decode()
+                )
+            )
+
+    def _find_pg_binary(self, binary):
+        bpath = platform_exe(os.path.join(self._pg_bin_dir, binary))
+
+        if not os.path.isfile(bpath):
+            raise ClusterError(
+                'could not find {} executable: '.format(binary) +
+                '{!r} does not exist or is not a file'.format(bpath))
+
+        return bpath
+
+    def _init_env(self):
+        pg_config = self._find_pg_config(self._pg_config_path)
+        pg_config_data = self._run_pg_config(pg_config)
+
+        self._pg_bin_dir = pg_config_data.get('bindir')
+        if not self._pg_bin_dir:
+            raise ClusterError(
+                'pg_config output did not provide the BINDIR value')
+
+    def _run_pg_config(self, pg_config_path):
+        process = subprocess.run(
+            pg_config_path, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = process.stdout, process.stderr
+
+        if process.returncode != 0:
+            raise ClusterError('pg_config exited with status {:d}: {}'.format(
+                process.returncode, stderr))
+        else:
+            config = {}
+
+            for line in stdout.splitlines():
+                k, eq, v = line.decode('utf-8').partition('=')
+                if eq:
+                    config[k.strip().lower()] = v.strip()
+
+            return config
+
+    def _find_pg_config(self, pg_config_path):
+        if pg_config_path is None:
+            pg_install = os.environ.get('PGINSTALLATION')
+            if pg_install:
+                pg_config_path = platform_exe(
+                    os.path.join(pg_install, 'pg_config'))
+            else:
+                pathenv = os.environ.get('PATH').split(os.pathsep)
+                for path in pathenv:
+                    pg_config_path = platform_exe(
+                        os.path.join(path, 'pg_config'))
+                    if os.path.exists(pg_config_path):
+                        break
+                else:
+                    pg_config_path = None
+
+        if not pg_config_path:
+            raise ClusterError('could not find pg_config executable')
+
+        if not os.path.isfile(pg_config_path):
+            raise ClusterError('{!r} is not an executable'.format(
+                pg_config_path))
+
+        return pg_config_path
+
 
 class Cluster(BaseCluster):
     def __init__(self, data_dir, *, pg_config_path=None):
-        super().__init__()
+        super().__init__(pg_config_path=pg_config_path)
         self._data_dir = data_dir
-        self._pg_config_path = pg_config_path
-        self._pg_bin_dir = os.environ.get('PGINSTALLATION')
-        self._pg_ctl = None
         self._daemon_pid = None
         self._daemon_process = None
         self._use_c_utf8_locale = _is_c_utf8_locale_present()
@@ -158,9 +295,6 @@ class Cluster(BaseCluster):
         return self._data_dir
 
     def get_status(self):
-        if self._pg_ctl is None:
-            self._init_env()
-
         process = subprocess.run(
             [self._pg_ctl, 'status', '-D', self._data_dir],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -480,81 +614,8 @@ class Cluster(BaseCluster):
         if status == 'running':
             self.reload()
 
-    def dump_database(self, dbname, *, exclude_schema=None):
-        status = self.get_status()
-        if status != 'running':
-            raise ClusterError('cannot dump: cluster is not running')
-
-        pg_dump = self._find_pg_binary('pg_dump')
-        conn_spec = self.get_connection_spec()
-
-        args = [
-            pg_dump,
-            f'--dbname={dbname}',
-            f'--host={conn_spec["host"]}',
-            f'--port={conn_spec["port"]}',
-            f'--username={conn_spec["user"]}',
-        ]
-
-        if exclude_schema:
-            args.append(f'--exclude-schema={exclude_schema}')
-
-        process = subprocess.run(
-            args,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-
-        if process.returncode != 0:
-            raise ClusterError(
-                'pg_dump exited with status {:d}: {}'.format(
-                    process.returncode, process.stderr.decode()
-                )
-            )
-
-        return process.stdout
-
-    def restore_database(self, dbname, dump):
-        status = self.get_status()
-        if status != 'running':
-            raise ClusterError('cannot restore: cluster is not running')
-
-        psql = self._find_pg_binary('psql')
-        conn_spec = self.get_connection_spec()
-
-        args = [
-            psql,
-            f'--dbname={dbname}',
-            f'--host={conn_spec["host"]}',
-            f'--port={conn_spec["port"]}',
-            f'--username={conn_spec["user"]}',
-            f'--single-transaction',
-        ]
-
-        process = subprocess.run(
-            args,
-            input=dump,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-
-        if process.returncode != 0:
-            raise ClusterError(
-                'psql exited with status {:d}: {}'.format(
-                    process.returncode, process.stderr.decode()
-                )
-            )
-
     def _init_env(self):
-        if not self._pg_bin_dir:
-            pg_config = self._find_pg_config(self._pg_config_path)
-            pg_config_data = self._run_pg_config(pg_config)
-
-            self._pg_bin_dir = pg_config_data.get('bindir')
-            if not self._pg_bin_dir:
-                raise ClusterError(
-                    'pg_config output did not provide the BINDIR value')
-
+        super()._init_env()
         self._pg_ctl = self._find_pg_binary('pg_ctl')
         self._postgres = self._find_pg_binary('postgres')
         self._pg_version = self._get_pg_version()
@@ -646,59 +707,6 @@ class Cluster(BaseCluster):
             loop.close()
 
         return 'running'
-
-    def _run_pg_config(self, pg_config_path):
-        process = subprocess.run(
-            pg_config_path, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = process.stdout, process.stderr
-
-        if process.returncode != 0:
-            raise ClusterError('pg_config exited with status {:d}: {}'.format(
-                process.returncode, stderr))
-        else:
-            config = {}
-
-            for line in stdout.splitlines():
-                k, eq, v = line.decode('utf-8').partition('=')
-                if eq:
-                    config[k.strip().lower()] = v.strip()
-
-            return config
-
-    def _find_pg_config(self, pg_config_path):
-        if pg_config_path is None:
-            pg_install = os.environ.get('PGINSTALLATION')
-            if pg_install:
-                pg_config_path = platform_exe(
-                    os.path.join(pg_install, 'pg_config'))
-            else:
-                pathenv = os.environ.get('PATH').split(os.pathsep)
-                for path in pathenv:
-                    pg_config_path = platform_exe(
-                        os.path.join(path, 'pg_config'))
-                    if os.path.exists(pg_config_path):
-                        break
-                else:
-                    pg_config_path = None
-
-        if not pg_config_path:
-            raise ClusterError('could not find pg_config executable')
-
-        if not os.path.isfile(pg_config_path):
-            raise ClusterError('{!r} is not an executable'.format(
-                pg_config_path))
-
-        return pg_config_path
-
-    def _find_pg_binary(self, binary):
-        bpath = platform_exe(os.path.join(self._pg_bin_dir, binary))
-
-        if not os.path.isfile(bpath):
-            raise ClusterError(
-                'could not find {} executable: '.format(binary) +
-                '{!r} does not exist or is not a file'.format(bpath))
-
-        return bpath
 
     def _get_pg_version(self):
         process = subprocess.run(

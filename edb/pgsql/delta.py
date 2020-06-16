@@ -3781,13 +3781,25 @@ class CreateRole(ObjectMetaCommand, adapts=s_roles.CreateRole):
         role = self.scls
         schema = ObjectMetaCommand.apply(self, schema, context)
 
+        membership = list(role.get_bases(schema).names(schema))
         passwd = role.get_password(schema)
+        superuser_flag = False
+
+        if role.get_is_superuser(schema):
+            if context.backend_superuser_role:
+                # If the cluster is exposing an explicit superuser role,
+                # become a member of that instead of creating a superuser
+                # role directly.
+                membership.append(context.backend_superuser_role)
+            else:
+                superuser_flag = True
+
         role = dbops.Role(
             name=role.get_name(schema),
             allow_login=True,
-            is_superuser=role.get_is_superuser(schema),
+            is_superuser=superuser_flag,
             password=passwd,
-            membership=list(role.get_bases(schema).names(schema)),
+            membership=membership,
             metadata=dict(
                 id=str(role.id),
                 password_hash=passwd,
@@ -3807,18 +3819,37 @@ class AlterRole(ObjectMetaCommand, adapts=s_roles.AlterRole):
         schema = s_roles.AlterRole.apply(self, schema, context)
         role = self.scls
         schema = ObjectMetaCommand.apply(self, schema, context)
-        passwd = role.get_password(schema)
-        dbrole = dbops.Role(
-            name=role.get_name(schema),
-            allow_login=True,
-            is_superuser=role.get_is_superuser(schema),
-            password=passwd,
-            metadata=dict(
+        rolname = role.get_name(schema)
+        kwargs = {}
+        if self.has_attribute_value('password'):
+            passwd = self.get_attribute_value('password')
+            kwargs['password'] = passwd
+            kwargs['metadata'] = dict(
                 id=str(role.id),
                 password_hash=passwd,
                 builtin=role.get_builtin(schema),
-            ),
-        )
+            )
+        if self.has_attribute_value('is_superuser'):
+            superuser_flag = False
+            if context.backend_superuser_role:
+                # If the cluster is exposing an explicit superuser role,
+                # become a member of that instead of creating a superuser
+                # role directly.
+                membership = list(role.get_bases(schema).names(schema))
+                membership.append(context.backend_superuser_role)
+
+                self.pgops.add(
+                    dbops.AlterRoleAddMembership(
+                        name=rolname,
+                        membership=membership,
+                    )
+                )
+            else:
+                superuser_flag = True
+
+            kwargs['is_superuser'] = superuser_flag
+
+        dbrole = dbops.Role(name=rolname, **kwargs)
         self.pgops.add(dbops.AlterRole(dbrole))
 
         return schema

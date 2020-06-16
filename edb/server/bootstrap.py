@@ -116,7 +116,7 @@ async def _ensure_edgedb_role(
         if superuser_role:
             # If the cluster is exposing an explicit superuser role,
             # become a member of that instead of creating a superuser
-            # role directly,
+            # role directly.
             membership.add(superuser_role)
             superuser_flag = False
         else:
@@ -576,7 +576,11 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
             stdlib,
         )
         await conn.execute(testmode_sql)
-        await metaschema.generate_support_views(conn, stdlib.reflschema)
+        await metaschema.generate_support_views(
+            cluster,
+            conn,
+            stdlib.reflschema,
+        )
 
     # Make sure that schema backend_id properties are in sync with
     # the database.
@@ -640,7 +644,7 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
         json.dumps(stdlib.introquery),
     )
 
-    await metaschema.generate_support_views(conn, stdlib.reflschema)
+    await metaschema.generate_support_views(cluster, conn, stdlib.reflschema)
     await metaschema.generate_support_functions(conn, stdlib.reflschema)
 
     compiler = edbcompiler.new_compiler(

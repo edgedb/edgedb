@@ -239,7 +239,7 @@ class Manager:
 
 
 async def create_manager(*, runstate_dir: str, name: str,
-                         worker_cls: type, worker_args: tuple) -> Manager:
+                         worker_cls: type, worker_args: dict) -> Manager:
 
     loop = asyncio.get_running_loop()
     pool = Manager(

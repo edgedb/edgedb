@@ -57,6 +57,14 @@ class Port:
     def get_compiler_worker_cls(self):
         raise NotImplementedError
 
+    def get_compiler_worker_args(self):
+        return {
+            'connect_args': self._pg_addr,
+            'backend_instance_params': (
+                self.get_server().get_backend_instance_params()
+            ),
+        }
+
     def get_compiler_worker_name(self):
         raise NotImplementedError
 
@@ -76,7 +84,7 @@ class Port:
 
         self._compiler_manager = await procpool.create_manager(
             runstate_dir=self._internal_runstate_dir,
-            worker_args=(self._pg_addr,),
+            worker_args=self.get_compiler_worker_args(),
             worker_cls=self.get_compiler_worker_cls(),
             name=self.get_compiler_worker_name(),
         )

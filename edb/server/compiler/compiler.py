@@ -85,6 +85,14 @@ class CompilerDatabaseState:
 
 
 @dataclasses.dataclass(frozen=True)
+class BackendInstanceParams:
+
+    #: Explicit superuser role for instances where
+    #: direct creation of SUPERUSER roles is not allowed.
+    explicit_superuser_role: Optional[str] = None
+
+
+@dataclasses.dataclass(frozen=True)
 class CompileContext:
 
     state: dbstate.CompilerConnectionState
@@ -96,6 +104,7 @@ class CompileContext:
     implicit_limit: int = 0
     schema_object_ids: Optional[Mapping[str, uuid.UUID]] = None
     first_extracted_var: Optional[int] = None
+    backend_instance_params: BackendInstanceParams = BackendInstanceParams()
 
 
 EMPTY_MAP = immutables.Map()
@@ -220,7 +229,13 @@ class BaseCompiler:
     _dbname: Optional[str]
     _cached_db: Optional[CompilerDatabaseState]
 
-    def __init__(self, connect_args: dict):
+    def __init__(
+        self,
+        connect_args: dict,
+        *,
+        backend_instance_params: BackendInstanceParams = (
+            BackendInstanceParams()),
+    ):
         self._connect_args = connect_args
         self._dbname = None
         self._cached_db = None
@@ -229,6 +244,7 @@ class BaseCompiler:
         self._config_spec = None
         self._schema_class_layout = None
         self._intro_query = None
+        self._backend_instance_params = backend_instance_params
 
     def _hash_sql(self, sql: bytes, **kwargs: bytes):
         h = hashlib.sha1(sql)
@@ -341,8 +357,17 @@ class BaseCompiler:
 
 class Compiler(BaseCompiler):
 
-    def __init__(self, connect_args: dict):
-        super().__init__(connect_args)
+    def __init__(
+        self,
+        connect_args: dict,
+        *,
+        backend_instance_params: BackendInstanceParams = (
+            BackendInstanceParams()),
+    ):
+        super().__init__(
+            connect_args,
+            backend_instance_params=backend_instance_params,
+        )
 
         self._current_db_state = None
         self._bootstrap_mode = False
@@ -362,6 +387,8 @@ class Compiler(BaseCompiler):
         context.testmode = self._in_testmode(ctx)
         context.stdmode = self._bootstrap_mode
         context.schema_object_ids = ctx.schema_object_ids
+        context.backend_superuser_role = (
+            self._backend_instance_params.explicit_superuser_role)
         return context
 
     def _process_delta(self, ctx: CompileContext, delta):

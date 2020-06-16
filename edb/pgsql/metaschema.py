@@ -2258,8 +2258,26 @@ def _generate_database_views(schema):
     return views
 
 
-def _generate_role_views(schema):
+def _generate_role_views(schema, *, superuser_role):
     Role = schema.get('sys::Role')
+
+    if superuser_role:
+        # If the cluster is exposing an explicit superuser role,
+        # check membership in that role that instead of rolsuper.
+        is_superuser = f'''
+            EXISTS (
+                SELECT
+                FROM
+                    pg_auth_members m
+                    INNER JOIN pg_catalog.pg_roles g
+                        ON (m.roleid = g.oid)
+                WHERE
+                    m.member = a.oid
+                    AND g.rolname = {ql(superuser_role)}
+            )
+        '''
+    else:
+        is_superuser = 'a.rolsuper'
 
     view_query = f'''
         SELECT
@@ -2268,7 +2286,7 @@ def _generate_role_views(schema):
                  WHERE name = 'sys::Role')              AS __type__,
             a.rolname                                   AS name,
             a.rolname                                   AS name__internal,
-            a.rolsuper                                  AS is_superuser,
+            {is_superuser}                              AS is_superuser,
             False                                       AS is_abstract,
             False                                       AS is_final,
             False                                       AS is_derived,
@@ -2398,7 +2416,7 @@ def _make_json_caster(schema, json_casts, stype, context):
     return _cast
 
 
-async def generate_support_views(conn, schema):
+async def generate_support_views(cluster, conn, schema):
     commands = dbops.CommandGroup()
 
     schema_objs = schema.get_objects(
@@ -2447,7 +2465,8 @@ async def generate_support_views(conn, schema):
     for dbview in _generate_database_views(schema):
         commands.add_command(dbops.CreateView(dbview, or_replace=True))
 
-    for roleview in _generate_role_views(schema):
+    su_role = cluster.get_superuser_role()
+    for roleview in _generate_role_views(schema, superuser_role=su_role):
         commands.add_command(dbops.CreateView(roleview, or_replace=True))
 
     block = dbops.PLTopBlock()
