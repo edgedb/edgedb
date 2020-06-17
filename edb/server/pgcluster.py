@@ -647,7 +647,7 @@ class Cluster(BaseCluster):
             # daemon run.
             return None
 
-        portnum = lines[3]
+        portnum = int(lines[3])
         sockdir = lines[4]
         hostaddr = lines[5]
 
