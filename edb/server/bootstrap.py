@@ -933,6 +933,48 @@ async def _get_instance_data(conn: Any) -> Dict[str, Any]:
     return json.loads(data)
 
 
+async def _check_data_dir_compatibility(conn):
+    instancedata = await _get_instance_data(conn)
+    datadir_version = instancedata.get('version')
+    if datadir_version:
+        datadir_major = datadir_version.get('major')
+
+    expected_ver = buildmeta.get_version()
+
+    if datadir_major != expected_ver.major:
+        raise errors.ConfigurationError(
+            'database instance incompatible with this version of EdgeDB',
+            details=(
+                f'The database instance was initialized with '
+                f'EdgeDB version {datadir_major}, '
+                f'which is incompatible with this version '
+                f'{expected_ver.major}'
+            ),
+            hint=(
+                f'You need to recreate the instance and upgrade '
+                f'using dump/restore.'
+            )
+        )
+
+    datadir_catver = instancedata.get('catver')
+    expected_catver = edbdef.EDGEDB_CATALOG_VERSION
+
+    if datadir_catver != expected_catver:
+        raise errors.ConfigurationError(
+            'database instance incompatible with this version of EdgeDB',
+            details=(
+                f'The database instance was initialized with '
+                f'EdgeDB format version {datadir_catver}, '
+                f'but this version of the server expects '
+                f'format version {expected_catver}'
+            ),
+            hint=(
+                f'You need to recreate the instance and upgrade '
+                f'using dump/restore.'
+            )
+        )
+
+
 async def bootstrap(cluster, args) -> bool:
     pgconn = await cluster.connect()
     pgconn.add_log_listener(_pg_log_listener)
@@ -975,10 +1017,7 @@ async def bootstrap(cluster, args) -> bool:
             try:
                 conn.add_log_listener(_pg_log_listener)
 
-                instancedata = await _populate_misc_instance_data(
-                    cluster,
-                    conn,
-                )
+                await _populate_misc_instance_data(cluster, conn)
 
                 std_schema, refl_schema, compiler = await _init_stdlib(
                     cluster,
@@ -1014,53 +1053,14 @@ async def bootstrap(cluster, args) -> bool:
             conn = await cluster.connect(database=edbdef.EDGEDB_SUPERUSER_DB)
 
             try:
+                await _check_data_dir_compatibility(conn)
                 compiler = edbcompiler.Compiler({})
                 await compiler.ensure_initialized(conn)
                 std_schema = compiler.get_std_schema()
                 config_spec = config.load_spec_from_schema(std_schema)
                 config.set_settings(config_spec)
-                instancedata = await _get_instance_data(conn)
             finally:
                 await conn.close()
-
-        datadir_version = instancedata.get('version')
-        if datadir_version:
-            datadir_major = datadir_version.get('major')
-
-        expected_ver = buildmeta.get_version()
-
-        if datadir_major != expected_ver.major:
-            raise errors.ConfigurationError(
-                'database instance incompatible with this version of EdgeDB',
-                details=(
-                    f'The database instance was initialized with '
-                    f'EdgeDB version {datadir_major}, '
-                    f'which is incompatible with this version '
-                    f'{expected_ver.major}'
-                ),
-                hint=(
-                    f'You need to recreate the instance and upgrade '
-                    f'using dump/restore.'
-                )
-            )
-
-        datadir_catver = instancedata.get('catver')
-        expected_catver = edbdef.EDGEDB_CATALOG_VERSION
-
-        if datadir_catver != expected_catver:
-            raise errors.ConfigurationError(
-                'database instance incompatible with this version of EdgeDB',
-                details=(
-                    f'The database instance was initialized with '
-                    f'EdgeDB format version {datadir_catver}, '
-                    f'but this version of the server expects '
-                    f'format version {expected_catver}'
-                ),
-                hint=(
-                    f'You need to recreate the instance and upgrade '
-                    f'using dump/restore.'
-                )
-            )
 
         await _ensure_edgedb_template_not_connectable(pgconn)
 
