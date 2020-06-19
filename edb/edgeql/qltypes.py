@@ -138,6 +138,7 @@ class DescribeLanguage(s_enum.StrEnum):
     DDL = 'DDL'
     SDL = 'SDL'
     TEXT = 'TEXT'
+    JSON = 'JSON'
 
 
 class SchemaObjectClass(s_enum.StrEnum):

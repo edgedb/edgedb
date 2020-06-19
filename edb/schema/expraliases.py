@@ -175,15 +175,25 @@ class AliasCommand(
                 context=context,
             )
 
-        derived_delta.add(
-            so.Object.delta_sets(
-                prev_expr_aliases,
-                expr_aliases,
-                old_schema=old_schema,
-                new_schema=new_schema,
-                context=so.ComparisonContext(),
+        if is_alter:
+            assert old_schema is not None
+            derived_delta.add(
+                sd.delta_objects(
+                    prev_expr_aliases,
+                    expr_aliases,
+                    old_schema=old_schema,
+                    new_schema=new_schema,
+                    context=so.ComparisonContext(),
+                )
             )
-        )
+        else:
+            for expr_alias in expr_aliases:
+                derived_delta.add(
+                    expr_alias.as_create_delta(
+                        schema=new_schema,
+                        context=so.ComparisonContext(),
+                    )
+                )
 
         if prev_ir is not None:
             for vt in prev_coll_expr_aliases:

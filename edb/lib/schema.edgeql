@@ -309,3 +309,11 @@ CREATE TYPE schema::Cast
     CREATE PROPERTY allow_implicit -> std::bool;
     CREATE PROPERTY allow_assignment -> std::bool;
 };
+
+
+CREATE TYPE schema::Migration
+    EXTENDING schema::AnnotationSubject
+{
+    CREATE MULTI LINK parents -> schema::Migration;
+    CREATE PROPERTY message -> str;
+};

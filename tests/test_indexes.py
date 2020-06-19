@@ -25,22 +25,15 @@ from edb.testbase import server as tb
 class TestIndexes(tb.DDLTestCase):
 
     async def test_index_01(self):
-        await self.con.execute(r"""
-            # setup delta
-            CREATE MIGRATION d1 TO {
-                module test {
-                    type Person {
-                        property first_name -> str;
-                        property last_name -> str;
+        await self.migrate(r"""
+            type Person {
+                property first_name -> str;
+                property last_name -> str;
 
-                        index on ((.first_name, .last_name));
-                    };
-
-                    type Person2 extending Person;
-                };
+                index on ((.first_name, .last_name));
             };
 
-            COMMIT MIGRATION d1;
+            type Person2 extending Person;
         """)
 
         await self.assert_query_result(

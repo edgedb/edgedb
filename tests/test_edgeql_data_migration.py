@@ -38,30 +38,13 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
     _counter = 0
 
-    @property
-    def migration_name(self):
-        self._counter += 1
-        return f'm{self._counter}'
-
-    async def _migrate(self, migration, *, module: str = 'test'):
-        async with self.con.transaction():
-            mname = self.migration_name
-            await self.con.execute(f"""
-                CREATE MIGRATION {mname} TO {{
-                    module {module} {{
-                        {migration}
-                    }}
-                }};
-                COMMIT MIGRATION {mname};
-            """)
-
     async def test_edgeql_migration_simple_01(self):
         # Base case, ensuring a single SDL migration from a clean
         # state works.
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate("""
+        await self.migrate("""
             type NamedObject {
                 required property name -> str;
                 multi link related -> NamedObject {
@@ -110,7 +93,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(schema)
+        await self.migrate(schema)
 
         await self.con.execute('''
             INSERT Target1 {
@@ -165,13 +148,13 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute('''
             ROLLBACK TO SAVEPOINT t0;
         ''')
-        await self._migrate(schema)
+        await self.migrate(schema)
 
     async def test_edgeql_migration_01(self):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate("""
+        await self.migrate("""
             type Base;
         """)
         await self.con.execute("""
@@ -183,13 +166,13 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         with self.assertRaisesRegex(
                 edgedb.MissingRequiredError,
                 r"missing value for required property test::Base.name"):
-            await self._migrate("""
+            await self.migrate("""
                 type Base {
                     required property name -> str;
                 }
             """)
         # Migration without making the property required.
-        await self._migrate("""
+        await self.migrate("""
             type Base {
                 property name -> str;
             }
@@ -226,7 +209,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         )
 
         # Inherit from the Base, making name required.
-        await self._migrate("""
+        await self.migrate("""
             type Base {
                 property name -> str;
             }
@@ -252,7 +235,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property foo -> str;
             }
@@ -270,7 +253,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 # rename 'foo'
                 property foo2 -> str;
@@ -302,7 +285,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property foo -> str;
             }
@@ -320,7 +303,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base;
                 # drop 'foo'
 
@@ -350,7 +333,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property foo -> str;
             }
@@ -373,7 +356,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base;
                 # drop 'foo'
 
@@ -408,7 +391,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property foo -> int64;
             }
@@ -437,7 +420,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 # change property type (can't preserve value)
                 property foo -> str;
@@ -465,7 +448,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Base {
@@ -482,7 +465,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Base {
@@ -508,7 +491,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property foo -> str;
             }
@@ -532,7 +515,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         with self.assertRaisesRegex(
                 edgedb.ConstraintViolationError,
                 r"foo must be no longer than 10 characters"):
-            await self._migrate(new_state)
+            await self.migrate(new_state)
 
         # Fix the data.
         await self.con.execute(r"""
@@ -543,7 +526,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
 
         # Migrate to same state as before now that the data is fixed.
-        await self._migrate(new_state)
+        await self.migrate(new_state)
 
         await self.assert_query_result(
             r"""
@@ -560,7 +543,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             scalar type constraint_length extending str {
                 constraint max_len_value(10);
             }
@@ -589,7 +572,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         with self.assertRaisesRegex(
                 edgedb.ConstraintViolationError,
                 r'Existing test::Base\.foo values violate the new constraint'):
-            await self._migrate(new_state)
+            await self.migrate(new_state)
 
         # Fix the data.
         await self.con.execute(r"""
@@ -600,7 +583,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
 
         # Migrate to same state as before now that the data is fixed.
-        await self._migrate(new_state)
+        await self.migrate(new_state)
 
         await self.assert_query_result(
             r"""
@@ -617,7 +600,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property foo -> str;
             }
@@ -628,7 +611,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Base {
@@ -655,7 +638,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Base {
@@ -680,7 +663,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Base {
@@ -707,7 +690,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Base {
@@ -728,7 +711,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Base;
@@ -755,7 +738,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base;
 
             type Derived extending Base {
@@ -768,7 +751,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 # move the property earlier in the inheritance
                 property foo -> str;
@@ -794,7 +777,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Base;
@@ -813,7 +796,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Base {
@@ -835,7 +818,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Base {
@@ -863,7 +846,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property name := 'computable'
             }
@@ -872,7 +855,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             INSERT Base;
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 # change a property from a computable to regular with a default
                 property name -> str {
@@ -903,7 +886,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property name -> str
             }
@@ -914,7 +897,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 # change a regular property to a computable
                 property name := 'computable'
@@ -936,7 +919,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property foo -> str;
             }
@@ -947,7 +930,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property foo -> str;
                 # add a property
@@ -974,7 +957,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 # make the old property into a computable
                 property foo := <str>__source__.bar;
@@ -999,7 +982,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property foo -> str;
             }
@@ -1010,7 +993,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             # rename the type, although this test doesn't ensure that
             # renaming actually took place
             type NewBase {
@@ -1029,7 +1012,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type NewBase {
                 property foo -> str;
                 # add a property
@@ -1056,7 +1039,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type NewBase {
                 # drop 'foo'
                 property bar -> int64;
@@ -1085,7 +1068,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child {
                 property foo -> str;
             }
@@ -1110,7 +1093,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child {
                 property foo -> str;
             }
@@ -1146,7 +1129,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Base {
@@ -1163,7 +1146,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Base {
@@ -1187,7 +1170,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Base {
@@ -1204,7 +1187,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Base {
@@ -1224,7 +1207,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Base {
@@ -1250,7 +1233,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Parent {
@@ -1263,7 +1246,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Parent {
@@ -1287,7 +1270,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type DerivedChild extending Child;
@@ -1327,7 +1310,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             abstract type Named {
                 property name -> str;
             }
@@ -1344,7 +1327,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             abstract type Named {
                 property name -> str;
             }
@@ -1377,7 +1360,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             ],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             abstract type Named {
                 property name -> str;
             }
@@ -1413,7 +1396,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child {
                 property foo -> str;
             }
@@ -1430,7 +1413,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             # drop everything
         """)
 
@@ -1438,7 +1421,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Foo {
                 property name -> str;
             };
@@ -1456,7 +1439,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Foo {
                 property name -> str;
             };
@@ -1484,7 +1467,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             ],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             # both types have a name, so the name prop is factored out
             # into a more basic type.
             abstract type Named {
@@ -1520,7 +1503,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             # This is an abstract object containing
             # text.
             abstract type Text {
@@ -1620,7 +1603,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type User {
               required property name -> str;
             }
@@ -1650,7 +1633,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             SELECT count(Object);
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type LogEntry {
               required property spent_time -> int64;
             }
@@ -1670,7 +1653,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type LogEntry {
               required property spent_time -> int64;
             }
@@ -1694,7 +1677,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             ],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             # empty schema
         """)
 
@@ -1712,7 +1695,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Base {
@@ -1741,7 +1724,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
             type Child2;
 
@@ -1799,7 +1782,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Base {
@@ -1830,7 +1813,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 # change link to property with same name
                 property foo -> str;
@@ -1871,7 +1854,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child {
                 required property name -> str;
             }
@@ -1904,7 +1887,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }]
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child {
                 required property name -> str;
             }
@@ -1960,7 +1943,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child {
                 required property name -> str;
             }
@@ -1983,7 +1966,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child {
                 required property name -> str;
             }
@@ -2017,7 +2000,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base;
 
             alias BaseAlias := (
@@ -2041,7 +2024,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }]
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base;
 
             alias BaseAlias := (
@@ -2079,7 +2062,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base;
 
             alias BaseAlias := (
@@ -2103,7 +2086,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }]
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base;
 
             alias BaseAlias := (
@@ -2130,7 +2113,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base;
 
             type Foo {
@@ -2163,7 +2146,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }]
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base;
 
             type Foo {
@@ -2211,7 +2194,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base;
 
             type Foo {
@@ -2249,7 +2232,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }]
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base;
 
             type Foo {
@@ -2294,7 +2277,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base;
 
             type Foo {
@@ -2334,7 +2317,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }]
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base;
 
             type Foo {
@@ -2397,7 +2380,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base;
 
             type Foo {
@@ -2437,7 +2420,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }]
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base;
 
             type Foo {
@@ -2478,7 +2461,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             function hello01(a: int64) -> str
                 using edgeql $$
                     SELECT 'hello' ++ <str>a
@@ -2492,7 +2475,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         # add an extra parameter with a default (so it can be omitted
         # in principle)
-        await self._migrate(r"""
+        await self.migrate(r"""
             function hello01(a: int64, b: int64=42) -> str
                 using edgeql $$
                     SELECT 'hello' ++ <str>(a + b)
@@ -2513,7 +2496,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             function hello02(a: int64) -> str
                 using edgeql $$
                     SELECT 'hello' ++ <str>a
@@ -2527,7 +2510,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         # add an extra parameter with a default (so it can be omitted
         # in principle)
-        await self._migrate(r"""
+        await self.migrate(r"""
             function hello02(a: int64, b: OPTIONAL int64=42) -> str
                 using edgeql $$
                     SELECT 'hello' ++ <str>(a + b)
@@ -2548,7 +2531,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             function hello03(a: int64) -> str
                 using edgeql $$
                     SELECT 'hello' ++ <str>a
@@ -2562,7 +2545,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         # add an extra parameter with a default (so it can be omitted
         # in principle)
-        await self._migrate(r"""
+        await self.migrate(r"""
             function hello03(a: int64, NAMED ONLY b: int64=42) -> str
                 using edgeql $$
                     SELECT 'hello' ++ <str>(a + b)
@@ -2583,7 +2566,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             function hello04(a: int64) -> str
                 using edgeql $$
                     SELECT 'hello' ++ <str>a
@@ -2596,7 +2579,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         )
 
         # same parameters, different return type
-        await self._migrate(r"""
+        await self.migrate(r"""
             function hello04(a: int64) -> int64
                 using edgeql $$
                     SELECT -a
@@ -2612,7 +2595,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             function hello05(a: int64) -> str
                 using edgeql $$
                     SELECT <str>a
@@ -2625,7 +2608,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         )
 
         # same parameters, different return type (array)
-        await self._migrate(r"""
+        await self.migrate(r"""
             function hello05(a: int64) -> array<int64>
                 using edgeql $$
                     SELECT [a]
@@ -2656,7 +2639,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             function hello06(a: int64) -> str
                 using edgeql $$
                     SELECT <str>a
@@ -2679,7 +2662,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         )
 
         # same parameters, different return type (array)
-        await self._migrate(r"""
+        await self.migrate(r"""
             function hello06(a: int64) -> array<int64>
                 using edgeql $$
                     SELECT [a]
@@ -2705,7 +2688,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             function hello07(a: int64) -> str
                 using edgeql $$
                     SELECT <str>a
@@ -2726,7 +2709,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         )
 
         # same parameters, different return type (array)
-        await self._migrate(r"""
+        await self.migrate(r"""
             function hello07(a: int64) -> array<int64>
                 using edgeql $$
                     SELECT [a]
@@ -2747,7 +2730,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             function hello08(a: int64) -> str
                 using edgeql $$
                     SELECT <str>a
@@ -2763,7 +2746,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         )
 
         # same parameters, different return type (array)
-        await self._migrate(r"""
+        await self.migrate(r"""
             function hello08(a: int64) -> array<int64>
                 using edgeql $$
                     SELECT [a]
@@ -2782,7 +2765,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             function hello09(a: int64) -> str
                 using edgeql $$
                     SELECT <str>a
@@ -2807,7 +2790,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         )
 
         # same parameters, different return type (array)
-        await self._migrate(r"""
+        await self.migrate(r"""
             function hello09(a: int64) -> array<int64>
                 using edgeql $$
                     SELECT [a]
@@ -2844,7 +2827,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             function hello10(a: int64) -> str
                 using edgeql $$
                     SELECT <str>a
@@ -2867,7 +2850,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 """)
 
         # same parameters, different return type (array)
-        await self._migrate(r"""
+        await self.migrate(r"""
             function hello10(a: int64) -> array<int64>
                 using edgeql $$
                     SELECT [a]
@@ -2890,7 +2873,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             function hello11(a: int64) -> str
                 using edgeql $$
                     SELECT 'hello' ++ <str>a
@@ -2902,7 +2885,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             ['hello1'],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             # replace the function with a new one by the same name
             function hello11(a: str) -> str
                 using edgeql $$
@@ -2927,7 +2910,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             function hello12(a: int64) -> str
                 using edgeql $$
                     SELECT 'hello' ++ <str>a
@@ -2939,7 +2922,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             ['hello1'],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             function hello12(a: int64) -> str
                 using edgeql $$
                     SELECT 'hello' ++ <str>a
@@ -2968,7 +2951,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             # start with a polymorphic function
             function hello13(a: int64) -> str
                 using edgeql $$
@@ -2990,7 +2973,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             ['hello1'],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             # remove one of the 2 versions
             function hello13(a: int64) -> str
                 using edgeql $$
@@ -3015,7 +2998,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             function hello14(a: str, b: str) -> str
                 using edgeql $$
                     SELECT a ++ b
@@ -3027,7 +3010,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             ['hello14'],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             # Replace the function with a new one by the same name,
             # but working with arrays.
             function hello14(a: array<str>, b: array<str>) -> array<str>
@@ -3054,7 +3037,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             function hello15(a: str, b: str) -> str
                 using edgeql $$
                     SELECT a ++ b
@@ -3066,7 +3049,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             ['hello15'],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             # Replace the function with a new one by the same name,
             # but working with arrays.
             function hello15(a: tuple<str, str>) -> str
@@ -3098,7 +3081,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Foo16 {
                 property name -> str {
                     default := str_upper('some_name');
@@ -3127,7 +3110,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Base {
@@ -3141,7 +3124,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
 
         # Migration adding a link property.
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Base {
@@ -3175,7 +3158,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Base {
@@ -3192,7 +3175,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Base {
@@ -3216,7 +3199,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Base {
@@ -3233,7 +3216,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Base {
@@ -3262,7 +3245,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Base {
@@ -3279,7 +3262,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Base {
@@ -3303,7 +3286,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Base {
@@ -3320,7 +3303,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Base {
@@ -3344,7 +3327,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Base {
@@ -3363,7 +3346,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Base {
@@ -3405,7 +3388,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Base {
@@ -3428,7 +3411,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Base {
@@ -3466,7 +3449,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Base {
@@ -3489,7 +3472,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Base {
@@ -3534,7 +3517,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Base {
@@ -3557,7 +3540,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             # factor out link property all the way to an abstract link
@@ -3599,7 +3582,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             abstract link base_child {
@@ -3622,7 +3605,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Child;
 
             type Base {
@@ -3657,7 +3640,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Thing;
 
             type Owner {
@@ -3690,7 +3673,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Thing;
 
             type Base {
@@ -3739,7 +3722,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Thing;
 
             type Owner {
@@ -3772,7 +3755,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Thing;
 
             type Base {
@@ -3825,7 +3808,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base;
         """)
 
@@ -3848,7 +3831,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 # add a title annotation
                 annotation title := 'Base description 01'
@@ -3877,7 +3860,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             # add inheritable and non-inheritable annotations
             abstract annotation foo_anno;
             abstract inheritable annotation bar_anno;
@@ -3917,7 +3900,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             abstract annotation foo_anno;
             abstract inheritable annotation bar_anno;
 
@@ -3969,7 +3952,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base;
         """)
 
@@ -3992,7 +3975,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             abstract annotation foo_anno;
 
             type Base {
@@ -4032,7 +4015,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             # remove foo_anno
             type Base {
                 annotation title := 'Base description 02';
@@ -4070,7 +4053,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base;
         """)
 
@@ -4093,7 +4076,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             abstract inheritable annotation bar_anno;
 
             type Base {
@@ -4136,7 +4119,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             # remove bar_anno
             type Base {
                 annotation title := 'Base description 03';
@@ -4184,7 +4167,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property name -> str;
             }
@@ -4207,7 +4190,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property name -> str;
                 # an index
@@ -4234,7 +4217,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 # rename the indexed property
                 property title -> str;
@@ -4265,7 +4248,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property name -> str;
                 index on (.name);
@@ -4291,7 +4274,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property name -> str;
                 # remove the index
@@ -4319,7 +4302,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property name -> int64;
             }
@@ -4342,7 +4325,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property name -> int64;
                 # an index
@@ -4369,7 +4352,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 # change the indexed property type
                 property name -> str;
@@ -4400,7 +4383,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property first_name -> str;
                 property last_name -> str;
@@ -4425,7 +4408,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property first_name -> str;
                 property last_name -> str;
@@ -4458,7 +4441,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property name -> str;
                 # an index with a verbose definition (similar to
@@ -4495,7 +4478,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base;
         """)
 
@@ -4503,7 +4486,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             INSERT Base;
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property foo -> array<float32>;
             }
@@ -4532,7 +4515,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base;
         """)
 
@@ -4540,7 +4523,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             INSERT Base;
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property foo -> tuple<str, int32>;
             }
@@ -4569,7 +4552,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base;
         """)
 
@@ -4577,7 +4560,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             INSERT Base;
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 # nested collection
                 property foo -> tuple<str, int32, array<float32>>;
@@ -4599,7 +4582,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base;
         """)
 
@@ -4607,7 +4590,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             INSERT Base;
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property foo -> tuple<a: str, b: int32>;
             }
@@ -4628,7 +4611,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property foo -> array<int32>;
             }
@@ -4645,7 +4628,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [[1, 2]],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property foo -> array<float32>;
             }
@@ -4668,7 +4651,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 # convert property type to tuple
                 property foo -> tuple<str, int32>;
@@ -4681,7 +4664,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 # convert property type to a bigger tuple
                 property foo -> tuple<str, int32, int32>;
@@ -4717,7 +4700,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property foo -> tuple<int32, int32>;
             }
@@ -4729,7 +4712,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 # convert property type to a tuple with different (but
                 # cast-compatible) element types
@@ -4757,7 +4740,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property foo -> tuple<str, int32>;
             }
@@ -4769,7 +4752,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
         """)
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 # convert property type from unnamed to named tuple
                 property foo -> tuple<a: str, b: int32>;
@@ -4788,7 +4771,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property foo -> float32;
             };
@@ -4814,7 +4797,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [13.5],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property foo -> float32;
             };
@@ -4837,7 +4820,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property name -> str;
                 property foo -> float32;
@@ -4865,7 +4848,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [14.5],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property name -> str;
                 property foo -> float32;
@@ -4889,7 +4872,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property name -> str;
                 property number -> int32;
@@ -4919,7 +4902,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [15.5],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property name -> str;
                 property number -> int32;
@@ -4946,7 +4929,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property name -> str;
                 property foo -> float32;
@@ -4974,7 +4957,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [16.5],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property name -> str;
                 property foo -> float32;
@@ -5000,7 +4983,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property foo -> float32;
                 property bar -> int32;
@@ -5028,7 +5011,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [[17]],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property foo -> float32;
                 property bar -> int32;
@@ -5052,7 +5035,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property name -> str;
                 property number -> int32;
@@ -5084,7 +5067,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [['coll_18', 18]],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property name -> str;
                 property number -> int32;
@@ -5111,7 +5094,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property name -> str;
                 property number -> int32;
@@ -5143,7 +5126,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [['test20', 20]],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property name -> str;
                 property number -> int32;
@@ -5170,7 +5153,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute("""
             SET MODULE test;
         """)
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property name -> str;
                 property foo -> float32;
@@ -5200,7 +5183,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [['coll_21', 21.5]],
         )
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base {
                 property name -> str;
                 property foo -> float32;
@@ -5223,11 +5206,11 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         )
 
     async def test_edgeql_migration_drop_module(self):
-        await self._migrate(r"""
+        await self.migrate(r"""
             type Base;
         """, module='test')
 
-        await self._migrate(r"""
+        await self.migrate(r"""
             scalar type foo extending std::str;
         """, module='newtest')
 

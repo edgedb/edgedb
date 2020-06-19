@@ -45,14 +45,14 @@ def _ddl_drop(ql):
     return b'DROP'
 
 
+@get_status.register(qlast.StartMigration)
+def _ddl_migr_start(ql):
+    return b'START MIGRATION'
+
+
 @get_status.register(qlast.CreateMigration)
 def _ddl_migr_create(ql):
     return b'CREATE MIGRATION'
-
-
-@get_status.register(qlast.GetMigration)
-def _ddl_migr_get(ql):
-    return b'GET MIGRATION'
 
 
 @get_status.register(qlast.CommitMigration)
@@ -68,6 +68,21 @@ def _ddl_migr_drop(ql):
 @get_status.register(qlast.AlterMigration)
 def _ddl_migr_alter(ql):
     return b'ALTER MIGRATION'
+
+
+@get_status.register(qlast.AbortMigration)
+def _ddl_migr_abort(ql):
+    return b'ABORT MIGRATION'
+
+
+@get_status.register(qlast.PopulateMigration)
+def _ddl_migr_populate(ql):
+    return b'POPULATE MIGRATION'
+
+
+@get_status.register(qlast.DescribeCurrentMigration)
+def _ddl_migr_describe_current(ql):
+    return b'DESCRIBE MIGRATION'
 
 
 @get_status.register(qlast.SelectQuery)

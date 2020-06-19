@@ -159,6 +159,12 @@ class DescribeFormat(Nonterm):
             options=qlast.Options(),
         )
 
+    def reduce_AS_JSON(self, *kids):
+        self.val = DescribeFmt(
+            language=qltypes.DescribeLanguage.JSON,
+            options=qlast.Options(),
+        )
+
     def reduce_AS_TEXT(self, *kids):
         self.val = DescribeFmt(
             language=qltypes.DescribeLanguage.TEXT,
@@ -198,4 +204,25 @@ class DescribeStmt(Nonterm):
             object=kids[2].val,
             language=kids[3].val.language,
             options=kids[3].val.options,
+        )
+
+    def reduce_DESCRIBE_CURRENT_MIGRATION(self, *kids):
+        """%reduce DESCRIBE CURRENT MIGRATION DescribeFormat"""
+        lang = kids[3].val.language
+        if (
+            lang is not qltypes.DescribeLanguage.DDL
+            and lang is not qltypes.DescribeLanguage.JSON
+        ):
+            raise errors.InvalidSyntaxError(
+                f'unexpected DESCRIBE format: {lang!r}',
+                context=kids[3].context,
+            )
+        if kids[3].val.options:
+            raise errors.InvalidSyntaxError(
+                f'DESCRIBE CURRENT MIGRATION does not support options',
+                context=kids[3].context,
+            )
+
+        self.val = qlast.DescribeCurrentMigration(
+            language=lang,
         )

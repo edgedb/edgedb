@@ -28,8 +28,7 @@ class TestEdgeQLTutorial(tb.QueryTestCase):
 
     async def test_edgeql_tutorial(self):
         await self.con.execute(r'''
-            START TRANSACTION;
-            CREATE MIGRATION movies TO {
+            START MIGRATION TO {
                 module default {
                     type Movie {
                         required property title -> str;
@@ -44,8 +43,8 @@ class TestEdgeQLTutorial(tb.QueryTestCase):
                     }
                 }
             };
-            COMMIT MIGRATION movies;
-            COMMIT;
+            POPULATE MIGRATION;
+            COMMIT MIGRATION;
 
             INSERT Movie {
                 title := 'Blade Runner 2049',
@@ -203,8 +202,7 @@ class TestEdgeQLTutorial(tb.QueryTestCase):
         ''')
 
         await self.con.execute(r'''
-            START TRANSACTION;
-            CREATE MIGRATION movies TO {
+            START MIGRATION TO {
                 module default {
                     type Movie {
                         required property title -> str;
@@ -223,8 +221,8 @@ class TestEdgeQLTutorial(tb.QueryTestCase):
                     }
                 }
             };
-            COMMIT MIGRATION movies;
-            COMMIT;
+            POPULATE MIGRATION;
+            COMMIT MIGRATION;
         ''')
 
         await self.assert_query_result(

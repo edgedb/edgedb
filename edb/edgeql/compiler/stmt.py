@@ -591,10 +591,10 @@ def compile_DescribeStmt(
                                 # raised if no matches are found
                                 last_exc = exc
 
-            # If we already have some results, suppress the exception,
-            # otherwise raise the recorded exception.
-            if not items and last_exc:
-                raise last_exc
+                # If we already have some results, suppress the exception,
+                # otherwise raise the recorded exception.
+                if not items and last_exc:
+                    raise last_exc
 
             verbose = ql.options.get_flag('VERBOSE')
 

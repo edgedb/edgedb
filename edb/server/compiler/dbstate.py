@@ -28,6 +28,8 @@ import immutables
 
 from edb import errors
 
+from edb.edgeql import ast as qlast
+from edb.schema import delta as s_delta
 from edb.schema import schema as s_schema
 from edb.server import config
 
@@ -44,6 +46,15 @@ class TxAction(enum.IntEnum):
     DECLARE_SAVEPOINT = 4
     RELEASE_SAVEPOINT = 5
     ROLLBACK_TO_SAVEPOINT = 6
+
+
+class MigrationAction(enum.IntEnum):
+
+    START = 1
+    POPULATE = 2
+    DESCRIBE = 3
+    ABORT = 4
+    COMMIT = 5
 
 
 @dataclasses.dataclass(frozen=True)
@@ -67,6 +78,7 @@ class Query(BaseQuery):
 
     is_transactional: bool = True
     single_unit: bool = False
+    cacheable: bool = True
 
 
 @dataclasses.dataclass(frozen=True)
@@ -103,6 +115,19 @@ class TxControlQuery(BaseQuery):
     cacheable: bool
 
     modaliases: Optional[immutables.Map]
+    is_transactional: bool = True
+    single_unit: bool = False
+
+
+@dataclasses.dataclass(frozen=True)
+class MigrationControlQuery(BaseQuery):
+
+    action: MigrationAction
+    tx_action: Optional[TxAction]
+    cacheable: bool
+
+    modaliases: Optional[immutables.Map]
+    new_types: FrozenSet[str] = frozenset()
     is_transactional: bool = True
     single_unit: bool = False
 
@@ -191,6 +216,15 @@ class QueryUnit:
 #############################
 
 
+class MigrationState(NamedTuple):
+
+    initial_schema: s_schema.Schema
+    initial_savepoint: Optional[str]
+    target_schema: s_schema.Schema
+    current_ddl: Tuple[qlast.DDLOperation, ...]
+    auto_diff: Optional[s_delta.DeltaRoot] = None
+
+
 class TransactionState(NamedTuple):
 
     id: int
@@ -199,24 +233,25 @@ class TransactionState(NamedTuple):
     modaliases: immutables.Map
     config: immutables.Map
     cached_reflection: immutables.Map[str, Tuple[str, ...]]
+    migration_state: Optional[MigrationState] = None
 
 
 class Transaction:
 
-    def __init__(self, constate,
-                 schema: s_schema.Schema,
-                 modaliases: immutables.Map,
-                 config: immutables.Map,
-                 cached_reflection: immutables.Map[str, Tuple[str, ...]],
-                 *,
-                 implicit=True):
+    def __init__(
+        self,
+        constate,
+        schema: s_schema.Schema,
+        modaliases: immutables.Map,
+        config: immutables.Map,
+        cached_reflection: immutables.Map[str, Tuple[str, ...]],
+        *,
+        implicit=True,
+    ) -> None:
 
         self._constate = constate
-
         self._id = time.monotonic_ns()
-
         self._implicit = implicit
-
         self._stack = []
 
         # Save the very first state -- we can use it to rollback
@@ -345,6 +380,9 @@ class Transaction:
     def get_cached_reflection(self) -> immutables.Map[str, Tuple[str, ...]]:
         return self._stack[-1].cached_reflection
 
+    def get_migration_state(self) -> Optional[MigrationState]:
+        return self._stack[-1].migration_state
+
     def update_schema(self, new_schema: s_schema.Schema):
         self._stack[-1] = self._stack[-1]._replace(schema=new_schema)
 
@@ -359,6 +397,11 @@ class Transaction:
         new: immutables.Map[str, Tuple[str, ...]],
     ) -> None:
         self._stack[-1] = self._stack[-1]._replace(cached_reflection=new)
+
+    def update_migration_state(
+        self, mstate: Optional[MigrationState]
+    ) -> None:
+        self._stack[-1] = self._stack[-1]._replace(migration_state=mstate)
 
 
 class CompilerConnectionState:

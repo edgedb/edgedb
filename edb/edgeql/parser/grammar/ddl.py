@@ -69,6 +69,9 @@ class DDLStmt(Nonterm):
     def reduce_OptWithDDLStmt(self, *kids):
         self.val = kids[0].val
 
+    def reduce_MigrationStmt(self, *kids):
+        self.val = kids[0].val
+
 
 class DDLWithBlock(Nonterm):
     def reduce_WithBlock(self, *kids):
@@ -85,27 +88,10 @@ class OptWithDDLStmt(Nonterm):
 
 
 class WithDDLStmt(Nonterm):
-    def reduce_CreateMigrationStmt(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_AlterMigrationStmt(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_DropMigrationStmt(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_CommitMigrationStmt(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_GetMigrationStmt(self, *kids):
-        self.val = kids[0].val
-
     def reduce_InnerDDLStmt(self, *kids):
         self.val = kids[0].val
 
 
-# DDL statements that are allowed inside CREATE DATABASE and CREATE MIGRATION
-#
 class InnerDDLStmt(Nonterm):
 
     def reduce_CreatePseudoTypeStmt(self, *kids):
@@ -421,104 +407,6 @@ class AlterExtending(Nonterm):
 
     def reduce_AlterFinal(self, *kids):
         self.val = kids[0].val
-
-
-# DELTAS
-
-class OptDeltaParents(Nonterm):
-    def reduce_empty(self):
-        self.val = []
-
-    def reduce_FROM_NodeNameList(self, *kids):
-        self.val = kids[1].val
-
-
-class OptDeltaTarget(Nonterm):
-    def reduce_empty(self):
-        self.val = None
-
-    def reduce_TO_AnyIdentifier_BaseStringConstant(self, *kids):
-        self.val = [kids[1], kids[2]]
-
-#
-# DELTAS
-#
-
-#
-# CREATE MIGRATION
-#
-
-
-class CreateMigrationStmt(Nonterm):
-    def reduce_CreateMigration_SDL(self, *kids):
-        r"""%reduce CREATE MIGRATION ShortNodeName \
-                    OptDeltaParents TO SDLCommandBlock
-        """
-        declarations = kids[5].val
-        commondl._validate_declarations(declarations)
-        self.val = qlast.CreateMigration(
-            name=kids[2].val,
-            parents=kids[3].val,
-            target=qlast.Schema(declarations=declarations),
-        )
-
-    def reduce_CreateMigration_Commands(self, *kids):
-        r"""%reduce CREATE MIGRATION ShortNodeName \
-                    OptDeltaParents LBRACE InnerDDLStmtBlock OptSemicolons \
-                    RBRACE
-        """
-        self.val = qlast.CreateMigration(
-            name=kids[2].val,
-            parents=kids[3].val,
-            commands=kids[5].val,
-        )
-
-
-#
-# ALTER MIGRATION
-#
-commands_block(
-    'AlterMigration',
-    RenameStmt,
-    opt=False
-)
-
-
-class AlterMigrationStmt(Nonterm):
-    def reduce_AlterMigration(self, *kids):
-        r"""%reduce ALTER MIGRATION NodeName \
-                    AlterMigrationCommandsBlock \
-        """
-        self.val = qlast.AlterMigration(
-            name=kids[2].val,
-            commands=kids[3].val
-        )
-
-
-#
-# DROP MIGRATION
-#
-class DropMigrationStmt(Nonterm):
-    def reduce_DROP_MIGRATION_NodeName(self, *kids):
-        self.val = qlast.DropMigration(
-            name=kids[2].val,
-        )
-
-
-# COMMIT MIGRATION
-class CommitMigrationStmt(Nonterm):
-    def reduce_COMMIT_MIGRATION_NodeName(self, *kids):
-        self.val = qlast.CommitMigration(
-            name=kids[2].val,
-        )
-
-
-# GET MIGRATION
-class GetMigrationStmt(Nonterm):
-    def reduce_GET_MIGRATION_NodeName(self, *kids):
-        self.val = qlast.GetMigration(
-            name=kids[2].val,
-        )
 
 
 commands_block(
@@ -2140,4 +2028,132 @@ class DropCastStmt(Nonterm):
         self.val = qlast.DropCast(
             from_type=kids[3].val,
             to_type=kids[5].val,
+        )
+
+
+#
+# MIGRATIONS
+#
+
+class MigrationStmt(Nonterm):
+
+    def reduce_CreateMigrationStmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_AlterMigrationStmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_StartMigrationStmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_AbortMigrationStmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_PopulateMigrationStmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_CommitMigrationStmt(self, *kids):
+        self.val = kids[0].val
+
+
+class CreateMigrationBlockStmt(Nonterm):
+
+    def reduce_Stmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_InnerDDLStmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_SetFieldStmt(self, *kids):
+        self.val = kids[0].val
+
+
+class CreateMigrationBody(
+    ListNonterm,
+    element=CreateMigrationBlockStmt,
+    separator=Semicolons,
+):
+    pass
+
+
+class CreateMigrationStmt(Nonterm):
+
+    def reduce_CreateMigration_Commands(self, *kids):
+        r"""%reduce
+            CREATE MIGRATION
+            LBRACE CreateMigrationBody OptSemicolons RBRACE
+        """
+        message = None
+
+        body = []
+        for stmt in kids[3].val:
+            if isinstance(stmt, qlast.SetField):
+                if stmt.name == 'message':
+                    message = stmt.value
+                else:
+                    raise errors.InvalidSyntaxError(
+                        f'unexpected field: {stmt.name!r}',
+                        context=stmt.context,
+                    )
+            else:
+                body.append(stmt)
+
+        self.val = qlast.CreateMigration(
+            message=message,
+            commands=body,
+        )
+
+
+class StartMigrationStmt(Nonterm):
+
+    def reduce_StartMigration(self, *kids):
+        r"""%reduce START MIGRATION TO SDLCommandBlock"""
+
+        declarations = kids[3].val
+        commondl._validate_declarations(declarations)
+        self.val = qlast.StartMigration(
+            target=qlast.Schema(declarations=declarations),
+        )
+
+
+class PopulateMigrationStmt(Nonterm):
+
+    def reduce_POPULATE_MIGRATION(self, *kids):
+        self.val = qlast.PopulateMigration()
+
+
+class AbortMigrationStmt(Nonterm):
+
+    def reduce_ABORT_MIGRATION(self, *kids):
+        self.val = qlast.AbortMigration()
+
+
+class CommitMigrationStmt(Nonterm):
+
+    def reduce_COMMIT_MIGRATION(self, *kids):
+        self.val = qlast.CommitMigration()
+
+
+commands_block(
+    'AlterMigration',
+    SetFieldStmt,
+    opt=False,
+)
+
+
+class AlterMigrationStmt(Nonterm):
+    def reduce_AlterMigration(self, *kids):
+        r"""%reduce ALTER MIGRATION NodeName \
+                    AlterMigrationCommandsBlock \
+        """
+        self.val = qlast.AlterMigration(
+            name=kids[2].val,
+            commands=kids[3].val
+        )
+
+
+class DropMigrationStmt(Nonterm):
+    def reduce_DROP_MIGRATION_NodeName(self, *kids):
+        self.val = qlast.DropMigration(
+            name=kids[2].val,
         )

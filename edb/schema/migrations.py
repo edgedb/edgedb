@@ -23,38 +23,44 @@
 from __future__ import annotations
 from typing import *
 
+import base64
+import hashlib
+
 from edb.edgeql import ast as qlast
+from edb.edgeql import codegen as qlcodegen
+from edb.edgeql import qltypes
+from edb._edgeql_rust import tokenize as qltokenize
 
 from . import abc as s_abc
 from . import delta as sd
 from . import objects as so
+from . import utils as s_utils
 
 if TYPE_CHECKING:
     from . import schema as s_schema
 
 
-class Migration(so.Object, s_abc.Migration):
+class Migration(
+    so.Object,
+    s_abc.Migration,
+    qlkind=qltypes.SchemaObjectClass.MIGRATION,
+):
 
     parents = so.SchemaField(
         so.ObjectList["Migration"],
         default=so.DEFAULT_CONSTRUCTOR,
         coerce=True,
-        inheritable=False,
-        ephemeral=True,
     )
 
-    target = so.SchemaField(
-        qlast.Schema,
-        inheritable=False, default=None, introspectable=False,
-        ephemeral=True)
-
-    # type ignore below, because this class is redefining a new member
-    # with the same name
-    delta = so.SchemaField(
-        sd.DeltaRoot,
+    message = so.SchemaField(
+        str,
         default=None,
-        coerce=True, inheritable=False, introspectable=False,
-        ephemeral=True)
+        allow_ddl_set=True,
+    )
+
+    script = so.SchemaField(
+        str,
+    )
 
 
 class MigrationCommandContext(sd.ObjectCommandContext[Migration]):
@@ -68,7 +74,51 @@ class MigrationCommand(sd.ObjectCommand[Migration],
 
 
 class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
+
     astnode = qlast.CreateMigration
+
+    @classmethod
+    def _cmd_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> CreateMigration:
+        assert isinstance(astnode, qlast.CreateMigration)
+
+        if astnode.commands:
+            text = ';\n'.join(
+                qlcodegen.generate_source(stmt)
+                for stmt in astnode.commands
+            ) + ';'
+        else:
+            text = ''
+
+        tokenstream = ''.join(token.text() for token in qltokenize(text))
+        if astnode.parent is None:
+            parent = None
+        else:
+            parent = s_utils.ast_objref_to_object_shell(
+                astnode.parent,
+                metaclass=Migration,
+                schema=schema,
+                modaliases={},
+            )
+            tokenstream = f'PARENT: {astnode.parent.name}\n{tokenstream}'
+
+        hashsum = hashlib.sha256(tokenstream.encode()).digest()
+        name = f'm1{base64.b32encode(hashsum).decode().strip("=").lower()}'
+
+        cmd = cls(classname=name)
+        cmd.set_attribute_value('script', text)
+        cmd.set_attribute_value('builtin', False)
+        if parent is not None:
+            cmd.set_attribute_value('parents', [parent])
+
+        if astnode.auto_diff is not None:
+            cmd.canonical = True
+
+        return cmd
 
     @classmethod
     def _cmd_tree_from_ast(
@@ -76,45 +126,28 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
         schema: s_schema.Schema,
         astnode: qlast.DDLOperation,
         context: sd.CommandContext,
-    ) -> sd.Command:
+    ) -> CreateMigration:
+        assert isinstance(astnode, qlast.CreateMigration)
+
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
-        assert isinstance(astnode, qlast.CreateMigration)
-        if astnode.target is not None:
-            cmd.set_attribute_value('target', astnode.target)
+        if astnode.auto_diff is not None:
+            for subcmd in list(cmd.get_subcommands()):
+                if not isinstance(subcmd, sd.AlterObjectProperty):
+                    cmd.discard(subcmd)
+            for subcmd in astnode.auto_diff.get_subcommands():
+                cmd.add(subcmd)
+
+        assert isinstance(cmd, CreateMigration)
 
         return cmd
 
 
 class AlterMigration(MigrationCommand, sd.AlterObject[Migration]):
+
     astnode = qlast.AlterMigration
 
 
 class DeleteMigration(MigrationCommand, sd.DeleteObject[Migration]):
+
     astnode = qlast.DropMigration
-
-
-class CommitMigration(MigrationCommand):
-    astnode = qlast.CommitMigration
-
-    def apply(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-    ) -> s_schema.Schema:
-        migration = schema.get(self.classname, type=Migration)
-        delta = migration.get_delta(schema)
-        assert delta is not None
-        schema = delta.apply(schema, context)
-        return schema
-
-
-class GetMigration(MigrationCommand):
-    astnode = qlast.GetMigration
-
-    def apply(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-    ) -> s_schema.Schema:
-        return schema

@@ -3,13 +3,11 @@
 Migrations
 ==========
 
-Migrate to a new schema using SDL (must be done inside a transaction):
+Migrate to a new schema using SDL:
 
 .. code-block:: edgeql-repl
 
-    db> START TRANSACTION;
-    START TRANSACTION
-    db> CREATE MIGRATION m TO {
+    db> START MIGRATION TO {
     ...     module default {
     ...         abstract type HasImage {
     ...             # just a URL to the image
@@ -97,8 +95,8 @@ Migrate to a new schema using SDL (must be done inside a transaction):
     ...         };
     ...     }
     ... };
-    CREATE MIGRATION
-    db> COMMIT MIGRATION m;
+    START MIGRATION
+    db> POPULATE MIGRATION;
+    POPULATE MIGRATION
+    db> COMMIT MIGRATION;
     COMMIT MIGRATION
-    db> COMMIT;
-    COMMIT TRANSACTION

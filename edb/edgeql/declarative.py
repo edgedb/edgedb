@@ -174,10 +174,10 @@ def sdl_to_ddl(schema, documents):
 
     ctx = LayoutTraceContext(
         schema,
-        local_modules=frozenset(mod for mod, schema_decl in documents),
+        local_modules=frozenset(mod for mod, schema_decl in documents.items()),
     )
 
-    for module_name, declarations in documents:
+    for module_name, declarations in documents.items():
         ctx.set_module(module_name)
         for decl_ast in declarations:
             if isinstance(decl_ast, qlast.CreateObject):
@@ -203,7 +203,7 @@ def sdl_to_ddl(schema, documents):
                     raise AssertionError(
                         f'unexpected SDL declaration: {decl_ast}')
 
-    for module_name, declarations in documents:
+    for module_name, declarations in documents.items():
         ctx.set_module(module_name)
         for decl_ast in declarations:
             trace_layout(decl_ast, ctx=ctx)
@@ -219,7 +219,7 @@ def sdl_to_ddl(schema, documents):
         schema, ddlgraph, ctx.objects, ctx.parents, ctx.ancestors,
         ctx.defdeps, ctx.constraints
     )
-    for module_name, declarations in documents:
+    for module_name, declarations in documents.items():
         ctx.set_module(module_name)
         # module needs to be created regardless of whether its
         # contents are empty or not

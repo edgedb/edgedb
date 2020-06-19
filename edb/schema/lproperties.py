@@ -398,7 +398,7 @@ class AlterProperty(
     ) -> None:
         if op.property == 'target':
             if op.new_value:
-                assert isinstance(op.new_value, so.Object)
+                assert isinstance(op.new_value, so.ObjectShell)
                 node.commands.append(
                     qlast.SetPropertyType(
                         type=utils.typeref_to_ast(schema, op.new_value),

@@ -1977,7 +1977,7 @@ aa';
         } FILTER (foo = 'special');
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=6, col=15)
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=6, col=9)
     def test_edgeql_syntax_with_02(self):
         """
         WITH
@@ -2834,30 +2834,17 @@ aa';
         };
         """
 
-    def test_edgeql_syntax_ddl_delta_01(self):
-        """
-        ALTER MIGRATION d_links01_0 {
-            RENAME TO test::pretty_name;
-        };
-
-% OK %
-
-        ALTER MIGRATION d_links01_0
-            RENAME TO test::pretty_name;
-        """
-
     def test_edgeql_syntax_ddl_delta_02(self):
         """
-        CREATE MIGRATION d_links01_0 TO {type test::Foo;};
-        ALTER MIGRATION d_links01_0
-            RENAME TO test::pretty_name;
-        COMMIT MIGRATION d_links01_0;
-        DROP MIGRATION d_links01_0;
+        START MIGRATION TO {type test::Foo;};
+        ALTER MIGRATION m1231231231fd
+            SET message := 'foo';
+        COMMIT MIGRATION;
         """
 
     def test_edgeql_syntax_ddl_delta_03(self):
         """
-        CREATE MIGRATION d_links01_0 TO {
+        START MIGRATION TO {
             module test {
                 type Foo;
             };
@@ -2865,15 +2852,15 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected 'BadLang'", line=2, col=41)
+                  "Unexpected 'BadLang'", line=2, col=28)
     def test_edgeql_syntax_ddl_delta_04(self):
         """
-        CREATE MIGRATION d_links01_0 TO BadLang $$type test::Foo$$;
+        START MIGRATION TO BadLang $$type test::Foo$$;
         """
 
     def test_edgeql_syntax_ddl_delta_05(self):
         """
-        CREATE MIGRATION d_links01_0 TO {
+        START MIGRATION TO {
             type test::Foo {
                 property bar -> str
             }
@@ -2881,7 +2868,7 @@ aa';
 
 % OK %
 
-        CREATE MIGRATION d_links01_0 TO {
+        START MIGRATION TO {
             type test::Foo {
                 property bar -> str;
             };

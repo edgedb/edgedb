@@ -25,7 +25,6 @@ import builtins
 import collections
 import collections.abc
 import enum
-import itertools
 import sys
 import uuid
 
@@ -34,7 +33,6 @@ from edb.edgeql import qltypes
 
 from edb.common import checked
 from edb.common import markup
-from edb.common import ordered
 from edb.common import parametric
 from edb.common import parsing
 from edb.common import struct
@@ -1159,53 +1157,6 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         else:
             return 1.0
 
-    @classmethod
-    def _delta_refdict(
-        cls: Type[Object_T],
-        old: Optional[Object_T],
-        new: Optional[Object_T],
-        *,
-        delta: sd.ObjectCommand[Object_T],
-        refdict: RefDict,
-        context: ComparisonContext,
-        old_schema: Optional[s_schema.Schema],
-        new_schema: Optional[s_schema.Schema],
-    ) -> None:
-
-        old_idx_key = lambda o: o.get_name(old_schema)
-        new_idx_key = lambda o: o.get_name(new_schema)
-
-        def _delta_subdict(attr: str) -> None:
-            if old:
-                assert old_schema is not None
-                oldcoll = old.get_field_value(old_schema, attr)
-                oldcoll_idx = sorted(
-                    set(oldcoll.objects(old_schema)), key=old_idx_key
-                )
-            else:
-                oldcoll_idx = []
-
-            if new:
-                assert new_schema is not None
-                newcoll = new.get_field_value(new_schema, attr)
-                newcoll_idx = sorted(
-                    set(newcoll.objects(new_schema)), key=new_idx_key
-                )
-            else:
-                newcoll_idx = []
-
-            delta.add(
-                cls.delta_sets(
-                    oldcoll_idx,
-                    newcoll_idx,
-                    context=context,
-                    old_schema=old_schema,
-                    new_schema=new_schema,
-                )
-            )
-
-        _delta_subdict(refdict.attr)
-
     def add_classref(
         self,
         schema: s_schema.Schema,
@@ -1312,15 +1263,13 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         )
 
         for refdict in cls.get_refdicts():
-            cls._delta_refdict(
-                None,
-                self,
-                delta=delta,
-                refdict=refdict,
-                context=context,
-                old_schema=None,
-                new_schema=schema,
+            refcoll = self.get_field_value(schema, refdict.attr)
+            sorted_refcoll = sorted(
+                refcoll.objects(schema),
+                key=lambda o: o.get_name(schema),
             )
+            for ref in sorted_refcoll:
+                delta.add(ref.as_create_delta(schema, context))
 
         return delta
 
@@ -1350,14 +1299,26 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         )
 
         for refdict in cls.get_refdicts():
-            cls._delta_refdict(
-                self,
-                other,
-                delta=delta,
-                refdict=refdict,
-                context=context,
-                old_schema=self_schema,
-                new_schema=other_schema,
+            oldcoll = self.get_field_value(self_schema, refdict.attr)
+            oldcoll_idx = sorted(
+                oldcoll.objects(self_schema),
+                key=lambda o: o.get_name(self_schema)
+            )
+
+            newcoll = other.get_field_value(other_schema, refdict.attr)
+            newcoll_idx = sorted(
+                newcoll.objects(other_schema),
+                key=lambda o: o.get_name(other_schema),
+            )
+
+            delta.add(
+                sd.delta_objects(
+                    oldcoll_idx,
+                    newcoll_idx,
+                    context=context,
+                    old_schema=self_schema,
+                    new_schema=other_schema,
+                ),
             )
 
         return delta
@@ -1386,15 +1347,9 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         )
 
         for refdict in cls.get_refdicts():
-            cls._delta_refdict(
-                self,
-                None,
-                delta=delta,
-                refdict=refdict,
-                context=context,
-                old_schema=schema,
-                new_schema=None,
-            )
+            refcoll = self.get_field_value(schema, refdict.attr)
+            for ref in refcoll.objects(schema):
+                delta.add(ref.as_delete_delta(schema=schema, context=context))
 
         return delta
 
@@ -1531,194 +1486,6 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         return rename_class(classname=obj.get_name(old_schema),
                             new_name=new_name,
                             metaclass=type(obj))
-
-    @classmethod
-    def delta_sets(
-        cls,
-        old: Optional[Iterable[Object]],
-        new: Optional[Iterable[Object]],
-        context: ComparisonContext,
-        *,
-        old_schema: Optional[s_schema.Schema],
-        new_schema: Optional[s_schema.Schema],
-    ) -> sd.DeltaRoot:
-        from edb.schema import delta as sd
-
-        adds_mods = sd.DeltaRoot()
-        dels = sd.DeltaRoot()
-
-        if old is None:
-            if new is None:
-                raise ValueError("`old` and `new` cannot be both None.")
-            assert new_schema is not None
-            for n in new:
-                adds_mods.add(
-                    n.as_create_delta(
-                        schema=new_schema,
-                        context=context,
-                    ),
-                )
-            return adds_mods
-        elif new is None:
-            assert old_schema is not None
-            for o in old:
-                dels.add(
-                    o.as_delete_delta(
-                        schema=old_schema,
-                        context=context,
-                    ),
-                )
-            return dels
-
-        old = list(old)
-        new = list(new)
-
-        if old and old_schema is None:
-            raise ValueError("`old` is present but `old_schema` is None")
-
-        oldkeys = {
-            o.id: o.hash_criteria(old_schema) for o in old  # type: ignore
-        }
-        newkeys = {
-            o.id: o.hash_criteria(new_schema) for o in new  # type: ignore
-        }
-
-        unchanged = set(oldkeys.values()) & set(newkeys.values())
-
-        old = ordered.OrderedSet[Object](
-            o for o in old
-            if oldkeys[o.id] not in unchanged)
-        new = ordered.OrderedSet[Object](
-            o for o in new
-            if newkeys[o.id] not in unchanged)
-
-        comparison: List[Tuple[float, Object, Object]] = []
-        for x, y in itertools.product(new, old):
-            # type ignore below, because mypy does not correlate `old`
-            # and `old_schema`.
-            comp = x.compare(
-                y,
-                our_schema=new_schema,  # type: ignore
-                their_schema=old_schema,  # type: ignore
-                context=context,
-            )
-            comparison.append((comp, x, y))
-
-        used_x: Set[Object] = set()
-        used_y: Set[Object] = set()
-        altered = ordered.OrderedSet[sd.ObjectCommand[Object]]()
-
-        if comparison:
-            assert old_schema is not None
-            assert new_schema is not None
-
-            _new_schema = new_schema
-
-            def _key(item: Tuple[float, Object, Object]) -> Tuple[float, str]:
-                return item[0], item[1].get_name(_new_schema)
-
-            comparison = sorted(comparison, key=_key, reverse=True)
-
-            for s, x, y in comparison:
-                if x not in used_x and y not in used_y:
-                    if s != 1.0:
-                        if s > 0.6:
-                            altered.add(
-                                y.as_alter_delta(
-                                    other=x,
-                                    context=context,
-                                    self_schema=old_schema,
-                                    other_schema=new_schema,
-                                ),
-                            )
-                            used_x.add(x)
-                            used_y.add(y)
-                    else:
-                        used_x.add(x)
-                        used_y.add(y)
-
-        deleted = old - used_y
-        created = new - used_x
-
-        if created:
-            assert new_schema is not None
-            for x in created:
-                adds_mods.add(
-                    x.as_create_delta(
-                        schema=new_schema,
-                        context=context,
-                    ),
-                )
-
-        if old_schema is not None and new_schema is not None:
-            probe: Optional[Object]
-            if old:
-                probe = next(iter(old))
-            elif new:
-                probe = next(iter(new))
-            else:
-                probe = None
-
-            if probe is not None:
-                has_bases = isinstance(probe, InheritingObject)
-            else:
-                has_bases = False
-
-            if has_bases:
-                g = {}
-
-                altered_idx = {p.classname: p for p in altered}
-                for p in altered:
-                    for op in p.get_subcommands(type=sd.RenameObject):
-                        altered_idx[op.new_name] = p
-
-                for p in altered:
-                    old_class: Object = old_schema.get(p.classname)
-
-                    for op in p.get_subcommands(type=sd.RenameObject):
-                        new_name = op.new_name
-                        break
-                    else:
-                        new_name = p.classname
-
-                    new_class: Object = new_schema.get(new_name)
-
-                    assert isinstance(old_class, InheritingObject)
-                    assert isinstance(new_class, InheritingObject)
-
-                    old_bases = \
-                        old_class.get_bases(old_schema).objects(old_schema)
-                    new_bases = \
-                        new_class.get_bases(new_schema).objects(new_schema)
-
-                    bases = (
-                        {b.get_name(old_schema) for b in old_bases} |
-                        {b.get_name(new_schema) for b in new_bases}
-                    )
-
-                    deps = {b for b in bases if b in altered_idx}
-
-                    g[p.classname] = {'item': p, 'deps': deps}
-                    if new_name != p.classname:
-                        g[new_name] = {'item': p, 'deps': deps}
-
-                altered = topological.sort(g)
-
-        for p in altered:
-            adds_mods.add(p)
-
-        if deleted:
-            assert old_schema is not None
-            for y in deleted:
-                dels.add(
-                    y.as_delete_delta(
-                        schema=old_schema,
-                        context=context,
-                    ),
-                )
-
-        adds_mods.add(dels)
-        return adds_mods
 
     def dump(self, schema: s_schema.Schema) -> str:
         return (

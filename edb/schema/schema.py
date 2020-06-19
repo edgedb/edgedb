@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from typing import *
 
+import collections
 import functools
 import itertools
 
@@ -32,6 +33,7 @@ from . import abc as s_abc
 from . import casts as s_casts
 from . import expr as s_expr
 from . import functions as s_func
+from . import migrations as s_migrations
 from . import modules as s_mod
 from . import name as sn
 from . import objects as so
@@ -927,6 +929,9 @@ class Schema(s_abc.Schema):
             if objtype is s_mod.Module:
                 yield self.get_by_id(objid, type=s_mod.Module)
 
+    def get_last_migration(self) -> Optional[s_migrations.Migration]:
+        return _get_last_migration(self)
+
     def __repr__(self) -> str:
         return (
             f'<{type(self).__name__} gen:{self._generation} at {id(self):#x}>')
@@ -1028,3 +1033,43 @@ def _get_operators(
         Tuple[s_oper.Operator, ...],
         tuple(schema._id_to_type[oid] for oid in objids),
     )
+
+
+@functools.lru_cache()
+def _get_last_migration(schema: Schema) -> Optional[s_migrations.Migration]:
+
+    migrations = cast(
+        List[s_migrations.Migration],
+        [
+            schema._id_to_type[mid]
+            for (t, _), mid in schema._globalname_to_id.items()
+            if t is s_migrations.Migration
+        ],
+    )
+
+    if not migrations:
+        return None
+
+    migration_map = collections.defaultdict(list)
+    root = None
+    for m in migrations:
+        parents = m.get_parents(schema).objects(schema)
+        if not parents:
+            if root is not None:
+                raise errors.InternalServerError(
+                    'multiple migration roots found')
+            root = m
+        for parent in parents:
+            migration_map[parent].append(m)
+
+    if root is None:
+        raise errors.InternalServerError('cannot find migration root')
+
+    latest = root
+    while children := migration_map[latest]:
+        if len(children) > 1:
+            raise errors.InternalServerError(
+                'nonlinear migration history detected')
+        latest = children[0]
+
+    return latest

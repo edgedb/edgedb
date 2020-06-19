@@ -196,7 +196,7 @@ class Pointer(referencing.ReferencedInheritingObject,
         compcoef=0.99,
     )
 
-    # True, ff this pointer is defined in an Alias.
+    # True, if this pointer is defined in an Alias.
     is_from_alias = so.SchemaField(
         bool,
         default=None,

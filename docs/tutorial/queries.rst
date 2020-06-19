@@ -224,9 +224,7 @@ the ``first_name`` and ``last_name`` properties. This time we will use
 
 .. code-block:: edgeql-repl
 
-    tutorial> START TRANSACTION;
-    START TRANSACTION
-    tutorial> CREATE MIGRATION movies TO {
+    tutorial> START MIGRATION TO {
     .........     module default {
     .........         type Movie {
     .........             required property title -> str;
@@ -245,11 +243,11 @@ the ``first_name`` and ``last_name`` properties. This time we will use
     .........         }
     .........     }
     ......... };
-    CREATE MIGRATION
-    tutorial> COMMIT MIGRATION movies;
+    START MIGRATION
+    tutorial> POPULATE MIGRATION;
+    POPULATE MIGRATION
+    tutorial> COMMIT MIGRATION;
     COMMIT MIGRATION
-    tutorial> COMMIT;
-    COMMIT TRANSACTION
 
 Let's try out the new schema with the "Dune" ``Movie``:
 

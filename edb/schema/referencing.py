@@ -682,16 +682,12 @@ class ReferencedInheritingObjectCommand(
         default_base = mcls.get_default_base_name()
 
         if isinstance(bases, so.ObjectCollectionShell):
-            base_names = [
-                b.name for b in bases.items if b.name is not None
-            ]
+            base_names = [b.get_name(schema) for b in bases.items]
         elif isinstance(bases, so.ObjectList):
             base_names = list(bases.names(schema))
         else:
             # assume regular iterable of shells
-            base_names = [
-                b.name for b in bases
-            ]
+            base_names = [b.get_name(schema) for b in bases]
 
         # Filter out explicit bases
         implicit_bases = [

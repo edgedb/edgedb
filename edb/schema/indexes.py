@@ -48,7 +48,6 @@ class Index(referencing.ReferencedInheritingObject, s_anno.AnnotationSubject):
     expr = so.SchemaField(
         s_expr.Expression,
         coerce=True,
-        is_key=True,
         compcoef=0.909,
         ddl_identity=True,
     )

@@ -376,6 +376,7 @@ class Type(
         name = typing.cast(s_name.Name, self.get_name(schema))
 
         if union_of := self.get_union_of(schema):
+            assert isinstance(self, so.QualifiedObject)
             return UnionTypeShell(
                 components=[
                     o.as_shell(schema) for o in union_of.objects(schema)
@@ -383,6 +384,7 @@ class Type(
                 module=name.module,
             )
         elif intersection_of := self.get_intersection_of(schema):
+            assert isinstance(self, so.QualifiedObject)
             return IntersectionTypeShell(
                 components=[
                     o.as_shell(schema) for o in intersection_of.objects(schema)

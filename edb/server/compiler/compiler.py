@@ -42,8 +42,10 @@ from edb.common import debug
 from edb.common import uuidgen
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import codegen as qlcodegen
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
+from edb.edgeql import quote as qlquote
 
 from edb.ir import staeval as ireval
 
@@ -52,13 +54,13 @@ from edb.schema import ddl as s_ddl
 from edb.schema import delta as s_delta
 from edb.schema import links as s_links
 from edb.schema import lproperties as s_props
-from edb.schema import migrations as s_migrations
 from edb.schema import modules as s_mod
 from edb.schema import objects as s_obj
 from edb.schema import objtypes as s_objtypes
 from edb.schema import reflection as s_refl
 from edb.schema import schema as s_schema
 from edb.schema import types as s_types
+from edb.schema import utils as s_utils
 
 from edb.pgsql import ast as pg_ast
 from edb.pgsql import delta as pg_delta
@@ -410,7 +412,12 @@ class Compiler(BaseCompiler):
             debug.header('PgSQL Delta Plan')
             debug.dump(delta, schema=schema)
 
-        if isinstance(delta, (s_db.CreateDatabase, s_db.DropDatabase)):
+        db_cmd = any(
+            isinstance(c, s_db.DatabaseCommand)
+            for c in delta.get_subcommands()
+        )
+
+        if db_cmd:
             block = pg_dbops.SQLBlock()
             new_types = frozenset()
         else:
@@ -548,8 +555,11 @@ class Compiler(BaseCompiler):
         return sql.decode(), argmap
 
     def _compile_ql_query(
-            self, ctx: CompileContext,
-            ql: qlast.Base) -> dbstate.BaseQuery:
+        self,
+        ctx: CompileContext,
+        ql: qlast.Base,
+        cacheable: bool = True,
+    ) -> dbstate.BaseQuery:
 
         current_tx = ctx.state.current_tx()
         session_config = current_tx.get_session_config()
@@ -679,6 +689,7 @@ class Compiler(BaseCompiler):
                 in_type_args=in_type_args,
                 out_type_id=out_type_id.bytes,
                 out_type_data=out_type_data,
+                cacheable=cacheable,
             )
 
         else:
@@ -688,69 +699,52 @@ class Compiler(BaseCompiler):
 
             return dbstate.SimpleQuery(sql=(sql_bytes,))
 
-    def _compile_and_apply_migration_command(
-            self, ctx: CompileContext, cmd) -> dbstate.BaseQuery:
-
+    def _compile_and_apply_ddl_stmt(
+        self,
+        ctx: CompileContext,
+        stmt: qlast.DDLOperation,
+    ) -> dbstate.DDLQuery:
         current_tx = ctx.state.current_tx()
         schema = current_tx.get_schema()
-        context = self._new_delta_context(ctx)
 
-        if current_tx.is_implicit():
-            if isinstance(cmd, s_migrations.CreateMigration):
-                command = 'CREATE MIGRATION'
-            elif isinstance(cmd, s_migrations.GetMigration):
-                command = 'GET MIGRATION'
-            else:
-                command = 'COMMIT MIGRATION'
-            raise errors.QueryError(
-                f'{command} must be executed in a transaction block')
-
-        if isinstance(cmd, s_migrations.CreateMigration):
-            migration = None
-        else:
-            migration = schema.get_global(
-                s_migrations.Migration, cmd.classname)
-
-        with context(s_migrations.MigrationCommandContext(
-                schema, cmd, migration)):
-            if isinstance(cmd, s_migrations.CommitMigration):
-                ddl_plan = migration.get_delta(schema)
-                return self._compile_and_apply_ddl_command(ctx, ddl_plan)
-
-            elif isinstance(cmd, s_migrations.GetMigration):
-                ddl_text = s_ddl.ddl_text_from_migration(schema, migration)
-                query_ql = qlast.SelectQuery(
-                    result=qlast.StringConstant.from_python(ddl_text))
-                return self._compile_ql_query(ctx, query_ql)
-
-            elif isinstance(cmd, s_migrations.CreateMigration):
-                schema = cmd.apply(schema, context)
-                current_tx.update_schema(schema)
-                # We must return *some* SQL; return a no-op command.
-                return dbstate.DDLQuery(
-                    sql=(b'SELECT NULL LIMIT 0;',))
-
-            else:
-                raise errors.InternalServerError(
-                    f'unexpected delta command: {cmd!r}')  # pragma: no cover
-
-    def _compile_and_apply_ddl_command(self, ctx: CompileContext, cmd):
-        current_tx = ctx.state.current_tx()
+        delta = s_ddl.delta_from_ddl(
+            stmt,
+            schema=schema,
+            modaliases=current_tx.get_modaliases(),
+            testmode=self._in_testmode(ctx),
+            schema_object_ids=ctx.schema_object_ids,
+        )
 
         if debug.flags.delta_plan_input:
             debug.header('Delta Plan Input')
-            debug.dump(cmd)
+            debug.dump(delta)
+
+        if mstate := current_tx.get_migration_state():
+            mstate = mstate._replace(
+                current_ddl=mstate.current_ddl + (stmt,),
+            )
+
+            context = self._new_delta_context(ctx)
+            schema = delta.apply(schema, context=context)
+            current_tx.update_migration_state(mstate)
+            current_tx.update_schema(schema)
+
+            return dbstate.DDLQuery(
+                sql=(b'SELECT LIMIT 0',),
+                is_transactional=True,
+                single_unit=False,
+            )
 
         # Do a dry-run on test_schema to canonicalize
         # the schema delta-commands.
         test_schema = current_tx.get_schema()
         context = self._new_delta_context(ctx)
-        cmd.apply(test_schema, context=context)
-        cmd.canonical = True
+        delta.apply(test_schema, context=context)
+        delta.canonical = True
 
         # Apply and adapt delta, build native delta plan, which
         # will also update the schema.
-        block, new_types = self._process_delta(ctx, cmd)
+        block, new_types = self._process_delta(ctx, delta)
 
         is_transactional = block.is_transactional()
         if not is_transactional:
@@ -770,70 +764,220 @@ class Compiler(BaseCompiler):
             new_types=new_types,
         )
 
-    def _compile_command(
-            self, ctx: CompileContext, cmd) -> dbstate.BaseQuery:
-
-        if isinstance(cmd, s_migrations.MigrationCommand):
-            return self._compile_and_apply_migration_command(ctx, cmd)
-
-        elif isinstance(cmd, s_delta.Command):
-            return self._compile_and_apply_ddl_command(ctx, cmd)
-
-        else:
-            raise errors.InternalServerError(
-                f'unexpected plan {cmd!r}')  # pragma: no cover
-
-    def _compile_ql_ddl(self, ctx: CompileContext, ql: qlast.DDL):
+    def _compile_ql_migration(self, ctx: CompileContext, ql: qlast.Migration):
         current_tx = ctx.state.current_tx()
         schema = current_tx.get_schema()
 
-        cmd = s_ddl.delta_from_ddl(
-            ql,
-            schema=schema,
-            modaliases=current_tx.get_modaliases(),
-            testmode=self._in_testmode(ctx),
-            schema_object_ids=ctx.schema_object_ids,
-        )
-
-        return self._compile_command(ctx, cmd)
-
-    def _compile_ql_migration(self, ctx: CompileContext,
-                              ql: Union[qlast.Database, qlast.Delta]):
-        current_tx = ctx.state.current_tx()
-        schema = current_tx.get_schema()
-
-        # SDL migrations cannot have any modaliases, because
-        # unqualified names inside them should either be enclosed in
-        # their own 'module' block (which will enforce its own
-        # modalias) or can only refer to 'std'.
-        if (isinstance(ql, qlast.CreateMigration) and
-                isinstance(ql.target, qlast.Schema)):
-            modaliases = {}
-        else:
-            modaliases = current_tx.get_modaliases()
-
-        cmd = s_ddl.cmd_from_ddl(
-            ql,
-            schema=schema,
-            modaliases=modaliases,
-            testmode=self._in_testmode(ctx))
-
-        if (isinstance(ql, qlast.CreateMigration) and
-                # only SDL migrations have a target
-                cmd.get_attribute_value('target')):
-
+        if isinstance(ql, qlast.StartMigration):
             if current_tx.is_implicit():
-                raise errors.QueryError(
-                    f'CREATE MIGRATION must be executed in a '
-                    f'transaction block')
+                savepoint_name = None
+                tx_cmd = qlast.StartTransaction()
+            else:
+                savepoint_name = str(uuid.uuid4())
+                tx_cmd = qlast.DeclareSavepoint(name=savepoint_name)
 
+            tx_query = self._compile_ql_transaction(ctx, tx_cmd)
             assert self._std_schema is not None
-            cmd = s_ddl.compile_migration(
-                cmd,
-                self._std_schema,
-                current_tx.get_schema())
+            target_schema = s_ddl.apply_sdl(
+                ql.target,
+                base_schema=self._std_schema,
+                current_schema=schema,
+            )
 
-        return self._compile_command(ctx, cmd)
+            current_tx.update_migration_state(
+                dbstate.MigrationState(
+                    initial_schema=schema,
+                    initial_savepoint=savepoint_name,
+                    target_schema=target_schema,
+                    current_ddl=tuple(),
+                ),
+            )
+
+            query = dbstate.MigrationControlQuery(
+                sql=tx_query.sql,
+                action=dbstate.MigrationAction.START,
+                tx_action=tx_query.action,
+                cacheable=False,
+                modaliases=None,
+                single_unit=tx_query.single_unit,
+            )
+
+        elif isinstance(ql, qlast.PopulateMigration):
+            mstate = current_tx.get_migration_state()
+            if mstate is None:
+                raise errors.QueryError(
+                    'unexpected POPULATE MIGRATION:'
+                    ' not currently in a migration block',
+                    context=ql.context,
+                )
+
+            diff = s_ddl.delta_schemas(schema, mstate.target_schema)
+            new_ddl = s_ddl.ddlast_from_delta(mstate.target_schema, diff)
+            all_ddl = mstate.current_ddl + new_ddl
+            if not mstate.current_ddl:
+                mstate = mstate._replace(current_ddl=all_ddl, auto_diff=diff)
+            else:
+                mstate = mstate._replace(current_ddl=all_ddl)
+            current_tx.update_migration_state(mstate)
+
+            delta_context = self._new_delta_context(ctx)
+            schema = diff.apply(schema, delta_context)
+            current_tx.update_schema(schema)
+
+            query = dbstate.MigrationControlQuery(
+                sql=(b'SELECT LIMIT 0',),
+                tx_action=None,
+                action=dbstate.MigrationAction.POPULATE,
+                cacheable=False,
+                modaliases=None,
+                single_unit=False,
+            )
+
+        elif isinstance(ql, qlast.DescribeCurrentMigration):
+            mstate = current_tx.get_migration_state()
+            if mstate is None:
+                raise errors.QueryError(
+                    'unexpected DESCRIBE CURRENT MIGRATION:'
+                    ' not currently in a migration block',
+                    context=ql.context,
+                )
+
+            if ql.language is qltypes.DescribeLanguage.DDL:
+                text = []
+                for stmt in mstate.current_ddl:
+                    text.append(qlcodegen.generate_source(stmt, pretty=True))
+
+                if text:
+                    description = ';\n'.join(text) + ';'
+                else:
+                    description = ''
+
+                desc_ql = edgeql.parse(
+                    f'SELECT {qlquote.quote_literal(description)}'
+                )
+                query = self._compile_ql_query(
+                    ctx,
+                    desc_ql,
+                    cacheable=False,
+                )
+
+            elif ql.language is qltypes.DescribeLanguage.JSON:
+                confirmed = []
+                for stmt in mstate.current_ddl:
+                    confirmed.append(
+                        qlcodegen.generate_source(stmt, pretty=True),
+                    )
+
+                diff = s_ddl.delta_schemas(schema, mstate.target_schema)
+                proposed = s_ddl.statements_from_delta(
+                    mstate.target_schema,
+                    diff,
+                )
+
+                desc = json.dumps({
+                    'confirmed': confirmed,
+                    'proposed': proposed,
+                }).encode('unicode_escape').decode('utf-8')
+
+                desc_ql = edgeql.parse(
+                    f'SELECT to_json({qlquote.quote_literal(desc)})'
+                )
+                query = self._compile_ql_query(
+                    ctx,
+                    desc_ql,
+                    cacheable=False,
+                )
+
+            else:
+                raise AssertionError(
+                    f'DESCRIBE CURRENT MIGRATION AS {ql.language}'
+                    f' is not implemented'
+                )
+
+        elif isinstance(ql, qlast.CommitMigration):
+            mstate = current_tx.get_migration_state()
+            if mstate is None:
+                raise errors.QueryError(
+                    'unexpected POPULATE MIGRATION:'
+                    ' not currently in a migration block',
+                    context=ql.context,
+                )
+
+            diff = s_ddl.delta_schemas(schema, mstate.target_schema)
+            if list(diff.get_subcommands()):
+                raise errors.QueryError(
+                    'cannot commit incomplete migration',
+                    hint=(
+                        'Please finish the migration by specifying the'
+                        ' remaining DDL operations or run POPULATE MIGRATION'
+                        ' to let the system populate the outstanding DDL'
+                        ' automatically.'
+                    ),
+                    context=ql.context,
+                )
+
+            last_migration = schema.get_last_migration()
+            if last_migration:
+                last_migration_ref = s_utils.name_to_ast_ref(
+                    last_migration.get_name(schema),
+                )
+            else:
+                last_migration_ref = None
+
+            create_migration = qlast.CreateMigration(
+                parent=last_migration_ref,
+                commands=mstate.current_ddl,
+                auto_diff=mstate.auto_diff,
+            )
+
+            current_tx.update_schema(mstate.initial_schema)
+            current_tx.update_migration_state(None)
+
+            ddl_query = self._compile_and_apply_ddl_stmt(
+                ctx,
+                create_migration,
+            )
+
+            if mstate.initial_savepoint:
+                savepoint_name = str(uuid.uuid4())
+                tx_cmd = qlast.DeclareSavepoint(name=savepoint_name)
+            else:
+                tx_cmd = qlast.CommitTransaction()
+
+            tx_query = self._compile_ql_transaction(ctx, tx_cmd)
+
+            query = dbstate.MigrationControlQuery(
+                sql=ddl_query.sql + tx_query.sql,
+                new_types=ddl_query.new_types,
+                action=dbstate.MigrationAction.COMMIT,
+                tx_action=tx_query.action,
+                cacheable=False,
+                modaliases=None,
+                single_unit=True,
+            )
+
+        elif isinstance(ql, qlast.AbortMigration):
+            mstate = current_tx.get_migration_state()
+            if mstate is None:
+                raise errors.QueryError(
+                    'unexpected ABORT MIGRATION:'
+                    ' not currently in a migration block',
+                    context=ql.context,
+                )
+
+            if mstate.initial_savepoint:
+                savepoint_name = str(uuid.uuid4())
+                tx_cmd = qlast.RollbackToSavepoint(name=savepoint_name)
+            else:
+                tx_cmd = qlast.RollbackTransaction()
+
+            current_tx.update_migration_state(None)
+            query = self._compile_ql_transaction(ctx, tx_cmd)
+
+        else:
+            raise AssertionError(f'unexpected migration command: {ql}')
+
+        return query
 
     def _compile_ql_transaction(
             self, ctx: CompileContext,
@@ -1090,17 +1234,23 @@ class Compiler(BaseCompiler):
 
     def _compile_dispatch_ql(self, ctx: CompileContext, ql: qlast.Base):
 
-        if isinstance(ql, (qlast.Database, qlast.Delta)):
+        if isinstance(ql, qlast.Migration):
             if not (ctx.state.capability & enums.Capability.DDL):
                 raise errors.ProtocolError(
                     f'cannot execute DDL commands for the current connection')
             return self._compile_ql_migration(ctx, ql)
 
+        elif isinstance(ql, qlast.Database):
+            if not (ctx.state.capability & enums.Capability.DDL):
+                raise errors.ProtocolError(
+                    f'cannot execute DDL commands for the current connection')
+            return self._compile_and_apply_ddl_stmt(ctx, ql)
+
         elif isinstance(ql, qlast.DDL):
             if not (ctx.state.capability & enums.Capability.DDL):
                 raise errors.ProtocolError(
                     f'cannot execute DDL commands for the current connection')
-            return self._compile_ql_ddl(ctx, ql)
+            return self._compile_and_apply_ddl_stmt(ctx, ql)
 
         elif isinstance(ql, qlast.Transaction):
             if not (ctx.state.capability & enums.Capability.TRANSACTION):
@@ -1201,7 +1351,7 @@ class Compiler(BaseCompiler):
                     unit.in_type_args = comp.in_type_args
                     unit.in_type_id = comp.in_type_id
 
-                    unit.cacheable = True
+                    unit.cacheable = comp.cacheable
 
                     unit.cardinality = comp.cardinality
                 else:
@@ -1233,6 +1383,31 @@ class Compiler(BaseCompiler):
                 elif comp.action == dbstate.TxAction.ROLLBACK:
                     unit.tx_rollback = True
                 elif comp.action is dbstate.TxAction.ROLLBACK_TO_SAVEPOINT:
+                    unit.tx_savepoint_rollback = True
+
+                if comp.single_unit:
+                    units.append(unit)
+                    unit = None
+
+            elif isinstance(comp, dbstate.MigrationControlQuery):
+                unit.sql += comp.sql
+                unit.cacheable = comp.cacheable
+                unit.has_ddl = True
+                unit.new_types = comp.new_types
+
+                if comp.modaliases is not None:
+                    unit.modaliases = comp.modaliases
+
+                if comp.tx_action == dbstate.TxAction.START:
+                    if unit.tx_id is not None:
+                        raise errors.InternalServerError(
+                            'already in transaction')
+                    unit.tx_id = ctx.state.current_tx().id
+                elif comp.tx_action == dbstate.TxAction.COMMIT:
+                    unit.tx_commit = True
+                elif comp.tx_action == dbstate.TxAction.ROLLBACK:
+                    unit.tx_rollback = True
+                elif comp.tx_action is dbstate.TxAction.ROLLBACK_TO_SAVEPOINT:
                     unit.tx_savepoint_rollback = True
 
                 if comp.single_unit:

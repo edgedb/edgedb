@@ -27,7 +27,7 @@ from edb.tools import test
 
 class TestEdgeQLDT(tb.QueryTestCase):
     SETUP = '''
-        CREATE MIGRATION mig TO {
+        START MIGRATION TO {
             module default {
                 scalar type seq_t extending sequence;
                 scalar type seq2_t extending sequence;
@@ -42,8 +42,8 @@ class TestEdgeQLDT(tb.QueryTestCase):
                 };
             };
         };
-
-        COMMIT MIGRATION mig;
+        POPULATE MIGRATION;
+        COMMIT MIGRATION;
     '''
 
     async def test_edgeql_dt_datetime_01(self):

@@ -759,7 +759,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def _ddl_visit_body(
         self,
         commands: Sequence[qlast.DDLOperation],
-        group_by_system_comment: bool, *,
+        group_by_system_comment: bool = False,
+        *,
         allow_short: bool = False
     ) -> None:
         if self.limit_ref_classes:
@@ -1009,33 +1010,21 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_DropObject(node, 'ROLE')
 
     def visit_CreateMigration(self, node: qlast.CreateMigration) -> None:
-        def after_name() -> None:
-            if node.parents:
-                self.write(' FROM ')
-                self.visit(node.parents)
+        self.write('CREATE MIGRATION')
+        if node.commands:
+            self._ddl_visit_body(node.commands)
 
-            if node.target:
-                self.write(' TO {')
-                self._block_ws(1)
-                self.visit(node.target)
-                self.indentation -= 1
-                self.write('}')
-
-        self._visit_CreateObject(node, 'MIGRATION', after_name=after_name)
+    def visit_StartMigration(self, node: qlast.StartMigration) -> None:
+        self.write('START MIGRATION TO {')
+        self.new_lines = 1
+        self.indentation += 1
+        self.visit(node.target)
+        self.indentation -= 1
+        self.new_lines = 1
+        self.write('}')
 
     def visit_CommitMigration(self, node: qlast.CommitMigration) -> None:
-        self._visit_aliases(node)
         self.write('COMMIT MIGRATION')
-        self.write(' ')
-        self.visit(node.name)
-        self.new_lines = 1
-
-    def visit_GetMigration(self, node: qlast.GetMigration) -> None:
-        self._visit_aliases(node)
-        self.write('GET MIGRATION')
-        self.write(' ')
-        self.visit(node.name)
-        self.new_lines = 1
 
     def visit_AlterMigration(self, node: qlast.AlterMigration) -> None:
         self._visit_AlterObject(node, 'MIGRATION')

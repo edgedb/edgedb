@@ -886,10 +886,7 @@ class TestLinkTargetDeleteMigrations(stb.NonIsolatedDDLTestCase):
             with open(schema_f) as f:
                 schema = f.read()
 
-            await self.con.execute(f'''
-                CREATE MIGRATION d_m01 TO {{ module test {{ {schema} }} }};
-                COMMIT MIGRATION d_m01;
-                ''')
+            await self.migrate(schema)
 
             await self.con.execute('''
                 INSERT test::Target1 {name := 'Target1_migration_01'};
@@ -916,10 +913,7 @@ class TestLinkTargetDeleteMigrations(stb.NonIsolatedDDLTestCase):
             with open(schema_f) as f:
                 schema = f.read()
 
-            await self.con.execute(f'''
-                CREATE MIGRATION d_m01 TO {{ module test {{ {schema} }} }};
-                COMMIT MIGRATION d_m01;
-                ''')
+            await self.migrate(schema)
 
             await self.con.execute("""
                 INSERT test::Target1 {

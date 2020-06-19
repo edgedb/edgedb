@@ -635,19 +635,11 @@ class CallableObject(
         delta = super().as_create_delta(schema, context)
 
         new_params = self.get_params(schema).objects(schema)
-        newcoll = [
-            p for p in new_params
-            if not param_is_inherited(schema, self, p)
-        ]
-        delta.add_prerequisite(
-            type(self).delta_sets(
-                [],
-                newcoll,
-                context=context,
-                old_schema=None,
-                new_schema=schema,
-            )
-        )
+        for p in new_params:
+            if not param_is_inherited(schema, self, p):
+                delta.add_prerequisite(
+                    p.as_create_delta(schema=schema, context=context),
+                )
 
         return delta
 
@@ -679,13 +671,13 @@ class CallableObject(
         ]
 
         delta.add_prerequisite(
-            type(self).delta_sets(
+            sd.delta_objects(
                 oldcoll,
                 newcoll,
                 context=context,
                 old_schema=self_schema,
                 new_schema=other_schema,
-            )
+            ),
         )
 
         return delta
@@ -698,20 +690,9 @@ class CallableObject(
     ) -> sd.ObjectCommand[CallableObjectT]:
         delta = super().as_delete_delta(schema=schema, context=context)
         old_params = self.get_params(schema).objects(schema)
-        oldcoll = [
-            p for p in old_params
-            if not param_is_inherited(schema, self, p)
-        ]
-
-        delta.add(
-            type(self).delta_sets(
-                oldcoll,
-                [],
-                context=context,
-                old_schema=schema,
-                new_schema=None,
-            )
-        )
+        for p in old_params:
+            if not param_is_inherited(schema, self, p):
+                delta.add(p.as_delete_delta(schema=schema, context=context))
 
         return delta
 
@@ -1016,6 +997,7 @@ class Function(CallableObject, VolatilitySubject, s_abc.Function,
         return f"function '{sn}{params.as_str(schema)}'"
 
     def get_dummy_body(self, schema: s_schema.Schema) -> expr.Expression:
+        """Return a minimal function body that satisfies its return type."""
         rt = self.get_return_type(schema)
 
         if rt.is_scalar():

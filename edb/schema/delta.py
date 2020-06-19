@@ -34,6 +34,7 @@ from edb.common import markup
 from edb.common import ordered
 from edb.common import parsing
 from edb.common import struct
+from edb.common import topological
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
@@ -45,6 +46,159 @@ from . import name as sn
 from . import objects as so
 from . import schema as s_schema
 from . import utils
+
+
+def delta_objects(
+    old: Iterable[so.Object],
+    new: Iterable[so.Object],
+    *,
+    context: so.ComparisonContext,
+    old_schema: s_schema.Schema,
+    new_schema: s_schema.Schema,
+) -> DeltaRoot:
+
+    adds_mods = DeltaRoot()
+    dels = DeltaRoot()
+
+    old = list(old)
+    new = list(new)
+
+    oldkeys = {o.id: o.hash_criteria(old_schema) for o in old}
+    newkeys = {o.id: o.hash_criteria(new_schema) for o in new}
+
+    unchanged = set(oldkeys.values()) & set(newkeys.values())
+
+    old = ordered.OrderedSet[so.Object](
+        o for o in old
+        if oldkeys[o.id] not in unchanged)
+    new = ordered.OrderedSet[so.Object](
+        o for o in new
+        if newkeys[o.id] not in unchanged)
+
+    comparison: List[Tuple[float, so.Object, so.Object]] = []
+    for x, y in itertools.product(new, old):
+        # type ignore below, because mypy does not correlate `old`
+        # and `old_schema`.
+        comp = x.compare(
+            y,
+            our_schema=new_schema,
+            their_schema=old_schema,
+            context=context,
+        )
+        comparison.append((comp, x, y))
+
+    used_x: Set[so.Object] = set()
+    used_y: Set[so.Object] = set()
+    altered = ordered.OrderedSet[ObjectCommand[so.Object]]()
+
+    if comparison:
+        _new_schema = new_schema
+
+        def _key(
+            item: Tuple[float, so.Object, so.Object],
+        ) -> Tuple[float, str]:
+            return item[0], item[1].get_name(_new_schema)
+
+        comparison = sorted(comparison, key=_key, reverse=True)
+
+        for s, x, y in comparison:
+            if x not in used_x and y not in used_y:
+                if s != 1.0:
+                    if s > 0.6:
+                        altered.add(
+                            y.as_alter_delta(
+                                other=x,
+                                context=context,
+                                self_schema=old_schema,
+                                other_schema=new_schema,
+                            ),
+                        )
+                        used_x.add(x)
+                        used_y.add(y)
+                else:
+                    used_x.add(x)
+                    used_y.add(y)
+
+    deleted = old - used_y
+    created = new - used_x
+
+    if created:
+        for x in created:
+            adds_mods.add(
+                x.as_create_delta(
+                    schema=new_schema,
+                    context=context,
+                ),
+            )
+
+    if old_schema is not None and new_schema is not None:
+        probe: Optional[so.Object]
+        if old:
+            probe = next(iter(old))
+        elif new:
+            probe = next(iter(new))
+        else:
+            probe = None
+
+        if probe is not None:
+            has_bases = isinstance(probe, so.InheritingObject)
+        else:
+            has_bases = False
+
+        if has_bases:
+            g = {}
+
+            altered_idx = {p.classname: p for p in altered}
+            for p in altered:
+                for op in p.get_subcommands(type=RenameObject):
+                    altered_idx[op.new_name] = p
+
+            for p in altered:
+                old_class: so.Object = old_schema.get(p.classname)
+
+                for op in p.get_subcommands(type=RenameObject):
+                    new_name = op.new_name
+                    break
+                else:
+                    new_name = p.classname
+
+                new_class: so.Object = new_schema.get(new_name)
+
+                assert isinstance(old_class, so.InheritingObject)
+                assert isinstance(new_class, so.InheritingObject)
+
+                old_bases = \
+                    old_class.get_bases(old_schema).objects(old_schema)
+                new_bases = \
+                    new_class.get_bases(new_schema).objects(new_schema)
+
+                bases = (
+                    {b.get_name(old_schema) for b in old_bases} |
+                    {b.get_name(new_schema) for b in new_bases}
+                )
+
+                deps = {b for b in bases if b in altered_idx}
+
+                g[p.classname] = {'item': p, 'deps': deps}
+                if new_name != p.classname:
+                    g[new_name] = {'item': p, 'deps': deps}
+
+            altered = topological.sort(g)
+
+    for p in altered:
+        adds_mods.add(p)
+
+    if deleted:
+        for y in deleted:
+            dels.add(
+                y.as_delete_delta(
+                    schema=old_schema,
+                    context=context,
+                ),
+            )
+
+    adds_mods.add(dels)
+    return adds_mods
 
 
 CommandMeta_T = TypeVar("CommandMeta_T", bound="CommandMeta")

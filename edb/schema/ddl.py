@@ -92,6 +92,7 @@ def delta_schemas(
     include_module_diff: bool=True,
     include_std_diff: bool=False,
     include_derived_types: bool=True,
+    include_migrations: bool=False,
     linearize_delta: bool=True,
 ) -> sd.DeltaRoot:
     """Return difference between *schema_a* and *schema_b*.
@@ -139,6 +140,9 @@ def delta_schemas(
 
         include_derived_types:
             Whether to include derived types, like unions, in the diff.
+
+        include_migrations:
+            Whether to include migrations in the diff.
 
         linearize_delta:
             Whether the resulting diff should be properly ordered
@@ -233,6 +237,10 @@ def delta_schemas(
     objects = sd.DeltaRoot(canonical=True)
     context = so.ComparisonContext()
 
+    schemaclasses = get_global_dep_order()
+    if include_migrations:
+        schemaclasses += (migrations.Migration,)
+
     for sclass in get_global_dep_order():
         filters: List[Callable[[s_schema.Schema, so.Object], bool]] = []
 
@@ -269,7 +277,7 @@ def delta_schemas(
         )
 
         objects.add(
-            so.Object.delta_sets(
+            sd.delta_objects(
                 old,
                 new,
                 old_schema=schema_a,
@@ -324,60 +332,35 @@ def cmd_from_ddl(
     return sd.compile_ddl(schema, ddl, context=context)
 
 
-def compile_migration(
-    cmd: migrations.CreateMigration,
-    target_schema: s_schema.Schema,
+def apply_sdl(
+    sdl_document: qlast.Schema,
+    *,
+    base_schema: s_schema.Schema,
     current_schema: s_schema.Schema,
-) -> migrations.CreateMigration:
-
-    target = cmd.get_attribute_value('target')
-    if not target:
-        return cmd
-
+    stdmode: bool = False,
+    testmode: bool = False,
+) -> s_schema.Schema:
     # group declarations by module
     documents: Dict[str, List[qlast.DDL]] = defaultdict(list)
     # initialize the "default" module
     documents['default'] = []
-    for decl in target.declarations:
+    for decl in sdl_document.declarations:
         # declarations are either in a module block or fully-qualified
         if isinstance(decl, qlast.ModuleDeclaration):
             documents[decl.name.name].extend(decl.declarations)
         else:
             documents[decl.name.module].append(decl)
 
-    target_schema = apply_sdl(
-        documents.items(),
-        # This target_schema is actually the base schema to which SDL
-        # will be applied. Typically it'll be the "builtin" schema.
-        #
-        # In the future it may have already been updated by some
-        # prefixed DDL, though.
-        target_schema=target_schema,
-        current_schema=current_schema)
-
-    diff = delta_schemas(current_schema, target_schema)
-    cmd.set_attribute_value('delta', diff)
-
-    return cmd
-
-
-def apply_sdl(
-    documents: Iterable[Tuple[str, Sequence[qlast.DDL]]],
-    *,
-    target_schema: s_schema.Schema,
-    current_schema: s_schema.Schema,
-    stdmode: bool=False,
-    testmode: bool=False,
-) -> s_schema.Schema:
     ddl_stmts = s_decl.sdl_to_ddl(current_schema, documents)
     context = sd.CommandContext(
         modaliases={},
-        schema=target_schema,
+        schema=base_schema,
         stdmode=stdmode,
         testmode=testmode,
         declarative=True,
     )
 
+    target_schema = base_schema
     for ddl_stmt in ddl_stmts:
         delta = sd.DeltaRoot()
         with context(sd.DeltaRootContext(schema=target_schema, op=delta)):
@@ -501,37 +484,80 @@ def _delta_from_ddl(
     return schema, delta
 
 
-def _text_from_delta(
+def ddlast_from_delta(
     schema: s_schema.Schema,
     delta: sd.DeltaRoot,
     *,
-    sdlmode: bool,
+    sdlmode: bool = False,
     descriptive_mode: bool = False,
-    limit_ref_classes: Iterable[so.ObjectMeta] = tuple(),
-) -> str:
+) -> Tuple[qlast.DDLOperation, ...]:
 
     context = sd.CommandContext(
         descriptive_mode=descriptive_mode,
         declarative=sdlmode,
     )
-    text = []
+
+    stmts = []
     for command in delta.get_subcommands():
         with context(sd.DeltaRootContext(schema=schema, op=delta)):
-            delta_ast = command.get_ast(schema, context)
-            if delta_ast:
-                ql_classes_src = {
-                    scls.get_ql_class() for scls in limit_ref_classes
-                }
-                ql_classes = {q for q in ql_classes_src if q is not None}
+            ql_ast = command.get_ast(schema, context)
+            if ql_ast:
+                stmts.append(ql_ast)
 
-                stmt_text = edgeql.generate_source(
-                    delta_ast, sdlmode=sdlmode,
-                    descmode=descriptive_mode,
-                    limit_ref_classes=ql_classes,
-                )
-                text.append(stmt_text + ';')
+    return tuple(stmts)
 
-    return '\n'.join(text)
+
+def statements_from_delta(
+    schema: s_schema.Schema,
+    delta: sd.DeltaRoot,
+    *,
+    sdlmode: bool = False,
+    descriptive_mode: bool = False,
+    limit_ref_classes: Iterable[so.ObjectMeta] = tuple(),
+) -> Tuple[str, ...]:
+
+    stmts = ddlast_from_delta(
+        schema,
+        delta,
+        sdlmode=sdlmode,
+        descriptive_mode=descriptive_mode,
+    )
+
+    ql_classes_src = {
+        scls.get_ql_class() for scls in limit_ref_classes
+    }
+
+    ql_classes = {q for q in ql_classes_src if q is not None}
+
+    text = []
+    for stmt_ast in stmts:
+        stmt_text = edgeql.generate_source(
+            stmt_ast,
+            sdlmode=sdlmode,
+            descmode=descriptive_mode,
+            limit_ref_classes=ql_classes,
+        )
+        text.append(stmt_text + ';')
+
+    return tuple(text)
+
+
+def text_from_delta(
+    schema: s_schema.Schema,
+    delta: sd.DeltaRoot,
+    *,
+    sdlmode: bool = False,
+    descriptive_mode: bool = False,
+    limit_ref_classes: Iterable[so.ObjectMeta] = tuple(),
+) -> str:
+    stmts = statements_from_delta(
+        schema,
+        delta,
+        sdlmode=sdlmode,
+        descriptive_mode=descriptive_mode,
+        limit_ref_classes=limit_ref_classes,
+    )
+    return '\n'.join(stmts)
 
 
 def ddl_text_from_delta(
@@ -550,7 +576,7 @@ def ddl_text_from_delta(
     Returns:
         DDL text corresponding to *delta*.
     """
-    return _text_from_delta(schema, delta, sdlmode=False)
+    return text_from_delta(schema, delta, sdlmode=False)
 
 
 def sdl_text_from_delta(schema: s_schema.Schema, delta: sd.DeltaRoot) -> str:
@@ -566,7 +592,7 @@ def sdl_text_from_delta(schema: s_schema.Schema, delta: sd.DeltaRoot) -> str:
     Returns:
         SDL text corresponding to *delta*.
     """
-    return _text_from_delta(schema, delta, sdlmode=True)
+    return text_from_delta(schema, delta, sdlmode=True)
 
 
 def descriptive_text_from_delta(
@@ -590,33 +616,13 @@ def descriptive_text_from_delta(
     Returns:
         Descriptive text corresponding to *delta*.
     """
-    return _text_from_delta(
-        schema, delta, sdlmode=True, descriptive_mode=True,
-        limit_ref_classes=limit_ref_classes)
-
-
-def ddl_text_from_migration(
-    schema: s_schema.Schema,
-    migration: migrations.Migration
-) -> str:
-    """Return DDL text corresponding to a migration.
-
-    Args:
-        schema:
-            Unlike :func:`ddl_text_from_schema`, this is the schema
-            to which the *migration* has **not** already been
-            applied.
-        migration:
-            The migration object.
-
-    Returns:
-        DDL text corresponding to the delta in *migration*.
-    """
-    delta = migration.get_delta(schema)
-    assert delta is not None
-    context = sd.CommandContext()
-    migrated_schema = delta.apply(schema, context)
-    return ddl_text_from_delta(migrated_schema, delta)
+    return text_from_delta(
+        schema,
+        delta,
+        sdlmode=True,
+        descriptive_mode=True,
+        limit_ref_classes=limit_ref_classes,
+    )
 
 
 def ddl_text_from_schema(

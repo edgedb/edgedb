@@ -27,12 +27,10 @@ from edb import errors
 from edb.common import markup
 from edb.testbase import lang as tb
 
-from edb import edgeql
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import parser as qlparser
 from edb.edgeql import qltypes
 
-from edb.schema import delta as s_delta
 from edb.schema import ddl as s_ddl
 from edb.schema import links as s_links
 from edb.schema import objtypes as s_objtypes
@@ -1023,14 +1021,15 @@ _123456789_123456789_123456789 -> str
         )
 
         schema = self.run_ddl(schema, """
-            CREATE MIGRATION ancestor_propagation TO {
+            START MIGRATION TO {
                 module test {
                     type A;
                     type B;
                     type C extending B;
                 }
             };
-            COMMIT MIGRATION ancestor_propagation;
+            POPULATE MIGRATION;
+            COMMIT MIGRATION;
         """)
 
         self.assertEqual(
@@ -1097,46 +1096,31 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         if multi_module:
             migration_text = f'''
-                CREATE MIGRATION m TO {{
+                START MIGRATION TO {{
                     {schema_text}
                 }};
+                POPULATE MIGRATION;
+                COMMIT MIGRATION;
             '''
         else:
             migration_text = f'''
-                CREATE MIGRATION m TO {{
+                START MIGRATION TO {{
                     module default {{
                         {schema_text}
                     }}
                 }};
+                POPULATE MIGRATION;
+                COMMIT MIGRATION;
             '''
 
-        migration_ql = edgeql.parse_block(migration_text)
+        baseline_schema = self.run_ddl(self.schema, migration_text)
+        migration = baseline_schema.get_last_migration()
+        assert migration is not None
 
-        migration_cmd = s_ddl.cmd_from_ddl(
-            migration_ql[0],
-            schema=base_schema,
-            modaliases={
-                None: 'default'
-            },
-        )
-
-        migration_cmd = s_ddl.compile_migration(
-            migration_cmd,
-            self.std_schema,
-            base_schema,
-        )
-
-        context = s_delta.CommandContext()
-        schema = migration_cmd.apply(base_schema, context)
-        migration = migration_cmd.scls
-
-        ddl_plan = migration.get_delta(schema)
-        baseline_schema = ddl_plan.apply(schema, context)
-
-        ddl_text = s_ddl.ddl_text_from_delta(baseline_schema, ddl_plan)
+        ddl_text = migration.get_script(baseline_schema)
 
         try:
-            test_schema = self.run_ddl(schema, ddl_text)
+            test_schema = self.run_ddl(self.schema, ddl_text)
         except errors.EdgeDBError as e:
             self.fail(markup.dumps(e))
 
@@ -1161,8 +1145,9 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             sdl_schema = self.run_ddl(
                 self.std_schema,
                 f'''
-                CREATE MIGRATION m TO {{ {sdl_text} }};
-                COMMIT MIGRATION m;
+                START MIGRATION TO {{ {sdl_text} }};
+                POPULATE MIGRATION;
+                COMMIT MIGRATION;
                 ''',
             )
         except errors.EdgeDBError as e:
@@ -1188,9 +1173,9 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 f'SDL text was:\n{sdl_text}'
             )
 
-        return self.run_ddl(baseline_schema, 'DROP MIGRATION m;')
+        return baseline_schema
 
-    def _assert_migration_equivalence(self, migrations, check_all_steps=False):
+    def _assert_migration_equivalence(self, migrations):
         # Compare 2 schemas obtained by multiple-step migration to a
         # single-step migration.
 
@@ -1199,27 +1184,25 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # different evolution branches.
         base_schema = self.load_schema('')
 
-        if check_all_steps:
-            cur_schema = base_schema
-            for migration in migrations:
-                # Validate that each migration step is self-consistent.
-                cur_schema = self._assert_migration_consistency(
-                    migration,
-                    base_schema=cur_schema,
-                )
-        else:
-            self._assert_migration_consistency(migrations[-1])
+        cur_schema = base_schema
+        for migration in migrations:
+            # Validate that each migration step is self-consistent.
+            cur_schema = self._assert_migration_consistency(
+                migration,
+                base_schema=cur_schema,
+            )
 
         # Evolve a schema in a series of migrations.
         multi_migration = base_schema
         for i, state in enumerate(migrations):
             mig_text = f'''
-                CREATE MIGRATION m{i} TO {{
+                START MIGRATION TO {{
                     module default {{
                         {state}
                     }}
                 }};
-                COMMIT MIGRATION m{i};
+                POPULATE MIGRATION;
+                COMMIT MIGRATION;
             '''
 
             # Jump to the current schema state directly from base.
@@ -4212,11 +4195,9 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             }
             """,
 
-            'DESCRIBE SCHEMA',
+            'DESCRIBE MODULE test',
 
             """
-            CREATE MODULE test IF NOT EXISTS;
-
             CREATE SCALAR TYPE test::custom_str_t EXTENDING std::str {
                 CREATE CONSTRAINT std::regexp('[A-Z]+');
             };
@@ -4231,11 +4212,9 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             }
             """,
 
-            'DESCRIBE SCHEMA',
+            'DESCRIBE MODULE test',
 
             """
-            CREATE MODULE test IF NOT EXISTS;
-
             CREATE ABSTRACT CONSTRAINT test::my_one_of(one_of: array<anytype>){
                 SET orig_expr := 'contains(one_of, __subject__)';
                 USING (WITH
@@ -4652,10 +4631,9 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             alias Bar := (SELECT Foo {name, calc := 1});
             """,
 
-            'DESCRIBE SCHEMA',
+            'DESCRIBE MODULE test',
 
             """
-            CREATE MODULE test IF NOT EXISTS;
             CREATE TYPE test::Foo {
                 CREATE OPTIONAL SINGLE PROPERTY name -> std::str;
             };
@@ -4684,10 +4662,9 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             };
             """,
 
-            'DESCRIBE SCHEMA',
+            'DESCRIBE MODULE test',
 
             """
-            CREATE MODULE test IF NOT EXISTS;
             CREATE TYPE test::Foo {
                 CREATE OPTIONAL SINGLE PROPERTY name -> std::str;
             };
@@ -4711,10 +4688,9 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             alias scalar_alias := {1, 2, 3};
             """,
 
-            'DESCRIBE SCHEMA',
+            'DESCRIBE MODULE test',
 
             """
-            CREATE MODULE test IF NOT EXISTS;
             CREATE ALIAS test::scalar_alias :=
                 (WITH
                     MODULE test
@@ -4731,10 +4707,9 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             alias array_alias := [1, 2, 3];
             """,
 
-            'DESCRIBE SCHEMA',
+            'DESCRIBE MODULE test',
 
             """
-            CREATE MODULE test IF NOT EXISTS;
             CREATE ALIAS test::array_alias :=
                 ([1, 2, 3]);
             CREATE ALIAS test::tuple_alias :=
@@ -4763,10 +4738,9 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             };
             """,
 
-            'DESCRIBE SCHEMA',
+            'DESCRIBE MODULE test',
 
             """
-            CREATE MODULE test IF NOT EXISTS;
             CREATE TYPE test::Foo {
                 CREATE OPTIONAL SINGLE PROPERTY annotated_compprop {
                     USING ('foo');

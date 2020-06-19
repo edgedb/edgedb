@@ -31,9 +31,7 @@ specific schema state. For example:
 
 .. code-block:: edgeql-repl
 
-    db> START TRANSACTION;
-    START TRANSACTION
-    db> CREATE MIGRATION movies TO {
+    db> START MIGRATION TO {
     ...     # "default" module block
     ...     module default {
     ...         type Movie {
@@ -49,11 +47,11 @@ specific schema state. For example:
     ...         }
     ...     }
     ... };
-    CREATE MIGRATION
-    db> COMMIT MIGRATION movies;
+    START MIGRATION
+    db> POPULATE MIGRATION;
+    POPULATE MIGRATION
+    db> COMMIT MIGRATION;
     COMMIT MIGRATION
-    db> COMMIT;
-    COMMIT TRANSACTION
 
 It is possible to also omit the module blocks, but then individual
 declarations must use :ref:`fully-qualified names
@@ -63,9 +61,7 @@ to the previous migration:
 
 .. code-block:: edgeql-repl
 
-    db> START TRANSACTION;
-    START TRANSACTION
-    db> CREATE MIGRATION movies TO {
+    db> START MIGRATION TO {
     ...     # no module block
     ...     type default::Movie {
     ...         required property title -> str;
@@ -79,11 +75,11 @@ to the previous migration:
     ...         required property last_name -> str;
     ...     }
     ... };
-    CREATE MIGRATION
-    db> COMMIT MIGRATION movies;
+    START MIGRATION
+    db> POPULATE MIGRATION;
+    POPULATE MIGRATION
+    db> COMMIT MIGRATION;
     COMMIT MIGRATION
-    db> COMMIT;
-    COMMIT TRANSACTION
 
 .. toctree::
     :maxdepth: 3

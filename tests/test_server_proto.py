@@ -1775,34 +1775,6 @@ class TestServerProto(tb.QueryTestCase):
             await self.con.fetchone('SELECT 1;'),
             1)
 
-    async def test_server_proto_tx_15(self):
-        commands = [
-            '''
-            CREATE MIGRATION ttt TO {
-                module default {
-                    type User {
-                        required property login -> str {
-                            constraint exclusive;
-                        };
-                    };
-                };
-            };
-            ''',
-            '''GET MIGRATION ttt;''',
-            '''COMMIT MIGRATION ttt;''',
-        ]
-
-        for command in commands:
-            with self.annotate(command=command):
-                with self.assertRaisesRegex(
-                        edgedb.QueryError,
-                        'must be executed in a transaction'):
-                    await self.con.execute(command)
-
-        self.assertEqual(
-            await self.con.fetchone('SELECT 1111;'),
-            1111)
-
     async def test_server_proto_tx_16(self):
         try:
             for isol in ['', 'SERIALIZABLE', 'REPEATABLE READ']:
@@ -1935,16 +1907,15 @@ class TestServerProtoMigration(tb.QueryTestCase):
         typename = f'test_{uuid.uuid4().hex}'
 
         await self.con.execute(f'''
-            START TRANSACTION;
-            CREATE MIGRATION def TO {{
+            START MIGRATION TO {{
                 module default {{
                     type {typename} {{
                         required property foo -> str;
                     }}
                 }}
             }};
-            COMMIT MIGRATION def;
-            COMMIT;
+            POPULATE MIGRATION;
+            COMMIT MIGRATION;
 
             INSERT {typename} {{
                 foo := '123'
@@ -2546,14 +2517,13 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
     async def test_server_proto_backend_tid_propagation_03(self):
         try:
             await self.con.execute('''
-                START TRANSACTION;
-                CREATE MIGRATION test TO {
+                START MIGRATION TO {
                     module test {
                         scalar type tid_prop_03 extending str;
                     }
                 };
-                COMMIT MIGRATION test;
-                COMMIT;
+                POPULATE MIGRATION;
+                COMMIT MIGRATION;
             ''')
 
             result = await self.con.fetchone('''

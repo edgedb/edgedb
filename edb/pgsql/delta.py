@@ -44,6 +44,7 @@ from edb.schema import functions as s_funcs
 from edb.schema import indexes as s_indexes
 from edb.schema import links as s_links
 from edb.schema import lproperties as s_props
+from edb.schema import migrations as s_migrations
 from edb.schema import modules as s_mod
 from edb.schema import name as sn
 from edb.schema import operators as s_opers
@@ -4012,3 +4013,31 @@ class DeltaRoot(MetaCommand, adapts=sd.DeltaRoot):
                 if not queue:
                     queues[op.priority] = queue = []
                 queue.append(op)
+
+
+class MigrationCommand(ObjectMetaCommand):
+    pass
+
+
+class CreateMigration(
+    MigrationCommand,
+    CreateObject,
+    adapts=s_migrations.CreateMigration,
+):
+    pass
+
+
+class AlterMigration(
+    MigrationCommand,
+    AlterObject,
+    adapts=s_migrations.AlterMigration,
+):
+    pass
+
+
+class DeleteMigration(
+    MigrationCommand,
+    DeleteObject,
+    adapts=s_migrations.DeleteMigration,
+):
+    pass

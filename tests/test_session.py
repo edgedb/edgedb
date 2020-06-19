@@ -24,7 +24,7 @@ from edb.testbase import server as tb
 
 class TestSession(tb.QueryTestCase):
     SETUP = """
-        CREATE MIGRATION mig TO {
+        START MIGRATION TO {
             module default {
                 type User {
                     required property name -> str;
@@ -47,7 +47,8 @@ class TestSession(tb.QueryTestCase):
             };
         };
 
-        COMMIT MIGRATION mig;
+        POPULATE MIGRATION;
+        COMMIT MIGRATION;
 
         # Needed for validating that "ALTER TYPE User" DDL commands work.
         CREATE ALIAS UserOneToOneAlias := (SELECT User);
@@ -275,12 +276,13 @@ class TestSession(tb.QueryTestCase):
                                     r'called in a non-session context'):
             async with self.con.transaction():
                 await self.con.execute(r"""
-                    CREATE MIGRATION bad TO {
+                    START MIGRATION TO {
                         alias test::BadAlias := Object {
                             sess := sys::sleep(0)
                         }
                     };
-                    COMMIT MIGRATION bad;
+                    POPULATE MIGRATION;
+                    COMMIT MIGRATION;
                 """)
 
     async def test_session_only_function_08(self):
@@ -289,12 +291,13 @@ class TestSession(tb.QueryTestCase):
                                     r'called in a non-session context'):
             async with self.con.transaction():
                 await self.con.execute(r"""
-                    CREATE MIGRATION bad TO {
+                    START MIGRATION TO {
                         type test::BadType {
                             property bad -> bool {
                                 default := sys::sleep(0)
                             }
                         }
                     };
-                    COMMIT MIGRATION bad;
+                    POPULATE MIGRATION;
+                    COMMIT MIGRATION;
                 """)

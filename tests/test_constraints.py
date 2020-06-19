@@ -367,11 +367,7 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
         with open(new_schema_f) as f:
             new_schema = f.read()
 
-        async with self.con.transaction():
-            await self.con.execute(f'''
-                CREATE MIGRATION d1 TO {{ module test {{ {new_schema} }} }};
-                COMMIT MIGRATION d1;
-            ''')
+        await self.migrate(new_schema)
 
         async with self._run_and_rollback():
             # This is OK, the name exclusivity constraint is abstract
@@ -983,15 +979,11 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
 
     async def test_constraints_ddl_error_05(self):
         # Test that constraint expression returns a boolean.
-        qry = """
-            CREATE MIGRATION ddl_error_05 TO {
-                module test {
-                    type User {
-                        required property login -> str {
-                            constraint expression on (len(__subject__))
-                        }
-                    };
-                };
+        schema = """
+            type User {
+                required property login -> str {
+                    constraint expression on (len(__subject__))
+                }
             };
         """
 
@@ -999,8 +991,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
                 edgedb.SchemaDefinitionError,
                 "constraint expression expected to return a bool value, "
                 "got scalar type 'std::int64'"):
-            async with self.con.transaction():
-                await self.con.execute(qry)
+            await self.migrate(schema)
 
         qry = """
             CREATE TYPE User {

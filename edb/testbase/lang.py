@@ -29,6 +29,7 @@ from edb.common import context
 from edb.common import devmode
 from edb.common import markup
 
+from edb import errors
 from edb import edgeql
 from edb.edgeql import ast as qlast
 from edb.edgeql import parser as qlparser
@@ -43,6 +44,7 @@ from edb.schema import migrations as s_migrations  # noqa
 from edb.schema import reflection as s_refl
 from edb.schema import schema as s_schema
 from edb.schema import std as s_std
+from edb.schema import utils as s_utils
 
 
 def must_fail(exc_type, exc_msg_re=None, **kwargs):
@@ -308,60 +310,118 @@ class BaseSchemaTest(BaseDocTest):
 
         current_schema = schema
         target_schema = None
+        migration_schema = None
+        migration_target = None
+        migration_script = []
+        migration_plan = None
 
         for stmt in statements:
-            if isinstance(stmt, qlast.CreateMigration):
-                # CREATE MIGRATION
+            if isinstance(stmt, qlast.StartMigration):
+                # START MIGRATION
                 if target_schema is None:
                     target_schema = _load_std_schema()
 
-                ddl_plan = s_ddl.cmd_from_ddl(
-                    stmt, schema=current_schema,
-                    modaliases={None: default_module},
-                    testmode=True)
+                migration_target = s_ddl.apply_sdl(
+                    stmt.target,
+                    base_schema=target_schema,
+                    current_schema=current_schema,
+                    testmode=True,
+                )
 
-                ddl_plan = s_ddl.compile_migration(
-                    ddl_plan, target_schema, current_schema)
+                migration_schema = current_schema
+
+                ddl_plan = None
+
+            elif isinstance(stmt, qlast.PopulateMigration):
+                # POPULATE MIGRATION
+                if migration_target is None:
+                    raise errors.QueryError(
+                        'unexpected POPULATE MIGRATION:'
+                        ' not currently in a migration block',
+                        context=stmt.context,
+                    )
+
+                migration_diff = s_ddl.delta_schemas(
+                    migration_schema,
+                    migration_target,
+                )
+
+                if not migration_script:
+                    migration_plan = migration_diff
+
+                migration_script.extend(
+                    s_ddl.ddlast_from_delta(
+                        migration_target,
+                        migration_diff,
+                    ),
+                )
 
             elif isinstance(stmt, qlast.CommitMigration):
-                # COMMIT MIGRATION
-                migration_cmd = s_ddl.cmd_from_ddl(
-                    stmt, schema=current_schema,
+                if migration_target is None:
+                    raise errors.QueryError(
+                        'unexpected COMMIT MIGRATION:'
+                        ' not currently in a migration block',
+                        context=stmt.context,
+                    )
+
+                last_migration = current_schema.get_last_migration()
+                if last_migration:
+                    last_migration_ref = s_utils.name_to_ast_ref(
+                        last_migration.get_name(current_schema),
+                    )
+                else:
+                    last_migration_ref = None
+
+                create_migration = qlast.CreateMigration(
+                    commands=migration_script,
+                    auto_diff=migration_plan,
+                    parent=last_migration_ref,
+                )
+
+                ddl_plan = s_ddl.delta_from_ddl(
+                    create_migration,
+                    schema=migration_schema,
                     modaliases={None: default_module},
-                    testmode=True)
-                migration = current_schema.get_global(
-                    s_migrations.Migration, migration_cmd.classname)
-                ddl_plan = migration.get_delta(current_schema)
+                    testmode=True,
+                )
+
+                migration_schema = None
+                migration_target = None
+                migration_script = []
+                migration_plan = None
 
             elif isinstance(stmt, qlast.DDL):
-                # CREATE/DELETE/ALTER (FUNCTION, TYPE, etc)
-                ddl_plan = s_ddl.delta_from_ddl(
-                    stmt, schema=current_schema,
-                    modaliases={None: default_module},
-                    testmode=True)
+                if migration_target is not None:
+                    migration_script.append(stmt)
+                    ddl_plan = None
+                else:
+                    ddl_plan = s_ddl.delta_from_ddl(
+                        stmt,
+                        schema=current_schema,
+                        modaliases={None: default_module},
+                        testmode=True,
+                    )
 
             else:
                 raise ValueError(
                     f'unexpected {stmt!r} in compiler setup script')
 
-            context = sd.CommandContext()
-            context.testmode = True
-            current_schema = ddl_plan.apply(current_schema, context)
+            if ddl_plan is not None:
+                context = sd.CommandContext()
+                context.testmode = True
+                current_schema = ddl_plan.apply(current_schema, context)
 
         return current_schema
 
     @classmethod
     def load_schema(cls, source: str, modname: str='test') -> s_schema.Schema:
-        target = qlparser.parse_sdl(f'module {modname} {{ {source} }}')
-        decls = [
-            # The target is a Schema with a single module block. We
-            # want to extract the declarations from it.
-            (modname, target.declarations[0].declarations)
-        ]
-
+        sdl_schema = qlparser.parse_sdl(f'module {modname} {{ {source} }}')
         schema = _load_std_schema()
         return s_ddl.apply_sdl(
-            decls, target_schema=schema, current_schema=schema)
+            sdl_schema,
+            base_schema=schema,
+            current_schema=schema,
+        )
 
     @classmethod
     def get_schema_script(cls):
@@ -372,8 +432,7 @@ class BaseSchemaTest(BaseDocTest):
         for name, val in cls.__dict__.items():
             m = re.match(r'^SCHEMA(?:_(\w+))?', name)
             if m:
-                module_name = (m.group(1) or 'test').lower().replace(
-                    '__', '.')
+                module_name = (m.group(1) or 'test').lower().replace('__', '.')
 
                 if '\n' in val:
                     # Inline schema source
@@ -384,9 +443,11 @@ class BaseSchemaTest(BaseDocTest):
 
                 schema.append(f'\nmodule {module_name} {{ {module} }}')
 
-        script += f'\nCREATE MIGRATION test_migration'
-        script += f' TO {{ {"".join(schema)} }};'
-        script += f'\nCOMMIT MIGRATION test_migration;'
+        if schema:
+            script += f'\nSTART MIGRATION'
+            script += f' TO {{ {"".join(schema)} }};'
+            script += f'\nPOPULATE MIGRATION;'
+            script += f'\nCOMMIT MIGRATION;'
 
         return script.strip(' \n')
 

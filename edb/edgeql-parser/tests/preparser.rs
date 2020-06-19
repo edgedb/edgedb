@@ -103,7 +103,7 @@ fn test_after_variable() {
 #[test]
 fn test_schema() {
     test_statement(br###"
-        CREATE MIGRATION movies TO {
+        START MIGRATION TO {
             module default {
                 type Movie {
                     required property title -> str;
@@ -118,5 +118,5 @@ fn test_schema() {
                 }
             }
         };
-        "###, 540);
+        "###, 532);
 }

@@ -68,10 +68,7 @@ def linearize_delta(
     ordered = list(topological.sort(depgraph, allow_unresolved=True,
                                     return_record=True))
 
-    parents: Dict[Tuple[Type[sd.ObjectCommand[so.Object]], str],
-                  sd.ObjectCommand[so.Object]]
     dependencies: Dict[sd.Command, Set[sd.Command]]
-    parents = {}
     dependencies = collections.defaultdict(set)
     max_offset = len(ordered)
     offsets: Dict[sd.Command, int] = {}
@@ -91,11 +88,15 @@ def linearize_delta(
             assert isinstance(dep_parent, sd.ObjectCommand)
             dependencies[op].add(dep_op)
 
+    parents: Dict[
+        Tuple[Type[sd.ObjectCommand[so.Object]], str],
+        sd.ObjectCommand[so.Object]
+    ] = {}
+
     for _key, info in ordered:
         op = info['op']
         # Elide empty ALTER statements from output.
-        if (isinstance(op, sd.AlterObject)
-                and not len(op.get_subcommands())):
+        if isinstance(op, sd.AlterObject) and not op.get_subcommands():
             continue
 
         opstack = opmap[op]
