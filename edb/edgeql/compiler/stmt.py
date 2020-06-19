@@ -511,10 +511,14 @@ def compile_DescribeStmt(
                     name = objref.name
 
                 if itemclass is not None:
-                    itemtype = (
-                        s_obj.ObjectMeta.get_schema_metaclass_for_ql_class(
-                            itemclass)
-                    )
+                    if itemclass is qltypes.SchemaObjectClass.ALIAS:
+                        # Look for underlying derived type.
+                        itemtype = s_types.Type
+                    else:
+                        itemtype = (
+                            s_obj.ObjectMeta.get_schema_metaclass_for_ql_class(
+                                itemclass)
+                        )
 
                 if (itemclass is None or
                         itemclass is qltypes.SchemaObjectClass.FUNCTION):
@@ -533,12 +537,22 @@ def compile_DescribeStmt(
                         found = True
 
                 if not found:
+                    if itemclass is not qltypes.SchemaObjectClass.ALIAS:
+                        condition = None
+                        label = None
+                    else:
+                        condition = (
+                            lambda obj:
+                            obj.get_alias_is_persistent(ctx.env.schema)
+                        )
+                        label = 'alias'
                     obj = schemactx.get_schema_object(
                         objref,
                         item_type=itemtype,
+                        condition=condition,
+                        label=label,
                         ctx=ictx,
                     )
-
                     items.append(obj.get_name(ictx.env.schema))
 
             verbose = ql.options.get_flag('VERBOSE')

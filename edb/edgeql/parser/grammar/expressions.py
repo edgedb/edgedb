@@ -1523,6 +1523,10 @@ class SchemaObjectClassValue(typing.NamedTuple):
 
 class SchemaObjectClass(Nonterm):
 
+    def reduce_ALIAS(self, *kids):
+        self.val = SchemaObjectClassValue(
+            itemclass=qltypes.SchemaObjectClass.ALIAS)
+
     def reduce_ANNOTATION(self, *kids):
         self.val = SchemaObjectClassValue(
             itemclass=qltypes.SchemaObjectClass.ANNOTATION)

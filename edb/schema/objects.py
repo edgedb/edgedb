@@ -1062,7 +1062,15 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         their_schema: s_schema.Schema,
         context: ComparisonContext,
     ) -> float:
-        comparator = getattr(field.type, 'compare_values', None)
+        if (
+            our_value is not None
+            and their_value is not None
+            and type(our_value) == type(their_value)
+        ):
+            comparator = getattr(type(our_value), 'compare_values', None)
+        else:
+            comparator = getattr(field.type, 'compare_values', None)
+
         assert field.compcoef is not None
         if callable(comparator):
             result = comparator(
@@ -1694,12 +1702,18 @@ class ObjectShell(Shell):
                 'cannot resolve anonymous ObjectShell'
             )
 
-        return schema.get(
-            self.name,
-            type=self.schemaclass,
-            refname=self.origname,
-            sourcectx=self.sourcectx,
-        )
+        if (
+            self.schemaclass is Object
+            or issubclass(self.schemaclass, QualifiedObject)
+        ):
+            return schema.get(
+                self.name,
+                type=self.schemaclass,
+                refname=self.origname,
+                sourcectx=self.sourcectx,
+            )
+        else:
+            return schema.get_global(self.schemaclass, self.name)
 
     def get_refname(self, schema: s_schema.Schema) -> str:
         if self.origname is not None:

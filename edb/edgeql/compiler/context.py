@@ -37,6 +37,7 @@ from edb.edgeql import qltypes
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
 
+from edb.schema import expraliases as s_aliases
 from edb.schema import functions as s_func
 from edb.schema import name as s_name
 from edb.schema import objects as s_obj
@@ -297,6 +298,20 @@ class Environment:
                                default=default)
         if sobj is not None and sobj is not default:
             self.schema_refs.add(sobj)
+
+            if (
+                isinstance(sobj, s_types.Type)
+                and sobj.get_expr(self.schema) is not None
+            ):
+                # If the type is derived from an ALIAS declaration,
+                # make sure we record the reference to the Alias object
+                # as well for correct delta ordering.
+                alias_objs = self.schema.get_referrers(
+                    sobj,
+                    scls_type=s_aliases.Alias,
+                    field_name='type',
+                )
+                self.schema_refs.update(alias_objs)
 
         return sobj
 

@@ -68,6 +68,7 @@ def get_global_dep_order() -> Tuple[Type[so.Object], ...]:
         # aliases are treated separately because they are not UnqualifiedObject
         types.ArrayExprAlias,
         types.TupleExprAlias,
+        expraliases.Alias,
         lproperties.Property,
         links.Link,
         objtypes.ObjectType,

@@ -30,6 +30,7 @@ from . import annos as s_anno
 from . import delta as sd
 from . import inheriting
 from . import objects as so
+from . import utils
 
 if TYPE_CHECKING:
     from edb.schema import schema as s_schema
@@ -81,12 +82,17 @@ class RoleCommand(sd.GlobalObjectCommand,
         schema: s_schema.Schema,
         astnode: qlast.ObjectDDL,
         context: sd.CommandContext,
-    ) -> so.ObjectList[Role]:
+    ) -> List[so.ObjectShell]:
         result = []
         for b in getattr(astnode, 'bases', None) or []:
-            result.append(schema.get_global(Role, b.maintype.name))
+            result.append(utils.ast_objref_to_object_shell(
+                b.maintype,
+                metaclass=Role,
+                schema=schema,
+                modaliases=context.modaliases,
+            ))
 
-        return so.ObjectList.create(schema, result)
+        return result
 
 
 class CreateRole(RoleCommand, inheriting.CreateInheritingObject[Role]):

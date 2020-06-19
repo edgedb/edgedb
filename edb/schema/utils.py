@@ -366,61 +366,6 @@ def name_to_ast_ref(name: str) -> qlast.ObjectRef:
         )
 
 
-def ast_to_object(
-    node: Union[qlast.TypeName, qlast.ObjectRef],
-    *,
-    metaclass: Optional[Type[so.Object]] = None,
-    modaliases: Mapping[Optional[str], str],
-    schema: s_schema.Schema,
-) -> so.Object:
-
-    ref = ast_to_object_shell(
-        node,
-        metaclass=metaclass,
-        modaliases=modaliases,
-        schema=schema,
-    )
-
-    return ref.resolve(schema)
-
-
-@overload
-def ast_to_type(  # NoQA: F811
-    node: qlast.TypeName, *,
-    metaclass: Type[s_types.TypeT],
-    modaliases: Mapping[Optional[str], str],
-    schema: s_schema.Schema,
-) -> s_types.TypeT:
-    ...
-
-
-@overload
-def ast_to_type(  # NoQA: F811
-    node: qlast.TypeName, *,
-    metaclass: None = None,
-    modaliases: Mapping[Optional[str], str],
-    schema: s_schema.Schema,
-) -> s_types.Type:
-    ...
-
-
-def ast_to_type(  # NoQA: F811
-    node: qlast.TypeName, *,
-    metaclass: Optional[Type[s_types.TypeT]] = None,
-    modaliases: Mapping[Optional[str], str],
-    schema: s_schema.Schema,
-) -> s_types.TypeT:
-
-    ref = ast_to_type_shell(
-        node,
-        metaclass=metaclass,
-        modaliases=modaliases,
-        schema=schema,
-    )
-
-    return ref.resolve(schema)  # type: ignore
-
-
 def is_nontrivial_container(value: Any) -> Optional[Iterable[Any]]:
     trivial_classes = (str, bytes, bytearray, memoryview)
     if (isinstance(value, collections.abc.Iterable) and

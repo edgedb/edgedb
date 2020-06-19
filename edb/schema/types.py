@@ -31,7 +31,6 @@ from edb.common import checked
 from edb.common import uuidgen
 
 from edb.edgeql import ast as qlast
-from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
 
 from . import abc as s_abc
@@ -49,7 +48,6 @@ if typing.TYPE_CHECKING:
     from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional
     from typing import AbstractSet, Sequence, Union
     from edb.common import parsing
-    from edb.ir import ast as irast
 
 
 TYPE_ID_NAMESPACE = uuidgen.UUID('00e50276-2502-11e7-97f2-27fe51238dbd')
@@ -432,6 +430,7 @@ class TypeShell(so.ObjectShell):
         name: str,
         origname: Optional[str] = None,
         displayname: Optional[str] = None,
+        expr: Optional[str] = None,
         is_abstract: bool = False,
         schemaclass: typing.Type[Type] = Type,
         sourcectx: Optional[parsing.ParserContext] = None,
@@ -445,6 +444,7 @@ class TypeShell(so.ObjectShell):
         )
 
         self.is_abstract = is_abstract
+        self.expr = expr
 
     def resolve(self, schema: s_schema.Schema) -> Type:
         if self.name is None:
@@ -706,14 +706,23 @@ class Collection(Type, s_abc.Collection):
             my_subtypes = ours.get_subtypes(our_schema)
             other_subtypes = theirs.get_subtypes(their_schema)
 
-            similarity = []
-            for i, st in enumerate(my_subtypes):
-                similarity.append(
-                    st.compare(
-                        other_subtypes[i], our_schema=our_schema,
-                        their_schema=their_schema, context=context))
+            if len(my_subtypes) != len(other_subtypes):
+                basecoef = 0.2
+            else:
+                similarity = []
+                for i, st in enumerate(my_subtypes):
+                    similarity.append(
+                        st.compare(
+                            other_subtypes[i], our_schema=our_schema,
+                            their_schema=their_schema, context=context))
 
-            basecoef = sum(similarity) / len(similarity)
+                basecoef = sum(similarity) / len(similarity)
+
+            my_typemods = ours.get_typemods(our_schema)
+            other_typemods = theirs.get_typemods(their_schema)
+
+            if my_typemods != other_typemods:
+                basecoef = 0.2
 
         return basecoef + (1 - basecoef) * compcoef
 
@@ -827,7 +836,11 @@ class Array(
                 f'multi-dimensional arrays are not supported')
 
         if id is so.NoDefault:
-            id = generate_array_type_id(schema, element_type, dimensions, name)
+            quals = []
+            if name is not None:
+                quals.append(name)
+            id = generate_array_type_id(
+                schema, element_type, dimensions, *quals)
 
         if name is None:
             dn = f'array<{element_type.get_displayname(schema)}>'
@@ -997,6 +1010,7 @@ class Array(
         subtypes: Sequence[TypeShell],
         typemods: Any = None,
         name: Optional[str] = None,
+        expr: Optional[str] = None,
     ) -> ArrayTypeShell:
         if not typemods:
             typemods = ([-1],)
@@ -1013,14 +1027,19 @@ class Array(
             subtype=st,
             typemods=typemods,
             name=name,
+            expr=expr,
+            schemaclass=cls,
         )
 
     def as_shell(self, schema: s_schema.Schema) -> ArrayTypeShell:
+        expr = self.get_expr(schema)
+        expr_text = expr.text if expr is not None else None
         return type(self).create_shell(
             schema,
             subtypes=[st.as_shell(schema) for st in self.get_subtypes(schema)],
             typemods=self.get_typemods(schema),
             name=self.get_name(schema),
+            expr=expr_text,
         )
 
     def material_type(
@@ -1063,10 +1082,12 @@ class ArrayTypeShell(CollectionTypeShell):
         self,
         *,
         name: str,
+        expr: Optional[str] = None,
         subtype: TypeShell,
         typemods: Any = None,
+        schemaclass: typing.Type[Array] = Array,
     ) -> None:
-        super().__init__(name=name, schemaclass=Array)
+        super().__init__(name=name, schemaclass=schemaclass, expr=expr)
         self.subtype = subtype
         self.typemods = typemods
 
@@ -1080,13 +1101,19 @@ class ArrayTypeShell(CollectionTypeShell):
         return f'array<{self.subtype.get_displayname(schema)}>'
 
     def get_id(self, schema: s_schema.Schema) -> uuid.UUID:
+        stable_type_id = type_id_from_name(self.name)
+        if stable_type_id is not None:
+            return stable_type_id
+
         dimensions = self.typemods[0] if self.typemods is not None else [-1]
-        name = self.name if not type_id_from_name(self.name) else None
+        quals = [self.name]
+        if self.expr is not None:
+            quals.append(self.expr)
         return generate_array_type_id(
             schema,
             self.subtype,
             dimensions,
-            name,
+            *quals,
         )
 
     def resolve(self, schema: s_schema.Schema) -> Array:
@@ -1185,7 +1212,10 @@ class Tuple(
     ) -> typing.Tuple[s_schema.Schema, Tuple_T]:
         element_types = types.MappingProxyType(element_types)
         if id is so.NoDefault:
-            id = generate_tuple_type_id(schema, element_types, name, named)
+            quals = []
+            if name is not None:
+                quals.append(name)
+            id = generate_tuple_type_id(schema, element_types, named, *quals)
 
         if name is None:
             st_names = ', '.join(
@@ -1332,7 +1362,7 @@ class Tuple(
     ) -> TupleTypeShell:
         named = typemods is not None and typemods.get('named', False)
         if name is None:
-            tid = generate_tuple_type_id(schema, subtypes, name, named)
+            tid = generate_tuple_type_id(schema, subtypes, named)
             st_names = ', '.join(
                 st.get_displayname(schema) for st in subtypes.values()
             )
@@ -1573,10 +1603,11 @@ class TupleTypeShell(CollectionTypeShell):
         self,
         *,
         name: str,
+        expr: Optional[str] = None,
         subtypes: Mapping[str, TypeShell],
         typemods: Any = None,
     ) -> None:
-        super().__init__(name=name, schemaclass=Tuple)
+        super().__init__(name=name, schemaclass=Tuple, expr=expr)
         self.subtypes = subtypes
         self.typemods = typemods
 
@@ -1592,9 +1623,17 @@ class TupleTypeShell(CollectionTypeShell):
         return tuple(self.subtypes.values())
 
     def get_id(self, schema: s_schema.Schema) -> uuid.UUID:
+        stable_type_id = type_id_from_name(self.name)
+        if stable_type_id is not None:
+            return stable_type_id
+
         named = self.typemods is not None and self.typemods.get('named', False)
-        name = self.name if not type_id_from_name(self.name) else None
-        return generate_tuple_type_id(schema, self.subtypes, name, named)
+
+        quals = [self.name]
+        if self.expr is not None:
+            quals.append(self.expr)
+
+        return generate_tuple_type_id(schema, self.subtypes, named, *quals)
 
     def resolve(self, schema: s_schema.Schema) -> Tuple:
         return schema.get_by_id(self.get_id(schema), type=Tuple)
@@ -1671,14 +1710,14 @@ def generate_type_id(id_str: str) -> uuid.UUID:
 def generate_tuple_type_id(
     schema: s_schema.Schema,
     element_types: Mapping[str, Union[Type, TypeShell]],
-    name: Optional[str] = None,
     named: bool = False,
+    *quals: str,
 ) -> uuid.UUID:
     id_str = ','.join(
         f'{n}:{st.get_id(schema)}' for n, st in element_types.items())
     id_str = f'{"named" if named else ""}tuple-{id_str}'
-    if name is not None:
-        id_str = f'{id_str}_{name}'
+    if quals:
+        id_str = f'{id_str}_{"-".join(quals)}'
     return generate_type_id(id_str)
 
 
@@ -1686,11 +1725,11 @@ def generate_array_type_id(
     schema: s_schema.Schema,
     element_type: Union[Type, TypeShell],
     dimensions: Sequence[int] = (),
-    name: Optional[str] = None,
+    *quals: str,
 ) -> uuid.UUID:
     id_basis = f'array-{element_type.get_id(schema)}-{dimensions}'
-    if name is not None:
-        id_basis = f'{id_basis}-{name}'
+    if quals:
+        id_basis = f'{id_basis}-{"-".join(quals)}'
     return generate_type_id(id_basis)
 
 
@@ -1763,6 +1802,7 @@ def ensure_schema_type_expr_type(
 
 
 class TypeCommand(sd.ObjectCommand[TypeT]):
+
     @classmethod
     def _get_alias_expr(cls, astnode: qlast.CreateAlias) -> qlast.Expr:
         expr = qlast.get_ddl_field_value(astnode, 'expr')
@@ -1771,165 +1811,17 @@ class TypeCommand(sd.ObjectCommand[TypeT]):
                 f'missing required view expression', context=astnode.context)
         return expr
 
-    @classmethod
-    def _compile_view_expr(
-        cls,
-        expr: qlast.Base,
-        classname: s_name.SchemaName,
+    def get_ast(
+        self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-    ) -> irast.Statement:
-        cached: Optional[irast.Statement] = (
-            context.get_cached((expr, classname)))
-        if cached is not None:
-            return cached
-
-        if not isinstance(expr, qlast.Statement):
-            expr = qlast.SelectQuery(result=expr)
-
-        ir = qlcompiler.compile_ast_to_ir(
-            expr,
-            schema,
-            options=qlcompiler.CompilerOptions(
-                derived_target_module=classname.module,
-                result_view_name=classname,
-                modaliases=context.modaliases,
-                schema_view_mode=True,
-            ),
-        )
-
-        context.cache_value((expr, classname), ir)
-
-        return ir  # type: ignore
-
-    @classmethod
-    def _handle_view_op(
-        cls,
-        schema: s_schema.Schema,
-        cmd: sd.QualifiedObjectCommand[InheritingType],
-        astnode: qlast.ObjectDDL,
-        context: sd.CommandContext,
-    ) -> sd.Command:
-        from . import ordering as s_ordering
-
-        view_expr = qlast.get_ddl_field_value(astnode, 'expr')
-        if view_expr is None:
-            return cmd
-
-        classname = cmd.classname
-        if not s_name.Name.is_qualified(classname):
-            # Collection commands use unqualified names
-            # because they use the type id in the general case,
-            # but in the case of an explicit named view, we
-            # still want a properly qualified name.
-            fq_classname = sd.QualifiedObjectCommand._classname_from_ast(
-                schema, astnode, context)
-            assert isinstance(fq_classname, s_name.Name)
-            cmd.classname = fq_classname
-
-        expr = s_expr.Expression.from_ast(
-            view_expr, schema, context.modaliases)
-
-        ir = cls._compile_view_expr(expr.qlast, classname,
-                                    schema, context)
-
-        new_schema = ir.schema
-
-        expr = s_expr.Expression.from_ir(expr, ir, schema=schema)
-
-        coll_expr_aliases: List[Collection] = []
-        prev_coll_expr_aliases: List[Collection] = []
-        expr_aliases: List[Type] = []
-        prev_expr_aliases: List[Type] = []
-        prev_ir: Optional[irast.Statement] = None
-        old_schema: Optional[s_schema.Schema] = None
-
-        for vt in ir.views.values():
-            if isinstance(vt, Collection):
-                coll_expr_aliases.append(vt)
-            else:
-                new_schema = vt.set_field_value(
-                    new_schema, 'alias_is_persistent', True)
-
-                expr_aliases.append(vt)
-
-        if isinstance(astnode, qlast.AlterObject):
-            prev = typing.cast(Type, schema.get(classname))
-            prev_expr = prev.get_expr(schema)
-            assert prev_expr is not None
-            prev_ir = cls._compile_view_expr(
-                prev_expr.qlast, classname, schema, context)
-            old_schema = prev_ir.schema
-            for vt in prev_ir.views.values():
-                if isinstance(vt, Collection):
-                    prev_coll_expr_aliases.append(vt)
-                else:
-                    prev_expr_aliases.append(vt)
-
-        derived_delta = sd.DeltaRoot()
-
-        for ref in ir.new_coll_types:
-            ensure_schema_collection(
-                # not "new_schema", because that already contains this
-                # collection type.
-                schema,
-                ref.as_shell(new_schema),
-                derived_delta,
-                context=context,
-            )
-
-        derived_delta.add(
-            so.Object.delta_sets(
-                prev_expr_aliases,
-                expr_aliases,
-                old_schema=old_schema,
-                new_schema=new_schema,
-                context=so.ComparisonContext(),
-            )
-        )
-
-        if prev_ir is not None:
-            for vt in prev_coll_expr_aliases:
-                dt = vt.as_delete_delta(prev_ir.schema, view_name=classname)
-                derived_delta.prepend(dt)
-
-        for vt in coll_expr_aliases:
-            ct = vt.as_shell(new_schema).as_create_delta(
-                # not "new_schema", to ensure the nested collection types
-                # are picked up properly.
-                schema,
-                view_name=classname,
-                attrs={
-                    'id': uuidgen.uuid1mc(),
-                    'expr': expr,
-                    'alias_is_persistent': True,
-                    'expr_type': ExprType.Select,
-                },
-            )
-            new_schema = ct.apply(new_schema, context)
-            derived_delta.add(ct)
-
-        derived_delta = s_ordering.linearize_delta(
-            derived_delta, old_schema=old_schema, new_schema=new_schema)
-
-        real_cmd = None
-        for op in derived_delta.get_subcommands():
-            assert isinstance(op, sd.ObjectCommand)
-            if op.classname == classname:
-                real_cmd = op
-                break
-
-        if real_cmd is None:
-            raise RuntimeError(
-                'view delta does not contain the expected '
-                'view Create/Alter command')
-
-        real_cmd.set_attribute_value('expr', expr)
-
-        result = sd.CommandGroup()
-        result.update(derived_delta.get_subcommands())
-        result.canonical = True
-        return result
+        *,
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
+        if self.get_attribute_value('expr'):
+            return None
+        else:
+            return super().get_ast(schema, context, parent_node=parent_node)
 
     def _create_begin(
         self, schema: s_schema.Schema, context: sd.CommandContext
@@ -1948,26 +1840,33 @@ class InheritingTypeCommand(
     TypeCommand[InheritingTypeT],
     inheriting.InheritingObjectCommand[InheritingTypeT],
 ):
+    pass
 
-    @classmethod
-    def _validate_base_refs(
-        cls,
+
+class CreateInheritingType(
+    InheritingTypeCommand[InheritingTypeT],
+    inheriting.CreateInheritingObject[InheritingTypeT],
+):
+
+    def validate_create(
+        self,
         schema: s_schema.Schema,
-        base_refs: Iterable[InheritingTypeT],
-        astnode: qlast.ObjectDDL,
         context: sd.CommandContext,
-    ) -> so.ObjectList[InheritingTypeT]:
+    ) -> None:
 
-        bases = super()._validate_base_refs(
-            schema, base_refs, astnode, context)
+        super().validate_create(schema, context)
 
-        for base in bases.objects(schema):
-            if base.contains_any(schema):
-                base_type_name = base.get_displayname(schema)
-                raise errors.SchemaError(
-                    f"{base_type_name!r} cannot be a parent type")
-
-        return bases
+        bases = self.get_resolved_attribute_value(
+            'bases',
+            schema=schema,
+            context=context,
+        )
+        if bases:
+            for base in bases.objects(schema):
+                if base.contains_any(schema):
+                    base_type_name = base.get_displayname(schema)
+                    raise errors.SchemaError(
+                        f"{base_type_name!r} cannot be a parent type")
 
 
 class CollectionTypeCommandContext(sd.ObjectCommandContext[Collection]):
@@ -1994,19 +1893,7 @@ class CollectionExprAliasCommand(
     TypeCommand[CollectionExprAliasT],
     context_class=CollectionTypeCommandContext,
 ):
-
-    @classmethod
-    def _cmd_tree_from_ast(
-        cls,
-        schema: s_schema.Schema,
-        astnode: qlast.DDLOperation,
-        context: sd.CommandContext,
-    ) -> sd.Command:
-        assert isinstance(astnode, qlast.ObjectDDL)
-        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
-        assert isinstance(cmd, sd.QualifiedObjectCommand)
-        cmd = cls._handle_view_op(schema, cmd, astnode, context)
-        return cmd
+    pass
 
 
 class CreateCollectionType(
@@ -2051,6 +1938,18 @@ class CreateTupleExprAlias(CreateCollectionExprAlias[TupleExprAlias],
         return qlast.CreateAlias
 
 
+class RenameTupleExprAlias(CollectionExprAliasCommand[TupleExprAlias],
+                           sd.RenameObject,
+                           schema_metaclass=TupleExprAlias):
+    pass
+
+
+class AlterTupleExprAlias(CollectionExprAliasCommand[TupleExprAlias],
+                          sd.AlterObject[TupleExprAlias],
+                          schema_metaclass=TupleExprAlias):
+    pass
+
+
 class CreateArray(CreateCollectionType[Array], schema_metaclass=Array):
     pass
 
@@ -2063,6 +1962,18 @@ class CreateArrayExprAlias(CreateCollectionExprAlias[TupleExprAlias],
         # Can't just use class-level astnode because that creates a
         # duplicate in ast -> command mapping.
         return qlast.CreateAlias
+
+
+class RenameArrayExprAlias(CollectionExprAliasCommand[ArrayExprAlias],
+                           sd.RenameObject,
+                           schema_metaclass=ArrayExprAlias):
+    pass
+
+
+class AlterArrayExprAlias(CollectionExprAliasCommand[ArrayExprAlias],
+                          sd.AlterObject[ArrayExprAlias],
+                          schema_metaclass=ArrayExprAlias):
+    pass
 
 
 class DeleteTuple(DeleteCollectionType[Tuple], schema_metaclass=Tuple):

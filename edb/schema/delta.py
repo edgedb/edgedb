@@ -22,6 +22,7 @@ from typing import *
 
 import collections
 import collections.abc
+import contextlib
 import itertools
 import uuid
 
@@ -827,6 +828,15 @@ class CommandContext:
     def get_value(self, key: Hashable) -> Any:
         return self._values.get(key)
 
+    @contextlib.contextmanager
+    def suspend_dep_verification(self) -> Iterator[CommandContext]:
+        dep_ver = self.disable_dep_verification
+        self.disable_dep_verification = True
+        try:
+            yield self
+        finally:
+            self.disable_dep_verification = dep_ver
+
     def __call__(
         self,
         token: CommandContextToken[Command_T],
@@ -1191,20 +1201,6 @@ class ObjectCommand(
             if rename is not None:
                 name = rename
         return schema.get_global(metaclass, name, default=default)
-
-    def compute_inherited_fields(
-        self,
-        schema: s_schema.Schema,
-        context: CommandContext,
-    ) -> Dict[str, bool]:
-        result = {}
-        mcls = self.get_schema_metaclass()
-        for op in self.get_subcommands(type=AlterObjectProperty):
-            field = mcls.get_field(op.property)
-            if field.inheritable:
-                result[op.property] = op.source == 'inheritance'
-
-        return result
 
     def resolve_refs(
         self,
@@ -1628,6 +1624,16 @@ class RenameObject(AlterObjectFragment):
         vn = scls.get_verbosename(schema)
         self._prohibit_if_expr_refs(schema, context, action=f'rename {vn}')
 
+        if not context.canonical:
+            self.set_attribute_value(
+                'name',
+                value=self.new_name,
+                orig_value=self.classname,
+            )
+
+        for op in self.get_prerequisites():
+            schema = op.apply(schema, context)
+
         self.old_name = self.classname
         schema = scls.set_field_value(schema, 'name', self.new_name)
 
@@ -1914,7 +1920,7 @@ class DeleteObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         self._validate_legal_command(schema, context)
 
         if (not context.canonical
-                and not context.get_value(('delcanon', self.scls))):
+                and not context.get_value(('delcanon', self))):
             commands = self._canonicalize(schema, context, self.scls)
             root = DeltaRoot()
             root.update(commands)
@@ -1962,7 +1968,7 @@ class DeleteObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         # Record the fact that DeleteObject._canonicalize
         # was called on this object to guard against possible
         # duplicate calls.
-        context.store_value(('delcanon', scls), True)
+        context.store_value(('delcanon', self), True)
 
         return commands
 
@@ -1983,7 +1989,7 @@ class DeleteObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
     ) -> s_schema.Schema:
         ref_strs = []
 
-        if not context.canonical:
+        if not context.canonical and not context.disable_dep_verification:
             refs = schema.get_referrers(self.scls)
             if refs:
                 for ref in refs:
@@ -2158,7 +2164,7 @@ class AlterObjectProperty(Command):
 
             elif isinstance(astnode.value, qlast.ObjectRef):
 
-                new_value = utils.ast_to_object(
+                new_value = utils.ast_to_object_shell(
                     astnode.value,
                     modaliases=context.modaliases,
                     schema=schema,

@@ -234,6 +234,13 @@ class ExpressionShell(so.Shell):
             self._qlast = qlparser.parse_fragment(self.text)
         return self._qlast
 
+    def __repr__(self) -> str:
+        if self.refs is None:
+            refs = 'N/A'
+        else:
+            refs = ', '.join(repr(obj) for obj in self.refs)
+        return f'<ExpressionShell {self.origtext} refs=({refs})>'
+
 
 class ExpressionList(checked.FrozenCheckedList[Expression]):
 

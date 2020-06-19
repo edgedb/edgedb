@@ -2698,6 +2698,7 @@ class TestExpressions(tb.QueryTestCase):
                 ORDER BY _;
             """,
             [
+                'schema::Alias',
                 'schema::Annotation',
                 'schema::AnnotationSubject',
                 'schema::Array',

@@ -18,23 +18,43 @@
 
 
 from __future__ import annotations
-
 from typing import *
 
-
-from edb import errors
 from edb.edgeql import ast as qlast
+from edb.edgeql import compiler as qlcompiler
+from edb.edgeql import qltypes
 
-from . import scalars as s_scalars
 from . import annos as s_anno
-from . import objects as so
-from . import objtypes as s_objtypes
+from . import expr as s_expr
 from . import delta as sd
+from . import name as sn
+from . import objects as so
 from . import types as s_types
+from . import utils as s_utils
 
 
 if TYPE_CHECKING:
+    from edb.ir import ast as irast
     from . import schema as s_schema
+
+
+class Alias(
+    so.QualifiedObject,
+    s_anno.AnnotationSubject,
+    qlkind=qltypes.SchemaObjectClass.ALIAS,
+):
+
+    expr = so.SchemaField(
+        s_expr.Expression,
+        default=None,
+        coerce=True,
+        compcoef=0.909,
+    )
+
+    type = so.SchemaField(
+        s_types.Type,
+        compcoef=0.909,
+    )
 
 
 class AliasCommandContext(
@@ -45,89 +65,326 @@ class AliasCommandContext(
 
 
 class AliasCommand(
-    sd.QualifiedObjectCommand[s_types.InheritingType],
-    s_types.TypeCommand[s_types.InheritingType],
+    sd.QualifiedObjectCommand[Alias],
     context_class=AliasCommandContext,
+    schema_metaclass=Alias,
 ):
 
-    _scalar_cmd_map: Dict[Type[qlast.NamedDDL], Type[sd.Command]] = {
-        qlast.CreateAlias: s_scalars.CreateScalarType,
-        qlast.AlterAlias: s_scalars.AlterScalarType,
-        qlast.DropAlias: s_scalars.DeleteScalarType,
-    }
-
-    _objtype_cmd_map: Dict[Type[qlast.NamedDDL], Type[sd.Command]] = {
-        qlast.CreateAlias: s_objtypes.CreateObjectType,
-        qlast.AlterAlias: s_objtypes.AlterObjectType,
-        qlast.DropAlias: s_objtypes.DeleteObjectType,
-    }
-
-    _array_cmd_map: Dict[Type[qlast.NamedDDL], Type[sd.Command]] = {
-        qlast.CreateAlias: s_types.CreateArrayExprAlias,
-        qlast.DropAlias: s_types.DeleteArrayExprAlias,
-    }
-
-    _tuple_cmd_map: Dict[Type[qlast.NamedDDL], Type[sd.Command]] = {
-        qlast.CreateAlias: s_types.CreateTupleExprAlias,
-        qlast.DropAlias: s_types.DeleteTupleExprAlias,
-    }
-
     @classmethod
-    def command_for_ast_node(
-        cls,
-        astnode: qlast.DDLOperation,
+    def _classname_from_ast(cls,
+                            schema: s_schema.Schema,
+                            astnode: qlast.NamedDDL,
+                            context: sd.CommandContext
+                            ) -> sn.Name:
+        type_name = super()._classname_from_ast(schema, astnode, context)
+        base_name = type_name
+        quals = ('alias',)
+        pnn = sn.get_specialized_name(base_name, type_name, *quals)
+        name = sn.Name(name=pnn, module=type_name.module)
+        assert isinstance(name, sn.Name)
+        return name
+
+    def _compile_alias_expr(
+        self,
+        expr: qlast.Base,
+        classname: sn.SchemaName,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-    ) -> Type[sd.Command]:
-        modaliases = cls._modaliases_from_ast(schema, astnode, context)
-        ctx = AliasCommandContext(
+    ) -> irast.Statement:
+        cached: Optional[irast.Statement] = (
+            context.get_cached((expr, classname)))
+        if cached is not None:
+            return cached
+
+        if not isinstance(expr, qlast.Statement):
+            expr = qlast.SelectQuery(result=expr)
+
+        existing = schema.get(classname, type=s_types.Type, default=None)
+        if existing is not None:
+            drop_cmd_cls = sd.ObjectCommandMeta.get_command_class_or_die(
+                sd.DeleteObject,
+                type(existing),
+            )
+            drop_cmd = drop_cmd_cls(classname=classname)
+            with context.suspend_dep_verification():
+                schema = drop_cmd.apply(schema, context)
+
+        ir = qlcompiler.compile_ast_to_ir(
+            expr,
             schema,
-            op=sd._dummy_object_command,
-            scls=sd._dummy_object,
-            modaliases=modaliases,
+            options=qlcompiler.CompilerOptions(
+                derived_target_module=classname.module,
+                result_view_name=classname,
+                modaliases=context.modaliases,
+                schema_view_mode=True,
+            ),
         )
 
-        mapping: Dict[Type[qlast.NamedDDL], Type[sd.Command]]
+        context.cache_value((expr, classname), ir)
 
-        with context(ctx):
-            assert isinstance(astnode, qlast.NamedDDL)
-            classname = cls._classname_from_ast(schema, astnode, context)
+        return ir  # type: ignore
 
-            if isinstance(astnode, qlast.CreateAlias):
-                expr = cls._get_alias_expr(astnode)
-                ir = cls._compile_view_expr(expr, classname, schema, context)
-                scls = ir.stype
+    def _handle_alias_op(
+        self,
+        expr: s_expr.Expression,
+        classname: sn.SchemaName,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        is_alter: bool = False,
+    ) -> sd.Command:
+        from . import ordering as s_ordering
+
+        ir = self._compile_alias_expr(expr.qlast, classname, schema, context)
+        new_schema = ir.schema
+        expr = s_expr.Expression.from_ir(expr, ir, schema=schema)
+
+        coll_expr_aliases: List[s_types.Collection] = []
+        prev_coll_expr_aliases: List[s_types.Collection] = []
+        expr_aliases: List[s_types.Type] = []
+        prev_expr_aliases: List[s_types.Type] = []
+        prev_ir: Optional[irast.Statement] = None
+        old_schema: Optional[s_schema.Schema] = None
+
+        for vt in ir.views.values():
+            if isinstance(vt, s_types.Collection):
+                coll_expr_aliases.append(vt)
             else:
-                scls = schema.get(classname)
+                new_schema = vt.set_field_value(
+                    new_schema, 'alias_is_persistent', True)
 
-            if isinstance(scls, s_scalars.ScalarType):
-                mapping = cls._scalar_cmd_map
-            elif isinstance(scls, s_types.Tuple):
-                mapping = cls._tuple_cmd_map
-            elif isinstance(scls, s_types.Array):
-                mapping = cls._array_cmd_map
-            elif isinstance(scls, s_objtypes.ObjectType):
-                mapping = cls._objtype_cmd_map
-            else:
-                raise errors.InternalServerError(
-                    f'unsupported alias type: '
-                    f'{scls.get_schema_class_displayname()}'
-                )
+                expr_aliases.append(vt)
 
-            return mapping[type(astnode)]
+        if is_alter:
+            prev = cast(s_types.Type, schema.get(classname))
+            prev_expr = prev.get_expr(schema)
+            assert prev_expr is not None
+            prev_ir = self._compile_alias_expr(
+                prev_expr.qlast, classname, schema, context)
+            old_schema = prev_ir.schema
+            for vt in prev_ir.views.values():
+                if isinstance(vt, s_types.Collection):
+                    prev_coll_expr_aliases.append(vt)
+                else:
+                    prev_expr_aliases.append(vt)
+
+        derived_delta = sd.DeltaRoot()
+
+        for ref in ir.new_coll_types:
+            s_types.ensure_schema_collection(
+                # not "new_schema", because that already contains this
+                # collection type.
+                schema,
+                ref.as_shell(new_schema),
+                derived_delta,
+                context=context,
+            )
+
+        derived_delta.add(
+            so.Object.delta_sets(
+                prev_expr_aliases,
+                expr_aliases,
+                old_schema=old_schema,
+                new_schema=new_schema,
+                context=so.ComparisonContext(),
+            )
+        )
+
+        if prev_ir is not None:
+            for vt in prev_coll_expr_aliases:
+                dt = vt.as_delete_delta(prev_ir.schema, view_name=classname)
+                derived_delta.prepend(dt)
+
+        for vt in coll_expr_aliases:
+            new_schema = vt.set_field_value(new_schema, 'expr', expr)
+            ct = vt.as_shell(new_schema).as_create_delta(
+                # not "new_schema", to ensure the nested collection types
+                # are picked up properly.
+                schema,
+                view_name=classname,
+                attrs={
+                    'expr': expr,
+                    'alias_is_persistent': True,
+                    'expr_type': s_types.ExprType.Select,
+                },
+            )
+            new_schema = ct.apply(new_schema, context)
+            derived_delta.add(ct)
+
+        derived_delta = s_ordering.linearize_delta(
+            derived_delta, old_schema=old_schema, new_schema=new_schema)
+
+        real_cmd = None
+        for op in derived_delta.get_subcommands():
+            assert isinstance(op, sd.ObjectCommand)
+            if op.classname == classname:
+                real_cmd = op
+                break
+
+        if real_cmd is None:
+            raise RuntimeError(
+                'view delta does not contain the expected '
+                'view Create/Alter command')
+
+        real_cmd.set_attribute_value('expr', expr)
+
+        result = sd.CommandGroup()
+        result.update(derived_delta.get_subcommands())
+        result.canonical = True
+        return result
 
 
-class CreateAlias(AliasCommand):
+class CreateAlias(
+    AliasCommand,
+    sd.CreateObject[Alias],
+):
     astnode = qlast.CreateAlias
 
+    def _create_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        if not context.canonical:
+            alias_name = sn.shortname_from_fullname(self.classname)
+            type_cmd = self._handle_alias_op(
+                self.get_attribute_value('expr'),
+                alias_name,
+                schema,
+                context,
+            )
+            self.add_prerequisite(type_cmd)
+            for cmd in type_cmd.get_subcommands():
+                if cmd.classname == alias_name:
+                    break
+            else:
+                raise AssertionError(
+                    '_handle_alias_op() did not return a command'
+                    ' for derived type'
+                )
+            assert isinstance(cmd, sd.ObjectCommand)
+            self.set_attribute_value(
+                'expr',
+                cmd.get_attribute_value('expr'),
+            )
+            self.set_attribute_value(
+                'type',
+                s_utils.ast_objref_to_object_shell(
+                    s_utils.name_to_ast_ref(cmd.classname),
+                    metaclass=cmd.get_schema_metaclass(),
+                    modaliases={},
+                    schema=schema,
+                )
+            )
 
-class RenameAlias(AliasCommand):
-    pass
+        return super()._create_begin(schema, context)
 
 
-class AlterAlias(AliasCommand):
+class RenameAlias(AliasCommand, sd.RenameObject):
+
+    def _rename_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        if not context.canonical:
+            alias_type = self.scls.get_type(schema)
+            alter_type = sd.ObjectCommandMeta.get_command_class_or_die(
+                sd.AlterObject, type(alias_type),
+            )
+            rename_type = sd.ObjectCommandMeta.get_command_class_or_die(
+                sd.RenameObject, type(alias_type),
+            )
+            alias_name = sn.shortname_from_fullname(self.classname)
+            alter_cmd = alter_type(classname=alias_name)
+            new_alias_name = sn.shortname_from_fullname(self.new_name)
+            rename_cmd = rename_type(
+                classname=alias_name,
+                new_name=new_alias_name,
+            )
+            alter_cmd.add(rename_cmd)
+            self.add_prerequisite(alter_cmd)
+
+        return super()._rename_begin(schema, context)
+
+
+class AlterAlias(
+    AliasCommand,
+    sd.AlterObject[Alias],
+):
     astnode = qlast.AlterAlias
 
+    def _alter_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        if not context.canonical:
+            expr = self.get_attribute_value('expr')
+            if expr:
+                alias_name = sn.shortname_from_fullname(self.classname)
+                type_cmd = self._handle_alias_op(
+                    expr,
+                    alias_name,
+                    schema,
+                    context,
+                    is_alter=True,
+                )
+                self.add_prerequisite(type_cmd)
+                for cmd in type_cmd.get_subcommands():
+                    if (
+                        isinstance(cmd, sd.CreateObject)
+                        and cmd.classname == alias_name
+                    ):
+                        break
+                else:
+                    for cmd in type_cmd.get_subcommands():
+                        if (
+                            isinstance(cmd, sd.AlterObject)
+                            and cmd.classname == alias_name
+                        ):
+                            break
+                    else:
+                        raise AssertionError(
+                            '_handle_alias_op() did not return a command'
+                            ' for derived type'
+                        )
 
-class DeleteAlias(AliasCommand):
+                self.set_attribute_value(
+                    'expr',
+                    cmd.get_attribute_value('expr'),
+                )
+
+                self.set_attribute_value(
+                    'type',
+                    s_utils.ast_objref_to_object_shell(
+                        s_utils.name_to_ast_ref(cmd.classname),
+                        metaclass=cmd.get_schema_metaclass(),
+                        modaliases={},
+                        schema=schema,
+                    )
+                )
+
+        return super()._alter_begin(schema, context)
+
+
+class DeleteAlias(
+    AliasCommand,
+    sd.DeleteObject[Alias],
+):
     astnode = qlast.DropAlias
+
+    def _delete_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        if not context.canonical:
+            alias_type = self.scls.get_type(schema)
+            drop_type = sd.ObjectCommandMeta.get_command_class_or_die(
+                sd.DeleteObject, type(alias_type),
+            )
+            alias_name = sn.shortname_from_fullname(self.classname)
+            cmd = drop_type(classname=alias_name)
+            self.add_prerequisite(cmd)
+
+        return super()._delete_begin(schema, context)

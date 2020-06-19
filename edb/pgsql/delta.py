@@ -39,6 +39,7 @@ from edb.schema import constraints as s_constr
 from edb.schema import database as s_db
 from edb.schema import delta as sd
 from edb.schema import expr as s_expr
+from edb.schema import expraliases as s_aliases
 from edb.schema import functions as s_funcs
 from edb.schema import indexes as s_indexes
 from edb.schema import links as s_links
@@ -307,6 +308,42 @@ class DeleteTuple(TupleCommand, adapts=s_types.DeleteTuple):
         return schema
 
 
+class ExprAliasCommand(ObjectMetaCommand):
+    pass
+
+
+class CreateAlias(
+    ExprAliasCommand,
+    CreateObject,
+    adapts=s_aliases.CreateAlias,
+):
+    pass
+
+
+class RenameAlias(
+    ExprAliasCommand,
+    RenameObject,
+    adapts=s_aliases.RenameAlias,
+):
+    pass
+
+
+class AlterAlias(
+    ExprAliasCommand,
+    AlterObject,
+    adapts=s_aliases.AlterAlias,
+):
+    pass
+
+
+class DeleteAlias(
+    ExprAliasCommand,
+    DeleteObject,
+    adapts=s_aliases.DeleteAlias,
+):
+    pass
+
+
 class TupleExprAliasCommand(ObjectMetaCommand):
     pass
 
@@ -314,6 +351,20 @@ class TupleExprAliasCommand(ObjectMetaCommand):
 class CreateTupleExprAlias(
         TupleExprAliasCommand, CreateObject,
         adapts=s_types.CreateTupleExprAlias):
+
+    pass
+
+
+class RenameTupleExprAlias(
+        TupleExprAliasCommand, RenameObject,
+        adapts=s_types.RenameTupleExprAlias):
+
+    pass
+
+
+class AlterTupleExprAlias(
+        TupleExprAliasCommand, AlterObject,
+        adapts=s_types.AlterTupleExprAlias):
 
     pass
 
@@ -361,6 +412,20 @@ class ArrayExprAliasCommand(ObjectMetaCommand):
 class CreateArrayExprAlias(
         ArrayExprAliasCommand, CreateObject,
         adapts=s_types.CreateArrayExprAlias):
+
+    pass
+
+
+class RenameArrayExprAlias(
+        ArrayExprAliasCommand, RenameObject,
+        adapts=s_types.RenameArrayExprAlias):
+
+    pass
+
+
+class AlterArrayExprAlias(
+        ArrayExprAliasCommand, AlterObject,
+        adapts=s_types.AlterArrayExprAlias):
 
     pass
 

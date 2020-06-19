@@ -34,6 +34,7 @@ from . import constraints
 from . import delta as sd
 from . import expr
 from . import inheriting
+from . import name as s_name
 from . import objects as so
 from . import schema as s_schema
 from . import types as s_types
@@ -221,23 +222,12 @@ class ScalarTypeCommand(
     schema_metaclass=ScalarType,
     context_class=ScalarTypeCommandContext,
 ):
-    @classmethod
-    def _cmd_tree_from_ast(
-        cls,
-        schema: s_schema.Schema,
-        astnode: qlast.DDLOperation,
-        context: sd.CommandContext,
-    ) -> sd.Command:
-        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
-
-        assert isinstance(cmd, sd.QualifiedObjectCommand)
-        assert isinstance(astnode, qlast.ObjectDDL)
-        return cls._handle_view_op(schema, cmd, astnode, context)
+    pass
 
 
 class CreateScalarType(
     ScalarTypeCommand,
-    inheriting.CreateInheritingObject[ScalarType],
+    s_types.CreateInheritingType[ScalarType],
 ):
     astnode = qlast.CreateScalarType
 
@@ -292,36 +282,18 @@ class CreateScalarType(
                 assert isinstance(shell, AnonymousEnumTypeShell)
                 create_cmd.set_attribute_value('enum_values', shell.elements)
                 create_cmd.set_attribute_value('is_final', True)
+                create_cmd.set_attribute_value('bases', [
+                    s_utils.ast_objref_to_object_shell(
+                        s_utils.name_to_ast_ref(
+                            s_name.Name('std::anyenum'),
+                        ),
+                        schema=schema,
+                        metaclass=ScalarType,
+                        modaliases={},
+                    )
+                ])
 
         return cmd
-
-    @classmethod
-    def _classbases_from_ast(
-        cls,
-        schema: s_schema.Schema,
-        astnode: qlast.ObjectDDL,
-        context: sd.CommandContext,
-    ) -> so.ObjectList[ScalarType]:
-
-        modaliases = context.modaliases
-
-        base_refs: List[ScalarType] = []
-        for b in getattr(astnode, 'bases', []):
-            shell = s_utils.ast_to_object_shell(
-                b,
-                modaliases=modaliases,
-                schema=schema,
-                metaclass=cls.get_schema_metaclass(),
-            )
-            if isinstance(shell, AnonymousEnumTypeShell):
-                obj = schema.get('std::anyenum', type=ScalarType)
-            else:
-                resolved = shell.resolve(schema)
-                assert isinstance(resolved, ScalarType)
-                obj = resolved
-            base_refs.append(obj)
-
-        return cls._validate_base_refs(schema, base_refs, astnode, context)
 
     def _get_ast_node(
         self,

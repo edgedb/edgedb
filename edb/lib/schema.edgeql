@@ -226,6 +226,13 @@ ALTER TYPE schema::Source {
 };
 
 
+CREATE TYPE schema::Alias EXTENDING schema::AnnotationSubject
+{
+    CREATE REQUIRED PROPERTY expr -> std::str;
+    CREATE REQUIRED LINK type -> schema::Type;
+};
+
+
 CREATE TYPE schema::ScalarType
     EXTENDING
         schema::InheritingObject, schema::ConsistencySubject,

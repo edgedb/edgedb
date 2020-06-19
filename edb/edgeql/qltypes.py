@@ -142,6 +142,7 @@ class DescribeLanguage(s_enum.StrEnum):
 
 class SchemaObjectClass(s_enum.StrEnum):
 
+    ALIAS = 'ALIAS'
     ANNOTATION = 'ANNOTATION'
     ARRAY_TYPE = 'ARRAY TYPE'
     CAST = 'CAST'

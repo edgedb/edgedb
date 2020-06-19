@@ -398,7 +398,7 @@ class Compiler(BaseCompiler):
         schema = current_tx.get_schema()
 
         if debug.flags.delta_plan:
-            debug.header('Delta Plan')
+            debug.header('Canonical Delta Plan')
             debug.dump(delta, schema=schema)
 
         delta = pg_delta.CommandMeta.adapt(delta)

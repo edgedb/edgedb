@@ -29,6 +29,7 @@ from . import delta as sd
 from . import name as sn
 from . import referencing
 from . import objects as so
+from . import utils
 
 if TYPE_CHECKING:
     from . import schema as s_schema
@@ -206,6 +207,33 @@ class AnnotationValueCommand(
                        parent: AnnotationSubject) -> s_schema.Schema:
         return parent.del_annotation(schema, annotation_name)
 
+    @classmethod
+    def _classname_from_ast(cls,
+                            schema: s_schema.Schema,
+                            astnode: qlast.NamedDDL,
+                            context: sd.CommandContext
+                            ) -> sn.Name:
+        name = super()._classname_from_ast(schema, astnode, context)
+
+        parent_ctx = cls.get_referrer_context_or_die(context)
+        assert isinstance(parent_ctx.op, sd.QualifiedObjectCommand)
+        referrer_name = parent_ctx.op.classname
+        base_ref = utils.ast_to_object_shell(
+            astnode.name,
+            modaliases=context.modaliases,
+            schema=schema,
+            metaclass=Annotation,
+        )
+
+        base_name = base_ref.name
+        quals = cls._classname_quals_from_ast(
+            schema, astnode, base_name, referrer_name, context)
+        pnn = sn.get_specialized_name(base_name, referrer_name, *quals)
+        name = sn.Name(name=pnn, module=referrer_name.module)
+
+        assert isinstance(name, sn.Name)
+        return name
+
 
 class CreateAnnotationValue(
     AnnotationValueCommand,
@@ -224,7 +252,7 @@ class CreateAnnotationValue(
 
         assert isinstance(astnode, qlast.CreateAnnotationValue)
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
-        propname = sn.shortname_from_fullname(cmd.classname)
+        annoname = sn.shortname_from_fullname(cmd.classname)
 
         value = qlcompiler.evaluate_ast_to_python_val(
             astnode.value, schema=schema)
@@ -233,14 +261,36 @@ class CreateAnnotationValue(
             raise ValueError(
                 f'unexpected value type in annotation: {value!r}')
 
-        attr: Annotation = schema.get(propname)
+        anno = utils.ast_objref_to_object_shell(
+            utils.name_to_ast_ref(annoname),
+            metaclass=Annotation,
+            modaliases=context.modaliases,
+            schema=schema,
+        )
 
-        cmd.set_attribute_value('annotation', attr)
+        cmd.set_attribute_value('annotation', anno)
         cmd.set_attribute_value('value', value)
-        cmd.set_attribute_value('is_final', not attr.get_inheritable(schema))
 
         assert isinstance(cmd, CreateAnnotationValue)
         return cmd
+
+    def _create_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        if not context.canonical:
+            anno = self.get_resolved_attribute_value(
+                'annotation',
+                schema=schema,
+                context=context,
+            )
+            if anno is not None:
+                self.set_attribute_value(
+                    'is_final',
+                    not anno.get_inheritable(schema),
+                )
+        return super()._create_begin(schema, context)
 
     def _apply_field_ast(self,
                          schema: s_schema.Schema,
@@ -286,8 +336,12 @@ class AlterAnnotationValue(
         )
 
         annoname = sn.shortname_from_fullname(cmd.classname)
-        anno = schema.get(annoname, type=Annotation)
-
+        anno = utils.ast_objref_to_object_shell(
+            utils.name_to_ast_ref(annoname),
+            metaclass=Annotation,
+            modaliases=context.modaliases,
+            schema=schema,
+        )
         cmd.set_attribute_value('annotation', value=anno, orig_value=anno)
 
         assert isinstance(cmd, AlterAnnotationValue)
@@ -335,8 +389,12 @@ class DeleteAnnotationValue(
         assert isinstance(astnode, qlast.DropAnnotationValue)
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         annoname = sn.shortname_from_fullname(cmd.classname)
-
-        anno = schema.get(annoname, type=Annotation)
+        anno = utils.ast_objref_to_object_shell(
+            utils.name_to_ast_ref(annoname),
+            metaclass=Annotation,
+            modaliases=context.modaliases,
+            schema=schema,
+        )
 
         cmd.set_attribute_value('annotation', value=None, orig_value=anno)
 

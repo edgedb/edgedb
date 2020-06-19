@@ -86,6 +86,20 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
 
         return schema
 
+    def compute_inherited_fields(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> Dict[str, bool]:
+        result = {}
+        mcls = self.get_schema_metaclass()
+        for op in self.get_subcommands(type=sd.AlterObjectProperty):
+            field = mcls.get_field(op.property)
+            if field.inheritable:
+                result[op.property] = op.source == 'inheritance'
+
+        return result
+
     def inherit_fields(
         self,
         schema: s_schema.Schema,
@@ -398,44 +412,35 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         schema: s_schema.Schema,
         astnode: qlast.ObjectDDL,
         context: sd.CommandContext,
-    ) -> so.ObjectList[so.InheritingObjectT]:
+    ) -> List[so.ObjectShell]:
         modaliases = context.modaliases
 
-        base_refs: List[so.InheritingObjectT] = []
+        base_refs: List[so.ObjectShell] = []
         for b in getattr(astnode, 'bases', None) or []:
-            obj = utils.ast_to_object(
+            obj = utils.ast_to_object_shell(
                 b,
                 modaliases=modaliases,
                 schema=schema,
                 metaclass=cls.get_schema_metaclass(),
             )
-            base_refs.append(cast(so.InheritingObjectT, obj))
+            base_refs.append(obj)
 
-        return cls._validate_base_refs(schema, base_refs, astnode, context)
-
-    @classmethod
-    def _validate_base_refs(
-        cls,
-        schema: s_schema.Schema,
-        base_refs: Iterable[so.InheritingObjectT],
-        astnode: qlast.ObjectDDL,
-        context: sd.CommandContext,
-    ) -> so.ObjectList[so.InheritingObjectT]:
         classname = cls._classname_from_ast(schema, astnode, context)
-
-        bases = so.ObjectList[so.InheritingObjectT].create(schema, base_refs)
         mcls = cls.get_schema_metaclass()
-        if not bases and classname not in mcls.get_root_classes():
+        if not base_refs and classname not in mcls.get_root_classes():
             default_base = mcls.get_default_base_name()
 
             if default_base is not None and classname != default_base:
-                default_base = schema.get(default_base)
-                bases = so.ObjectList[so.InheritingObjectT].create(
-                    schema,
-                    [default_base],
+                base_refs.append(
+                    utils.ast_objref_to_object_shell(
+                        utils.name_to_ast_ref(default_base),
+                        metaclass=cls.get_schema_metaclass(),
+                        schema=schema,
+                        modaliases=modaliases,
+                    )
                 )
 
-        return bases
+        return base_refs
 
     def _apply_rebase_ast(
         self,
@@ -601,7 +606,11 @@ class CreateInheritingObject(
                 schema, 'ancestors', ancestors)
             self.set_attribute_value('ancestors', ancestors)
 
-            bases_coll = self.get_attribute_value('bases')
+            bases_coll = self.get_resolved_attribute_value(
+                'bases',
+                schema=schema,
+                context=context,
+            )
             if bases_coll:
                 bases = bases_coll.objects(schema)
             else:
@@ -774,7 +783,9 @@ class AlterInheritingObject(
             bases = cls._classbases_from_ast(schema, astnode, context)
             if bases is not None:
                 _, added = delta_bases(
-                    [], [b.get_name(schema) for b in bases.objects(schema)])
+                    [],
+                    [b.get_name(schema) for b in bases],
+                )
 
                 rebase = sd.ObjectCommandMeta.get_command_class_or_die(
                     RebaseInheritingObject, cmd.get_schema_metaclass())

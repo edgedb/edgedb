@@ -370,22 +370,11 @@ class ObjectTypeCommand(s_types.InheritingTypeCommand[ObjectType],
     pass
 
 
-class CreateObjectType(ObjectTypeCommand,
-                       inheriting.CreateInheritingObject[ObjectType]):
+class CreateObjectType(
+    ObjectTypeCommand,
+    s_types.CreateInheritingType[ObjectType],
+):
     astnode = qlast.CreateObjectType
-
-    @classmethod
-    def _cmd_tree_from_ast(
-        cls,
-        schema: s_schema.Schema,
-        astnode: qlast.DDLOperation,
-        context: sd.CommandContext,
-    ) -> sd.Command:
-        assert isinstance(astnode, qlast.ObjectDDL)
-        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
-        assert isinstance(cmd, sd.QualifiedObjectCommand)
-        cmd = cls._handle_view_op(schema, cmd, astnode, context)
-        return cmd
 
     def _get_ast(
         self,
@@ -426,19 +415,6 @@ class RebaseObjectType(ObjectTypeCommand,
 class AlterObjectType(ObjectTypeCommand,
                       inheriting.AlterInheritingObject[ObjectType]):
     astnode = qlast.AlterObjectType
-
-    @classmethod
-    def _cmd_tree_from_ast(
-        cls,
-        schema: s_schema.Schema,
-        astnode: qlast.DDLOperation,
-        context: sd.CommandContext,
-    ) -> sd.Command:
-        assert isinstance(astnode, qlast.ObjectDDL)
-        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
-        assert isinstance(cmd, sd.QualifiedObjectCommand)
-        cmd = cls._handle_view_op(schema, cmd, astnode, context)
-        return cmd
 
 
 class DeleteObjectType(ObjectTypeCommand,

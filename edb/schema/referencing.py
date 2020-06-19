@@ -319,19 +319,14 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase[ReferencedT]):
         if parent_ctx is not None:
             assert isinstance(parent_ctx.op, sd.QualifiedObjectCommand)
             referrer_name = parent_ctx.op.classname
-            base_name: str
+            base_ref = utils.ast_to_object_shell(
+                astnode.name,
+                modaliases=context.modaliases,
+                schema=schema,
+                metaclass=cls.get_schema_metaclass(),
+            )
 
-            try:
-                base_ref = utils.ast_to_object(
-                    astnode.name,
-                    modaliases=context.modaliases,
-                    schema=schema,
-                )
-            except errors.InvalidReferenceError:
-                base_name = sn.Name(name)
-            else:
-                base_name = base_ref.get_name(schema)
-
+            base_name = base_ref.name
             quals = cls._classname_quals_from_ast(
                 schema, astnode, base_name, referrer_name, context)
             pnn = sn.get_specialized_name(base_name, referrer_name, *quals)

@@ -1475,28 +1475,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    @test.xfail('''
-        AssertionError: unexpected difference in schema produced by
-        COMMIT MIGRATION and DDL obtained from GET MIGRATION
-        <DeltaRoot source_context=None, canonical=True> (
-            <AlterObjectType classname=default::X ...> (
-                <CreateAnnotationValue
-                 classname=default::std|title@@default|X ...>
-        ...
-
-        DDL text was:
-        CREATE TYPE default::Foo {
-            CREATE SINGLE PROPERTY bar -> std::int64;
-        };
-        CREATE ALIAS default::X {
-            USING (WITH
-                MODULE default
-            SELECT
-                Foo
-            );
-            CREATE ANNOTATION std::title := 'A Foo alias';
-        };
-    ''')
     def test_get_migration_16(self):
         schema = r'''
             type Foo {

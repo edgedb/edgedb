@@ -519,7 +519,11 @@ class CreateConstraint(
         base_params: Optional[s_func.FuncParameterList] = None
         base_with_params: Optional[Constraint] = None
 
-        bases = self.get_attribute_value('bases')
+        bases = self.get_resolved_attribute_value(
+            'bases',
+            schema=schema,
+            context=context,
+        )
 
         for base in bases.objects(schema):
             params = base.get_params(schema)
@@ -954,12 +958,20 @@ class CreateConstraint(
         schema: s_schema.Schema,
         astnode: qlast.ObjectDDL,
         context: sd.CommandContext,
-    ) -> so.ObjectList[Constraint]:
+    ) -> List[so.ObjectShell]:
         if isinstance(astnode, qlast.CreateConcreteConstraint):
             classname = cls._classname_from_ast(schema, astnode, context)
             base_name = sn.shortname_from_fullname(classname)
-            base = schema.get(base_name, type=Constraint)
-            return so.ObjectList.create(schema, [base])
+            base = utils.ast_objref_to_object_shell(
+                qlast.ObjectRef(
+                    module=base_name.module,
+                    name=base_name.name,
+                ),
+                metaclass=Constraint,
+                schema=schema,
+                modaliases=context.modaliases,
+            )
+            return [base]
         else:
             return super()._classbases_from_ast(schema, astnode, context)
 
