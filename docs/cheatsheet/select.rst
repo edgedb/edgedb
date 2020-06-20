@@ -72,7 +72,7 @@ include the same-last-name actor list as well:
     }
     FILTER EXISTS .same_last_name
 
-The same query can be refactored moving the ``WITH`` block tot he top-level:
+The same query can be refactored moving the ``WITH`` block to the top-level:
 
 .. code-block:: edgeql
 
@@ -125,6 +125,6 @@ Perform a set intersection of all actors with all directors:
     WITH
         # get the set of actors and set of directors
         Actor := Movie.actors,
-        Director := Movie.directors,
+        Director := Movie.director,
     # set intersection is done via the FILTER clause
     SELECT Actor FILTER Actor IN Director;
