@@ -22,6 +22,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import collections
+import logging
 import os.path
 import pickle
 import subprocess
@@ -39,6 +40,9 @@ BUFFER_POOL_SIZE = 4
 PROCESS_INITIAL_RESPONSE_TIMEOUT = 60.0
 KILL_TIMEOUT = 10.0
 WORKER_MOD = __name__.rpartition('.')[0] + '.worker'
+
+
+logger = logging.getLogger("edb.server")
 
 
 # Inherit sys.path so that import system can find worker class
@@ -130,6 +134,7 @@ class Worker:
         self._closed = True
         self._manager._stats_killed += 1
         self._manager._workers.discard(self)
+        self._manager._report_workers(self, action="kill")
         try:
             self._proc.terminate()
             await self._proc.wait()
@@ -182,17 +187,25 @@ class Manager:
     def is_running(self):
         return self._running
 
-    async def _spawn_worker(self):
+    async def _spawn_worker(self, *, report: bool = True):
         worker = Worker(self, self._server, self._worker_command_args)
         await worker._spawn()
+        if report:
+            self._report_workers(worker)
         return worker
 
     async def _spawn_for_pool(self):
-        worker = await self._spawn_worker()
+        worker = await self._spawn_worker(report=False)
         self._workers_pool.appendleft(worker)
+        self._report_workers(worker)
         return worker
 
     async def spawn_worker(self):
+        """Returns a worker.
+
+        If there is a worker pool, returns one of the existing workers and
+        spawns a new one.  Otherwise, creates a new worker on the spot.
+        """
         if not self._running:
             raise RuntimeError('cannot spawn a worker: not running')
 
@@ -200,9 +213,11 @@ class Manager:
             worker = self._workers_pool.pop()
             self._sup.create_task(self._spawn_for_pool())
         else:
-            worker = await self._spawn_worker()
+            worker = await self._spawn_worker(report=False)
 
         self._workers.add(worker)
+        if not self._workers_pool:
+            self._report_workers(worker)
         return worker
 
     async def start(self):
@@ -225,17 +240,33 @@ class Manager:
         await self._server.stop()
         self._server = None
 
-        async with taskgroup.TaskGroup(
-                name=f'{self._name}-manager-stop') as g:
-            for worker in list(self._workers):
-                g.create_task(worker.close())
-
-            for worker in list(self._workers_pool):
-                g.create_task(worker.close())
-
+        workers_to_kill = list(self._workers) + list(self._workers_pool)
         self._workers_pool.clear()
         self._workers.clear()
         self._running = False
+
+        async with taskgroup.TaskGroup(
+                name=f'{self._name}-manager-stop') as g:
+            for worker in workers_to_kill:
+                g.create_task(worker.close())
+
+
+    def _report_workers(self, worker: Worker, *, action: str = "spawn"):
+        action = action.capitalize()
+        if not action.endswith("e"):
+            action += "e"
+        action += "d"
+        logger.info(
+            "%s a %s worker with PID %d; %d used, %d in the pool;"
+            + " %d spawned and %d killed so far",
+            action,
+            self._name,
+            worker.get_pid(),
+            len(self._workers),
+            len(self._workers_pool),
+            self._stats_spawned,
+            self._stats_killed,
+        )
 
 
 async def create_manager(*, runstate_dir: str, name: str,

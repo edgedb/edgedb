@@ -18,6 +18,7 @@
 
 import asyncio
 import collections
+import contextlib
 import hashlib
 import json
 import logging
@@ -701,8 +702,10 @@ cdef class EdgeConnection:
                 self.flush()
                 return
 
-        eql_tokens = tokenize(eql)
-        units = await self._compile(eql_tokens, stmt_mode=stmt_mode)
+        with timed("Tokenizing"):
+            eql_tokens = tokenize(eql)
+        with timed("Compilation"):
+            units = await self._compile(eql_tokens, stmt_mode=stmt_mode)
 
         new_type_ids = frozenset()
         for query_unit in units:
@@ -767,7 +770,8 @@ cdef class EdgeConnection:
         if self.debug:
             self.debug_print('PARSE', eql)
 
-        normalized = normalize(eql)
+        with timed("Normalizing"):
+            normalized = normalize(eql)
 
         if self.debug:
             self.debug_print('Cache key', normalized.key())
@@ -791,14 +795,15 @@ cdef class EdgeConnection:
                     # ROLLBACK in that 'eql' string.
                     self.dbview.raise_in_tx_error()
             else:
-                query_unit = await self._compile(
-                    normalized.tokens(),
-                    io_format=io_format,
-                    expect_one=expect_one,
-                    stmt_mode='single',
-                    implicit_limit=implicit_limit,
-                    first_extracted_var=normalized.first_extra(),
-                )
+                with timed("Compilation"):
+                    query_unit = await self._compile(
+                        normalized.tokens(),
+                        io_format=io_format,
+                        expect_one=expect_one,
+                        stmt_mode='single',
+                        implicit_limit=implicit_limit,
+                        first_extracted_var=normalized.first_extra(),
+                    )
                 query_unit = query_unit[0]
         elif self.dbview.in_tx_error():
             # We have a cached QueryUnit for this 'eql', but the current
@@ -2023,3 +2028,11 @@ cdef class EdgeConnection:
         msg.write_len_prefixed_bytes(b'RESTORE')
         self.write(msg.end_message())
         self.flush()
+
+
+@contextlib.contextmanager
+def timed(operation: str):
+    ts_start = time.time()
+    yield
+    ts_end = time.time()
+    logger.info("%s took %f seconds", operation, ts_end - ts_start)
