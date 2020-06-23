@@ -193,7 +193,7 @@ class ManagementPort(baseport.Port):
             action += "e"
         action += "d"
         logger.info(
-            "%s a connection with ID %d; %d open",
+            "%s a connection with ID %d; open_count=%d",
             action,
             self._edgecon_id,
             self._num_connections,

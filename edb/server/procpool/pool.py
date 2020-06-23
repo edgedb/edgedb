@@ -257,8 +257,8 @@ class Manager:
             action += "e"
         action += "d"
         logger.info(
-            "%s a %s worker with PID %d; %d used, %d in the pool;"
-            + " %d spawned and %d killed so far",
+            "%s a %s worker with PID %d; used=%d; pool=%d;"
+            + " spawned=%d; killed=%d",
             action,
             self._name,
             worker.get_pid(),
