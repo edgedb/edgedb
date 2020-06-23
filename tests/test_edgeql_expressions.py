@@ -380,6 +380,11 @@ class TestExpressions(tb.QueryTestCase):
                     r'''SELECT <int64>'3689348814741900000000000' ''',
                 )
 
+        with self.assertRaisesRegex(edgedb.EdgeQLSyntaxError,
+                                    'expected digit after dot'):
+            async with self.con.transaction():
+                await self.con.fetchone('SELECT 0. ')
+
     async def test_edgeql_expr_op_02(self):
         await self.assert_query_result(
             r'''SELECT 40 ^ 2;''',

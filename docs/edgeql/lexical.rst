@@ -367,9 +367,6 @@ an explicit cast can be used to convert them to :eql:type:`float32`:
     db> SELECT 0.1;
     {0.1}
 
-    db> SELECT 12.;
-    {12.0}
-
     db> SELECT 12.3;
     {12.3}
 

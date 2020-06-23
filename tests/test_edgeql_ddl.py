@@ -16,7 +16,6 @@
 # limitations under the License.
 #
 
-
 import edgedb
 
 from edb.testbase import server as tb
