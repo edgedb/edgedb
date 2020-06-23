@@ -194,7 +194,7 @@ class ManagementPort(baseport.Port):
         action += "d"
         logger.info(
             "%s a connection with ID %d; %d open",
-            action.capitalize() + "ed",
+            action,
             self._edgecon_id,
             self._num_connections,
         )
