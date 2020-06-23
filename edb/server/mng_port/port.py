@@ -35,6 +35,7 @@ from . import edgecon
 
 
 logger = logging.getLogger('edb.server')
+telemetry = logging.getLogger('edb.server.telemetry')
 
 
 class Backend:
@@ -192,7 +193,7 @@ class ManagementPort(baseport.Port):
         if not action.endswith("e"):
             action += "e"
         action += "d"
-        logger.info(
+        telemetry.info(
             "%s a connection with ID %d; open_count=%d",
             action,
             self._edgecon_id,
