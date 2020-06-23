@@ -75,7 +75,7 @@ BUILD_DEPS = [
     CYTHON_DEPENDENCY,
 ]
 
-RUST_VERSION = '1.42.0'  # Also update docs/internal/dev.rst
+RUST_VERSION = '1.44.0'  # Also update docs/internal/dev.rst
 
 EDGEDBCLI_REPO = 'https://github.com/edgedb/edgedb-cli'
 
