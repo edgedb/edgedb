@@ -95,6 +95,7 @@ cdef tuple DUMP_VER_MIN = (0, 7)
 cdef tuple DUMP_VER_MAX = (0, 8)
 
 cdef object logger = logging.getLogger('edb.server')
+cdef object telemetry = logging.getLogger('edb.server.telemetry')
 
 DEF QUERY_OPT_IMPLICIT_LIMIT = 0xFF01
 
@@ -2073,7 +2074,7 @@ cdef class Timer:
             return
 
         p = [0] + statistics.quantiles(series, n=100, method="inclusive")
-        logger.info(
+        telemetry.info(
             "%s stats: count=%d, p99=%.4f; p90=%.4f; p50=%.4f; max=%.4f",
             operation,
             len(series),

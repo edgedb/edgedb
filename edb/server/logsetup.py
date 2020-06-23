@@ -27,6 +27,7 @@ import logging.handlers
 import sys
 import warnings
 
+from edb.common import debug
 from edb.common import term
 
 
@@ -169,3 +170,7 @@ def setup_logging(log_level, log_destination):
     for ignored_module in IGNORE_DEPRECATIONS_IN:
         warnings.filterwarnings('ignore', category=DeprecationWarning,
                                 module=ignored_module)
+
+    if not debug.flags.telemetry:
+        telemetry = logging.getLogger('edb.server.telemetry')
+        telemetry.setLevel(logging.ERROR)
