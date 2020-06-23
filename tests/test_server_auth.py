@@ -93,3 +93,63 @@ class TestServerAuth(tb.ConnectedTestCase):
             await self.con.fetchall('''
                 DROP ROLE foo;
             ''')
+
+        # Basically the second test, but we can't run it concurrently
+        # because disabling Auth above conflicts with the following test
+
+        await self.con.fetchall('''
+            CREATE SUPERUSER ROLE bar {
+                SET password_hash := 'SCRAM-SHA-256$4096:SHzNmIppMwXnPSWgY2yMvg==$5zmnXMm9+mn2nseKPF1NTKvuoBPVSWgxHrnptxpQgcU=:/c1vJV+MmS7v9vv6CDVo56OyOJkNd3F+m3JIBB1U7ho=';
+            }
+        ''')  # noqa
+
+        try:
+            conn = await self.connect(
+                user='bar',
+                password='bar-pass',
+            )
+            await conn.aclose()
+
+            await self.con.fetchall('''
+                ALTER ROLE bar {
+                    SET password_hash := 'SCRAM-SHA-256$4096:mWDBY53yzQ4aDet5erBmbg==$ZboQEMuUhC6+1SChp2bx1qSRBZGAnyV4I8T/iK+qeEs=:B7yF2k10tTH2RHayOg3rw4Q6wqf+Fj5CuXR/9CyZ8n8=';
+                }
+            ''')  # noqa
+
+            conn = await self.connect(
+                user='bar',
+                password='bar-pass-2',
+            )
+            await conn.aclose()
+
+            # bad (old) password
+            with self.assertRaisesRegex(
+                    edgedb.AuthenticationError,
+                    'authentication failed'):
+                await self.connect(
+                    user='bar',
+                    password='bar-pass',
+                )
+
+            with self.assertRaisesRegex(
+                    edgedb.EdgeQLSyntaxError,
+                    'cannot specify both `password` and `password_hash`'
+                    ' in the same statement'):
+                await self.con.fetchall('''
+                    CREATE SUPERUSER ROLE bar1 {
+                        SET password := 'hello';
+                        SET password_hash := 'SCRAM-SHA-256$4096:SHzNmIppMwXnPSWgY2yMvg==$5zmnXMm9+mn2nseKPF1NTKvuoBPVSWgxHrnptxpQgcU=:/c1vJV+MmS7v9vv6CDVo56OyOJkNd3F+m3JIBB1U7ho=';
+                    }
+                ''')  # noqa
+
+            with self.assertRaisesRegex(
+                    edgedb.InvalidValueError,
+                    'invalid SCRAM verifier'):
+                await self.con.fetchall('''
+                    CREATE SUPERUSER ROLE bar2 {
+                        SET password_hash := 'SCRAM-BLAKE2B$4096:SHzNmIppMwXnPSWgY2yMvg==$5zmnXMm9+mn2nseKPF1NTKvuoBPVSWgxHrnptxpQgcU=:/c1vJV+MmS7v9vv6CDVo56OyOJkNd3F+m3JIBB1U7ho=';
+                    }
+                ''')  # noqa
+
+        finally:
+            await self.con.fetchall("DROP ROLE bar")

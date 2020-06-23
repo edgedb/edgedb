@@ -50,6 +50,13 @@ class Role(so.GlobalObject, so.InheritingObject,
         allow_ddl_set=True,
         inheritable=False)
 
+    password_hash = so.SchemaField(
+        str,
+        default=None,
+        allow_ddl_set=True,
+        ephemeral=True,
+        inheritable=False)
+
 
 class RoleCommandContext(
         sd.ObjectCommandContext[Role],
@@ -73,8 +80,24 @@ class RoleCommand(sd.GlobalObjectCommand,
     ) -> None:
         password = cmd.get_attribute_value('password')
         if password is not None:
+            if cmd.get_attribute_value('password_hash') is not None:
+                raise errors.EdgeQLSyntaxError(
+                    'cannot specify both `password` and `password_hash` in'
+                    ' the same statement',
+                    context=astnode.context,
+                )
             salted_password = scram.build_verifier(password)
             cmd.set_attribute_value('password', salted_password)
+
+        password_hash = cmd.get_attribute_value('password_hash')
+        if password_hash is not None:
+            try:
+                scram.parse_verifier(password_hash)
+            except ValueError as e:
+                raise errors.InvalidValueError(
+                    e.args[0],
+                    context=astnode.context)
+            cmd.set_attribute_value('password', password_hash)
 
     @classmethod
     def _classbases_from_ast(
