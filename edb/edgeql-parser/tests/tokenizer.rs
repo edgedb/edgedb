@@ -59,6 +59,8 @@ fn idents() {
     assert_eq!(tok_err(" + __test__"),
         "Unexpected `identifiers surrounded by double underscores \
         are forbidden`");
+    assert_eq!(tok_str("_1024"), ["_1024"]);
+    assert_eq!(tok_typ("_1024"), [Ident]);
 }
 
 #[test]
@@ -173,10 +175,6 @@ fn dot_tokens() {
 fn tuple_dot_vs_float() {
     assert_eq!(tok_str("tuple.1.<"), ["tuple", ".", "1", ".<"]);
     assert_eq!(tok_typ("tuple.1.<"), [Ident, Dot, IntConst, BackwardLink]);
-    assert_eq!(tok_str("1.<"), ["1.", "<"]);
-    assert_eq!(tok_typ("1.<"), [FloatConst, Less]);
-    assert_eq!(tok_str("1.e123"), ["1.e123"]);
-    assert_eq!(tok_typ("1.e123"), [FloatConst]);
     assert_eq!(tok_str("tuple.1.e123"), ["tuple", ".", "1", ".", "e123"]);
     assert_eq!(tok_typ("tuple.1.e123"), [Ident, Dot, IntConst, Dot, Ident]);
 }
@@ -216,14 +214,19 @@ fn integer() {
     assert_eq!(tok_typ("*0"), [Mul, IntConst]);
     assert_eq!(tok_str("123"), ["123"]);
     assert_eq!(tok_typ("123"), [IntConst]);
+    assert_eq!(tok_str("123_"), ["123_"]);
+    assert_eq!(tok_typ("123_"), [IntConst]);
+    assert_eq!(tok_str("123_456"), ["123_456"]);
+    assert_eq!(tok_typ("123_456"), [IntConst]);
 
     assert_eq!(tok_str("0 "), ["0"]);
     assert_eq!(tok_typ("0 "), [IntConst]);
     assert_eq!(tok_str("123 "), ["123"]);
     assert_eq!(tok_typ("123 "), [IntConst]);
-
-    assert_eq!(tok_err("01"),
-        "Unexpected `leading zeros are not allowed in numbers`");
+    assert_eq!(tok_str("123_ "), ["123_"]);
+    assert_eq!(tok_typ("123_ "), [IntConst]);
+    assert_eq!(tok_str("123_456 "), ["123_456"]);
+    assert_eq!(tok_typ("123_456 "), [IntConst]);
 }
 
 #[test]
@@ -238,6 +241,10 @@ fn bigint() {
     assert_eq!(tok_typ("123e3n"), [BigIntConst]);
     assert_eq!(tok_str("123e+99n"), ["123e+99n"]);
     assert_eq!(tok_typ("123e+99n"), [BigIntConst]);
+    assert_eq!(tok_str("123_n"), ["123_n"]);
+    assert_eq!(tok_typ("123_n"), [BigIntConst]);
+    assert_eq!(tok_str("123_456n"), ["123_456n"]);
+    assert_eq!(tok_typ("123_456n"), [BigIntConst]);
 
     assert_eq!(tok_str("0n "), ["0n"]);
     assert_eq!(tok_typ("0n "), [BigIntConst]);
@@ -247,14 +254,14 @@ fn bigint() {
     assert_eq!(tok_typ("123e3n "), [BigIntConst]);
     assert_eq!(tok_str("123e+99n "), ["123e+99n"]);
     assert_eq!(tok_typ("123e+99n "), [BigIntConst]);
-    assert_eq!(tok_err("01n"),
-        "Unexpected `leading zeros are not allowed in numbers`");
+    assert_eq!(tok_str("123_n "), ["123_n"]);
+    assert_eq!(tok_typ("123_n "), [BigIntConst]);
+    assert_eq!(tok_str("123_456n "), ["123_456n"]);
+    assert_eq!(tok_typ("123_456n "), [BigIntConst]);
 }
 
 #[test]
 fn float() {
-    assert_eq!(tok_str("0."), ["0."]);
-    assert_eq!(tok_typ("0."), [FloatConst]);
     assert_eq!(tok_str("     0.0"), ["0.0"]);
     assert_eq!(tok_typ("     0.0"), [FloatConst]);
     assert_eq!(tok_str("123.999"), ["123.999"]);
@@ -269,11 +276,19 @@ fn float() {
     assert_eq!(tok_typ("123e3"), [FloatConst]);
     assert_eq!(tok_str("123e+99"), ["123e+99"]);
     assert_eq!(tok_typ("123e+99"), [FloatConst]);
+    assert_eq!(tok_str("123e+99_"), ["123e+99_"]);
+    assert_eq!(tok_typ("123e+99_"), [FloatConst]);
+    assert_eq!(tok_str("123e+9_9"), ["123e+9_9"]);
+    assert_eq!(tok_typ("123e+9_9"), [FloatConst]);
     assert_eq!(tok_str("2345e-7"), ["2345e-7"]);
     assert_eq!(tok_typ("2345e-7"), [FloatConst]);
+    assert_eq!(tok_str("2_345e-7"), ["2_345e-7"]);
+    assert_eq!(tok_typ("2_345e-7"), [FloatConst]);
+    assert_eq!(tok_str("1_023.9_099"), ["1_023.9_099"]);
+    assert_eq!(tok_typ("1_023.9_099"), [FloatConst]);
+    assert_eq!(tok_str("1_023_.9_099_"), ["1_023_.9_099_"]);
+    assert_eq!(tok_typ("1_023_.9_099_"), [FloatConst]);
 
-    assert_eq!(tok_str("0. "), ["0."]);
-    assert_eq!(tok_typ("0. "), [FloatConst]);
     assert_eq!(tok_str("     0.0 "), ["0.0"]);
     assert_eq!(tok_typ("     0.0 "), [FloatConst]);
     assert_eq!(tok_str("123.999 "), ["123.999"]);
@@ -288,8 +303,12 @@ fn float() {
     assert_eq!(tok_typ("123e3 "), [FloatConst]);
     assert_eq!(tok_str("123e+99 "), ["123e+99"]);
     assert_eq!(tok_typ("123e+99 "), [FloatConst]);
+    assert_eq!(tok_str("123e+99_ "), ["123e+99_"]);
+    assert_eq!(tok_typ("123e+99_ "), [FloatConst]);
     assert_eq!(tok_str("2345e-7 "), ["2345e-7"]);
     assert_eq!(tok_typ("2345e-7 "), [FloatConst]);
+    assert_eq!(tok_str("1_023_.9_099_ "), ["1_023_.9_099_"]);
+    assert_eq!(tok_typ("1_023_.9_099_ "), [FloatConst]);
 
     assert_eq!(tok_err("01.2"),
         "Unexpected `leading zeros are not allowed in numbers`");
@@ -297,8 +316,6 @@ fn float() {
 
 #[test]
 fn decimal() {
-    assert_eq!(tok_str("0.n"), ["0.n"]);
-    assert_eq!(tok_typ("0.n"), [DecimalConst]);
     assert_eq!(tok_str("     0.0n"), ["0.0n"]);
     assert_eq!(tok_typ("     0.0n"), [DecimalConst]);
     assert_eq!(tok_str("123.999n"), ["123.999n"]);
@@ -311,9 +328,17 @@ fn decimal() {
     assert_eq!(tok_typ("2345.567e-7n"), [DecimalConst]);
     assert_eq!(tok_str("2345e-7n"), ["2345e-7n"]);
     assert_eq!(tok_typ("2345e-7n"), [DecimalConst]);
+    assert_eq!(tok_str("2_345e-7n"), ["2_345e-7n"]);
+    assert_eq!(tok_typ("2_345e-7n"), [DecimalConst]);
+    assert_eq!(tok_str("1_023.9_099n"), ["1_023.9_099n"]);
+    assert_eq!(tok_typ("1_023.9_099n"), [DecimalConst]);
+    assert_eq!(tok_str("1_023_.9_099_n"), ["1_023_.9_099_n"]);
+    assert_eq!(tok_typ("1_023_.9_099_n"), [DecimalConst]);
+    assert_eq!(tok_str("2_345e-7n"), ["2_345e-7n"]);
+    assert_eq!(tok_typ("2_345e-7n"), [DecimalConst]);
+    assert_eq!(tok_str("2_345e-7_7n"), ["2_345e-7_7n"]);
+    assert_eq!(tok_typ("2_345e-7_7n"), [DecimalConst]);
 
-    assert_eq!(tok_str("0.n "), ["0.n"]);
-    assert_eq!(tok_typ("0.n "), [DecimalConst]);
     assert_eq!(tok_str("     0.0n "), ["0.0n"]);
     assert_eq!(tok_typ("     0.0n "), [DecimalConst]);
     assert_eq!(tok_str("123.999n "), ["123.999n"]);
@@ -423,6 +448,18 @@ fn numbers_from_py() {
 
 #[test]
 fn num_errors() {
+    assert_eq!(tok_err("0. "),
+        "Expected `expected digit after dot, found end of decimal`");
+    assert_eq!(tok_err("1.<"),
+        "Expected `expected digit after dot, found end of decimal`");
+    assert_eq!(tok_err("0.n"),
+        "Expected `expected digit after dot, found suffix`");
+    assert_eq!(tok_err("0.e1"),
+        "Expected `expected digit after dot, found exponent`");
+    assert_eq!(tok_err("0.e1n"),
+        "Expected `expected digit after dot, found exponent`");
+    assert_eq!(tok_err("0."),
+        "Expected `expected digit after dot, found end of decimal`");
     assert_eq!(tok_err("1.0.x"),
         "Unexpected `extra decimal dot in number`");
     assert_eq!(tok_err("1.0e1."),
@@ -440,6 +477,15 @@ fn num_errors() {
         "Unexpected `optional `+` or `-` \
         followed by digits must follow `e` in float const`");
     assert_eq!(tok_err("1.0e "),
+        "Unexpected `optional `+` or `-` \
+        followed by digits must follow `e` in float const`");
+    assert_eq!(tok_err("1.0e_"),
+        "Unexpected `optional `+` or `-` \
+        followed by digits must follow `e` in float const`");
+    assert_eq!(tok_err("1.0e_ "),
+        "Unexpected `optional `+` or `-` \
+        followed by digits must follow `e` in float const`");
+    assert_eq!(tok_err("1.0e_1"),
         "Unexpected `optional `+` or `-` \
         followed by digits must follow `e` in float const`");
     assert_eq!(tok_err("1.0e+"),
@@ -463,6 +509,16 @@ fn num_errors() {
     assert_eq!(tok_err("100O00"),
         "Unexpected `suffix \"O00\" is invalid for numbers, \
         perhaps mixed up letter `O` with zero `0`?`");
+    assert_eq!(tok_err("01"),
+        "Unexpected `leading zeros are not allowed in numbers`");
+    assert_eq!(tok_err("01n"),
+        "Unexpected `leading zeros are not allowed in numbers`");
+    assert_eq!(tok_err("01_n"),
+        "Unexpected `leading zeros are not allowed in numbers`");
+    assert_eq!(tok_err("0_1_n"),
+        "Unexpected `leading zeros are not allowed in numbers`");
+    assert_eq!(tok_err("0_1n"),
+        "Unexpected `leading zeros are not allowed in numbers`");
 }
 
 #[test]

@@ -17,6 +17,7 @@
 #
 
 
+import decimal
 import re
 import unittest  # NOQA
 
@@ -109,6 +110,7 @@ class TestEdgeQLParser(EdgeQLSyntaxTest):
         SELECT +7;
         SELECT -7;
         SELECT 551;
+        SELECT 1_024;
         """
 
     def test_edgeql_syntax_constants_02(self):
@@ -145,7 +147,9 @@ class TestEdgeQLParser(EdgeQLSyntaxTest):
         SELECT 3.5432e20;
         SELECT 3.5432e+20;
         SELECT 3.5432e-20;
+        SELECT 3.543_2e-20;
         SELECT 354.32e-20;
+        SELECT 2_354.32e-20;
 
 % OK %
 
@@ -155,7 +159,9 @@ class TestEdgeQLParser(EdgeQLSyntaxTest):
         SELECT 3.5432e20;
         SELECT 3.5432e+20;
         SELECT 3.5432e-20;
+        SELECT 3.543_2e-20;
         SELECT 354.32e-20;
+        SELECT 2_354.32e-20;
         """
 
     def test_edgeql_syntax_constants_05(self):
@@ -181,6 +187,8 @@ class TestEdgeQLParser(EdgeQLSyntaxTest):
         SELECT 02;
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError, 'expected digit after dot',
+                  line=2, col=16)
     def test_edgeql_syntax_constants_08(self):
         """
         SELECT 1.;
@@ -449,12 +457,15 @@ aa';
         SELECT -1n;
         SELECT 100000n;
         SELECT -100000n;
+        SELECT 100_000n;
+        SELECT -100_000n;
         SELECT -354.32n;
         SELECT 35400000000000.32n;
         SELECT -35400000000000000000.32n;
         SELECT 3.5432e20n;
         SELECT -3.5432e+20n;
         SELECT 3.5432e-20n;
+        SELECT 3.543_2e-20n;
         SELECT 354.32e-20n;
 
 % OK %
@@ -465,12 +476,15 @@ aa';
         SELECT -1n;
         SELECT 100000n;
         SELECT -100000n;
+        SELECT 100_000n;
+        SELECT -100_000n;
         SELECT -354.32n;
         SELECT 35400000000000.32n;
         SELECT -35400000000000000000.32n;
         SELECT 3.5432e20n;
         SELECT -3.5432e+20n;
         SELECT 3.5432e-20n;
+        SELECT 3.543_2e-20n;
         SELECT 354.32e-20n;
         """
 
@@ -3459,6 +3473,54 @@ aa';
         ) ->
             std::int64 USING SQL FUNCTION 'aaa';
         """
+
+    async def test_edgeql_syntax_ddl_function_49(self):
+        # This test checks constants, but we have to do DDLs to test them
+        # with constant extraction disabled
+        await self.con.execute('''
+            CREATE FUNCTION test::constant_int() -> std::int64 {
+                USING (SELECT 1_024);
+            };
+            CREATE FUNCTION test::constant_bigint() -> std::bigint {
+                USING (SELECT 1_024n);
+            };
+            CREATE FUNCTION test::constant_float() -> std::float64 {
+                USING (SELECT 1_024.1_250);
+            };
+            CREATE FUNCTION test::constant_decimal() -> std::decimal {
+                USING (SELECT 1_024.1_024n);
+            };
+        ''')
+        try:
+            await self.assert_query_result(
+                r'''
+                    SELECT (
+                        int := test::constant_int(),
+                        bigint := test::constant_bigint(),
+                        float := test::constant_float(),
+                        decimal := test::constant_decimal(),
+                    )
+                ''',
+                [{
+                    "int": 1024,
+                    "bigint": 1024,
+                    "float": 1024.125,
+                    "decimal": 1024.1024,
+                }],
+                [{
+                    "int": 1024,
+                    "bigint": 1024,
+                    "float": 1024.125,
+                    "decimal": decimal.Decimal('1024.1024'),
+                }],
+            )
+        finally:
+            await self.con.execute("""
+                DROP FUNCTION test::constant_int();
+                DROP FUNCTION test::constant_float();
+                DROP FUNCTION test::constant_bigint();
+                DROP FUNCTION test::constant_decimal();
+            """)
 
     def test_edgeql_syntax_ddl_property_01(self):
         """

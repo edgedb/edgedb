@@ -134,7 +134,7 @@ pub fn normalize<'x>(text: &'x str)
                     next_var(variables.len()),
                     tok.start, tok.end);
                 variables.push(Variable {
-                    value: Value::Int(tok.value.parse()
+                    value: Value::Int(tok.value.replace("_", "").parse()
                         .map_err(|e| Error::Tokenizer(
                             format!("can't parse integer: {}", e),
                             tok.start))?),
@@ -146,7 +146,7 @@ pub fn normalize<'x>(text: &'x str)
                     next_var(variables.len()),
                     tok.start, tok.end);
                 variables.push(Variable {
-                    value: Value::Float(tok.value.parse()
+                    value: Value::Float(tok.value.replace("_", "").parse()
                         .map_err(|e| Error::Tokenizer(
                             format!("can't parse float: {}", e),
                             tok.start))?),
@@ -157,7 +157,8 @@ pub fn normalize<'x>(text: &'x str)
                 push_var(&mut rewritten_tokens, "__std__::bigint",
                     next_var(variables.len()),
                     tok.start, tok.end);
-                let dec: BigDecimal = tok.value[..tok.value.len()-1].parse()
+                let dec: BigDecimal = tok.value[..tok.value.len()-1]
+                        .replace("_", "").parse()
                         .map_err(|e| Error::Tokenizer(
                             format!("can't parse bigint: {}", e),
                             tok.start))?;
@@ -176,6 +177,7 @@ pub fn normalize<'x>(text: &'x str)
                 variables.push(Variable {
                     value: Value::Decimal(
                         tok.value[..tok.value.len()-1]
+                        .replace("_", "")
                         .parse()
                         .map_err(|e| Error::Tokenizer(
                             format!("can't parse decimal: {}", e),

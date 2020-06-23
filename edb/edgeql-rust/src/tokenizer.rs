@@ -495,12 +495,12 @@ fn convert(py: Python, tokens: &Tokens, cache: &mut Cache,
             Ok((tokens.nfconst.clone_ref(py),
                 PyString::new(py, value),
                 cache.decimal(py)?.call(py,
-                    (&value[..value.len()-1],), None)?))
+                    (&value[..value.len()-1].replace("_", ""),), None)?))
         }
         FloatConst => {
             Ok((tokens.fconst.clone_ref(py),
                 PyString::new(py, value),
-                f64::from_str(value)
+                f64::from_str(&value.replace("_", ""))
                 .map_err(|e| TokenizerError::new(py,
                     (format!("error reading float: {}", e),
                      py_pos(py, &token.start))))?
@@ -516,7 +516,7 @@ fn convert(py: Python, tokens: &Tokens, cache: &mut Cache,
                 // i64 as absolute (positive) value.
                 // Python has no problem of representing such a positive
                 // value, though.
-                u64::from_str(value)
+                u64::from_str(&value.replace("_", ""))
                 .map_err(|e| TokenizerError::new(py,
                     (format!("error reading int: {}", e),
                      py_pos(py, &token.start))))?
@@ -527,7 +527,7 @@ fn convert(py: Python, tokens: &Tokens, cache: &mut Cache,
             Ok((tokens.niconst.clone_ref(py),
                 PyString::new(py, value),
                 py.get_type::<PyInt>().call(py,
-                    (&value[..value.len()-1],), None)?))
+                    (&value[..value.len()-1].replace("_", ""),), None)?))
         }
         BinStr => {
             Ok((tokens.bconst.clone_ref(py),

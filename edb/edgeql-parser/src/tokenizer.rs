@@ -578,6 +578,7 @@ impl<'a> TokenStream<'a> {
         let (mut bstate, dec_len) = loop {
             match iter.next() {
                 Some((_, '0'..='9')) => continue,
+                Some((_, '_')) => continue,
                 Some((idx, 'e')) => break (Break::Exponent, idx+1),
                 Some((idx, '.')) => break (Break::Dot, idx+1),
                 Some((idx, c)) if c.is_alphabetic() => {
@@ -601,16 +602,46 @@ impl<'a> TokenStream<'a> {
                 if let Some((idx, c)) = iter.next() {
                     match c {
                         '0'..='9' => continue,
-                        'e' => break Break::Exponent,
+                        '_' => {
+                            if idx+1 == dec_len+1 {
+                                return Err(Error::expected_static_message(
+                                    "expected digit after dot, \
+                                    found underscore"))
+                            }
+                            continue;
+                        }
+                        'e' => {
+                            if idx+1 == dec_len+1 {
+                                return Err(Error::expected_static_message(
+                                    "expected digit after dot, \
+                                    found exponent"))
+                            }
+                            break Break::Exponent;
+                        }
                         '.' => return Err(Error::unexpected_static_message(
                             "extra decimal dot in number")),
                         c if c.is_alphabetic() => {
+                            if idx == dec_len {
+                                return Err(Error::expected_static_message(
+                                    "expected digit after dot, found suffix"))
+                            }
                             suffix = Some(idx+1);
                             break Break::Letter;
                         }
-                        _ => return Ok((FloatConst, idx+1)),
+                        _ => {
+                            if idx+1 == dec_len+1 {
+                                return Err(Error::expected_static_message(
+                                    "expected digit after dot, \
+                                    found end of decimal"))
+                            }
+                            return Ok((FloatConst, idx+1));
+                        }
                     }
                 } else {
+                    if self.buf.len() - self.off == dec_len+1 {
+                        return Err(Error::expected_static_message(
+                            "expected digit after dot, found end of decimal"))
+                    }
                     return Ok((FloatConst, self.buf.len() - self.off));
                 }
             }
@@ -639,6 +670,7 @@ impl<'a> TokenStream<'a> {
             loop {
                 match iter.next() {
                     Some((_, '0'..='9')) => continue,
+                    Some((_, '_')) => continue,
                     Some((_, '.')) => return Err(
                         Error::unexpected_static_message(
                         "extra decimal dot in number")),
