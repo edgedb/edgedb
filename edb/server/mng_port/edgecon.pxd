@@ -95,6 +95,7 @@ cdef class EdgeConnection:
 
         tuple protocol_version
         tuple max_protocol
+        object timer
 
         object __weakref__
 
@@ -126,3 +127,11 @@ cdef class EdgeConnection:
     cdef get_backend(self)
 
     cdef uint64_t _parse_implicit_limit(self, bytes v) except <uint64_t>-1
+
+
+@cython.final
+cdef class Timer:
+    cdef:
+        dict _durations
+        dict _last_report_timestamp
+        int _threshold_seconds
