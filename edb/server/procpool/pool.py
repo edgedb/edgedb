@@ -251,7 +251,6 @@ class Manager:
             for worker in workers_to_kill:
                 g.create_task(worker.close())
 
-
     def _report_workers(self, worker: Worker, *, action: str = "spawn"):
         action = action.capitalize()
         if not action.endswith("e"):

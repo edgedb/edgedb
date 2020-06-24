@@ -25,7 +25,6 @@ import httptools
 from edb.common import debug
 from edb.common import markup
 
-
 HTTPStatus = http.HTTPStatus
 
 
@@ -44,8 +43,9 @@ cdef class HttpResponse:
 
 cdef class HttpProtocol:
 
-    def __init__(self, loop):
+    def __init__(self, loop, server):
         self.loop = loop
+        self.server = server
         self.transport = None
 
         self.parser = httptools.HttpRequestParser(self)
@@ -95,6 +95,7 @@ cdef class HttpProtocol:
         else:
             self.in_response = True
             self.loop.create_task(self._handle_request(req))
+        self.server.last_minute_requests += 1
 
     cdef close(self):
         self.transport.close()

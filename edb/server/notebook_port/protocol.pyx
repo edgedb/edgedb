@@ -38,8 +38,7 @@ from edb.server.http cimport http
 cdef class Protocol(http.HttpProtocol):
 
     def __init__(self, loop, server, query_cache):
-        http.HttpProtocol.__init__(self, loop)
-        self.server = server
+        http.HttpProtocol.__init__(self, loop, server)
         self.query_cache = query_cache
 
     cdef handle_error(self, http.HttpRequest request,
