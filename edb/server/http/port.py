@@ -20,12 +20,16 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 
 from edb.common import taskgroup
+from edb.common import windowedsum
 
 from edb.server import baseport
 from edb.server import cache
 from edb.server import defines
+
+telemetry = logging.getLogger('edb.server.telemetry')
 
 
 class BaseHttpPort(baseport.Port):
@@ -57,8 +61,10 @@ class BaseHttpPort(baseport.Port):
         self.database = database
         self.user = user
         self.concurrency = concurrency
+        self.last_minute_requests = windowedsum.WindowedSum()
 
-        self._servers = []
+        self._http_proto_server = None
+        self._http_request_logger = None
         self._query_cache = cache.StatementsCache(
             maxsize=defines.HTTP_PORT_QUERY_CACHE_SIZE)
 
@@ -109,19 +115,20 @@ class BaseHttpPort(baseport.Port):
             self._pgcons_list.append(con_task.result())
 
         nethost = await self._fix_localhost(self._nethost, self._netport)
-        srv = await self._loop.create_server(
+        self._http_proto_server = await self._loop.create_server(
             self.build_protocol,
             host=nethost, port=self._netport)
-
-        self._servers.append(srv)
+        self._http_request_logger = asyncio.create_task(
+            self.request_stats_logger()
+        )
 
     async def stop(self):
         try:
-            async with taskgroup.TaskGroup() as g:
-                for srv in self._servers:
-                    srv.close()
-                    g.create_task(srv.wait_closed())
-                self._servers.clear()
+            srv = self._http_proto_server
+            if srv is not None:
+                self._http_proto_server = None
+                srv.close()
+                await srv.wait_closed()
         finally:
             try:
                 async with taskgroup.TaskGroup() as g:
@@ -132,5 +139,25 @@ class BaseHttpPort(baseport.Port):
                 for pgcon in self._pgcons_list:
                     pgcon.terminate()
                 self._pgcons_list.clear()
+                if self._http_request_logger is not None:
+                    self._http_request_logger.cancel()
+                    await self._http_request_logger
             finally:
                 await super().stop()
+
+    async def request_stats_logger(self):
+        last_seen = -1
+        while True:
+            current = int(self.last_minute_requests)
+            if current != last_seen:
+                telemetry.info(
+                    "HTTP requests for %s-%s in last minute: %d",
+                    self.get_proto_name(),
+                    self._netport,
+                    current,
+                )
+                last_seen = current
+            try:
+                await asyncio.sleep(30)
+            except asyncio.CancelledError:
+                return

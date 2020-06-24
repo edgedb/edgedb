@@ -23,5 +23,4 @@ from edb.server.cache cimport stmt_cache
 
 cdef class Protocol(http.HttpProtocol):
     cdef:
-        object server
         stmt_cache.StatementsCache query_cache

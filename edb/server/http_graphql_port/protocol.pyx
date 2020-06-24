@@ -61,8 +61,7 @@ CacheEntry = Union[CacheRedirect, compiler.CompiledOperation]
 cdef class Protocol(http.HttpProtocol):
 
     def __init__(self, loop, server, query_cache):
-        http.HttpProtocol.__init__(self, loop)
-        self.server = server
+        http.HttpProtocol.__init__(self, loop, server)
         self.query_cache = query_cache
 
     async def handle_request(self, http.HttpRequest request,
