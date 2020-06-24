@@ -1857,10 +1857,6 @@ class SysConfigFunction(dbops.Function):
         BEGIN
         RETURN QUERY EXECUTE $$
             WITH
-                data_dir AS
-                    (SELECT setting AS dir FROM pg_settings
-                     WHERE name = 'data_directory'),
-
                 config_spec AS
                     (SELECT
                         s.key AS name,
