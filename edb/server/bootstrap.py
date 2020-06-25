@@ -308,6 +308,7 @@ def compile_bootstrap_script(
     *,
     single_statement: bool = False,
     expected_cardinality_one: bool = False,
+    output_format: edbcompiler.IoFormat = edbcompiler.IoFormat.JSON,
 ) -> Tuple[s_schema.Schema, str]:
 
     ctx = edbcompiler.new_compiler_context(
@@ -315,7 +316,7 @@ def compile_bootstrap_script(
         single_statement=single_statement,
         expected_cardinality_one=expected_cardinality_one,
         json_parameters=True,
-        output_format=edbcompiler.IoFormat.JSON,
+        output_format=output_format,
     )
 
     return edbcompiler.compile_edgeql_script(compiler, ctx, eql)
@@ -653,6 +654,9 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
         schema_class_layout=stdlib.classlayout,
         bootstrap_mode=True,
     )
+
+    await metaschema.generate_more_support_functions(
+        conn, compiler, stdlib.reflschema)
 
     return schema, stdlib.reflschema, compiler
 

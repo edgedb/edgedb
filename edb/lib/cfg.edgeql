@@ -87,7 +87,7 @@ CREATE TYPE cfg::Config extending cfg::ConfigObject {
         SET default := 5656;
     };
 
-    CREATE REQUIRED MULTI PROPERTY listen_addresses -> std::str {
+    CREATE MULTI PROPERTY listen_addresses -> std::str {
         CREATE ANNOTATION cfg::system := 'true';
     };
 
@@ -139,4 +139,86 @@ cfg::get_config_json() -> std::json
     SELECT jsonb_object_agg(cfg.name, cfg)
     FROM edgedb._read_sys_config() AS cfg
     $$;
+};
+
+CREATE FUNCTION
+cfg::_quote(text: std::str) -> std::str
+{
+    USING SQL $$
+        SELECT replace(quote_literal(text), '''''', '\\''')
+    $$
+};
+
+CREATE FUNCTION
+cfg::_name_value(name: std::str, value: OPTIONAL std::int16) -> std::str
+{
+    USING (
+        SELECT name ++ ' := ' ++ <str>value ?? '{}'
+    )
+};
+
+CREATE FUNCTION
+cfg::_name_value(name: std::str, value: OPTIONAL std::bool) -> std::str
+{
+    USING (
+        SELECT name ++ ' := ' ++ <str>value ?? '{}'
+    )
+};
+
+CREATE FUNCTION
+cfg::_name_value(name: std::str, value: OPTIONAL std::int32) -> std::str
+{
+    USING (
+        SELECT name ++ ' := ' ++ <str>value ?? '{}'
+    )
+};
+
+CREATE FUNCTION
+cfg::_name_value(name: std::str, value: OPTIONAL std::int64) -> std::str
+{
+    USING (
+        SELECT name ++ ' := ' ++ <str>value ?? '{}'
+    )
+};
+
+CREATE FUNCTION
+cfg::_name_value(name: std::str, value: OPTIONAL std::str) -> std::str
+{
+    USING (
+        SELECT name ++ ' := ' ++ cfg::_quote(value) ?? '{}'
+    )
+};
+
+CREATE FUNCTION
+cfg::_name_value(name: std::str, value: array<std::str>) -> std::str
+{
+    USING SQL $$
+        SELECT concat(name, ' := {',
+            string_agg(quote_literal(item), ', '), '}')
+        FROM unnest(value) as item
+    $$
+};
+
+CREATE FUNCTION
+cfg::_describe_system_config_as_ddl() -> str
+{
+    # The results won't change within a single statement.
+    SET volatility := 'STABLE';
+    USING SQL FUNCTION 'edgedb._describe_system_config_as_ddl';
+};
+
+CREATE FUNCTION
+cfg::_config_insert_all_ports() -> str
+{
+    # The results won't change within a single statement.
+    SET volatility := 'STABLE';
+    USING SQL FUNCTION 'edgedb._config_insert_all_ports';
+};
+
+CREATE FUNCTION
+cfg::_config_insert_all_auth() -> str
+{
+    # The results won't change within a single statement.
+    SET volatility := 'STABLE';
+    USING SQL FUNCTION 'edgedb._config_insert_all_auth';
 };
