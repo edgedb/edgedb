@@ -43,7 +43,7 @@ WORKER_MOD = __name__.rpartition('.')[0] + '.worker'
 
 
 logger = logging.getLogger("edb.server")
-telemetry = logging.getLogger("edb.server.telemetry")
+log_metrics = logging.getLogger("edb.server.metrics")
 
 
 # Inherit sys.path so that import system can find worker class
@@ -256,7 +256,7 @@ class Manager:
         if not action.endswith("e"):
             action += "e"
         action += "d"
-        telemetry.info(
+        log_metrics.info(
             "%s a %s worker with PID %d; used=%d; pool=%d;"
             + " spawned=%d; killed=%d",
             action,
