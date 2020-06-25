@@ -2045,12 +2045,14 @@ cdef class Timer:
     @contextlib.contextmanager
     def timed(self, operation: str):
         ts_start = time.monotonic()
-        yield
-        ts_end = time.monotonic()
-        duration = ts_end - ts_start
-        series = self._durations.setdefault(operation, [])
-        series.append(duration)
-        self.maybe_log_stats(operation, series=series)
+        try:
+            yield
+        finally:
+            ts_end = time.monotonic()
+            duration = ts_end - ts_start
+            series = self._durations.setdefault(operation, [])
+            series.append(duration)
+            self.maybe_log_stats(operation, series=series)
 
     def maybe_log_stats(
         self, operation: str, *, series: Sequence[float] = ()
