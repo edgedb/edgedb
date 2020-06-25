@@ -732,7 +732,7 @@ def trace_DescribeStmt(
     ctx: TracerContext,
 ) -> None:
 
-    if node.object:
+    if isinstance(node.object, qlast.ObjectRef):
         fq_name = node.object.name
         if node.object.module:
             fq_name = f'{node.object.module}::{fq_name}'

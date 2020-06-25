@@ -483,7 +483,7 @@ def compile_DescribeStmt(
         stmt = irast.SelectStmt()
         init_stmt(stmt, ql, ctx=ictx, parent_ctx=ctx)
 
-        if not ql.object:
+        if ql.object == qlast.DescribeGlobal.Schema:
             if ql.language is qltypes.DescribeLanguage.DDL:
                 # DESCRIBE SCHEMA
                 text = s_ddl.ddl_text_from_schema(
@@ -492,7 +492,31 @@ def compile_DescribeStmt(
             else:
                 raise errors.QueryError(
                     f'cannot describe full schema as {ql.language}')
+
+            ct = typegen.type_to_typeref(
+                ctx.env.get_track_schema_type('std::str'),
+                env=ctx.env,
+            )
+
+            stmt.result = setgen.ensure_set(
+                irast.StringConstant(value=text, typeref=ct),
+                ctx=ictx,
+            )
+
+        elif ql.object == qlast.DescribeGlobal.SystemConfig:
+            if ql.language is qltypes.DescribeLanguage.DDL:
+                function_call = dispatch.compile(
+                    qlast.FunctionCall(
+                        func=('cfg', '_describe_system_config_as_ddl'),
+                    ),
+                    ctx=ictx)
+                assert isinstance(function_call, irast.Set), function_call
+                stmt.result = function_call
+            else:
+                raise errors.QueryError(
+                    f'cannot describe config as {ql.language}')
         else:
+            assert isinstance(ql.object, qlast.ObjectRef), ql.object
             modules = []
             items: DefaultDict[str, List[str]] = defaultdict(list)
             referenced_classes: List[s_obj.ObjectMeta] = []
@@ -654,15 +678,15 @@ def compile_DescribeStmt(
                 masked = textwrap.indent(masked, '# ')
                 text += masked
 
-        ct = typegen.type_to_typeref(
-            ctx.env.get_track_schema_type('std::str'),
-            env=ctx.env,
-        )
+            ct = typegen.type_to_typeref(
+                ctx.env.get_track_schema_type('std::str'),
+                env=ctx.env,
+            )
 
-        stmt.result = setgen.ensure_set(
-            irast.StringConstant(value=text, typeref=ct),
-            ctx=ictx,
-        )
+            stmt.result = setgen.ensure_set(
+                irast.StringConstant(value=text, typeref=ct),
+                ctx=ictx,
+            )
 
         result = fini_stmt(stmt, ql, ctx=ictx, parent_ctx=ctx)
 

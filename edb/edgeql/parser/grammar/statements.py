@@ -179,9 +179,17 @@ class DescribeStmt(Nonterm):
     def reduce_DESCRIBE_SCHEMA(self, *kids):
         """%reduce DESCRIBE SCHEMA DescribeFormat"""
         self.val = qlast.DescribeStmt(
-            object=None,
+            object=qlast.DescribeGlobal.Schema,
             language=kids[2].val.language,
             options=kids[2].val.options,
+        )
+
+    def reduce_DESCRIBE_SYSTEM_CONFIG(self, *kids):
+        """%reduce DESCRIBE SYSTEM CONFIG DescribeFormat"""
+        self.val = qlast.DescribeStmt(
+            object=qlast.DescribeGlobal.SystemConfig,
+            language=kids[3].val.language,
+            options=kids[3].val.options,
         )
 
     def reduce_DESCRIBE_SchemaItem(self, *kids):

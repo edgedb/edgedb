@@ -3923,3 +3923,15 @@ aa';
         """
         DESCRIBE TYPE foo::Bar AS DDL VERBOSE;
         """
+
+    def test_edgeql_syntax_describe_05(self):
+        """
+        DESCRIBE SYSTEM CONFIG;
+% OK %
+        DESCRIBE SYSTEM CONFIG AS DDL;
+        """
+
+    def test_edgeql_syntax_describe_06(self):
+        """
+        DESCRIBE SYSTEM CONFIG AS DDL;
+        """

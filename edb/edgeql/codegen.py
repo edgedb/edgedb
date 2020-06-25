@@ -1659,10 +1659,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_DescribeStmt(self, node: qlast.DescribeStmt) -> None:
         self.write(f'DESCRIBE ')
-        if node.object:
-            self.visit(node.object)
+        if isinstance(node.object, qlast.DescribeGlobal):
+            self.write(node.object.to_edgeql())
         else:
-            self.write('SCHEMA')
+            self.visit(node.object)
         if node.language:
             self.write(' AS ', node.language)
         if node.options:

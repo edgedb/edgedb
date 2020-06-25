@@ -31,6 +31,7 @@ from edb.common import exceptions
 from edb.common import uuidgen
 
 from edb.edgeql import qltypes
+from edb.edgeql import quote as qlquote
 
 from edb.schema import migrations  # NoQA
 from edb.schema import modules as s_mod
@@ -38,6 +39,8 @@ from edb.schema import name as sn
 from edb.schema import objtypes as s_objtypes
 
 from edb.server import defines
+from edb.server import compiler as edbcompiler
+from edb.server import bootstrap as edbbootstrap
 
 from . import common
 from . import dbops
@@ -471,7 +474,6 @@ class ExtractJSONScalarFunction(dbops.Function):
             args=[('val', ('jsonb',)), ('json_typename', ('text',)),
                   ('msg', ('text',), 'NULL'), ('det', ('text',), "''")],
             returns=('text',),
-            # Same volatility as jsonb_assert_type
             volatility='stable',
             text=self.text)
 
@@ -1836,6 +1838,115 @@ class StrToBool(dbops.Function):
             text=self.text)
 
 
+class QuoteLiteralFunction(dbops.Function):
+    """Encode string as edgeql literal quoted string"""
+    text = r'''
+        SELECT concat('\'',
+            replace(
+                replace(val, '\\', '\\\\'),
+                '\'', '\\\''),
+            '\'')
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'quote_literal'),
+            args=[('val', ('text',))],
+            returns=('str',),
+            volatility='immutable',
+            text=self.text)
+
+
+class ConfigObjectAsDDLFunction(dbops.Function):
+    """Describe single configuration object as DDL"""
+
+    def __init__(self, compiler, schema, name: str, plural: str) -> None:
+
+        cfg = schema.get('cfg::' + name)
+        items = []
+        for pn, p in cfg.get_pointers(schema).items(schema):
+            if pn in ('id', '__type__'):
+                continue
+            if p.get_annotation(schema, 'cfg::internal') == 'true':
+                continue
+            ptype = p.get_target(schema)
+            mult = p.get_cardinality(schema) is qltypes.SchemaCardinality.MANY
+            if isinstance(ptype, s_objtypes.ObjectType):
+                items.append(
+                    f"'  { qlquote.quote_ident(pn) } := (INSERT ' ++ "
+                    f" cfg::{ name }.{ qlquote.quote_ident(pn) }.__type__.name"
+                    f" ++ '),\\n'"
+                )
+            elif mult:
+                items.append(
+                    f"'  ' ++ cfg::_name_value({ ql(pn) },"
+                    f" array_agg(cfg::{ name }.{ qlquote.quote_ident(pn) }))"
+                    f" ++ ',\\n'")
+            else:
+                items.append(
+                    f"'  ' ++ cfg::_name_value({ ql(pn) },"
+                    f" cfg::{ name }.{ qlquote.quote_ident(pn) })"
+                    f" ++ ',\\n'")
+
+        script = (
+            f"SELECT array_join(array_agg(("
+            f"SELECT 'CONFIGURE SYSTEM INSERT {name} {{\\n'"
+            f" ++ {' ++ '.join(items)} ++ '}};\n'"
+            f")), '')"
+        )
+        _, text = edbbootstrap.compile_bootstrap_script(
+            compiler, schema, script,
+            output_format=edbcompiler.IoFormat.BINARY)
+        super().__init__(
+            name=('edgedb', '_config_insert_all_' + plural),
+            args=[],
+            returns=('text'),
+            # Stable because it's raising exceptions.
+            volatility='stable',
+            text=text)
+
+
+class DescribeSystemConfigAsDDLFunction(dbops.Function):
+    """Describe server configuration as DDL"""
+
+    def __init__(self, compiler, schema) -> None:
+
+        cfg = schema.get('cfg::Config')
+        items = []
+        for pn, p in cfg.get_pointers(schema).items(schema):
+            if pn in ('id', '__type__'):
+                continue
+            ptype = p.get_target(schema)
+            mult = p.get_cardinality(schema) is qltypes.SchemaCardinality.MANY
+            if isinstance(ptype, s_objtypes.ObjectType):
+                if pn not in {'sessobj', 'sysobj'}:
+                    items.append(f"cfg::_config_insert_all_{pn}()")
+            elif mult:
+                items.append(
+                    f"'CONFIGURE SYSTEM SET ' ++"
+                    f" cfg::_name_value({ ql(pn) },"
+                    f" array_agg(cfg::Config.{ qlquote.quote_ident(pn) }))"
+                    f" ++ ';\n'")
+            else:
+                items.append(
+                    f"'CONFIGURE SYSTEM SET ' ++"
+                    f" cfg::_name_value({ ql(pn) },"
+                    f" cfg::Config.{ qlquote.quote_ident(pn) })"
+                    f" ++ ';\n'")
+
+        script = f"SELECT {' ++ '.join(items)}"
+        _, text = edbbootstrap.compile_bootstrap_script(
+            compiler, schema, script,
+            output_format=edbcompiler.IoFormat.BINARY)
+        super().__init__(
+            name=('edgedb', '_describe_system_config_as_ddl'),
+            args=[],
+            returns=('text'),
+            # Stable because it's raising exceptions.
+            volatility='stable',
+            text=text)
+
+
 class SysConfigValueType(dbops.CompositeType):
     """Type of values returned by _read_sys_config."""
     def __init__(self) -> None:
@@ -2478,6 +2589,23 @@ async def generate_support_functions(conn, schema):
         dbops.CreateFunction(IssubclassFunction2()),
         dbops.CreateFunction(IsinstanceFunction()),
         dbops.CreateFunction(GetSchemaObjectNameFunction()),
+    ])
+
+    block = dbops.PLTopBlock()
+    commands.generate(block)
+    await _execute_block(conn, block)
+
+
+async def generate_more_support_functions(conn, compiler, schema):
+    commands = dbops.CommandGroup()
+
+    commands.add_commands([
+        dbops.CreateFunction(
+            ConfigObjectAsDDLFunction(compiler, schema, 'Port', 'ports')),
+        dbops.CreateFunction(
+            ConfigObjectAsDDLFunction(compiler, schema, 'Auth', 'auth')),
+        dbops.CreateFunction(
+            DescribeSystemConfigAsDDLFunction(compiler, schema)),
     ])
 
     block = dbops.PLTopBlock()
