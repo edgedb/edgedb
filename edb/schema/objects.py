@@ -170,7 +170,8 @@ class Field(struct.ProtoField, Generic[T]):
     __slots__ = ('name', 'type', 'coerce',
                  'compcoef', 'inheritable', 'simpledelta',
                  'merge_fn', 'ephemeral', 'introspectable',
-                 'allow_ddl_set', 'weak_ref', 'reflection_method')
+                 'allow_ddl_set', 'ddl_identity',
+                 'weak_ref', 'reflection_method')
 
     #: Name of the field on the target class; assigned by ObjectMeta
     name: str
@@ -198,6 +199,9 @@ class Field(struct.ProtoField, Generic[T]):
     #: Whether the field can be set directly using the `SET`
     #: command in DDL.
     allow_ddl_set: bool
+    #: Whether the field is used to identify the object
+    #: in DDL operations.
+    ddl_identity: bool
     #: Used for fields holding references to objects.  If True,
     #: the reference is considered "weak", i.e. not essential for
     #: object definition.  The schema and delta linearization
@@ -228,6 +232,7 @@ class Field(struct.ProtoField, Generic[T]):
         introspectable: bool = True,
         weak_ref: bool = False,
         allow_ddl_set: bool = False,
+        ddl_identity: bool = False,
         reflection_method: ReflectionMethod = ReflectionMethod.REGULAR,
         reflection_proxy: Optional[Tuple[str, str]] = None,
         **kwargs: Any,
@@ -242,6 +247,7 @@ class Field(struct.ProtoField, Generic[T]):
         self.type_is_generic_self = type_is_generic_self
         self.coerce = coerce
         self.allow_ddl_set = allow_ddl_set
+        self.ddl_identity = ddl_identity
 
         self.compcoef = compcoef
         self.inheritable = inheritable
@@ -1154,100 +1160,16 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             return 1.0
 
     @classmethod
-    def delta(
-        cls,
-        old: Optional[Object],
-        new: Optional[Object],
-        *,
-        context: ComparisonContext,
-        old_schema: Optional[s_schema.Schema],
-        new_schema: s_schema.Schema,
-    ) -> sd.ObjectCommand[Object]:
-        from . import delta as sd
-
-        command_args: Dict[str, Any] = {'canonical': True}
-
-        delta: sd.ObjectCommand[Object]
-
-        if old and new:
-            try:
-                name = old.get_name(old_schema)  # type: ignore
-            except AttributeError:
-                pass
-            else:
-                command_args['classname'] = name
-
-            alter_class = sd.ObjectCommandMeta.get_command_class_or_die(
-                sd.AlterObject, type(old))
-            delta = alter_class(**command_args)
-            cls.delta_properties(
-                delta,
-                old,
-                new,
-                context=context,
-                old_schema=old_schema,
-                new_schema=new_schema,
-            )
-
-        elif new:
-            try:
-                name = new.get_name(new_schema)
-            except AttributeError:
-                pass
-            else:
-                command_args['classname'] = name
-
-            create_class = sd.ObjectCommandMeta.get_command_class_or_die(
-                sd.CreateObject, type(new))
-            delta = create_class(**command_args)
-            cls.delta_properties(
-                delta,
-                old,
-                new,
-                context=context,
-                old_schema=old_schema,
-                new_schema=new_schema,
-            )
-
-        elif old:
-            try:
-                name = old.get_name(old_schema)  # type: ignore
-            except AttributeError:
-                pass
-            else:
-                command_args['classname'] = name
-
-            delete_class = sd.ObjectCommandMeta.get_command_class_or_die(
-                sd.DeleteObject, type(old))
-            delta = delete_class(**command_args)
-            cls.delta_properties(
-                delta,
-                old,
-                new,
-                context=context,
-                old_schema=old_schema,
-                new_schema=new_schema,
-            )
-
-        for refdict in cls.get_refdicts():
-            cls._delta_refdict(
-                old, new, delta=delta,
-                refdict=refdict, context=context,
-                old_schema=old_schema, new_schema=new_schema)
-
-        return delta
-
-    @classmethod
     def _delta_refdict(
-        cls,
-        old: Optional[Object],
-        new: Optional[Object],
+        cls: Type[Object_T],
+        old: Optional[Object_T],
+        new: Optional[Object_T],
         *,
-        delta: sd.ObjectCommand[Object],
+        delta: sd.ObjectCommand[Object_T],
         refdict: RefDict,
         context: ComparisonContext,
         old_schema: Optional[s_schema.Schema],
-        new_schema: s_schema.Schema,
+        new_schema: Optional[s_schema.Schema],
     ) -> None:
 
         old_idx_key = lambda o: o.get_name(old_schema)
@@ -1264,6 +1186,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                 oldcoll_idx = []
 
             if new:
+                assert new_schema is not None
                 newcoll = new.get_field_value(new_schema, attr)
                 newcoll_idx = sorted(
                     set(newcoll.objects(new_schema)), key=new_idx_key
@@ -1329,24 +1252,174 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             schemaclass=type(self),
         )
 
+    def get_ddl_identity(
+        self,
+        schema: s_schema.Schema,
+    ) -> Optional[Dict[str, str]]:
+        ddl_id_fields = [
+            fn for fn, f in type(self).get_fields().items() if f.ddl_identity
+        ]
+
+        ddl_identity: Optional[Dict[str, Any]]
+        if ddl_id_fields:
+            ddl_identity = {}
+            for fn in ddl_id_fields:
+                v = self.get_field_value(schema, fn)
+                if v is not None:
+                    ddl_identity[fn] = v
+        else:
+            ddl_identity = None
+
+        return ddl_identity
+
+    def init_delta_command(
+        self: Object_T,
+        schema: s_schema.Schema,
+        cmdtype: Type[sd.ObjectCommand[Object]],
+        **kwargs: Any,
+    ) -> sd.ObjectCommand[Object_T]:
+        from . import delta as sd
+
+        return sd.get_object_delta_command(
+            objtype=type(self),
+            cmdtype=cmdtype,
+            schema=schema,
+            name=self.get_name(schema),
+            ddl_identity=self.get_ddl_identity(schema),
+            **kwargs,
+        )
+
+    def as_create_delta(
+        self: Object_T,
+        schema: s_schema.Schema,
+        context: ComparisonContext,
+    ) -> sd.ObjectCommand[Object_T]:
+        from . import delta as sd
+
+        cls = type(self)
+        delta = self.init_delta_command(
+            schema,
+            sd.CreateObject,
+            canonical=True,
+        )
+        cls.delta_properties(
+            delta,
+            None,
+            self,
+            context=context,
+            old_schema=None,
+            new_schema=schema,
+        )
+
+        for refdict in cls.get_refdicts():
+            cls._delta_refdict(
+                None,
+                self,
+                delta=delta,
+                refdict=refdict,
+                context=context,
+                old_schema=None,
+                new_schema=schema,
+            )
+
+        return delta
+
+    def as_alter_delta(
+        self: Object_T,
+        other: Object_T,
+        *,
+        self_schema: s_schema.Schema,
+        other_schema: s_schema.Schema,
+        context: ComparisonContext,
+    ) -> sd.ObjectCommand[Object_T]:
+        from . import delta as sd
+
+        cls = type(self)
+        delta = self.init_delta_command(
+            self_schema,
+            sd.AlterObject,
+            canonical=True,
+        )
+        cls.delta_properties(
+            delta,
+            self,
+            other,
+            context=context,
+            old_schema=self_schema,
+            new_schema=other_schema,
+        )
+
+        for refdict in cls.get_refdicts():
+            cls._delta_refdict(
+                self,
+                other,
+                delta=delta,
+                refdict=refdict,
+                context=context,
+                old_schema=self_schema,
+                new_schema=other_schema,
+            )
+
+        return delta
+
+    def as_delete_delta(
+        self: Object_T,
+        *,
+        schema: s_schema.Schema,
+        context: ComparisonContext,
+    ) -> sd.ObjectCommand[Object_T]:
+        from . import delta as sd
+
+        cls = type(self)
+        delta = self.init_delta_command(
+            schema,
+            sd.DeleteObject,
+            canonical=True,
+        )
+        cls.delta_properties(
+            delta,
+            self,
+            None,
+            context=context,
+            old_schema=schema,
+            new_schema=None,
+        )
+
+        for refdict in cls.get_refdicts():
+            cls._delta_refdict(
+                self,
+                None,
+                delta=delta,
+                refdict=refdict,
+                context=context,
+                old_schema=schema,
+                new_schema=None,
+            )
+
+        return delta
+
     @classmethod
     def delta_properties(
-        cls,
-        delta: sd.ObjectCommand[Object],
-        old: Optional[Object],
-        new: Optional[Object],
+        cls: Type[Object_T],
+        delta: sd.ObjectCommand[Object_T],
+        old: Optional[Object_T],
+        new: Optional[Object_T],
         *,
         context: ComparisonContext,
         old_schema: Optional[s_schema.Schema],
-        new_schema: s_schema.Schema,
+        new_schema: Optional[s_schema.Schema],
     ) -> None:
         ff = cls.get_fields(sorted=True).items()
         fields = {fn: f for fn, f in ff
                   if f.simpledelta and not f.ephemeral and f.introspectable}
 
         if old and new:
-            if old_schema is None:
-                raise ValueError("`old` provided but `old_schema is None")
+            assert \
+                old_schema is not None, \
+                "`old` provided but `old_schema is None"
+            assert \
+                new_schema is not None, \
+                "`new` provided but `new_schema is None"
             if old.get_name(old_schema) != new.get_name(new_schema):
                 delta.add(old.delta_rename(old, new.get_name(new_schema),
                                            old_schema=old_schema,
@@ -1396,6 +1469,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         elif new:
             # IDs are assigned once when the object is created and
             # never changed.
+            assert new_schema is not None
             id_value = new.get_explicit_field_value(new_schema, 'id')
             delta.set_attribute_value('id', id_value)
 
@@ -1430,10 +1504,10 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
     @classmethod
     def delta_property(
-        cls,
+        cls: Type[Object_T],
         schema: s_schema.Schema,
-        scls: Object,
-        delta: sd.ObjectCommand[Object],
+        scls: Object_T,
+        delta: sd.ObjectCommand[Object_T],
         fname: str,
         value: Any,
         orig_value: Any = None,
@@ -1448,7 +1522,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         *,
         old_schema: s_schema.Schema,
         new_schema: s_schema.Schema,
-    ) -> sd.RenameObject:
+    ) -> sd.RenameObject[Object_T]:
         from . import delta as sd
 
         rename_class = sd.ObjectCommandMeta.get_command_class_or_die(
@@ -1466,7 +1540,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         context: ComparisonContext,
         *,
         old_schema: Optional[s_schema.Schema],
-        new_schema: s_schema.Schema,
+        new_schema: Optional[s_schema.Schema],
     ) -> sd.DeltaRoot:
         from edb.schema import delta as sd
 
@@ -1476,16 +1550,24 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         if old is None:
             if new is None:
                 raise ValueError("`old` and `new` cannot be both None.")
+            assert new_schema is not None
             for n in new:
-                adds_mods.add(n.delta(None, n, context=context,
-                                      old_schema=old_schema,
-                                      new_schema=new_schema))
+                adds_mods.add(
+                    n.as_create_delta(
+                        schema=new_schema,
+                        context=context,
+                    ),
+                )
             return adds_mods
         elif new is None:
+            assert old_schema is not None
             for o in old:
-                dels.add(o.delta(o, None, context=context,
-                                 old_schema=old_schema,
-                                 new_schema=new_schema))
+                dels.add(
+                    o.as_delete_delta(
+                        schema=old_schema,
+                        context=context,
+                    ),
+                )
             return dels
 
         old = list(old)
@@ -1497,7 +1579,9 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         oldkeys = {
             o.id: o.hash_criteria(old_schema) for o in old  # type: ignore
         }
-        newkeys = {o.id: o.hash_criteria(new_schema) for o in new}
+        newkeys = {
+            o.id: o.hash_criteria(new_schema) for o in new  # type: ignore
+        }
 
         unchanged = set(oldkeys.values()) & set(newkeys.values())
 
@@ -1514,7 +1598,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             # and `old_schema`.
             comp = x.compare(
                 y,
-                our_schema=new_schema,
+                our_schema=new_schema,  # type: ignore
                 their_schema=old_schema,  # type: ignore
                 context=context,
             )
@@ -1524,32 +1608,47 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         used_y: Set[Object] = set()
         altered = ordered.OrderedSet[sd.ObjectCommand[Object]]()
 
-        def _key(item: Tuple[float, Object, Object]) -> Tuple[float, str]:
-            return item[0], item[1].get_name(new_schema)
+        if comparison:
+            assert old_schema is not None
+            assert new_schema is not None
 
-        comparison = sorted(comparison, key=_key, reverse=True)
+            _new_schema = new_schema
 
-        for s, x, y in comparison:
-            if x not in used_x and y not in used_y:
-                if s != 1.0:
-                    if s > 0.6:
-                        altered.add(x.delta(y, x, context=context,
-                                            old_schema=old_schema,
-                                            new_schema=new_schema))
+            def _key(item: Tuple[float, Object, Object]) -> Tuple[float, str]:
+                return item[0], item[1].get_name(_new_schema)
+
+            comparison = sorted(comparison, key=_key, reverse=True)
+
+            for s, x, y in comparison:
+                if x not in used_x and y not in used_y:
+                    if s != 1.0:
+                        if s > 0.6:
+                            altered.add(
+                                y.as_alter_delta(
+                                    other=x,
+                                    context=context,
+                                    self_schema=old_schema,
+                                    other_schema=new_schema,
+                                ),
+                            )
+                            used_x.add(x)
+                            used_y.add(y)
+                    else:
                         used_x.add(x)
                         used_y.add(y)
-                else:
-                    used_x.add(x)
-                    used_y.add(y)
 
         deleted = old - used_y
         created = new - used_x
 
         if created:
+            assert new_schema is not None
             for x in created:
-                adds_mods.add(x.delta(None, x, context=context,
-                                      old_schema=old_schema,
-                                      new_schema=new_schema))
+                adds_mods.add(
+                    x.as_create_delta(
+                        schema=new_schema,
+                        context=context,
+                    ),
+                )
 
         if old_schema is not None and new_schema is not None:
             probe: Optional[Object]
@@ -1609,10 +1708,14 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             adds_mods.add(p)
 
         if deleted:
+            assert old_schema is not None
             for y in deleted:
-                dels.add(y.delta(y, None, context=context,
-                                 old_schema=old_schema,
-                                 new_schema=new_schema))
+                dels.add(
+                    y.as_delete_delta(
+                        schema=old_schema,
+                        context=context,
+                    ),
+                )
 
         adds_mods.add(dels)
         return adds_mods
@@ -1632,7 +1735,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         context: sd.CommandContext,
         command_cls: Type[sd.ObjectCommand[Object_T]],
     ) -> Tuple[sd.DeltaRoot, sd.Command]:
-        from edb.schema import delta as sd
+        from . import delta as sd
         cmdcls = sd.ObjectCommandMeta.get_command_class_or_die(
             command_cls, type(self))
         cmd = cmdcls(classname=self.get_name(schema))
@@ -2539,6 +2642,14 @@ class InheritingObject(SubclassableObject):
     ) -> FrozenSet[InheritingObjectT]:
         return schema.get_children(self)
 
+    def field_is_inherited(
+        self,
+        schema: s_schema.Schema,
+        field_name: str,
+    ) -> bool:
+        inherited_fields = self.get_inherited_fields(schema)
+        return field_name in inherited_fields
+
     def get_explicit_local_field_value(
         self,
         schema: s_schema.Schema,
@@ -2564,61 +2675,52 @@ class InheritingObject(SubclassableObject):
     ) -> bool:
         return True
 
-    @classmethod
-    def delta(
-        cls,
-        old: Optional[Object],
-        new: Optional[Object],
+    def as_alter_delta(
+        self: InheritingObjectT,
+        other: InheritingObjectT,
         *,
+        self_schema: s_schema.Schema,
+        other_schema: s_schema.Schema,
         context: ComparisonContext,
-        old_schema: Optional[s_schema.Schema],
-        new_schema: s_schema.Schema,
-    ) -> sd.ObjectCommand[Object]:
+    ) -> sd.ObjectCommand[InheritingObjectT]:
         from . import delta as sd
         from . import inheriting as s_inh
 
-        delta = super().delta(
-            old,
-            new,
+        delta = super().as_alter_delta(
+            other,
+            self_schema=self_schema,
+            other_schema=other_schema,
             context=context,
-            old_schema=old_schema,
-            new_schema=new_schema,
         )
 
-        if old and new:
-            assert isinstance(old, InheritingObject)
-            assert isinstance(new, InheritingObject)
+        rebase = sd.ObjectCommandMeta.get_command_class(
+            s_inh.RebaseInheritingObject, type(self))
 
-            rebase = sd.ObjectCommandMeta.get_command_class(
-                s_inh.RebaseInheritingObject, type(new))
+        old_base_names = self.get_base_names(self_schema)
+        new_base_names = other.get_base_names(other_schema)
 
-            assert old_schema is not None
+        if old_base_names != new_base_names and rebase is not None:
+            removed, added = s_inh.delta_bases(
+                old_base_names, new_base_names)
 
-            old_base_names = old.get_base_names(old_schema)
-            new_base_names = new.get_base_names(new_schema)
+            rebase_cmd = rebase(
+                classname=other.get_name(other_schema),
+                metaclass=type(self),
+                removed_bases=removed,
+                added_bases=added,
+            )
 
-            if old_base_names != new_base_names and rebase is not None:
-                removed, added = s_inh.delta_bases(
-                    old_base_names, new_base_names)
+            rebase_cmd.set_attribute_value(
+                'bases',
+                other.get_bases(other_schema).as_shell(other_schema),
+            )
 
-                rebase_cmd = rebase(
-                    classname=new.get_name(new_schema),
-                    metaclass=type(new),
-                    removed_bases=removed,
-                    added_bases=added,
-                )
+            rebase_cmd.set_attribute_value(
+                'ancestors',
+                other.get_ancestors(other_schema).as_shell(other_schema),
+            )
 
-                rebase_cmd.set_attribute_value(
-                    'bases',
-                    new.get_bases(new_schema).as_shell(new_schema),
-                )
-
-                rebase_cmd.set_attribute_value(
-                    'ancestors',
-                    new.get_ancestors(new_schema).as_shell(new_schema),
-                )
-
-                delta.add(rebase_cmd)
+            delta.add(rebase_cmd)
 
         return delta
 

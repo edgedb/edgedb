@@ -108,9 +108,11 @@ class OperatorCommandContext(s_func.CallableCommandContext):
     pass
 
 
-class OperatorCommand(s_func.CallableCommand,
-                      schema_metaclass=Operator,
-                      context_class=OperatorCommandContext):
+class OperatorCommand(
+    s_func.CallableCommand[Operator],
+    schema_metaclass=Operator,
+    context_class=OperatorCommandContext,
+):
 
     @classmethod
     def _cmd_tree_from_ast(
@@ -145,7 +147,10 @@ class OperatorCommand(s_func.CallableCommand,
         return fqname
 
 
-class CreateOperator(s_func.CreateCallableObject, OperatorCommand):
+class CreateOperator(
+    s_func.CreateCallableObject[Operator],
+    OperatorCommand,
+):
     astnode = qlast.CreateOperator
 
     def _create_begin(
@@ -300,13 +305,13 @@ class CreateOperator(s_func.CreateCallableObject, OperatorCommand):
         return cmd
 
 
-class RenameOperator(sd.RenameObject, OperatorCommand):
+class RenameOperator(sd.RenameObject[Operator], OperatorCommand):
     pass
 
 
-class AlterOperator(sd.AlterObject[Operator], OperatorCommand):
+class AlterOperator(s_func.AlterCallableObject[Operator], OperatorCommand):
     astnode = qlast.AlterOperator
 
 
-class DeleteOperator(s_func.DeleteCallableObject, OperatorCommand):
+class DeleteOperator(s_func.DeleteCallableObject[Operator], OperatorCommand):
     astnode = qlast.DropOperator

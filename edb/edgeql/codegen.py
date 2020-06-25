@@ -771,6 +771,18 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 )
             ]
 
+        if self.descmode:
+            # Omit orig_expr fields from output since we are
+            # using the original expression in TEXT output
+            # already.
+            commands = [
+                c for c in commands
+                if (
+                    not isinstance(c, qlast.SetField)
+                    or not c.name.startswith('orig_')
+                )
+            ]
+
         if len(commands) == 1 and allow_short and not (
             isinstance(commands[0], qlast.ObjectDDL)
         ):

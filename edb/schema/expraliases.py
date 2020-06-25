@@ -101,11 +101,7 @@ class AliasCommand(
 
         existing = schema.get(classname, type=s_types.Type, default=None)
         if existing is not None:
-            drop_cmd_cls = sd.ObjectCommandMeta.get_command_class_or_die(
-                sd.DeleteObject,
-                type(existing),
-            )
-            drop_cmd = drop_cmd_cls(classname=classname)
+            drop_cmd = existing.init_delta_command(schema, sd.DeleteObject)
             with context.suspend_dep_verification():
                 schema = drop_cmd.apply(schema, context)
 
@@ -191,7 +187,10 @@ class AliasCommand(
 
         if prev_ir is not None:
             for vt in prev_coll_expr_aliases:
-                dt = vt.as_delete_delta(prev_ir.schema, view_name=classname)
+                dt = vt.as_colltype_delete_delta(
+                    prev_ir.schema,
+                    view_name=classname,
+                )
                 derived_delta.prepend(dt)
 
         for vt in coll_expr_aliases:
@@ -279,7 +278,7 @@ class CreateAlias(
         return super()._create_begin(schema, context)
 
 
-class RenameAlias(AliasCommand, sd.RenameObject):
+class RenameAlias(AliasCommand, sd.RenameObject[Alias]):
 
     def _rename_begin(
         self,
@@ -287,18 +286,12 @@ class RenameAlias(AliasCommand, sd.RenameObject):
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         if not context.canonical:
-            alias_type = self.scls.get_type(schema)
-            alter_type = sd.ObjectCommandMeta.get_command_class_or_die(
-                sd.AlterObject, type(alias_type),
-            )
-            rename_type = sd.ObjectCommandMeta.get_command_class_or_die(
-                sd.RenameObject, type(alias_type),
-            )
-            alias_name = sn.shortname_from_fullname(self.classname)
-            alter_cmd = alter_type(classname=alias_name)
             new_alias_name = sn.shortname_from_fullname(self.new_name)
-            rename_cmd = rename_type(
-                classname=alias_name,
+            alias_type = self.scls.get_type(schema)
+            alter_cmd = alias_type.init_delta_command(schema, sd.AlterObject)
+            rename_cmd = alias_type.init_delta_command(
+                schema,
+                sd.RenameObject,
                 new_name=new_alias_name,
             )
             alter_cmd.add(rename_cmd)
@@ -380,11 +373,7 @@ class DeleteAlias(
     ) -> s_schema.Schema:
         if not context.canonical:
             alias_type = self.scls.get_type(schema)
-            drop_type = sd.ObjectCommandMeta.get_command_class_or_die(
-                sd.DeleteObject, type(alias_type),
-            )
-            alias_name = sn.shortname_from_fullname(self.classname)
-            cmd = drop_type(classname=alias_name)
-            self.add_prerequisite(cmd)
+            drop_type = alias_type.init_delta_command(schema, sd.DeleteObject)
+            self.add_prerequisite(drop_type)
 
         return super()._delete_begin(schema, context)

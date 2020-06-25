@@ -138,10 +138,12 @@ class Type(
         derived_attrs['name'] = name
         derived_attrs['bases'] = so.ObjectList.create(schema, [self])
 
-        cmdcls = sd.ObjectCommandMeta.get_command_class_or_die(
-            sd.CreateObject, type(self))
-
-        cmd = cmdcls(classname=name)
+        cmd = sd.get_object_delta_command(
+            objtype=type(self),
+            cmdtype=sd.CreateObject,
+            schema=schema,
+            name=name,
+        )
 
         for k, v in derived_attrs.items():
             cmd.set_attribute_value(k, v)
@@ -580,11 +582,8 @@ class CreateUnionType(sd.CreateObject[InheritingType], CompoundTypeCommand):
                 module=self.classname.module,
             )
 
-            delta = type(union_type).delta(
-                None,
-                union_type,
-                old_schema=schema,
-                new_schema=new_schema,
+            delta = union_type.as_create_delta(
+                schema=new_schema,
                 context=so.ComparisonContext(),
             )
 
@@ -789,7 +788,7 @@ class Collection(Type, s_abc.Collection):
     def get_schema_class_displayname(cls) -> str:
         return 'collection'
 
-    def as_delete_delta(
+    def as_colltype_delete_delta(
         self,
         schema: s_schema.Schema,
         *,
@@ -1082,7 +1081,7 @@ class Array(
         else:
             return (schema, self)
 
-    def as_delete_delta(
+    def as_colltype_delete_delta(
         self, schema: s_schema.Schema, *, view_name: str = None
     ) -> Union[DeleteArray, DeleteArrayExprAlias]:
         cmd: Union[DeleteArray, DeleteArrayExprAlias]
@@ -1094,7 +1093,7 @@ class Array(
         el = self.get_element_type(schema)
         if (isinstance(el, Collection)
                 and list(schema.get_referrers(el))[0].id == self.id):
-            cmd.add(el.as_delete_delta(schema))
+            cmd.add(el.as_colltype_delete_delta(schema))
 
         return cmd
 
@@ -1598,7 +1597,7 @@ class Tuple(
         else:
             return schema, self
 
-    def as_delete_delta(
+    def as_colltype_delete_delta(
         self, schema: s_schema.Schema, *, view_name: str = None
     ) -> Union[DeleteTuple, DeleteTupleExprAlias]:
         cmd: Union[DeleteTuple, DeleteTupleExprAlias]
@@ -1615,7 +1614,7 @@ class Tuple(
             if isinstance(el, Collection):
                 refs = schema.get_referrers(el)
                 if len(refs) == 1 and list(refs)[0].id == self.id:
-                    cmd.add(el.as_delete_delta(schema))
+                    cmd.add(el.as_colltype_delete_delta(schema))
 
         return cmd
 
@@ -1981,7 +1980,7 @@ class CreateTupleExprAlias(CreateCollectionExprAlias[TupleExprAlias],
 
 
 class RenameTupleExprAlias(CollectionExprAliasCommand[TupleExprAlias],
-                           sd.RenameObject,
+                           sd.RenameObject[TupleExprAlias],
                            schema_metaclass=TupleExprAlias):
     pass
 
@@ -2007,7 +2006,7 @@ class CreateArrayExprAlias(CreateCollectionExprAlias[TupleExprAlias],
 
 
 class RenameArrayExprAlias(CollectionExprAliasCommand[ArrayExprAlias],
-                           sd.RenameObject,
+                           sd.RenameObject[ArrayExprAlias],
                            schema_metaclass=ArrayExprAlias):
     pass
 
@@ -2102,6 +2101,6 @@ def cleanup_schema_collection(
     if (len(refs) == 1 and list(refs)[0].id == parent.id
             and coll_type.id not in delta_root.deleted_types):
         # The parent is the last user of this collection, drop it.
-        del_cmd = coll_type.as_delete_delta(schema)
+        del_cmd = coll_type.as_colltype_delete_delta(schema)
         delta_root.deleted_types[coll_type.id] = del_cmd
         delta_root.add(del_cmd)

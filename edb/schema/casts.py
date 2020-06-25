@@ -345,7 +345,7 @@ class CreateCast(CastCommand, sd.CreateObject[Cast]):
         return cmd
 
 
-class RenameCast(CastCommand, sd.RenameObject):
+class RenameCast(CastCommand, sd.RenameObject[Cast]):
     pass
 
 

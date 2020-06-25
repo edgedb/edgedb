@@ -72,7 +72,8 @@ class Constraint(referencing.ReferencedInheritingObject,
 
     subjectexpr = so.SchemaField(
         s_expr.Expression,
-        default=None, compcoef=0.833, coerce=True)
+        default=None, compcoef=0.833, coerce=True,
+        ddl_identity=True)
 
     orig_subjectexpr = so.SchemaField(
         str, default=None, coerce=True,
@@ -90,7 +91,7 @@ class Constraint(referencing.ReferencedInheritingObject,
     args = so.SchemaField(
         s_expr.ExpressionList,
         default=None, coerce=True, inheritable=False,
-        compcoef=0.875)
+        compcoef=0.875, ddl_identity=True)
 
     delegated = so.SchemaField(
         bool,
@@ -177,29 +178,62 @@ class Constraint(referencing.ReferencedInheritingObject,
 
         return formatted
 
+    def as_alter_delta(
+        self,
+        other: Constraint,
+        *,
+        self_schema: s_schema.Schema,
+        other_schema: s_schema.Schema,
+        context: so.ComparisonContext,
+    ) -> sd.ObjectCommand[Constraint]:
+        return super().as_alter_delta(
+            other,
+            self_schema=self_schema,
+            other_schema=other_schema,
+            context=context,
+        )
+
+    def get_ddl_identity(
+        self,
+        schema: s_schema.Schema,
+    ) -> Optional[Dict[str, str]]:
+        ddl_identity = super().get_ddl_identity(schema)
+
+        if (
+            ddl_identity is not None
+            and self.field_is_inherited(schema, 'subjectexpr')
+        ):
+            ddl_identity.pop('subjectexpr', None)
+
+        return ddl_identity
+
     @classmethod
     def delta_properties(
         cls,
-        delta: sd.ObjectCommand[so.Object],
-        old: Optional[so.Object],
-        new: Optional[so.Object],
+        delta: sd.ObjectCommand[Constraint],
+        old: Optional[Constraint],
+        new: Optional[Constraint],
         *,
         context: so.ComparisonContext,
         old_schema: Optional[s_schema.Schema],
-        new_schema: s_schema.Schema,
+        new_schema: Optional[s_schema.Schema],
     ) -> None:
         super().delta_properties(
-            delta, old, new, context=context,
-            old_schema=old_schema, new_schema=new_schema)
+            delta,
+            old,
+            new,
+            context=context,
+            old_schema=old_schema,
+            new_schema=new_schema,
+        )
 
         if new is not None:
-            assert isinstance(new, Constraint)
+            assert new_schema is not None
 
             if new.get_subject(new_schema) is not None:
                 new_params = new.get_params(new_schema)
 
                 if old is not None:
-                    assert isinstance(old, Constraint)
                     assert old_schema is not None
 
                 if old is None or new_params != old.get_params(
@@ -272,7 +306,7 @@ class ConstraintCommandContext(sd.ObjectCommandContext[Constraint],
 
 class ConstraintCommand(
     referencing.ReferencedInheritingObjectCommand[Constraint],
-    s_func.CallableCommand,
+    s_func.CallableCommand[Constraint],
     schema_metaclass=Constraint,
     context_class=ConstraintCommandContext,
     referrer_context_class=ConsistencySubjectCommandContext,
@@ -468,10 +502,32 @@ class ConstraintCommand(
             [b.get_name(schema) for b in new_bases],
         )
 
+    def get_ast_attr_for_field(self, field: str) -> Optional[str]:
+        if field in ('subjectexpr', 'args'):
+            return field
+        else:
+            return None
+
+    def get_ddl_identity_fields(
+        self,
+        context: sd.CommandContext,
+    ) -> Tuple[so.Field[Any], ...]:
+        id_fields = super().get_ddl_identity_fields(context)
+        omit_fields = set()
+        if not self.has_ddl_identity('subjectexpr'):
+            omit_fields.add('subjectexpr')
+        if self.get_referrer_context(context) is None:
+            omit_fields.add('args')
+
+        if omit_fields:
+            return tuple(f for f in id_fields if f.name not in omit_fields)
+        else:
+            return id_fields
+
 
 class CreateConstraint(
     ConstraintCommand,
-    s_func.CreateCallableObject,
+    s_func.CreateCallableObject[Constraint],
     referencing.CreateReferencedInheritingObject[Constraint],
 ):
 
@@ -920,12 +976,6 @@ class CreateConstraint(
 
             node.params = [p[1] for p in params]
 
-    def get_ast_attr_for_field(self, field: str) -> Optional[str]:
-        if field == 'subjectexpr':
-            return 'subjectexpr'
-        else:
-            return None
-
     def _apply_field_ast(
         self,
         schema: s_schema.Schema,
@@ -976,7 +1026,7 @@ class CreateConstraint(
             return super()._classbases_from_ast(schema, astnode, context)
 
 
-class RenameConstraint(ConstraintCommand, sd.RenameObject):
+class RenameConstraint(ConstraintCommand, sd.RenameObject[Constraint]):
     pass
 
 
@@ -1056,7 +1106,7 @@ class AlterConstraint(
 class DeleteConstraint(
     ConstraintCommand,
     referencing.DeleteReferencedInheritingObject[Constraint],
-    s_func.DeleteCallableObject,
+    s_func.DeleteCallableObject[Constraint],
 ):
     astnode = [qlast.DropConcreteConstraint, qlast.DropConstraint]
     referenced_astnode = qlast.DropConcreteConstraint

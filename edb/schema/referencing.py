@@ -119,15 +119,14 @@ class ReferencedObject(so.DerivableObject):
         refcoll = referrer.get_field_value(schema, refdict.attr)
         existing = refcoll.get(schema, refname, default=None)
 
-        if existing is not None:
-            cmdcls: Type[sd.Command] = \
-                sd.ObjectCommandMeta.get_command_class_or_die(sd.AlterObject,
-                                                              type(self))
-        else:
-            cmdcls = sd.ObjectCommandMeta.get_command_class_or_die(
-                sd.CreateObject, type(self))
-
-        cmd = cmdcls(classname=derived_name)
+        cmdcls: Type[sd.ObjectCommand[so.Object]]
+        cmdcls = sd.AlterObject if existing is not None else sd.CreateObject
+        cmd = sd.get_object_delta_command(
+            objtype=type(self),
+            cmdtype=cmdcls,
+            schema=schema,
+            name=derived_name,
+        )
 
         for k, v in derived_attrs.items():
             cmd.set_attribute_value(k, v)
@@ -143,23 +142,18 @@ class ReferencedObject(so.DerivableObject):
                     [b.get_name(schema) for b in new_bases.objects(schema)],
                 )
 
-                rebase_cmdcls = sd.ObjectCommandMeta.get_command_class_or_die(
-                    inheriting.RebaseInheritingObject, type(self))
-
-                rebase_cmd = rebase_cmdcls(
-                    classname=derived_name,
+                rebase_cmd = sd.get_object_delta_command(
+                    objtype=type(self),
+                    cmdtype=inheriting.RebaseInheritingObject,
+                    schema=schema,
+                    name=derived_name,
                     added_bases=added_bases,
                     removed_bases=removed_bases,
                 )
 
                 cmd.add(rebase_cmd)
 
-        context = sd.CommandContext(
-            modaliases={},
-            schema=schema,
-        )
-        assert isinstance(cmd, sd.ObjectCommand)
-
+        context = sd.CommandContext(modaliases={}, schema=schema)
         delta, parent_cmd = cmd._build_alter_cmd_stack(
             schema, context, self, referrer=referrer)
 
@@ -411,10 +405,7 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase[ReferencedT]):
         cmd: sd.Command = delta
         for obj in reversed(object_stack):
             assert obj is not None
-            alter_cmd_cls = sd.ObjectCommandMeta.get_command_class_or_die(
-                sd.AlterObject, type(obj))
-
-            alter_cmd = alter_cmd_cls(classname=obj.get_name(schema))
+            alter_cmd = obj.init_delta_command(schema, sd.AlterObject)
             cmd.add(alter_cmd)
             cmd = alter_cmd
 
@@ -732,23 +723,16 @@ class ReferencedInheritingObjectCommand(
         reftype = referrer_class.get_field(refdict.attr).type
         refname = reftype.get_key_for(schema, self.scls)
 
-        r_alter_cmdcls = sd.ObjectCommandMeta.get_command_class_or_die(
-            sd.AlterObject, referrer_class)
-        alter_cmdcls = sd.ObjectCommandMeta.get_command_class_or_die(
-            sd.AlterObject, mcls)
-
         for descendant in scls.ordered_descendants(schema):
-            d_name = descendant.get_name(schema)
+            d_alter_cmd = descendant.init_delta_command(schema, sd.AlterObject)
             assert isinstance(descendant, ReferencedObject)
             d_referrer = descendant.get_referrer(schema)
             assert d_referrer is not None
-            d_alter_cmd = alter_cmdcls(classname=d_name)
-            r_alter_cmd = r_alter_cmdcls(
-                classname=d_referrer.get_name(schema))
+            r_alter_cmd = d_referrer.init_delta_command(schema, sd.AlterObject)
 
             with r_alter_cmd.new_context(schema, context, d_referrer):
                 with d_alter_cmd.new_context(schema, context, descendant):
-                    cb(d_alter_cmd, refname)
+                    cb(d_alter_cmd, refname)  # type: ignore
 
                 r_alter_cmd.add(d_alter_cmd)
 
@@ -1056,7 +1040,7 @@ class RebaseReferencedInheritingObject(
 
 class RenameReferencedInheritingObject(
     ReferencedInheritingObjectCommand[ReferencedInheritingObjectT],
-    sd.RenameObject,
+    sd.RenameObject[ReferencedInheritingObjectT],
 ):
 
     def _rename_begin(self,
@@ -1181,9 +1165,6 @@ class DeleteReferencedInheritingObject(
                         details=f'{vn} is inherited from:\n- {pnames}'
                     )
 
-            alter_cmd = sd.ObjectCommandMeta.get_command_class_or_die(
-                sd.AlterObject, referrer_class)
-
             for child in referrer.children(schema):
                 assert isinstance(child, so.QualifiedObject)
                 child_coll = child.get_field_value(schema, refdict.attr)
@@ -1196,7 +1177,7 @@ class DeleteReferencedInheritingObject(
                 existing = child_coll.get(schema, child_refname, None)
 
                 if existing is not None:
-                    alter = alter_cmd(classname=child.get_name(schema))
+                    alter = child.init_delta_command(schema, sd.AlterObject)
                     with alter.new_context(schema, context, child):
                         schema, cmd = self._propagate_ref_deletion(
                             schema, context, refdict, child, existing)
@@ -1213,9 +1194,6 @@ class DeleteReferencedInheritingObject(
         child: so.InheritingObject,
         child_ref: ReferencedInheritingObjectT,
     ) -> Tuple[s_schema.Schema, sd.Command]:
-        get_cmd = sd.ObjectCommandMeta.get_command_class_or_die
-        mcls = type(self.scls)
-
         name = child_ref.get_name(schema)
         implicit_bases = self._get_implicit_ref_bases(
             schema, context, child, refdict.attr, name)
@@ -1227,21 +1205,20 @@ class DeleteReferencedInheritingObject(
             # from another parent, so we need to do a rebase.
             removed_bases, added_bases = self.get_ref_implicit_base_delta(
                 schema, context, child_ref, implicit_bases)
-            rebase_cmd_cls = get_cmd(inheriting.RebaseInheritingObject, mcls)
-            rebase_cmd = rebase_cmd_cls(
-                classname=name,
+
+            rebase_cmd = child_ref.init_delta_command(
+                schema,
+                sd.AlterObject,
                 added_bases=added_bases,
                 removed_bases=removed_bases,
             )
 
-            ref_alter_cmd = get_cmd(sd.AlterObject, mcls)
-            cmd = ref_alter_cmd(classname=name)
+            cmd = child_ref.init_delta_command(schema, sd.AlterObject)
             cmd.add(rebase_cmd)
 
         else:
             # The ref in child should no longer exist.
-            ref_del_cmd = get_cmd(sd.DeleteObject, mcls)
-            cmd = ref_del_cmd(classname=name)
+            cmd = child_ref.init_delta_command(schema, sd.DeleteObject)
 
         schema = cmd.apply(schema, context)
 

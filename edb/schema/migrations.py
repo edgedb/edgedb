@@ -50,7 +50,7 @@ class Migration(so.Object, s_abc.Migration):
 
     # type ignore below, because this class is redefining a new member
     # with the same name
-    delta = so.SchemaField(  # type: ignore
+    delta = so.SchemaField(
         sd.DeltaRoot,
         default=None,
         coerce=True, inheritable=False, introspectable=False,

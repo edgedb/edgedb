@@ -111,6 +111,18 @@ def canonical_param_sort(
     return tuple(canonical_order)
 
 
+def param_is_inherited(
+    schema: s_schema.Schema,
+    func: CallableObject,
+    param: ParameterLike,
+) -> bool:
+    qualname = sn.get_specialized_name(
+        param.get_parameter_name(schema), func.get_name(schema))
+    param_name = param.get_name(schema)
+    assert isinstance(param_name, sn.Name)
+    return qualname != param_name.name
+
+
 class ParameterLike(s_abc.Parameter):
 
     def get_parameter_name(self, schema: s_schema.Schema) -> str:
@@ -592,6 +604,9 @@ class CallableLike:
         raise NotImplementedError
 
 
+CallableObjectT = TypeVar('CallableObjectT', bound='CallableObject')
+
+
 class CallableObject(
     so.QualifiedObject,
     s_anno.AnnotationSubject,
@@ -612,66 +627,89 @@ class CallableObject(
     is_abstract = so.SchemaField(
         bool, default=False, compcoef=0.909)
 
-    @classmethod
-    def delta(
-        cls,
-        old: Optional[so.Object],
-        new: Optional[so.Object],
-        *,
+    def as_create_delta(
+        self: CallableObjectT,
+        schema: s_schema.Schema,
         context: so.ComparisonContext,
-        old_schema: Optional[s_schema.Schema],
-        new_schema: s_schema.Schema,
-    ) -> sd.ObjectCommand[so.Object]:
+    ) -> sd.ObjectCommand[CallableObjectT]:
+        delta = super().as_create_delta(schema, context)
 
-        def param_is_inherited(
-            schema: s_schema.Schema,
-            func: CallableObject,
-            param: ParameterLike
-        ) -> bool:
-            qualname = sn.get_specialized_name(
-                param.get_parameter_name(schema), func.get_name(schema))
-            param_name = param.get_name(schema)
-            assert isinstance(param_name, sn.Name)
-            return qualname != param_name.name
-
-        delta = super().delta(
-            old,
-            new,
-            context=context,
-            old_schema=old_schema,
-            new_schema=new_schema,
+        new_params = self.get_params(schema).objects(schema)
+        newcoll = [
+            p for p in new_params
+            if not param_is_inherited(schema, self, p)
+        ]
+        delta.add_prerequisite(
+            type(self).delta_sets(
+                [],
+                newcoll,
+                context=context,
+                old_schema=None,
+                new_schema=schema,
+            )
         )
 
-        if old:
-            assert isinstance(old, CallableObject)
-            assert old_schema is not None
-            old_params = old.get_params(old_schema).objects(old_schema)
-            oldcoll = [
-                p for p in old_params
-                if not param_is_inherited(old_schema, old, p)
-            ]
-        else:
-            oldcoll = []
+        return delta
 
-        if new:
-            assert isinstance(new, CallableObject)
-            new_params = new.get_params(new_schema).objects(new_schema)
-            newcoll = [
-                p for p in new_params
-                if not param_is_inherited(new_schema, new, p)
-            ]
-            add = delta.add_prerequisite
-        else:
-            add = delta.add
-            newcoll = []
+    def as_alter_delta(
+        self: CallableObjectT,
+        other: CallableObjectT,
+        *,
+        self_schema: s_schema.Schema,
+        other_schema: s_schema.Schema,
+        context: so.ComparisonContext,
+    ) -> sd.ObjectCommand[CallableObjectT]:
+        delta = super().as_alter_delta(
+            other,
+            self_schema=self_schema,
+            other_schema=other_schema,
+            context=context,
+        )
 
-        add(
-            cls.delta_sets(
+        old_params = self.get_params(self_schema).objects(self_schema)
+        oldcoll = [
+            p for p in old_params
+            if not param_is_inherited(self_schema, self, p)
+        ]
+
+        new_params = other.get_params(other_schema).objects(other_schema)
+        newcoll = [
+            p for p in new_params
+            if not param_is_inherited(other_schema, other, p)
+        ]
+
+        delta.add_prerequisite(
+            type(self).delta_sets(
                 oldcoll,
                 newcoll,
                 context=context,
-                old_schema=old_schema,
-                new_schema=new_schema,
+                old_schema=self_schema,
+                new_schema=other_schema,
+            )
+        )
+
+        return delta
+
+    def as_delete_delta(
+        self: CallableObjectT,
+        *,
+        schema: s_schema.Schema,
+        context: so.ComparisonContext,
+    ) -> sd.ObjectCommand[CallableObjectT]:
+        delta = super().as_delete_delta(schema=schema, context=context)
+        old_params = self.get_params(schema).objects(schema)
+        oldcoll = [
+            p for p in old_params
+            if not param_is_inherited(schema, self, p)
+        ]
+
+        delta.add(
+            type(self).delta_sets(
+                oldcoll,
+                [],
+                context=context,
+                old_schema=schema,
+                new_schema=None,
             )
         )
 
@@ -730,7 +768,7 @@ class CallableObject(
         return not isinstance(reference, Parameter)
 
 
-class CallableCommand(sd.QualifiedObjectCommand[CallableObject]):
+class CallableCommand(sd.QualifiedObjectCommand[CallableObjectT]):
 
     def _get_params(
         self,
@@ -787,8 +825,10 @@ class CallableCommand(sd.QualifiedObjectCommand[CallableObject]):
         return schema, params
 
 
-class AlterCallableObject(CallableCommand,
-                          sd.AlterObject[CallableObject]):
+class AlterCallableObject(
+    CallableCommand[CallableObjectT],
+    sd.AlterObject[CallableObjectT],
+):
 
     def get_ast(
         self,
@@ -820,7 +860,10 @@ class AlterCallableObject(CallableCommand,
         return schema
 
 
-class CreateCallableObject(CallableCommand, sd.CreateObject[CallableObject]):
+class CreateCallableObject(
+    CallableCommand[CallableObjectT],
+    sd.CreateObject[CallableObjectT],
+):
 
     @classmethod
     def _cmd_tree_from_ast(
@@ -878,8 +921,10 @@ class CreateCallableObject(CallableCommand, sd.CreateObject[CallableObject]):
         return props
 
 
-class DeleteCallableObject(CallableCommand,
-                           sd.DeleteObject[CallableObject]):
+class DeleteCallableObject(
+    CallableCommand[CallableObjectT],
+    sd.DeleteObject[CallableObjectT],
+):
 
     @classmethod
     def _cmd_tree_from_ast(
@@ -993,9 +1038,11 @@ class FunctionCommandContext(CallableCommandContext):
     pass
 
 
-class FunctionCommand(CallableCommand,
-                      schema_metaclass=Function,
-                      context_class=FunctionCommandContext):
+class FunctionCommand(
+    CallableCommand[Function],
+    schema_metaclass=Function,
+    context_class=FunctionCommandContext,
+):
 
     @classmethod
     def _classname_from_ast(
@@ -1131,7 +1178,7 @@ class FunctionCommand(CallableCommand,
         return compiled
 
 
-class CreateFunction(CreateCallableObject, FunctionCommand):
+class CreateFunction(CreateCallableObject[Function], FunctionCommand):
     astnode = qlast.CreateFunction
 
     def _create_begin(
@@ -1416,11 +1463,11 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
             super()._apply_field_ast(schema, context, node, op)
 
 
-class RenameFunction(sd.RenameObject, FunctionCommand):
+class RenameFunction(sd.RenameObject[Function], FunctionCommand):
     pass
 
 
-class AlterFunction(AlterCallableObject, FunctionCommand):
+class AlterFunction(AlterCallableObject[Function], FunctionCommand):
 
     astnode = qlast.AlterFunction
 
@@ -1496,7 +1543,7 @@ class AlterFunction(AlterCallableObject, FunctionCommand):
         return self.scls.get_params(schema)
 
 
-class DeleteFunction(DeleteCallableObject, FunctionCommand):
+class DeleteFunction(DeleteCallableObject[Function], FunctionCommand):
     astnode = qlast.DropFunction
 
     def _apply_fields_ast(

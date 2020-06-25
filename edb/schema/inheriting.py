@@ -358,9 +358,8 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         rebase = sd.ObjectCommandMeta.get_command_class(
             RebaseInheritingObject, type(scls))
 
-        alter = sd.ObjectCommandMeta.get_command_class_or_die(
-            sd.AlterObject, type(scls))
-        assert issubclass(alter, AlterInheritingObject)
+        alter_cmd = scls.init_delta_command(schema, sd.AlterObject)
+        assert isinstance(alter_cmd, AlterInheritingObject)
 
         new_bases_coll = so.ObjectList[so.InheritingObjectT].create(
             schema, new_bases)
@@ -368,11 +367,6 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         ancestors = so.compute_ancestors(schema, scls)
         ancestors_coll = so.ObjectList[so.InheritingObjectT].create(
             schema, ancestors)
-
-        alter_cmd = alter(
-            classname=scls.get_name(schema),
-            metaclass=type(scls),
-        )
 
         if rebase is not None:
             rebase_cmd = rebase(
@@ -450,7 +444,10 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         op: sd.AlterObjectProperty,
     ) -> None:
         assert isinstance(node, qlast.ObjectDDL)
-        if op.property in {'is_abstract', 'is_final'}:
+        if (
+            op.property in {'is_abstract', 'is_final'}
+            and not isinstance(self, sd.DeleteObject)
+        ):
             node.commands.append(
                 qlast.SetSpecialField(
                     name=op.property,
@@ -779,12 +776,12 @@ class AlterInheritingObject(
         scls: so.InheritingObject,
         props: Tuple[str, ...],
     ) -> None:
-        alter_cmd = sd.ObjectCommandMeta.get_command_class_or_die(
-            sd.AlterObject, type(scls))
-        assert issubclass(alter_cmd, AlterInheritingObject)
-
         for descendant in scls.ordered_descendants(schema):
-            descendant_alter = alter_cmd(classname=descendant.get_name(schema))
+            descendant_alter = descendant.init_delta_command(
+                schema,
+                sd.AlterObject,
+            )
+            assert isinstance(descendant_alter, AlterInheritingObject)
             descendant_alter.scls = descendant
             with descendant_alter.new_context(schema, context, descendant):
                 d_bases = descendant.get_bases(schema).objects(schema)
@@ -802,7 +799,7 @@ class AlterInheritingObject(
 
 class AlterInheritingObjectFragment(
     InheritingObjectCommand[so.InheritingObjectT],
-    sd.AlterObjectFragment,
+    sd.AlterObjectFragment[so.InheritingObjectT],
 ):
     pass
 

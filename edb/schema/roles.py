@@ -159,7 +159,7 @@ class RebaseRole(RoleCommand, inheriting.RebaseInheritingObject[Role]):
     pass
 
 
-class RenameRole(RoleCommand, sd.RenameObject):
+class RenameRole(RoleCommand, sd.RenameObject[Role]):
     pass
 
 

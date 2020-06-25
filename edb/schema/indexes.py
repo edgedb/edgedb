@@ -46,13 +46,22 @@ class Index(referencing.ReferencedInheritingObject, s_anno.AnnotationSubject):
     subject = so.SchemaField(so.Object)
 
     expr = so.SchemaField(
-        s_expr.Expression, coerce=True, compcoef=0.909)
+        s_expr.Expression,
+        coerce=True,
+        is_key=True,
+        compcoef=0.909,
+        ddl_identity=True,
+    )
 
     # Text representation of the original expression that's been
     # parsed and re-generated, but not normalized.
     orig_expr = so.SchemaField(
-        str, default=None, coerce=True, allow_ddl_set=True,
-        ephemeral=True)
+        str,
+        default=None,
+        coerce=True,
+        allow_ddl_set=True,
+        ephemeral=True,
+    )
 
     def __repr__(self) -> str:
         cls = self.__class__
@@ -222,11 +231,37 @@ class IndexCommand(
         except errors.InvalidReferenceError:
             referrer_ctx = self.get_referrer_context_or_die(context)
             referrer = referrer_ctx.scls
-            expr = self.get_attribute_value('expr')
+            expr = self.get_ddl_identity('expr')
             raise errors.InvalidReferenceError(
-                f"index {expr.origtext!r} does not exist on "
+                f"index on ({expr.origtext}) does not exist on "
                 f"{referrer.get_verbosename(schema)}"
             ) from None
+
+    @classmethod
+    def _cmd_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> sd.ObjectCommand[Index]:
+        assert isinstance(astnode, qlast.IndexOp)
+        cmd = super()._cmd_from_ast(schema, astnode, context)
+        orig_text = cls.get_orig_expr_text(schema, astnode, 'expr')
+        cmd.ddl_identity = {
+            'expr': s_expr.Expression.from_ast(
+                astnode.expr,
+                schema,
+                context.modaliases,
+                orig_text=orig_text,
+            ),
+        }
+        return cmd
+
+    def get_ast_attr_for_field(self, field: str) -> Optional[str]:
+        if field == 'expr':
+            return 'expr'
+        else:
+            return None
 
 
 class CreateIndex(
@@ -280,12 +315,6 @@ class CreateIndex(
             name=nref,
             expr=expr_ql,
         )
-
-    def get_ast_attr_for_field(self, field: str) -> Optional[str]:
-        if field == 'expr':
-            return 'expr'
-        else:
-            return None
 
     def compile_expr_field(
         self,
@@ -344,7 +373,18 @@ class RenameIndex(
     IndexCommand,
     referencing.RenameReferencedInheritingObject[Index],
 ):
-    pass
+
+    @classmethod
+    def _cmd_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> RenameIndex:
+        return cast(
+            RenameIndex,
+            super()._cmd_from_ast(schema, astnode, context),
+        )
 
 
 class AlterIndex(
@@ -352,16 +392,6 @@ class AlterIndex(
     referencing.AlterReferencedInheritingObject[Index],
 ):
     astnode = qlast.AlterIndex
-
-    def _apply_fields_ast(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        node: qlast.DDLOperation,
-    ) -> None:
-        expr = self.get_attribute_value('expr')
-        assert expr is not None
-        node.expr = expr.origqlast
 
 
 class DeleteIndex(
@@ -387,18 +417,6 @@ class DeleteIndex(
         )
 
         return cmd
-
-    def _apply_fields_ast(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        node: qlast.DDLOperation,
-    ) -> None:
-        # When deleting index the original expression acts as a way to
-        # identify the index, so we must retrieve it and write it as "expr".
-        expr = self.get_orig_attribute_value('expr')
-        assert expr is not None
-        node.expr = expr.origqlast
 
 
 class RebaseIndex(

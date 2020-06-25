@@ -145,8 +145,9 @@ class TestIndexes(tb.DDLTestCase):
         """)
 
         with self.assertRaisesRegex(
-                edgedb.InvalidReferenceError,
-                "index '.name' does not exist on object type 'test::User'"):
+            edgedb.InvalidReferenceError,
+            r"index on \(.name\) does not exist on object type 'test::User'",
+        ):
             await self.con.execute("""
                 ALTER TYPE test::User DROP INDEX ON (.name)
             """)

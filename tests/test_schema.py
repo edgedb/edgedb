@@ -17,6 +17,9 @@
 #
 
 
+from __future__ import annotations
+from typing import *
+
 import re
 
 from edb import errors
@@ -33,6 +36,9 @@ from edb.schema import delta as s_delta
 from edb.schema import ddl as s_ddl
 from edb.schema import links as s_links
 from edb.schema import objtypes as s_objtypes
+
+if TYPE_CHECKING:
+    from edb.schema import schema as s_schema
 
 
 class TestSchema(tb.BaseSchemaLoadTest):
@@ -1078,7 +1084,16 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         super().setUpClass()
         cls.std_schema = tb._load_std_schema()
 
-    def _assert_migration_consistency(self, schema_text, multi_module=False):
+    def _assert_migration_consistency(
+        self,
+        schema_text: str,
+        multi_module: bool = False,
+        *,
+        base_schema: Optional[s_schema.Schema] = None,
+    ) -> s_schema.Schema:
+
+        if base_schema is None:
+            base_schema = self.schema
 
         if multi_module:
             migration_text = f'''
@@ -1099,7 +1114,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         migration_cmd = s_ddl.cmd_from_ddl(
             migration_ql[0],
-            schema=self.schema,
+            schema=base_schema,
             modaliases={
                 None: 'default'
             },
@@ -1108,15 +1123,16 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         migration_cmd = s_ddl.compile_migration(
             migration_cmd,
             self.std_schema,
-            self.schema,
+            base_schema,
         )
 
         context = s_delta.CommandContext()
-        schema = migration_cmd.apply(self.schema, context)
+        schema = migration_cmd.apply(base_schema, context)
         migration = migration_cmd.scls
 
         ddl_plan = migration.get_delta(schema)
         baseline_schema = ddl_plan.apply(schema, context)
+
         ddl_text = s_ddl.ddl_text_from_delta(baseline_schema, ddl_plan)
 
         try:
@@ -1172,20 +1188,27 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 f'SDL text was:\n{sdl_text}'
             )
 
-    def _assert_migration_equivalence(self, migrations):
+        return self.run_ddl(baseline_schema, 'DROP MIGRATION m;')
+
+    def _assert_migration_equivalence(self, migrations, check_all_steps=False):
         # Compare 2 schemas obtained by multiple-step migration to a
         # single-step migration.
-
-        # Validate that the final schema state has consistent migration.
-        self._assert_migration_consistency(migrations[-1])
 
         # Generate a base schema with 'test' module already created to
         # avoid having two different instances of 'test' module in
         # different evolution branches.
         base_schema = self.load_schema('')
 
-        # Validate that the final schema state has consistent migration.
-        self._assert_migration_consistency(migrations[-1])
+        if check_all_steps:
+            cur_schema = base_schema
+            for migration in migrations:
+                # Validate that each migration step is self-consistent.
+                cur_schema = self._assert_migration_consistency(
+                    migration,
+                    base_schema=cur_schema,
+                )
+        else:
+            self._assert_migration_consistency(migrations[-1])
 
         # Evolve a schema in a series of migrations.
         multi_migration = base_schema
@@ -3530,6 +3553,50 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
+    def test_migrations_equivalence_index_05(self):
+        self._assert_migration_equivalence([r"""
+            type Base {
+                property first_name -> str;
+                index on (.first_name);
+            }
+        """, r"""
+            type Base {
+                property first_name -> str;
+                index on (.first_name) {
+                    # add annotation
+                    annotation title := 'index on first name';
+                }
+            }
+        """, r"""
+            type Base {
+                property first_name -> str;
+                # drop index
+            }
+        """])
+
+    def test_migrations_equivalence_constraint_01(self):
+        self._assert_migration_equivalence([r"""
+            type Base {
+                property first_name -> str {
+                    constraint max_len_value(10)
+                }
+            }
+        """, r"""
+            type Base {
+                property first_name -> str {
+                    constraint max_len_value(10) {
+                        # add annotation
+                        annotation title := 'constraint on first name';
+                    }
+                }
+            }
+        """, r"""
+            type Base {
+                property first_name -> str;
+                # drop constraint
+            }
+        """])
+
     # NOTE: array<str>, array<int16>, array<json> already exist in std
     # schema, so it's better to use array<float32> or some other
     # non-typical scalars in tests as a way of testing a collection
@@ -4096,11 +4163,6 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             r"""
             function stdgraphql::short_name(name: std::str) -> std::str {
-                orig_nativecode :=
-                    r"SELECT (((name)[5:] IF (name LIKE 'std::%') ELSE
-                      ((name)[9:] IF (name LIKE 'default::%') ELSE
-                      re_replace('(.+?)::(.+$)', r'\1__\2', name)))
-                      ++ '_Type')";
                 volatility := 'IMMUTABLE';
                 using (
                     SELECT (

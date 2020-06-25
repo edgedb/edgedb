@@ -109,6 +109,7 @@ class CommandMeta(
 
 _void = object()
 
+
 # We use _DummyObject for contexts where an instance of an object is
 # required by type signatures, and the actual reference will be quickly
 # replaced by a real object.
@@ -962,7 +963,14 @@ class ObjectCommand(
     metaclass=ObjectCommandMeta,
 ):
     """Base class for all Object-related commands."""
+
+    #: Full name of the object this command operates on.
     classname = struct.Field(str)
+    #: An optional set of values neceessary to render the command in DDL.
+    ddl_identity = struct.Field(
+        dict,  # type: ignore
+        default=None,
+    )
 
     scls: so.Object_T
     _delta_action: ClassVar[str]
@@ -1210,6 +1218,47 @@ class ObjectCommand(
             if fop.source != 'inheritance' or context.descriptive_mode:
                 self._apply_field_ast(schema, context, node, fop)
 
+        for field in self.get_ddl_identity_fields(context):
+            if (
+                issubclass(field.type, s_expr.Expression)
+                and mcls.has_field(f'orig_{field.name}')
+                and not qlast.get_ddl_field_value(
+                    node, f'orig_{field.name}'
+                )
+            ):
+                expr = self.get_ddl_identity(field.name)
+                if expr.origtext != expr.text:
+                    node.commands.append(
+                        qlast.SetField(
+                            name=f'orig_{field.name}',
+                            value=qlast.StringConstant.from_python(
+                                expr.origtext,
+                            ),
+                        ),
+                    )
+
+            ast_attr = self.get_ast_attr_for_field(field.name)
+            if (
+                ast_attr is not None
+                and not getattr(node, ast_attr, None)
+                and (
+                    field.required
+                    or self.has_ddl_identity(field.name)
+                )
+            ):
+                ddl_id = self.get_ddl_identity(field.name)
+                if issubclass(field.type, s_expr.Expression):
+                    attr_val = ddl_id.qlast
+                elif issubclass(field.type, s_expr.ExpressionList):
+                    attr_val = [e.qlast for e in ddl_id]
+                else:
+                    raise AssertionError(
+                        f'unexpected type of ddl_identity'
+                        f' field: {field.type!r}'
+                    )
+
+                setattr(node, ast_attr, attr_val)
+
         for refdict in mcls.get_refdicts():
             self._apply_refs_fields_ast(schema, context, node, refdict)
 
@@ -1237,6 +1286,13 @@ class ObjectCommand(
 
     def get_ast_attr_for_field(self, field: str) -> Optional[str]:
         return None
+
+    def get_ddl_identity_fields(
+        self,
+        context: CommandContext,
+    ) -> Tuple[so.Field[Any], ...]:
+        mcls = self.get_schema_metaclass()
+        return tuple(f for f in mcls.get_fields().values() if f.ddl_identity)
 
     @classmethod
     def maybe_get_schema_metaclass(cls) -> Optional[Type[so.Object_T]]:
@@ -1435,6 +1491,20 @@ class ObjectCommand(
         dummy = cast(so.Object_T, _dummy_object)
         with self.new_context(schema, context, dummy):
             return self._get_ast(schema, context, parent_node=parent_node)
+
+    def get_ddl_identity(self, aspect: str) -> Any:
+        if self.ddl_identity is None:
+            raise LookupError(f'{self!r} has no DDL identity information')
+        value = self.ddl_identity.get(aspect)
+        if value is None:
+            raise LookupError(f'{self!r} has no {aspect!r} in DDL identity')
+        return value
+
+    def has_ddl_identity(self, aspect: str) -> bool:
+        return (
+            self.ddl_identity is not None
+            and self.ddl_identity.get(aspect) is not None
+        )
 
 
 class ObjectCommandContext(CommandContextToken[ObjectCommand[so.Object_T]]):
@@ -1681,7 +1751,7 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
                                  self.classname)
 
 
-class AlterObjectFragment(ObjectCommand[so.Object]):
+class AlterObjectFragment(ObjectCommand[so.Object_T]):
 
     def apply(
         self,
@@ -1731,7 +1801,7 @@ class AlterObjectFragment(ObjectCommand[so.Object]):
         return schema
 
 
-class RenameObject(AlterObjectFragment):
+class RenameObject(AlterObjectFragment[so.Object_T]):
     _delta_action = 'rename'
 
     astnode = qlast.Rename
@@ -1829,7 +1899,7 @@ class RenameObject(AlterObjectFragment):
         schema: s_schema.Schema,
         astnode: qlast.DDLOperation,
         context: CommandContext,
-    ) -> RenameObject:
+    ) -> RenameObject[so.Object_T]:
         parent_ctx = context.current()
         parent_op = parent_ctx.op
         assert isinstance(parent_op, ObjectCommand)
@@ -1844,7 +1914,7 @@ class RenameObject(AlterObjectFragment):
         schema: s_schema.Schema,
         astnode: qlast.DDLOperation,
         context: CommandContext,
-    ) -> RenameObject:
+    ) -> RenameObject[so.Object_T]:
         assert isinstance(astnode, qlast.Rename)
 
         parent_ctx = context.current()
@@ -1862,7 +1932,7 @@ class RenameObject(AlterObjectFragment):
         )
 
 
-class RenameQualifiedObject(AlterObjectFragment, Generic[so.Object_T]):
+class RenameQualifiedObject(AlterObjectFragment[so.Object_T]):
 
     new_name = struct.Field(sn.Name)
 
@@ -2098,10 +2168,8 @@ class DeleteObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
             # Add implicit Delete commands for any local refs not
             # deleted explicitly.
             for ref in all_refs - deleted_refs:
-                del_cmd = ObjectCommandMeta.get_command_class_or_die(
-                    DeleteObject, type(ref))
-
-                op = del_cmd(classname=ref.get_name(schema))
+                op = ref.init_delta_command(schema, DeleteObject)
+                assert isinstance(op, DeleteObject)
                 subcmds = op._canonicalize(schema, context, ref)
                 op.update(subcmds)
                 commands.append(op)
@@ -2454,10 +2522,12 @@ class AlterObjectProperty(Command):
             # the object is defined with.
             expr_ql = self.new_value.qlast
             orig_fname = f'orig_{field.name}'
-            if (has_shadow
-                    and not qlast.get_ddl_field_value(
-                        parent_node, orig_fname)):
-                assert self.new_value.origtext is not None
+            assert self.new_value.origtext is not None
+            if (
+                has_shadow
+                and not qlast.get_ddl_field_value(parent_node, orig_fname)
+                and self.new_value.text != self.new_value.origtext
+            ):
                 parent_node.commands.append(
                     qlast.SetField(
                         name=orig_fname,
@@ -2517,3 +2587,25 @@ def compile_ddl(
 
 # See _dummy_command
 _dummy_object_command: ObjectCommand[Any] = ObjectCommand(classname="dummy")
+
+
+def get_object_delta_command(
+    *,
+    objtype: Type[so.Object_T],
+    cmdtype: Type[ObjectCommand[so.Object]],
+    schema: s_schema.Schema,
+    name: str,
+    ddl_identity: Optional[Mapping[str, Any]] = None,
+    **kwargs: Any,
+) -> ObjectCommand[so.Object_T]:
+
+    cmdcls = cast(
+        Type[ObjectCommand[so.Object_T]],
+        ObjectCommandMeta.get_command_class_or_die(cmdtype, objtype),
+    )
+
+    return cmdcls(
+        classname=name,
+        ddl_identity=ddl_identity,
+        **kwargs,
+    )

@@ -421,7 +421,10 @@ def _extract_op(stack: Sequence[sd.Command]) -> List[sd.Command]:
         alter_class = sd.ObjectCommandMeta.get_command_class_or_die(
             sd.AlterObject, stack_op.get_schema_metaclass())
 
-        alter_delta = alter_class(classname=stack_op.classname)
+        alter_delta = alter_class(
+            classname=stack_op.classname,
+            ddl_identity=stack_op.ddl_identity,
+        )
         parent_op.add(alter_delta)
         parent_op = alter_delta
         new_stack.append(parent_op)

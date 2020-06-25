@@ -929,14 +929,22 @@ class AlterIndexStmt(Nonterm):
         )
 
 
+commands_block(
+    'DropIndex',
+    SetFieldStmt,
+    opt=True,
+)
+
+
 #
 # DROP INDEX
 #
 class DropIndexStmt(Nonterm):
-    def reduce_DROP_INDEX_OnExpr(self, *kids):
+    def reduce_DROP_INDEX_OnExpr_OptDropIndexCommandsBlock(self, *kids):
         self.val = qlast.DropIndex(
             name=qlast.ObjectRef(name='idx'),
             expr=kids[2].val,
+            commands=kids[3].val,
         )
 
 

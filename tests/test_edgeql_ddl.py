@@ -5455,8 +5455,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         async with self._run_and_rollback():
             with self.assertRaisesRegex(
-                    edgedb.errors.InvalidReferenceError,
-                    "index '.foo' does not exist on object type 'test::Err1'"):
+                edgedb.errors.InvalidReferenceError,
+                r"index on \(.foo\) does not exist on"
+                r" object type 'test::Err1'",
+            ):
                 await self.con.execute('''
                     WITH MODULE test
                     ALTER TYPE Err1
@@ -5465,8 +5467,9 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         async with self._run_and_rollback():
             with self.assertRaisesRegex(
-                    edgedb.errors.InvalidReferenceError,
-                    "index '.zz' does not exist on object type 'test::Err1'"):
+                edgedb.errors.InvalidReferenceError,
+                r"index on \(.zz\) does not exist on object type 'test::Err1'",
+            ):
                 await self.con.execute('''
                     WITH MODULE test
                     ALTER TYPE Err1

@@ -403,7 +403,7 @@ class CreateObjectType(
             return super()._get_ast_node(schema, context)
 
 
-class RenameObjectType(ObjectTypeCommand, sd.RenameObject):
+class RenameObjectType(ObjectTypeCommand, sd.RenameObject[ObjectType]):
     pass
 
 

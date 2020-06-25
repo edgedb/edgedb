@@ -338,7 +338,7 @@ class CreateScalarType(
             super()._apply_field_ast(schema, context, node, op)
 
 
-class RenameScalarType(ScalarTypeCommand, sd.RenameObject):
+class RenameScalarType(ScalarTypeCommand, sd.RenameObject[ScalarType]):
     pass
 
 
