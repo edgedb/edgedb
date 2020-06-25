@@ -44,6 +44,7 @@ class Port:
 
         self._compiler_manager = None
         self._serving = False
+        self._compiler_pool_size = procpool.BUFFER_POOL_SIZE
 
     def in_dev_mode(self):
         return self._devmode
@@ -87,6 +88,7 @@ class Port:
             worker_args=self.get_compiler_worker_args(),
             worker_cls=self.get_compiler_worker_cls(),
             name=self.get_compiler_worker_name(),
+            pool_size=self._compiler_pool_size,
         )
 
     async def stop(self):
