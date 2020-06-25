@@ -270,7 +270,8 @@ class Manager:
 
 
 async def create_manager(*, runstate_dir: str, name: str,
-                         worker_cls: type, worker_args: dict) -> Manager:
+                         worker_cls: type, worker_args: dict,
+                         pool_size: int) -> Manager:
 
     loop = asyncio.get_running_loop()
     pool = Manager(
@@ -278,7 +279,8 @@ async def create_manager(*, runstate_dir: str, name: str,
         runstate_dir=runstate_dir,
         worker_cls=worker_cls,
         worker_args=worker_args,
-        name=name)
+        name=name,
+        pool_size=pool_size)
 
     await pool.start()
     return pool
