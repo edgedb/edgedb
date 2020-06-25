@@ -120,7 +120,7 @@ class flags(metaclass=FlagsMeta):
     pgserver = Flag(
         doc="Show PostgreSQL server logs and log all statements.")
 
-    telemetry = Flag(
+    log_metrics = Flag(
         doc="Log verbose statistics on connections and compiler behavior.")
 
 

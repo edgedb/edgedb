@@ -171,6 +171,6 @@ def setup_logging(log_level, log_destination):
         warnings.filterwarnings('ignore', category=DeprecationWarning,
                                 module=ignored_module)
 
-    if not debug.flags.telemetry:
-        telemetry = logging.getLogger('edb.server.telemetry')
-        telemetry.setLevel(logging.ERROR)
+    if not debug.flags.log_metrics:
+        log_metrics = logging.getLogger('edb.server.metrics')
+        log_metrics.setLevel(logging.ERROR)

@@ -29,7 +29,7 @@ from edb.server import baseport
 from edb.server import cache
 from edb.server import defines
 
-telemetry = logging.getLogger('edb.server.telemetry')
+log_metrics = logging.getLogger('edb.server.metrics')
 
 
 class BaseHttpPort(baseport.Port):
@@ -151,7 +151,7 @@ class BaseHttpPort(baseport.Port):
         while True:
             current = int(self.last_minute_requests)
             if current != last_seen:
-                telemetry.info(
+                log_metrics.info(
                     "HTTP requests for %s-%s in last minute: %d",
                     self.get_proto_name(),
                     self._netport,
