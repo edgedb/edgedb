@@ -253,7 +253,7 @@ class CreateAlias(
                 context,
             )
             self.add_prerequisite(type_cmd)
-            for cmd in type_cmd.get_subcommands():
+            for cmd in type_cmd.get_subcommands(type=sd.ObjectCommand):
                 if cmd.classname == alias_name:
                     break
             else:

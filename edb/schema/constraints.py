@@ -775,7 +775,7 @@ class CreateConstraint(
         context: sd.CommandContext,
         astnode: qlast.ObjectDDL,
         parents: Any,
-    ) -> sd.Command:
+    ) -> sd.ObjectCommand[Constraint]:
         cmd = super().as_inherited_ref_cmd(schema, context, astnode, parents)
 
         args = cls._constraint_args_from_ast(schema, astnode, context)

@@ -425,6 +425,7 @@ class DeleteProperty(
         context: sd.CommandContext,
     ) -> sd.Command:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        assert isinstance(cmd, DeleteProperty)
 
         if isinstance(astnode, qlast.DropConcreteProperty):
             prop = schema.get(cmd.classname, type=Property)

@@ -186,6 +186,7 @@ def _break_down(
             if field.weak_ref:
                 _break_down(opmap, strongrefs, new_opstack + [sub_op])
         elif isinstance(sub_op, referencing.StronglyReferencedObjectCommand):
+            assert isinstance(op, sd.ObjectCommand)
             strongrefs[sub_op.classname] = op.classname
 
     opmap[op] = new_opstack

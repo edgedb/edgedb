@@ -252,6 +252,7 @@ class CreateAnnotationValue(
 
         assert isinstance(astnode, qlast.CreateAnnotationValue)
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        assert isinstance(cmd, CreateAnnotationValue)
         annoname = sn.shortname_from_fullname(cmd.classname)
 
         value = qlcompiler.evaluate_ast_to_python_val(
@@ -271,7 +272,6 @@ class CreateAnnotationValue(
         cmd.set_attribute_value('annotation', anno)
         cmd.set_attribute_value('value', value)
 
-        assert isinstance(cmd, CreateAnnotationValue)
         return cmd
 
     def _create_begin(
@@ -320,8 +320,8 @@ class AlterAnnotationValue(
         context: sd.CommandContext
     ) -> AlterAnnotationValue:
         assert isinstance(astnode, qlast.AlterAnnotationValue)
-
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        assert isinstance(cmd, AlterAnnotationValue)
 
         value = qlcompiler.evaluate_ast_to_python_val(
             astnode.value, schema=schema)
@@ -343,8 +343,6 @@ class AlterAnnotationValue(
             schema=schema,
         )
         cmd.set_attribute_value('annotation', value=anno, orig_value=anno)
-
-        assert isinstance(cmd, AlterAnnotationValue)
 
         return cmd
 
@@ -385,9 +383,9 @@ class DeleteAnnotationValue(
         astnode: qlast.DDLOperation,
         context: sd.CommandContext
     ) -> DeleteAnnotationValue:
-
         assert isinstance(astnode, qlast.DropAnnotationValue)
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        assert isinstance(cmd, DeleteAnnotationValue)
         annoname = sn.shortname_from_fullname(cmd.classname)
         anno = utils.ast_objref_to_object_shell(
             utils.name_to_ast_ref(annoname),
@@ -398,7 +396,6 @@ class DeleteAnnotationValue(
 
         cmd.set_attribute_value('annotation', value=None, orig_value=anno)
 
-        assert isinstance(cmd, DeleteAnnotationValue)
         return cmd
 
     def _delete_begin(

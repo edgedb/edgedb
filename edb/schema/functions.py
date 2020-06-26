@@ -831,13 +831,13 @@ class CreateCallableObject(CallableCommand, sd.CreateObject[CallableObject]):
     ) -> sd.Command:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         assert isinstance(astnode, qlast.CreateObject)
+        assert isinstance(cmd, CreateCallableObject)
 
         params = cls._get_param_desc_from_ast(
             schema, context.modaliases, astnode)
 
         for param in params:
             # as_create_delta requires the specific type
-            assert isinstance(cmd.classname, sn.SchemaName)
             cmd.add_prerequisite(param.as_create_delta(
                 schema, cmd.classname, context=context))
 
@@ -890,12 +890,12 @@ class DeleteCallableObject(CallableCommand,
     ) -> sd.Command:
         assert isinstance(astnode, qlast.ObjectDDL)
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        assert isinstance(cmd, DeleteCallableObject)
 
         params = cls._get_param_desc_from_ast(
             schema, context.modaliases, astnode)
 
         for param in params:
-            assert isinstance(cmd.classname, sn.SchemaName)
             cmd.add(param.as_delete_delta(
                 schema, cmd.classname, context=context))
 

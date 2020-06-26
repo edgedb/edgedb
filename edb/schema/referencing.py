@@ -477,11 +477,13 @@ class CreateReferencedObject(
             return super()._get_ast_node(schema, context)
 
     @classmethod
-    def as_inherited_ref_cmd(cls,
-                             schema: s_schema.Schema,
-                             context: sd.CommandContext,
-                             astnode: qlast.ObjectDDL,
-                             parents: Any) -> sd.Command:
+    def as_inherited_ref_cmd(
+        cls,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        astnode: qlast.ObjectDDL,
+        parents: Any,
+    ) -> sd.ObjectCommand[ReferencedT]:
         cmd = cls(classname=cls._classname_from_ast(schema, astnode, context))
         cmd.set_attribute_value('name', cmd.classname)
         return cmd
@@ -713,12 +715,13 @@ class ReferencedInheritingObjectCommand(
 
         return implicit_bases
 
-    def _propagate_ref_op(self,
-                          schema: s_schema.Schema,
-                          context: sd.CommandContext,
-                          scls: ReferencedInheritingObject,
-                          cb: Callable[[sd.Command, str], None]
-                          ) -> s_schema.Schema:
+    def _propagate_ref_op(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        scls: ReferencedInheritingObject,
+        cb: Callable[[sd.ObjectCommand[so.Object], str], None]
+    ) -> s_schema.Schema:
         rec = context.current().enable_recursion
         context.current().enable_recursion = False
         referrer_ctx = self.get_referrer_context_or_die(context)

@@ -304,6 +304,7 @@ class CreateIndex(
                 self
             )
             assert parent_ctx is not None
+            assert isinstance(parent_ctx.op, sd.ObjectCommand)
             subject_name = parent_ctx.op.classname
             subject = schema.get(subject_name, default=None)
 

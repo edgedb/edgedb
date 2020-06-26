@@ -1168,6 +1168,7 @@ class PointerCommand(
                     self
                 )
                 assert parent_ctx is not None
+                assert isinstance(parent_ctx.op, sd.ObjectCommand)
                 source_name = parent_ctx.op.classname
                 source = schema.get(source_name, default=None)
                 anchors[qlast.Source().name] = source
@@ -1278,12 +1279,10 @@ class SetPointerType(
                 tgt = self.get_attribute_value('target')
 
                 def _set_type(
-                    alter_cmd: sd.Command,
-                    refname: Any
+                    alter_cmd: sd.ObjectCommand[so.Object],
+                    refname: str,
                 ) -> None:
-                    s_t = type(self)(
-                        classname=alter_cmd.classname,
-                    )
+                    s_t = type(self)(classname=alter_cmd.classname)
                     s_t.set_attribute_value('target', tgt)
                     alter_cmd.add(s_t)
 
@@ -1303,7 +1302,9 @@ class SetPointerType(
         astnode: qlast.DDLOperation,
         context: sd.CommandContext,
     ) -> sd.ObjectCommand[Pointer]:
-        return cls(classname=context.current().op.classname)
+        this_op = context.current().op
+        assert isinstance(this_op, sd.ObjectCommand)
+        return cls(classname=this_op.classname)
 
     @classmethod
     def _cmd_tree_from_ast(

@@ -332,10 +332,10 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
                 group.add(cmd)
                 schema = cmd.apply(schema, context)
 
-        for fqname, delete_cmd in deleted_refs.items():
-            cmd = delete_cmd(classname=fqname)
-            group.add(cmd)
-            schema = cmd.apply(schema, context)
+        for fqname, delete_cmd_cls in deleted_refs.items():
+            delete_cmd = delete_cmd_cls(classname=fqname)
+            group.add(delete_cmd)
+            schema = delete_cmd.apply(schema, context)
 
         self.add(group)
 
