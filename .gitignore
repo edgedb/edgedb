@@ -30,6 +30,7 @@ docs/_build
 
 !/.coveragerc
 /.vscode
+*.code-workspace
 /.pytest_cache
 /.mypy_cache
 /.vagga

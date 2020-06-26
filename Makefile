@@ -25,3 +25,7 @@ pygments:
 
 build:
 	pip install -Ue .[docs,test]
+
+
+clean:
+	git clean -Xf -e "!/*.code-workspace" -e "!/*.vscode"
