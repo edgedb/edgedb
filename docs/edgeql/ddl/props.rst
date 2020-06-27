@@ -134,14 +134,15 @@ Define a new link ``address`` on the ``User`` object type:
         CREATE PROPERTY address -> str
     };
 
-Define a new property ``number_of_friends`` as a computable on the
-``User`` object type:
+Define a new property ``number_of_connections`` as a
+:ref:`computable <ref_datamodel_computables>` on the ``User``
+object type counting the number of interests:
 
 .. code-block:: edgeql
 
     ALTER TYPE User {
-        CREATE PROPERTY number_of_friends :=
-            count(__source__.friends)
+        CREATE PROPERTY number_of_connections :=
+            count(.interests)
     };
 
 Define a new abstract link ``orderable`` with ``weight`` property:
@@ -188,6 +189,7 @@ Change the definition of a :ref:`property <ref_datamodel_props>`.
       SET SINGLE
       SET MULTI
       SET TYPE <typename> [, ...]
+      USING (<computable-expr>)
       CREATE ANNOTATION <annotation-name> := <value>
       ALTER ANNOTATION <annotation-name> := <value>
       DROP ANNOTATION <annotation-name>
@@ -268,6 +270,10 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
     Change the target type of the property to the specified type or
     a union of types.  Only valid for concrete properties.
 
+:eql:synopsis:`USING (<computable-expr>)`
+    Change the expression of a :ref:`computable <ref_datamodel_computables>`
+    property.  Only valid for concrete properties.
+
 :eql:synopsis:`ALTER ANNOTATION <annotation-name>;`
     Alter property annotation :eql:synopsis:`<annotation-name>`.
     See :eql:stmt:`ALTER ANNOTATION <ALTER ANNOTATION>` for details.
@@ -318,6 +324,17 @@ Rename the property ``weight`` of link ``orderable`` to ``sort_by``:
 
     ALTER ABSTRACT LINK orderable {
         ALTER PROPERTY weight RENAME TO sort_by;
+    };
+
+Redefine the :ref:`computable <ref_datamodel_computables>` property
+``number_of_connections`` to be the number of friends:
+
+.. code-block:: edgeql
+
+    ALTER TYPE User {
+        ALTER PROPERTY number_of_connections USING (
+            count(.friends)
+        )
     };
 
 
