@@ -153,14 +153,17 @@ Define a new link ``interests`` on the ``User`` object type:
         CREATE MULTI LINK friends -> User
     };
 
-Define a new link ``friends_in_same_town`` as a computable on the
-``User`` object type:
+Define a new link ``special_group`` as a
+:ref:`computable <ref_datamodel_computables>` on the ``User``
+object type, which contains all the friends from the same town:
 
 .. code-block:: edgeql
 
     ALTER TYPE User {
-        CREATE LINK friends_in_same_town := (
-            SELECT __source__.friends FILTER .town = __source__.town)
+        CREATE LINK special_group := (
+            SELECT __source__.friends
+            FILTER .town = __source__.town
+        )
     };
 
 Define a new abstract link ``orderable``, and then a concrete link
@@ -213,6 +216,7 @@ Change the definition of a :ref:`link <ref_datamodel_links>`.
       SET SINGLE
       SET MULTI
       SET TYPE <typename> [, ...]
+      USING (<computable-expr>)
       CREATE ANNOTATION <annotation-name> := <value>
       ALTER ANNOTATION <annotation-name> := <value>
       DROP ANNOTATION <annotation-name>
@@ -286,6 +290,10 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
     Change the target type of the link to the specified type or
     a union of types.  Only valid for concrete links.
 
+:eql:synopsis:`USING (<computable-expr>)`
+    Change the expression of a :ref:`computable <ref_datamodel_computables>`
+    link.  Only valid for concrete links.
+
 :eql:synopsis:`ALTER ANNOTATION <annotation-name>;`
     Alter link annotation :eql:synopsis:`<annotation-name>`.
     See :eql:stmt:`ALTER ANNOTATION <ALTER ANNOTATION>` for details.
@@ -330,22 +338,25 @@ Set the ``title`` annotation of link ``friends`` of object type ``User`` to
         ALTER LINK interests CREATE ANNOTATION title := "Interests";
     };
 
-Add a minimum-length constraint to link ``name`` of object type ``User``:
-
-.. code-block:: edgeql
-
-    ALTER TYPE User {
-        ALTER LINK name {
-            CREATE CONSTRAINT min_len_value(3);
-        };
-    };
-
-
 Rename the abstract link ``orderable`` to ``sorted``:
 
 .. code-block:: edgeql
 
     ALTER ABSTRACT LINK orderable RENAME TO sorted;
+
+Redefine the :ref:`computable <ref_datamodel_computables>` link
+``special_group`` to be those who have some shared interests:
+
+.. code-block:: edgeql
+
+    ALTER TYPE User {
+        CREATE LINK special_group := (
+            SELECT __source__.friends
+            # at least one of the friend's interests
+            # must match the user's
+            FILTER .interests IN __source__.interests
+        )
+    };
 
 
 DROP LINK
