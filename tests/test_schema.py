@@ -4823,3 +4823,61 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             r"function test::foo() ->  std::str "
             r"using (SELECT r'\1');"
         )
+
+    def test_describe_poly_01(self):
+        self._assert_describe(
+            """
+            scalar type all extending str;
+
+            type Object {
+                property real -> bool;
+            }
+
+            function all() -> bool {
+                using (
+                    SELECT true
+                );
+            }
+            """,
+
+            'DESCRIBE OBJECT all AS TEXT',
+
+            """
+            function test::all() -> std::bool using (SELECT
+                true
+            );
+            scalar type test::all extending std::str;
+
+            # The following builtins are masked by the above:
+
+            # function std::all(vals: SET OF std::bool) ->  std::bool {
+            #     volatility := 'IMMUTABLE';
+            #     using sql
+            # ;};
+            """,
+
+            'DESCRIBE OBJECT Object AS TEXT',
+
+            """
+            type test::Object {
+                required single link __type__ -> schema::Type {
+                    readonly := true;
+                };
+                required single property id -> std::uuid {
+                    readonly := true;
+                };
+                optional single property real -> std::bool;
+            };
+
+            # The following builtins are masked by the above:
+
+            # abstract type std::Object extending std::BaseObject {
+            #     required single link __type__ -> schema::Type {
+            #         readonly := true;
+            #     };
+            #     required single property id -> std::uuid {
+            #         readonly := true;
+            #     };
+            # };
+            """,
+        )
