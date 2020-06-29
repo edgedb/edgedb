@@ -23,7 +23,9 @@
 from __future__ import annotations
 
 from typing import *
+import textwrap
 
+from collections import defaultdict
 from edb import errors
 
 from edb.ir import ast as irast
@@ -492,7 +494,7 @@ def compile_DescribeStmt(
                     f'cannot describe full schema as {ql.language}')
         else:
             modules = []
-            items: List[str] = []
+            items: DefaultDict[str, List[str]] = defaultdict(list)
             referenced_classes: List[s_obj.ObjectMeta] = []
 
             objref = ql.object
@@ -502,7 +504,6 @@ def compile_DescribeStmt(
                 modules.append(objref.name)
             else:
                 itemtype: Optional[Type[s_obj.Object]] = None
-                found = False
 
                 name: str
                 if objref.module:
@@ -520,40 +521,80 @@ def compile_DescribeStmt(
                                 itemclass)
                         )
 
-                if (itemclass is None or
-                        itemclass is qltypes.SchemaObjectClass.FUNCTION):
+                last_exc = None
+                # Search in the current namespace AND in std. We do
+                # this to avoid masking a `std` object/function by one
+                # in a default module.
+                search_ns = [ictx.modaliases]
+                # Only check 'std' separately if the current
+                # modaliases don't already include it.
+                if ictx.modaliases.get(None, 'std') != 'std':
+                    search_ns.append({None: 'std'})
 
-                    try:
-                        funcs: Tuple[s_func.Function, ...] = (
-                            ictx.env.schema.get_functions(
-                                name,
-                                module_aliases=ictx.modaliases)
-                        )
-                    except errors.InvalidReferenceError:
-                        pass
-                    else:
-                        for func in funcs:
-                            items.append(func.get_name(ictx.env.schema))
-                        found = True
+                # Search in the current namespace AND in std.
+                for aliases in search_ns:
+                    # Use the specific modaliases instead of the
+                    # context ones.
+                    with ictx.subquery() as newctx:
+                        newctx.modaliases = aliases
+                        # Get the default module name
+                        modname = aliases[None]
+                        # Is the current item a function
+                        is_function = (itemclass is
+                                       qltypes.SchemaObjectClass.FUNCTION)
 
-                if not found:
-                    if itemclass is not qltypes.SchemaObjectClass.ALIAS:
-                        condition = None
-                        label = None
-                    else:
-                        condition = (
-                            lambda obj:
-                            obj.get_alias_is_persistent(ctx.env.schema)
-                        )
-                        label = 'alias'
-                    obj = schemactx.get_schema_object(
-                        objref,
-                        item_type=itemtype,
-                        condition=condition,
-                        label=label,
-                        ctx=ictx,
-                    )
-                    items.append(obj.get_name(ictx.env.schema))
+                        # We need to check functions if we're looking for them
+                        # specifically or if this is a broad search. They are
+                        # handled separately because they allow multiple
+                        # matches for the same name.
+                        if (itemclass is None or is_function):
+                            try:
+                                funcs: Tuple[s_func.Function, ...] = (
+                                    newctx.env.schema.get_functions(
+                                        name,
+                                        module_aliases=aliases)
+                                )
+                            except errors.InvalidReferenceError:
+                                pass
+                            else:
+                                for func in funcs:
+                                    items[f'function_{modname}'].append(
+                                        func.get_name(newctx.env.schema))
+
+                        # Also find an object matching the name as long as
+                        # it's not a function we're looking for specifically.
+                        if not is_function:
+                            try:
+                                if itemclass is not \
+                                        qltypes.SchemaObjectClass.ALIAS:
+                                    condition = None
+                                    label = None
+                                else:
+                                    condition = (
+                                        lambda obj:
+                                        obj.get_alias_is_persistent(
+                                            ctx.env.schema
+                                        )
+                                    )
+                                    label = 'alias'
+                                obj = schemactx.get_schema_object(
+                                    objref,
+                                    item_type=itemtype,
+                                    condition=condition,
+                                    label=label,
+                                    ctx=newctx,
+                                )
+                                items[f'other_{modname}'].append(
+                                    obj.get_name(newctx.env.schema))
+                            except errors.InvalidReferenceError as exc:
+                                # Record the exception to be possibly
+                                # raised if no matches are found
+                                last_exc = exc
+
+            # If we already have some results, suppress the exception,
+            # otherwise raise the recorded exception.
+            if not items and last_exc:
+                raise last_exc
 
             verbose = ql.options.get_flag('VERBOSE')
 
@@ -570,14 +611,48 @@ def compile_DescribeStmt(
                     f'cannot handle describe language {ql.language}'
                 )
 
+            # Based on the items found generate main text and a
+            # potential comment about masked items.
+            defmod = ictx.modaliases.get(None, 'std')
+            default_items = []
+            masked_items = set()
+            for objtype in ['function', 'other']:
+                defkey = f'{objtype}_{defmod}'
+                mskkey = f'{objtype}_std'
+
+                default_items += items.get(defkey, [])
+                if defkey in items and mskkey in items:
+                    # We have a match in default module and some masked.
+                    masked_items.update(items.get(mskkey, []))
+                else:
+                    default_items += items.get(mskkey, [])
+
+            # Throw out anything in the masked set that's already in
+            # the default.
+            masked_items.difference_update(default_items)
+
             text = method(
                 ctx.env.schema,
                 included_modules=modules,
-                included_items=items,
+                included_items=default_items,
                 included_ref_classes=referenced_classes,
                 include_module_ddl=False,
                 include_std_ddl=True,
             )
+            if masked_items:
+                text += ('\n\n'
+                         '# The following builtins are masked by the above:'
+                         '\n\n')
+                masked = method(
+                    ctx.env.schema,
+                    included_modules=modules,
+                    included_items=masked_items,
+                    included_ref_classes=referenced_classes,
+                    include_module_ddl=False,
+                    include_std_ddl=True,
+                )
+                masked = textwrap.indent(masked, '# ')
+                text += masked
 
         ct = typegen.type_to_typeref(
             ctx.env.get_track_schema_type('std::str'),
