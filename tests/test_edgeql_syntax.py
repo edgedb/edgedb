@@ -3922,3 +3922,15 @@ aa';
         """
         DESCRIBE SYSTEM CONFIG AS DDL;
         """
+
+    def test_edgeql_syntax_describe_07(self):
+        """
+        DESCRIBE ROLES;
+% OK %
+        DESCRIBE ROLES AS DDL;
+        """
+
+    def test_edgeql_syntax_describe_08(self):
+        """
+        DESCRIBE ROLES AS DDL;
+        """

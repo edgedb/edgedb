@@ -198,6 +198,14 @@ class DescribeStmt(Nonterm):
             options=kids[3].val.options,
         )
 
+    def reduce_DESCRIBE_ROLES(self, *kids):
+        """%reduce DESCRIBE ROLES DescribeFormat"""
+        self.val = qlast.DescribeStmt(
+            object=qlast.DescribeGlobal.Roles,
+            language=kids[2].val.language,
+            options=kids[2].val.options,
+        )
+
     def reduce_DESCRIBE_SchemaItem(self, *kids):
         """%reduce DESCRIBE SchemaItem DescribeFormat"""
         self.val = qlast.DescribeStmt(

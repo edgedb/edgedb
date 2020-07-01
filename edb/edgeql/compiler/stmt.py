@@ -515,6 +515,18 @@ def compile_DescribeStmt(
             else:
                 raise errors.QueryError(
                     f'cannot describe config as {ql.language}')
+        elif ql.object == qlast.DescribeGlobal.Roles:
+            if ql.language is qltypes.DescribeLanguage.DDL:
+                function_call = dispatch.compile(
+                    qlast.FunctionCall(
+                        func=('sys', '_describe_roles_as_ddl'),
+                    ),
+                    ctx=ictx)
+                assert isinstance(function_call, irast.Set), function_call
+                stmt.result = function_call
+            else:
+                raise errors.QueryError(
+                    f'cannot describe roles as {ql.language}')
         else:
             assert isinstance(ql.object, qlast.ObjectRef), ql.object
             modules = []

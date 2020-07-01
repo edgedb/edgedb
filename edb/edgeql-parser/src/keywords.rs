@@ -58,6 +58,7 @@ pub const UNRESERVED_KEYWORDS: &[&str] = &[
     "repeatable",
     "restrict",
     "role",
+    "roles",
     "savepoint",
     "scalar",
     "schema",
