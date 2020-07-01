@@ -523,6 +523,196 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 }]
             )
 
+    async def test_edgeql_select_computable_19(self):
+        await self.assert_query_result(
+            r"""
+            WITH MODULE test
+            SELECT Issue{
+                number,
+                required foo := 42,
+            }
+            FILTER Issue.number = '1';
+            """,
+            [{
+                'number': '1',
+                'foo': 42,
+            }]
+        )
+
+    async def test_edgeql_select_computable_20(self):
+        await self.assert_query_result(
+            r"""
+            WITH MODULE test
+            SELECT Issue{
+                number,
+                required foo := <int64>.number,
+                required single bar := <int64>.number,
+                required multi baz := <int64>.number,
+                optional te := <str>.time_estimate,
+            }
+            FILTER Issue.number = '1';
+            """,
+            [{
+                'number': '1',
+                'foo': 1,
+                'bar': 1,
+                'baz': {1},
+                'te': '3000',
+            }]
+        )
+
+    async def test_edgeql_select_computable_21(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"possibly an empty set returned by an expression for "
+                r"a computable property 'foo' declared as 'required'",
+                _position=111):
+            await self.con.fetchall("""\
+                WITH MODULE test
+                SELECT Issue{
+                    number,
+                    required foo := <int64>{},
+                }
+                FILTER Issue.number = '1';
+            """)
+
+    async def test_edgeql_select_computable_22(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"possibly an empty set returned by an expression for "
+                r"a computable property 'foo' declared as 'required'",
+                _position=111):
+            await self.con.fetchall("""\
+                WITH MODULE test
+                SELECT Issue{
+                    number,
+                    required single foo := <int64>{},
+                }
+                FILTER Issue.number = '1';
+            """)
+
+    async def test_edgeql_select_computable_23(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"possibly an empty set returned by an expression for "
+                r"a computable property 'foo' declared as 'required'",
+                _position=111):
+            await self.con.fetchall("""\
+                WITH MODULE test
+                SELECT Issue{
+                    number,
+                    required multi foo := <int64>{},
+                }
+                FILTER Issue.number = '1';
+            """)
+
+    async def test_edgeql_select_computable_24(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"possibly more than one element returned by an expression "
+                r"for a computable property 'foo' declared as 'single'",
+                _position=111):
+            await self.con.fetchall("""\
+                WITH MODULE test
+                SELECT Issue{
+                    number,
+                    required single foo := {1, 2},
+                }
+                FILTER Issue.number = '1';
+            """)
+
+    async def test_edgeql_select_computable_25(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"possibly an empty set returned by an expression for "
+                r"a computable property 'foo' declared as 'required'",
+                _position=111):
+            await self.con.fetchall("""\
+                WITH MODULE test
+                SELECT Issue{
+                    number,
+                    required foo := <str>.time_estimate,
+                }
+                FILTER Issue.number = '1';
+            """)
+
+    async def test_edgeql_select_computable_26(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"possibly an empty set returned by an expression for "
+                r"a computable property 'foo' declared as 'required'",
+                _position=111):
+            await self.con.fetchall("""\
+                WITH MODULE test
+                SELECT Issue{
+                    number,
+                    required single foo := <str>.time_estimate,
+                }
+                FILTER Issue.number = '1';
+            """)
+
+    async def test_edgeql_select_computable_27(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"possibly an empty set returned by an expression for "
+                r"a computable property 'foo' declared as 'required'",
+                _position=111):
+            await self.con.fetchall("""\
+                WITH MODULE test
+                SELECT Issue{
+                    number,
+                    required multi foo := <str>.time_estimate,
+                }
+                FILTER Issue.number = '1';
+            """)
+
+    async def test_edgeql_select_computable_28(self):
+        await self.assert_query_result(
+            r"""
+            WITH MODULE test
+            SELECT Issue{
+                number,
+                required foo := .owner{
+                    name
+                },
+                required single bar := .owner{
+                    name
+                },
+                required multi baz := .owner{
+                    name
+                },
+            }
+            FILTER Issue.number = '1';
+            """,
+            [{
+                'number': '1',
+                'foo': {
+                    'name': 'Elvis'
+                },
+                'bar': {
+                    'name': 'Elvis'
+                },
+                'baz': [{
+                    'name': 'Elvis'
+                }],
+            }]
+        )
+
+    async def test_edgeql_select_computable_29(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"possibly an empty set returned by an expression for "
+                r"a computable link 'foo' declared as 'required'",
+                _position=111):
+            await self.con.fetchall("""\
+                WITH MODULE test
+                SELECT Issue{
+                    number,
+                    required multi foo := .owner.todo,
+                }
+                FILTER Issue.number = '1';
+            """)
+
     async def test_edgeql_select_match_01(self):
         await self.assert_query_result(
             r"""
