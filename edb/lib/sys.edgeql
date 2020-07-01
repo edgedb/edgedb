@@ -198,3 +198,11 @@ sys::get_current_database() -> str
     SET volatility := 'STABLE';
     USING SQL FUNCTION 'current_database';
 };
+
+CREATE FUNCTION
+sys::_describe_roles_as_ddl() -> str
+{
+    # The results won't change within a single statement.
+    SET volatility := 'STABLE';
+    USING SQL FUNCTION 'edgedb._describe_roles_as_ddl';
+};

@@ -1947,6 +1947,87 @@ class DescribeSystemConfigAsDDLFunction(dbops.Function):
             text=text)
 
 
+class QuoteIdentFunction(dbops.Function):
+    """Quote ident function."""
+    # TODO do not quote valid identifiers unless they are reserved
+    text = r'''
+        SELECT concat('`', replace(val, '`', '``'), '`')
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'quote_ident'),
+            args=[('val', ('text',))],
+            returns=('text',),
+            # Stable because it's raising exceptions.
+            volatility='stable',
+            text=self.text,
+        )
+
+
+class DescribeRolesAsDDLFunction(dbops.Function):
+    """Describe roles as DDL"""
+
+    def __init__(self, compiler, schema) -> None:
+        role_obj = schema.get("sys::Role")
+        roles = inhviewname(schema, role_obj)
+        member_of = role_obj.get_pointers(schema).get(schema, 'member_of')
+        members = inhviewname(schema, member_of)
+        text = f"""
+            WITH RECURSIVE
+            dependencies AS (
+                SELECT r.id AS id, m.target AS parent
+                    FROM {q(*roles)} r
+                        LEFT OUTER JOIN {q(*members)} m ON r.id = m.source
+            ),
+            roles_with_depths(id, depth) AS (
+                SELECT id, 0 FROM dependencies WHERE parent IS NULL
+                UNION ALL
+                SELECT dependencies.id, roles_with_depths.depth + 1
+                FROM dependencies
+                INNER JOIN roles_with_depths
+                    ON dependencies.parent = roles_with_depths.id
+            ),
+            ordered_roles AS (
+                SELECT id, max(depth) FROM roles_with_depths
+                GROUP BY id
+                ORDER BY max(depth) ASC
+            )
+            SELECT
+            string_agg(
+                concat(
+                    'CREATE SUPERUSER ROLE ',
+                    edgedb.quote_ident(role.name),
+                    NULLIF((SELECT
+                        concat(' EXTENDING ',
+                            string_agg(edgedb.quote_ident(parent.name), ', '))
+                        FROM {q(*members)} member
+                            INNER JOIN {q(*roles)} parent
+                            ON parent.id = member.target
+                        WHERE member.source = role.id
+                    ), ' EXTENDING '),
+                    CASE WHEN role.password IS NOT NULL THEN
+                        concat(' {{ SET password_hash := ',
+                               quote_literal(role.password),
+                               '}};')
+                    ELSE ';' END
+                ),
+                '\n'
+            ) str
+            FROM ordered_roles
+                JOIN {q(*roles)} role
+                ON role.id = ordered_roles.id
+        """
+
+        super().__init__(
+            name=('edgedb', '_describe_roles_as_ddl'),
+            args=[],
+            returns=('text'),
+            # Stable because it's raising exceptions.
+            volatility='stable',
+            text=text)
+
+
 class SysConfigValueType(dbops.CompositeType):
     """Type of values returned by _read_sys_config."""
     def __init__(self) -> None:
@@ -2589,6 +2670,7 @@ async def generate_support_functions(conn, schema):
         dbops.CreateFunction(IssubclassFunction2()),
         dbops.CreateFunction(IsinstanceFunction()),
         dbops.CreateFunction(GetSchemaObjectNameFunction()),
+        dbops.CreateFunction(QuoteIdentFunction()),
     ])
 
     block = dbops.PLTopBlock()
@@ -2606,6 +2688,8 @@ async def generate_more_support_functions(conn, compiler, schema):
             ConfigObjectAsDDLFunction(compiler, schema, 'Auth', 'auth')),
         dbops.CreateFunction(
             DescribeSystemConfigAsDDLFunction(compiler, schema)),
+        dbops.CreateFunction(
+            DescribeRolesAsDDLFunction(compiler, schema)),
     ])
 
     block = dbops.PLTopBlock()

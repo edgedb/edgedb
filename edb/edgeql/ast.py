@@ -69,6 +69,7 @@ class CardinalityModifier(s_enum.StrEnum):
 class DescribeGlobal(s_enum.StrEnum):
     Schema = 'SCHEMA'
     SystemConfig = 'SYSTEM CONFIG'
+    Roles = 'ROLES'
 
     def to_edgeql(self) -> str:
         return self.value
