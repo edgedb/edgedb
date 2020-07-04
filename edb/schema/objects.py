@@ -151,12 +151,15 @@ def get_known_type_id(
 
 class ComparisonContext:
 
+    renames: Dict[str, str]
+
     def __init__(
         self,
         *,
         related_schemas: bool = False,
     ) -> None:
         self.related_schemas = related_schemas
+        self.renames = {}
 
 
 # derived from ProtoField for validation
@@ -1144,8 +1147,12 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         if ours is not None and theirs is not None:
             if type(ours) is not type(theirs):
                 similarity /= 1.4
-            elif ours.get_name(our_schema) != theirs.get_name(their_schema):
-                similarity /= 1.2
+            else:
+                our_name = ours.get_name(our_schema)
+                our_name = context.renames.get(our_name, our_name)
+                their_name = theirs.get_name(their_schema)
+                if our_name != their_name:
+                    similarity /= 1.2
         elif ours is not None or theirs is not None:
             # one is None but not both
             similarity /= 1.2
@@ -1276,7 +1283,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                     v = value.as_shell(schema)
                 else:
                     v = value
-                self.delta_property(schema, delta, fn, v)
+                self.record_field_create_delta(schema, delta, fn, v)
 
         for refdict in cls.get_refdicts():
             refcoll = self.get_field_value(schema, refdict.attr)
@@ -1305,21 +1312,6 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             sd.AlterObject,
             canonical=True,
         )
-
-        my_name = self.get_name(self_schema)
-        other_name = other.get_name(other_schema)
-
-        if my_name != other_name:
-            rename_op = self.init_delta_command(
-                self_schema,
-                sd.RenameObject,
-                new_name=other_name,
-            )
-
-            rename_op.set_attribute_value(
-                'name', other_name, orig_value=my_name)
-
-            delta.add(rename_op)
 
         ff = cls.get_fields(sorted=True).items()
         fields = {
@@ -1362,12 +1354,14 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                 )
 
                 if fcoef != 1.0:
-                    other.delta_property(
+                    other.record_field_alter_delta(
                         other_schema,
                         delta,
-                        fn,
+                        fname=fn,
                         value=new_v,
                         orig_value=old_v,
+                        orig_schema=self_schema,
+                        orig_object=self,
                     )
 
         for refdict in cls.get_refdicts():
@@ -1427,11 +1421,10 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                 else:
                     v = value
 
-                self.delta_property(
+                self.record_field_delete_delta(
                     schema,
                     delta,
                     fn,
-                    value=None,
                     orig_value=v,
                 )
 
@@ -1442,15 +1435,84 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
         return delta
 
-    def delta_property(
+    def record_simple_field_delta(
+        self: Object_T,
+        schema: s_schema.Schema,
+        delta: sd.ObjectCommand[Object_T],
+        *,
+        fname: str,
+        value: Any,
+        orig_value: Any,
+    ) -> None:
+        delta.set_attribute_value(fname, value, orig_value=orig_value)
+
+    def record_field_create_delta(
         self: Object_T,
         schema: s_schema.Schema,
         delta: sd.ObjectCommand[Object_T],
         fname: str,
         value: Any,
-        orig_value: Any = None,
     ) -> None:
-        delta.set_attribute_value(fname, value, orig_value=orig_value)
+        self.record_simple_field_delta(
+            schema,
+            delta,
+            fname=fname,
+            value=value,
+            orig_value=None,
+        )
+
+    def record_field_alter_delta(
+        self: Object_T,
+        schema: s_schema.Schema,
+        delta: sd.ObjectCommand[Object_T],
+        *,
+        fname: str,
+        value: Any,
+        orig_value: Any,
+        orig_schema: s_schema.Schema,
+        orig_object: Object_T,
+    ) -> None:
+        from . import delta as sd
+
+        if fname == 'name':
+            rename_op = orig_object.init_delta_command(
+                orig_schema,
+                sd.RenameObject,
+                new_name=value,
+            )
+
+            self.record_simple_field_delta(
+                schema,
+                rename_op,
+                fname=fname,
+                value=value,
+                orig_value=orig_value,
+            )
+
+            delta.add(rename_op)
+        else:
+            self.record_simple_field_delta(
+                schema,
+                delta,
+                fname=fname,
+                value=value,
+                orig_value=orig_value,
+            )
+
+    def record_field_delete_delta(
+        self: Object_T,
+        schema: s_schema.Schema,
+        delta: sd.ObjectCommand[Object_T],
+        fname: str,
+        orig_value: Any,
+    ) -> None:
+        self.record_simple_field_delta(
+            schema,
+            delta,
+            fname=fname,
+            value=None,
+            orig_value=orig_value,
+        )
 
     def dump(self, schema: s_schema.Schema) -> str:
         return (
@@ -1796,7 +1858,9 @@ class ObjectCollection(
         compcoef: float,
     ) -> float:
         if ours is not None:
-            our_names = ours.names(our_schema)
+            our_names = tuple(
+                context.renames.get(n, n) for n in ours.names(our_schema)
+            )
         else:
             our_names = cls._container()
 
@@ -2431,8 +2495,11 @@ class InheritingObject(SubclassableObject):
         rebase = sd.ObjectCommandMeta.get_command_class(
             s_inh.RebaseInheritingObject, type(self))
 
-        old_base_names = self.get_base_names(self_schema)
-        new_base_names = other.get_base_names(other_schema)
+        old_base_names = tuple(
+            context.renames.get(n, n)
+            for n in self.get_bases(self_schema).names(self_schema)
+        )
+        new_base_names = other.get_bases(other_schema).names(other_schema)
 
         if old_base_names != new_base_names and rebase is not None:
             removed, added = s_inh.delta_bases(
@@ -2459,18 +2526,65 @@ class InheritingObject(SubclassableObject):
 
         return delta
 
-    def delta_property(
-        self,
+    def record_simple_field_delta(
+        self: InheritingObjectT,
         schema: s_schema.Schema,
-        delta: sd.Command,
+        delta: sd.ObjectCommand[InheritingObjectT],
+        *,
         fname: str,
         value: Any,
-        orig_value: Any = None,
+        orig_value: Any,
     ) -> None:
         inherited_fields = self.get_inherited_fields(schema)
         delta.set_attribute_value(
             fname,
+            value=value,
+            orig_value=orig_value,
+            inherited=fname in inherited_fields,
+        )
+
+    def get_field_create_delta(
+        self: InheritingObjectT,
+        schema: s_schema.Schema,
+        delta: sd.ObjectCommand[InheritingObjectT],
+        fname: str,
+        value: Any,
+    ) -> None:
+        inherited_fields = self.get_inherited_fields(schema)
+        delta.set_attribute_value(
+            fname,
+            value=value,
+            inherited=fname in inherited_fields,
+        )
+
+    def get_field_alter_delta(
+        self: InheritingObjectT,
+        old_schema: s_schema.Schema,
+        new_schema: s_schema.Schema,
+        delta: sd.ObjectCommand[InheritingObjectT],
+        fname: str,
+        value: Any,
+        orig_value: Any,
+    ) -> None:
+        inherited_fields = self.get_inherited_fields(new_schema)
+        delta.set_attribute_value(
+            fname,
             value,
+            orig_value=orig_value,
+            inherited=fname in inherited_fields,
+        )
+
+    def get_field_delete_delta(
+        self: InheritingObjectT,
+        schema: s_schema.Schema,
+        delta: sd.ObjectCommand[InheritingObjectT],
+        fname: str,
+        orig_value: Any,
+    ) -> None:
+        inherited_fields = self.get_inherited_fields(schema)
+        delta.set_attribute_value(
+            fname,
+            value=None,
             orig_value=orig_value,
             inherited=fname in inherited_fields,
         )

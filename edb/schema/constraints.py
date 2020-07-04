@@ -312,12 +312,12 @@ class ConstraintCommand(
     ) -> None:
         # check that 'subject' and 'subjectexpr' are not set as annotations
         for command in astnode.commands:
-            assert isinstance(command, (qlast.NamedDDL, qlast.BaseSetField))
-            cname = command.name
-            if cname in {'subject', 'subjectexpr'}:
-                raise errors.InvalidConstraintDefinitionError(
-                    f'{cname} is not a valid constraint annotation',
-                    context=command.context)
+            if isinstance(command, qlast.BaseSetField):
+                cname = command.name
+                if cname in {'subject', 'subjectexpr'}:
+                    raise errors.InvalidConstraintDefinitionError(
+                        f'{cname} is not a valid constraint annotation',
+                        context=command.context)
 
     @classmethod
     def _classname_quals_from_ast(

@@ -100,10 +100,30 @@ def linearize_delta(
             continue
 
         opstack = opmap[op]
+
+        if (
+            isinstance(op, sd.ObjectCommand)
+            and not isinstance(op, sd.CreateObject)
+            and info['implicit_bases']
+        ):
+            found_implicit_parent_op = False
+            for implicit_base in info['implicit_bases']:
+                key = (
+                    type(op),
+                    renames_r.get(implicit_base, implicit_base),
+                )
+
+                implicit_parent_op = parents.get(key)
+                if implicit_parent_op is not None:
+                    implicit_parent_op.add(opstack[1])
+                    found_implicit_parent_op = True
+                    break
+
+            if found_implicit_parent_op:
+                continue
+
         parent = _get_parent_op(opstack)
-
         reattachment_depth = 1
-
         for depth, ancestor_op in enumerate(reversed(opstack[1:-1])):
             assert isinstance(ancestor_op, sd.ObjectCommand)
             mcls = ancestor_op.get_schema_metaclass()
@@ -113,9 +133,14 @@ def linearize_delta(
 
             # Try attaching to a "Create" op, if that doesn't work
             # attach to whatever the ancestor is right now.
-            for ancestor_cls in [create_cmd_cls, type(ancestor_op)]:
-                ancestor_key: Tuple[Type[sd.ObjectCommand[so.Object]], str] = (
-                    ancestor_cls, ancestor_op.classname)
+            ancestor_keys: List[
+                Tuple[Type[sd.ObjectCommand[so.Object]], str]
+            ] = []
+            if type(ancestor_op) != create_cmd_cls:
+                ancestor_keys.append((create_cmd_cls, ancestor_op.classname))
+            ancestor_keys.append((type(ancestor_op), ancestor_op.classname))
+
+            for ancestor_key in ancestor_keys:
                 # The root operation is the top-level operation in the delta.
                 attached_root = parents.get(ancestor_key)
                 if attached_root is not None:
@@ -205,6 +230,7 @@ def _trace_op(
 ) -> None:
     deps: Set[Tuple[str, str]] = set()
     graph_key: str
+    implicit_bases: List[str] = []
 
     if isinstance(op, sd.CreateObject):
         tag = 'create'
@@ -227,9 +253,9 @@ def _trace_op(
         assert old_schema is not None
         # Things must be deleted _after_ their referrers have
         # been deleted or altered.
-        obj = get_object(old_schema, op, op.classname)
+        obj = get_object(old_schema, op)
         refs = _get_referrers(
-            old_schema, get_object(old_schema, op, op.classname), strongrefs)
+            old_schema, get_object(old_schema, op), strongrefs)
         for ref in refs:
             ref_name = ref.get_name(old_schema)
             if (isinstance(obj, referencing.ReferencedObject)
@@ -237,9 +263,7 @@ def _trace_op(
                 try:
                     ref_item = depgraph[('delete', ref_name)]
                 except KeyError:
-                    ref_item = depgraph[('delete', ref_name)] = {
-                        'deps': set(),
-                    }
+                    ref_item = depgraph[('delete', ref_name)] = {'deps': set()}
 
                 ref_item['deps'].add((tag, op.classname))
 
@@ -323,6 +347,16 @@ def _trace_op(
             item['deps'].add(('create', op.classname))
             item['deps'].add(('alter', op.classname))
 
+            try:
+                item = depgraph[('rename', ref_name)]
+            except KeyError:
+                item = depgraph[('rename', ref_name)] = {
+                    'deps': set(),
+                }
+
+            item['deps'].add(('create', op.classname))
+            item['deps'].add(('alter', op.classname))
+
         if tag in ('create', 'alter'):
             # In a delete/create cycle, deletion must obviously
             # happen first.
@@ -352,6 +386,12 @@ def _trace_op(
                 deps.add(('create', referrer_name))
                 deps.add(('rebase', referrer_name))
 
+                if isinstance(obj, referencing.ReferencedInheritingObject):
+                    implicit_bases = [
+                        b.get_name(new_schema)
+                        for b in obj.get_implicit_bases(new_schema)
+                    ]
+
         graph_key = op.classname
 
     else:
@@ -366,14 +406,17 @@ def _trace_op(
     item['op'] = op
     item['tag'] = tag
     item['deps'].update(deps)
+    item['implicit_bases'] = implicit_bases
 
 
 def get_object(
     schema: s_schema.Schema,
     op: sd.ObjectCommand[so.Object],
-    name: str,
+    name: Optional[str] = None,
 ) -> so.Object:
     metaclass = op.get_schema_metaclass()
+    if name is None:
+        name = op.classname
 
     if issubclass(metaclass, s_types.Collection):
         if sn.Name.is_qualified(name):

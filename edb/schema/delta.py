@@ -57,11 +57,7 @@ def delta_objects(
     new_schema: s_schema.Schema,
 ) -> DeltaRoot:
 
-    adds_mods = DeltaRoot()
-    dels = DeltaRoot()
-
-    old = list(old)
-    new = list(new)
+    delta = DeltaRoot()
 
     oldkeys = {o.id: o.hash_criteria(old_schema) for o in old}
     newkeys = {o.id: o.hash_criteria(new_schema) for o in new}
@@ -75,130 +71,105 @@ def delta_objects(
         o for o in new
         if newkeys[o.id] not in unchanged)
 
-    comparison: List[Tuple[float, so.Object, so.Object]] = []
-    for x, y in itertools.product(new, old):
-        # type ignore below, because mypy does not correlate `old`
-        # and `old_schema`.
-        comp = x.compare(
+    oldnames = {o.get_name(old_schema) for o in old}
+    newnames = {o.get_name(new_schema) for o in new}
+    common_names = oldnames & newnames
+
+    pairs = sorted(
+        itertools.product(new, old),
+        key=lambda pair: pair[0].get_name(new_schema) not in common_names,
+    )
+
+    comparison_x: Dict[so.Object, Tuple[float, so.Object]] = {}
+    comparison_y: Dict[so.Object, Tuple[float, so.Object]] = {}
+    for x, y in pairs:
+        prev_comparison_x = comparison_x.get(x)
+        prev_comparison_y = comparison_y.get(y)
+
+        if (
+            (prev_comparison_x is not None and prev_comparison_x[0] == 1.0)
+            or (prev_comparison_y is not None and prev_comparison_y[0] == 1.0)
+        ):
+            continue
+
+        similarity = x.compare(
             y,
             our_schema=new_schema,
             their_schema=old_schema,
             context=context,
         )
-        comparison.append((comp, x, y))
 
-    used_x: Set[so.Object] = set()
-    used_y: Set[so.Object] = set()
-    altered = ordered.OrderedSet[ObjectCommand[so.Object]]()
-
-    if comparison:
-        _new_schema = new_schema
-
-        def _key(
-            item: Tuple[float, so.Object, so.Object],
-        ) -> Tuple[float, str]:
-            return item[0], item[1].get_name(_new_schema)
-
-        comparison = sorted(comparison, key=_key, reverse=True)
-
-        for s, x, y in comparison:
-            if x not in used_x and y not in used_y:
-                if s != 1.0:
-                    if s > 0.6:
-                        altered.add(
-                            y.as_alter_delta(
-                                other=x,
-                                context=context,
-                                self_schema=old_schema,
-                                other_schema=new_schema,
-                            ),
-                        )
-                        used_x.add(x)
-                        used_y.add(y)
-                else:
-                    used_x.add(x)
-                    used_y.add(y)
-
-    deleted = old - used_y
-    created = new - used_x
-
-    if created:
-        for x in created:
-            adds_mods.add(
-                x.as_create_delta(
-                    schema=new_schema,
-                    context=context,
-                ),
+        if (
+            (
+                prev_comparison_x is None
+                or prev_comparison_x[0] < similarity
+            ) and (
+                prev_comparison_y is None
+                or prev_comparison_y[0] < similarity
             )
+        ):
+            comparison_x[x] = (similarity, y)
+            comparison_y[y] = (similarity, x)
 
-    if old_schema is not None and new_schema is not None:
-        probe: Optional[so.Object]
-        if old:
-            probe = next(iter(old))
-        elif new:
-            probe = next(iter(new))
+    altered = []
+
+    if comparison_x:
+        if isinstance(next(iter(comparison_x)), so.InheritingObject):
+            # Generate the diff from the top of the inheritance
+            # hierarchy, since changes to parent objects may inform
+            # how the delta in child objects is treated.
+            graph = {}
+            for x in comparison_x:
+                assert isinstance(x, so.InheritingObject)
+                graph[x] = {
+                    'item': x,
+                    'deps': x.get_bases(new_schema).objects(new_schema),
+                }
+
+            order_x = topological.sort(graph, allow_unresolved=True)
         else:
-            probe = None
+            order_x = comparison_x.keys()
 
-        if probe is not None:
-            has_bases = isinstance(probe, so.InheritingObject)
-        else:
-            has_bases = False
+        for x in order_x:
+            s, y = comparison_x[x]
+            if 0.6 < s < 1.0:
+                x_name = x.get_name(new_schema)
+                y_name = y.get_name(old_schema)
+                if x_name != y_name:
+                    context.renames[y_name] = x_name
 
-        if has_bases:
-            g = {}
-
-            altered_idx = {p.classname: p for p in altered}
-            for p in altered:
-                for op in p.get_subcommands(type=RenameObject):
-                    altered_idx[op.new_name] = p
-
-            for p in altered:
-                old_class: so.Object = old_schema.get(p.classname)
-
-                for op in p.get_subcommands(type=RenameObject):
-                    new_name = op.new_name
-                    break
-                else:
-                    new_name = p.classname
-
-                new_class: so.Object = new_schema.get(new_name)
-
-                assert isinstance(old_class, so.InheritingObject)
-                assert isinstance(new_class, so.InheritingObject)
-
-                old_bases = \
-                    old_class.get_bases(old_schema).objects(old_schema)
-                new_bases = \
-                    new_class.get_bases(new_schema).objects(new_schema)
-
-                bases = (
-                    {b.get_name(old_schema) for b in old_bases} |
-                    {b.get_name(new_schema) for b in new_bases}
+                alter = y.as_alter_delta(
+                    other=x,
+                    context=context,
+                    self_schema=old_schema,
+                    other_schema=new_schema,
                 )
 
-                deps = {b for b in bases if b in altered_idx}
+                altered.append(alter)
 
-                g[p.classname] = {'item': p, 'deps': deps}
-                if new_name != p.classname:
-                    g[new_name] = {'item': p, 'deps': deps}
+    deleted = old - {y for _, (s, y) in comparison_x.items() if s > 0.6}
+    created = new - {x for x, (s, _) in comparison_x.items() if s > 0.6}
 
-            altered = topological.sort(g)
+    for x in created:
+        delta.add(
+            x.as_create_delta(
+                schema=new_schema,
+                context=context,
+            ),
+        )
 
     for p in altered:
-        adds_mods.add(p)
+        delta.add(p)
 
-    if deleted:
-        for y in deleted:
-            dels.add(
-                y.as_delete_delta(
-                    schema=old_schema,
-                    context=context,
-                ),
-            )
+    for y in deleted:
+        delta.add(
+            y.as_delete_delta(
+                schema=old_schema,
+                context=context,
+            ),
+        )
 
-    adds_mods.add(dels)
-    return adds_mods
+    return delta
 
 
 CommandMeta_T = TypeVar("CommandMeta_T", bound="CommandMeta")
@@ -1363,7 +1334,7 @@ class ObjectCommand(
         context: CommandContext,
         node: qlast.DDLOperation,
     ) -> None:
-        for op in self.get_subcommands(type=RenameObject):
+        for op in self.get_subcommands(type=AlterObjectFragment):
             self._append_subcmd_ast(schema, node, op, context)
 
         mcls = self.get_schema_metaclass()
@@ -2472,8 +2443,8 @@ class AlterObjectProperty(Command):
     astnode = qlast.SetField
 
     property = struct.Field(str)
-    old_value = struct.Field(object, None)
-    new_value = struct.Field(object, None)
+    old_value = struct.Field[Any](object, None)
+    new_value = struct.Field[Any](object, None)
     source = struct.Field(str, None)
 
     @classmethod

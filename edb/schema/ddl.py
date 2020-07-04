@@ -27,52 +27,17 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import declarative as s_decl
 
 from . import delta as sd
+from . import expr as s_expr
+from . import migrations as s_migr
+from . import modules as s_mod
 from . import objects as so
+from . import objtypes as s_objtypes
 from . import ordering as s_ordering
 from . import schema as s_schema
 
-# The below must be imported here to make sure we have all
-# necessary mappers from/to DDL AST.
-
-from . import scalars  # NOQA
-from . import annos  # NOQA
-from . import casts  # NOQA
-from . import expr as s_expr
-from . import expraliases  # NOQA
-from . import objtypes  # NOQA
-from . import constraints  # NOQA
-from . import functions  # NOQA
-from . import migrations
-from . import modules
-from . import operators  # NOQA
-from . import indexes  # NOQA
-from . import links  # NOQA
-from . import lproperties  # NOQA
-from . import modules  # NOQA
-from . import std  # NOQA
-from . import types
 
 if TYPE_CHECKING:
     import uuid
-
-
-def get_global_dep_order() -> Tuple[Type[so.Object], ...]:
-    return (
-        annos.Annotation,
-        functions.Function,
-        constraints.Constraint,
-        scalars.ScalarType,
-        # schema arrays and tuples are UnqualifiedObject
-        types.Array,
-        types.Tuple,
-        # aliases are treated separately because they are not UnqualifiedObject
-        types.ArrayExprAlias,
-        types.TupleExprAlias,
-        expraliases.Alias,
-        lproperties.Property,
-        links.Link,
-        objtypes.ObjectType,
-    )
 
 
 def delta_schemas(
@@ -116,7 +81,8 @@ def delta_schemas(
         excluded_modules:
             Optional list of modules to exlude from the delta.
             Takes precedence over *included_modules*.
-            NOTE: standard library modules are always excluded.
+            NOTE: standard library modules are always excluded,
+            unless *include_std_diff* is ``True``.
 
         included_items:
             Optional list of names of objects to include in the delta.
@@ -169,7 +135,7 @@ def delta_schemas(
                     (isinstance(obj, so.QualifiedObject)
                         and (obj.get_name(schema).module
                              in s_schema.STD_MODULES))
-                    or (isinstance(obj, modules.Module)
+                    or (isinstance(obj, s_mod.Module)
                         and obj.get_name(schema) in s_schema.STD_MODULES)
                 )
             schema_a_filters.append(_filter)
@@ -177,7 +143,7 @@ def delta_schemas(
     my_modules = {
         m.get_name(schema_b)
         for m in schema_b.get_objects(
-            type=modules.Module,
+            type=s_mod.Module,
             extra_filters=schema_b_filters,
         )
     }
@@ -185,7 +151,7 @@ def delta_schemas(
     other_modules = {
         m.get_name(schema_a)
         for m in schema_a.get_objects(
-            type=modules.Module,
+            type=s_mod.Module,
             extra_filters=schema_a_filters,
         )
     }
@@ -228,8 +194,10 @@ def delta_schemas(
 
     if include_module_diff:
         for added_module in added_modules:
-            create = modules.CreateModule(classname=added_module,
-                                          if_not_exists=True)
+            create = s_mod.CreateModule(
+                classname=added_module,
+                if_not_exists=True,
+            )
             create.set_attribute_value('name', added_module)
             create.set_attribute_value('builtin', False)
             result.add(create)
@@ -237,11 +205,20 @@ def delta_schemas(
     objects = sd.DeltaRoot(canonical=True)
     context = so.ComparisonContext()
 
-    schemaclasses = get_global_dep_order()
-    if include_migrations:
-        schemaclasses += (migrations.Migration,)
+    schemaclasses = [
+        schemacls
+        for schemacls in so.ObjectMeta.get_schema_metaclasses()
+        if (
+            not issubclass(schemacls, (so.GlobalObject, s_mod.Module))
+            and schemacls.get_ql_class() is not None
+            and (
+                include_migrations
+                or not issubclass(schemacls, s_migr.Migration)
+            )
+        )
+    ]
 
-    for sclass in get_global_dep_order():
+    for sclass in schemaclasses:
         filters: List[Callable[[s_schema.Schema, so.Object], bool]] = []
 
         if not issubclass(sclass, so.QualifiedObject):
@@ -294,13 +271,13 @@ def delta_schemas(
         result.add(objects)
     else:
         for cmd in objects.get_subcommands():
-            if isinstance(cmd, objtypes.ObjectTypeCommand):
-                if isinstance(cmd, objtypes.DeleteObjectType):
+            if isinstance(cmd, s_objtypes.ObjectTypeCommand):
+                if isinstance(cmd, s_objtypes.DeleteObjectType):
                     relevant_schema = schema_a
                 else:
                     relevant_schema = schema_b
 
-                obj = cast(objtypes.ObjectType,
+                obj = cast(s_objtypes.ObjectType,
                            relevant_schema.get(cmd.classname))
                 if obj.is_union_type(relevant_schema):
                     continue
@@ -309,7 +286,7 @@ def delta_schemas(
 
     if include_module_diff:
         for dropped_module in dropped_modules:
-            result.add(modules.DeleteModule(classname=dropped_module))
+            result.add(s_mod.DeleteModule(classname=dropped_module))
 
     return result
 
