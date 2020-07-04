@@ -26,8 +26,10 @@ from . import annos as s_anno
 from . import delta as sd
 
 
-class Module(s_anno.AnnotationSubject,
-             qlkind=qltypes.SchemaObjectClass.MODULE):
+class Module(
+    s_anno.AnnotationSubject,
+    qlkind=qltypes.SchemaObjectClass.MODULE,
+):
     pass
 
 
