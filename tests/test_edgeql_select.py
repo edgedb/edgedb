@@ -4886,9 +4886,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_linkproperty_04(self):
         with self.assertRaisesRegex(
-            edgedb.InvalidReferenceError,
-            "link property 'since' should be accessed "
-            "from link, not from 'test::User'",
+            edgedb.EdgeQLSyntaxError,
+            "unexpected reference to link property 'since' "
+            "outside of a path expression",
         ):
             await self.con.execute(
                 r'''
@@ -4900,9 +4900,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_linkproperty_05(self):
         with self.assertRaisesRegex(
-            edgedb.InvalidReferenceError,
-            "link property 'since' should be accessed "
-            "from link, not from 'array<test::User>'",
+            edgedb.EdgeQLSyntaxError,
+            "unexpected reference to link property 'since' "
+            "outside of a path expression",
         ):
             await self.con.execute(
                 r'''
