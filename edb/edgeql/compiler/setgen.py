@@ -264,6 +264,13 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             if ptr_expr.type == 'property':
                 # Link property reference; the source is the
                 # link immediately preceding this step in the path.
+                if path_tip.rptr is None:
+                    raise errors.EdgeQLSyntaxError(
+                        f"unexpected reference to link property {ptr_name!r} "
+                        "outside of a path expression",
+                        context=ptr_expr.ptr.context,
+                    )
+
                 if isinstance(path_tip.rptr.ptrref,
                               irast.TypeIntersectionPointerRef):
                     ind_prefix, ptrs = typegen.collapse_type_intersection_rptr(

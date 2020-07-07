@@ -5074,6 +5074,34 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         )
 
+    async def test_edgeql_select_linkproperty_04(self):
+        with self.assertRaisesRegex(
+            edgedb.EdgeQLSyntaxError,
+            "unexpected reference to link property 'since' "
+            "outside of a path expression",
+        ):
+            await self.con.execute(
+                r'''
+                WITH MODULE test
+                SELECT
+                    Issue { since := (SELECT .owner)@since }
+                ''',
+            )
+
+    async def test_edgeql_select_linkproperty_05(self):
+        with self.assertRaisesRegex(
+            edgedb.EdgeQLSyntaxError,
+            "unexpected reference to link property 'since' "
+            "outside of a path expression",
+        ):
+            await self.con.execute(
+                r'''
+                WITH MODULE test
+                SELECT
+                    Issue { since := [.owner]@since }
+                ''',
+            )
+
     async def test_edgeql_select_if_else_01(self):
         await self.assert_query_result(
             r"""
