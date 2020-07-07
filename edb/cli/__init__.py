@@ -55,5 +55,4 @@ def rustcli() -> NoReturn:
 
 # Import subcommands to register them
 
-from . import dump  # noqa
 from . import mng  # noqa
