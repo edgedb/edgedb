@@ -410,6 +410,7 @@ class MultiLineRenderer(BaseRenderer):
         self.buffer = collections.defaultdict(str)
         self.last_lines = -1
         self.max_lines = 0
+        self.max_label_lines_rendered = collections.defaultdict(int)
 
     def report(self, test, marker, description=None, *, currently_running):
         if marker in {Markers.failed, Markers.errored}:
@@ -487,6 +488,16 @@ class MultiLineRenderer(BaseRenderer):
             line += (cols - len(line)) * ' '
             line = self._color_second_column(line, style)
             lines.append(line)
+
+            # Prevent the rendered output from "jumping" up/down when we
+            # render 2 lines worth of running tests just after we rendered
+            # 3 lines.
+            for _ in range(self.max_label_lines_rendered[label] - tests_lines):
+                lines.append(' ' * cols)
+            self.max_label_lines_rendered[label] = max(
+                self.max_label_lines_rendered[label],
+                tests_lines
+            )
 
         clear_cmd = ''
         if self.last_lines > 0:
