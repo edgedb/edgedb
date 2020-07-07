@@ -25,7 +25,7 @@ import edgedb
 from edb.testbase import server as tb
 
 
-class DumpTestMxin:
+class TestDump01_CLI(tb.QueryTestCase, tb.CLITestCaseMixin):
 
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'dump01_test.esdl')
@@ -1935,21 +1935,3 @@ class DumpTestMxin:
                         rol1: {@rolp11 := 1},
                     };
                     ''')
-
-
-class TestDump01_OldCLI(
-    DumpTestMxin,
-    tb.QueryTestCase,
-    tb.OldCLITestCaseMixin,
-):
-
-    async def test_dump01_basic(self):
-        await self.ensure_schema_data_integrity()
-
-
-class TestDump01_NewCLI(
-    DumpTestMxin,
-    tb.QueryTestCase,
-    tb.CLITestCaseMixin,
-):
-    pass

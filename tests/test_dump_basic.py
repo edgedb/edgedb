@@ -24,7 +24,7 @@ import tempfile
 from edb.testbase import server as tb
 
 
-class TestDumpBasics(tb.DatabaseTestCase, tb.OldCLITestCaseMixin):
+class TestDumpBasics(tb.DatabaseTestCase, tb.CLITestCaseMixin):
 
     ISOLATED_METHODS = False
     SERIALIZED = True
@@ -83,11 +83,11 @@ class TestDumpBasics(tb.DatabaseTestCase, tb.OldCLITestCaseMixin):
         nrows = idx
 
         with tempfile.NamedTemporaryFile() as f:
-            self.run_cli('dump', '-d', 'dumpbasics', f.name)
+            self.run_cli('-d', 'dumpbasics', 'dump', f.name)
 
             await self.con.execute('CREATE DATABASE dumpbasics_restored')
             try:
-                self.run_cli('restore', '-d', 'dumpbasics_restored', f.name)
+                self.run_cli('-d', 'dumpbasics_restored', 'restore', f.name)
                 con2 = await self.connect(database='dumpbasics_restored')
             except Exception:
                 await self.con.execute('DROP DATABASE dumpbasics_restored')
