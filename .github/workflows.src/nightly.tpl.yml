@@ -73,12 +73,42 @@ jobs:
         ref: master
         path: edgedb/edgedb-pkg
 
+    - uses: actions/cache@v1
+      id: sdk1010cache
+      with:
+        path: ~/.cache/MacOSX10.10.sdk/
+        key: MacOSX10.10.sdk
+
+    - name: Install Xcode
+      if: steps.sdk1010cache.outputs.cache-hit != 'true'
+      env:
+        XCODE_INSTALL_USER: github-ci@edgedb.com
+        XCODE_INSTALL_PASSWORD: ${{ secrets.BOT_APPLE_ID_PASSWORD }}
+      run: |
+        xcversion install 6.4
+
+    - name: Cache 10.10 SDK
+      if: steps.sdk1010cache.outputs.cache-hit != 'true'
+      run: |
+        mkdir -p ~/.cache
+        rsync -a \
+          /Applications/Xcode-6.4.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.10.sdk/ \
+          ~/.cache/MacOSX10.10.sdk/
+
+    - name: Select macOS SDK
+      run: |
+        sudo rsync -a \
+          ~/.cache/MacOSX10.10.sdk/ \
+          /Library/Developer/CommandLineTools/SDKs/MacOSX10.10.sdk/
+        sudo xcode-select -s /Library/Developer/CommandLineTools
+
     - name: Build (${{ matrix.target }})
       env:
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "${{ matrix.platform }}"
         PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        SDKROOT: /Library/Developer/CommandLineTools/SDKs/MacOSX10.10.sdk/
       run: |
         edgedb-pkg/integration/macos/build.sh
 
@@ -87,6 +117,7 @@ jobs:
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "${{ matrix.platform }}"
         PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        SDKROOT: /Library/Developer/CommandLineTools/SDKs/MacOSX10.10.sdk/
       run: |
         edgedb-pkg/integration/macos/test.sh
 
