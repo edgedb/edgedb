@@ -1879,14 +1879,15 @@ class ConfigObjectAsDDLFunction(dbops.Function):
                 )
             elif mult:
                 items.append(
-                    f"'  ' ++ cfg::_name_value({ ql(pn) },"
+                    f"'  ' ++ cfg::_name_value_array({ ql(pn) },"
                     f" array_agg(cfg::{ name }.{ qlquote.quote_ident(pn) }))"
                     f" ++ ',\\n'")
             else:
                 items.append(
-                    f"'  ' ++ cfg::_name_value({ ql(pn) },"
-                    f" cfg::{ name }.{ qlquote.quote_ident(pn) })"
-                    f" ++ ',\\n'")
+                    f"cfg::_name_value('  ', ',\\n', { ql(pn) },"
+                    f" cfg::{ name }.{ qlquote.quote_ident(pn) },"
+                    f" <{ ptype.get_name(schema) }>{{}})"
+                )
 
         script = (
             f"SELECT array_join(array_agg(("
@@ -1924,15 +1925,21 @@ class DescribeSystemConfigAsDDLFunction(dbops.Function):
             elif mult:
                 items.append(
                     f"'CONFIGURE SYSTEM SET ' ++"
-                    f" cfg::_name_value({ ql(pn) },"
+                    f" cfg::_name_value_array({ ql(pn) },"
                     f" array_agg(cfg::Config.{ qlquote.quote_ident(pn) }))"
                     f" ++ ';\n'")
             else:
+                default = p.get_default(schema)
+                if default is not None:
+                    def_expr = default.text
+                else:
+                    def_expr = f"<{ ptype.get_name(schema) }>{{}}"
                 items.append(
-                    f"'CONFIGURE SYSTEM SET ' ++"
-                    f" cfg::_name_value({ ql(pn) },"
-                    f" cfg::Config.{ qlquote.quote_ident(pn) })"
-                    f" ++ ';\n'")
+                    f" cfg::_name_value('CONFIGURE SYSTEM SET ', ';\\n', "
+                    f" { ql(pn) },"
+                    f" cfg::Config.{ qlquote.quote_ident(pn) },"
+                    f" { def_expr })"
+                )
 
         script = f"SELECT {' ++ '.join(items)}"
         _, text = edbbootstrap.compile_bootstrap_script(
