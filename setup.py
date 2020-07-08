@@ -91,6 +91,9 @@ EXTRA_DEPS = {
         'coverage~=4.5.2',
         'requests-xml~=0.2.3',
         'lxml',
+        # For rebuilding GHA workflows
+        'Jinja2',
+        'PyYAML',
     ] + DOCS_DEPS,
 
     'docs': DOCS_DEPS,
