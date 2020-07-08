@@ -217,9 +217,9 @@ cdef class Protocol(http.HttpProtocol):
             raise errors.QueryError(e.args[0])
         except Exception as e:
             if isinstance(e, _USER_ERRORS):
-                logger.info("Error rewriting graphql query: %s", e)
+                logger.info("Error rewriting graphql query: %r", e)
             else:
-                logger.warning("Error rewriting graphql query: %s", e)
+                logger.warning("Error rewriting graphql query: %r", e)
             rewritten = None
             rewrite_error = e
             prepared_query = query
