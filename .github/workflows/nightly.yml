@@ -13,8 +13,6 @@ jobs:
 
   build-debian-stretch:
     runs-on: ubuntu-latest
-    platform: debian
-    platform_version: stretch
 
     steps:
     - name: Build
@@ -40,8 +38,6 @@ jobs:
 
   build-debian-buster:
     runs-on: ubuntu-latest
-    platform: debian
-    platform_version: buster
 
     steps:
     - name: Build
@@ -67,8 +63,6 @@ jobs:
 
   build-ubuntu-xenial:
     runs-on: ubuntu-latest
-    platform: ubuntu
-    platform_version: xenial
 
     steps:
     - name: Build
@@ -94,8 +88,6 @@ jobs:
 
   build-ubuntu-bionic:
     runs-on: ubuntu-latest
-    platform: ubuntu
-    platform_version: bionic
 
     steps:
     - name: Build
@@ -121,8 +113,6 @@ jobs:
 
   build-ubuntu-focal:
     runs-on: ubuntu-latest
-    platform: ubuntu
-    platform_version: focal
 
     steps:
     - name: Build
@@ -148,8 +138,6 @@ jobs:
 
   build-centos-7:
     runs-on: ubuntu-latest
-    platform: centos
-    platform_version: 7
 
     steps:
     - name: Build
@@ -175,8 +163,6 @@ jobs:
 
   build-centos-8:
     runs-on: ubuntu-latest
-    platform: centos
-    platform_version: 8
 
     steps:
     - name: Build
@@ -203,8 +189,6 @@ jobs:
 
   build-macos-x86_64:
     runs-on: macos-latest
-    platform: macos
-    platform_version: x86_64
 
     steps:
     - uses: actions/checkout@v1
@@ -270,8 +254,6 @@ jobs:
   publish-debian-stretch:
     needs: [build-debian-stretch]
     runs-on: ubuntu-latest
-    platform: debian
-    platform_version: stretch
 
     steps:
     - uses: actions/download-artifact@v1
@@ -321,8 +303,6 @@ jobs:
   publish-debian-buster:
     needs: [build-debian-buster]
     runs-on: ubuntu-latest
-    platform: debian
-    platform_version: buster
 
     steps:
     - uses: actions/download-artifact@v1
@@ -361,8 +341,6 @@ jobs:
   publish-ubuntu-xenial:
     needs: [build-ubuntu-xenial]
     runs-on: ubuntu-latest
-    platform: ubuntu
-    platform_version: xenial
 
     steps:
     - uses: actions/download-artifact@v1
@@ -401,8 +379,6 @@ jobs:
   publish-ubuntu-bionic:
     needs: [build-ubuntu-bionic]
     runs-on: ubuntu-latest
-    platform: ubuntu
-    platform_version: bionic
 
     steps:
     - uses: actions/download-artifact@v1
@@ -441,8 +417,6 @@ jobs:
   publish-ubuntu-focal:
     needs: [build-ubuntu-focal]
     runs-on: ubuntu-latest
-    platform: ubuntu
-    platform_version: focal
 
     steps:
     - uses: actions/download-artifact@v1
@@ -481,8 +455,6 @@ jobs:
   publish-centos-7:
     needs: [build-centos-7]
     runs-on: ubuntu-latest
-    platform: centos
-    platform_version: 7
 
     steps:
     - uses: actions/download-artifact@v1
@@ -521,8 +493,6 @@ jobs:
   publish-centos-8:
     needs: [build-centos-8]
     runs-on: ubuntu-latest
-    platform: centos
-    platform_version: 8
 
     steps:
     - uses: actions/download-artifact@v1
@@ -562,8 +532,6 @@ jobs:
   publish-macos-x86_64:
     needs: [build-macos-x86_64]
     runs-on: macos-latest
-    platform: macos
-    platform_version: x86_64
 
     steps:
     - uses: actions/download-artifact@v1

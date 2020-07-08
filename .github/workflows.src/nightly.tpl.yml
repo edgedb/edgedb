@@ -13,8 +13,6 @@ jobs:
 <% for tgt in targets.linux %>
   build-<< tgt.name >>:
     runs-on: ubuntu-latest
-    platform: << tgt.platform >>
-    platform_version: << tgt.platform_version >>
 
     steps:
     - name: Build
@@ -41,8 +39,6 @@ jobs:
 <% for tgt in targets.macos %>
   build-<< tgt.name >>:
     runs-on: macos-latest
-    platform: << tgt.platform >>
-    platform_version: << tgt.platform_version >>
 
     steps:
     - uses: actions/checkout@v1
@@ -108,8 +104,6 @@ jobs:
   publish-<< tgt.name >>:
     needs: [build-<< tgt.name >>]
     runs-on: ubuntu-latest
-    platform: << tgt.platform >>
-    platform_version: << tgt.platform_version >>
 
     steps:
     - uses: actions/download-artifact@v1
@@ -160,8 +154,6 @@ jobs:
   publish-<< tgt.name >>:
     needs: [build-<< tgt.name >>]
     runs-on: macos-latest
-    platform: << tgt.platform >>
-    platform_version: << tgt.platform_version >>
 
     steps:
     - uses: actions/download-artifact@v1
