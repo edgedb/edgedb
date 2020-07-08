@@ -659,7 +659,10 @@ class ParallelTextTestResult(unittest.result.TestResult):
             self.errors.append((subtest, self._exc_info_to_string(err, test)))
             self._mirrorOutput = True
 
-            self.ren.report(subtest, Markers.errored)
+            self.ren.report(
+                subtest,
+                Markers.errored,
+                currently_running=list(self.currently_running))
             if self.failfast:
                 self.suite.stop_requested = True
 
