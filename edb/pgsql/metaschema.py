@@ -1879,9 +1879,9 @@ class ConfigObjectAsDDLFunction(dbops.Function):
                 )
             elif mult:
                 items.append(
-                    f"'  ' ++ cfg::_name_value_array({ ql(pn) },"
+                    f"cfg::_name_value_array('  ', ',\\n', { ql(pn) },"
                     f" array_agg(cfg::{ name }.{ qlquote.quote_ident(pn) }))"
-                    f" ++ ',\\n'")
+                )
             else:
                 items.append(
                     f"cfg::_name_value('  ', ',\\n', { ql(pn) },"
@@ -1924,10 +1924,10 @@ class DescribeSystemConfigAsDDLFunction(dbops.Function):
                     items.append(f"cfg::_config_insert_all_{pn}()")
             elif mult:
                 items.append(
-                    f"'CONFIGURE SYSTEM SET ' ++"
-                    f" cfg::_name_value_array({ ql(pn) },"
+                    f" cfg::_name_value_array('CONFIGURE SYSTEM SET ', ';\n',"
+                    f" { ql(pn) },"
                     f" array_agg(cfg::Config.{ qlquote.quote_ident(pn) }))"
-                    f" ++ ';\n'")
+                )
             else:
                 default = p.get_default(schema)
                 if default is not None:
