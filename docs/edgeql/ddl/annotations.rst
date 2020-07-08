@@ -61,6 +61,72 @@ Declare an annotation ``extrainfo``.
     CREATE ABSTRACT ANNOTATION extrainfo;
 
 
+ALTER ABSTRACT ANNOTATION
+=========================
+
+:eql-statement:
+
+
+Change the definition of an :ref:`annotation <ref_datamodel_annotations>`.
+
+.. eql:synopsis::
+
+    ALTER ABSTRACT ANNOTATION <name>
+    [ "{" ] <subcommand>; [...] [ "}" ];
+
+    # where <subcommand> is one of
+
+      RENAME TO <newname>
+      CREATE ANNOTATION <annotation-name> := <value>
+      ALTER ANNOTATION <annotation-name> := <value>
+      DROP ANNOTATION <annotation-name>
+
+
+Description
+-----------
+
+:eql:synopsis:`ALTER ABSTRACT ANNOTATION` changes the definition of an abstract
+annotation.
+
+
+Parameters
+----------
+
+:eql:synopsis:`<name>`
+    The name (optionally module-qualified) of the annotation to alter.
+
+The following subcommands are allowed in the ``ALTER ABSTRACT ANNOTATION``
+block:
+
+:eql:synopsis:`RENAME TO <newname>`
+    Change the name of the annotation to :eql:synopsis:`<newname>`.
+
+:eql:synopsis:`ALTER ANNOTATION <annotation-name>;`
+    Annotations can also have annotations. Change
+    :eql:synopsis:`<annotation-name>` to a specific
+    :eql:synopsis:`<value>`. See :eql:stmt:`ALTER ANNOTATION` for
+    details.
+
+:eql:synopsis:`DROP ANNOTATION <annotation-name>;`
+    Annotations can also have annotations. Remove annotation
+    :eql:synopsis:`<annotation-name>`.
+    See :eql:stmt:`DROP ANNOTATION <DROP ANNOTATION>` for details.
+
+All the subcommands allowed in the ``CREATE ABSTRACT ANNOTATION``
+block are also valid subcommands for ``ALTER ANNOTATION`` block.
+
+
+Examples
+--------
+
+Rename an annotation:
+
+.. code-block:: edgeql
+
+    ALTER ABSTRACT ANNOTATION extrainfo
+        RENAME TO extra_info;
+
+
 DROP ABSTRACT ANNOTATION
 ========================
 
@@ -83,11 +149,11 @@ necessary in this statement.
 Example
 -------
 
-Drop the annotation ``extrainfo``:
+Drop the annotation ``extra_info``:
 
 .. code-block:: edgeql
 
-    DROP ABSTRACT ANNOTATION extrainfo;
+    DROP ABSTRACT ANNOTATION extra_info;
 
 
 CREATE ANNOTATION

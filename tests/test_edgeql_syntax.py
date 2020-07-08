@@ -2957,25 +2957,25 @@ aa';
         CREATE SCALAR TYPE myenum EXTENDING enum<'foo', 'bar'>;
         """
 
-    def test_edgeql_syntax_ddl_attribute_01(self):
+    def test_edgeql_syntax_ddl_annotation_01(self):
         """
         CREATE ABSTRACT ANNOTATION std::paramtypes;
         """
 
-    def test_edgeql_syntax_ddl_attribute_02(self):
-        """
-        CREATE ABSTRACT ANNOTATION std::paramtypes EXTENDING std::baseattr;
-        """
-
-    def test_edgeql_syntax_ddl_attribute_03(self):
+    def test_edgeql_syntax_ddl_annotation_02(self):
         """
         CREATE ABSTRACT INHERITABLE ANNOTATION std::paramtypes;
         """
 
-    def test_edgeql_syntax_ddl_attribute_04(self):
+    def test_edgeql_syntax_ddl_annotation_03(self):
         """
-        CREATE ABSTRACT INHERITABLE ANNOTATION std::paramtypes
-            EXTENDING std::foo;
+        DROP ABSTRACT ANNOTATION foo::my_annotation;
+        """
+
+    def test_edgeql_syntax_ddl_annotation_04(self):
+        """
+        ALTER ABSTRACT ANNOTATION foo::my_annotation
+            RENAME TO foo::renamed_annotation;
         """
 
     def test_edgeql_syntax_ddl_constraint_01(self):

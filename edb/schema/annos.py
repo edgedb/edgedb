@@ -168,8 +168,12 @@ class CreateAnnotation(AnnotationCommand, sd.CreateObject[Annotation]):
             super()._apply_field_ast(schema, context, node, op)
 
 
-class AlterAnnotation(AnnotationCommand, sd.AlterObject[Annotation]):
+class RenameAnnotation(AnnotationCommand, sd.RenameObject[Annotation]):
     pass
+
+
+class AlterAnnotation(AnnotationCommand, sd.AlterObject[Annotation]):
+    astnode = qlast.AlterAnnotation
 
 
 class DeleteAnnotation(AnnotationCommand, sd.DeleteObject[Annotation]):

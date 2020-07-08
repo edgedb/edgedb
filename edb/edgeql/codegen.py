@@ -1080,6 +1080,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             tag = 'ABSTRACT ANNOTATION'
         self._visit_CreateObject(node, tag, after_name=after_name)
 
+    def visit_AlterAnnotation(self, node: qlast.AlterAnnotation) -> None:
+        self._visit_AlterObject(node, 'ABSTRACT ANNOTATION')
+
     def visit_DropAnnotation(self, node: qlast.DropAnnotation) -> None:
         self._visit_DropObject(node, 'ABSTRACT ANNOTATION')
 

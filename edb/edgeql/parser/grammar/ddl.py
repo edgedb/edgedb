@@ -109,6 +109,9 @@ class InnerDDLStmt(Nonterm):
     def reduce_CreateAnnotationStmt(self, *kids):
         self.val = kids[0].val
 
+    def reduce_AlterAnnotationStmt(self, *kids):
+        self.val = kids[0].val
+
     def reduce_DropAnnotationStmt(self, *kids):
         self.val = kids[0].val
 
@@ -751,25 +754,52 @@ class DropScalarTypeStmt(Nonterm):
 #
 # CREATE ANNOTATION
 #
+commands_block(
+    'CreateAnnotation',
+    CreateAnnotationValueStmt,
+)
+
+
 class CreateAnnotationStmt(Nonterm):
     def reduce_CreateAnnotation(self, *kids):
-        r"""%reduce CREATE ABSTRACT ANNOTATION NodeName OptExtendingSimple \
-                    OptCreateCommandsBlock"""
+        r"""%reduce CREATE ABSTRACT ANNOTATION NodeName \
+                    OptCreateAnnotationCommandsBlock"""
         self.val = qlast.CreateAnnotation(
             name=kids[3].val,
-            bases=kids[4].val,
-            commands=kids[5].val,
+            commands=kids[4].val,
             inheritable=False,
         )
 
     def reduce_CreateInheritableAnnotation(self, *kids):
         r"""%reduce CREATE ABSTRACT INHERITABLE ANNOTATION
-                    NodeName OptExtendingSimple OptCreateCommandsBlock"""
+                    NodeName OptCreateCommandsBlock"""
         self.val = qlast.CreateAnnotation(
             name=kids[4].val,
-            bases=kids[5].val,
-            commands=kids[6].val,
+            commands=kids[5].val,
             inheritable=True,
+        )
+
+
+#
+# ALTER ANNOTATION
+#
+commands_block(
+    'AlterAnnotation',
+    RenameStmt,
+    CreateAnnotationValueStmt,
+    AlterAnnotationValueStmt,
+    DropAnnotationValueStmt,
+    opt=False,
+)
+
+
+class AlterAnnotationStmt(Nonterm):
+    def reduce_AlterAnnotation(self, *kids):
+        r"""%reduce ALTER ABSTRACT ANNOTATION NodeName \
+                    AlterAnnotationCommandsBlock"""
+        self.val = qlast.AlterAnnotation(
+            name=kids[3].val,
+            commands=kids[4].val
         )
 
 

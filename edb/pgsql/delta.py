@@ -962,6 +962,12 @@ class CreateAnnotation(
     op_priority = 1
 
 
+class RenameAnnotation(
+        AnnotationCommand, RenameObject,
+        adapts=s_anno.RenameAnnotation):
+    pass
+
+
 class AlterAnnotation(
         AnnotationCommand, AlterObject, adapts=s_anno.AlterAnnotation):
     pass
