@@ -227,12 +227,21 @@ cfg::_name_value(
 };
 
 CREATE FUNCTION
-cfg::_name_value_array(name: std::str, value: array<std::str>) -> std::str
+cfg::_name_value_array(
+    prefix: std::str,
+    suffix: std::str,
+    name: std::str,
+    value: array<std::str>
+) -> std::str
 {
     USING SQL $$
-        SELECT concat(name, ' := {',
-            string_agg(quote_literal(item), ', '), '}')
-        FROM unnest(value) as item
+        SELECT
+            CASE WHEN array_length(value, 1) > 0 THEN
+                (SELECT concat(prefix, name, ' := {',
+                    string_agg(quote_literal(item), ', '), '}', suffix)
+                 FROM unnest(value) as item)
+            ELSE ''
+            END
     $$
 };
 
