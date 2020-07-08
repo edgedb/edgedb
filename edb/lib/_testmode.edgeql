@@ -81,6 +81,11 @@ ALTER TYPE cfg::Config {
     CREATE MULTI PROPERTY multiprop -> std::str {
         CREATE ANNOTATION cfg::internal := 'true';
     };
+
+    CREATE PROPERTY singleprop -> std::str {
+        CREATE ANNOTATION cfg::internal := 'true';
+        SET default := '';
+    };
 };
 
 

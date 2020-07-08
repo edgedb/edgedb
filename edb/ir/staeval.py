@@ -29,6 +29,7 @@ import functools
 
 from edb import errors
 
+from edb.common import typeutils
 from edb.common import uuidgen
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
@@ -90,6 +91,13 @@ def evaluate_SelectStmt(
     else:
         raise UnsupportedExpressionError(
             'expression is not constant', context=ir_stmt.context)
+
+
+@evaluate.register(irast.EmptySet)
+def evaluate_EmptySet(
+        ir_set: irast.EmptySet,
+        schema: s_schema.Schema) -> irast.ConstExpr:
+    return ir_set
 
 
 @evaluate.register(irast.Set)
@@ -173,9 +181,17 @@ def _evaluate_union(
 @functools.singledispatch
 def const_to_python(
         ir: irast.ConstExpr,
-        schema: s_schema.Schema) -> object:
+        schema: s_schema.Schema) -> Any:
     raise UnsupportedExpressionError(
         f'cannot convert {ir!r} to Python value')
+
+
+@const_to_python.register(irast.EmptySet)
+def empty_set_to_python(
+    ir: irast.EmptySet,
+    schema: s_schema.Schema,
+) -> None:
+    return None
 
 
 @const_to_python.register(irast.ConstantSet)
@@ -367,11 +383,18 @@ def evaluate_config_set(
         ir: irast.ConfigSet,
         schema: s_schema.Schema) -> Any:
 
+    value = evaluate_to_python_val(ir.expr, schema)
+    if ir.cardinality is qltypes.SchemaCardinality.MANY:
+        if value is None:
+            value = []
+        elif not typeutils.is_container(value):
+            value = [value]
+
     return config.Operation(
         opcode=config.OpCode.CONFIG_SET,
         level=config.OpLevel.SYSTEM if ir.system else config.OpLevel.SESSION,
         setting_name=ir.name,
-        value=evaluate_to_python_val(ir.expr, schema),
+        value=value,
     )
 
 

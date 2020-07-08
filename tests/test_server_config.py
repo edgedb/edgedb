@@ -740,6 +740,65 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
                 CONFIGURE SYSTEM RESET multiprop;
             ''')
 
+    async def test_server_proto_configure_07(self):
+        try:
+            await self.con.execute('''
+                CONFIGURE SESSION SET multiprop := {};
+            ''')
+
+            await self.assert_query_result(
+                '''
+                SELECT _ := cfg::Config.multiprop ORDER BY _
+                ''',
+                [],
+            )
+
+            await self.con.execute('''
+                CONFIGURE SYSTEM SET multiprop := {'4'};
+            ''')
+
+            await self.assert_query_result(
+                '''
+                SELECT _ := cfg::Config.multiprop ORDER BY _
+                ''',
+                [],
+            )
+
+            await self.con.execute('''
+                CONFIGURE SESSION SET multiprop := {'5'};
+            ''')
+
+            await self.assert_query_result(
+                '''
+                SELECT _ := cfg::Config.multiprop ORDER BY _
+                ''',
+                [
+                    '5',
+                ],
+            )
+
+            await self.con.execute('''
+                CONFIGURE SESSION RESET multiprop;
+            ''')
+
+            await self.assert_query_result(
+                '''
+                SELECT _ := cfg::Config.multiprop ORDER BY _
+                ''',
+                [
+                    '4',
+                ],
+            )
+
+        finally:
+            await self.con.execute('''
+                CONFIGURE SESSION RESET multiprop;
+            ''')
+
+            await self.con.execute('''
+                CONFIGURE SYSTEM RESET multiprop;
+            ''')
+
     async def test_server_version(self):
         srv_ver = await self.con.fetchone(r"""
             SELECT sys::get_version()

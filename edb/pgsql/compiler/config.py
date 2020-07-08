@@ -39,13 +39,30 @@ def compile_ConfigSet(
         op: irast.ConfigSet, *,
         ctx: context.CompilerContextLevel) -> pgast.Query:
 
+    val: pgast.BaseExpr
+
     with ctx.new() as subctx:
-        val = dispatch.compile(op.expr, ctx=subctx)
-        assert isinstance(val, pgast.SelectStmt), "expected ast.SelectStmt"
-        pathctx.get_path_serialized_output(
-            val, op.expr.path_id, env=ctx.env)
-        if op.cardinality is qltypes.SchemaCardinality.MANY:
-            val = output.aggregate_json_output(val, op.expr, env=ctx.env)
+        if isinstance(op.expr, irast.EmptySet):
+            # Special handling for empty sets, because we want a
+            # singleton representation of the value and not an empty rel
+            # in this context.
+            if op.cardinality is qltypes.SchemaCardinality.ONE:
+                val = pgast.NullConstant()
+            else:
+                val = pgast.TypeCast(
+                    arg=pgast.StringConstant(val='[]'),
+                    type_name=pgast.TypeName(
+                        name=('jsonb',),
+                    ),
+                )
+        else:
+            val = dispatch.compile(op.expr, ctx=subctx)
+            assert isinstance(val, pgast.SelectStmt), "expected ast.SelectStmt"
+
+            pathctx.get_path_serialized_output(
+                val, op.expr.path_id, env=ctx.env)
+            if op.cardinality is qltypes.SchemaCardinality.MANY:
+                val = output.aggregate_json_output(val, op.expr, env=ctx.env)
 
     result_row = pgast.RowExpr(
         args=[
