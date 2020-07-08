@@ -2940,6 +2940,56 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             """)
 
+    async def test_edgeql_ddl_annotation_11(self):
+        await self.con.execute("""
+            CREATE ABSTRACT ANNOTATION test::anno11;
+        """)
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT Annotation {
+                    name,
+                }
+                FILTER
+                    .name LIKE 'test::anno11%';
+            ''',
+            [{"name": "test::anno11"}]
+        )
+
+        await self.con.execute("""
+            ALTER ABSTRACT ANNOTATION test::anno11
+                RENAME TO test::anno11_new_name;
+        """)
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT Annotation {
+                    name,
+                }
+                FILTER
+                    .name LIKE 'test::anno11%';
+            ''',
+            [{"name": "test::anno11_new_name"}]
+        )
+
+        await self.con.execute("""
+            DROP ABSTRACT ANNOTATION test::anno11_new_name;
+        """)
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT Annotation {
+                    name,
+                }
+                FILTER
+                    .name LIKE 'test::anno11%';
+            ''',
+            []
+        )
+
     async def test_edgeql_ddl_anytype_01(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidPropertyTargetError,

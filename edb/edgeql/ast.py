@@ -759,6 +759,10 @@ class CreateAnnotation(CreateExtendingObject):
     inheritable: bool
 
 
+class AlterAnnotation(AlterObject):
+    pass
+
+
 class DropAnnotation(DropObject):
     pass
 
