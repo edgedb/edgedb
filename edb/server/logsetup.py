@@ -134,6 +134,9 @@ def setup_logging(log_level, log_destination):
         raise RuntimeError('Invalid logging level {!r}'.format(log_level))
 
     if log_level == 'SILENT':
+        logger = logging.getLogger()
+        logger.disabled = True
+        logger.setLevel(logging.CRITICAL)
         return
 
     if log_destination == 'syslog':

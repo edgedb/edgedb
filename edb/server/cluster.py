@@ -73,12 +73,15 @@ class Cluster:
     def __init__(
             self, data_dir, *,
             pg_superuser='postgres', port=edgedb_defines.EDGEDB_PORT,
-            runstate_dir=None, env=None, testmode=False):
+            runstate_dir=None, env=None, testmode=False, log_level=None):
         self._pg_dsn = None
         self._data_dir = data_dir
         self._location = data_dir
         self._edgedb_cmd = [sys.executable, '-m', 'edb.server.main',
                             '-D', self._data_dir]
+
+        if log_level:
+            self._edgedb_cmd.extend(['--log-level', log_level])
 
         if devmode.is_in_dev_mode():
             self._edgedb_cmd.append('--devmode')
@@ -276,12 +279,12 @@ class Cluster:
 class TempCluster(Cluster):
     def __init__(
             self, *, data_dir_suffix=None, data_dir_prefix=None,
-            data_dir_parent=None, env=None, testmode=False):
+            data_dir_parent=None, env=None, testmode=False, log_level=None):
         tempdir = tempfile.mkdtemp(
             suffix=data_dir_suffix, prefix=data_dir_prefix,
             dir=data_dir_parent)
         super().__init__(data_dir=tempdir, runstate_dir=tempdir, env=env,
-                         testmode=testmode)
+                         testmode=testmode, log_level=log_level)
 
 
 class RunningCluster(Cluster):

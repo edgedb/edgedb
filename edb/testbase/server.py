@@ -202,10 +202,12 @@ def _init_cluster(data_dir=None, *, cleanup_atexit=True, init_settings=None):
         _env = {}
 
     if data_dir is None:
-        cluster = edgedb_cluster.TempCluster(env=_env, testmode=True)
+        cluster = edgedb_cluster.TempCluster(
+            env=_env, testmode=True, log_level='s')
         destroy = True
     else:
-        cluster = edgedb_cluster.Cluster(data_dir=data_dir, env=_env)
+        cluster = edgedb_cluster.Cluster(
+            data_dir=data_dir, env=_env, log_level='s')
         destroy = False
 
     if cluster.get_status() == 'not-initialized':
