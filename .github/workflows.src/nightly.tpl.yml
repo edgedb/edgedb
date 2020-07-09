@@ -24,13 +24,6 @@ jobs:
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
         EXTRA_OPTIMIZATIONS: "true"
 
-    - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/<< tgt.name >>@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "<< tgt.platform >>"
-        PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
-
     - uses: actions/upload-artifact@v1
       with:
         name: builds-<< tgt.name >>
@@ -86,23 +79,58 @@ jobs:
       run: |
         edgedb-pkg/integration/macos/build.sh
 
-    - name: Test
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "<< tgt.platform >>"
-        PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
-        SDKROOT: /Library/Developer/CommandLineTools/SDKs/MacOSX10.10.sdk/
-      run: |
-        edgedb-pkg/integration/macos/test.sh
-
     - uses: actions/upload-artifact@v1
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< tgt.name >>
 <% endfor %>
 <% for tgt in targets.linux %>
-  publish-<< tgt.name >>:
+  test-<< tgt.name >>:
     needs: [build-<< tgt.name >>]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v1
+      with:
+        name: builds-<< tgt.name >>
+        path: artifacts/<< tgt.name >>
+
+    - name: Test
+      uses: edgedb/edgedb-pkg/integration/linux/test/<< tgt.name >>@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "<< tgt.platform >>"
+        PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
+
+<% endfor %>
+<% for tgt in targets.macos %>
+  test-<< tgt.name >>:
+    needs: [build-<< tgt.name >>]
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v1
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb/edgedb-pkg
+
+    - uses: actions/download-artifact@v1
+      with:
+        name: builds-<< tgt.name >>
+        path: artifacts/<< tgt.name >>
+
+    - name: Test
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "<< tgt.platform >>"
+        PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
+      run: |
+        edgedb-pkg/integration/macos/test.sh
+<% endfor %>
+<% for tgt in targets.linux %>
+  publish-<< tgt.name >>:
+    needs: [test-<< tgt.name >>]
     runs-on: ubuntu-latest
 
     steps:
@@ -154,7 +182,7 @@ jobs:
 <% endfor %>
 <% for tgt in targets.macos %>
   publish-<< tgt.name >>:
-    needs: [build-<< tgt.name >>]
+    needs: [test-<< tgt.name >>]
     runs-on: macos-latest
 
     steps:
