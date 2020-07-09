@@ -24,13 +24,6 @@ jobs:
         PKG_PLATFORM_VERSION: "stretch"
         EXTRA_OPTIMIZATIONS: "true"
 
-    - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/debian-stretch@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "debian"
-        PKG_PLATFORM_VERSION: "stretch"
-
     - uses: actions/upload-artifact@v1
       with:
         name: builds-debian-stretch
@@ -48,13 +41,6 @@ jobs:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
         EXTRA_OPTIMIZATIONS: "true"
-
-    - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/debian-buster@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "debian"
-        PKG_PLATFORM_VERSION: "buster"
 
     - uses: actions/upload-artifact@v1
       with:
@@ -74,13 +60,6 @@ jobs:
         PKG_PLATFORM_VERSION: "xenial"
         EXTRA_OPTIMIZATIONS: "true"
 
-    - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/ubuntu-xenial@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "ubuntu"
-        PKG_PLATFORM_VERSION: "xenial"
-
     - uses: actions/upload-artifact@v1
       with:
         name: builds-ubuntu-xenial
@@ -98,13 +77,6 @@ jobs:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
         EXTRA_OPTIMIZATIONS: "true"
-
-    - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/ubuntu-bionic@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "ubuntu"
-        PKG_PLATFORM_VERSION: "bionic"
 
     - uses: actions/upload-artifact@v1
       with:
@@ -124,13 +96,6 @@ jobs:
         PKG_PLATFORM_VERSION: "focal"
         EXTRA_OPTIMIZATIONS: "true"
 
-    - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/ubuntu-focal@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "ubuntu"
-        PKG_PLATFORM_VERSION: "focal"
-
     - uses: actions/upload-artifact@v1
       with:
         name: builds-ubuntu-focal
@@ -149,13 +114,6 @@ jobs:
         PKG_PLATFORM_VERSION: "7"
         EXTRA_OPTIMIZATIONS: "true"
 
-    - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/centos-7@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "centos"
-        PKG_PLATFORM_VERSION: "7"
-
     - uses: actions/upload-artifact@v1
       with:
         name: builds-centos-7
@@ -173,13 +131,6 @@ jobs:
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
         EXTRA_OPTIMIZATIONS: "true"
-
-    - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/centos-8@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "centos"
-        PKG_PLATFORM_VERSION: "8"
 
     - uses: actions/upload-artifact@v1
       with:
@@ -236,23 +187,166 @@ jobs:
       run: |
         edgedb-pkg/integration/macos/build.sh
 
-    - name: Test
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "macos"
-        PKG_PLATFORM_VERSION: "x86_64"
-        SDKROOT: /Library/Developer/CommandLineTools/SDKs/MacOSX10.10.sdk/
-      run: |
-        edgedb-pkg/integration/macos/test.sh
-
     - uses: actions/upload-artifact@v1
       with:
         name: builds-macos-x86_64
         path: artifacts/macos-x86_64
 
 
-  publish-debian-stretch:
+  test-debian-stretch:
     needs: [build-debian-stretch]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v1
+      with:
+        name: builds-debian-stretch
+        path: artifacts/debian-stretch
+
+    - name: Test
+      uses: edgedb/edgedb-pkg/integration/linux/test/debian-stretch@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "stretch"
+
+
+  test-debian-buster:
+    needs: [build-debian-buster]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v1
+      with:
+        name: builds-debian-buster
+        path: artifacts/debian-buster
+
+    - name: Test
+      uses: edgedb/edgedb-pkg/integration/linux/test/debian-buster@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "buster"
+
+
+  test-ubuntu-xenial:
+    needs: [build-ubuntu-xenial]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v1
+      with:
+        name: builds-ubuntu-xenial
+        path: artifacts/ubuntu-xenial
+
+    - name: Test
+      uses: edgedb/edgedb-pkg/integration/linux/test/ubuntu-xenial@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "xenial"
+
+
+  test-ubuntu-bionic:
+    needs: [build-ubuntu-bionic]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v1
+      with:
+        name: builds-ubuntu-bionic
+        path: artifacts/ubuntu-bionic
+
+    - name: Test
+      uses: edgedb/edgedb-pkg/integration/linux/test/ubuntu-bionic@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "bionic"
+
+
+  test-ubuntu-focal:
+    needs: [build-ubuntu-focal]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v1
+      with:
+        name: builds-ubuntu-focal
+        path: artifacts/ubuntu-focal
+
+    - name: Test
+      uses: edgedb/edgedb-pkg/integration/linux/test/ubuntu-focal@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "focal"
+
+
+  test-centos-7:
+    needs: [build-centos-7]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v1
+      with:
+        name: builds-centos-7
+        path: artifacts/centos-7
+
+    - name: Test
+      uses: edgedb/edgedb-pkg/integration/linux/test/centos-7@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "centos"
+        PKG_PLATFORM_VERSION: "7"
+
+
+  test-centos-8:
+    needs: [build-centos-8]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v1
+      with:
+        name: builds-centos-8
+        path: artifacts/centos-8
+
+    - name: Test
+      uses: edgedb/edgedb-pkg/integration/linux/test/centos-8@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "centos"
+        PKG_PLATFORM_VERSION: "8"
+
+
+
+  test-macos-x86_64:
+    needs: [build-macos-x86_64]
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v1
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb/edgedb-pkg
+
+    - uses: actions/download-artifact@v1
+      with:
+        name: builds-macos-x86_64
+        path: artifacts/macos-x86_64
+
+    - name: Test
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "macos"
+        PKG_PLATFORM_VERSION: "x86_64"
+      run: |
+        edgedb-pkg/integration/macos/test.sh
+
+
+  publish-debian-stretch:
+    needs: [test-debian-stretch]
     runs-on: ubuntu-latest
 
     steps:
@@ -264,6 +358,8 @@ jobs:
     - name: Describe
       id: describe
       uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: debian-stretch
 
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/debian-stretch@master
@@ -301,7 +397,7 @@ jobs:
     
 
   publish-debian-buster:
-    needs: [build-debian-buster]
+    needs: [test-debian-buster]
     runs-on: ubuntu-latest
 
     steps:
@@ -313,6 +409,8 @@ jobs:
     - name: Describe
       id: describe
       uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: debian-buster
 
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/debian-buster@master
@@ -339,7 +437,7 @@ jobs:
     
 
   publish-ubuntu-xenial:
-    needs: [build-ubuntu-xenial]
+    needs: [test-ubuntu-xenial]
     runs-on: ubuntu-latest
 
     steps:
@@ -351,6 +449,8 @@ jobs:
     - name: Describe
       id: describe
       uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: ubuntu-xenial
 
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/ubuntu-xenial@master
@@ -377,7 +477,7 @@ jobs:
     
 
   publish-ubuntu-bionic:
-    needs: [build-ubuntu-bionic]
+    needs: [test-ubuntu-bionic]
     runs-on: ubuntu-latest
 
     steps:
@@ -389,6 +489,8 @@ jobs:
     - name: Describe
       id: describe
       uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: ubuntu-bionic
 
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/ubuntu-bionic@master
@@ -415,7 +517,7 @@ jobs:
     
 
   publish-ubuntu-focal:
-    needs: [build-ubuntu-focal]
+    needs: [test-ubuntu-focal]
     runs-on: ubuntu-latest
 
     steps:
@@ -427,6 +529,8 @@ jobs:
     - name: Describe
       id: describe
       uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: ubuntu-focal
 
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/ubuntu-focal@master
@@ -453,7 +557,7 @@ jobs:
     
 
   publish-centos-7:
-    needs: [build-centos-7]
+    needs: [test-centos-7]
     runs-on: ubuntu-latest
 
     steps:
@@ -465,6 +569,8 @@ jobs:
     - name: Describe
       id: describe
       uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: centos-7
 
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/centos-7@master
@@ -491,7 +597,7 @@ jobs:
     
 
   publish-centos-8:
-    needs: [build-centos-8]
+    needs: [test-centos-8]
     runs-on: ubuntu-latest
 
     steps:
@@ -503,6 +609,8 @@ jobs:
     - name: Describe
       id: describe
       uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: centos-8
 
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/centos-8@master
@@ -530,7 +638,7 @@ jobs:
 
 
   publish-macos-x86_64:
-    needs: [build-macos-x86_64]
+    needs: [test-macos-x86_64]
     runs-on: macos-latest
 
     steps:
@@ -548,6 +656,8 @@ jobs:
     - name: Describe
       id: describe
       uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: macos-x86_64
 
     - name: Publish
       env:
