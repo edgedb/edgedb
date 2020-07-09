@@ -102,6 +102,14 @@ class TestEdgeQLParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_nonstatement_02(self):
         """1 + 2;"""
 
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=1, col=8)
+    def test_edgeql_syntax_number_too_large(self):
+        """SELECT 111111111111111111111111111111111111111111111111111111;"""
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=1, col=10)
+    def test_edgeql_syntax_float_number_too_large(self):
+        """SELECT 2+1e999;"""
+
     def test_edgeql_syntax_constants_01(self):
         """
         SELECT 0;

@@ -385,6 +385,13 @@ class TestExpressions(tb.QueryTestCase):
             async with self.con.transaction():
                 await self.con.fetchone('SELECT 0. ')
 
+        with self.assertRaisesRegex(edgedb.EdgeQLSyntaxError,
+                                    'number is out of range for std::float64'):
+            async with self.con.transaction():
+                await self.con.fetchone(
+                    r'''SELECT 1e999''',
+                )
+
     async def test_edgeql_expr_op_02(self):
         await self.assert_query_result(
             r'''SELECT 40 ^ 2;''',
