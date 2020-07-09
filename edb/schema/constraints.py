@@ -335,17 +335,12 @@ class ConstraintCommand(
         for arg in args:
             exprs.append(arg.text)
 
-        subjexpr_text = cls.get_orig_expr_text(schema, astnode, 'subjectexpr')
-
         assert isinstance(astnode, qlast.ConstraintOp)
-        if subjexpr_text is None and astnode.subjectexpr:
-            # if not, then use the origtext directly from the expression
+        if astnode.subjectexpr:
+            # use the normalized text directly from the expression
             expr = s_expr.Expression.from_ast(
                 astnode.subjectexpr, schema, context.modaliases)
-            subjexpr_text = expr.origtext
-
-        if subjexpr_text:
-            exprs.append(subjexpr_text)
+            exprs.append(expr.text)
 
         return (cls._name_qual_from_exprs(schema, exprs),)
 
@@ -516,6 +511,41 @@ class ConstraintCommand(
             return tuple(f for f in id_fields if f.name not in omit_fields)
         else:
             return id_fields
+
+    @classmethod
+    def localnames_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> Set[str]:
+        localnames = super().localnames_from_ast(
+            schema, astnode, context
+        )
+        # Set up the constraint parameters as part of names to be
+        # ignored in expression normalization.
+        if isinstance(astnode, qlast.CreateConstraint):
+            localnames |= {param.name for param in astnode.params}
+        elif isinstance(astnode, qlast.AlterConstraint):
+            # ALTER ABSTRACT CONSTRAINT doesn't repeat the params,
+            # but we can get them from the schema.
+            objref = astnode.name
+
+            # Merge the context modaliases and the command modaliases.
+            modaliases = dict(context.modaliases)
+            modaliases.update(
+                cls._modaliases_from_ast(schema, astnode, context))
+            # Get the original constraint.
+            constr = schema.get(
+                objref.name,
+                module_aliases=modaliases,
+                type=Constraint,
+            )
+
+            localnames |= {param.get_parameter_name(schema) for param in
+                           constr.get_params(schema).objects(schema)}
+
+        return localnames
 
 
 class CreateConstraint(
@@ -956,6 +986,7 @@ class CreateConstraint(
                 astnode.subjectexpr,
                 schema,
                 context.modaliases,
+                context.localnames,
                 orig_text=orig_text,
             )
 

@@ -32,7 +32,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
     destroy data.
 
     The test cases here use the same migrations as
-    `test_migrations_equivalence`, therefore the test numbers should
+    `test_schema_migrations_equivalence`, therefore the test numbers should
     match for easy reference, even if it means skipping some.
     """
 
@@ -2270,7 +2270,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         Eventually `trace_Path` fails with:
         AttributeError: 'NoneType' object has no attribute 'getptr'
 
-        The error appears to be the same as for test_migrations_equivalence_41
+        The error appears to be the same as for
+        test_schema_migrations_equivalence_41
     ''')
     async def test_edgeql_migration_41(self):
         # testing schema alias
@@ -2373,7 +2374,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         Eventually `trace_Path` fails with:
         AttributeError: 'NoneType' object has no attribute 'getptr'
 
-        The error appears to be the same as for test_migrations_equivalence_42
+        The error appears to be the same as for
+        test_schema_migrations_equivalence_42
     ''')
     async def test_edgeql_migration_42(self):
         # testing schema alias
@@ -2819,7 +2821,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         This is similar to the problem with renaming property used in
         an expression.
 
-        See also `test_migrations_equivalence_function_10`,
+        See also `test_schema_migrations_equivalence_function_10`,
         `test_edgeql_migration_function_06`,
         `test_edgeql_migration_index_01`.
     ''')
@@ -3077,7 +3079,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         # function happens to be shadowing a "std" function. We expect
         # that the function `test::to_upper` will actually be used.
         #
-        # See also `test_get_migration_21`
+        # See also `test_schema_get_migration_21`
         await self.con.execute("""
             SET MODULE test;
         """)
@@ -3443,7 +3445,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         The link is preserved, but not the link property value. Which
         is a bit odd.
 
-        See also `test_migrations_equivalence_linkprops_08`.
+        See also `test_schema_migrations_equivalence_linkprops_08`.
     ''')
     async def test_edgeql_migration_linkprops_08(self):
         await self.con.execute("""
@@ -4226,7 +4228,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         needs to be done in such a way so that the existing
         expressions are still valid.
 
-        See test_migrations_equivalence_index_01 first.
+        See test_schema_migrations_equivalence_index_01 first.
     ''')
     async def test_edgeql_migration_index_01(self):
         await self.con.execute("""

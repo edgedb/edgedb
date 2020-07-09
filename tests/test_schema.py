@@ -25,7 +25,6 @@ import re
 from edb import errors
 
 from edb.common import markup
-from edb.testbase import lang as tb
 
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import parser as qlparser
@@ -34,6 +33,9 @@ from edb.edgeql import qltypes
 from edb.schema import ddl as s_ddl
 from edb.schema import links as s_links
 from edb.schema import objtypes as s_objtypes
+
+from edb.testbase import lang as tb
+from edb.tools import test
 
 if TYPE_CHECKING:
     from edb.schema import schema as s_schema
@@ -1255,7 +1257,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                     f'{markup.dumps(diff)}\n'
                 )
 
-    def test_get_migration_01(self):
+    def test_schema_get_migration_01(self):
         schema = r'''
             abstract inheritable annotation my_anno;
 
@@ -1287,7 +1289,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    def test_get_migration_02(self):
+    def test_schema_get_migration_02(self):
         schema = r'''
             abstract type Named {
                 property name -> str {
@@ -1307,7 +1309,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    def test_get_migration_03(self):
+    def test_schema_get_migration_03(self):
         schema = '''
             abstract type Named {
                 property name -> str {
@@ -1346,7 +1348,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    def test_get_migration_04(self):
+    def test_schema_get_migration_04(self):
         # validate that we can trace partial paths
         schema = r'''
             alias X := (SELECT Foo{num := .bar});
@@ -1358,7 +1360,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    def test_get_migration_05(self):
+    def test_schema_get_migration_05(self):
         # validate that we can trace partial paths
         schema = r'''
             alias X := (SELECT Foo FILTER .bar > 2);
@@ -1370,7 +1372,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    def test_get_migration_06(self):
+    def test_schema_get_migration_06(self):
         # validate that we can trace INTROSPECT
         schema = r'''
             alias X := (SELECT INTROSPECT Foo);
@@ -1380,7 +1382,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    def test_get_migration_07(self):
+    def test_schema_get_migration_07(self):
         # validate that we can trace DELETE
         schema = r'''
             type Bar {
@@ -1398,7 +1400,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    def test_get_migration_08(self):
+    def test_schema_get_migration_08(self):
         schema = r'''
             type Bar {
                 property data -> str {
@@ -1409,7 +1411,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    def test_get_migration_09(self):
+    def test_schema_get_migration_09(self):
         schema = r'''
             type Foo;
             type Spam {
@@ -1428,7 +1430,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    def test_get_migration_10(self):
+    def test_schema_get_migration_10(self):
         schema = r'''
             # The two types declared are mutually dependent.
             type Foo {
@@ -1442,7 +1444,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    def test_get_migration_11(self):
+    def test_schema_get_migration_11(self):
         schema = r'''
             # The two types declared are mutually dependent.
             type Foo {
@@ -1468,7 +1470,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    def test_get_migration_12(self):
+    def test_schema_get_migration_12(self):
         schema = r'''
             # The function declaration appears earlier in the document
             # than the declaration for the argument type, which should
@@ -1483,7 +1485,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    def test_get_migration_13(self):
+    def test_schema_get_migration_13(self):
         # validate that we can trace alias declared before type
         schema = r'''
             alias X := (SELECT Foo.name);
@@ -1495,7 +1497,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    def test_get_migration_14(self):
+    def test_schema_get_migration_14(self):
         # validate that we can trace alias with DETACHED expr declared
         # before type
         schema = r'''
@@ -1508,7 +1510,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    def test_get_migration_15(self):
+    def test_schema_get_migration_15(self):
         schema = r'''
             type Foo {
                 property bar -> int64;
@@ -1518,7 +1520,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    def test_get_migration_16(self):
+    def test_schema_get_migration_16(self):
         schema = r'''
             type Foo {
                 property bar -> int64;
@@ -1532,7 +1534,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    def test_get_migration_17(self):
+    def test_schema_get_migration_17(self):
         # Test abstract and concrete constraints order of declaration.
         schema = r'''
         type Foo {
@@ -1548,7 +1550,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    def test_get_migration_18(self):
+    def test_schema_get_migration_18(self):
         # Test abstract and concrete constraints order of declaration.
         schema = r'''
         type Foo {
@@ -1566,7 +1568,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    def test_get_migration_19(self):
+    def test_schema_get_migration_19(self):
         # Test abstract and concrete annotations order of declaration.
         schema = r'''
         type Foo {
@@ -1579,7 +1581,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    def test_get_migration_20(self):
+    def test_schema_get_migration_20(self):
         # Test abstract and concrete annotations order of declaration.
         schema = r'''
         type Foo {
@@ -1593,7 +1595,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    def test_get_migration_21(self):
+    def test_schema_get_migration_21(self):
         # Test index and function order of definition.
         schema = r'''
         type Foo {
@@ -1610,7 +1612,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    def test_get_migration_22(self):
+    def test_schema_get_migration_22(self):
         # Test prop default and function order of definition.
         schema = r'''
         type Foo {
@@ -1626,7 +1628,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    def test_get_migration_23(self):
+    def test_schema_get_migration_23(self):
         # Test prop default and function order of definition. The
         # function happens to be shadowing a "std" function. We expect
         # that the function `default::to_upper` will actually be used.
@@ -1644,7 +1646,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    def test_get_migration_24(self):
+    def test_schema_get_migration_24(self):
         # Test constraint and computable using a function defined in
         # the same SDL.
         schema = r'''
@@ -1669,7 +1671,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    def test_get_migration_25(self):
+    def test_schema_get_migration_25(self):
         # Test dependency tracking across distant ancestors.
         schema = r'''
         # declaring SpecialUser before User and Named
@@ -1688,7 +1690,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    def test_get_migration_26(self):
+    def test_schema_get_migration_26(self):
         # Test index issues.
         schema = r'''
         type Dictionary {
@@ -1699,7 +1701,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    def test_get_migration_27(self):
+    def test_schema_get_migration_27(self):
         # Test index issues.
         schema = r'''
         abstract link translated_label {
@@ -1723,7 +1725,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    def test_get_migration_28(self):
+    def test_schema_get_migration_28(self):
         # Test standard library dependencies that aren't specifically 'std'.
         schema = r'''
         type Foo {
@@ -1733,7 +1735,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    def test_get_migration_29(self):
+    def test_schema_get_migration_29(self):
         # Test dependency due to a long path (more than 1 step).
         schema = r'''
         alias View01 := (
@@ -1758,7 +1760,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    def test_get_migration_30(self):
+    def test_schema_get_migration_30(self):
         # Test annotated function SDL.
         schema = r'''
         function idx(num: int64) -> bool {
@@ -1770,7 +1772,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    def test_get_migration_31(self):
+    def test_schema_get_migration_31(self):
         # Test "on target delete".
         schema = r'''
         type Foo {
@@ -1791,7 +1793,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    def test_get_migration_32(self):
+    def test_schema_get_migration_32(self):
         # Test migration of index dependent on two links.
         # Issue #1181
         schema = r'''
@@ -1813,7 +1815,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    def test_get_migration_33(self):
+    def test_schema_get_migration_33(self):
         # Make sure that Course is defined before the schedule
         # computable is defined.
         #
@@ -1838,7 +1840,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    def test_get_migration_multi_module_01(self):
+    def test_schema_get_migration_multi_module_01(self):
         schema = r'''
             # The two declared types declared are from different
             # modules and have linear dependency.
@@ -1857,7 +1859,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema, multi_module=True)
 
-    def test_get_migration_multi_module_02(self):
+    def test_schema_get_migration_multi_module_02(self):
         schema = r'''
             # The two types declared are mutually dependent and are from
             # different modules.
@@ -1872,7 +1874,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema, multi_module=True)
 
-    def test_get_migration_multi_module_03(self):
+    def test_schema_get_migration_multi_module_03(self):
         # Test abstract and concrete constraints order of declaration,
         # when the components are spread across different modules.
         schema = r'''
@@ -1891,7 +1893,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema, multi_module=True)
 
-    def test_get_migration_multi_module_04(self):
+    def test_schema_get_migration_multi_module_04(self):
         # View and type from different modules
         schema = r'''
             alias default::X := (SELECT other::Foo.name);
@@ -1903,7 +1905,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema, multi_module=True)
 
-    def test_get_migration_multi_module_05(self):
+    def test_schema_get_migration_multi_module_05(self):
         # View and type from different modules
         schema = r'''
             alias default::X := (SELECT other::Foo FILTER .name > 'a');
@@ -1915,7 +1917,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema, multi_module=True)
 
-    def test_get_migration_multi_module_06(self):
+    def test_schema_get_migration_multi_module_06(self):
         # Type and annotation from different modules.
         schema = r'''
         type default::Foo {
@@ -1928,7 +1930,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema, multi_module=True)
 
-    def test_get_migration_multi_module_07(self):
+    def test_schema_get_migration_multi_module_07(self):
         # Type and annotation from different modules.
         schema = r'''
         type default::Foo {
@@ -1942,7 +1944,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema, multi_module=True)
 
-    def test_get_migration_multi_module_08(self):
+    def test_schema_get_migration_multi_module_08(self):
         schema = r'''
         # The function declaration appears in a different module
         # from the type.
@@ -1956,7 +1958,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema, multi_module=True)
 
-    def test_get_migration_multi_module_09(self):
+    def test_schema_get_migration_multi_module_09(self):
         schema = r'''
         type default::Foo {
             property bar -> int64;
@@ -1972,7 +1974,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema, multi_module=True)
 
-    def test_get_migration_multi_module_10(self):
+    def test_schema_get_migration_multi_module_10(self):
         # Test prop default and function order of definition.
         schema = r'''
         type default::Foo {
@@ -1988,7 +1990,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema, multi_module=True)
 
-    def test_get_migration_multi_module_11(self):
+    def test_schema_get_migration_multi_module_11(self):
         # Test prop default and function order of definition.
         schema = r'''
         type default::Foo {
@@ -2005,7 +2007,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema, multi_module=True)
 
-    def test_get_migration_multi_module_12(self):
+    def test_schema_get_migration_multi_module_12(self):
         # Test prop default and function order of definition.
         schema = r'''
         type default::Foo {
@@ -2025,7 +2027,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema, multi_module=True)
 
-    def test_migrations_equivalence_01(self):
+    def test_schema_migrations_equivalence_01(self):
         self._assert_migration_equivalence([r"""
             type Base;
         """, r"""
@@ -2042,7 +2044,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_02(self):
+    def test_schema_migrations_equivalence_02(self):
         self._assert_migration_equivalence([r"""
             type Base {
                 property foo -> str;
@@ -2062,7 +2064,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_03(self):
+    def test_schema_migrations_equivalence_03(self):
         self._assert_migration_equivalence([r"""
             type Base {
                 property foo -> str;
@@ -2081,7 +2083,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_04(self):
+    def test_schema_migrations_equivalence_04(self):
         self._assert_migration_equivalence([r"""
             type Base {
                 property foo -> str;
@@ -2104,7 +2106,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
-    def test_migrations_equivalence_05(self):
+    def test_schema_migrations_equivalence_05(self):
         self._assert_migration_equivalence([r"""
             type Base {
                 property foo -> str;
@@ -2123,7 +2125,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_06(self):
+    def test_schema_migrations_equivalence_06(self):
         self._assert_migration_equivalence([r"""
             type Base {
                 property foo -> int64;
@@ -2143,7 +2145,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_07(self):
+    def test_schema_migrations_equivalence_07(self):
         self._assert_migration_equivalence([r"""
             type Child;
 
@@ -2161,7 +2163,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_08(self):
+    def test_schema_migrations_equivalence_08(self):
         self._assert_migration_equivalence([r"""
             type Base {
                 property foo -> str;
@@ -2175,7 +2177,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_09(self):
+    def test_schema_migrations_equivalence_09(self):
         self._assert_migration_equivalence([r"""
             scalar type constraint_length extending str {
                 constraint max_len_value(10);
@@ -2188,7 +2190,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_10(self):
+    def test_schema_migrations_equivalence_10(self):
         self._assert_migration_equivalence([r"""
             type Base {
                 property foo -> str;
@@ -2202,7 +2204,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_11(self):
+    def test_schema_migrations_equivalence_11(self):
         self._assert_migration_equivalence([r"""
             type Base {
                 property foo -> str;
@@ -2219,7 +2221,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_12(self):
+    def test_schema_migrations_equivalence_12(self):
         self._assert_migration_equivalence([r"""
             type Child;
 
@@ -2242,7 +2244,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_13(self):
+    def test_schema_migrations_equivalence_13(self):
         self._assert_migration_equivalence([r"""
             type Child;
 
@@ -2265,7 +2267,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_14(self):
+    def test_schema_migrations_equivalence_14(self):
         self._assert_migration_equivalence([r"""
             type Base;
 
@@ -2283,7 +2285,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_15(self):
+    def test_schema_migrations_equivalence_15(self):
         self._assert_migration_equivalence([r"""
             type Child;
 
@@ -2303,7 +2305,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Derived extending Base;
         """])
 
-    def test_migrations_equivalence_16(self):
+    def test_schema_migrations_equivalence_16(self):
         self._assert_migration_equivalence([r"""
             type Child;
 
@@ -2334,7 +2336,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_17(self):
+    def test_schema_migrations_equivalence_17(self):
         self._assert_migration_equivalence([r"""
             type Base {
                 property name := 'computable'
@@ -2346,7 +2348,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_18(self):
+    def test_schema_migrations_equivalence_18(self):
         self._assert_migration_equivalence([r"""
             type Base {
                 property name := 'something'
@@ -2360,7 +2362,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_19(self):
+    def test_schema_migrations_equivalence_19(self):
         self._assert_migration_equivalence([r"""
             type Base {
                 property name -> str
@@ -2372,7 +2374,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_20(self):
+    def test_schema_migrations_equivalence_20(self):
         self._assert_migration_equivalence([r"""
             type Base {
                 property name -> str {
@@ -2386,7 +2388,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_21(self):
+    def test_schema_migrations_equivalence_21(self):
         self._assert_migration_equivalence([r"""
             type Base {
                 property foo -> str;
@@ -2405,7 +2407,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_22(self):
+    def test_schema_migrations_equivalence_22(self):
         self._assert_migration_equivalence([r"""
             type Base {
                 property foo -> str;
@@ -2436,7 +2438,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             );
         """])
 
-    def test_migrations_equivalence_23(self):
+    def test_schema_migrations_equivalence_23(self):
         self._assert_migration_equivalence([r"""
             type Child {
                 property foo -> str;
@@ -2472,7 +2474,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             );
         """])
 
-    def test_migrations_equivalence_24(self):
+    def test_schema_migrations_equivalence_24(self):
         self._assert_migration_equivalence([r"""
             type Child;
 
@@ -2488,7 +2490,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_25(self):
+    def test_schema_migrations_equivalence_25(self):
         self._assert_migration_equivalence([r"""
             type Child;
 
@@ -2513,7 +2515,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_26(self):
+    def test_schema_migrations_equivalence_26(self):
         self._assert_migration_equivalence([r"""
             type Child;
 
@@ -2544,7 +2546,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_27(self):
+    def test_schema_migrations_equivalence_27(self):
         self._assert_migration_equivalence([r"""
             abstract type Named {
                 property name -> str;
@@ -2581,7 +2583,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
-    def test_migrations_equivalence_28(self):
+    def test_schema_migrations_equivalence_28(self):
         self._assert_migration_equivalence([r"""
             type Child {
                 property foo -> str;
@@ -2590,7 +2592,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             # drop everything
         """])
 
-    def test_migrations_equivalence_29(self):
+    def test_schema_migrations_equivalence_29(self):
         self._assert_migration_equivalence([r"""
             type Child {
                 property foo -> str;
@@ -2605,8 +2607,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             # drop everything
         """])
 
-    def test_migrations_equivalence_30(self):
-        # This is the inverse of the test_migrations_equivalence_27
+    def test_schema_migrations_equivalence_30(self):
+        # This is the inverse of the test_schema_migrations_equivalence_27
         # scenario. We're trying to merge and refactor common
         # property.
         self._assert_migration_equivalence([r"""
@@ -2637,7 +2639,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Bar extending Named;
         """])
 
-    def test_migrations_equivalence_31(self):
+    def test_schema_migrations_equivalence_31(self):
         # Issue 727.
         #
         # Starting with the sample schema (from frontpage) migrate to
@@ -2734,7 +2736,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_32(self):
+    def test_schema_migrations_equivalence_32(self):
         # Issue 727.
         #
         # Starting with a small schema migrate to remove its elements.
@@ -2755,7 +2757,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             # empty schema
         """])
 
-    def test_migrations_equivalence_33(self):
+    def test_schema_migrations_equivalence_33(self):
         self._assert_migration_equivalence([r"""
             type Child;
 
@@ -2772,8 +2774,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_34(self):
-        # this is the reverse of test_migrations_equivalence_11
+    def test_schema_migrations_equivalence_34(self):
+        # this is the reverse of test_schema_migrations_equivalence_11
         self._assert_migration_equivalence([r"""
             type Child;
 
@@ -2789,7 +2791,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_35(self):
+    def test_schema_migrations_equivalence_35(self):
         self._assert_migration_equivalence([r"""
             type Child {
                 required property name -> str;
@@ -2811,7 +2813,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_36(self):
+    def test_schema_migrations_equivalence_36(self):
         self._assert_migration_equivalence([r"""
             type Child {
                 required property name -> str;
@@ -2833,7 +2835,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_37(self):
+    def test_schema_migrations_equivalence_37(self):
         # testing schema aliases
         self._assert_migration_equivalence([r"""
             type Base;
@@ -2856,7 +2858,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             )
         """])
 
-    def test_migrations_equivalence_38(self):
+    def test_schema_migrations_equivalence_38(self):
         # testing schema aliases
         self._assert_migration_equivalence([r"""
             type Base;
@@ -2877,7 +2879,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             )
         """])
 
-    def test_migrations_equivalence_39(self):
+    def test_schema_migrations_equivalence_39(self):
         # testing schema aliases
         self._assert_migration_equivalence([r"""
             type Base;
@@ -2908,7 +2910,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             )
         """])
 
-    def test_migrations_equivalence_40(self):
+    def test_schema_migrations_equivalence_40(self):
         # testing schema aliases
         self._assert_migration_equivalence([r"""
             type Base;
@@ -2945,7 +2947,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             )
         """])
 
-    def test_migrations_equivalence_41(self):
+    def test_schema_migrations_equivalence_41(self):
         # testing schema aliases
         self._assert_migration_equivalence([r"""
             type Base;
@@ -2987,7 +2989,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             )
         """])
 
-    def test_migrations_equivalence_42(self):
+    def test_schema_migrations_equivalence_42(self):
         # testing schema aliases
         self._assert_migration_equivalence([r"""
             type Base;
@@ -3026,7 +3028,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             )
         """])
 
-    def test_migrations_equivalence_43(self):
+    def test_schema_migrations_equivalence_43(self):
         # change a prop used in a computable
         self._assert_migration_equivalence([r"""
             type Foo {
@@ -3040,7 +3042,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
-    def test_migrations_equivalence_function_01(self):
+    def test_schema_migrations_equivalence_function_01(self):
         self._assert_migration_equivalence([r"""
             function hello01(a: int64) -> str
                 using (
@@ -3053,7 +3055,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 )
         """])
 
-    def test_migrations_equivalence_function_06(self):
+    def test_schema_migrations_equivalence_function_06(self):
         self._assert_migration_equivalence([r"""
             function hello06(a: int64) -> str
                 using edgeql $$
@@ -3080,7 +3082,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_function_10(self):
+    def test_schema_migrations_equivalence_function_10(self):
         self._assert_migration_equivalence([r"""
             function hello10(a: int64) -> str
                 using edgeql $$
@@ -3107,7 +3109,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_function_11(self):
+    def test_schema_migrations_equivalence_function_11(self):
         self._assert_migration_equivalence([r"""
             function hello11(a: int64) -> str
                 using edgeql $$
@@ -3121,7 +3123,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 )
         """])
 
-    def test_migrations_equivalence_function_12(self):
+    def test_schema_migrations_equivalence_function_12(self):
         self._assert_migration_equivalence([r"""
             function hello12(a: int64) -> str
                 using edgeql $$
@@ -3140,8 +3142,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 );
         """])
 
-    def test_migrations_equivalence_function_13(self):
-        # this is the inverse of test_migrations_equivalence_function_12
+    def test_schema_migrations_equivalence_function_13(self):
+        # this is the inverse of test_schema_migrations_equivalence_function_12
         self._assert_migration_equivalence([r"""
             # start with a polymorphic function
             function hello13(a: int64) -> str
@@ -3161,7 +3163,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 );
         """])
 
-    def test_migrations_equivalence_function_14(self):
+    def test_schema_migrations_equivalence_function_14(self):
         self._assert_migration_equivalence([r"""
             function hello14(a: str, b: str) -> str
                 using (
@@ -3176,7 +3178,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 )
         """])
 
-    def test_migrations_equivalence_function_15(self):
+    def test_schema_migrations_equivalence_function_15(self):
         self._assert_migration_equivalence([r"""
             function hello15(a: str, b: str) -> str
                 using (
@@ -3191,7 +3193,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 )
         """])
 
-    def test_migrations_equivalence_function_16(self):
+    def test_schema_migrations_equivalence_function_16(self):
         # change prop type without changing the affected function.
         self._assert_migration_equivalence([r"""
             type Foo {
@@ -3213,7 +3215,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 )
         """])
 
-    def test_migrations_equivalence_function_17(self):
+    def test_schema_migrations_equivalence_function_17(self):
         # change prop type without changing the affected function.
         self._assert_migration_equivalence([r"""
             type Foo {
@@ -3243,7 +3245,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 )
         """])
 
-    def test_migrations_equivalence_linkprops_03(self):
+    def test_schema_migrations_equivalence_linkprops_03(self):
         self._assert_migration_equivalence([r"""
             type Child;
 
@@ -3263,7 +3265,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
-    def test_migrations_equivalence_linkprops_07(self):
+    def test_schema_migrations_equivalence_linkprops_07(self):
         self._assert_migration_equivalence([r"""
             type Child;
 
@@ -3289,7 +3291,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Derived extending Base;
         """])
 
-    def test_migrations_equivalence_linkprops_08(self):
+    def test_schema_migrations_equivalence_linkprops_08(self):
         self._assert_migration_equivalence([r"""
             type Child;
 
@@ -3315,7 +3317,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
-    def test_migrations_equivalence_linkprops_09(self):
+    def test_schema_migrations_equivalence_linkprops_09(self):
         self._assert_migration_equivalence([r"""
             type Child;
 
@@ -3343,7 +3345,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Derived extending Base;
         """])
 
-    def test_migrations_equivalence_linkprops_10(self):
+    def test_schema_migrations_equivalence_linkprops_10(self):
         self._assert_migration_equivalence([r"""
             type Child;
 
@@ -3371,7 +3373,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
-    def test_migrations_equivalence_linkprops_11(self):
+    def test_schema_migrations_equivalence_linkprops_11(self):
         self._assert_migration_equivalence([r"""
             type Thing;
 
@@ -3400,7 +3402,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Renter extending Base;
         """])
 
-    def test_migrations_equivalence_linkprops_12(self):
+    def test_schema_migrations_equivalence_linkprops_12(self):
         self._assert_migration_equivalence([r"""
             type Thing;
 
@@ -3430,7 +3432,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Renter extending Base;
         """])
 
-    def test_migrations_equivalence_annotation_01(self):
+    def test_schema_migrations_equivalence_annotation_01(self):
         self._assert_migration_equivalence([r"""
             type Base;
         """, r"""
@@ -3462,7 +3464,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Derived extending Base;
         """])
 
-    def test_migrations_equivalence_annotation_02(self):
+    def test_schema_migrations_equivalence_annotation_02(self):
         self._assert_migration_equivalence([r"""
             type Base;
         """, r"""
@@ -3483,7 +3485,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Derived extending Base;
         """])
 
-    def test_migrations_equivalence_annotation_03(self):
+    def test_schema_migrations_equivalence_annotation_03(self):
         self._assert_migration_equivalence([r"""
             type Base;
         """, r"""
@@ -3504,7 +3506,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Derived extending Base;
         """])
 
-    def test_migrations_equivalence_index_01(self):
+    def test_schema_migrations_equivalence_index_01(self):
         self._assert_migration_equivalence([r"""
             type Base {
                 property name -> str;
@@ -3523,7 +3525,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_index_02(self):
+    def test_schema_migrations_equivalence_index_02(self):
         self._assert_migration_equivalence([r"""
             type Base {
                 property name -> str;
@@ -3536,7 +3538,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_index_03(self):
+    def test_schema_migrations_equivalence_index_03(self):
         self._assert_migration_equivalence([r"""
             type Base {
                 property name -> int64;
@@ -3555,7 +3557,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_index_04(self):
+    def test_schema_migrations_equivalence_index_04(self):
         self._assert_migration_equivalence([r"""
             type Base {
                 property first_name -> str;
@@ -3572,7 +3574,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_index_05(self):
+    def test_schema_migrations_equivalence_index_05(self):
         self._assert_migration_equivalence([r"""
             type Base {
                 property first_name -> str;
@@ -3593,7 +3595,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_constraint_01(self):
+    def test_schema_migrations_equivalence_constraint_01(self):
         self._assert_migration_equivalence([r"""
             type Base {
                 property first_name -> str {
@@ -3620,7 +3622,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
     # schema, so it's better to use array<float32> or some other
     # non-typical scalars in tests as a way of testing a collection
     # that would actually be created/dropped.
-    def test_migrations_equivalence_collections_01(self):
+    def test_schema_migrations_equivalence_collections_01(self):
         self._assert_migration_equivalence([r"""
             type Base;
         """, r"""
@@ -3629,7 +3631,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_collections_02(self):
+    def test_schema_migrations_equivalence_collections_02(self):
         self._assert_migration_equivalence([r"""
             type Base;
         """, r"""
@@ -3638,7 +3640,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_collections_03(self):
+    def test_schema_migrations_equivalence_collections_03(self):
         self._assert_migration_equivalence([r"""
             type Base;
         """, r"""
@@ -3648,7 +3650,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_collections_04(self):
+    def test_schema_migrations_equivalence_collections_04(self):
         self._assert_migration_equivalence([r"""
             type Base;
         """, r"""
@@ -3657,7 +3659,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_collections_05(self):
+    def test_schema_migrations_equivalence_collections_05(self):
         self._assert_migration_equivalence([r"""
             type Base {
                 property foo -> float32;
@@ -3669,7 +3671,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_collections_06(self):
+    def test_schema_migrations_equivalence_collections_06(self):
         self._assert_migration_equivalence([r"""
             type Base {
                 property foo -> array<int32>;
@@ -3681,7 +3683,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_collections_07(self):
+    def test_schema_migrations_equivalence_collections_07(self):
         self._assert_migration_equivalence([r"""
             type Base {
                 # convert property type to tuple
@@ -3694,7 +3696,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_collections_08(self):
+    def test_schema_migrations_equivalence_collections_08(self):
         self._assert_migration_equivalence([r"""
             type Base {
                 property foo -> tuple<int32, int32>;
@@ -3707,7 +3709,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_collections_09(self):
+    def test_schema_migrations_equivalence_collections_09(self):
         self._assert_migration_equivalence([r"""
             type Base {
                 property foo -> tuple<str, int32>;
@@ -3719,7 +3721,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_migrations_equivalence_collections_10(self):
+    def test_schema_migrations_equivalence_collections_10(self):
         # This is trying to validate that the error message is
         # sensible. There was a bug that caused an unhelpful error
         # message to appear due to incomplete dependency resolution
@@ -3740,7 +3742,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 type Foo;
             """])
 
-    def test_migrations_equivalence_collections_11(self):
+    def test_schema_migrations_equivalence_collections_11(self):
         # This is trying to validate that the error message is
         # sensible. There was a bug that caused an unhelpful error
         # message to appear due to incomplete dependency resolution
@@ -3762,7 +3764,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 type Foo;
             """])
 
-    def test_migrations_equivalence_collections_12(self):
+    def test_schema_migrations_equivalence_collections_12(self):
         # This is trying to validate that the error message is
         # sensible. There was a bug that caused an unhelpful error
         # message to appear due to incomplete dependency resolution
@@ -3788,7 +3790,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Foo;
         """])
 
-    def test_migrations_equivalence_collections_13(self):
+    def test_schema_migrations_equivalence_collections_13(self):
         # schema aliases & collection test
         self._assert_migration_equivalence([r"""
             type Base {
@@ -3808,7 +3810,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             alias CollAlias := [Base.foo];
         """])
 
-    def test_migrations_equivalence_collections_14(self):
+    def test_schema_migrations_equivalence_collections_14(self):
         # schema aliases & collection test
         self._assert_migration_equivalence([r"""
             type Base {
@@ -3830,7 +3832,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             alias CollAlias := (Base.name, Base.foo);
         """])
 
-    def test_migrations_equivalence_collections_15(self):
+    def test_schema_migrations_equivalence_collections_15(self):
         # schema aliases & collection test
         self._assert_migration_equivalence([r"""
             type Base {
@@ -3856,7 +3858,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             alias CollAlias := (Base.name, Base.number, [Base.foo]);
         """])
 
-    def test_migrations_equivalence_collections_16(self):
+    def test_schema_migrations_equivalence_collections_16(self):
         # schema aliases & collection test
         self._assert_migration_equivalence([r"""
             type Base {
@@ -3880,7 +3882,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             alias CollAlias := (a := Base.name, b := Base.foo);
         """])
 
-    def test_migrations_equivalence_collections_17(self):
+    def test_schema_migrations_equivalence_collections_17(self):
         # schema aliases & collection test
         self._assert_migration_equivalence([r"""
             type Base {
@@ -3902,7 +3904,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             alias CollAlias := [Base.foo];
         """])
 
-    def test_migrations_equivalence_collections_18(self):
+    def test_schema_migrations_equivalence_collections_18(self):
         # schema aliases & collection test
         self._assert_migration_equivalence([r"""
             type Base {
@@ -3930,7 +3932,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             alias CollAlias := (Base.name, Base.number, Base.foo);
         """])
 
-    def test_migrations_equivalence_collections_20(self):
+    def test_schema_migrations_equivalence_collections_20(self):
         # schema aliases & collection test
         self._assert_migration_equivalence([r"""
             type Base {
@@ -3958,7 +3960,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             alias CollAlias := (Base.name, Base.foo);
         """])
 
-    def test_migrations_equivalence_collections_21(self):
+    def test_schema_migrations_equivalence_collections_21(self):
         # schema aliases & collection test
         self._assert_migration_equivalence([r"""
             type Base {
@@ -3984,7 +3986,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             alias CollAlias := (a := Base.name, b := Base.foo);
         """])
 
-    def test_migrations_equivalence_collections_22(self):
+    def test_schema_migrations_equivalence_collections_22(self):
         # change prop type without changing the affected expression.
         self._assert_migration_equivalence([r"""
             type Foo {
@@ -4022,9 +4024,15 @@ class TestDescribe(tb.BaseSchemaLoadTest):
     def _assert_describe(
         self,
         schema_text,
-        *tests
+        *tests,
+        as_ddl=False,
+        default_module='test',
     ):
-        schema = self.load_schema(schema_text)
+        if as_ddl:
+            schema = tb._load_std_schema()
+            schema = self.run_ddl(schema, schema_text, default_module)
+        else:
+            schema = self.load_schema(schema_text)
 
         tests = [iter(tests)] * 2
 
@@ -4059,7 +4067,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 output,
                 message=f'query: {stmt_text!r}')
 
-    def test_describe_01(self):
+    def test_schema_describe_01(self):
         self._assert_describe(
             """
             type Foo;
@@ -4187,7 +4195,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                     SELECT (
                        ((name)[5:] IF (name LIKE 'std::%') ELSE
                        ((name)[9:] IF (name LIKE 'default::%') ELSE
-                        re_replace('(.+?)::(.+$)', r'\1__\2', name)))
+                        std::re_replace('(.+?)::(.+$)', r'\1__\2', name)))
                       ++ '_Type'
                     )
                 )
@@ -4195,7 +4203,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             """,
         )
 
-    def test_describe_02(self):
+    def test_schema_describe_02(self):
         self._assert_describe(
             """
             type Foo;
@@ -4223,7 +4231,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             ]
         )
 
-    def test_describe_03(self):
+    def test_schema_describe_03(self):
         self._assert_describe(
             """
             scalar type custom_str_t extending str {
@@ -4240,7 +4248,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             """
         )
 
-    def test_describe_04(self):
+    def test_schema_describe_04(self):
         self._assert_describe(
             """
             abstract constraint my_one_of(one_of: array<anytype>) {
@@ -4252,17 +4260,12 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             """
             CREATE ABSTRACT CONSTRAINT test::my_one_of(one_of: array<anytype>){
-                SET orig_expr := 'contains(one_of, __subject__)';
-                USING (WITH
-                    MODULE test
-                SELECT
-                    contains(one_of, __subject__)
-                );
+                USING (std::contains(one_of, __subject__));
             };
             """
         )
 
-    def test_describe_05(self):
+    def test_schema_describe_05(self):
         self._assert_describe(
             """
             type Foo {
@@ -4344,7 +4347,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             'type test::Bar extending test::Foo;'
         )
 
-    def test_describe_06(self):
+    def test_schema_describe_06(self):
         self._assert_describe(
             """
             abstract type HasImage {
@@ -4433,13 +4436,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             '''
             abstract type test::HasImage {
-                index on (WITH
-                    MODULE test
-                SELECT
-                    __subject__.image
-                ) {
-                    orig_expr := '__subject__.image';
-                };
+                index on (__subject__.image);
                 required single property image -> std::str;
             };
             ''',
@@ -4449,18 +4446,12 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             '''
             CREATE ABSTRACT TYPE test::HasImage {
                 CREATE REQUIRED SINGLE PROPERTY image -> std::str;
-                CREATE INDEX ON (WITH
-                    MODULE test
-                SELECT
-                    __subject__.image
-                ) {
-                    SET orig_expr := '__subject__.image';
-                };
+                CREATE INDEX ON (__subject__.image);
             };
             '''
         )
 
-    def test_describe_07(self):
+    def test_schema_describe_07(self):
         self._assert_describe(
             """
             scalar type constraint_enum extending str {
@@ -4508,12 +4499,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             '''
             CREATE ABSTRACT CONSTRAINT test::my_one_of(one_of: array<anytype>)
             {
-                SET orig_expr := 'contains(one_of, __subject__)';
-                USING (WITH
-                    MODULE test
-                SELECT
-                    contains(one_of, __subject__)
-                );
+                USING (std::contains(one_of, __subject__));
             };
             ''',
 
@@ -4524,21 +4510,10 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 optional single link translated_label
                 extending test::translated_label
                         -> test::Label {
-                    constraint std::exclusive on (WITH
-                        MODULE test
-                    SELECT
-                        __subject__@prop1
-                    ) {
-                        orig_subjectexpr := '__subject__@prop1';
-                    };
-                    constraint std::exclusive on (WITH
-                        MODULE test
-                    SELECT
+                    constraint std::exclusive on (__subject__@prop1);
+                    constraint std::exclusive on (
                         (__subject__@source, __subject__@lang)
-                    ) {
-                        orig_subjectexpr :=
-                            '(__subject__@source, __subject__@lang)';
-                    };
+                    );
                 };
             };
             ''',
@@ -4601,10 +4576,10 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             'DESCRIBE OBJECT std::len_value AS SDL',
 
             '''
-            abstract constraint std::len_value on (len(<std::str>__subject__))
+            abstract constraint std::len_value
+            on (std::len(<std::str>__subject__))
             {
                 errmessage := 'invalid {__subject__}';
-                orig_subjectexpr := 'len(<std::str>__subject__)';
             };
             ''',
 
@@ -4627,7 +4602,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             '''
         )
 
-    def test_describe_08(self):
+    def test_schema_describe_08(self):
         self._assert_describe(
             """
             type Foo {
@@ -4657,7 +4632,196 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             """,
         )
 
-    def test_describe_alias_01(self):
+    def test_schema_describe_09(self):
+        # Test normalization of with block. The default module should
+        # be inlined into the explicit fully-qualified name.
+        self._assert_describe(
+            r'''
+            abstract constraint my_constr0(val: int64) {
+                using (
+                    WITH MODULE math
+                    SELECT abs(__subject__ + val) > 2
+                );
+            };
+
+            abstract constraint my_constr1(val: int64) {
+                using (
+                    WITH m AS MODULE math
+                    SELECT m::abs(__subject__ + val) > 2
+                );
+            };
+
+            abstract constraint my_constr2(val: int64) {
+                using (
+                    WITH
+                        MODULE math,
+                        x := __subject__ + val
+                    SELECT abs(x) > 2
+                );
+            };
+            ''',
+
+            'DESCRIBE CONSTRAINT my_constr0 AS SDL',
+
+            '''
+            abstract constraint test::my_constr0(val: std::int64) {
+                using (SELECT
+                    (math::abs((__subject__ + val)) > 2)
+                );
+            };
+            ''',
+
+            'DESCRIBE CONSTRAINT my_constr1 AS SDL',
+
+            '''
+            abstract constraint test::my_constr1(val: std::int64) {
+                using (WITH m AS MODULE math
+                    SELECT
+                        (m::abs((__subject__ + val)) > 2)
+                );
+            };
+            ''',
+
+            'DESCRIBE CONSTRAINT my_constr2 AS SDL',
+
+            '''
+            abstract constraint test::my_constr2(val: std::int64) {
+                using (WITH
+                        x :=
+                            (__subject__ + val)
+                    SELECT
+                        (math::abs(x) > 2)
+                    );
+                };
+            ''',
+        )
+
+    def test_schema_describe_10(self):
+        # Test normalization of unusual defaults: query expressions.
+        # Note that these defaults may not necessarily be practical,
+        # but are used to test expression normalization in various
+        # contexts.
+        self._assert_describe(
+            r'''
+            type Foo {
+                required property val -> int64;
+            }
+
+            type Bar0 {
+                link insert_foo -> Foo {
+                    # insert a new Foo if not supplied
+                    default := (
+                        INSERT Foo {
+                            val := -1
+                        }
+                    )
+                };
+            }
+
+            type Bar1 {
+                multi link update_foo -> Foo {
+                    # if not supplied, update some specific Foo and link it
+                    default := (
+                        UPDATE Foo
+                        FILTER .val = 1
+                        SET {
+                            val += 1
+                        }
+                    )
+                };
+            }
+
+            type Bar2 {
+                multi link for_foo -> Foo {
+                    # if not supplied, select some specific Foo using FOR
+                    default := (
+                        FOR x IN {2, 3}
+                        UNION (
+                            SELECT Foo
+                            FILTER .val = x
+                        )
+                    )
+                };
+            }
+
+            type Bar3 {
+                property delete_foo -> int64 {
+                    # if not supplied, update some specific Foo and link it
+                    default := (
+                        SELECT (
+                            DELETE Foo
+                            FILTER .val > 1
+                            LIMIT 1
+                        ).val
+                    )
+                };
+
+            }
+            ''',
+
+            'DESCRIBE TYPE Bar0 AS SDL',
+
+            '''
+            type test::Bar0 {
+                optional single link insert_foo -> test::Foo {
+                    default := (INSERT
+                        test::Foo
+                        {
+                            val := -1
+                        });
+                };
+            };
+            ''',
+            'DESCRIBE TYPE Bar1 AS SDL',
+
+            '''
+            type test::Bar1 {
+                optional multi link update_foo -> test::Foo {
+                    default := (UPDATE
+                        test::Foo
+                    FILTER
+                        (.val = 1)
+                    SET {
+                        val += 1
+                    });
+                };
+            };
+            ''',
+            'DESCRIBE TYPE Bar2 AS SDL',
+
+            '''
+            type test::Bar2 {
+                optional multi link for_foo -> test::Foo {
+                    default := (FOR x IN {2, 3}
+                    UNION
+                        (SELECT
+                            test::Foo
+                        FILTER
+                            (.val = x)
+                        ));
+                };
+            };
+            ''',
+            'DESCRIBE TYPE Bar3 AS SDL',
+
+            '''
+            type test::Bar3 {
+                optional single property delete_foo -> std::int64 {
+                    default := (SELECT
+                        ((DELETE
+                            test::Foo
+                        FILTER
+                            (.val > 1)
+                        LIMIT
+                            1
+                        )).val
+                    );
+                };
+            };
+            ''',
+        )
+
+    def test_schema_describe_alias_01(self):
         self._assert_describe(
             """
             type Foo {
@@ -4673,19 +4837,16 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             CREATE TYPE test::Foo {
                 CREATE OPTIONAL SINGLE PROPERTY name -> std::str;
             };
-            CREATE ALIAS test::Bar :=
-                (WITH
-                    MODULE test
-                SELECT
-                    Foo {
-                        name,
-                        calc := 1
-                    }
-                );
+            CREATE ALIAS test::Bar := (
+                SELECT test::Foo {
+                    name,
+                    calc := 1
+                }
+            );
             """
         )
 
-    def test_describe_alias_02(self):
+    def test_schema_describe_alias_02(self):
         self._assert_describe(
             """
             type Foo {
@@ -4705,10 +4866,8 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 CREATE OPTIONAL SINGLE PROPERTY name -> std::str;
             };
             CREATE ALIAS test::Bar {
-                USING (WITH
-                    MODULE test
-                SELECT
-                    Foo {
+                USING (
+                    SELECT test::Foo {
                         name,
                         calc := 1
                     }
@@ -4718,7 +4877,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             """
         )
 
-    def test_describe_alias_03(self):
+    def test_schema_describe_alias_03(self):
         self._assert_describe(
             """
             alias scalar_alias := {1, 2, 3};
@@ -4727,16 +4886,13 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             'DESCRIBE MODULE test',
 
             """
-            CREATE ALIAS test::scalar_alias :=
-                (WITH
-                    MODULE test
-                SELECT
-                    {1, 2, 3}
-                );
+            CREATE ALIAS test::scalar_alias := (
+                {1, 2, 3}
+            );
             """
         )
 
-    def test_describe_alias_04(self):
+    def test_schema_describe_alias_04(self):
         self._assert_describe(
             """
             alias tuple_alias := (1, 2, 3);
@@ -4746,18 +4902,45 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             'DESCRIBE MODULE test',
 
             """
-            CREATE ALIAS test::array_alias :=
-                ([1, 2, 3]);
-            CREATE ALIAS test::tuple_alias :=
-                (WITH
-                    MODULE test
-                SELECT
-                    (1, 2, 3)
-                );
+            CREATE ALIAS test::array_alias := (
+                [1, 2, 3]
+            );
+            CREATE ALIAS test::tuple_alias := (
+                (1, 2, 3)
+            );
             """
         )
 
-    def test_describe_computable_01(self):
+    def test_schema_describe_alias_05(self):
+        self._assert_describe(
+            r"""
+            type Foo {
+                property name -> str;
+            };
+
+            alias Bar := (
+                # Test what happens to the default module declared here
+                WITH MODULE test
+                SELECT Foo {name, calc := 1}
+            );
+            """,
+
+            'DESCRIBE MODULE test',
+
+            """
+            CREATE TYPE test::Foo {
+                CREATE OPTIONAL SINGLE PROPERTY name -> std::str;
+            };
+            CREATE ALIAS test::Bar := (
+                SELECT test::Foo {
+                    name,
+                    calc := 1
+                }
+            );
+            """
+        )
+
+    def test_schema_describe_computable_01(self):
         self._assert_describe(
             """
             type Foo {
@@ -4783,28 +4966,18 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                     CREATE ANNOTATION std::title := 'compprop';
                 };
                 CREATE OPTIONAL SINGLE LINK annotated_link {
-                    USING (WITH
-                        MODULE test
-                    SELECT
-                        Foo
-                    LIMIT
-                        1
-                    );
+                    USING (SELECT test::Foo LIMIT 1);
                     CREATE ANNOTATION std::title := 'complink';
                 };
-                CREATE OPTIONAL SINGLE LINK complink := (WITH
-                    MODULE test
-                SELECT
-                    Foo
-                LIMIT
-                    1
+                CREATE OPTIONAL SINGLE LINK complink := (
+                    SELECT test::Foo LIMIT 1
                 );
                 CREATE REQUIRED SINGLE PROPERTY compprop := ('foo');
             };
             """
         )
 
-    def test_describe_computable_02(self):
+    def test_schema_describe_computable_02(self):
         self._assert_describe(
             """
             type Foo {
@@ -4830,28 +5003,49 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                     CREATE ANNOTATION std::title := 'compprop';
                 };
                 CREATE OPTIONAL SINGLE LINK annotated_link {
-                    USING (WITH
-                        MODULE test
-                    SELECT
-                        Foo
-                    LIMIT
-                        1
-                    );
+                    USING (SELECT test::Foo LIMIT 1);
                     CREATE ANNOTATION std::title := 'complink';
                 };
-                CREATE OPTIONAL SINGLE LINK complink := (WITH
-                    MODULE test
-                SELECT
-                    Foo
-                LIMIT
-                    1
+                CREATE OPTIONAL SINGLE LINK complink := (
+                    SELECT test::Foo LIMIT 1
                 );
                 CREATE REQUIRED SINGLE PROPERTY compprop := ('foo');
             };
             """
         )
 
-    def test_describe_builtins_01(self):
+    @test.xfail('''
+        The edgeql/tracer.py seems to have an issue resolving the
+        alias 'x' in the expression.
+    ''')
+    def test_schema_describe_computable_03(self):
+        self._assert_describe(
+            r"""
+            type Foo {
+                property name -> str;
+                property comp := (
+                    WITH x := count(Object)
+                    SELECT .name ++ <str>x
+                )
+            };
+            """,
+
+            'DESCRIBE MODULE test',
+
+            """
+            CREATE TYPE test::Foo {
+                CREATE OPTIONAL SINGLE PROPERTY name -> std::str;
+                CREATE OPTIONAL SINGLE PROPERTY comp := (WITH
+                    x :=
+                        std::count(std::Object)
+                SELECT
+                    (.name ++ <std::str>x)
+                );
+            };
+            """
+        )
+
+    def test_schema_describe_builtins_01(self):
         self._assert_describe(
             """
             """,
@@ -4905,7 +5099,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             """,
         )
 
-    def test_describe_bad_01(self):
+    def test_schema_describe_bad_01(self):
         with self.assertRaisesRegex(
             errors.InvalidReferenceError,
             "schema item 'std::Tuple' does not exist",
@@ -4919,7 +5113,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 '',
             )
 
-    def test_describe_on_target_delete_01(self):
+    def test_schema_describe_on_target_delete_01(self):
         # Test "on target delete".
         self._assert_describe(
             """
@@ -4967,7 +5161,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             """,
         )
 
-    def test_describe_escape(self):
+    def test_schema_describe_escape(self):
         self._assert_describe(
             r"""
             function foo() -> str using ( SELECT r'\1' );
@@ -4979,7 +5173,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             r"using (SELECT r'\1');"
         )
 
-    def test_describe_poly_01(self):
+    def test_schema_describe_poly_01(self):
         self._assert_describe(
             """
             scalar type all extending str;
@@ -5037,10 +5231,47 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             """,
         )
 
+    def test_schema_describe_ddl_01(self):
+        self._assert_describe(
+            """
+            CREATE MODULE test;
+            CREATE TYPE Tree {
+                CREATE REQUIRED PROPERTY val -> str {
+                    CREATE CONSTRAINT exclusive;
+                };
+                CREATE LINK parent -> Tree;
+                CREATE MULTI LINK children := .<parent[IS Tree];
+                CREATE MULTI LINK test_comp := (
+                    SELECT Tree FILTER .val = 'test'
+                )
+            };
+            """,
+
+            'DESCRIBE MODULE test',
+
+            """
+            CREATE TYPE test::Tree {
+                CREATE OPTIONAL SINGLE LINK parent -> test::Tree;
+                CREATE OPTIONAL MULTI LINK children :=
+                    (.<parent[IS test::Tree]);
+                CREATE REQUIRED SINGLE PROPERTY val -> std::str {
+                    CREATE CONSTRAINT std::exclusive;
+                };
+                CREATE REQUIRED MULTI LINK test_comp := (
+                    SELECT
+                        test::Tree
+                    FILTER
+                        (.val = 'test')
+                );
+            };
+            """,
+            as_ddl=True,
+        )
+
 
 class TestCreateMigration(tb.BaseSchemaTest):
 
-    def test_create_migration_on_empty_01(self):
+    def test_schema_create_migration_on_empty_01(self):
         schema = self.schema
         schema = self.run_ddl(schema, 'CREATE MODULE default;')
 
@@ -5054,7 +5285,7 @@ class TestCreateMigration(tb.BaseSchemaTest):
             '''
         )
 
-    def test_create_migration_on_empty_02(self):
+    def test_schema_create_migration_on_empty_02(self):
         schema = self.schema
         schema = self.run_ddl(schema, 'CREATE MODULE default;')
 
@@ -5068,7 +5299,7 @@ class TestCreateMigration(tb.BaseSchemaTest):
             '''
         )
 
-    def test_create_migration_on_empty_bad_01(self):
+    def test_schema_create_migration_on_empty_bad_01(self):
         schema = self.schema
         schema = self.run_ddl(schema, 'CREATE MODULE default;')
 
@@ -5086,7 +5317,7 @@ class TestCreateMigration(tb.BaseSchemaTest):
                 '''
             )
 
-    def test_create_migration_sequence_01(self):
+    def test_schema_create_migration_sequence_01(self):
         schema = self.schema
         schema = self.run_ddl(schema, 'CREATE MODULE default;')
 
