@@ -85,6 +85,8 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
 
         if isinstance(context, pctx.ParserContext):
             self.set_source_context(context)
+        elif position:
+            self.set_position(*position)
 
         self.set_hint_and_details(hint, details)
 

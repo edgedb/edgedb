@@ -498,14 +498,18 @@ fn convert(py: Python, tokens: &Tokens, cache: &mut Cache,
                     (&value[..value.len()-1].replace("_", ""),), None)?))
         }
         FloatConst => {
+            let float_value = f64::from_str(&value.replace("_", ""))
+                .map_err(|e| TokenizerError::new(py,
+                    (format!("error reading std::float64: {}", e),
+                     py_pos(py, &token.start))))?;
+            if float_value == f64::INFINITY || float_value == -f64::INFINITY {
+                return Err(TokenizerError::new(py,
+                    (format!("number is out of range for std::float64"),
+                     py_pos(py, &token.start))))?;
+            }
             Ok((tokens.fconst.clone_ref(py),
                 PyString::new(py, value),
-                f64::from_str(&value.replace("_", ""))
-                .map_err(|e| TokenizerError::new(py,
-                    (format!("error reading float: {}", e),
-                     py_pos(py, &token.start))))?
-               .to_py_object(py)
-               .into_object()))
+                float_value.to_py_object(py).into_object()))
         }
         IntConst => {
             Ok((tokens.iconst.clone_ref(py),

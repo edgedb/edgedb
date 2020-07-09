@@ -135,7 +135,12 @@ class TestHttpNotebook(tb.BaseHttpTest, tb.server.QueryTestCase):
                         'error': [
                             'EdgeQLSyntaxError',
                             'unterminated string, quoted by `"`',
-                            {}
+                            {
+                                '65521': '7',
+                                '65522': '7',
+                                '65523': '1',
+                                '65524': '8',
+                            }
                         ]
                     }
                 ]

@@ -145,11 +145,17 @@ pub fn normalize<'x>(text: &'x str)
                 push_var(&mut rewritten_tokens, "__std__::float64",
                     next_var(variables.len()),
                     tok.start, tok.end);
+                let value = tok.value.replace("_", "").parse()
+                    .map_err(|e| Error::Tokenizer(
+                        format!("can't parse std::float64: {}", e),
+                        tok.start))?;
+                if value == f64::INFINITY || value == -f64::INFINITY {
+                    return Err(Error::Tokenizer(
+                        format!("number is out of range for std::float64"),
+                        tok.start));
+                }
                 variables.push(Variable {
-                    value: Value::Float(tok.value.replace("_", "").parse()
-                        .map_err(|e| Error::Tokenizer(
-                            format!("can't parse float: {}", e),
-                            tok.start))?),
+                    value: Value::Float(value),
                 });
                 continue;
             }
