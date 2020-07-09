@@ -143,7 +143,7 @@ def trace_refs(
     subject: Optional[sn.Name] = None,
     path_prefix: Optional[str] = None,
     module: Optional[str] = None,
-    objects: Dict[str, so.Object],
+    objects: Dict[str, Optional[so.Object]],
     params: Dict[str, sn.Name],
 ) -> FrozenSet[str]:
 
@@ -169,7 +169,7 @@ class TracerContext:
         *,
         schema: s_schema.Schema,
         module: Optional[str],
-        objects: Dict[str, so.Object],
+        objects: Dict[str, Optional[so.Object]],
         source: Optional[sn.Name],
         subject: Optional[sn.Name],
         path_prefix: Optional[str],
@@ -233,6 +233,9 @@ def alias_context(
 ) -> Generator[TracerContext, None, None]:
     module = None
     modaliases: Dict[Optional[str], str] = {}
+    # make a copy of the objects dict so that it can be safely updated
+    # with aliased expressions
+    objects = dict(ctx.objects)
 
     for alias in aliases:
         # module and modalias in ctx needs to be amended
@@ -244,7 +247,7 @@ def alias_context(
                 module = alias.module
 
         elif isinstance(alias, qlast.AliasedExpr):
-            trace(alias.expr, ctx=ctx)
+            objects[alias.alias] = trace(alias.expr, ctx=ctx)
 
     if module or modaliases:
         nctx = TracerContext(
@@ -403,12 +406,17 @@ def trace_Path(
 
     for i, step in enumerate(node.steps):
         if isinstance(step, qlast.ObjectRef):
-            refname = ctx.get_ref_name(step)
-            if refname in ctx.objects:
-                ctx.refs.add(refname)
-                tip = ctx.objects[refname]
+            # the ObjectRef without a module may be referring to an
+            # aliased expression
+            if not step.module and step.name in ctx.objects:
+                tip = ctx.objects[step.name]
             else:
-                tip = ctx.schema.get(refname)
+                refname = ctx.get_ref_name(step)
+                if refname in ctx.objects:
+                    ctx.refs.add(refname)
+                    tip = ctx.objects[refname]
+                else:
+                    tip = ctx.schema.get(refname)
 
         elif isinstance(step, qlast.Ptr):
             if i == 0:
@@ -509,7 +517,9 @@ def trace_Path(
 @trace.register
 def trace_Source(node: qlast.Source, *, ctx: TracerContext) -> so.Object:
     assert ctx.source is not None
-    return ctx.objects[ctx.source]
+    source = ctx.objects[ctx.source]
+    assert source is not None
+    return source
 
 
 @trace.register
@@ -721,6 +731,7 @@ def trace_For(
     ctx: TracerContext
 ) -> Optional[so.Object]:
     with alias_context(ctx, node.aliases) as ctx:
+        ctx.objects[node.iterator_alias] = trace(node.iterator, ctx=ctx)
         tip = trace(node.result, ctx=ctx)
 
         return tip

@@ -22,6 +22,7 @@ import unittest
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import tracer
+from edb.edgeql.compiler import normalization
 from edb.edgeql.compiler.inference import cardinality
 from edb.edgeql.compiler.inference import types
 from edb.edgeql.compiler.inference import volatility
@@ -108,3 +109,15 @@ class TestTracer(unittest.TestCase):
                 if dispatcher.dispatch(astcls) is not_implemented:
                     self.fail(
                         f'_infer_volatility for {name} is not implemented')
+
+    def test_normalize_dispatch(self):
+        dispatcher = normalization.normalize
+        not_implemented = dispatcher.registry[object]
+
+        for name, astcls in inspect.getmembers(qlast, inspect.isclass):
+            # Every non-DDL AST node should be normalizable
+            if (issubclass(astcls, qlast.Base)
+                    and not issubclass(astcls, qlast.DDL)):
+
+                if dispatcher.dispatch(astcls) is not_implemented:
+                    self.fail(f'normalize for {name} is not implemented')

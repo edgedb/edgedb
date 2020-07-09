@@ -391,7 +391,6 @@ class Ptr(Base):
 
 class Path(Expr):
     steps: typing.List[typing.Union[Expr, Ptr, TypeIntersection, ObjectRef]]
-    quantifier: Expr
     partial: bool = False
 
 

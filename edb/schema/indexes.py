@@ -167,13 +167,10 @@ class IndexCommand(
         context: sd.CommandContext,
     ) -> Tuple[str, ...]:
         assert isinstance(astnode, qlast.IndexOp)
-        expr_text = cls.get_orig_expr_text(schema, astnode, 'expr')
-
-        if expr_text is None:
-            # if not, then use the origtext directly from the expression
-            expr = s_expr.Expression.from_ast(
-                astnode.expr, schema, context.modaliases)
-            expr_text = expr.origtext
+        # use the normalized text directly from the expression
+        expr = s_expr.Expression.from_ast(
+            astnode.expr, schema, context.modaliases)
+        expr_text = expr.text
 
         assert expr_text is not None
         expr_qual = cls._name_qual_from_exprs(schema, (expr_text,))

@@ -31,6 +31,7 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
 from edb.edgeql import quote as qlquote
+from edb.edgeql.compiler import normalization as qlnorm
 
 from . import abc as s_abc
 from . import annos as s_anno
@@ -880,6 +881,7 @@ class PointerCommandOrFragment(
         source_name = parent_ctx.op.classname
 
         source = schema.get(source_name, type=s_objtypes.ObjectType)
+
         expression = s_expr.Expression.compiled(
             s_expr.Expression.from_ast(expr, schema, context.modaliases),
             schema=schema,
@@ -894,12 +896,13 @@ class PointerCommandOrFragment(
         assert isinstance(expression.irast, irast.Statement)
         base = None
         target = expression.irast.stype
+        result_expr = expression.irast.expr
 
-        result_expr = expression.irast.expr.expr
-
-        if (isinstance(result_expr, irast.SelectStmt)
-                and result_expr.result.rptr is not None):
-            expr_rptr = result_expr.result.rptr
+        # Process a computable pointer which potentially could be an
+        # aliased link that should inherit link properties.
+        if (isinstance(result_expr, irast.Set)
+                and result_expr.rptr is not None):
+            expr_rptr = result_expr.rptr
             while isinstance(expr_rptr, irast.TypeIntersectionPointer):
                 expr_rptr = expr_rptr.source.rptr
 
@@ -1178,12 +1181,12 @@ class PointerCommand(
                 )
             else:
                 # computable
-                target_ref = ComputableRef(
-                    s_expr.imprint_expr_context(
-                        target_expr,
-                        context.modaliases,
-                    )
+                qlnorm.normalize(
+                    target_expr,
+                    schema=schema,
+                    modaliases=context.modaliases
                 )
+                target_ref = ComputableRef(target_expr)
         else:
             # Target is inherited.
             target_ref = None

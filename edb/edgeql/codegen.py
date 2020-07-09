@@ -756,6 +756,21 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self._write_keywords(' EXTENDING ')
             self.visit_list(node.bases, newlines=False)
 
+    def _ddl_clean_up_commands(
+        self,
+        commands: Sequence[qlast.DDLOperation],
+    ) -> Sequence[qlast.DDLOperation]:
+        # Always omit orig_expr fields from output since we are
+        # using the original expression in TEXT output
+        # already.
+        return [
+            c for c in commands
+            if (
+                not isinstance(c, qlast.SetField)
+                or not c.name.startswith('orig_')
+            )
+        ]
+
     def _ddl_visit_body(
         self,
         commands: Sequence[qlast.DDLOperation],
@@ -772,18 +787,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 )
             ]
 
-        if self.descmode:
-            # Omit orig_expr fields from output since we are
-            # using the original expression in TEXT output
-            # already.
-            commands = [
-                c for c in commands
-                if (
-                    not isinstance(c, qlast.SetField)
-                    or not c.name.startswith('orig_')
-                )
-            ]
-
+        commands = self._ddl_clean_up_commands(commands)
         if len(commands) == 1 and allow_short and not (
             isinstance(commands[0], qlast.ObjectDDL)
         ):
@@ -1523,7 +1527,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             if node.commands:
                 self.write(' {')
                 self._block_ws(1)
-                self.visit_list(node.commands, terminator=';')
+                commands = self._ddl_clean_up_commands(node.commands)
+                self.visit_list(commands, terminator=';')
                 self.new_lines = 1
             else:
                 self.write(' ')

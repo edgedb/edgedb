@@ -609,6 +609,21 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         return modaliases
 
     @classmethod
+    def localnames_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: CommandContext,
+    ) -> Set[str]:
+        localnames: Set[str] = set()
+        if isinstance(astnode, qlast.DDLCommand):
+            for alias in astnode.aliases:
+                if isinstance(alias, qlast.AliasedExpr):
+                    localnames.add(alias.alias)
+
+        return localnames
+
+    @classmethod
     def _cmd_tree_from_ast(
         cls,
         schema: s_schema.Schema,
@@ -708,6 +723,7 @@ class CommandContextToken(Generic[Command_T]):
     original_schema: s_schema.Schema
     op: Command_T
     modaliases: Mapping[Optional[str], str]
+    localnames: AbstractSet[str]
     inheritance_merge: Optional[bool]
     inheritance_refdicts: Optional[AbstractSet[str]]
     mark_derived: Optional[bool]
@@ -721,10 +737,14 @@ class CommandContextToken(Generic[Command_T]):
         op: Command_T,
         *,
         modaliases: Optional[Mapping[Optional[str], str]] = None,
+        # localnames are the names defined locally via with block or
+        # as function parameters and should not be fully-qualified
+        localnames: AbstractSet[str] = frozenset(),
     ) -> None:
         self.original_schema = schema
         self.op = op
         self.modaliases = modaliases if modaliases is not None else {}
+        self.localnames = localnames
         self.inheritance_merge = None
         self.inheritance_refdicts = None
         self.mark_derived = None
@@ -761,6 +781,7 @@ class CommandContext:
         *,
         schema: Optional[s_schema.Schema] = None,
         modaliases: Optional[Mapping[Optional[str], str]] = None,
+        localnames: AbstractSet[str] = frozenset(),
         declarative: bool = False,
         stdmode: bool = False,
         testmode: bool = False,
@@ -777,6 +798,7 @@ class CommandContext:
         self.declarative = declarative
         self.schema = schema
         self._modaliases = modaliases if modaliases is not None else {}
+        self._localnames = localnames
         self.stdmode = stdmode
         self.testmode = testmode
         self.descriptive_mode = descriptive_mode
@@ -794,6 +816,14 @@ class CommandContext:
         maps = [t.modaliases for t in reversed(self.stack)]
         maps.append(self._modaliases)
         return collections.ChainMap(*maps)
+
+    @property
+    def localnames(self) -> Set[str]:
+        ign: Set[str] = set()
+        for ctx in reversed(self.stack):
+            ign.update(ctx.localnames)
+        ign.update(self._localnames)
+        return ign
 
     @property
     def inheritance_merge(self) -> Optional[bool]:
@@ -1654,8 +1684,10 @@ class ObjectCommandContext(CommandContextToken[ObjectCommand[so.Object_T]]):
         scls: so.Object_T,
         *,
         modaliases: Optional[Mapping[Optional[str], str]] = None,
+        localnames: AbstractSet[str] = frozenset(),
     ) -> None:
-        super().__init__(schema, op, modaliases=modaliases)
+        super().__init__(
+            schema, op, modaliases=modaliases, localnames=localnames)
         self.scls = scls
 
 
@@ -2429,6 +2461,7 @@ class AlterSpecialObjectProperty(Command):
                 astnode.value,
                 schema,
                 context.modaliases,
+                context.localnames,
                 orig_text=orig_text,
             )
 
@@ -2695,6 +2728,7 @@ def compile_ddl(
     context_class = cmdcls.get_context_class()
     if context_class is not None:
         modaliases = cmdcls._modaliases_from_ast(schema, astnode, context)
+        localnames = cmdcls.localnames_from_ast(schema, astnode, context)
         ctxcls = cast(
             Type[ObjectCommandContext[so.Object]],
             context_class,
@@ -2704,6 +2738,7 @@ def compile_ddl(
             op=cast(ObjectCommand[so.Object], _dummy_command),
             scls=_dummy_object,
             modaliases=modaliases,
+            localnames=localnames,
         )
         with context(ctx):
             cmd = cmdcls._cmd_tree_from_ast(schema, astnode, context)
