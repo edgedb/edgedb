@@ -114,6 +114,8 @@ jobs:
     - name: Describe
       id: describe
       uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: << tgt.name >>
 
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/<< tgt.platform >><< "-{}".format(tgt.platform_version) if tgt.platform_version >>@master
@@ -170,6 +172,8 @@ jobs:
     - name: Describe
       id: describe
       uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: << tgt.name >>
 
     - name: Publish
       env:
