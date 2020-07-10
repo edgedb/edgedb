@@ -542,7 +542,8 @@ def serialize_expr(
         val = serialize_expr_to_json(
             expr, path_id=path_id, nested=nested, env=env)
 
-    elif env.output_format == context.OutputFormat.NATIVE:
+    elif env.output_format in (context.OutputFormat.NATIVE,
+                               context.OutputFormat.SCRIPT):
         val = output_as_value(expr, env=env)
 
     else:
@@ -618,6 +619,52 @@ def aggregate_json_output(
     return result
 
 
+def wrap_script_stmt(
+    stmt: pgast.SelectStmt,
+    ir_set: irast.Set,
+    *,
+    env: context.Environment,
+) -> pgast.SelectStmt:
+
+    subrvar = pgast.RangeSubselect(
+        subquery=stmt,
+        alias=pgast.Alias(
+            aliasname=env.aliases.get('aggw')
+        )
+    )
+
+    stmt_res = stmt.target_list[0]
+
+    if stmt_res.name is None:
+        stmt_res = stmt.target_list[0] = pgast.ResTarget(
+            name=env.aliases.get('v'),
+            val=stmt_res.val,
+        )
+
+    count_val = pgast.FuncCall(
+        name=('count',),
+        args=[pgast.ColumnRef(name=[stmt_res.name])]
+    ),
+
+    result = pgast.SelectStmt(
+        target_list=[
+            pgast.ResTarget(
+                val=count_val,
+            )
+        ],
+
+        from_clause=[
+            subrvar
+        ]
+    )
+
+    result.ctes = stmt.ctes
+    result.argnames = stmt.argnames
+    stmt.ctes = []
+
+    return result
+
+
 def top_output_as_value(
         stmt: pgast.SelectStmt,
         ir_set: irast.Set, *,
@@ -649,6 +696,9 @@ def top_output_as_value(
         )
 
         return stmt
+
+    elif env.output_format is context.OutputFormat.SCRIPT:
+        return wrap_script_stmt(stmt, ir_set, env=env)
 
     else:
         # JSON_ELEMENTS and BINARY don't require any wrapping

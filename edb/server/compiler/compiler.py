@@ -116,6 +116,7 @@ _IO_FORMAT_MAP = {
     enums.IoFormat.BINARY: pg_compiler.OutputFormat.NATIVE,
     enums.IoFormat.JSON: pg_compiler.OutputFormat.JSON,
     enums.IoFormat.JSON_ELEMENTS: pg_compiler.OutputFormat.JSON_ELEMENTS,
+    enums.IoFormat.SCRIPT: pg_compiler.OutputFormat.SCRIPT,
 }
 
 
