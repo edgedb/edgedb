@@ -60,3 +60,4 @@ class IoFormat(strenum.StrEnum):
     BINARY = 'BINARY'
     JSON = 'JSON'
     JSON_ELEMENTS = 'JSON_ELEMENTS'
+    SCRIPT = 'SCRIPT'

@@ -50,10 +50,17 @@ class ShapeFormat(enum.Enum):
 
 
 class OutputFormat(enum.Enum):
+    #: Result data output in PostgreSQL format.
     NATIVE = enum.auto()
+    #: Result data output as a single JSON string.
     JSON = enum.auto()
+    #: Result data output as a single PostgreSQL JSONB type value.
     JSONB = enum.auto()
+    #: Result data output as a JSON string for each element in returned set.
     JSON_ELEMENTS = enum.auto()
+    #: Script mode: query result not returned, cardinality of result set
+    #: is returned instead.
+    SCRIPT = enum.auto()
 
 
 class NoVolatilitySentinel:

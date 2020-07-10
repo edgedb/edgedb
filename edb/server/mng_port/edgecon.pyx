@@ -90,6 +90,7 @@ cdef object CARD_MANY = compiler.ResultCardinality.MANY
 cdef object FMT_BINARY = compiler.IoFormat.BINARY
 cdef object FMT_JSON = compiler.IoFormat.JSON
 cdef object FMT_JSON_ELEMENTS = compiler.IoFormat.JSON_ELEMENTS
+cdef object FMT_SCRIPT = compiler.IoFormat.SCRIPT
 
 cdef tuple DUMP_VER_MIN = (0, 7)
 cdef tuple DUMP_VER_MAX = (0, 8)
@@ -710,7 +711,11 @@ cdef class EdgeConnection:
         with self.timer.timed("Query tokenization"):
             eql_tokens = tokenize(eql)
         with self.timer.timed("Query compilation"):
-            units = await self._compile(eql_tokens, stmt_mode=stmt_mode)
+            units = await self._compile(
+                eql_tokens,
+                io_format=FMT_SCRIPT,
+                stmt_mode=stmt_mode,
+            )
 
         new_type_ids = frozenset()
         for query_unit in units:
