@@ -30,7 +30,7 @@ class TestDatabase(tb.ConnectedTestCase):
         try:
             conn = await self.connect(database='mytestdb')
 
-            dbname = await conn.fetchall('SELECT sys::get_current_database();')
+            dbname = await conn.query('SELECT sys::get_current_database();')
             self.assertEqual(dbname, ['mytestdb'])
 
             with self.assertRaisesRegex(edgedb.ExecutionError,

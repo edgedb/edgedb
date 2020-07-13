@@ -388,7 +388,7 @@ class Cli:
         return toolbar
 
     def introspect_db(self, con: edgedb.BlockingIOConnection) -> None:
-        names = con.fetchall('''
+        names = con.query('''
             WITH MODULE schema
             SELECT Type { name }
             FILTER Type IS (ObjectType | ScalarType);
@@ -1180,7 +1180,7 @@ class Cli:
         return result, self.connection._get_last_status()
 
     def show_banner(self) -> None:
-        version = self.connection.fetchone('SELECT sys::get_version_as_str()')
+        version = self.connection.query_one('SELECT sys::get_version_as_str()')
         render.render_status(self.context, f'EdgeDB {version}')
         render.render_status(self.context, R'Type "\?" for help.')
         print()
@@ -1289,7 +1289,7 @@ def execute_script(cargs: cli_utils.ConnectionArgs, data: str) -> int:
         ctx = context.ReplContext()
         for query in queries:
             try:
-                ret = con.fetchall(query)
+                ret = con.query(query)
             except Exception as ex:
                 render.render_exception(
                     ctx,

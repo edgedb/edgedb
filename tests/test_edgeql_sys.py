@@ -38,22 +38,22 @@ class TestEdgeQLSys(tb.QueryTestCase):
             await self.con.execute('select sys::advisory_unlock(-1)')
 
         self.assertEqual(
-            await self.con.fetchall(
+            await self.con.query(
                 'select sys::advisory_unlock(<int64>$0)',
                 lock_key),
             [False])
 
-        await self.con.fetchall(
+        await self.con.query(
             'select sys::advisory_lock(<int64>$0)',
             lock_key)
 
         self.assertEqual(
-            await self.con.fetchall(
+            await self.con.query(
                 'select sys::advisory_unlock(<int64>$0)',
                 lock_key),
             [True])
         self.assertEqual(
-            await self.con.fetchall(
+            await self.con.query(
                 'select sys::advisory_unlock(<int64>$0)',
                 lock_key),
             [False])

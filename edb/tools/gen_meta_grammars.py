@@ -63,7 +63,7 @@ def main(names, con):
     ]
 
     # add builtins
-    types = set(con.fetchall('''
+    types = set(con.query('''
         WITH
             MODULE schema,
             T := (SELECT Type
@@ -74,7 +74,7 @@ def main(names, con):
     types |= SPECIAL_TYPES
     types = sorted(types)
 
-    constraints = sorted(set(con.fetchall(r'''
+    constraints = sorted(set(con.query(r'''
         WITH
             MODULE schema,
             name := DISTINCT `Constraint`.name
@@ -82,7 +82,7 @@ def main(names, con):
             re_match(r'(?:std|sys|math)::([a-zA-Z]\w+$)', name)[0];
     ''')))
 
-    fn_builtins = sorted(set(con.fetchall(r'''
+    fn_builtins = sorted(set(con.query(r'''
         WITH
             MODULE schema,
             name := DISTINCT `Function`.name
@@ -90,7 +90,7 @@ def main(names, con):
     ''')))
 
     # add non-word operators
-    operators = sorted(set(con.fetchall(r'''
+    operators = sorted(set(con.query(r'''
         WITH MODULE schema
         SELECT _ := DISTINCT Operator.name[5:]
         FILTER not re_test(r'^[a-zA-Z ]+$', _)

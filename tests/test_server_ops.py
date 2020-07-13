@@ -79,15 +79,15 @@ class TestServerOps(tb.TestCase):
 
             con1 = await edgedb.async_connect(
                 host=runstate_dir, port=port, admin=True)
-            self.assertEqual(await con1.fetchone('SELECT 1'), 1)
+            self.assertEqual(await con1.query_one('SELECT 1'), 1)
 
             con2 = await edgedb.async_connect(
                 host=runstate_dir, port=port, admin=True)
-            self.assertEqual(await con2.fetchone('SELECT 1'), 1)
+            self.assertEqual(await con2.query_one('SELECT 1'), 1)
 
             await con1.aclose()
 
-            self.assertEqual(await con2.fetchone('SELECT 42'), 42)
+            self.assertEqual(await con2.query_one('SELECT 42'), 42)
             await con2.aclose()
 
             with self.assertRaises(ConnectionError):

@@ -455,7 +455,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 link bar -> Child;
             }
         """)
-        res = await self.con.fetchall(r"""
+        res = await self.con.query(r"""
             SELECT (
                 INSERT Base {
                     bar := (INSERT Child),
@@ -651,7 +651,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 }
             }
         """)
-        data = await self.con.fetchall(r"""
+        data = await self.con.query(r"""
             SELECT (
                 INSERT Base {
                     foo := 'base_12',
@@ -701,7 +701,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 overloaded required link bar -> Child;
             }
         """)
-        data = await self.con.fetchall(r"""
+        data = await self.con.query(r"""
             SELECT (
                 INSERT Derived {
                     bar := (INSERT Child)
@@ -786,7 +786,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 link bar -> Child;
             }
         """)
-        data = await self.con.fetchall(r"""
+        data = await self.con.query(r"""
             SELECT (
                 INSERT Derived {
                     bar := (INSERT Child),
@@ -1136,7 +1136,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 link bar -> Child;
             }
         """)
-        data = await self.con.fetchall(r"""
+        data = await self.con.query(r"""
             SELECT (
                 INSERT Base {
                     bar := (INSERT Child)
@@ -1177,7 +1177,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 multi link bar -> Child;
             }
         """)
-        data = await self.con.fetchall(r"""
+        data = await self.con.query(r"""
             SELECT (
                 INSERT Base {
                     bar := (INSERT Child)
@@ -1629,7 +1629,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         # There are non-zero default Objects existing in a fresh blank
         # database because of placeholder objects used for GraphQL.
-        start_objects = await self.con.fetchone(r"""
+        start_objects = await self.con.query_one(r"""
             SELECT count(Object);
         """)
 

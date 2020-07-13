@@ -98,7 +98,7 @@ def set(ctx, parameter: str, value):
         val_expr = f'{{{", ".join(ql(v) for v in value)}}}'
 
     # Canonicalize the values by casting them.
-    vals = ctx.obj['conn'].fetchall(f'''
+    vals = ctx.obj['conn'].query(f'''
         SELECT <str><{cfg_type.name}>{val_expr}
     ''')
 
@@ -183,7 +183,7 @@ class NotAnObjectError(Exception):
 def _process_configure_composite_options(ctx, parameter, values):
     props = {}
 
-    cfg_objects = ctx.obj['conn'].fetchall('''
+    cfg_objects = ctx.obj['conn'].query('''
         WITH MODULE schema
         SELECT ObjectType {
             name
@@ -202,7 +202,7 @@ def _process_configure_composite_options(ctx, parameter, values):
         raise NotAnObjectError(
             f'{parameter} is not a valid configuration object')
 
-    cfg_props = ctx.obj['conn'].fetchall('''
+    cfg_props = ctx.obj['conn'].query('''
         WITH
             MODULE schema,
             Cfg := (SELECT ObjectType FILTER .name = <str>$typename)
@@ -240,7 +240,7 @@ def _process_configure_scalar(ctx, parameter, values):
     if values:
         raise click.UsageError(f'unexpected option: {next(iter(values))}')
 
-    cfg_props = ctx.obj['conn'].fetchall('''
+    cfg_props = ctx.obj['conn'].query('''
         WITH
             MODULE schema,
             Cfg := (SELECT ObjectType FILTER .name = <str>$typename)

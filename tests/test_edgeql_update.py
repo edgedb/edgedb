@@ -40,7 +40,7 @@ class TestUpdate(tb.QueryTestCase):
 
     @classmethod
     async def _setup_objects(cls):
-        cls.original = await cls.con.fetchall_json(r"""
+        cls.original = await cls.con.query_json(r"""
             WITH MODULE test
             SELECT UpdateTest {
                 id,
@@ -369,12 +369,12 @@ class TestUpdate(tb.QueryTestCase):
         # manipulated
         try:
             data = []
-            data.append(await self.con.fetchone(r"""
+            data.append(await self.con.query_one(r"""
                 INSERT test::UpdateTest {
                     name := 'ret5.1'
                 };
             """))
-            data.append(await self.con.fetchone(r"""
+            data.append(await self.con.query_one(r"""
                 INSERT test::UpdateTest {
                     name := 'ret5.2'
                 };
@@ -438,7 +438,7 @@ class TestUpdate(tb.QueryTestCase):
                 ],
             )
 
-            objs = await self.con.fetchall(
+            objs = await self.con.query(
                 r"""
                     WITH MODULE test
                     UPDATE UpdateTest
@@ -460,7 +460,7 @@ class TestUpdate(tb.QueryTestCase):
             """)
 
     async def test_edgeql_update_generic_01(self):
-        status = await self.con.fetchone(r"""
+        status = await self.con.query_one(r"""
             WITH MODULE test
             SELECT Status{id}
             FILTER Status.name = 'Open'
@@ -468,7 +468,7 @@ class TestUpdate(tb.QueryTestCase):
         """)
         status = str(status.id)
 
-        updated = await self.con.fetchall(
+        updated = await self.con.query(
             r"""
                 WITH MODULE test
                 UPDATE UpdateTest

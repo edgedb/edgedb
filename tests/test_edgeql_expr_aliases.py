@@ -712,7 +712,7 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
 
     async def test_edgeql_aliases_deep_01(self):
         # fetch the result we will compare to
-        res = await self.con.fetchall_json(r"""
+        res = await self.con.query_json(r"""
             WITH MODULE test
             SELECT AwardAlias {
                 winner: {
@@ -745,7 +745,7 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
 
     async def test_edgeql_aliases_clauses_01(self):
         # fetch the result we will compare to
-        res = await self.con.fetchall_json(r"""
+        res = await self.con.query_json(r"""
             WITH MODULE test
             SELECT User {
                 deck: {

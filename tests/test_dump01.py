@@ -906,11 +906,11 @@ class TestDump01_CLI(tb.QueryTestCase, tb.CLITestCaseMixin):
         # bytes don't play nice with being cast into other types, so
         # we want to test them using binary fetch
         self.assertEqual(
-            await self.con.fetchall(r'SELECT A.p_bytes;'),
+            await self.con.query(r'SELECT A.p_bytes;'),
             edgedb.Set((b'Hello',))
         )
         self.assertEqual(
-            await self.con.fetchall(r'SELECT B.p_bytes ORDER BY B.p_bytes;'),
+            await self.con.query(r'SELECT B.p_bytes ORDER BY B.p_bytes;'),
             edgedb.Set((b'Hello', b'world'))
         )
 

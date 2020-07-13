@@ -98,7 +98,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
 
     async def test_edgeql_scope_tuple_03(self):
         # get the User names and ids
-        res = await self.con.fetchall(r'''
+        res = await self.con.query(r'''
             WITH MODULE test
             SELECT User {
                 name,
@@ -1381,7 +1381,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
 
     async def test_edgeql_scope_detached_02(self):
         # calculate some useful base expression
-        names = await self.con.fetchall(r"""
+        names = await self.con.query(r"""
             WITH MODULE test
             SELECT User.name ++ <str>count(User.deck);
         """)
@@ -1457,7 +1457,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 edgedb.QueryError,
                 r"'User' changes the interpretation of 'User'"):
             async with self.con.transaction():
-                await self.con.fetchall(r"""
+                await self.con.query(r"""
                     WITH MODULE test
                     SELECT User.friends
                     FILTER User.friends@nickname = 'Firefighter';
@@ -1468,7 +1468,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"'User' changes the interpretation of 'User'"):
-            await self.con.fetchall(r"""
+            await self.con.query(r"""
                 WITH MODULE test
                 SELECT User.friends
                 FILTER (
@@ -1611,7 +1611,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
 
     async def test_edgeql_scope_detached_07(self):
         # compare detached to regular expression
-        res = await self.con.fetchall_json(r'''
+        res = await self.con.query_json(r'''
             WITH MODULE test
             SELECT User {
                 name,
@@ -1643,7 +1643,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
         )
 
     async def test_edgeql_scope_detached_08(self):
-        res = await self.con.fetchall_json(r'''
+        res = await self.con.query_json(r'''
             WITH MODULE test
             SELECT User {
                 name,
@@ -2062,7 +2062,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 edgedb.QueryError,
                 r"unused alias definition: 'foo'",
                 _position=48):
-            await self.con.fetchall("""\
+            await self.con.query("""\
                 WITH
                     foo := 1
                 SELECT 1;
@@ -2074,7 +2074,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 edgedb.QueryError,
                 r"unused alias definition: 'foo'",
                 _position=48):
-            await self.con.fetchall("""\
+            await self.con.query("""\
                 WITH
                     foo := 1
                 SELECT (
