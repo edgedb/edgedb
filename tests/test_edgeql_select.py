@@ -438,7 +438,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 r"possibly more than one element returned by an expression "
                 r"for a computable property 'foo' declared as 'single'",
                 _position=199):
-            await self.con.fetchall("""\
+            await self.con.query("""\
                 WITH MODULE test
                 SELECT Issue{
                     name,
@@ -475,7 +475,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 r"possibly more than one element returned by an expression "
                 r"for a computable property 'foo' declared as 'single'",
                 _position=248):
-            await self.con.fetchall("""\
+            await self.con.query("""\
                 WITH
                     MODULE test,
                     V := (SELECT Issue {
@@ -567,7 +567,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 r"possibly an empty set returned by an expression for "
                 r"a computable property 'foo' declared as 'required'",
                 _position=111):
-            await self.con.fetchall("""\
+            await self.con.query("""\
                 WITH MODULE test
                 SELECT Issue{
                     number,
@@ -582,7 +582,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 r"possibly an empty set returned by an expression for "
                 r"a computable property 'foo' declared as 'required'",
                 _position=111):
-            await self.con.fetchall("""\
+            await self.con.query("""\
                 WITH MODULE test
                 SELECT Issue{
                     number,
@@ -597,7 +597,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 r"possibly an empty set returned by an expression for "
                 r"a computable property 'foo' declared as 'required'",
                 _position=111):
-            await self.con.fetchall("""\
+            await self.con.query("""\
                 WITH MODULE test
                 SELECT Issue{
                     number,
@@ -612,7 +612,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 r"possibly more than one element returned by an expression "
                 r"for a computable property 'foo' declared as 'single'",
                 _position=111):
-            await self.con.fetchall("""\
+            await self.con.query("""\
                 WITH MODULE test
                 SELECT Issue{
                     number,
@@ -627,7 +627,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 r"possibly an empty set returned by an expression for "
                 r"a computable property 'foo' declared as 'required'",
                 _position=111):
-            await self.con.fetchall("""\
+            await self.con.query("""\
                 WITH MODULE test
                 SELECT Issue{
                     number,
@@ -642,7 +642,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 r"possibly an empty set returned by an expression for "
                 r"a computable property 'foo' declared as 'required'",
                 _position=111):
-            await self.con.fetchall("""\
+            await self.con.query("""\
                 WITH MODULE test
                 SELECT Issue{
                     number,
@@ -657,7 +657,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 r"possibly an empty set returned by an expression for "
                 r"a computable property 'foo' declared as 'required'",
                 _position=111):
-            await self.con.fetchall("""\
+            await self.con.query("""\
                 WITH MODULE test
                 SELECT Issue{
                     number,
@@ -704,7 +704,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 r"possibly an empty set returned by an expression for "
                 r"a computable link 'foo' declared as 'required'",
                 _position=111):
-            await self.con.fetchall("""\
+            await self.con.query("""\
                 WITH MODULE test
                 SELECT Issue{
                     number,
@@ -982,7 +982,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 'invalid property reference'):
-            await self.con.fetchall(r'''
+            await self.con.query(r'''
                 WITH MODULE test
                 SELECT User.name.__type__.name LIMIT 1;
             ''')
@@ -991,7 +991,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         # Make sure that the __type__ attribute gets the same object
         # as a direct schema::ObjectType query. As long as this is true,
         # we can test the schema separately without any other data.
-        res = await self.con.fetchone(r'''
+        res = await self.con.query_one(r'''
             WITH MODULE test
             SELECT User {
                 __type__: {
@@ -1233,7 +1233,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed'):
 
-            await self.con.fetchall("""
+            await self.con.query("""
                 WITH MODULE test
                 SELECT
                     User { name }
@@ -1246,7 +1246,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed'):
 
-            await self.con.fetchall("""
+            await self.con.query("""
                 WITH MODULE test
                 SELECT
                     User { name }
@@ -1347,7 +1347,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'cannot access id on a polymorphic shape element'):
-            await self.con.fetchall(r'''
+            await self.con.query(r'''
                 WITH MODULE test
                 SELECT User {
                     [IS Named].id,
@@ -1362,7 +1362,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'cannot access __type__ on a polymorphic shape element'):
-            await self.con.fetchall(r'''
+            await self.con.query(r'''
                 WITH MODULE test
                 SELECT User {
                     [IS Named].__type__: {
@@ -2484,7 +2484,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_setops_17(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r"has no link or property 'number'"):
-            await self.con.fetchall(r"""
+            await self.con.query(r"""
                 # UNION between Issue and empty set Named should be
                 # duck-typed to be effectively equivalent to Issue[IS Named].
                 WITH MODULE test
@@ -2600,7 +2600,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed'):
 
-            await self.con.fetchall("""
+            await self.con.query("""
                 WITH MODULE test
                 SELECT
                     User { name }
@@ -2708,7 +2708,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         with self.assertRaisesRegex(edgedb.QueryError,
                                     'could not find a function variant'):
             async with self.con.transaction():
-                await self.con.fetchall(
+                await self.con.query(
                     "SELECT test::concat1('aaa', 'bbb', 2);")
 
         await self.con.execute(r'''
@@ -2792,12 +2792,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         with self.assertRaisesRegex(edgedb.QueryError,
                                     'could not find a function'):
             async with self.con.transaction():
-                await self.con.fetchall(r'SELECT test::concat3(123);')
+                await self.con.query(r'SELECT test::concat3(123);')
 
         with self.assertRaisesRegex(edgedb.QueryError,
                                     'could not find a function'):
             async with self.con.transaction():
-                await self.con.fetchall(r'SELECT test::concat3("a", 123);')
+                await self.con.query(r'SELECT test::concat3("a", 123);')
 
         await self.assert_query_result(
             r'''
@@ -3126,7 +3126,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ''')
 
     async def test_edgeql_select_coalesce_03(self):
-        issues_h = await self.con.fetchall(r'''
+        issues_h = await self.con.query(r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
@@ -3134,7 +3134,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ORDER BY Issue.number;
         ''')
 
-        issues_n = await self.con.fetchall(r'''
+        issues_n = await self.con.query(r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
@@ -3374,7 +3374,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         )
 
     async def test_edgeql_select_or_01(self):
-        issues_h = await self.con.fetchall(r'''
+        issues_h = await self.con.query(r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
@@ -3382,7 +3382,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ORDER BY Issue.number;
         ''')
 
-        issues_l = await self.con.fetchall(r'''
+        issues_l = await self.con.query(r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
@@ -3788,7 +3788,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'expression returns value of indeterminate type'):
-            await self.con.fetchall(r"""
+            await self.con.query(r"""
                 WITH MODULE test
                 SELECT Issue {
                     number,
@@ -4398,7 +4398,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         )
 
     async def test_edgeql_select_alias_indirection_04(self):
-        result = await self.con.fetchall(r"""
+        result = await self.con.query(r"""
             # Reference a constant expression in an alias.
             WITH MODULE test,
                 U := (
@@ -5537,7 +5537,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 r"object type or alias 'Usr' does not exist",
                 _hint="did you mean one of these: User, URL?"):
 
-            await self.con.fetchall("""
+            await self.con.query("""
                 WITH MODULE test
                 SELECT Usr;
             """)
@@ -5548,7 +5548,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 r"'test::User' has no link or property 'nam'",
                 _hint="did you mean 'name'?"):
 
-            await self.con.fetchall("""
+            await self.con.query("""
                 WITH MODULE test
                 SELECT User.nam;
             """)
@@ -5557,7 +5557,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'index indirection cannot.*int64.*'):
 
-            await self.con.fetchall("""
+            await self.con.query("""
                 # index access is higher precedence than cast
                 SELECT <str>1[0];
             """)
@@ -5566,7 +5566,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'index indirection cannot.*int64.*'):
 
-            await self.con.fetchall("""
+            await self.con.query("""
                 WITH MODULE test
                 # index access is higher precedence than cast
                 SELECT <str>Issue.time_estimate[0];

@@ -81,11 +81,11 @@ class TestSession(tb.QueryTestCase):
         )
 
     async def test_session_set_command_02(self):
-        await self.con.fetchall('SET MODULE foo;')
+        await self.con.query('SET MODULE foo;')
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 "object type or alias 'User' does not exist"):
-            await self.con.fetchall('SELECT User {name};')
+            await self.con.query('SELECT User {name};')
 
     async def test_session_set_command_03(self):
         await self.con.execute(

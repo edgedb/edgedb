@@ -569,7 +569,7 @@ class TestInsert(tb.QueryTestCase):
             [3],
         )
 
-        obj = await self.con.fetchone(
+        obj = await self.con.query_one(
             '''
                 WITH MODULE test
                 INSERT DefaultTest1 {

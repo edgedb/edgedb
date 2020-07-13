@@ -881,7 +881,7 @@ class TestIntrospection(tb.QueryTestCase):
         )
 
         # regression test: sys::Database view must have a __tid__ column
-        dbs = await self.con.fetchall('SELECT sys::Database')
+        dbs = await self.con.query('SELECT sys::Database')
         self.assertTrue(len(dbs))
 
     async def test_edgeql_introspection_meta_02(self):
@@ -1036,7 +1036,7 @@ class TestIntrospection(tb.QueryTestCase):
         )
 
     async def test_edgeql_introspection_meta_13(self):
-        res = await self.con.fetchone(r"""
+        res = await self.con.query_one(r"""
             SELECT count(schema::Object);
         """)
 
@@ -1079,7 +1079,7 @@ class TestIntrospection(tb.QueryTestCase):
         )
 
     async def test_edgeql_introspection_meta_15(self):
-        res = await self.con.fetchall(r'''
+        res = await self.con.query(r'''
             WITH MODULE schema
             SELECT `Type`;
         ''')
@@ -1096,7 +1096,7 @@ class TestIntrospection(tb.QueryTestCase):
         )
 
     async def test_edgeql_introspection_meta_17(self):
-        result = await self.con.fetchall('''
+        result = await self.con.query('''
             WITH MODULE schema
             SELECT ObjectType {
                 id,
@@ -1326,7 +1326,7 @@ class TestIntrospection(tb.QueryTestCase):
         """)
 
     async def test_edgeql_introspection_database_01(self):
-        res = await self.con.fetchone(r"""
+        res = await self.con.query_one(r"""
             WITH MODULE sys
             SELECT count(Database.name);
         """)

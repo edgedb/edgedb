@@ -1288,7 +1288,7 @@ class Compiler(BaseCompiler):
         tokens: List[_edgeql_rust.Token],
     ) -> List[dbstate.QueryUnit]:
 
-        # When True it means that we're compiling for "connection.fetchall()".
+        # When True it means that we're compiling for "connection.query()".
         # That means that the returned QueryUnit has to have the in/out codec
         # information, correctly inferred "singleton_result" field etc.
         single_stmt_mode = ctx.stmt_mode is enums.CompileStatementMode.SINGLE

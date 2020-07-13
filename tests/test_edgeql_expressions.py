@@ -362,33 +362,33 @@ class TestExpressions(tb.QueryTestCase):
         with self.assertRaisesRegex(edgedb.NumericOutOfRangeError,
                                     'std::int16 out of range'):
             async with self.con.transaction():
-                await self.con.fetchone(
+                await self.con.query_one(
                     r'''SELECT <int16>36893488147419''',
                 )
 
         with self.assertRaisesRegex(edgedb.NumericOutOfRangeError,
                                     'std::int32 out of range'):
             async with self.con.transaction():
-                await self.con.fetchone(
+                await self.con.query_one(
                     r'''SELECT <int32>36893488147419''',
                 )
 
         with self.assertRaisesRegex(edgedb.NumericOutOfRangeError,
                                     'is out of range for type std::int64'):
             async with self.con.transaction():
-                await self.con.fetchone(
+                await self.con.query_one(
                     r'''SELECT <int64>'3689348814741900000000000' ''',
                 )
 
         with self.assertRaisesRegex(edgedb.EdgeQLSyntaxError,
                                     'expected digit after dot'):
             async with self.con.transaction():
-                await self.con.fetchone('SELECT 0. ')
+                await self.con.query_one('SELECT 0. ')
 
         with self.assertRaisesRegex(edgedb.EdgeQLSyntaxError,
                                     'number is out of range for std::float64'):
             async with self.con.transaction():
-                await self.con.fetchone(
+                await self.con.query_one(
                     r'''SELECT 1e999''',
                 )
 
@@ -573,7 +573,7 @@ class TestExpressions(tb.QueryTestCase):
                 edgedb.QueryError,
                 r"operator '-' cannot .* 'std::str'"):
 
-            await self.con.fetchall("""
+            await self.con.query("""
                 SELECT -'aaa';
             """)
 
@@ -582,7 +582,7 @@ class TestExpressions(tb.QueryTestCase):
                 edgedb.QueryError,
                 r"operator 'NOT' cannot .* 'std::str'"):
 
-            await self.con.fetchall_json("""
+            await self.con.query_json("""
                 SELECT NOT 'aaa';
             """)
 
@@ -799,7 +799,7 @@ class TestExpressions(tb.QueryTestCase):
 
         # overflow is expected for float64, but would not happen for decimal
         with self.assertRaisesRegex(edgedb.NumericOutOfRangeError, 'overflow'):
-            await self.con.fetchone(r"""
+            await self.con.query_one(r"""
                 SELECT (10 + math::floor(random()))^309;
             """)
 
@@ -996,7 +996,7 @@ class TestExpressions(tb.QueryTestCase):
                 with self.assertRaisesRegex(edgedb.QueryError, result,
                                             msg=query):
                     async with self.con.transaction():
-                        await self.con.fetchall(query)
+                        await self.con.query(query)
 
     async def test_edgeql_expr_valid_eq_01(self):
         # compare all numerics to all other scalars via equality
@@ -1366,7 +1366,7 @@ class TestExpressions(tb.QueryTestCase):
                                         expected_error_msg,
                                         msg=query):
                 async with self.con.transaction():
-                    await self.con.fetchone(query)
+                    await self.con.query_one(query)
 
     # NOTE: Generalized Binop `+` and `-` rules:
     #
@@ -1649,7 +1649,7 @@ class TestExpressions(tb.QueryTestCase):
                 _hint='Consider using the "++" operator for concatenation'
             ):
                 async with self.con.transaction():
-                    await self.con.fetchone(query)
+                    await self.con.query_one(query)
 
     async def test_edgeql_expr_valid_setop_01(self):
         # use every scalar with DISTINCT
@@ -2334,7 +2334,7 @@ class TestExpressions(tb.QueryTestCase):
                 edgedb.QueryError,
                 r"operator '\*' cannot .* 'std::str' and 'std::int64'"):
 
-            await self.con.fetchone("""
+            await self.con.query_one("""
                 SELECT <std::str>123 * 2;
             """)
 
@@ -2365,7 +2365,7 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_cast_08(self):
         with self.assertRaisesRegex(edgedb.QueryError,
                                     r'cannot cast.*tuple.*to.*array.*'):
-            await self.con.fetchall_json(r"""
+            await self.con.query_json(r"""
                 SELECT <array<int64>>(123, 11);
             """)
 
@@ -2515,7 +2515,7 @@ class TestExpressions(tb.QueryTestCase):
                 edgedb.QueryError,
                 r"operator.*IF.*cannot.*'std::int64'.*'std::str'"):
 
-            await self.con.fetchall("""
+            await self.con.query("""
                 SELECT 3 / (2 IF FALSE ELSE '1');
             """)
 
@@ -2802,7 +2802,7 @@ class TestExpressions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'could not determine array type'):
 
-            await self.con.fetchall("""
+            await self.con.query("""
                 SELECT [1, '1'];
             """)
 
@@ -2810,7 +2810,7 @@ class TestExpressions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'cannot index array by.*str'):
 
-            await self.con.fetchone("""
+            await self.con.query_one("""
                 SELECT [1, 2]['1'];
             """)
 
@@ -2819,7 +2819,7 @@ class TestExpressions(tb.QueryTestCase):
                 edgedb.QueryError,
                 r'expression returns value of indeterminate type'):
 
-            await self.con.fetchall_json("""
+            await self.con.query_json("""
                 SELECT [];
             """)
 
@@ -3135,7 +3135,7 @@ class TestExpressions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'cannot index string by.*str'):
 
-            await self.con.fetchone("""
+            await self.con.query_one("""
                 SELECT '123'['1'];
             """)
 
@@ -3143,7 +3143,7 @@ class TestExpressions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
                 r'string index 10 is out of bounds'):
-            await self.con.fetchall_json("""
+            await self.con.query_json("""
                 SELECT '123'[10];
             """)
 
@@ -3151,7 +3151,7 @@ class TestExpressions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
                 r'string index -10 is out of bounds'):
-            await self.con.fetchall("""
+            await self.con.query("""
                 SELECT '123'[-10];
             """)
 
@@ -3159,7 +3159,7 @@ class TestExpressions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'cannot index string by.*float'):
 
-            await self.con.fetchall("""
+            await self.con.query("""
                 SELECT '123'[-1.0];
             """)
 
@@ -3167,7 +3167,7 @@ class TestExpressions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'cannot slice string by.*float'):
 
-            await self.con.fetchall_json("""
+            await self.con.query_json("""
                 SELECT '123'[1.0:];
             """)
 
@@ -3321,7 +3321,7 @@ aa \
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"operator '=' cannot"):
-            await self.con.fetchall(r"""
+            await self.con.query(r"""
                 SELECT (1, 'foo') = ('1', 'foo');
             """)
 
@@ -3381,7 +3381,7 @@ aa \
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"operator '!=' cannot"):
-            await self.con.fetchone(r"""
+            await self.con.query_one(r"""
                 SELECT (a := 1, b := 'foo') != (b := 'foo', a := 1);
             """)
 
@@ -3748,7 +3748,7 @@ aa \
     async def test_edgeql_expr_cannot_assign_dunder_type_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'cannot assign to __type__'):
-            await self.con.fetchall(r"""
+            await self.con.query(r"""
                 SELECT test::Text {
                     __type__ := (SELECT schema::ObjectType
                                  FILTER .name = 'test::Named')
@@ -4069,10 +4069,10 @@ aa \
         )
 
     async def test_edgeql_expr_setop_08(self):
-        obj = await self.con.fetchall(r"""
+        obj = await self.con.query(r"""
             SELECT schema::ObjectType;
         """)
-        attr = await self.con.fetchall(r"""
+        attr = await self.con.query(r"""
             SELECT schema::Annotation;
         """)
 
@@ -4113,7 +4113,7 @@ aa \
         )
 
     async def test_edgeql_expr_setop_11(self):
-        everything = await self.con.fetchall('''
+        everything = await self.con.query('''
             WITH
                 MODULE schema,
                 C := (SELECT ObjectType
@@ -4122,7 +4122,7 @@ aa \
             ORDER BY _;
         ''')
 
-        distinct = await self.con.fetchall('''
+        distinct = await self.con.query('''
             WITH
                 MODULE schema,
                 C := (SELECT ObjectType

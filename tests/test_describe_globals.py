@@ -4,7 +4,7 @@ from edb.testbase import server as tb
 class TestDescribeRoles(tb.QueryTestCase):
 
     async def test_describe_system_config(self):
-        result = list(await self.con.fetchall("DESCRIBE SYSTEM CONFIG"))
+        result = list(await self.con.query("DESCRIBE SYSTEM CONFIG"))
         self.assertEqual(len(result), 1)
         self.assertIsInstance(result[0], str)
         self.assertIn('CONFIGURE SYSTEM SET', result[0])
@@ -19,7 +19,7 @@ class TestDescribeRoles(tb.QueryTestCase):
                 SET password := 'test'
             };
         """)
-        roles = next(iter(await self.con.fetchall("DESCRIBE ROLES")))
+        roles = next(iter(await self.con.query("DESCRIBE ROLES")))
         base1 = roles.index('CREATE SUPERUSER ROLE `base1`;')
         base2 = roles.index('CREATE SUPERUSER ROLE `base 2`;')
         child1 = roles.index('CREATE SUPERUSER ROLE `child1`')

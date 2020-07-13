@@ -32,7 +32,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                          'volatility_setup.edgeql')
 
     async def test_edgeql_volatility_function_01(self):
-        result = await self.con.fetchall(
+        result = await self.con.query(
             r"""
                 WITH MODULE test
                 SELECT Obj {
@@ -49,7 +49,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
         )
 
     async def test_edgeql_volatility_function_02(self):
-        result = await self.con.fetchall(
+        result = await self.con.query(
             r"""
                 WITH MODULE test
                 SELECT Obj {
@@ -66,7 +66,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
         )
 
     async def test_edgeql_volatility_function_03(self):
-        result = await self.con.fetchall(
+        result = await self.con.query(
             r"""
                 WITH MODULE test
                 SELECT Obj {

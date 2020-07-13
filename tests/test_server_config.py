@@ -347,31 +347,31 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
                 edgedb.QueryError,
                 'cannot be executed in a transaction block'):
             async with self.con.transaction():
-                await self.con.fetchall('''
+                await self.con.query('''
                     CONFIGURE SYSTEM SET __internal_testvalue := 1;
                 ''')
 
         with self.assertRaisesRegex(
                 edgedb.UnsupportedFeatureError,
                 'CONFIGURE SESSION INSERT is not supported'):
-            await self.con.fetchall('''
+            await self.con.query('''
                 CONFIGURE SESSION INSERT SessionConfig { name := 'foo' };
             ''')
 
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 'module must be either \'cfg\' or empty'):
-            await self.con.fetchall('''
+            await self.con.query('''
                 CONFIGURE SYSTEM INSERT cf::SystemConfig { name := 'foo' };
             ''')
 
     async def test_server_proto_configure_02(self):
-        conf = await self.con.fetchone('''
+        conf = await self.con.query_one('''
             SELECT cfg::Config.__internal_testvalue LIMIT 1
         ''')
         self.assertEqual(conf, 0)
 
-        jsonconf = await self.con.fetchone('''
+        jsonconf = await self.con.query_one('''
             SELECT cfg::get_config_json()
         ''')
 
@@ -384,16 +384,16 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
         # The "Configure" is spelled the way it's spelled on purpose
         # to test that we handle keywords in a case-insensitive manner
         # in constant extraction code.
-        await self.con.fetchall('''
+        await self.con.query('''
             Configure SYSTEM SET __internal_testvalue := 1;
         ''')
 
-        conf = await self.con.fetchone('''
+        conf = await self.con.query_one('''
             SELECT cfg::Config.__internal_testvalue LIMIT 1
         ''')
         self.assertEqual(conf, 1)
 
-        jsonconf = await self.con.fetchone('''
+        jsonconf = await self.con.query_one('''
             SELECT cfg::get_config_json()
         ''')
 
@@ -411,18 +411,18 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
             [],
         )
 
-        await self.con.fetchall('''
+        await self.con.query('''
             CONFIGURE SYSTEM INSERT SystemConfig { name := 'test_03' };
         ''')
 
-        await self.con.fetchall('''
+        await self.con.query('''
             CONFIGURE SYSTEM INSERT cfg::SystemConfig {
                 name := 'test_03_01'
             };
         ''')
 
-        with self.assertRaisesRegex(edgedb.InterfaceError, r'\bfetchone\('):
-            await self.con.fetchone('''
+        with self.assertRaisesRegex(edgedb.InterfaceError, r'\bquery_one\('):
+            await self.con.query_one('''
                 CONFIGURE SYSTEM INSERT cfg::SystemConfig {
                     name := 'test_03_0122222222'
                 };
@@ -444,7 +444,7 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
             ]
         )
 
-        await self.con.fetchall('''
+        await self.con.query('''
             CONFIGURE SYSTEM RESET SystemConfig FILTER .name = 'test_03';
         ''')
 
@@ -460,7 +460,7 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
             ],
         )
 
-        await self.con.fetchall('''
+        await self.con.query('''
             CONFIGURE SYSTEM RESET SystemConfig FILTER .name = 'test_03_01';
         ''')
 
@@ -473,11 +473,11 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
         )
 
         # Repeat reset that doesn't match anything this time.
-        await self.con.fetchall('''
+        await self.con.query('''
             CONFIGURE SYSTEM RESET SystemConfig FILTER .name = 'test_03_01';
         ''')
 
-        await self.con.fetchall('''
+        await self.con.query('''
             CONFIGURE SYSTEM INSERT SystemConfig {
                 name := 'test_03',
                 obj := (INSERT Subclass1 { name := 'foo', sub1 := 'sub1' })
@@ -506,7 +506,7 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
             ],
         )
 
-        await self.con.fetchall('''
+        await self.con.query('''
             CONFIGURE SYSTEM INSERT SystemConfig {
                 name := 'test_03_01',
                 obj := (INSERT Subclass2 { name := 'bar', sub2 := 'sub2' })
@@ -543,7 +543,7 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
             ],
         )
 
-        await self.con.fetchall('''
+        await self.con.query('''
             CONFIGURE SYSTEM RESET SystemConfig
             FILTER .obj.name IN {'foo', 'bar'} AND .name ILIKE 'test_03%';
         ''')
@@ -556,7 +556,7 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
             []
         )
 
-        await self.con.fetchall('''
+        await self.con.query('''
             CONFIGURE SYSTEM INSERT SystemConfig {
                 name := 'test_03_' ++ <str>count(DETACHED SystemConfig),
             }
@@ -577,7 +577,7 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
             ],
         )
 
-        await self.con.fetchall('''
+        await self.con.query('''
             CONFIGURE SYSTEM RESET SystemConfig
             FILTER .name ILIKE 'test_03%';
         ''')
@@ -594,41 +594,41 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
         with self.assertRaisesRegex(
                 edgedb.UnsupportedFeatureError,
                 'CONFIGURE SESSION INSERT is not supported'):
-            await self.con.fetchall('''
+            await self.con.query('''
                 CONFIGURE SESSION INSERT SessionConfig {name := 'test_04'}
             ''')
 
         with self.assertRaisesRegex(
                 edgedb.ConfigurationError,
                 "unrecognized configuration object 'Unrecognized'"):
-            await self.con.fetchall('''
+            await self.con.query('''
                 CONFIGURE SYSTEM INSERT Unrecognized {name := 'test_04'}
             ''')
 
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 "must not have a FILTER clause"):
-            await self.con.fetchall('''
+            await self.con.query('''
                 CONFIGURE SYSTEM RESET __internal_testvalue FILTER 1 = 1;
             ''')
 
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 "non-constant expression"):
-            await self.con.fetchall('''
+            await self.con.query('''
                 CONFIGURE SESSION SET __internal_testmode := (random() = 0);
             ''')
 
         with self.assertRaisesRegex(
                 edgedb.ConfigurationError,
                 "'Subclass1' cannot be configured directly"):
-            await self.con.fetchall('''
+            await self.con.query('''
                 CONFIGURE SYSTEM INSERT Subclass1 {
                     name := 'foo'
                 };
             ''')
 
-        await self.con.fetchall('''
+        await self.con.query('''
             CONFIGURE SYSTEM INSERT SystemConfig {
                 name := 'test_04',
             }
@@ -637,7 +637,7 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
         with self.assertRaisesRegex(
                 edgedb.ConstraintViolationError,
                 "SystemConfig.name violates exclusivity constraint"):
-            await self.con.fetchall('''
+            await self.con.query('''
                 CONFIGURE SYSTEM INSERT SystemConfig {
                     name := 'test_04',
                 }
@@ -801,7 +801,7 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
             ''')
 
     async def test_server_version(self):
-        srv_ver = await self.con.fetchone(r"""
+        srv_ver = await self.con.query_one(r"""
             SELECT sys::get_version()
         """)
 
@@ -814,7 +814,7 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
              srv_ver.stage_no, tuple(srv_ver.local))
         )
 
-        srv_ver_string = await self.con.fetchone(r"""
+        srv_ver_string = await self.con.query_one(r"""
             SELECT sys::get_version_as_str()
         """)
 

@@ -79,7 +79,7 @@ class TestEdgeQLDT(tb.QueryTestCase):
                 edgedb.QueryError,
                 "operator '-' cannot be applied.*duration.*datetime"):
 
-            await self.con.fetchall("""
+            await self.con.query("""
                 SELECT <duration>'1 hour' - <datetime>'2017-10-10T00:00:00+00';
             """)
 

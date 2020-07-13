@@ -252,7 +252,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.UnsupportedFeatureError,
                 r"nested arrays are not supported"):
-            await self.con.fetchall(r"""
+            await self.con.query(r"""
                 WITH MODULE test
                 SELECT array_agg(
                     [<str>Issue.number, Issue.status.name]
@@ -282,7 +282,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [[{'name': 'Elvis'}, {'name': 'Yury'}]]
         )
 
-        result = await self.con.fetchall(r'''
+        result = await self.con.query(r'''
             WITH
                 MODULE test
             SELECT
@@ -318,7 +318,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.UnsupportedFeatureError,
                 r"nested arrays are not supported"):
-            await self.con.fetchall(r'''
+            await self.con.query(r'''
                 WITH MODULE test
                 SELECT array_agg(array_agg(User.name));
             ''')
@@ -515,12 +515,12 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_enumerate_04(self):
         self.assertEqual(
-            await self.con.fetchall(
+            await self.con.query(
                 'select <json>enumerate({(1, 2), (3, 4)})'),
             ['[0, [1, 2]]', '[1, [3, 4]]'])
 
         self.assertEqual(
-            await self.con.fetchall_json(
+            await self.con.query_json(
                 'select <json>enumerate({(1, 2), (3, 4)})'),
             '[[0, [1, 2]], [1, [3, 4]]]')
 
@@ -579,7 +579,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 edgedb.QueryError,
                 r'could not find a function variant array_get'):
 
-            await self.con.fetchall(r'''
+            await self.con.query(r'''
                 SELECT array_get([1, 2, 3], 2^40);
             ''')
 
@@ -967,25 +967,25 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         )
 
     async def test_edgeql_functions_unix_to_datetime_01(self):
-        dt = await self.con.fetchone(
+        dt = await self.con.query_one(
             'SELECT <str>to_datetime(1590595184.584);'
         )
         self.assertEqual('2020-05-27T15:59:44.584+00:00', dt)
 
     async def test_edgeql_functions_unix_to_datetime_02(self):
-        dt = await self.con.fetchone(
+        dt = await self.con.query_one(
             'SELECT <str>to_datetime(1590595184);'
         )
         self.assertEqual('2020-05-27T15:59:44+00:00', dt)
 
     async def test_edgeql_functions_unix_to_datetime_03(self):
-        dt = await self.con.fetchone(
+        dt = await self.con.query_one(
             'SELECT <str>to_datetime(517795200);'
         )
         self.assertEqual('1986-05-30T00:00:00+00:00', dt)
 
     async def test_edgeql_functions_unix_to_datetime_04(self):
-        dt = await self.con.fetchone(
+        dt = await self.con.query_one(
             'SELECT <str>to_datetime(517795200.00n);'
         )
         self.assertEqual('1986-05-30T00:00:00+00:00', dt)
@@ -993,11 +993,11 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_datetime_current_01(self):
         # make sure that datetime as a str gets serialized to a
         # particular format
-        dt = await self.con.fetchone('SELECT <str>datetime_current();')
+        dt = await self.con.query_one('SELECT <str>datetime_current();')
         self.assertRegex(dt, r'\d+-\d+-\d+T\d+:\d+:\d+\.\d+.*')
 
     async def test_edgeql_functions_datetime_current_02(self):
-        batch1 = await self.con.fetchall_json(r'''
+        batch1 = await self.con.query_json(r'''
             WITH MODULE schema
             SELECT Type {
                 dt_t := datetime_of_transaction(),
@@ -1005,7 +1005,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 dt_n := datetime_current(),
             };
         ''')
-        batch2 = await self.con.fetchall_json(r'''
+        batch2 = await self.con.query_json(r'''
             # NOTE: this test assumes that there's at least 1 microsecond
             # time difference between statements
             WITH MODULE schema
@@ -1158,7 +1158,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
                 'invalid unit for std::datetime_get'):
-            await self.con.fetchall('''
+            await self.con.query('''
                 SELECT datetime_get(
                     <cal::local_datetime>'2018-05-07T15:01:22.306916',
                     'timezone_hour'
@@ -1169,7 +1169,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
                 'invalid unit for std::datetime_get'):
-            await self.con.fetchall('''
+            await self.con.query('''
                 SELECT datetime_get(
                     <datetime>'2018-05-07T15:01:22.306916-05',
                     'timezone_hour');
@@ -1417,7 +1417,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(edgedb.InvalidValueError,
                                     '"fmt" argument must be'):
             async with self.con.transaction():
-                await self.con.fetchall('SELECT to_datetime("2017-10-10", "")')
+                await self.con.query('SELECT to_datetime("2017-10-10", "")')
 
     async def test_edgeql_functions_to_datetime_02(self):
         await self.assert_query_result(
@@ -1463,7 +1463,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(edgedb.InvalidValueError,
                                     'missing required time zone in format'):
             async with self.con.transaction():
-                await self.con.fetchall(r'''
+                await self.con.query(r'''
                     SELECT
                         to_datetime('2019/01/01 00:00:00 TZH07',
                                     'YYYY/MM/DD H24:MI:SS "TZH"TZM') =
@@ -1474,7 +1474,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(edgedb.InvalidValueError,
                                     'missing required time zone in input'):
             async with self.con.transaction():
-                await self.con.fetchall(r'''
+                await self.con.query(r'''
                     SELECT
                         to_datetime('2019/01/01 00:00:00 0715',
                                     'YYYY/MM/DD H24:MI:SS "NOPE"TZHTZM');
@@ -1485,7 +1485,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                                     'invalid input syntax'):
             async with self.con.transaction():
                 # omitting time zone
-                await self.con.fetchall(r'''
+                await self.con.query(r'''
                     SELECT
                         to_datetime('2019/01/01 00:00:00');
                 ''')
@@ -1537,7 +1537,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(edgedb.InvalidValueError,
                                     'unexpected time zone in format'):
             async with self.con.transaction():
-                await self.con.fetchall(
+                await self.con.query(
                     r'''
                         SELECT
                           cal::to_local_datetime('2019/01/01 00:00:00 0715',
@@ -1565,7 +1565,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                                     'invalid input syntax'):
             async with self.con.transaction():
                 # including time zone
-                await self.con.fetchall(r'''
+                await self.con.query(r'''
                     SELECT
                         cal::to_local_datetime('2019/01/01 00:00:00 0715');
                 ''')
@@ -1581,7 +1581,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(edgedb.InvalidValueError,
                                     '"fmt" argument must be'):
             async with self.con.transaction():
-                await self.con.fetchall(
+                await self.con.query(
                     'SELECT cal::to_local_date("2017-10-10", "")')
 
     async def test_edgeql_functions_to_local_date_02(self):
@@ -1598,7 +1598,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(edgedb.InvalidValueError,
                                     'unexpected time zone in format'):
             async with self.con.transaction():
-                await self.con.fetchall(
+                await self.con.query(
                     r'''
                         SELECT
                             cal::to_local_date('2019/01/01 00:00:00 0715',
@@ -1611,7 +1611,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                                     'invalid input syntax'):
             async with self.con.transaction():
                 # including too much
-                await self.con.fetchall(r'''
+                await self.con.query(r'''
                     SELECT
                         cal::to_local_datetime('2019/01/01 00:00:00 0715');
                 ''')
@@ -1627,7 +1627,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(edgedb.InvalidValueError,
                                     '"fmt" argument must be'):
             async with self.con.transaction():
-                await self.con.fetchall(
+                await self.con.query(
                     'SELECT cal::to_local_time("12:00:00", "")')
 
     async def test_edgeql_functions_to_local_time_02(self):
@@ -1644,7 +1644,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(edgedb.InvalidValueError,
                                     'unexpected time zone in format'):
             async with self.con.transaction():
-                await self.con.fetchall(
+                await self.con.query(
                     r'''
                         SELECT
                             cal::to_local_time('00:00:00 0715',
@@ -1657,7 +1657,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                                     'invalid input syntax'):
             async with self.con.transaction():
                 # including time zone
-                await self.con.fetchall(r'''
+                await self.con.query(r'''
                     SELECT
                         cal::to_local_datetime('00:00:00 0715');
                 ''')
@@ -1775,22 +1775,22 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(edgedb.InvalidValueError,
                                     '"fmt" argument must be'):
             async with self.con.transaction():
-                await self.con.fetchall(r'''SELECT to_str(1, "")''')
+                await self.con.query(r'''SELECT to_str(1, "")''')
 
         with self.assertRaisesRegex(edgedb.InvalidValueError,
                                     '"fmt" argument must be'):
             async with self.con.transaction():
-                await self.con.fetchall(r'''SELECT to_str(1.1, "")''')
+                await self.con.query(r'''SELECT to_str(1.1, "")''')
 
         with self.assertRaisesRegex(edgedb.InvalidValueError,
                                     '"fmt" argument must be'):
             async with self.con.transaction():
-                await self.con.fetchall(r'''SELECT to_str(1.1n, "")''')
+                await self.con.query(r'''SELECT to_str(1.1n, "")''')
 
         with self.assertRaisesRegex(edgedb.InvalidValueError,
                                     '"fmt" argument must be'):
             async with self.con.transaction():
-                await self.con.fetchall(
+                await self.con.query(
                     r'''SELECT to_str(to_json('{}'), "")''')
 
     async def test_edgeql_functions_to_str_02(self):
@@ -1853,7 +1853,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(edgedb.InvalidValueError,
                                     '"fmt" argument must be'):
             async with self.con.transaction():
-                await self.con.fetchall(r'''
+                await self.con.query(r'''
                     WITH DT := <datetime>'2018-05-07 15:01:22.306916-05'
                     SELECT to_str(DT, '');
                 ''')
@@ -1861,7 +1861,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(edgedb.InvalidValueError,
                                     '"fmt" argument must be'):
             async with self.con.transaction():
-                await self.con.fetchall(r'''
+                await self.con.query(r'''
                     WITH DT := to_duration(hours:=20)
                     SELECT to_str(DT, '');
                 ''')
@@ -1929,7 +1929,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(edgedb.InvalidValueError,
                                     '"fmt" argument must be'):
             async with self.con.transaction():
-                await self.con.fetchall(r'''
+                await self.con.query(r'''
                     WITH DT := <cal::local_time>'12:00:00'
                     SELECT to_str(DT, '');
                 ''')
@@ -1937,7 +1937,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(edgedb.InvalidValueError,
                                     '"fmt" argument must be'):
             async with self.con.transaction():
-                await self.con.fetchall(r'''
+                await self.con.query(r'''
                     WITH DT := <cal::local_date>'2018-05-07'
                     SELECT to_str(DT, '');
                 ''')
@@ -2016,7 +2016,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(edgedb.InvalidValueError,
                                     '"fmt" argument must be'):
             async with self.con.transaction():
-                await self.con.fetchall(r'''SELECT to_str(987654321, '');''',)
+                await self.con.query(r'''SELECT to_str(987654321, '');''',)
 
     async def test_edgeql_functions_to_str_06(self):
         await self.assert_query_result(
@@ -2077,7 +2077,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(edgedb.InvalidValueError,
                                     '"fmt" argument must be'):
             async with self.con.transaction():
-                await self.con.fetchall(
+                await self.con.query(
                     r'''SELECT to_str(123.456789e20, '');''')
 
     async def test_edgeql_functions_to_str_07(self):
@@ -2104,7 +2104,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(edgedb.InvalidValueError,
                                     '"fmt" argument must be'):
             async with self.con.transaction():
-                await self.con.fetchall(
+                await self.con.query(
                     r'''SELECT to_str(<cal::local_time>'15:01:22', '');''',)
 
     async def test_edgeql_functions_array_join_01(self):
@@ -2219,7 +2219,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(edgedb.InvalidValueError,
                                     '"fmt" argument must be'):
             async with self.con.transaction():
-                await self.con.fetchall('''SELECT to_int64('1', '')''')
+                await self.con.query('''SELECT to_int64('1', '')''')
 
     async def test_edgeql_functions_to_int_02(self):
         await self.assert_query_result(
@@ -2296,7 +2296,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(edgedb.InvalidValueError,
                                     '"fmt" argument must be'):
             async with self.con.transaction():
-                await self.con.fetchall('''SELECT to_int32('1', '')''')
+                await self.con.query('''SELECT to_int32('1', '')''')
 
     async def test_edgeql_functions_to_int_03(self):
         await self.assert_query_result(
@@ -2373,7 +2373,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(edgedb.InvalidValueError,
                                     '"fmt" argument must be'):
             async with self.con.transaction():
-                await self.con.fetchall('''SELECT to_int16('1', '')''')
+                await self.con.query('''SELECT to_int16('1', '')''')
 
     async def test_edgeql_functions_to_float_01(self):
         await self.assert_query_result(
@@ -2404,7 +2404,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(edgedb.InvalidValueError,
                                     '"fmt" argument must be'):
             async with self.con.transaction():
-                await self.con.fetchall('''SELECT to_float64('1', '')''')
+                await self.con.query('''SELECT to_float64('1', '')''')
 
     async def test_edgeql_functions_to_float_02(self):
         await self.assert_query_result(
@@ -2430,7 +2430,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(edgedb.InvalidValueError,
                                     '"fmt" argument must be'):
             async with self.con.transaction():
-                await self.con.fetchall('''SELECT to_float32('1', '')''')
+                await self.con.query('''SELECT to_float32('1', '')''')
 
     async def test_edgeql_functions_to_bigint_01(self):
         await self.assert_query_result(
@@ -2441,13 +2441,13 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(edgedb.InvalidValueError,
                                     '"fmt" argument must be'):
             async with self.con.transaction():
-                await self.con.fetchall('''SELECT to_bigint('1', '')''')
+                await self.con.query('''SELECT to_bigint('1', '')''')
 
     async def test_edgeql_functions_to_bigint_02(self):
         with self.assertRaisesRegex(edgedb.InvalidValueError,
                                     'invalid syntax'):
             async with self.con.transaction():
-                await self.con.fetchall('''SELECT to_bigint('1.02')''')
+                await self.con.query('''SELECT to_bigint('1.02')''')
 
     async def test_edgeql_functions_to_decimal_01(self):
         await self.assert_query_result(
@@ -2476,7 +2476,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(edgedb.InvalidValueError,
                                     '"fmt" argument must be'):
             async with self.con.transaction():
-                await self.con.fetchall('''SELECT to_decimal('1', '')''')
+                await self.con.query('''SELECT to_decimal('1', '')''')
 
     async def test_edgeql_functions_to_decimal_02(self):
         await self.assert_query_result(
@@ -4043,7 +4043,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 edgedb.InvalidValueError,
                 r"invalid input to mean\(\): "
                 r"not enough elements in input set"):
-            await self.con.fetchall(r'''
+            await self.con.query(r'''
                 SELECT math::mean(<int64>{});
             ''')
 
@@ -4109,7 +4109,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 edgedb.InvalidValueError,
                 r"invalid input to stddev\(\): not enough "
                 r"elements in input set"):
-            await self.con.fetchall(r'''
+            await self.con.query(r'''
                 SELECT math::stddev(<int64>{});
             ''')
 
@@ -4118,7 +4118,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 edgedb.InvalidValueError,
                 r"invalid input to stddev\(\): not enough "
                 r"elements in input set"):
-            await self.con.fetchall(r'''
+            await self.con.query(r'''
                 SELECT math::stddev(1);
             ''')
 
@@ -4184,7 +4184,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 edgedb.InvalidValueError,
                 r"invalid input to stddev_pop\(\): not enough "
                 r"elements in input set"):
-            await self.con.fetchall(r'''
+            await self.con.query(r'''
                 SELECT math::stddev_pop(<int64>{});
             ''')
 
@@ -4303,7 +4303,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 edgedb.InvalidValueError,
                 r"invalid input to var\(\): not enough "
                 r"elements in input set"):
-            await self.con.fetchall(r'''
+            await self.con.query(r'''
                 SELECT math::var(<int64>{});
             ''')
 
@@ -4312,7 +4312,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 edgedb.InvalidValueError,
                 r"invalid input to var\(\): not enough "
                 r"elements in input set"):
-            await self.con.fetchall(r'''
+            await self.con.query(r'''
                 SELECT math::var(1);
             ''')
 
@@ -4399,7 +4399,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 edgedb.InvalidValueError,
                 r"invalid input to var_pop\(\): not enough "
                 r"elements in input set"):
-            await self.con.fetchall(r'''
+            await self.con.query(r'''
                 SELECT math::var_pop(<int64>{});
             ''')
 
