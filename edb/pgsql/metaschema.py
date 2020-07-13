@@ -2063,7 +2063,8 @@ class SysConfigFunction(dbops.Function):
                         (s.value->>'internal')::bool AS internal,
                         (s.value->>'system')::bool AS system,
                         (s.value->>'typeid')::uuid AS typeid,
-                        (s.value->>'typemod') AS typemod
+                        (s.value->>'typemod') AS typemod,
+                        (s.value->>'backend_setting') AS backend_setting
                     FROM
                         jsonb_each(edgedbinstdata.__syscache_configspec()) AS s
                     ),
@@ -2110,7 +2111,7 @@ class SysConfigFunction(dbops.Function):
 
                 config_backend AS
                     (SELECT
-                        name,
+                        spec.name,
                         to_jsonb(CASE WHEN u.v[1] IS NOT NULL
                          THEN (setting::int * (u.v[1])::int)::text || u.v[2]
                          ELSE setting || COALESCE(unit, '')
@@ -2123,14 +2124,12 @@ class SysConfigFunction(dbops.Function):
                         LATERAL
                         (SELECT
                             regexp_match(pg_settings.unit, '(\\d+)(\\w+)') AS v
-                        ) AS u
-                     WHERE name = any(ARRAY[
-                         'shared_buffers',
-                         'work_mem',
-                         'effective_cache_size',
-                         'effective_io_concurrency',
-                         'default_statistics_target'
-                     ])
+                        ) AS u,
+                        LATERAL
+                        (SELECT config_spec.name
+                         FROM config_spec
+                         WHERE pg_settings.name = config_spec.backend_setting
+                        ) AS spec
                     )
 
             SELECT
