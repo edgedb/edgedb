@@ -40,7 +40,7 @@ jobs:
         ref: master
         path: edgedb/edgedb-pkg
 
-    - uses: actions/cache@v1
+    - uses: actions/cache@v2
       id: sdk1010cache
       with:
         path: ~/.cache/MacOSX10.10.sdk/
@@ -58,13 +58,13 @@ jobs:
       if: steps.sdk1010cache.outputs.cache-hit != 'true'
       run: |
         mkdir -p ~/.cache
-        rsync -a \
+        cp -a \
           /Applications/Xcode-6.4.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.10.sdk/ \
           ~/.cache/MacOSX10.10.sdk/
 
     - name: Select macOS SDK
       run: |
-        sudo rsync -a \
+        sudo cp -a \
           ~/.cache/MacOSX10.10.sdk/ \
           /Library/Developer/CommandLineTools/SDKs/MacOSX10.10.sdk/
         sudo xcode-select -s /Library/Developer/CommandLineTools
