@@ -2,7 +2,7 @@
   <a href="https://edgedb.com"><img width="160px" src="logo.svg"></a>
 </p>
 
-[![Build Status](https://github.com/edgedb/edgedb/workflows/Tests/badge.svg?event=push&branch=master)](https://github.com/edgedb/edgedb/actions) [![Join the community on Spectrum](https://img.shields.io/badge/join%20the%20community-on%20spectrum-blueviolet)](https://spectrum.chat/edgedb)
+[![Build Status](https://github.com/edgedb/edgedb/workflows/Tests/badge.svg?event=push&branch=master)](https://github.com/edgedb/edgedb/actions) [![Join GitHub discussions](https://img.shields.io/badge/join-github%20discussions-green)](https://github.com/edgedb/edgedb/discussions)
 
 # What is EdgeDB?
 
