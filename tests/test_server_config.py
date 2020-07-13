@@ -304,6 +304,7 @@ class TestServerConfigUtils(unittest.TestCase):
         self.assertEqual(
             json.loads(j)['bool'],
             {
+                'backend_setting': None,
                 'default': True,
                 'internal': False,
                 'system': False,
