@@ -663,7 +663,7 @@ def _normalize_view_ptr_expr(
 
             if ptrcls is not None:
                 ctx.env.schema = ptrcls.set_field_value(
-                    ctx.env.schema, 'is_local', True)
+                    ctx.env.schema, 'is_owned', True)
 
         ptr_cardinality = None
         ptr_target = inference.infer_type(irexpr, ctx.env)
@@ -844,7 +844,7 @@ def _normalize_view_ptr_expr(
 
         ctx.env.schema = ptrcls.set_field_value(
             ctx.env.schema,
-            'is_local',
+            'is_owned',
             True,
         )
 

@@ -48,6 +48,7 @@ pub const UNRESERVED_KEYWORDS: &[&str] = &[
     "only",
     "operator",
     "overloaded",
+    "owned",
     "postfix",
     "prefix",
     "property",

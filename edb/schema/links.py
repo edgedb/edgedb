@@ -229,7 +229,7 @@ class LinkCommand(lproperties.PropertySourceCommand,
         scls = self.scls
         assert isinstance(scls, Link)
 
-        if not scls.get_is_local(schema):
+        if not scls.get_is_owned(schema):
             return
 
         target = scls.get_target(schema)
@@ -385,7 +385,7 @@ class CreateLink(
         src_prop.set_attribute_value('required', True)
         src_prop.set_attribute_value('readonly', True)
         src_prop.set_attribute_value('is_final', True)
-        src_prop.set_attribute_value('is_local', True)
+        src_prop.set_attribute_value('is_owned', True)
         src_prop.set_attribute_value('cardinality',
                                      qltypes.SchemaCardinality.ONE)
 
@@ -418,7 +418,7 @@ class CreateLink(
         tgt_prop.set_attribute_value('required', False)
         tgt_prop.set_attribute_value('readonly', True)
         tgt_prop.set_attribute_value('is_final', True)
-        tgt_prop.set_attribute_value('is_local', True)
+        tgt_prop.set_attribute_value('is_owned', True)
         tgt_prop.set_attribute_value('cardinality',
                                      qltypes.SchemaCardinality.ONE)
 

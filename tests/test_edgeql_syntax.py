@@ -3663,6 +3663,24 @@ aa';
         };
         """
 
+    def test_edgeql_syntax_ddl_type_10(self):
+        """
+        ALTER TYPE mymod::Foo {
+            ALTER PROPERTY foo {
+                SET OWNED;
+            };
+        };
+        """
+
+    def test_edgeql_syntax_ddl_type_11(self):
+        """
+        ALTER TYPE mymod::Foo {
+            ALTER PROPERTY foo {
+                DROP OWNED;
+            };
+        };
+        """
+
     def test_edgeql_syntax_set_command_01(self):
         """
         SET MODULE default;

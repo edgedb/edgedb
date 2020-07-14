@@ -365,6 +365,14 @@ class AlterFinal(Nonterm):
             name='is_final', value=True)
 
 
+class AlterOwned(Nonterm):
+    def reduce_DROP_OWNED(self, *kids):
+        self.val = qlast.SetSpecialField(name='is_owned', value=False)
+
+    def reduce_SET_OWNED(self, *kids):
+        self.val = qlast.SetSpecialField(name='is_owned', value=True)
+
+
 class OptInheritPosition(Nonterm):
     def reduce_BEFORE_NodeName(self, *kids):
         self.val = qlast.Position(ref=kids[1].val, position='BEFORE')
@@ -608,6 +616,7 @@ commands_block(
     RenameStmt,
     SetFieldStmt,
     SetDelegatedStmt,
+    AlterOwned,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     DropAnnotationValueStmt,
@@ -817,6 +826,7 @@ class DropAnnotationStmt(Nonterm):
 commands_block(
     'AlterIndex',
     SetFieldStmt,
+    AlterOwned,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     DropAnnotationValueStmt,
@@ -1042,6 +1052,7 @@ commands_block(
     UsingStmt,
     RenameStmt,
     SetFieldStmt,
+    AlterOwned,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     DropAnnotationValueStmt,
@@ -1252,6 +1263,7 @@ commands_block(
     UsingStmt,
     RenameStmt,
     SetFieldStmt,
+    AlterOwned,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     DropAnnotationValueStmt,

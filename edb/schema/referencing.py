@@ -45,7 +45,7 @@ class ReferencedObject(so.DerivableObject):
 
     #: True if the object has an explicit definition and is not
     #: purely inherited.
-    is_local = so.SchemaField(
+    is_owned = so.SchemaField(
         bool,
         default=False,
         inheritable=False,
@@ -444,7 +444,7 @@ class CreateReferencedObject(
                 ),
             )
 
-            cmd.set_attribute_value('is_local', True)
+            cmd.set_attribute_value('is_owned', True)
 
             if getattr(astnode, 'is_abstract', None):
                 cmd.set_attribute_value('is_abstract', True)
@@ -642,7 +642,7 @@ class ReferencedInheritingObjectCommand(
         referrer_class = referrer_ctx.op.get_schema_metaclass()
         refdict = referrer_class.get_refdict_for_class(objcls)
 
-        if context.declarative and scls.get_is_local(schema):
+        if context.declarative and scls.get_is_owned(schema):
             if (implicit_bases
                     and refdict.requires_explicit_overloaded
                     and not self.get_attribute_value('declared_overloaded')):
@@ -758,7 +758,7 @@ class CreateReferencedInheritingObject(
             if self.get_attribute_value('is_from_alias'):
                 return None
 
-            elif not self.get_attribute_value('is_local'):
+            elif not self.get_attribute_value('is_owned'):
                 if context.descriptive_mode:
                     astnode = super()._get_ast(
                         schema,
@@ -952,6 +952,27 @@ class AlterReferencedInheritingObject(
         else:
             return super()._get_ast(schema, context, parent_node=parent_node)
 
+    def _apply_field_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        node: qlast.DDLOperation,
+        op: sd.AlterObjectProperty,
+    ) -> None:
+        assert isinstance(node, qlast.ObjectDDL)
+        if (
+            op.property == 'is_owned'
+            and not isinstance(self, sd.DeleteObject)
+        ):
+            node.commands.append(
+                qlast.SetSpecialField(
+                    name=op.property,
+                    value=op.new_value
+                )
+            )
+        else:
+            super()._apply_field_ast(schema, context, node, op)
+
     @classmethod
     def _cmd_tree_from_ast(
         cls,
@@ -962,8 +983,11 @@ class AlterReferencedInheritingObject(
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         refctx = cls.get_referrer_context(context)
-        if refctx is not None:
-            cmd.set_attribute_value('is_local', True)
+        if (
+            refctx is not None
+            and qlast.get_ddl_field_value(astnode, 'is_owned') is None
+        ):
+            cmd.set_attribute_value('is_owned', True)
 
         assert isinstance(cmd, AlterReferencedInheritingObject)
         return cmd
@@ -974,9 +998,9 @@ class AlterReferencedInheritingObject(
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         scls = self.scls
-        was_local = scls.get_is_local(schema)
+        was_local = scls.get_is_owned(schema)
         schema = super()._alter_begin(schema, context)
-        now_local = scls.get_is_local(schema)
+        now_local = scls.get_is_owned(schema)
         if not was_local and now_local:
             self._validate(schema, context)
         return schema
@@ -1196,7 +1220,7 @@ class DeleteReferencedInheritingObject(
 
         cmd: sd.Command
 
-        if child_ref.get_is_local(schema) or implicit_bases:
+        if child_ref.get_is_owned(schema) or implicit_bases:
             # Child is either defined locally or is inherited
             # from another parent, so we need to do a rebase.
             removed_bases, added_bases = self.get_ref_implicit_base_delta(
@@ -1230,7 +1254,7 @@ class DeleteReferencedInheritingObject(
         refctx = type(self).get_referrer_context(context)
         if (
             refctx is not None
-            and not self.get_orig_attribute_value('is_local')
+            and not self.get_orig_attribute_value('is_owned')
         ):
             return None
         else:

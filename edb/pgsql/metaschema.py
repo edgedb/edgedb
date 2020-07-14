@@ -2424,7 +2424,7 @@ def _generate_database_views(schema):
             ((d.description)->>'id')::uuid              AS source,
             (annotations->>'id')::uuid                  AS target,
             (annotations->>'value')::text               AS value,
-            (annotations->>'is_local')::bool            AS is_local
+            (annotations->>'is_owned')::bool            AS is_owned
         FROM
             pg_database dat
             CROSS JOIN LATERAL (
@@ -2443,7 +2443,7 @@ def _generate_database_views(schema):
             ((d.description)->>'id')::uuid              AS source,
             (annotations->>'id')::uuid                  AS target,
             (annotations->>'value')::text               AS value,
-            (annotations->>'is_local')::bool            AS is_local
+            (annotations->>'is_owned')::bool            AS is_owned
         FROM
             pg_database dat
             CROSS JOIN LATERAL (
@@ -2547,7 +2547,7 @@ def _generate_role_views(schema, *, superuser_role):
             ((d.description)->>'id')::uuid              AS source,
             (annotations->>'id')::uuid                  AS target,
             (annotations->>'value')::text               AS value,
-            (annotations->>'is_local')::bool            AS is_local
+            (annotations->>'is_owned')::bool            AS is_owned
         FROM
             pg_catalog.pg_roles AS a
             CROSS JOIN LATERAL (
@@ -2568,7 +2568,7 @@ def _generate_role_views(schema, *, superuser_role):
             ((d.description)->>'id')::uuid              AS source,
             (annotations->>'id')::uuid                  AS target,
             (annotations->>'value')::text               AS value,
-            (annotations->>'is_local')::bool            AS is_local
+            (annotations->>'is_owned')::bool            AS is_owned
         FROM
             pg_catalog.pg_roles AS a
             CROSS JOIN LATERAL (
