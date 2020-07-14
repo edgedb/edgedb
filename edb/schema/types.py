@@ -122,7 +122,7 @@ class Type(
         inheritance_merge: bool = True,
         preserve_path_id: bool = False,
         transient: bool = False,
-        refdict_whitelist: Optional[AbstractSet[str]] = None,
+        inheritance_refdicts: Optional[AbstractSet[str]] = None,
         **kwargs: Any,
     ) -> typing.Tuple[s_schema.Schema, TypeT]:
 
@@ -159,8 +159,8 @@ class Type(
             if not inheritance_merge:
                 context.current().inheritance_merge = False
 
-            if refdict_whitelist is not None:
-                context.current().inheritance_refdicts = refdict_whitelist
+            if inheritance_refdicts is not None:
+                context.current().inheritance_refdicts = inheritance_refdicts
 
             if mark_derived:
                 context.current().mark_derived = True
