@@ -1980,6 +1980,7 @@ class DescribeRolesAsDDLFunction(dbops.Function):
         roles = inhviewname(schema, role_obj)
         member_of = role_obj.get_pointers(schema).get(schema, 'member_of')
         members = inhviewname(schema, member_of)
+        qi_superuser = qlquote.quote_ident(defines.EDGEDB_SUPERUSER)
         text = f"""
             WITH RECURSIVE
             dependencies AS (
@@ -2001,26 +2002,48 @@ class DescribeRolesAsDDLFunction(dbops.Function):
                 ORDER BY max(depth) ASC
             )
             SELECT
-            string_agg(
-                concat(
-                    'CREATE SUPERUSER ROLE ',
-                    edgedb.quote_ident(role.name),
-                    NULLIF((SELECT
-                        concat(' EXTENDING ',
-                            string_agg(edgedb.quote_ident(parent.name), ', '))
-                        FROM {q(*members)} member
-                            INNER JOIN {q(*roles)} parent
-                            ON parent.id = member.target
-                        WHERE member.source = role.id
-                    ), ' EXTENDING '),
-                    CASE WHEN role.password IS NOT NULL THEN
-                        concat(' {{ SET password_hash := ',
-                               quote_literal(role.password),
-                               '}};')
-                    ELSE ';' END
-                ),
+            coalesce(string_agg(
+                CASE WHEN role.name = { ql(defines.EDGEDB_SUPERUSER) } THEN
+                    NULLIF(concat(
+                        'ALTER ROLE { qi_superuser } {{',
+                        NULLIF((SELECT
+                            concat(' EXTENDING ',
+                                string_agg(edgedb.quote_ident(parent.name),
+                                           ', '), ';')
+                            FROM {q(*members)} member
+                                INNER JOIN {q(*roles)} parent
+                                ON parent.id = member.target
+                            WHERE member.source = role.id
+                        ), ' EXTENDING ;'),
+                        CASE WHEN role.password IS NOT NULL THEN
+                            concat(' SET password_hash := ',
+                                   quote_literal(role.password),
+                                   ';')
+                        ELSE '' END,
+                        '}};'
+                    ), 'ALTER ROLE { qi_superuser } {{}};')
+                ELSE
+                    concat(
+                        'CREATE SUPERUSER ROLE ',
+                        edgedb.quote_ident(role.name),
+                        NULLIF((SELECT
+                            concat(' EXTENDING ',
+                                string_agg(edgedb.quote_ident(parent.name),
+                                           ', '))
+                            FROM {q(*members)} member
+                                INNER JOIN {q(*roles)} parent
+                                ON parent.id = member.target
+                            WHERE member.source = role.id
+                        ), ' EXTENDING '),
+                        CASE WHEN role.password IS NOT NULL THEN
+                            concat(' {{ SET password_hash := ',
+                                   quote_literal(role.password),
+                                   '}};')
+                        ELSE ';' END
+                    )
+                END,
                 '\n'
-            ) str
+            ), '') str
             FROM ordered_roles
                 JOIN {q(*roles)} role
                 ON role.id = ordered_roles.id
