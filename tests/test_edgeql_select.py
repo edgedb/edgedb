@@ -5534,7 +5534,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_bad_reference_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r"object type or alias 'Usr' does not exist",
+                r"object type or alias 'test::Usr' does not exist",
                 _hint="did you mean one of these: User, URL?"):
 
             await self.con.query("""

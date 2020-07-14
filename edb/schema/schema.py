@@ -813,7 +813,6 @@ class Schema(s_abc.Schema):
         name: str,
         default: Union[so.Object_T, so.NoDefaultT] = so.NoDefault,
         *,
-        refname: Optional[str] = None,
         module_aliases: Optional[Mapping[Optional[str], str]] = None,
         type: Optional[Type[so.Object_T]] = None,
         condition: Optional[Callable[[so.Object], bool]] = None,
@@ -828,7 +827,6 @@ class Schema(s_abc.Schema):
         name: str,
         default: Union[so.Object_T, so.NoDefaultT, None] = so.NoDefault,
         *,
-        refname: Optional[str] = None,
         module_aliases: Optional[Mapping[Optional[str], str]] = None,
         type: Optional[Type[so.Object_T]] = None,
         condition: Optional[Callable[[so.Object], bool]] = None,
@@ -842,7 +840,6 @@ class Schema(s_abc.Schema):
         name: str,
         default: Union[so.Object_T, so.NoDefaultT, None] = so.NoDefault,
         *,
-        refname: Optional[str] = None,
         module_aliases: Optional[Mapping[Optional[str], str]] = None,
         type: Optional[Type[so.Object_T]] = None,
         condition: Optional[Callable[[so.Object], bool]] = None,
@@ -870,11 +867,18 @@ class Schema(s_abc.Schema):
             else:
                 label = 'schema item'
 
-        if refname is None:
-            refname = name
+        refname = name
 
         if type is not None:
-            refname = type.get_displayname_static(refname)
+            if not sn.Name.is_qualified(refname):
+                if module_aliases is not None:
+                    default_module = module_aliases.get(None)
+                    if default_module is not None:
+                        refname = type.get_displayname_static(
+                            f'{default_module}::{refname}',
+                        )
+            else:
+                refname = type.get_displayname_static(refname)
 
         raise errors.InvalidReferenceError(
             f'{label} {refname!r} does not exist',
