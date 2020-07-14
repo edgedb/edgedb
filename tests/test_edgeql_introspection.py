@@ -154,7 +154,7 @@ class TestIntrospection(tb.QueryTestCase):
                     pointers: {
                         name,
                         cardinality,
-                    } FILTER @is_local
+                    } FILTER @is_owned
                       ORDER BY .name
                 }
                 FILTER ObjectType.name = 'test::User';
@@ -365,7 +365,7 @@ class TestIntrospection(tb.QueryTestCase):
                 SELECT ObjectType {
                     properties: {
                         name,
-                        @is_local,
+                        @is_owned,
                         inherited_fields,
                     } ORDER BY .name
                 }
@@ -376,7 +376,7 @@ class TestIntrospection(tb.QueryTestCase):
                 'properties': [{
                     "name": "address",
                     "inherited_fields": [],
-                    "@is_local": True
+                    "@is_owned": True
                 }, {
                     "name": "id",
                     "inherited_fields": {
@@ -386,7 +386,7 @@ class TestIntrospection(tb.QueryTestCase):
                         "required",
                         "target",
                     },
-                    "@is_local": False
+                    "@is_owned": False
                 }, {
                     "name": "name",
                     "inherited_fields": {
@@ -395,7 +395,7 @@ class TestIntrospection(tb.QueryTestCase):
                         "required",
                         "target",
                     },
-                    "@is_local": False
+                    "@is_owned": False
                 }]
             }]
         )

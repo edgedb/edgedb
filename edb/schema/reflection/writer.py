@@ -703,77 +703,16 @@ def write_meta_alter_object(
 
         if isinstance(cmd, s_ref.ReferencedObjectCommand):
             refctx = cmd.get_referrer_context(context)
-        else:
-            refctx = None
-
-        if (
-            refctx is not None
-            and mcls.get_reflection_method() is so.ReflectionMethod.AS_LINK
-        ):
-            refop = refctx.op
-            refcls = refop.get_schema_metaclass()
-            refdict = refcls.get_refdict_for_class(mcls)
-
-            target_link = mcls.get_reflection_link()
-            assert target_link is not None
-
-            target_field = mcls.get_field(target_link)
-            target = cmd.get_orig_attribute_value(target_link)
-            layout = classlayout[refcls][refdict.attr]
-            lprops = layout.properties
-
-            parent_variables = {}
-
-            parent_variables[f'__{target_link}'] = (
-                json.dumps(str(target.get_name(schema)))
-            )
-
-            # XXX: we have to do a -= followed by a += because
-            # support for filtered nested link property updates
-            # is currently broken.
-
-            parent_update_query = f'''
-                UPDATE schema::{refcls.__name__}
-                FILTER .name__internal = <str>$__parent_classname
-                SET {{
-                    {refdict.attr} -= (
-                        SELECT DETACHED (schema::{target_field.type.__name__})
-                        FILTER .name__internal = <str>$__{target_link}
-                    )
-                }}
-            '''
-
-            parent_variables['__parent_classname'] = (
-                json.dumps(refop.classname)
-            )
-
-            blocks.append((parent_update_query, parent_variables))
-
-            shape, append_variables = _build_object_mutation_shape(
-                cmd,
-                classlayout=classlayout,
-                lprop_fields=lprops,
-                lprops_only=True,
-                is_internal_reflection=is_internal_reflection,
-                stdmode=stdmode,
-                schema=schema,
-                context=context,
-            )
-
-            parent_update_query = f'''
-                UPDATE schema::{refcls.__name__}
-                FILTER .name__internal = <str>$__parent_classname
-                SET {{
-                    {refdict.attr} += (
-                        SELECT schema::{target_field.type.__name__} {{
-                            {shape}
-                        }} FILTER .name__internal = <str>$__{target_link}
-                    )
-                }}
-            '''
-
-            parent_variables.update(append_variables)
-            blocks.append((parent_update_query, parent_variables))
+            if refctx is not None:
+                _update_lprops(
+                    cmd,
+                    classlayout=classlayout,
+                    schema=schema,
+                    blocks=blocks,
+                    context=context,
+                    is_internal_reflection=is_internal_reflection,
+                    stdmode=stdmode,
+                )
 
     _descend(
         cmd,
@@ -784,6 +723,97 @@ def write_meta_alter_object(
         is_internal_reflection=is_internal_reflection,
         stdmode=stdmode,
     )
+
+
+def _update_lprops(
+    cmd: s_ref.ReferencedObjectCommand,  # type: ignore
+    *,
+    classlayout: Dict[Type[so.Object], sr_struct.SchemaTypeLayout],
+    schema: s_schema.Schema,
+    blocks: List[Tuple[str, Dict[str, Any]]],
+    context: sd.CommandContext,
+    is_internal_reflection: bool,
+    stdmode: bool,
+) -> None:
+    mcls = cmd.get_schema_metaclass()
+    refctx = cmd.get_referrer_context_or_die(context)
+    refop = refctx.op
+    refcls = refop.get_schema_metaclass()
+    refdict = refcls.get_refdict_for_class(mcls)
+    layout = classlayout[refcls][refdict.attr]
+    lprops = layout.properties
+
+    if not lprops:
+        return
+
+    if mcls.get_reflection_method() is so.ReflectionMethod.AS_LINK:
+        target_link = mcls.get_reflection_link()
+        assert target_link is not None
+        target_field = mcls.get_field(target_link)
+        target_obj = cmd.get_orig_attribute_value(target_link)
+        target_ref = target_obj.get_name(schema)
+        target_clsname = target_field.type.__name__
+    else:
+        referrer_cls = refop.get_schema_metaclass()
+        target_field = referrer_cls.get_field(refdict.attr)
+        if issubclass(target_field.type, so.ObjectCollection):
+            target_type = target_field.type.type
+        else:
+            target_type = target_field.type
+        target_clsname = target_type.__name__
+        target_link = refdict.attr
+        target_ref = cmd.classname
+
+    shape, append_variables = _build_object_mutation_shape(
+        cmd,
+        classlayout=classlayout,
+        lprop_fields=lprops,
+        lprops_only=True,
+        is_internal_reflection=is_internal_reflection,
+        stdmode=stdmode,
+        schema=schema,
+        context=context,
+    )
+
+    if shape:
+        parent_variables = {}
+        parent_variables[f'__{target_link}'] = json.dumps(target_ref)
+
+        # XXX: we have to do a -= followed by a += because
+        # support for filtered nested link property updates
+        # is currently broken.
+
+        parent_update_query = f'''
+            UPDATE schema::{refcls.__name__}
+            FILTER .name__internal = <str>$__parent_classname
+            SET {{
+                {refdict.attr} -= (
+                    SELECT DETACHED (schema::{target_clsname})
+                    FILTER .name__internal = <str>$__{target_link}
+                )
+            }}
+        '''
+
+        parent_variables['__parent_classname'] = (
+            json.dumps(refop.classname)
+        )
+
+        blocks.append((parent_update_query, parent_variables))
+
+        parent_update_query = f'''
+            UPDATE schema::{refcls.__name__}
+            FILTER .name__internal = <str>$__parent_classname
+            SET {{
+                {refdict.attr} += (
+                    SELECT schema::{target_clsname} {{
+                        {shape}
+                    }} FILTER .name__internal = <str>$__{target_link}
+                )
+            }}
+        '''
+
+        parent_variables.update(append_variables)
+        blocks.append((parent_update_query, parent_variables))
 
 
 @write_meta.register

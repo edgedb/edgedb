@@ -250,7 +250,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         local_refs = self.scls.get_field_value(schema, refdict.attr)
         dropped_refs: Dict[str, Type[sd.ObjectCommand[so.Object]]] = {}
         for k, v in local_refs.items(schema):
-            if not v.get_is_local(schema):
+            if not v.get_is_owned(schema):
                 mcls = type(v)
                 create_cmd = sd.ObjectCommandMeta.get_command_class_or_die(
                     sd.CreateObject, mcls)

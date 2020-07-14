@@ -75,7 +75,7 @@ ALTER TYPE std::BaseObject {
 
 
 CREATE ABSTRACT LINK schema::reference {
-    CREATE PROPERTY is_local -> std::bool;
+    CREATE PROPERTY is_owned -> std::bool;
 };
 
 

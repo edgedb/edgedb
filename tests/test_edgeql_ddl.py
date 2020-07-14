@@ -679,6 +679,99 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ],
         )
 
+    async def test_edgeql_ddl_24(self):
+        # Test transition of property from inherited to owned.
+        await self.con.execute("""
+            SET MODULE test;
+            CREATE TYPE Desc;
+            CREATE TYPE Named {
+                CREATE PROPERTY name -> str;
+                CREATE LINK desc -> Desc;
+            };
+            CREATE TYPE User EXTENDING Named;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH
+                    C := (SELECT schema::ObjectType
+                          FILTER .name = 'test::User')
+                SELECT
+                    C {
+                        pointers: { @is_owned }
+                        FILTER .name IN {'name', 'desc'}
+                    };
+            """,
+            [
+                {
+                    'pointers': [{
+                        '@is_owned': False,
+                    }, {
+                        '@is_owned': False,
+                    }],
+                },
+            ],
+        )
+
+        await self.con.execute("""
+            ALTER TYPE User {
+                ALTER PROPERTY name SET OWNED;
+                ALTER LINK desc SET OWNED;
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH
+                    C := (SELECT schema::ObjectType
+                          FILTER .name = 'test::User')
+                SELECT
+                    C {
+                        pointers: { @is_owned }
+                        FILTER .name IN {'name', 'desc'}
+                    };
+            """,
+            [
+                {
+                    'pointers': [{
+                        '@is_owned': True,
+                    }, {
+                        '@is_owned': True,
+                    }],
+                },
+            ],
+        )
+
+        # and drop it again
+        await self.con.execute("""
+            ALTER TYPE User {
+                ALTER PROPERTY name DROP OWNED;
+                ALTER LINK desc DROP OWNED;
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH
+                    C := (SELECT schema::ObjectType
+                          FILTER .name = 'test::User')
+                SELECT
+                    C {
+                        pointers: { @is_owned }
+                        FILTER .name IN {'name', 'desc'}
+                    };
+            """,
+            [
+                {
+                    'pointers': [{
+                        '@is_owned': False,
+                    }, {
+                        '@is_owned': False,
+                    }],
+                },
+            ],
+        )
+
     async def test_edgeql_ddl_default_01(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,

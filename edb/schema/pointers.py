@@ -632,7 +632,7 @@ class PseudoPointer(s_abc.Pointer):
     def get_is_derived(self, schema: s_schema.Schema) -> bool:
         return False
 
-    def get_is_local(self, schema: s_schema.Schema) -> bool:
+    def get_is_owned(self, schema: s_schema.Schema) -> bool:
         return True
 
     def get_union_of(
@@ -964,7 +964,7 @@ class PointerCommand(
             return
 
         scls = self.scls
-        if not scls.get_is_local(schema):
+        if not scls.get_is_owned(schema):
             return
 
         default_expr = scls.get_default(schema)

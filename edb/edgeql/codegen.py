@@ -954,6 +954,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             keywords.append('FINAL')
         elif fname == 'required':
             keywords.append('REQUIRED')
+        elif fname == 'is_owned':
+            keywords.append('OWNED')
         elif fname == 'cardinality':
             if node.value:
                 keywords.append(node.value.as_ptr_qual().upper())

@@ -135,7 +135,7 @@ class ObjectType(
                 isinstance(lnk, links.Link)
                 and lnk.get_shortname(schema).name == name
                 and not lnk.get_source_type(schema).is_view(schema)
-                and lnk.get_is_local(schema)
+                and lnk.get_is_owned(schema)
                 and (not sources or lnk.get_source_type(schema) in sources)
             )
         }
@@ -148,7 +148,7 @@ class ObjectType(
                     isinstance(lnk, links.Link)
                     and lnk.get_shortname(schema).name == name
                     and not lnk.get_source_type(schema).is_view(schema)
-                    and lnk.get_is_local(schema)
+                    and lnk.get_is_owned(schema)
                     and (not sources or lnk.get_source_type(schema) in sources)
                 )
             )
