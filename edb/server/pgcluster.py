@@ -819,6 +819,6 @@ def get_remote_pg_cluster(dsn: str) -> RemoteCluster:
         loop.close()
 
     if is_rds:
-        return RDSCluster(addrs[0], params)
+        return RDSCluster(addrs[0], params, pg_config_path=str(pg_config))
     else:
         return rcluster
