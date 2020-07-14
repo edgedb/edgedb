@@ -67,7 +67,7 @@ class ScopeTreeNode:
     factoring_fence: bool
     """Prevent prefix factoring across this node."""
 
-    factoring_whitelist: Set[pathid.PathId]
+    factoring_allowlist: Set[pathid.PathId]
     """A list of prefixes that are always allowed to be factored."""
 
     optional: bool
@@ -98,7 +98,7 @@ class ScopeTreeNode:
         self.protect_parent = False
         self.unnest_fence = False
         self.factoring_fence = False
-        self.factoring_whitelist = set()
+        self.factoring_allowlist = set()
         self.optional = False
         self.children = set()
         self.namespaces = set()
@@ -701,7 +701,7 @@ class ScopeTreeNode:
                 parent_fence = node.parent_fence
                 if (parent_fence is not None
                         and any(_paths_equal(path_id, wl, namespaces)
-                                for wl in parent_fence.factoring_whitelist)):
+                                for wl in parent_fence.factoring_allowlist)):
                     ans_finfo = FenceInfo(
                         unnest_fence=ans_finfo.unnest_fence,
                         factoring_fence=False,

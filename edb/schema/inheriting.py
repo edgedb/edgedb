@@ -591,9 +591,9 @@ class CreateInheritingObject(
             mcls = self.get_schema_metaclass()
 
             for refdict in mcls.get_refdicts():
-                refdict_whitelist = context.inheritance_refdicts
-                if ((refdict_whitelist is None
-                        or refdict.attr in refdict_whitelist)
+                inheritance_refdicts = context.inheritance_refdicts
+                if ((inheritance_refdicts is None
+                        or refdict.attr in inheritance_refdicts)
                         and (context.inheritance_merge is None
                              or context.inheritance_merge)):
                     cmd.add(self.inherit_classref_dict(

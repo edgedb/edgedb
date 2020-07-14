@@ -148,7 +148,7 @@ def compile_ForQuery(
         # of the UNION argument, but is perfectly legal to be referenced
         # inside a factoring fence that is an immediate child of this
         # scope.
-        iterator_scope_parent.factoring_whitelist.add(
+        iterator_scope_parent.factoring_allowlist.add(
             stmt.iterator_stmt.path_id)
         node = iterator_scope_parent.find_descendant(iterator_stmt.path_id)
         if node is not None:

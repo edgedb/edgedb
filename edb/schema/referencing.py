@@ -85,7 +85,7 @@ class ReferencedObject(so.DerivableObject):
         derived_name_base: Optional[str] = None,
         inheritance_merge: bool = True,
         preserve_path_id: Optional[bool] = None,
-        refdict_whitelist: Optional[AbstractSet[str]] = None,
+        inheritance_refdicts: Optional[AbstractSet[str]] = None,
         transient: bool = False,
         name: Optional[str] = None,
         **kwargs: Any,
@@ -161,8 +161,8 @@ class ReferencedObject(so.DerivableObject):
             if not inheritance_merge:
                 context.current().inheritance_merge = False
 
-            if refdict_whitelist is not None:
-                context.current().inheritance_refdicts = refdict_whitelist
+            if inheritance_refdicts is not None:
+                context.current().inheritance_refdicts = inheritance_refdicts
 
             if mark_derived:
                 context.current().mark_derived = True
