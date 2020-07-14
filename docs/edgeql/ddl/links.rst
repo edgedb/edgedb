@@ -21,7 +21,8 @@ CREATE LINK
     [ WITH <with-item> [, ...] ]
     {CREATE|ALTER} TYPE <TypeName> "{"
       [ ... ]
-      CREATE [ REQUIRED ] [{SINGLE | MULTI}] LINK <name>
+      CREATE [{REQUIRED | OPTIONAL}] [{SINGLE | MULTI}]
+        LINK <name>
         [ EXTENDING <base> [, ...] ] -> <type>
         [ "{" <subcommand>; [...] "}" ] ;
       [ ... ]
@@ -32,7 +33,8 @@ CREATE LINK
     [ WITH <with-item> [, ...] ]
     {CREATE|ALTER} TYPE <TypeName> "{"
       [ ... ]
-      CREATE [REQUIRED] [{SINGLE | MULTI}] LINK <name> := <expression>;
+      CREATE [{REQUIRED | OPTIONAL}] [{SINGLE | MULTI}]
+        LINK <name> := <expression>;
       [ ... ]
     "}"
 
@@ -79,6 +81,12 @@ Parameters
     link resolve to an empty value.  Child links **always** inherit
     the *required* attribute, i.e it is not possible to make a
     required link non-required by extending it.
+
+:eql:synopsis:`OPTIONAL`
+    This is the default qualifier assumed when no qualifier is
+    specified, but it can also be specified explicitly. The link is
+    considered *optional* for the parent object type, i.e. it is
+    possible for the link to resolve to an empty value.
 
 :eql:synopsis:`MULTI`
     Specifies that there may be more than one instance of this link
@@ -276,7 +284,7 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
     Make the link *required*.
 
 :eql:synopsis:`DROP REQUIRED`
-    Make the link no longer *required*.
+    Make the link no longer *required* (i.e. make it *optional*).
 
 :eql:synopsis:`SET SINGLE`
     Change the maximum cardinality of the link set to *one*.  Only

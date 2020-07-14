@@ -61,7 +61,8 @@ commands <ref_eql_ddl_props>`.
 .. sdl:synopsis::
 
     # Concrete property form used inside type declaration:
-    [ overloaded ] [ required ] [{single | multi}] property <name>
+    [ overloaded ] [{required | optional}] [{single | multi}]
+      property <name>
       [ extending <base> [, ...] ] -> <type>
       [ "{"
           [ default := <expression> ; ]
@@ -72,7 +73,8 @@ commands <ref_eql_ddl_props>`.
         "}" ]
 
     # Computable property form used inside type declaration:
-    [ required ] [{single | multi}] property <name> := <expression>;
+    [{required | optional}] [{single | multi}]
+      property <name> := <expression>;
 
     # Abstract property form:
     abstract property [<module>::]<name> [extending <base> [, ...]]

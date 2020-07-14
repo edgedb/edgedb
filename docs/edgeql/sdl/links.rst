@@ -66,7 +66,8 @@ commands <ref_eql_ddl_links>`.
 .. sdl:synopsis::
 
     # Concrete link form used inside type declaration:
-    [ overloaded ] [ required ] [{single | multi}] link <name>
+    [ overloaded ] [{required | optional}] [{single | multi}]
+      link <name>
       [ extending <base> [, ...] ] -> <type>
       [ "{"
           [ default := <expression> ; ]
@@ -80,7 +81,8 @@ commands <ref_eql_ddl_links>`.
 
 
     # Computable link form used inside type declaration:
-    [ required ] [{single | multi}] link <name> := <expression>;
+    [{required | optional}] [{single | multi}]
+      link <name> := <expression>;
 
     # Abstract link form:
     abstract link <name> [extending <base> [, ...]]
