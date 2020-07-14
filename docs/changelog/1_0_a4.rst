@@ -1,0 +1,75 @@
+===========
+1.0 Alpha 4
+===========
+
+This changelog summarizes new features and breaking changes in
+EdgeDB 1.0 alpha 4 "Barnard's Star".
+
+
+EdgeQL
+======
+
+* Add ``__std__`` alias for ``std`` module so that there's a way to refer
+  to the standard module which cannot be masked by a ``WITH std AS
+  MODULE foo`` construct (:eql:gh:`#1457`).
+* Allow explicit ``OPTIONAL`` qualifier for links and properties in
+  DDL and SDL. In particular, use it in :eql:stmt:`DESCRIBE` command
+  output. (:eql:gh:`#1342`).
+* Only show link properties on link computables that are aliases.
+* :eql:stmt:`DESCRIBE` command now shows matches that are potentially
+  masked by the user-defined types or functions (:eql:gh:`#1439`).
+* Add ``DESCRIBE ROLES`` and ``DESCRIBE SYSTEM CONFIG`` to the
+  :eql:stmt:`DESCRIBE` command.
+* Allow underscore in numeric literals and forbids float and decimal
+  constants to end in ``.`` (:eql:gh:`#920`).
+* Validate the ``REQUIRED`` flag on computables (:eql:gh:`#217`).
+* Forbid reference to link properties outside of a path expression
+  (:eql:gh:`#1512`).
+* Allow annotations to be renamed (:eql:gh:`#762`).
+* Initial implementation of the new migration syntax
+  (`RFC 1000 <migrations_>`_).
+
+
+CLI
+===
+
+* We have a new ``edgedb server`` group of commands that ships with
+  the default EdgeDB CLI. Check out the details in this `RFC 1001
+  <edbserver_>`_.
+* The ``edgedb`` REPL prompt now has a transaction indicator:
+
+  .. code-block:: edgeql-repl
+
+    edgedb> start transaction;
+    OK: START TRANSACTION
+    edgedb[T]>
+
+
+Server
+======
+
+* Remove reliance on Postgres table inheritance (:eql:gh:`#1468`)
+* The ``edgedb-server`` installed by official installers is now called
+  ``edgedb-server-1-alpha4``.
+
+
+Misc
+====
+
+* Rename ``fetch`` to ``query`` in the `edgedb-js
+  <https://github.com/edgedb/edgedb-js>`_ and the `edgedb-python
+  <https://github.com/edgedb/edgedb-python>`_ drivers.
+* Add connection pooling to `edgedb-js <https://github.com/edgedb/edgedb-js>`_
+  driver.
+* Update the `edgedb-js <https://github.com/edgedb/edgedb-js>`_ driver
+  to v0.8.0.
+* Update the `edgedb-python <https://github.com/edgedb/edgedb-python>`_
+  driver to v0.9.0.
+
+
+
+.. _migrations:
+    https://github.com/edgedb/rfcs/blob/master/text/1000-migrations.rst
+.. _edbserver:
+    https://github.com/edgedb/rfcs/blob/master/text/
+    1001-edgedb-server-control.rst
