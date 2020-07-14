@@ -476,7 +476,6 @@ class TypeShell(so.ObjectShell):
         return schema.get(
             self.name,
             type=self.schemaclass,
-            refname=self.origname,
             sourcectx=self.sourcectx,
         )
 

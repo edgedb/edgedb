@@ -1642,7 +1642,6 @@ class ObjectShell(Shell):
             return schema.get(
                 self.name,
                 type=self.schemaclass,
-                refname=self.origname,
                 sourcectx=self.sourcectx,
             )
         else:

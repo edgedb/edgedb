@@ -356,7 +356,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_13(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
-                "object type or alias 'self' does not exist"):
+                "object type or alias 'default::self' does not exist"):
             await self.con.execute(r"""
                 CREATE TYPE test::TestBadContainerLinkObjectType {
                     CREATE PROPERTY foo -> std::str {
@@ -1118,7 +1118,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_bad_01(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
-                r"type 'array' does not exist"):
+                r"type 'default::array' does not exist"):
             await self.con.execute(r"""
                 CREATE TYPE test::Foo {
                     CREATE PROPERTY bar -> array;
@@ -1128,7 +1128,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_bad_02(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
-                r"type 'tuple' does not exist"):
+                r"type 'default::tuple' does not exist"):
             await self.con.execute(r"""
                 CREATE TYPE test::Foo {
                     CREATE PROPERTY bar -> tuple;
@@ -5661,7 +5661,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         async with self._run_and_rollback():
             with self.assertRaisesRegex(
                     edgedb.errors.InvalidReferenceError,
-                    "improperly formed name 'blah': module is not specified"):
+                    "object type 'test::blah' does not exist"):
                 await self.con.execute('''
                     WITH MODULE test
                     CREATE TYPE Err1 EXTENDING blah {

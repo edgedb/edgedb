@@ -475,8 +475,12 @@ def _delta_from_ddl(
 
     with context(sd.DeltaRootContext(schema=schema, op=delta)):
         cmd = cmd_from_ddl(
-            ddl_stmt, schema=schema, modaliases={},
-            context=context, testmode=testmode)
+            ddl_stmt,
+            schema=schema,
+            modaliases=modaliases,
+            context=context,
+            testmode=testmode,
+        )
         schema = cmd.apply(schema, context)
         delta.add(cmd)
 

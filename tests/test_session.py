@@ -84,7 +84,7 @@ class TestSession(tb.QueryTestCase):
         await self.con.query('SET MODULE foo;')
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                "object type or alias 'User' does not exist"):
+                "object type or alias 'foo::User' does not exist"):
             await self.con.query('SELECT User {name};')
 
     async def test_session_set_command_03(self):

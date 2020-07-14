@@ -350,7 +350,7 @@ class TestServerProto(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
-                "object type or alias 'Tmp' does not exist"):
+                "object type or alias 'default::Tmp' does not exist"):
             await self.con.query('''
                 SELECT count(
                     Tmp FILTER Tmp.tmp = "test_server_set_reset_alias_01");
@@ -376,7 +376,7 @@ class TestServerProto(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
-                "object type or alias 'Tmp' does not exist"):
+                "object type or alias 'default::Tmp' does not exist"):
             await self.con.query('''
                 SELECT count(
                     Tmp FILTER Tmp.tmp = "test_server_set_reset_alias_01");

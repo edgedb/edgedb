@@ -147,7 +147,7 @@ _123456789_123456789_123456789 -> str
         """
 
     @tb.must_fail(errors.InvalidReferenceError,
-                  "type 'int' does not exist",
+                  "type 'test::int' does not exist",
                   position=73,
                   hint='did you mean one of these: int16, int32, int64?')
     def test_schema_bad_type_01(self):
