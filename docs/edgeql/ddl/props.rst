@@ -21,7 +21,8 @@ CREATE PROPERTY
     [ WITH <with-item> [, ...] ]
     {CREATE|ALTER} {TYPE|LINK} <SourceName> "{"
       [ ... ]
-      CREATE [ REQUIRED ] [{SINGLE | MULTI}] PROPERTY <name>
+      CREATE [{REQUIRED | OPTIONAL}] [{SINGLE | MULTI}]
+        PROPERTY <name>
         [ EXTENDING <base> [, ...] ] -> <type>
         [ "{" <subcommand>; [...] "}" ] ;
       [ ... ]
@@ -32,7 +33,7 @@ CREATE PROPERTY
     [ WITH <with-item> [, ...] ]
     {CREATE|ALTER} {TYPE|LINK} <SourceName> "{"
       [ ... ]
-      CREATE [REQUIRED] [{SINGLE | MULTI}]
+      CREATE [{REQUIRED | OPTIONAL}] [{SINGLE | MULTI}]
         PROPERTY <name> := <expression>;
       [ ... ]
     "}"
@@ -77,6 +78,12 @@ Parameters
     property resolve to an empty value.  Child properties **always**
     inherit the *required* attribute, i.e it is not possible to make a
     required property non-required by extending it.
+
+:eql:synopsis:`OPTIONAL`
+    This is the default qualifier assumed when no qualifier is
+    specified, but it can also be specified explicitly. The property
+    is considered *optional* for the parent object type, i.e. it is
+    possible for the property to resolve to an empty value.
 
 :eql:synopsis:`MULTI`
     Specifies that there may be more than one instance of this property
@@ -256,7 +263,7 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
     Make the property *required*.
 
 :eql:synopsis:`DROP REQUIRED`
-    Make the property no longer *required*.
+    Make the property no longer *required* (i.e. make it *optional*).
 
 :eql:synopsis:`SET SINGLE`
     Change the maximum cardinality of the property set to *one*.  Only
