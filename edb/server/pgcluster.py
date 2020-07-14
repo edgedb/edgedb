@@ -741,8 +741,8 @@ class TempCluster(Cluster):
 
 
 class RemoteCluster(BaseCluster):
-    def __init__(self, addr, params):
-        super().__init__()
+    def __init__(self, addr, params, *, pg_config_path=None):
+        super().__init__(pg_config_path=pg_config_path)
         self._connection_addr = addr
         self._connection_params = params
 
@@ -796,7 +796,8 @@ def get_remote_pg_cluster(dsn: str) -> RemoteCluster:
     addrs, params = pgconnparams.parse_dsn(dsn)
     if len(addrs) > 1:
         raise ValueError('multiple hosts in Postgres DSN are not supported')
-    rcluster = RemoteCluster(addrs[0], params)
+    pg_config = buildmeta.get_pg_config_path()
+    rcluster = RemoteCluster(addrs[0], params, pg_config_path=str(pg_config))
 
     loop = asyncio.new_event_loop()
 
