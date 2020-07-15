@@ -194,3 +194,49 @@ Here are some examples of a ``DESCRIBE`` command:
         };
     };"
     }
+
+The ``DESCRIBE`` command also warns you if there are standard library
+matches that are masked by some user-defined object. Consider the
+following schema:
+
+.. code-block:: sdl
+
+    module default {
+        function len(v: tuple<float64, float64>) -> float64 using (
+            SELECT (v.0 ^ 2 + v.1 ^ 2) ^ 0.5
+        );
+    }
+
+So within the ``default`` module the user-defined function ``len``
+(computing the length of a vector) masks the built-ins:
+
+.. code-block:: edgeql-repl
+
+    db> DESCRIBE FUNCTION len AS TEXT;
+    {
+      'function default::len(v: tuple<std::float64, std::float64>) ->
+    std::float64 using (SELECT
+        (((v.0 ^ 2) + (v.1 ^ 2)) ^ 0.5)
+    );
+
+    # The following builtins are masked by the above:
+
+    # function std::len(bytes: std::bytes) ->  std::int64 {
+    #     volatility := \'IMMUTABLE\';
+    #     using sql $$
+    #     SELECT length("bytes")::bigint
+    #     $$
+    # ;};
+    # function std::len(str: std::str) ->  std::int64 {
+    #     volatility := \'IMMUTABLE\';
+    #     using sql $$
+    #     SELECT char_length("str")::bigint
+    #     $$
+    # ;};
+    # function std::len(array: array<anytype>) ->  std::int64 {
+    #     volatility := \'IMMUTABLE\';
+    #     using sql $$
+    #     SELECT cardinality("array")::bigint
+    #     $$
+    # ;};',
+    }
