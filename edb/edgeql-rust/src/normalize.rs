@@ -205,7 +205,7 @@ pub fn normalize<'x>(text: &'x str)
             }
             Kind::Keyword
             if (matches!(&(&tok.value[..].to_uppercase())[..],
-                "CONFIGURE"|"CREATE"|"ALTER"|"DROP"))
+                "CONFIGURE"|"CREATE"|"ALTER"|"DROP"|"START"))
             => {
                 return Ok(Entry {
                     key: serialize_tokens(&tokens),
