@@ -210,7 +210,7 @@ A query is evaluated recursively using the following procedure:
 3. Compute a set of *input tuples*.
 
    - Begin with a set containing a single empty tuple.
-   - For each input set reference, we compute a *dependent* cartesian
+   - For each input set reference, we compute a *dependent* Cartesian
      product of the input tuple set (``X``) so far and the input set
      ``Y`` being considered. In this dependent product, we pair each
      tuple ``x`` in the input tuple set ``X`` with each element of the
@@ -219,7 +219,7 @@ A query is evaluated recursively using the following procedure:
      of User and User.friends would pair each user with all of their
      friends.)
 
-     (Mathematically, ``X' = {(x, y) | x \in X, y \in f(x)}``, if ``f(x)``
+     (Mathematically, ``X' = {(x, y) | x ∈ X, y \in f(x)}``, if ``f(x)``
      selects the appropriate subset.)
 
      The set produced becomes the new input tuple set and we continue
@@ -227,22 +227,22 @@ A query is evaluated recursively using the following procedure:
    - As a caveat to the above, if an input set appears exclusively as
      an :ref:`ref_eql_fundamentals_optional` argument, produce
      pairs with a placeholder value ``Missing`` instead of an empty
-     cartesian product in the above
-     set. (Mathematically, I think the corresponds to having ``f(x) =
+     Cartesian product in the above
+     set. (Mathematically, this corresponds to having ``f(x) =
      {Missing}`` whenever it would otherwise produce an empty set.)
 
 4. Iterate over the set of input tuples, and on every iteration:
 
    - in the query and its subqueries, replace each input set reference with the
      corresponding value from the input tuple or an empty set if the value
-     is missing;
+     is ``Missing``;
 
    - evaluate the query expression in the order of precedence using
      the following rules:
 
      * subqueries are evaluated recursively from step 1;
 
-     * a function or an operator is evaluated in a loop over a cartesian
+     * a function or an operator is evaluated in a loop over a Cartesian
        product of its non-aggregate arguments
        (empty ``OPTIONAL`` arguments are excluded from the product);
        aggregate arguments are passed as a whole set;
