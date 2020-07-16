@@ -24,7 +24,7 @@ run ``edgedb`` commands (you only need to do this once):
 
 .. code-block:: bash
 
-    $ source /home/elvis/.edgedb/env
+    $ source ~/.edgedb/env
 
 Then, let's install and configure the EdgeDB server:
 
