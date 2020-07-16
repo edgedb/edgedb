@@ -225,7 +225,7 @@ A query is evaluated recursively using the following procedure:
      The set produced becomes the new input tuple set and we continue
      down the list.
    - As a caveat to the above, if an input set appears exclusively as
-     part of an :ref:`ref_eql_fundamentals_optional` argument, produce
+     an :ref:`ref_eql_fundamentals_optional` argument, produce
      pairs with a placeholder value ``Missing`` instead of an empty
      cartesian product in the above
      set. (Mathematically, I think the corresponds to having ``f(x) =
