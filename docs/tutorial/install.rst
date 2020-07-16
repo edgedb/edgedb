@@ -6,42 +6,32 @@
 .. NOTE this is a good place to mention sublime, atom, vs code and vim
 ..      extensions for EdgeDB
 
-The easiest way to install EdgeDB is to pick one of the pre-built packages
-from the `download page`_.  Please follow the installation instructions
-appropriate for your OS.
+The first step is to install the EdgeDB command line tools.  The easiest
+way to do it is to run the installer as shown below.
 
-In most cases, after a successful installation, EdgeDB would automatically
-start a local system-wide server instance.  If it didn't, and you see
-connection errors, run:
-
-On Linux:
+If you are using Linux or macOS, open a terminal and enter the following
+command:
 
 .. code-block:: bash
 
-    $ sudo systemctl start edgedb-server-1-alpha3
+    $ curl --proto '=https' --tlsv1.2 https://sh.edgedb.com -sSf | sh
 
-On macOS:
-
-.. code-block:: bash
-
-    $ sudo launchctl enable system/com.edgedb.edgedb-server-1-alpha3
-
-Once the installation is complete, we need to set the password for the
-database superuser:
+The command downloads a script and starts the installation of the ``edgedb``
+command line tool.  The script might require elevated privileges and might
+ask you for your password.  Once the ``edgedb`` CLI installation is successful,
+run the following command to configure your current shell to be able to
+run ``edgedb`` commands (you only need to do this once):
 
 .. code-block:: bash
 
-    $ sudo -u edgedb edgedb --admin alter-role edgedb --password
+    $ source /home/elvis/.edgedb/env
 
-With that done we should be able to connect to the EdgeDB server instance
-using the newly set password:
+Then, let's install and configure the EdgeDB server:
 
 .. code-block:: bash
 
-    $ edgedb -u edgedb --password
-
-.. _`download page`:
-        https://www.edgedb.com/download/
+    $ edgedb server install
+    $ edgedb server init
 
 With EdgeDB up and running we're ready to
 :ref:`create a schema <ref_tutorial_createdb>`.
