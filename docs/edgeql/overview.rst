@@ -196,8 +196,8 @@ A query is evaluated recursively using the following procedure:
         Status.name
       );
 
-   In the above query, the longest common prefixes are: ``User``, ``User.friends``,
-   ``Issue``, and ``Status.name``.
+   In the above query, the longest common prefixes are: ``User``,
+   ``User.friends``, ``Issue``, and ``Status.name``.
 
 2. Make a *query input list* of all unique set references which appear
    directly in the query (including the common path prefixes identified above).
