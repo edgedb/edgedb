@@ -188,6 +188,7 @@ A query is evaluated recursively using the following procedure:
    .. code-block:: edgeql
 
       SELECT (
+        User.firstname,
         User.friends.firstname,
         User.friends.lastname,
         Issue.priority.name,
@@ -195,23 +196,42 @@ A query is evaluated recursively using the following procedure:
         Status.name
       );
 
-   In the above query, the longest common prefixes are: ``User.friends``,
+   In the above query, the longest common prefixes are: ``User``, ``User.friends``,
    ``Issue``, and ``Status.name``.
 
 2. Make a *query input list* of all unique set references which appear
    directly in the query (including the common path prefixes identified above).
-   The set references in this list are called *input set references*,
-   and the sets they represent are called *input sets*.
+   The set references and path prefixes in this list are called *input
+   set references*,  and the sets they represent are called *input
+   sets*. Order this list such that an input references come before
+   any other input set reference for which it is a prefix (sorting
+   lexicographically works).
 
-3. For every empty input set, check if it appears
-   exclusively as part of an :ref:`ref_eql_fundamentals_optional` argument,
-   and if so, exclude it from the query input list.
+3. Compute a set of *input tuples*.
 
-4. Create a set of *input tuples* as a cartesian product of the input sets.
-   If the query input list is empty, the input tuple set would contain
-   a single empty input tuple.
+   - Begin with a set containing a single empty tuple.
+   - For each input set reference, we compute a *dependent* cartesian
+     product of the input tuple set (``X``) so far and the input set
+     ``Y`` being considered. In this dependent product, we pair each
+     tuple ``x`` in the input tuple set ``X`` with each element of the
+     subset of the input set ``Y`` corresponding to the tuple ``x``. (For
+     example, in the above example, computing the dependent product
+     of User and User.friends would pair each user with all of their
+     friends.)
 
-5. Iterate over the set of input tuples, and on every iteration:
+     (Mathematically, ``X' = {(x, y) | x \in X, y \in f(x)}``, if ``f(x)``
+     selects the appropriate subset.)
+
+     The set produced becomes the new input tuple set and we continue
+     down the list.
+   - As a caveat to the above, if an input set appears exclusively as
+     part of an :ref:`ref_eql_fundamentals_optional` argument, produce
+     pairs with a placeholder value ``Missing`` instead of an empty
+     cartesian product in the above
+     set. (Mathematically, I think the corresponds to having ``f(x) =
+     {Missing}`` whenever it would otherwise produce an empty set.)
+
+4. Iterate over the set of input tuples, and on every iteration:
 
    - in the query and its subqueries, replace each input set reference with the
      corresponding value from the input tuple or an empty set if the value
@@ -228,7 +248,7 @@ A query is evaluated recursively using the following procedure:
        aggregate arguments are passed as a whole set;
        the results of the invocations are collected to form a single set.
 
-6. Collect the results of all iterations to obtain the final result set.
+5. Collect the results of all iterations to obtain the final result set.
 
 
 .. _ref_eql_polymorphic_queries:
