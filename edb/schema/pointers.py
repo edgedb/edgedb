@@ -1240,7 +1240,7 @@ class SetPointerType(
         # Eventually we may be able to relax this by allowing to
         # alter to the type that is compatible (i.e. does not change)
         # with all expressions it is used in.
-        vn = scls.get_verbosename(schema)
+        vn = scls.get_verbosename(schema, with_parent=True)
         schema, finalize_ast = self._propagate_if_expr_refs(
             schema, context, action=f'alter the type of {vn}')
 
@@ -1264,7 +1264,7 @@ class SetPointerType(
                     for b in non_altered_bases
                 )
 
-                vn = scls.get_verbosename(schema)
+                vn = scls.get_verbosename(schema, with_parent=True)
 
                 raise errors.SchemaDefinitionError(
                     f'cannot change the target type of inherited {vn}',
@@ -1275,23 +1275,18 @@ class SetPointerType(
                     context=self.source_context,
                 )
 
-            if context.enable_recursion:
-                tgt = self.get_attribute_value('target')
+            tgt = self.get_attribute_value('target')
 
-                def _set_type(
-                    alter_cmd: sd.ObjectCommand[so.Object],
-                    refname: str,
-                ) -> None:
-                    s_t = type(self)(classname=alter_cmd.classname)
-                    s_t.set_attribute_value('target', tgt)
-                    alter_cmd.add(s_t)
+            def _set_type(
+                alter_cmd: sd.ObjectCommand[so.Object],
+                refname: str,
+            ) -> None:
+                s_t = type(self)(classname=alter_cmd.classname)
+                s_t.set_attribute_value('target', tgt)
+                alter_cmd.add(s_t)
 
-                schema = self._propagate_ref_op(
-                    schema, context, self.scls, cb=_set_type)
-
-        else:
-            for op in self.get_subcommands(type=sd.ObjectCommand):
-                schema = op.apply(schema, context)
+            schema = self._propagate_ref_op(
+                schema, context, self.scls, cb=_set_type)
 
         return schema
 

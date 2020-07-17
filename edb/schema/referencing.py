@@ -579,6 +579,8 @@ class ReferencedInheritingObjectCommand(
     inheriting.InheritingObjectCommand[ReferencedInheritingObjectT],
 ):
 
+    ref_op_propagated = struct.Field(bool, default=False)
+
     def _get_implicit_ref_bases(
         self,
         schema: s_schema.Schema,
@@ -709,8 +711,13 @@ class ReferencedInheritingObjectCommand(
         scls: ReferencedInheritingObject,
         cb: Callable[[sd.ObjectCommand[so.Object], str], None]
     ) -> s_schema.Schema:
-        rec = context.current().enable_recursion
-        context.current().enable_recursion = False
+        for ctx in reversed(context.stack):
+            if (
+                isinstance(ctx.op, ReferencedInheritingObjectCommand)
+                and ctx.op.ref_op_propagated
+            ):
+                return schema
+
         referrer_ctx = self.get_referrer_context_or_die(context)
         referrer = referrer_ctx.scls
         referrer_class = type(referrer)
@@ -722,6 +729,7 @@ class ReferencedInheritingObjectCommand(
         for descendant in scls.ordered_descendants(schema):
             d_alter_cmd = descendant.init_delta_command(schema, sd.AlterObject)
             assert isinstance(descendant, ReferencedObject)
+            d_alter_cmd.ref_op_propagated = True
             d_referrer = descendant.get_referrer(schema)
             assert d_referrer is not None
             r_alter_cmd = d_referrer.init_delta_command(schema, sd.AlterObject)
@@ -732,10 +740,7 @@ class ReferencedInheritingObjectCommand(
 
                 r_alter_cmd.add(d_alter_cmd)
 
-            schema = r_alter_cmd.apply(schema, context)
             self.add(r_alter_cmd)
-
-        context.current().enable_recursion = rec
 
         return schema
 
@@ -1084,7 +1089,7 @@ class RenameReferencedInheritingObject(
                 )
 
                 verb = 'are' if len(non_renamed_bases) > 1 else 'is'
-                vn = scls.get_verbosename(orig_schema)
+                vn = scls.get_verbosename(orig_schema, with_parent=True)
 
                 raise errors.SchemaDefinitionError(
                     f'cannot rename inherited {vn}',
@@ -1095,12 +1100,7 @@ class RenameReferencedInheritingObject(
                     context=self.source_context,
                 )
 
-            if context.enable_recursion:
-                schema = self._propagate_ref_rename(schema, context, scls)
-
-        else:
-            for op in self.get_subcommands(type=sd.ObjectCommand):
-                schema = op.apply(schema, context)
+            schema = self._propagate_ref_rename(schema, context, scls)
 
         return schema
 

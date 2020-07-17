@@ -1919,9 +1919,6 @@ class AlterObjectFragment(ObjectCommand[so.Object_T]):
         scls = op.scls
         self.scls = scls
 
-        for op in self.get_prerequisites():
-            schema = op.apply(schema, context)
-
         schema = self._alter_begin(schema, context)
         schema = self._alter_innards(schema, context)
         schema = self._alter_finalize(schema, context)
@@ -1933,17 +1930,23 @@ class AlterObjectFragment(ObjectCommand[so.Object_T]):
         schema: s_schema.Schema,
         context: CommandContext,
     ) -> s_schema.Schema:
+        for op in self.get_prerequisites():
+            schema = op.apply(schema, context)
+
         if not context.canonical:
             schema = self.resolve_refs(schema, context)
+
         props = self.get_resolved_attributes(schema, context)
-        schema = self.scls.update(schema, props)
-        return schema
+        return self.scls.update(schema, props)
 
     def _alter_innards(
         self,
         schema: s_schema.Schema,
         context: CommandContext,
     ) -> s_schema.Schema:
+        for op in self.get_subcommands(include_prerequisites=False):
+            if not isinstance(op, AlterObjectProperty):
+                schema = op.apply(schema, context=context)
         return schema
 
     def _alter_finalize(
@@ -2002,6 +2005,9 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
         schema: s_schema.Schema,
         context: CommandContext,
     ) -> s_schema.Schema:
+        for op in self.get_subcommands(include_prerequisites=False):
+            if not isinstance(op, (AlterObjectFragment, AlterObjectProperty)):
+                schema = op.apply(schema, context=context)
         return schema
 
     def _rename_finalize(

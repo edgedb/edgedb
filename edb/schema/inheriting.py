@@ -834,9 +834,6 @@ class RebaseInheritingObject(
 
         assert isinstance(scls, so.InheritingObject)
 
-        for op in self.get_subcommands(type=sd.ObjectCommand):
-            schema = op.apply(schema, context)
-
         if not context.canonical:
             bases = self._apply_base_delta(schema, context, scls)
             schema = scls.set_field_value(schema, 'bases', bases)
