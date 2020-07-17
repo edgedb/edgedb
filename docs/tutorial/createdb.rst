@@ -77,6 +77,8 @@ Migrations have to be done inside a :ref:`transaction
     POPULATE MIGRATION
     tutorial> COMMIT MIGRATION;
     COMMIT MIGRATION
+    tutorial> COMMIT;
+    COMMIT
 
 The name of a migration doesn't matter much beyond providing a way to
 specify the particular migration which must be committed. Once the
