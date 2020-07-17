@@ -106,8 +106,13 @@ CREATE CAST FROM std::anyenum TO std::str {
     USING SQL CAST;
 };
 
-# The reverse cast from json to enum is handled in compile_cast
 CREATE CAST FROM std::anyenum TO std::json {
     SET volatility := 'IMMUTABLE';
     USING SQL "SELECT to_jsonb(val::text)"
+};
+
+# Handled in compile_cast
+CREATE CAST FROM std::json TO std::anyenum {
+    SET volatility := 'IMMUTABLE';
+    USING SQL EXPRESSION;
 };

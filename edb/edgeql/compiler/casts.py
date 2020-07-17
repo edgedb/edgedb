@@ -128,12 +128,11 @@ def compile_cast(
                 subctx.implicit_tid_in_shapes = False
                 viewgen.compile_view_shapes(ir_set, ctx=subctx)
         elif (orig_stype.issubclass(ctx.env.schema, json_t)
-              and new_stype.is_enum(ctx.env.schema)):
+              and new_stype.is_enum(ctx.env.schema) and False):
             # Casts from json to enums need some special handling
             # here, where we have access to the enum type. Just turn
             # it into json->str and str->enum.
-            str_typ = ctx.env.get_track_schema_object('std::str')
-            assert isinstance(str_typ, s_types.Type)
+            str_typ = ctx.env.get_track_schema_type('std::str')
             str_ir = compile_cast(ir_expr, str_typ, srcctx=srcctx, ctx=ctx)
             return compile_cast(str_ir, new_stype, srcctx=srcctx, ctx=ctx)
 

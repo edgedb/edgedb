@@ -200,6 +200,10 @@ class TestEdgeQLEnuma(tb.QueryTestCase):
             "SELECT <test::color_enum_t><json>'RED'",
             ['RED'])
 
+        await self.assert_query_result(
+            "SELECT <test::color_enum_t>'RED'",
+            ['RED'])
+
     async def test_edgeql_enums_json_cast_02(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
