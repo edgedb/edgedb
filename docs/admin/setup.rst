@@ -53,8 +53,9 @@ Setting Up Passwordless Connections
 
 If you are doing testing and don't want to bother with passwords or other
 authentication, it is possible to override the default password authentication
-method with the ``trust`` method:
+method with the ``Trust`` method:
 
 .. code-block:: bash
 
-    $ edgedb -I<instance-name> --admin configure insert auth --method=trust
+    $ edgedb -I<instance-name> --admin configure insert Auth \
+             --method=Trust --priority=0
