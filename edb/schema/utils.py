@@ -523,17 +523,20 @@ def minimize_class_set_by_least_generic(
     return result
 
 
-def merge_reduce(target: so.InheritingObjectT,
-                 sources: Iterable[so.InheritingObjectT],
-                 field_name: str,
-                 *,
-                 schema: s_schema.Schema,
-                 f: Callable[[List[Any]], so.InheritingObjectT]) \
-        -> Optional[so.InheritingObjectT]:
+def merge_reduce(
+    target: so.InheritingObjectT,
+    sources: Iterable[so.InheritingObjectT],
+    field_name: str,
+    *,
+    ignore_local: bool,
+    schema: s_schema.Schema,
+    f: Callable[[List[Any]], so.InheritingObjectT],
+) -> Optional[so.InheritingObjectT]:
     values = []
-    ours = target.get_explicit_local_field_value(schema, field_name, None)
-    if ours is not None:
-        values.append(ours)
+    if not ignore_local:
+        ours = target.get_explicit_local_field_value(schema, field_name, None)
+        if ours is not None:
+            values.append(ours)
     for source in sources:
         theirs = source.get_explicit_field_value(schema, field_name, None)
         if theirs is not None:
@@ -545,22 +548,40 @@ def merge_reduce(target: so.InheritingObjectT,
         return None
 
 
-def merge_sticky_bool(target: so.InheritingObjectT,
-                      sources: Iterable[so.InheritingObjectT],
-                      field_name: str,
-                      *,
-                      schema: s_schema.Schema) \
-        -> Optional[so.InheritingObjectT]:
-    return merge_reduce(target, sources, field_name, schema=schema, f=max)
+def merge_sticky_bool(
+    target: so.InheritingObjectT,
+    sources: Iterable[so.InheritingObjectT],
+    field_name: str,
+    *,
+    ignore_local: bool,
+    schema: s_schema.Schema
+) -> Optional[so.InheritingObjectT]:
+    return merge_reduce(
+        target,
+        sources,
+        field_name,
+        ignore_local=ignore_local,
+        schema=schema,
+        f=max,
+    )
 
 
-def merge_weak_bool(target: so.InheritingObjectT,
-                    sources: Iterable[so.InheritingObjectT],
-                    field_name: str,
-                    *,
-                    schema: s_schema.Schema) \
-        -> Optional[so.InheritingObjectT]:
-    return merge_reduce(target, sources, field_name, schema=schema, f=min)
+def merge_weak_bool(
+    target: so.InheritingObjectT,
+    sources: Iterable[so.InheritingObjectT],
+    field_name: str,
+    *,
+    ignore_local: bool,
+    schema: s_schema.Schema,
+) -> Optional[so.InheritingObjectT]:
+    return merge_reduce(
+        target,
+        sources,
+        field_name,
+        ignore_local=ignore_local,
+        schema=schema,
+        f=min,
+    )
 
 
 def get_nq_name(schema: s_schema.Schema,

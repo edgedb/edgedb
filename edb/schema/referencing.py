@@ -744,6 +744,31 @@ class ReferencedInheritingObjectCommand(
 
         return schema
 
+    def _drop_owned_refs(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        refdict: so.RefDict,
+    ) -> s_schema.Schema:
+
+        scls = self.scls
+        refs = scls.get_field_value(schema, refdict.attr)
+
+        for ref in refs.objects(schema):
+            inherited = ref.get_implicit_bases(schema)
+            if inherited and ref.get_is_owned(schema):
+                drop_owned = ref.init_delta_command(schema, AlterOwned)
+                drop_owned.set_attribute_value('is_owned', False)
+                alter = ref.init_delta_command(schema, sd.AlterObject)
+                alter.add(drop_owned)
+                schema = alter.apply(schema, context)
+                self.add(alter)
+            else:
+                drop_ref = ref.init_delta_command(schema, sd.DeleteObject)
+                self.add(drop_ref)
+
+        return schema
+
 
 class CreateReferencedInheritingObject(
     CreateReferencedObject[ReferencedInheritingObjectT],
@@ -957,27 +982,6 @@ class AlterReferencedInheritingObject(
         else:
             return super()._get_ast(schema, context, parent_node=parent_node)
 
-    def _apply_field_ast(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        node: qlast.DDLOperation,
-        op: sd.AlterObjectProperty,
-    ) -> None:
-        assert isinstance(node, qlast.ObjectDDL)
-        if (
-            op.property == 'is_owned'
-            and not isinstance(self, sd.DeleteObject)
-        ):
-            node.commands.append(
-                qlast.SetSpecialField(
-                    name=op.property,
-                    value=op.new_value
-                )
-            )
-        else:
-            super()._apply_field_ast(schema, context, node, op)
-
     @classmethod
     def _cmd_tree_from_ast(
         cls,
@@ -990,7 +994,7 @@ class AlterReferencedInheritingObject(
         refctx = cls.get_referrer_context(context)
         if (
             refctx is not None
-            and qlast.get_ddl_field_value(astnode, 'is_owned') is None
+            and not qlast.has_ddl_subcommand(astnode, qlast.AlterOwned)
         ):
             cmd.set_attribute_value('is_owned', True)
 
@@ -1259,3 +1263,77 @@ class DeleteReferencedInheritingObject(
             return None
         else:
             return super()._get_ast(schema, context, parent_node=parent_node)
+
+
+class AlterOwned(
+    ReferencedInheritingObjectCommand[ReferencedInheritingObjectT],
+    inheriting.AlterInheritingObjectFragment[ReferencedInheritingObjectT],
+):
+
+    _delta_action = 'alterowned'
+
+    def _alter_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        orig_schema = schema
+        schema = super()._alter_begin(schema, context)
+        scls = self.scls
+
+        orig_owned = scls.get_is_owned(orig_schema)
+        owned = scls.get_is_owned(schema)
+
+        if (
+            orig_owned != owned
+            and not owned
+            and not context.canonical
+        ):
+            implicit_bases = scls.get_implicit_bases(schema)
+            if not implicit_bases:
+                # ref isn't actually inherited, so cannot be un-owned
+                vn = scls.get_verbosename(schema, with_parent=True)
+                sn = type(scls).get_schema_class_displayname().upper()
+                raise errors.InvalidDefinitionError(
+                    f'cannot drop owned {vn}, as it is not inherited, '
+                    f'use DROP {sn} instead',
+                    context=self.source_context,
+                )
+
+            # DROP OWNED requires special handling: the object in question
+            # must revert all modification made on top of inherited attributes.
+            bases = scls.get_bases(schema).objects(schema)
+            schema = self.inherit_fields(
+                schema,
+                context,
+                bases,
+                ignore_local=True,
+            )
+
+            for refdict in type(scls).get_refdicts():
+                schema = self._drop_owned_refs(schema, context, refdict)
+
+        return schema
+
+    @classmethod
+    def _cmd_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> sd.ObjectCommand[ReferencedInheritingObjectT]:
+        this_op = context.current().op
+        assert isinstance(this_op, sd.ObjectCommand)
+        return cls(classname=this_op.classname)
+
+    @classmethod
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> sd.Command:
+        assert isinstance(astnode, qlast.AlterOwned)
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        cmd.set_attribute_value('is_owned', astnode.owned)
+        return cmd

@@ -386,6 +386,10 @@ class RenameIndex(
         )
 
 
+class AlterIndexOwned(IndexCommand, referencing.AlterOwned[Index]):
+    astnode = qlast.AlterIndexOwned
+
+
 class AlterIndex(
     IndexCommand,
     referencing.AlterReferencedInheritingObject[Index],

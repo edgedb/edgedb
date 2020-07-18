@@ -1030,6 +1030,13 @@ class RenameConstraint(ConstraintCommand, sd.RenameObject[Constraint]):
     pass
 
 
+class AlterConstraintOwned(
+    ConstraintCommand,
+    referencing.AlterOwned[Constraint],
+):
+    astnode = qlast.AlterConstraintOwned
+
+
 class AlterConstraint(
     ConstraintCommand,
     referencing.AlterReferencedInheritingObject[Constraint],

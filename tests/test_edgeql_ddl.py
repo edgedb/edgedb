@@ -742,6 +742,56 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ],
         )
 
+        await self.con.execute("""
+            ALTER TYPE User {
+                ALTER PROPERTY name {
+                    SET REQUIRED;
+                    CREATE CONSTRAINT exclusive;
+                };
+
+                ALTER LINK desc {
+                    SET REQUIRED;
+                    CREATE CONSTRAINT exclusive;
+                };
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH
+                    C := (SELECT schema::ObjectType
+                          FILTER .name = 'test::User')
+                SELECT
+                    C {
+                        pointers: {
+                            @is_owned,
+                            required,
+                            constraints: {
+                                name,
+                            }
+                        }
+                        FILTER .name IN {'name', 'desc'}
+                    };
+            """,
+            [
+                {
+                    'pointers': [{
+                        '@is_owned': True,
+                        'required': True,
+                        'constraints': [{
+                            'name': 'std::exclusive',
+                        }],
+                    }, {
+                        '@is_owned': True,
+                        'required': True,
+                        'constraints': [{
+                            'name': 'std::exclusive',
+                        }],
+                    }],
+                },
+            ],
+        )
+
         # and drop it again
         await self.con.execute("""
             ALTER TYPE User {
@@ -757,7 +807,13 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                           FILTER .name = 'test::User')
                 SELECT
                     C {
-                        pointers: { @is_owned }
+                        pointers: {
+                            @is_owned,
+                            required,
+                            constraints: {
+                                name,
+                            }
+                        }
                         FILTER .name IN {'name', 'desc'}
                     };
             """,
@@ -765,12 +821,61 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 {
                     'pointers': [{
                         '@is_owned': False,
+                        'required': False,
+                        'constraints': [],
                     }, {
                         '@is_owned': False,
+                        'required': False,
+                        'constraints': [],
                     }],
                 },
             ],
         )
+
+    async def test_edgeql_ddl_25(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidDefinitionError,
+            "cannot drop owned property 'name'.*not inherited",
+        ):
+            await self.con.execute("""
+                SET MODULE test;
+                CREATE TYPE Named {
+                    CREATE PROPERTY name -> str;
+                };
+                ALTER TYPE Named ALTER PROPERTY name DROP OWNED;
+            """)
+
+    async def test_edgeql_ddl_26(self):
+        await self.con.execute("""
+            SET MODULE test;
+            CREATE TYPE Target;
+            CREATE TYPE Source {
+                CREATE LINK target -> Source;
+            };
+            CREATE TYPE Child EXTENDING Source {
+                ALTER LINK target {
+                    SET REQUIRED;
+                    CREATE PROPERTY foo -> str;
+                }
+            };
+            CREATE TYPE Grandchild EXTENDING Child {
+                ALTER LINK target {
+                    ALTER PROPERTY foo {
+                        CREATE CONSTRAINT exclusive;
+                    }
+                }
+            };
+        """)
+
+        with self.assertRaisesRegex(
+            edgedb.SchemaError,
+            "cannot drop property 'foo' of link 'target' of "
+            "object type 'test::Child'",
+        ):
+            await self.con.execute("""
+                SET MODULE test;
+                ALTER TYPE Child ALTER LINK target DROP OWNED;
+            """)
 
     async def test_edgeql_ddl_default_01(self):
         with self.assertRaisesRegex(

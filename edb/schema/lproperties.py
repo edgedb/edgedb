@@ -364,6 +364,14 @@ class SetPropertyType(pointers.SetPointerType,
     astnode = qlast.SetPropertyType
 
 
+class AlterPropertyOwned(
+    referencing.AlterOwned[Property],
+    schema_metaclass=Property,
+    referrer_context_class=PropertySourceContext,
+):
+    astnode = qlast.AlterPropertyOwned
+
+
 class AlterProperty(
     PropertyCommand,
     referencing.AlterReferencedInheritingObject[Property],

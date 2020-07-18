@@ -52,9 +52,13 @@ def merge_actions(
     sources: List[so.Object],
     field_name: str,
     *,
+    ignore_local: bool = False,
     schema: s_schema.Schema,
 ) -> Any:
-    ours = target.get_explicit_local_field_value(schema, field_name, None)
+    if not ignore_local:
+        ours = target.get_explicit_local_field_value(schema, field_name, None)
+    else:
+        ours = None
     if ours is None:
         current = None
         current_from = None
@@ -443,6 +447,14 @@ class SetLinkType(pointers.SetPointerType,
                   referrer_context_class=LinkSourceCommandContext):
 
     astnode = qlast.SetLinkType
+
+
+class AlterLinkOwned(
+    referencing.AlterOwned[Link],
+    schema_metaclass=Link,
+    referrer_context_class=LinkSourceCommandContext,
+):
+    astnode = qlast.AlterLinkOwned
 
 
 class SetTargetDeletePolicy(sd.Command):

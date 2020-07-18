@@ -1077,6 +1077,14 @@ class RenameConstraint(
     pass
 
 
+class AlterConstraintOwned(
+    ConstraintCommand,
+    AlterObject,
+    adapts=s_constr.AlterConstraintOwned,
+):
+    pass
+
+
 class AlterConstraint(
         ConstraintCommand, AlterObject,
         adapts=s_constr.AlterConstraint):
@@ -1773,6 +1781,14 @@ class RenameIndex(IndexCommand, RenameObject, adapts=s_indexes.RenameIndex):
         self.pgops.add(rename)
 
         return schema
+
+
+class AlterIndexOwned(
+    IndexCommand,
+    AlterObject,
+    adapts=s_indexes.AlterIndexOwned,
+):
+    pass
 
 
 class AlterIndex(IndexCommand, AlterObject, adapts=s_indexes.AlterIndex):
@@ -2623,6 +2639,14 @@ class SetLinkType(LinkMetaCommand, adapts=s_links.SetLinkType):
         return LinkMetaCommand.apply(self, schema, context)
 
 
+class AlterLinkOwned(
+    LinkMetaCommand,
+    AlterObject,
+    adapts=s_links.AlterLinkOwned,
+):
+    pass
+
+
 class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
     def apply(
         self,
@@ -2952,6 +2976,14 @@ class SetPropertyType(
     ) -> s_schema.Schema:
         schema = s_props.SetPropertyType.apply(self, schema, context)
         return PropertyMetaCommand.apply(self, schema, context)
+
+
+class AlterPropertyOwned(
+    PropertyMetaCommand,
+    AlterObject,
+    adapts=s_props.AlterPropertyOwned,
+):
+    pass
 
 
 class AlterProperty(

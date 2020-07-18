@@ -249,8 +249,12 @@ class ExpressionList(checked.FrozenCheckedList[Expression]):
                      sources: Sequence[so.Object],
                      field_name: str,
                      *,
+                     ignore_local: bool = False,
                      schema: s_schema.Schema) -> Any:
-        result = target.get_explicit_field_value(schema, field_name, None)
+        if not ignore_local:
+            result = target.get_explicit_field_value(schema, field_name, None)
+        else:
+            result = None
         for source in sources:
             theirs = source.get_explicit_field_value(schema, field_name, None)
             if theirs:

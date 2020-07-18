@@ -57,12 +57,23 @@ class PointerDirection(enum.StrEnum):
     Inbound = '<'
 
 
-def merge_cardinality(target: Pointer, sources: List[Pointer],
-                      field_name: str, *, schema: s_schema.Schema) -> Any:
+def merge_cardinality(
+    target: Pointer,
+    sources: List[Pointer],
+    field_name: str,
+    *,
+    ignore_local: bool,
+    schema: s_schema.Schema,
+) -> Any:
     current = None
     current_from = None
 
-    for source in [target] + list(sources):
+    if ignore_local:
+        pointers = list(sources)
+    else:
+        pointers = [target] + list(sources)
+
+    for source in pointers:
         nextval = source.get_explicit_field_value(schema, field_name, None)
         if nextval is not None:
             if current is None:
@@ -86,17 +97,24 @@ def merge_cardinality(target: Pointer, sources: List[Pointer],
     return current
 
 
-def merge_readonly(target: Pointer, sources: List[Pointer],
-                   field_name: str, *, schema: s_schema.Schema) -> Any:
+def merge_readonly(
+    target: Pointer,
+    sources: List[Pointer],
+    field_name: str,
+    *,
+    ignore_local: bool,
+    schema: s_schema.Schema,
+) -> Any:
 
     current = None
     current_from = None
 
     # The target field value is only relevant if it is explicit,
     # otherwise it should be based on the inherited value.
-    current = target.get_explicit_field_value(schema, field_name, None)
-    if current is not None:
-        current_from = target
+    if not ignore_local:
+        current = target.get_explicit_field_value(schema, field_name, None)
+        if current is not None:
+            current_from = target
 
     for source in list(sources):
         # ignore abstract pointers
@@ -135,6 +153,7 @@ def merge_target(
     bases: List[Pointer],
     field_name: str,
     *,
+    ignore_local: bool = False,
     schema: s_schema.Schema,
 ) -> Optional[s_types.Type]:
 
@@ -151,12 +170,13 @@ def merge_target(
             schema, target = Pointer.merge_targets(
                 schema, ptr, target, base_target, allow_contravariant=True)
 
-    local_target = ptr.get_target(schema)
-    if target is None:
-        target = local_target
-    elif local_target is not None:
-        schema, target = Pointer.merge_targets(
-            schema, ptr, target, local_target)
+    if not ignore_local:
+        local_target = ptr.get_target(schema)
+        if target is None:
+            target = local_target
+        elif local_target is not None:
+            schema, target = Pointer.merge_targets(
+                schema, ptr, target, local_target)
 
     return target
 
