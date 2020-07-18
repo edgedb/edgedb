@@ -19,13 +19,11 @@
 
 from __future__ import annotations
 from typing import *
-from typing_extensions import Final
 
 import builtins
 import collections
 import collections.abc
 import enum
-import sys
 import uuid
 
 from edb import errors
@@ -48,9 +46,6 @@ if TYPE_CHECKING:
     from edb.schema import objtypes
     from edb.schema import delta as sd
     from edb.schema import schema as s_schema
-
-    if sys.version_info <= (3, 7):
-        from typing_extensions import Protocol  # type: ignore
 
     CovT = TypeVar("CovT", covariant=True)
 
