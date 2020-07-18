@@ -128,7 +128,7 @@ def compile_cast(
                 subctx.implicit_tid_in_shapes = False
                 viewgen.compile_view_shapes(ir_set, ctx=subctx)
         elif (orig_stype.issubclass(ctx.env.schema, json_t)
-              and new_stype.is_enum(ctx.env.schema) and False):
+              and new_stype.is_enum(ctx.env.schema)):
             # Casts from json to enums need some special handling
             # here, where we have access to the enum type. Just turn
             # it into json->str and str->enum.
