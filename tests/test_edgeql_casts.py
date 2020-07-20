@@ -2162,6 +2162,32 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             await self.con.query_one(
                 'SELECT <cal::local_time><json>"20:01:22.306916+01:00"')
 
+    async def test_edgeql_casts_json_11(self):
+        await self.assert_query_result(
+            r"SELECT <array<int64>><json>[1, 1, 2, 3, 5]",
+            [[1, 1, 2, 3, 5]]
+        )
+
+        with self.assertRaisesRegex(
+                # FIXME: This should be a different error
+                edgedb.InternalServerError,
+                r'expected json number, null; got json string'):
+            await self.con.query_one(
+                r"SELECT <array<int64>><json>['asdf']")
+
+        with self.assertRaisesRegex(
+                # FIXME: This should be a different error
+                edgedb.InternalServerError,
+                r'expected json number, null; got json string'):
+            await self.con.query_one(
+                r"SELECT <array<int64>>to_json('[1, 2, \"asdf\"]')")
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                r'cannot extract elements from a scalar'):
+            await self.con.query_one(
+                r"SELECT <array<int64>><json>'asdf'")
+
     async def test_edgeql_casts_assignment_01(self):
         async with self._run_and_rollback():
             await self.con.execute(r"""

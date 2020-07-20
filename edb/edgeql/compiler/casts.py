@@ -135,6 +135,18 @@ def compile_cast(
             str_typ = ctx.env.get_track_schema_type('std::str')
             str_ir = compile_cast(ir_expr, str_typ, srcctx=srcctx, ctx=ctx)
             return compile_cast(str_ir, new_stype, srcctx=srcctx, ctx=ctx)
+        elif (orig_stype.issubclass(ctx.env.schema, json_t)
+              and isinstance(new_stype, s_types.Array)
+              and not new_stype.get_subtypes(ctx.env.schema)[0].issubclass(
+                  ctx.env.schema, json_t)):
+            # Turn casts from json->array<T> into json->array<json>
+            # and array<json>->array<T>.
+            _, json_array_typ = s_types.Array.create(
+                ctx.env.schema, element_type=json_t)
+            json_array_ir = compile_cast(
+                ir_expr, json_array_typ, srcctx=srcctx, ctx=ctx)
+            return compile_cast(
+                json_array_ir, new_stype, srcctx=srcctx, ctx=ctx)
 
         return _compile_cast(
             ir_expr, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
