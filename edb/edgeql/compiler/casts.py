@@ -34,7 +34,6 @@ from edb.ir import utils as irutils
 from edb.schema import casts as s_casts
 from edb.schema import functions as s_func
 from edb.schema import modules as s_mod
-from edb.schema import objects as s_objects
 from edb.schema import types as s_types
 
 from edb.edgeql import ast as qlast
