@@ -115,10 +115,7 @@ def compile_cast(
             ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
 
     else:
-        json_t = cast(
-            s_objects.InheritingObject,
-            ctx.env.get_track_schema_object('std::json'),
-        )
+        json_t = ctx.env.get_track_schema_type('std::json')
         if (new_stype.issubclass(ctx.env.schema, json_t) and
                 ir_set.path_id.is_objtype_path()):
             # JSON casts of objects are special: we want the full shape
