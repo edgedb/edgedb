@@ -141,8 +141,8 @@ def compile_cast(
                   ctx.env.schema, json_t)):
             # Turn casts from json->array<T> into json->array<json>
             # and array<json>->array<T>.
-            _, json_array_typ = s_types.Array.create(
-                ctx.env.schema, element_type=json_t)
+            ctx.env.schema, json_array_typ = s_types.Array.from_subtypes(
+                ctx.env.schema, [json_t])
             json_array_ir = compile_cast(
                 ir_expr, json_array_typ, srcctx=srcctx, ctx=ctx)
             return compile_cast(
