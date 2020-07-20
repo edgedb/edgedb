@@ -105,3 +105,14 @@ CREATE CAST FROM std::anyenum TO std::str {
     SET volatility := 'IMMUTABLE';
     USING SQL CAST;
 };
+
+CREATE CAST FROM std::anyenum TO std::json {
+    SET volatility := 'IMMUTABLE';
+    USING SQL "SELECT to_jsonb(val::text)"
+};
+
+# Handled in compile_cast
+CREATE CAST FROM std::json TO std::anyenum {
+    SET volatility := 'IMMUTABLE';
+    USING SQL EXPRESSION;
+};

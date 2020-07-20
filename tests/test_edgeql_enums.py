@@ -188,3 +188,31 @@ class TestEdgeQLEnuma(tb.QueryTestCase):
                 'color': 'GREEN',
             }],
         )
+
+    async def test_edgeql_enums_json_cast_01(self):
+        self.assertEqual(
+            await self.con.query(
+                "SELECT <json><test::color_enum_t>'RED'"
+            ),
+            ['"RED"'])
+
+        await self.assert_query_result(
+            "SELECT <test::color_enum_t><json>'RED'",
+            ['RED'])
+
+        await self.assert_query_result(
+            "SELECT <test::color_enum_t>'RED'",
+            ['RED'])
+
+    async def test_edgeql_enums_json_cast_02(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                r'invalid input value for enum .+color_enum_t.+: "BANANA"'):
+            await self.con.execute("SELECT <test::color_enum_t><json>'BANANA'")
+
+    async def test_edgeql_enums_json_cast_03(self):
+        with self.assertRaisesRegex(
+                # FIXME: This should be a different error
+                edgedb.InternalServerError,
+                r'expected json string, null; got json number'):
+            await self.con.execute("SELECT <test::color_enum_t><json>12")
