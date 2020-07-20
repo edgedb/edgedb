@@ -69,6 +69,13 @@ jobs:
           /Library/Developer/CommandLineTools/SDKs/MacOSX10.10.sdk/
         sudo xcode-select -s /Library/Developer/CommandLineTools
 
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        default: true
+
     - name: Build
       env:
         PKG_REVISION: "<current-date>"
