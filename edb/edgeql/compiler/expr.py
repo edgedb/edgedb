@@ -521,7 +521,7 @@ def compile_TypeCast(
 
     new_stype = typegen.ql_typeexpr_to_type(expr.type, ctx=ctx)
     return casts.compile_cast(
-        ir_expr, new_stype, modifier=expr.modifier,
+        ir_expr, new_stype, cardinality_mod=expr.modifier,
         ctx=ctx, srcctx=expr.expr.context)
 
 

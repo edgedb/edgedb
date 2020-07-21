@@ -26,6 +26,7 @@ from typing import *
 from edb import errors
 
 from edb.edgeql import qltypes as ql_ft
+from edb.edgeql import ast as qlast
 
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
@@ -240,7 +241,7 @@ def compile_TypeCast(
     else:
         raise RuntimeError('cast not supported')
 
-    if expr.modifier and expr.modifier == expr.modifier.Required:
+    if expr.cardinality_mod is qlast.CardinalityModifier.Required:
         res = pgast.FuncCall(
             name=('edgedb', '_raise_exception_on_null'),
             args=[
