@@ -403,13 +403,6 @@ def compile_TypeCast(
     target_typeref = typegen.ql_typeexpr_to_ir_typeref(expr.type, ctx=ctx)
     ir_expr: irast.Base
 
-    is_parameter = isinstance(expr.expr, qlast.Parameter)
-    if not is_parameter and expr.modifier:
-        raise errors.QueryError(
-            'cardinality modifiers REQUIRED and OPTIONAL are only allowed '
-            'on paremeters',
-            context=expr.context)
-
     if (isinstance(expr.expr, qlast.Array) and not expr.expr.elements and
             irtyputils.is_array(target_typeref)):
         ir_expr = irast.Array()
@@ -528,7 +521,8 @@ def compile_TypeCast(
 
     new_stype = typegen.ql_typeexpr_to_type(expr.type, ctx=ctx)
     return casts.compile_cast(
-        ir_expr, new_stype, ctx=ctx, srcctx=expr.expr.context)
+        ir_expr, new_stype, modifier=expr.modifier,
+        ctx=ctx, srcctx=expr.expr.context)
 
 
 @dispatch.compile.register(qlast.Introspect)

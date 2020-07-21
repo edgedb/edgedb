@@ -672,6 +672,7 @@ class TypeCast(ImmutableExpr):
     cast_name: str
     from_type: TypeRef
     to_type: TypeRef
+    modifier: typing.Optional[qlast.CardinalityModifier]
     sql_function: str
     sql_cast: bool
     sql_expr: bool

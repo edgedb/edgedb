@@ -55,7 +55,8 @@ def compile_cast(
         ir_expr: Union[irast.Set, irast.Expr],
         new_stype: s_types.Type, *,
         srcctx: Optional[parsing.ParserContext],
-        ctx: context.ContextLevel) -> irast.Set:
+        ctx: context.ContextLevel,
+        modifier: Optional[qlast.CardinalityModifier]=None) -> irast.Set:
 
     if isinstance(ir_expr, irast.EmptySet):
         # For the common case of casting an empty set, we simply
@@ -130,7 +131,8 @@ def compile_cast(
             # it into json->str and str->enum.
             str_typ = ctx.env.get_track_schema_type('std::str')
             str_ir = compile_cast(ir_expr, str_typ, srcctx=srcctx, ctx=ctx)
-            return compile_cast(str_ir, new_stype, srcctx=srcctx, ctx=ctx)
+            return compile_cast(str_ir, new_stype, modifier=modifier,
+                                srcctx=srcctx, ctx=ctx)
         elif (orig_stype.issubclass(ctx.env.schema, json_t)
               and isinstance(new_stype, s_types.Array)
               and not new_stype.get_subtypes(ctx.env.schema)[0].issubclass(
@@ -142,10 +144,12 @@ def compile_cast(
             json_array_ir = compile_cast(
                 ir_expr, json_array_typ, srcctx=srcctx, ctx=ctx)
             return compile_cast(
-                json_array_ir, new_stype, srcctx=srcctx, ctx=ctx)
+                json_array_ir, new_stype, modifier=modifier,
+                srcctx=srcctx, ctx=ctx)
 
         return _compile_cast(
-            ir_expr, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
+            ir_expr, orig_stype, new_stype, modifier=modifier,
+            srcctx=srcctx, ctx=ctx)
 
 
 def _compile_cast(
@@ -153,7 +157,8 @@ def _compile_cast(
         orig_stype: s_types.Type,
         new_stype: s_types.Type, *,
         srcctx: Optional[parsing.ParserContext],
-        ctx: context.ContextLevel) -> irast.Set:
+        ctx: context.ContextLevel,
+        modifier: Optional[qlast.CardinalityModifier]) -> irast.Set:
 
     ir_set = setgen.ensure_set(ir_expr, ctx=ctx)
     cast = _find_cast(orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
@@ -165,14 +170,16 @@ def _compile_cast(
             f'{new_stype.get_displayname(ctx.env.schema)!r}',
             context=srcctx or ir_set.context)
 
-    return _cast_to_ir(ir_set, cast, orig_stype, new_stype, ctx=ctx)
+    return _cast_to_ir(ir_set, cast, orig_stype, new_stype, modifier, ctx=ctx)
 
 
 def _cast_to_ir(
         ir_set: irast.Set,
         cast: s_casts.Cast,
         orig_stype: s_types.Type,
-        new_stype: s_types.Type, *,
+        new_stype: s_types.Type,
+        modifier: Optional[qlast.CardinalityModifier]=None,
+        *,
         ctx: context.ContextLevel) -> irast.Set:
 
     orig_typeref = typegen.type_to_typeref(orig_stype, env=ctx.env)
@@ -182,6 +189,7 @@ def _cast_to_ir(
         expr=ir_set,
         from_type=orig_typeref,
         to_type=new_typeref,
+        modifier=modifier,
         cast_name=cast_name,
         cast_module_id=ctx.env.schema.get_global(
             s_mod.Module, cast_name.module).id,
@@ -514,6 +522,7 @@ def _cast_array(
                                 el_type,
                                 ctx=subctx,
                             ),
+                            modifier=qlast.CardinalityModifier.Required,
                         ),
                         orderby=[
                             qlast.SortExpr(
@@ -574,7 +583,8 @@ def _cast_array_literal(
 
     casted_els = []
     for el in ir_set.expr.elements:
-        el = compile_cast(el, el_type, ctx=ctx, srcctx=srcctx)
+        el = compile_cast(el, el_type, modifier=qlast.CardinalityModifier.Required,
+                          ctx=ctx, srcctx=srcctx)
         casted_els.append(el)
 
     new_array = setgen.ensure_set(
