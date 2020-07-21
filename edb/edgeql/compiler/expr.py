@@ -431,14 +431,14 @@ def compile_TypeCast(
             )
 
         param_name = expr.expr.name
-        if expr.modifier:
-            if expr.modifier == qlast.CardinalityModifier.Optional:
+        if expr.cardinality_mod:
+            if expr.cardinality_mod == qlast.CardinalityModifier.Optional:
                 required = False
-            elif expr.modifier == qlast.CardinalityModifier.Required:
+            elif expr.cardinality_mod == qlast.CardinalityModifier.Required:
                 required = True
             else:
                 raise NotImplementedError(
-                    f"cardinality modifier {expr.modifier}")
+                    f"cardinality modifier {expr.cardinality_mod}")
         else:
             required = True
 
@@ -521,7 +521,7 @@ def compile_TypeCast(
 
     new_stype = typegen.ql_typeexpr_to_type(expr.type, ctx=ctx)
     return casts.compile_cast(
-        ir_expr, new_stype, cardinality_mod=expr.modifier,
+        ir_expr, new_stype, cardinality_mod=expr.cardinality_mod,
         ctx=ctx, srcctx=expr.expr.context)
 
 

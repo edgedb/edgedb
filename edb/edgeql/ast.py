@@ -398,7 +398,7 @@ class Path(Expr):
 class TypeCast(Expr):
     expr: Expr
     type: TypeExpr
-    modifier: typing.Optional[CardinalityModifier]
+    cardinality_mod: typing.Optional[CardinalityModifier]
 
 
 class Introspect(Expr):

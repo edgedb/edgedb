@@ -525,7 +525,7 @@ def _cast_array(
                                 el_type,
                                 ctx=subctx,
                             ),
-                            modifier=qlast.CardinalityModifier.Required,
+                            cardinality_mod=qlast.CardinalityModifier.Required,
                         ),
                         orderby=[
                             qlast.SortExpr(
