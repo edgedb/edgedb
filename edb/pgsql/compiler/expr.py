@@ -26,6 +26,7 @@ from typing import *
 from edb import errors
 
 from edb.edgeql import qltypes as ql_ft
+from edb.edgeql import ast as qlast
 
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
@@ -216,7 +217,7 @@ def compile_TypeCast(
         # Use explicit SQL cast.
 
         pg_type = pg_types.pg_type_from_ir_typeref(expr.to_type)
-        return pgast.TypeCast(
+        res: pgast.BaseExpr = pgast.TypeCast(
             arg=pg_expr,
             type_name=pgast.TypeName(
                 name=pg_type
@@ -232,13 +233,30 @@ def compile_TypeCast(
         else:
             func_name = tuple(expr.sql_function.split('.'))
 
-        return pgast.FuncCall(
+        res = pgast.FuncCall(
             name=func_name,
             args=[pg_expr],
         )
 
     else:
         raise RuntimeError('cast not supported')
+
+    if expr.cardinality_mod is qlast.CardinalityModifier.Required:
+        res = pgast.FuncCall(
+            name=('edgedb', '_raise_exception_on_null'),
+            args=[
+                res,
+                pgast.StringConstant(
+                    val='invalid_parameter_value',
+                ),
+                pgast.StringConstant(
+                    val='invalid null value in cast',
+                ),
+                pgast.StringConstant(val=''),
+            ]
+        )
+
+    return res
 
 
 @dispatch.compile.register(irast.IndexIndirection)
