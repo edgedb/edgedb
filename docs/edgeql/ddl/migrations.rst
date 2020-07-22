@@ -230,28 +230,33 @@ in the current migration block in the specified output format:
     .. code-block::
 
         {
-          // List of confirmed migration
-          // statements.
+          // Name of the parent migration
+          "parent": "<parent-migraiton-name>",
+
+          // Whether the confirmed DDL makes the migration complete,
+          // i.e. there are no more statements to issue.
+          "complete": {true|false},
+
+          // List of confirmed migration statements
           "confirmed": [
             "<stmt text>",
             ...
           ],
 
-          // The variants of the next set of
-          // statements suggested by the system
-          // to advance the migration script.
+          // The variants of the next statement
+          // suggested by the system to advance
+          // the migration script.
           "proposed": {
-            "variants": [{
-              "statements": [{
-                "text": "<stmt text template>",
-                "required-user-input": [{
-                  "name": "<placeholder variable>",
-                  "prompt": "<statement prompt>",
-                }]
-              }],
-              "confidence": (0..1)
-              "prompt": "<variant prompt>"
-            }]
+            "statements": [{
+              "text": "<stmt text template>",
+              "required-user-input": [{
+                "name": "<placeholder variable>",
+                "prompt": "<statement prompt>",
+              }]
+            }],
+            "confidence": (0..1), // confidence coefficient
+            "prompt": "<variant prompt>",
+            "safe": {true|false}
           }
         }
 

@@ -257,6 +257,7 @@ def delta_schemas(
             sd.delta_objects(
                 old,
                 new,
+                sclass=sclass,
                 old_schema=schema_a,
                 new_schema=schema_b,
                 context=context,

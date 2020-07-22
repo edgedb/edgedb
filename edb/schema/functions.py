@@ -631,7 +631,7 @@ class CallableObject(
         self: CallableObjectT,
         schema: s_schema.Schema,
         context: so.ComparisonContext,
-    ) -> sd.ObjectCommand[CallableObjectT]:
+    ) -> sd.Command:
         delta = super().as_create_delta(schema, context)
 
         new_params = self.get_params(schema).objects(schema)
@@ -650,7 +650,7 @@ class CallableObject(
         self_schema: s_schema.Schema,
         other_schema: s_schema.Schema,
         context: so.ComparisonContext,
-    ) -> sd.ObjectCommand[CallableObjectT]:
+    ) -> sd.Command:
         delta = super().as_alter_delta(
             other,
             self_schema=self_schema,
@@ -674,6 +674,7 @@ class CallableObject(
             sd.delta_objects(
                 oldcoll,
                 newcoll,
+                sclass=Parameter,
                 context=context,
                 old_schema=self_schema,
                 new_schema=other_schema,
@@ -687,7 +688,7 @@ class CallableObject(
         *,
         schema: s_schema.Schema,
         context: so.ComparisonContext,
-    ) -> sd.ObjectCommand[CallableObjectT]:
+    ) -> sd.Command:
         delta = super().as_delete_delta(schema=schema, context=context)
         old_params = self.get_params(schema).objects(schema)
         for p in old_params:

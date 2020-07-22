@@ -23,6 +23,7 @@ from typing import *
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
+from edb.edgeql.compiler import normalization as qlnorm
 
 from edb import errors
 
@@ -215,10 +216,10 @@ class LinkCommand(lproperties.PropertySourceCommand,
     ) -> None:
         if issubclass(refdict.ref_cls, pointers.Pointer):
             for op in self.get_subcommands(metaclass=refdict.ref_cls):
-                assert isinstance(op, pointers.PointerCommand)
-                pname = sn.shortname_from_fullname(op.classname)
-                if pname.name not in {'source', 'target'}:
-                    self._append_subcmd_ast(schema, node, op, context)
+                if isinstance(op, pointers.PointerCommand):
+                    pname = sn.shortname_from_fullname(op.classname)
+                    if pname.name not in {'source', 'target'}:
+                        self._append_subcmd_ast(schema, node, op, context)
         else:
             super()._apply_refs_fields_ast(schema, context, node, refdict)
 
@@ -499,11 +500,56 @@ class AlterLink(
         context: sd.CommandContext,
     ) -> referencing.AlterReferencedInheritingObject[Link]:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        assert isinstance(cmd, pointers.PointerCommand)
         if isinstance(astnode, qlast.CreateConcreteLink):
-            assert isinstance(cmd, pointers.PointerCommand)
             cmd._process_create_or_alter_ast(schema, astnode, context)
+        else:
+            expr_cmd = qlast.get_ddl_field_command(astnode, 'expr')
+            if expr_cmd is not None:
+                expr = expr_cmd.value
+                qlnorm.normalize(
+                    expr,
+                    schema=schema,
+                    modaliases=context.modaliases
+                )
+                target_ref = pointers.ComputableRef(expr)
+
+                slt = SetLinkType(classname=cmd.classname, type=target_ref)
+                slt.set_attribute_value(
+                    'target',
+                    target_ref,
+                    source_context=expr_cmd.value.context,
+                )
+                cmd.add(slt)
+                cmd.discard_attribute('expr')
+
         assert isinstance(cmd, referencing.AlterReferencedInheritingObject)
         return cmd
+
+    def _apply_field_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        node: qlast.DDLOperation,
+        op: sd.AlterObjectProperty,
+    ) -> None:
+        if op.property == 'target':
+            if op.new_value:
+                assert isinstance(op.new_value, so.ObjectShell)
+                node.commands.append(
+                    qlast.SetLinkType(
+                        type=utils.typeref_to_ast(schema, op.new_value),
+                    ),
+                )
+        elif op.property == 'required':
+            node.commands.append(
+                qlast.SetSpecialField(
+                    name='required',
+                    value=op.new_value,
+                ),
+            )
+        else:
+            super()._apply_field_ast(schema, context, node, op)
 
 
 class DeleteLink(
@@ -537,3 +583,17 @@ class DeleteLink(
             commands.append(del_cmd)
 
         return commands
+
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
+        if self.get_orig_attribute_value('is_from_alias'):
+            # This is an alias type, appropriate DDL would be generated
+            # from the corresponding Alter/DeleteAlias node.
+            return None
+        else:
+            return super()._get_ast(schema, context, parent_node=parent_node)

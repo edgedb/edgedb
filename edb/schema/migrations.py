@@ -27,6 +27,7 @@ import base64
 import hashlib
 
 from edb import errors
+from edb.common import debug
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import codegen as qlcodegen
@@ -164,7 +165,10 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
         if parent is not None:
             cmd.set_attribute_value('parents', [parent])
 
-        if astnode.auto_diff is not None:
+        if (
+            astnode.auto_diff is not None
+            and not debug.flags.migrations_via_ddl
+        ):
             cmd.canonical = True
 
         return cmd
@@ -180,7 +184,10 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
 
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
-        if astnode.auto_diff is not None:
+        if (
+            astnode.auto_diff is not None
+            and not debug.flags.migrations_via_ddl
+        ):
             for subcmd in list(cmd.get_subcommands()):
                 if not isinstance(subcmd, sd.AlterObjectProperty):
                     cmd.discard(subcmd)

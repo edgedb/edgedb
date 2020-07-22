@@ -17,7 +17,6 @@
 #
 
 from __future__ import annotations
-
 from typing import *
 
 import collections.abc
@@ -305,6 +304,9 @@ class Pointer(referencing.ReferencedInheritingObject,
     def is_type_intersection(self) -> bool:
         return False
 
+    def is_generated(self, schema: s_schema.Schema) -> bool:
+        return bool(self.get_is_from_alias(schema))
+
     @classmethod
     def get_displayname_static(cls, name: str) -> str:
         sn = cls.get_shortname_static(name)
@@ -567,6 +569,16 @@ class Pointer(referencing.ReferencedInheritingObject,
         my_source = self.get_source(schema)
         return [
             b for b in bases
+            if b.get_source(schema) != my_source
+        ]
+
+    def get_implicit_ancestors(self, schema: s_schema.Schema) -> List[Pointer]:
+        ancestors = super().get_implicit_ancestors(schema)
+
+        # True implicit ancestors for pointers will have a different source.
+        my_source = self.get_source(schema)
+        return [
+            b for b in ancestors
             if b.get_source(schema) != my_source
         ]
 
@@ -926,8 +938,21 @@ class PointerCommandOrFragment(
 
         self.set_attribute_value('expr', expression)
         required, card = expression.irast.cardinality.to_schema_value()
+
+        is_alter = (
+            isinstance(self, sd.AlterObject)
+            or (
+                isinstance(self, sd.AlterObjectFragment)
+                and isinstance(self.get_parent_op(context), sd.AlterObject)
+            )
+        )
+
         spec_required = self.get_attribute_value('required')
+        if spec_required is None and is_alter:
+            spec_required = self.scls.get_required(schema)
         spec_card = self.get_attribute_value('cardinality')
+        if spec_card is None and is_alter:
+            spec_card = self.scls.get_cardinality(schema)
 
         if spec_required and not required:
             ptr_name = sn.shortname_from_fullname(

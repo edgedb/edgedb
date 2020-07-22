@@ -151,7 +151,8 @@ def get_known_type_id(
 
 class ComparisonContext:
 
-    renames: Dict[str, str]
+    renames: Dict[Tuple[Type[Object], str], sd.RenameObject[Object]]
+    deletions: Dict[Tuple[Type[Object], str], sd.DeleteObject[Object]]
 
     def __init__(
         self,
@@ -160,6 +161,27 @@ class ComparisonContext:
     ) -> None:
         self.related_schemas = related_schemas
         self.renames = {}
+        self.deletions = {}
+
+    def is_deleting(self, schema: s_schema.Schema, obj: Object) -> bool:
+        return (type(obj), obj.get_name(schema)) in self.deletions
+
+    def record_rename(
+        self,
+        op: sd.RenameObject[Object],
+    ) -> None:
+        self.renames[op.get_schema_metaclass(), op.classname] = op
+
+    def is_renaming(self, schema: s_schema.Schema, obj: Object) -> bool:
+        return (type(obj), obj.get_name(schema)) in self.renames
+
+    def get_obj_name(self, schema: s_schema.Schema, obj: Object) -> str:
+        obj_name = obj.get_name(schema)
+        rename_op = self.renames.get((type(obj), obj_name))
+        if rename_op is not None:
+            return rename_op.new_name
+        else:
+            return obj_name
 
 
 # derived from ProtoField for validation
@@ -330,6 +352,9 @@ class Field(struct.ProtoField, Generic[T]):
     def is_schema_field(self) -> bool:
         return False
 
+    def get_default(self) -> Any:
+        raise ValueError(f'field {self.name!r} is required and has no default')
+
     def __get__(
         self,
         instance: Optional[Object],
@@ -380,6 +405,22 @@ class SchemaField(Field[Type_T]):
     @property
     def is_schema_field(self) -> bool:
         return True
+
+    def get_default(self) -> Any:
+        if self.default is NoDefault:
+            raise ValueError(
+                f'field {self.name!r} is required and has no default')
+        elif self.default is DEFAULT_CONSTRUCTOR:
+            if issubclass(self.type, ObjectCollection):
+                value = self.type.create_empty()
+            else:
+                # The dance below is required to workaround a bug in mypy:
+                # Unsupported type Type["Type[T]"]
+                t = cast(type, self.type)
+                value = t()
+        else:
+            value = self.default
+        return value
 
     def __get__(
         self,
@@ -863,27 +904,6 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         raise RuntimeError(
             f'cannot set value to attribute {self}.{name} directly')
 
-    def _getdefault(
-        self,
-        field_name: str,
-        field: SchemaField[Type[T]],
-    ) -> Optional[T]:
-        value: Optional[T]
-
-        if field.default is NoDefault:
-            raise TypeError(f'{type(self).__name__}.{field_name} is required')
-        elif field.default is DEFAULT_CONSTRUCTOR:
-            if issubclass(field.type, ObjectCollection):
-                value = field.type.create_empty()
-            else:
-                # The dance below is required to workaround a bug in mypy:
-                # Unsupported type Type["Type[T]"]
-                t = cast(type, field.type)
-                value = t()
-        else:
-            value = field.default
-        return value
-
     # XXX sadly, in the methods below, statically we don't know any better than
     # "Any" since providing the field name as a `str` is the equivalent of
     # getattr() on a regular class.
@@ -901,11 +921,10 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
         if allow_default:
             field = type(self).get_field(field_name)
-            assert isinstance(field, SchemaField)
 
             try:
-                return self._getdefault(field_name, field)
-            except TypeError:
+                return field.get_default()
+            except ValueError:
                 pass
 
         raise FieldValueNotFoundError(
@@ -1053,6 +1072,9 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
     ) -> bool:
         return True
 
+    def is_generated(self, schema: s_schema.Schema) -> bool:
+        return False
+
     @classmethod
     def compare_field_value(
         cls,
@@ -1148,8 +1170,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             if type(ours) is not type(theirs):
                 similarity /= 1.4
             else:
-                our_name = ours.get_name(our_schema)
-                our_name = context.renames.get(our_name, our_name)
+                our_name = context.get_obj_name(our_schema, ours)
                 their_name = theirs.get_name(their_schema)
                 if our_name != their_name:
                     similarity /= 1.2
@@ -1231,11 +1252,11 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
     def init_delta_command(
         self: Object_T,
         schema: s_schema.Schema,
-        cmdtype: Type[sd.ObjectCommand[Object]],
+        cmdtype: Type[sd.ObjectCommand_T],
         *,
         classname: Optional[str] = None,
         **kwargs: Any,
-    ) -> sd.ObjectCommand[Object_T]:
+    ) -> sd.ObjectCommand_T:
         from . import delta as sd
 
         return sd.get_object_delta_command(
@@ -1260,12 +1281,12 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
     def init_delta_branch(
         self: Object_T,
         schema: s_schema.Schema,
-        cmdtype: Type[sd.ObjectCommand[Object]],
+        cmdtype: Type[sd.ObjectCommand_T],
         *,
         classname: Optional[str] = None,
         referrer: Optional[Object] = None,
         **kwargs: Any,
-    ) -> Tuple[sd.DeltaRoot, sd.ObjectCommand[Object_T]]:
+    ) -> Tuple[sd.DeltaRoot, sd.ObjectCommand_T]:
         root_cmd, parent_cmd = self.init_parent_delta_branch(
             schema=schema,
             referrer=referrer,
@@ -1285,7 +1306,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         self: Object_T,
         schema: s_schema.Schema,
         context: ComparisonContext,
-    ) -> sd.ObjectCommand[Object_T]:
+    ) -> sd.Command:
         from . import delta as sd
 
         cls = type(self)
@@ -1317,7 +1338,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                     v = value.as_shell(schema)
                 else:
                     v = value
-                self.record_field_create_delta(schema, delta, fn, v)
+                self.record_field_create_delta(schema, delta, context, fn, v)
 
         for refdict in cls.get_refdicts():
             refcoll = self.get_field_value(schema, refdict.attr)
@@ -1337,7 +1358,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         self_schema: s_schema.Schema,
         other_schema: s_schema.Schema,
         context: ComparisonContext,
-    ) -> sd.ObjectCommand[Object_T]:
+    ) -> sd.Command:
         from . import delta as sd
 
         cls = type(self)
@@ -1416,6 +1437,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                 sd.delta_objects(
                     oldcoll_idx,
                     newcoll_idx,
+                    sclass=refdict.ref_cls,
                     context=context,
                     old_schema=self_schema,
                     new_schema=other_schema,
@@ -1429,7 +1451,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         *,
         schema: s_schema.Schema,
         context: ComparisonContext,
-    ) -> sd.ObjectCommand[Object_T]:
+    ) -> sd.Command:
         from . import delta as sd
 
         cls = type(self)
@@ -1438,6 +1460,8 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             sd.DeleteObject,
             canonical=True,
         )
+
+        context.deletions[type(self), delta.classname] = delta
 
         ff = cls.get_fields(sorted=True).items()
         fields = {
@@ -1459,6 +1483,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                 self.record_field_delete_delta(
                     schema,
                     delta,
+                    context,
                     fn,
                     orig_value=v,
                 )
@@ -1474,6 +1499,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         self: Object_T,
         schema: s_schema.Schema,
         delta: sd.ObjectCommand[Object_T],
+        context: ComparisonContext,
         *,
         fname: str,
         value: Any,
@@ -1485,12 +1511,14 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         self: Object_T,
         schema: s_schema.Schema,
         delta: sd.ObjectCommand[Object_T],
+        context: ComparisonContext,
         fname: str,
         value: Any,
     ) -> None:
         self.record_simple_field_delta(
             schema,
             delta,
+            context,
             fname=fname,
             value=value,
             orig_value=None,
@@ -1520,6 +1548,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             self.record_simple_field_delta(
                 schema,
                 rename_op,
+                context,
                 fname=fname,
                 value=value,
                 orig_value=orig_value,
@@ -1527,11 +1556,12 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
             delta.add(rename_op)
 
-            context.renames[orig_value] = value
+            context.record_rename(rename_op)
         else:
             self.record_simple_field_delta(
                 schema,
                 delta,
+                context,
                 fname=fname,
                 value=value,
                 orig_value=orig_value,
@@ -1541,12 +1571,14 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         self: Object_T,
         schema: s_schema.Schema,
         delta: sd.ObjectCommand[Object_T],
+        context: ComparisonContext,
         fname: str,
         orig_value: Any,
     ) -> None:
         self.record_simple_field_delta(
             schema,
             delta,
+            context,
             fname=fname,
             value=None,
             orig_value=orig_value,
@@ -1866,7 +1898,8 @@ class ObjectCollection(
     ) -> float:
         if ours is not None:
             our_names = tuple(
-                context.renames.get(n, n) for n in ours.names(our_schema)
+                context.get_obj_name(our_schema, obj)
+                for obj in ours.objects(our_schema)
             )
         else:
             our_names = cls._container()
@@ -2488,7 +2521,7 @@ class InheritingObject(SubclassableObject):
         self_schema: s_schema.Schema,
         other_schema: s_schema.Schema,
         context: ComparisonContext,
-    ) -> sd.ObjectCommand[InheritingObjectT]:
+    ) -> sd.Command:
         from . import delta as sd
         from . import inheriting as s_inh
 
@@ -2503,14 +2536,13 @@ class InheritingObject(SubclassableObject):
             s_inh.RebaseInheritingObject, type(self))
 
         old_base_names = tuple(
-            context.renames.get(n, n)
-            for n in self.get_bases(self_schema).names(self_schema)
+            context.get_obj_name(self_schema, base)
+            for base in self.get_bases(self_schema).objects(self_schema)
         )
         new_base_names = other.get_bases(other_schema).names(other_schema)
 
         if old_base_names != new_base_names and rebase is not None:
-            removed, added = s_inh.delta_bases(
-                old_base_names, new_base_names)
+            removed, added = s_inh.delta_bases(old_base_names, new_base_names)
 
             rebase_cmd = rebase(
                 classname=other.get_name(other_schema),
@@ -2537,17 +2569,19 @@ class InheritingObject(SubclassableObject):
         self: InheritingObjectT,
         schema: s_schema.Schema,
         delta: sd.ObjectCommand[InheritingObjectT],
+        context: ComparisonContext,
         *,
         fname: str,
         value: Any,
         orig_value: Any,
     ) -> None:
         inherited_fields = self.get_inherited_fields(schema)
+        is_inherited = fname in inherited_fields
         delta.set_attribute_value(
             fname,
             value=value,
             orig_value=orig_value,
-            inherited=fname in inherited_fields,
+            inherited=is_inherited,
         )
 
     def get_field_create_delta(

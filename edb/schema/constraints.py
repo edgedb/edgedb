@@ -216,7 +216,7 @@ class Constraint(referencing.ReferencedInheritingObject,
         self_schema: s_schema.Schema,
         other_schema: s_schema.Schema,
         context: so.ComparisonContext,
-    ) -> sd.ObjectCommand[Constraint]:
+    ) -> sd.Command:
         return super().as_alter_delta(
             other,
             self_schema=self_schema,
@@ -1084,8 +1084,9 @@ class RenameConstraint(ConstraintCommand, sd.RenameObject[Constraint]):
 
 
 class AlterConstraintOwned(
-    ConstraintCommand,
     referencing.AlterOwned[Constraint],
+    schema_metaclass=Constraint,
+    referrer_context_class=ConsistencySubjectCommandContext,
 ):
     astnode = qlast.AlterConstraintOwned
 

@@ -1167,15 +1167,17 @@ class DeleteConstraint(
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
+        delta_root_ctx = context.top()
+        orig_schema = delta_root_ctx.original_schema
         constraint = schema.get(self.classname)
-        if self.constraint_is_effective(schema, constraint):
-            subject = constraint.get_subject(schema)
+        if self.constraint_is_effective(orig_schema, constraint):
+            subject = constraint.get_subject(orig_schema)
 
             if subject is not None:
                 schemac_to_backendc = \
                     schemamech.ConstraintMech.\
                     schema_constraint_to_backend_constraint
-                bconstr = schemac_to_backendc(subject, constraint, schema)
+                bconstr = schemac_to_backendc(subject, constraint, orig_schema)
 
                 op = dbops.CommandGroup()
                 op.add_command(bconstr.delete_ops())
@@ -1627,8 +1629,9 @@ class CompositeObjectMetaCommand(ObjectMetaCommand):
 
     def update_base_inhviews(self, schema, context, obj):
         for base in obj.get_bases(schema).objects(schema):
-            self.schedule_inhviews_update(
-                schema, context, base, update_ancestors=True)
+            if not context.is_deleting(base):
+                self.schedule_inhviews_update(
+                    schema, context, base, update_ancestors=True)
 
     def update_lineage_inhviews(self, schema, context, obj):
         self.schedule_inhviews_update(
@@ -2708,7 +2711,8 @@ class DeleteLink(LinkMetaCommand, adapts=s_links.DeleteLink):
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        orig_schema = schema
+        delta_root_ctx = context.top()
+        orig_schema = delta_root_ctx.original_schema
         link = schema.get(self.classname)
 
         old_table_name = common.get_backend_name(
@@ -3015,8 +3019,7 @@ class AlterProperty(
 
                 src_ctx = context.get(s_sources.SourceCommandContext)
                 src_op = src_ctx.op
-                alter_table = src_op.get_alter_table(
-                    schema, context, priority=5)
+                alter_table = src_op.get_alter_table(schema, context)
                 ptr_stor_info = types.get_pointer_storage_info(
                     prop, schema=schema)
                 alter_table.add_operation(
@@ -3663,6 +3666,9 @@ class UpdateInheritanceViews(MetaCommand):
         all_updates = set()
 
         for obj, update_info in self.view_updates.items():
+            if not schema.has_object(obj.id):
+                continue
+
             all_updates.add(obj)
             if update_info.update_ancestors:
                 all_updates.update(obj.get_ancestors(schema).objects(schema))

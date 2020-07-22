@@ -1012,7 +1012,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ],
         )
 
-    async def test_edgeql_ddl_27(self):
+    async def test_edgeql_ddl_28(self):
         # Test that identifiers that are SQL keywords get quoted.
         # Issue 1667
         await self.con.execute("""

@@ -884,6 +884,9 @@ class Schema(s_abc.Schema):
             f'{label} {refname!r} does not exist',
             context=sourcectx)
 
+    def has_object(self, object_id: uuid.UUID) -> bool:
+        return object_id in self._id_to_type
+
     def has_module(self, module: str) -> bool:
         return self.get_global(s_mod.Module, module, None) is not None
 

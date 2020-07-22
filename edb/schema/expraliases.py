@@ -181,6 +181,7 @@ class AliasCommand(
                 sd.delta_objects(
                     prev_expr_aliases,
                     expr_aliases,
+                    sclass=s_types.Type,
                     old_schema=old_schema,
                     new_schema=new_schema,
                     context=so.ComparisonContext(),

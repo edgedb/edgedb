@@ -29,6 +29,7 @@ from . import functions as s_func
 from . import inheriting
 from . import name as sn
 from . import objects as so
+from . import pointers as s_pointers
 from . import referencing
 from . import types as s_types
 
@@ -52,13 +53,20 @@ def linearize_delta(
     depgraph: Dict[Tuple[str, str], Dict[str, Any]] = {}
     renames: Dict[str, str] = {}
     renames_r: Dict[str, str] = {}
+    parents: Dict[sd.Command, sd.Command] = {}
+    deletions: Set[str] = set()
 
     for op in opmap:
         if isinstance(op, sd.RenameObject):
             renames[op.classname] = op.new_name
             renames_r[op.new_name] = op.classname
+        elif isinstance(op, sd.DeleteObject):
+            deletions.add(op.classname)
 
     for op, opstack in opmap.items():
+        if isinstance(op, sd.AlterObject) and not op.get_subcommands():
+            continue
+
         _trace_op(op, opstack, depgraph, renames,
                   renames_r, strongrefs, old_schema, new_schema)
 
@@ -73,25 +81,40 @@ def linearize_delta(
     max_offset = len(ordered)
     offsets: Dict[sd.Command, int] = {}
     ops: List[sd.Command] = []
+    opindex: Dict[
+        Tuple[Type[sd.ObjectCommand[so.Object]], str],
+        sd.ObjectCommand[so.Object]
+    ] = {}
+
+    def ok_to_move_to(
+        op_to_move: sd.Command,
+        op_to_move_to: sd.ObjectCommand[so.Object],
+    ) -> bool:
+        move_offset = offsets[op_to_move_to]
+        deps = {
+            dep
+            for dep in dependencies.get(op_to_move, set())
+            if parents[dep] != op_to_move
+        }
+        # It's OK to reattach if no dependency has offset
+        # higher than the op we're moving to.
+        return all(offsets.get(dep, max_offset) <= move_offset for dep in deps)
 
     for _key, info in ordered:
         op = info['op']
-        opstack = opmap[op]
+        opstack = info['item']
+        for i, pop in enumerate(opstack[1:]):
+            parents[pop] = opstack[i]
         parent = _get_parent_op(opstack)
         for dep in info['deps']:
             dep_item = depgraph.get(dep)
             if dep_item is None:
                 continue
             dep_op = dep_item['op']
-            dep_stack = opmap[dep_op]
+            dep_stack = dep_item['item']
             dep_parent = _get_parent_op(dep_stack)
             assert isinstance(dep_parent, sd.ObjectCommand)
             dependencies[op].add(dep_op)
-
-    parents: Dict[
-        Tuple[Type[sd.ObjectCommand[so.Object]], str],
-        sd.ObjectCommand[so.Object]
-    ] = {}
 
     for _key, info in ordered:
         op = info['op']
@@ -99,29 +122,7 @@ def linearize_delta(
         if isinstance(op, sd.AlterObject) and not op.get_subcommands():
             continue
 
-        opstack = opmap[op]
-
-        if (
-            isinstance(op, sd.ObjectCommand)
-            and not isinstance(op, sd.CreateObject)
-            and info['implicit_bases']
-        ):
-            found_implicit_parent_op = False
-            for implicit_base in info['implicit_bases']:
-                key = (
-                    type(op),
-                    renames_r.get(implicit_base, implicit_base),
-                )
-
-                implicit_parent_op = parents.get(key)
-                if implicit_parent_op is not None:
-                    implicit_parent_op.add(opstack[1])
-                    found_implicit_parent_op = True
-                    break
-
-            if found_implicit_parent_op:
-                continue
-
+        opstack = info['item']
         parent = _get_parent_op(opstack)
         reattachment_depth = 1
         for depth, ancestor_op in enumerate(reversed(opstack[1:-1])):
@@ -129,7 +130,7 @@ def linearize_delta(
             mcls = ancestor_op.get_schema_metaclass()
             create_cmd_cls = sd.ObjectCommandMeta.get_command_class_or_die(
                 sd.CreateObject, mcls)
-            attached_root: Optional[sd.ObjectCommand[so.Object]] = None
+            attached_root: Optional[sd.Command] = None
 
             # Try attaching to a "Create" op, if that doesn't work
             # attach to whatever the ancestor is right now.
@@ -141,21 +142,16 @@ def linearize_delta(
             ancestor_keys.append((type(ancestor_op), ancestor_op.classname))
 
             for ancestor_key in ancestor_keys:
-                # The root operation is the top-level operation in the delta.
-                attached_root = parents.get(ancestor_key)
+                # The root operation is the top-level
+                # operation in the delta.
+                attached_root = opindex.get(ancestor_key)
                 if attached_root is not None:
-                    root_offset = offsets[attached_root]
-                    deps = dependencies.get(op, set())
-
-                    # It's OK to reattach if no dependency has offset
-                    # higher than our root operation.
-                    if all(offsets.get(dep, max_offset) <= root_offset
-                           for dep in deps):
+                    if ok_to_move_to(op, attached_root):
                         reattachment_depth = -(depth + 1)
                         attached_root.add(opstack[reattachment_depth])
+                        parents[opstack[reattachment_depth]] = attached_root
                         # record where this branch was reattached
-                        offset = root_offset
-
+                        offset = offsets[attached_root]
                     break
 
             if attached_root is not None:
@@ -171,11 +167,11 @@ def linearize_delta(
         for op in opstack[reattachment_depth:]:
             if isinstance(op, sd.ObjectCommand):
                 ancestor_key = (type(op), op.classname)
-                parents[ancestor_key] = op
+                opindex[ancestor_key] = op
 
             offsets[op] = offset
 
-    delta.replace(ops)
+    delta.replace_all(ops)
 
     return delta
 
@@ -203,7 +199,10 @@ def _break_down(
                                sd.RenameObject,
                                inheriting.RebaseInheritingObject)):
             _break_down(opmap, strongrefs, new_opstack + [sub_op])
-        elif isinstance(sub_op, sd.AlterObjectProperty):
+        elif (
+            isinstance(sub_op, sd.AlterObjectProperty)
+            and not isinstance(op, sd.DeleteObject)
+        ):
             assert isinstance(op, sd.ObjectCommand)
             mcls = op.get_schema_metaclass()
             field = mcls.get_field(sub_op.property)
@@ -230,7 +229,7 @@ def _trace_op(
 ) -> None:
     deps: Set[Tuple[str, str]] = set()
     graph_key: str
-    implicit_bases: List[str] = []
+    implicit_ancestors: List[str] = []
 
     if isinstance(op, sd.CreateObject):
         tag = 'create'
@@ -242,6 +241,8 @@ def _trace_op(
         tag = 'rebase'
     elif isinstance(op, sd.DeleteObject):
         tag = 'delete'
+    elif isinstance(op, referencing.AlterOwned):
+        tag = 'alterowned'
     elif isinstance(op, sd.AlterObjectProperty):
         tag = 'field'
     else:
@@ -249,17 +250,21 @@ def _trace_op(
             f'unexpected delta command type at top level: {op!r}'
         )
 
-    if isinstance(op, sd.DeleteObject):
+    if isinstance(op, (sd.DeleteObject, referencing.AlterOwned)):
         assert old_schema is not None
-        # Things must be deleted _after_ their referrers have
-        # been deleted or altered.
         obj = get_object(old_schema, op)
-        refs = _get_referrers(
-            old_schema, get_object(old_schema, op), strongrefs)
+        refs = _get_referrers(old_schema, obj, strongrefs)
         for ref in refs:
             ref_name = ref.get_name(old_schema)
-            if (isinstance(obj, referencing.ReferencedObject)
-                    and obj.get_referrer(old_schema) == ref):
+            if (
+                (
+                    isinstance(obj, referencing.ReferencedObject)
+                    and obj.get_referrer(old_schema) == ref
+                )
+            ):
+                # If the referrer is enclosing the object
+                # (i.e. the reference is a refdict reference),
+                # we sort the referrer operation first.
                 try:
                     ref_item = depgraph[('delete', ref_name)]
                 except KeyError:
@@ -267,10 +272,41 @@ def _trace_op(
 
                 ref_item['deps'].add((tag, op.classname))
 
-            elif (isinstance(ref, referencing.ReferencedObject)
-                    and ref.get_referrer(old_schema) == obj):
+            elif (
+                isinstance(ref, referencing.ReferencedInheritingObject)
+                and (
+                    op.classname
+                    in {
+                        b.get_name(old_schema)
+                        for b in ref.get_implicit_ancestors(old_schema)
+                    }
+                )
+                and (
+                    not isinstance(ref, s_pointers.Pointer)
+                    or not ref.get_is_from_alias(old_schema)
+                )
+            ):
+                # If the ref is an implicit descendant (i.e. an inherited ref),
+                # we also sort it _after_ the parent, because we'll pull
+                # it as a child of the parent op at the time of tree
+                # reassembly.
+                try:
+                    ref_item = depgraph[('delete', ref_name)]
+                except KeyError:
+                    ref_item = depgraph[('delete', ref_name)] = {'deps': set()}
+
+                ref_item['deps'].add((tag, op.classname))
+
+            elif (
+                isinstance(ref, referencing.ReferencedObject)
+                and ref.get_referrer(old_schema) == obj
+            ):
+                # Skip refdict.backref_attr to avoid dependency cycles.
                 continue
+
             else:
+                # Otherwise, things must be deleted _after_ their referrers
+                # have been deleted or altered.
                 deps.add(('delete', ref.get_name(old_schema)))
 
         if isinstance(obj, referencing.ReferencedObject):
@@ -281,6 +317,27 @@ def _trace_op(
                 if referrer_name in renames_r:
                     referrer_name = renames_r[referrer_name]
                 deps.add(('rebase', referrer_name))
+
+                if (
+                    isinstance(obj, referencing.ReferencedInheritingObject)
+                    and (
+                        not isinstance(obj, s_pointers.Pointer)
+                        or not obj.get_is_from_alias(old_schema)
+                    )
+                ):
+                    for ancestor in obj.get_implicit_ancestors(old_schema):
+                        ancestor_name = ancestor.get_name(old_schema)
+                        implicit_ancestors.append(ancestor_name)
+
+                        try:
+                            anc_item = depgraph[('delete', ancestor_name)]
+                        except KeyError:
+                            anc_item = {'deps': set()}
+                            depgraph[('delete', ancestor_name)] = anc_item
+
+                        anc_item['deps'].add((
+                            'alterowned', op.classname,
+                        ))
 
         graph_key = op.classname
 
@@ -298,6 +355,19 @@ def _trace_op(
         parent_op = opstack[-2]
         assert isinstance(parent_op, sd.ObjectCommand)
         graph_key = f'{parent_op.classname}%%{op.property}'
+        deps.add(('create', parent_op.classname))
+
+        if isinstance(op.old_value, (so.Object, so.ObjectShell)):
+            assert old_schema is not None
+            ovn = op.old_value.get_name(old_schema)
+            nvn = op.new_value.get_name(new_schema)
+            if ovn != nvn:
+                try:
+                    ov_item = depgraph[('delete', ovn)]
+                except KeyError:
+                    ov_item = depgraph[('delete', ovn)] = {'deps': set()}
+
+                ov_item['deps'].add((tag, graph_key))
 
     elif isinstance(op, sd.ObjectCommand):
         # If the object was renamed, use the new name, else use regular.
@@ -326,6 +396,7 @@ def _trace_op(
 
             item['deps'].add(('create', op.classname))
             item['deps'].add(('alter', op.classname))
+            item['deps'].add(('rename', op.classname))
 
             try:
                 item = depgraph[('alter', ref_name)]
@@ -336,6 +407,7 @@ def _trace_op(
 
             item['deps'].add(('create', op.classname))
             item['deps'].add(('alter', op.classname))
+            item['deps'].add(('rename', op.classname))
 
             try:
                 item = depgraph[('rebase', ref_name)]
@@ -387,10 +459,22 @@ def _trace_op(
                 deps.add(('rebase', referrer_name))
 
                 if isinstance(obj, referencing.ReferencedInheritingObject):
-                    implicit_bases = [
+                    implicit_ancestors = [
                         b.get_name(new_schema)
-                        for b in obj.get_implicit_bases(new_schema)
+                        for b in obj.get_implicit_ancestors(new_schema)
                     ]
+
+                    if not isinstance(op, sd.CreateObject):
+                        assert old_schema is not None
+                        old_obj = get_object(old_schema, op)
+                        assert isinstance(
+                            old_obj,
+                            referencing.ReferencedInheritingObject,
+                        )
+                        implicit_ancestors += [
+                            b.get_name(old_schema)
+                            for b in old_obj.get_implicit_ancestors(old_schema)
+                        ]
 
         graph_key = op.classname
 
@@ -402,11 +486,11 @@ def _trace_op(
     except KeyError:
         item = depgraph[(tag, graph_key)] = {'deps': set()}
 
-    item['item'] = opstack[1]
+    item['item'] = opstack
     item['op'] = op
     item['tag'] = tag
     item['deps'].update(deps)
-    item['implicit_bases'] = implicit_bases
+    item['implicit_ancestors'] = implicit_ancestors
 
 
 def get_object(

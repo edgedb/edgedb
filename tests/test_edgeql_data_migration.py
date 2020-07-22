@@ -3441,12 +3441,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-    @test.xfail('''
-        The link is preserved, but not the link property value. Which
-        is a bit odd.
-
-        See also `test_schema_migrations_equivalence_linkprops_08`.
-    ''')
     async def test_edgeql_migration_linkprops_08(self):
         await self.con.execute("""
             SET MODULE test;

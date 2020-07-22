@@ -259,18 +259,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         schema: s_schema.Schema,
         context: sd.CommandContext,
         refdict: so.RefDict,
-        present_refs: Dict[
-            sn.Name,
-            Tuple[
-                Type[
-                    s_referencing.CreateReferencedObject[
-                        s_referencing.ReferencedObject
-                    ]
-                ],
-                qlast.ObjectDDL,
-                List[so.InheritingObject],
-            ],
-        ],
+        present_refs: AbstractSet[sn.Name],
     ) -> Dict[str, Type[sd.ObjectCommand[so.Object]]]:
         from . import referencing as s_referencing
 
@@ -332,7 +321,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         return schema
 
     def _reinherit_classref_dict(
-        self,
+        self: InheritingObjectCommand[so.InheritingObjectT],
         schema: s_schema.Schema,
         context: sd.CommandContext,
         refdict: so.RefDict,
@@ -341,8 +330,22 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
 
         scls = self.scls
         refs = self.get_inherited_ref_layout(schema, context, refdict)
+        refnames = set(refs)
+
+        obj_op: InheritingObjectCommand[so.InheritingObjectT]
+        if isinstance(self, sd.AlterObjectFragment):
+            obj_op = cast(InheritingObjectCommand[so.InheritingObjectT],
+                          self.get_parent_op(context))
+        else:
+            obj_op = self
+
+        for refalter in obj_op.get_subcommands(metaclass=refdict.ref_cls):
+            if refalter.get_attribute_value('is_owned'):
+                assert isinstance(refalter, sd.QualifiedObjectCommand)
+                refnames.add(refalter.classname)
+
         deleted_refs = self.get_no_longer_inherited_ref_layout(
-            schema, context, refdict, refs)
+            schema, context, refdict, refnames)
         group = sd.CommandGroup()
 
         for create_cmd, astnode, bases in refs.values():
@@ -474,7 +477,6 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         node: qlast.DDLOperation,
         op: sd.AlterObjectProperty,
     ) -> None:
-        assert isinstance(node, qlast.ObjectDDL)
         if (
             op.property in {'is_abstract', 'is_final'}
             and not isinstance(self, sd.DeleteObject)

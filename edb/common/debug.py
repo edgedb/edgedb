@@ -123,6 +123,9 @@ class flags(metaclass=FlagsMeta):
     log_metrics = Flag(
         doc="Log verbose statistics on connections and compiler behavior.")
 
+    migrations_via_ddl = Flag(
+        doc="Always use generated DDL when running migrations.")
+
 
 @contextlib.contextmanager
 def timeit(title='block'):

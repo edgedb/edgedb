@@ -420,3 +420,17 @@ class AlterObjectType(ObjectTypeCommand,
 class DeleteObjectType(ObjectTypeCommand,
                        inheriting.DeleteInheritingObject[ObjectType]):
     astnode = qlast.DropObjectType
+
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
+        if self.get_orig_attribute_value('expr_type'):
+            # This is an alias type, appropriate DDL would be generated
+            # from the corresponding DeleteAlias node.
+            return None
+        else:
+            return super()._get_ast(schema, context, parent_node=parent_node)

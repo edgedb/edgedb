@@ -53,6 +53,11 @@ class OrderedSet(MutableSet[K]):
         for item in iterable:
             self.add(item)
 
+    def replace(self, existing: K, new: K) -> None:
+        if existing not in self.map:
+            raise LookupError(f'{existing!r} is not in set')
+        self.map[existing] = new
+
     difference_update = collections.abc.MutableSet.__isub__
     symmetric_difference_update = collections.abc.MutableSet.__ixor__
     intersection_update = collections.abc.MutableSet.__iand__

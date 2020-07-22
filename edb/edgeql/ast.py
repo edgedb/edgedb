@@ -1112,15 +1112,23 @@ def get_targets(target: typing.Union[None, TypeExpr, Expr]):
         return [target]
 
 
+def get_ddl_field_command(
+    ddlcmd: DDLOperation,
+    name: str,
+) -> typing.Optional[typing.Union[SetField, SetSpecialField]]:
+    for cmd in ddlcmd.commands:
+        if isinstance(cmd, (SetField, SetSpecialField)) and cmd.name == name:
+            return cmd
+
+    return None
+
+
 def get_ddl_field_value(
     ddlcmd: DDLOperation,
     name: str,
 ) -> typing.Optional[Expr]:
-    for cmd in ddlcmd.commands:
-        if isinstance(cmd, (SetField, SetSpecialField)) and cmd.name == name:
-            return cmd.value
-
-    return None
+    cmd = get_ddl_field_command(ddlcmd, name)
+    return cmd.value if cmd is not None else None
 
 
 def has_ddl_subcommand(
