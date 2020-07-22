@@ -215,6 +215,16 @@ Use:
 * ``JSON_ELEMENTS`` to return a single JSON string per top-level set element.
   This can be used to iterate over a large result set efficiently.
 
+Known headers:
+
+* 0xFF01 ``IMPLICIT_LIMIT`` -- implicit limit for objects returned.
+  Valid format: decimal number encoded as UTF-8 text. Not set by default.
+
+* 0xFF02 ``INLINE_TYPENAMES`` -- if set to "true" all returned objects have
+  a ``__tname__`` property set to their type name (equivalent to having
+  an implicit "__tname__ := .__type__.name" computable.)
+
+
 .. eql:struct:: edb.testbase.protocol.Cardinality
 
 
@@ -403,7 +413,7 @@ Known headers:
 
 * 101 ``BLOCK_TYPE`` -- block type, always "I"
 * 102 ``SERVER_TIME`` -- server time when dump is started as a floating point
-                       unix timestamp stringified
+  unix timestamp stringified
 * 103 ``SERVER_VERSION`` -- full version of server as string
 
 

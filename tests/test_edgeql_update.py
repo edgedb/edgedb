@@ -438,7 +438,7 @@ class TestUpdate(tb.QueryTestCase):
                 ],
             )
 
-            objs = await self.con.query(
+            objs = await self.con._fetchall(
                 r"""
                     WITH MODULE test
                     UPDATE UpdateTest
@@ -446,10 +446,12 @@ class TestUpdate(tb.QueryTestCase):
                     SET {
                         name := 'new ' ++ UpdateTest.name
                     };
-                """
+                """,
+                __typenames__=True,
+                __typeids__=True
             )
-
             self.assertTrue(hasattr(objs[0], '__tid__'))
+            self.assertEqual(objs[0].__tname__, 'test::UpdateTest')
 
         finally:
             await self.con.execute(r"""

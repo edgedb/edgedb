@@ -95,6 +95,7 @@ def init_context(
     ctx.toplevel_result_view_name = options.result_view_name
     ctx.implicit_id_in_shapes = options.implicit_id_in_shapes
     ctx.implicit_tid_in_shapes = options.implicit_tid_in_shapes
+    ctx.implicit_tname_in_shapes = options.implicit_tname_in_shapes
     ctx.implicit_limit = options.implicit_limit
 
     return ctx

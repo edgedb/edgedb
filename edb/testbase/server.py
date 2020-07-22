@@ -32,6 +32,7 @@ import math
 import os
 import pathlib
 import pprint
+import random
 import re
 import subprocess
 import sys
@@ -394,14 +395,21 @@ class ConnectedTestCaseMixin:
             # The expected result is the same
             exp_result_binary = exp_result_json
 
+        typenames = random.choice([True, False])
         try:
-            res = await self.con.query(query, *fetch_args, **fetch_kw)
+            res = await self.con._fetchall(
+                query,
+                *fetch_args,
+                __typenames__=typenames,
+                **fetch_kw
+            )
             res = serutils.serialize(res)
             if sort is not None:
                 self._sort_results(res, sort)
             self._assert_data_shape(res, exp_result_binary, message=msg)
         except Exception:
-            self.add_fail_notes(serialization='binary')
+            self.add_fail_notes(
+                serialization='binary', __typenames__=typenames)
             raise
 
     def _sort_results(self, results, sort):

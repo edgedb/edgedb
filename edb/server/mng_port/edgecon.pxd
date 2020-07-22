@@ -51,6 +51,18 @@ cdef enum EdgeConnectionStatus:
 
 
 @cython.final
+cdef class QueryRequestInfo:
+    cdef public object source  # edgeql.Source
+    cdef public object io_format
+    cdef public bint expect_one
+    cdef public int implicit_limit
+    cdef public bint inline_typeids
+    cdef public bint inline_typenames
+
+    cdef int cached_hash
+
+
+@cython.final
 cdef class CompiledQuery:
     cdef public object query_unit
     cdef public object first_extra  # Optional[int]
@@ -99,8 +111,9 @@ cdef class EdgeConnection:
 
         object __weakref__
 
-    cdef _parse_io_format(self, bytes mode)
+    cdef parse_io_format(self, bytes mode)
     cdef parse_cardinality(self, bytes card)
+    cdef parse_prepare_query_part(self, bint account_for_stmt_name)
     cdef char render_cardinality(self, query_unit) except -1
 
     cdef write(self, WriteBuffer buf)

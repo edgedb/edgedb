@@ -98,6 +98,51 @@ cdef object logger = logging.getLogger('edb.server')
 cdef object log_metrics = logging.getLogger('edb.server.metrics')
 
 DEF QUERY_OPT_IMPLICIT_LIMIT = 0xFF01
+DEF QUERY_OPT_INLINE_TYPENAMES = 0xFF02
+DEF QUERY_OPT_INLINE_TYPEIDS = 0xFF03
+
+
+@cython.final
+cdef class QueryRequestInfo:
+
+    def __cinit__(
+        self,
+        source: edgeql.Source,
+        io_format: object,
+        expect_one: bint,
+        implicit_limit: int,
+        inline_typeids: bint,
+        inline_typenames: bint,
+    ):
+        self.source = source
+        self.io_format = io_format
+        self.expect_one = expect_one
+        self.implicit_limit = implicit_limit
+        self.inline_typeids = inline_typeids
+        self.inline_typenames = inline_typenames
+
+        self.cached_hash = hash((
+            self.source.text(),
+            self.io_format,
+            self.expect_one,
+            self.implicit_limit,
+            self.inline_typeids,
+            self.inline_typenames,
+        ))
+
+    def __hash__(self):
+        return self.cached_hash
+
+    def __eq__(self, other: QueryRequestInfo) -> bool:
+        return (
+            self.source.text() == other.source.text() and
+            self.io_format == other.io_format and
+            self.expect_one == other.expect_one and
+            self.implicit_limit == other.implicit_limit and
+            self.inline_typeids == other.inline_typeids and
+            self.inline_typenames == other.inline_typenames
+        )
+
 
 @cython.final
 cdef class CompiledQuery:
@@ -658,12 +703,9 @@ cdef class EdgeConnection:
 
     async def _compile(
         self,
-        source: edgeql.Source,
+        query_req: QueryRequestInfo,
         *,
-        io_format: compiler.IoFormat = FMT_BINARY,
-        expect_one: bint = False,
         stmt_mode: str = 'single',
-        implicit_limit: uint64_t = 0,
     ):
         if self.dbview.in_tx_error():
             self.dbview.raise_in_tx_error()
@@ -672,10 +714,52 @@ cdef class EdgeConnection:
             return await self.get_backend().compiler.call(
                 'compile_in_tx',
                 self.dbview.txid,
+                query_req.source,
+                query_req.io_format,
+                query_req.expect_one,
+                query_req.implicit_limit,
+                query_req.inline_typeids,
+                query_req.inline_typenames,
+                stmt_mode,
+            )
+        else:
+            return await self.get_backend().compiler.call(
+                'compile',
+                self.dbview.dbver,
+                query_req.source,
+                self.dbview.modaliases,
+                self.dbview.get_session_config(),
+                query_req.io_format,
+                query_req.expect_one,
+                query_req.implicit_limit,
+                query_req.inline_typeids,
+                query_req.inline_typenames,
+                stmt_mode,
+                CAP_ALL,
+            )
+
+    async def _compile_script(
+        self,
+        query: bytes,
+        *,
+        stmt_mode: str = 'single',
+    ):
+        with self.timer.timed("Query tokenization"):
+            source = edgeql.Source.from_string(query.decode('utf-8'))
+
+        if self.dbview.in_tx_error():
+            self.dbview.raise_in_tx_error()
+
+        if self.dbview.in_tx():
+            return await self.get_backend().compiler.call(
+                'compile_in_tx',
+                self.dbview.txid,
                 source,
-                io_format,
-                expect_one,
-                implicit_limit,
+                FMT_SCRIPT,
+                False,
+                0,
+                False,
+                False,
                 stmt_mode,
             )
         else:
@@ -685,9 +769,11 @@ cdef class EdgeConnection:
                 source,
                 self.dbview.modaliases,
                 self.dbview.get_session_config(),
-                io_format,
-                expect_one,
-                implicit_limit,
+                FMT_SCRIPT,
+                False,
+                0,
+                False,
+                False,
                 stmt_mode,
                 CAP_ALL,
             )
@@ -758,14 +844,8 @@ cdef class EdgeConnection:
 
     async def _simple_query(self, eql: bytes):
         stmt_mode = 'all'
-        with self.timer.timed("Query tokenization"):
-            source = edgeql.Source.from_string(eql.decode('utf-8'))
         with self.timer.timed("Query compilation"):
-            units = await self._compile(
-                source,
-                io_format=FMT_SCRIPT,
-                stmt_mode=stmt_mode,
-            )
+            units = await self._compile_script(eql, stmt_mode=stmt_mode)
 
         new_type_ids = frozenset()
         for query_unit in units:
@@ -831,23 +911,19 @@ cdef class EdgeConnection:
     async def _parse(
         self,
         bytes eql,
-        object io_format,
-        bint expect_one,
-        uint64_t implicit_limit,
+        QueryRequestInfo query_req,
     ) -> CompiledQuery:
+        source = query_req.source
+
         if self.debug:
             self.debug_print('PARSE', eql)
-
-        with self.timer.timed("Query tokenization"):
-            source = self._tokenize(eql)
 
         if self.debug:
             self.debug_print('Cache key', source.text())
             self.debug_print('Extra variables', source.variables(),
                              'after', source.first_extra())
 
-        query_unit = self.dbview.lookup_compiled_query(
-            source.text(), io_format, expect_one, implicit_limit)
+        query_unit = self.dbview.lookup_compiled_query(query_req)
         cached = True
         if query_unit is None:
             # Cache miss; need to compile this query.
@@ -865,11 +941,8 @@ cdef class EdgeConnection:
             else:
                 with self.timer.timed("Query compilation"):
                     query_unit = await self._compile(
-                        source,
-                        io_format=io_format,
-                        expect_one=expect_one,
+                        query_req,
                         stmt_mode='single',
-                        implicit_limit=implicit_limit,
                     )
                 query_unit = query_unit[0]
         elif self.dbview.in_tx_error():
@@ -891,9 +964,7 @@ cdef class EdgeConnection:
         )
 
         if not cached and query_unit.cacheable:
-            self.dbview.cache_compiled_query(
-                source.text(), io_format, expect_one,
-                implicit_limit, query_unit)
+            self.dbview.cache_compiled_query(query_req, query_unit)
 
         return CompiledQuery(
             query_unit=query_unit,
@@ -925,7 +996,7 @@ cdef class EdgeConnection:
             raise errors.InternalServerError(
                 f'unknown cardinality {query_unit.cardinality!r}')
 
-    cdef _parse_io_format(self, bytes mode):
+    cdef parse_io_format(self, bytes mode):
         if mode == b'j':
             return FMT_JSON
         elif mode == b'J':
@@ -935,6 +1006,60 @@ cdef class EdgeConnection:
         else:
             raise errors.BinaryProtocolError(
                 f'unknown output mode "{repr(mode)[2:-1]}"')
+
+    cdef parse_prepare_query_part(self, parse_stmt_name: bint):
+        cdef:
+            object io_format
+            bytes eql
+            dict headers
+            uint64_t implicit_limit = 0
+            bint inline_typeids = False
+            bint inline_typenames = False
+            bytes stmt_name = b''
+
+        headers = self.parse_headers()
+        if headers:
+            for k, v in headers.items():
+                if k == QUERY_OPT_IMPLICIT_LIMIT:
+                    implicit_limit = self._parse_implicit_limit(v)
+                elif k == QUERY_OPT_INLINE_TYPEIDS:
+                    inline_typeids = v.lower() == b'true'
+                elif k == QUERY_OPT_INLINE_TYPENAMES:
+                    inline_typenames = v.lower() == b'true'
+                else:
+                    raise errors.BinaryProtocolError(
+                        f'unexpected message header: {k}'
+                    )
+
+        io_format = self.parse_io_format(self.buffer.read_byte())
+        expect_one = (
+            self.parse_cardinality(self.buffer.read_byte()) is CARD_ONE
+        )
+
+        if parse_stmt_name:
+            stmt_name = self.buffer.read_len_prefixed_bytes()
+            if stmt_name:
+                raise errors.UnsupportedFeatureError(
+                    'prepared statements are not yet supported')
+
+        eql = self.buffer.read_len_prefixed_bytes()
+        if not eql:
+            raise errors.BinaryProtocolError('empty query')
+
+        with self.timer.timed("Query normalization"):
+            source = self._tokenize(eql)
+
+        query_req = QueryRequestInfo(
+            source,
+            io_format,
+            expect_one,
+            implicit_limit,
+            inline_typeids,
+            inline_typenames,
+        )
+
+        return eql, query_req, stmt_name
+
 
     cdef inline reject_headers(self):
         cdef int16_t nheaders = self.buffer.read_int16()
@@ -985,39 +1110,13 @@ cdef class EdgeConnection:
 
     async def parse(self):
         cdef:
-            object io_format
             bytes eql
-            dict headers
-            uint64_t implicit_limit = 0
+            QueryRequestInfo query_req
 
         self._last_anon_compiled = None
 
-        headers = self.parse_headers()
-        if headers:
-            for k, v in headers.items():
-                if k == QUERY_OPT_IMPLICIT_LIMIT:
-                    implicit_limit = self._parse_implicit_limit(v)
-                else:
-                    raise errors.BinaryProtocolError(
-                        f'unexpected message header: {k}'
-                    )
-
-        io_format = self._parse_io_format(self.buffer.read_byte())
-        expect_one = (
-            self.parse_cardinality(self.buffer.read_byte()) is CARD_ONE
-        )
-
-        stmt_name = self.buffer.read_len_prefixed_bytes()
-        if stmt_name:
-            raise errors.UnsupportedFeatureError(
-                'prepared statements are not yet supported')
-
-        eql = self.buffer.read_len_prefixed_bytes()
-        if not eql:
-            raise errors.BinaryProtocolError('empty query')
-
-        compiled_query = await self._parse(
-            eql, io_format, expect_one, implicit_limit)
+        eql, query_req, stmt_name = self.parse_prepare_query_part(True)
+        compiled_query = await self._parse(eql, query_req)
 
         buf = WriteBuffer.new_message(b'1')  # ParseComplete
         buf.write_int16(0)  # no headers
@@ -1277,54 +1376,38 @@ cdef class EdgeConnection:
     async def optimistic_execute(self):
         cdef:
             WriteBuffer bound_args_buf
+
+            bytes query
+            QueryRequestInfo query_req
+
             bint process_sync
             bytes in_tid
             bytes out_tid
             bytes bound_args
-            uint64_t implicit_limit = 0
 
         self._last_anon_compiled = None
 
-        headers = self.parse_headers()
-        if headers:
-            for k, v in headers.items():
-                if k == QUERY_OPT_IMPLICIT_LIMIT:
-                    implicit_limit = self._parse_implicit_limit(v)
-                else:
-                    raise errors.BinaryProtocolError(
-                        f'unexpected message header: {k}'
-                    )
+        query, query_req, _ = self.parse_prepare_query_part(False)
 
-        io_format = self._parse_io_format(self.buffer.read_byte())
-        expect_one = (
-            self.parse_cardinality(self.buffer.read_byte()) is CARD_ONE
-        )
-        query = self.buffer.read_len_prefixed_bytes()
         in_tid = self.buffer.read_bytes(16)
         out_tid = self.buffer.read_bytes(16)
         bind_args = self.buffer.read_len_prefixed_bytes()
         self.buffer.finish_message()
 
-        if not query:
-            raise errors.BinaryProtocolError('empty query')
-
-        source = self._tokenize(query)
-        query_unit = self.dbview.lookup_compiled_query(
-            source.text(), io_format, expect_one, implicit_limit)
+        query_unit = self.dbview.lookup_compiled_query(query_req)
         if query_unit is None:
             if self.debug:
                 self.debug_print('OPTIMISTIC EXECUTE /REPARSE', query)
 
-            compiled = await self._parse(
-                query, io_format, expect_one, implicit_limit)
+            compiled = await self._parse(query, query_req)
             self._last_anon_compiled = compiled
             query_unit = compiled.query_unit
         else:
             compiled = CompiledQuery(
                 query_unit=query_unit,
-                first_extra=source.first_extra(),
-                extra_count=source.extra_count(),
-                extra_blob=source.extra_blob(),
+                first_extra=query_req.source.first_extra(),
+                extra_count=query_req.source.extra_count(),
+                extra_blob=query_req.source.extra_blob(),
             )
 
         if (query_unit.in_type_id != in_tid or
@@ -1339,8 +1422,7 @@ cdef class EdgeConnection:
             # "last anonymous statement" *in Postgres*.
             # Otherwise the `await self._execute` below would execute
             # some other query.
-            compiled = await self._parse(
-                query, io_format, expect_one, implicit_limit)
+            compiled = await self._parse(query, query_req)
             self._last_anon_compiled = compiled
             return
 

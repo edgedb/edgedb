@@ -569,7 +569,7 @@ class TestInsert(tb.QueryTestCase):
             [3],
         )
 
-        obj = await self.con.query_one(
+        obj = await self.con._fetchall(
             '''
                 WITH MODULE test
                 INSERT DefaultTest1 {
@@ -577,10 +577,13 @@ class TestInsert(tb.QueryTestCase):
                     num := 1,
                 };
             ''',
+            __typeids__=True,
+            __typenames__=True,
         )
 
-        self.assertTrue(hasattr(obj, 'id'))
-        self.assertTrue(hasattr(obj, '__tid__'))
+        self.assertTrue(hasattr(obj[0], 'id'))
+        self.assertTrue(hasattr(obj[0], '__tid__'))
+        self.assertEqual(obj[0].__tname__, 'test::DefaultTest1')
 
     async def test_edgeql_insert_returning_03(self):
         await self.con.execute('''

@@ -101,6 +101,8 @@ class CompileContext:
     json_parameters: bool = False
     schema_reflection_mode: bool = False
     implicit_limit: int = 0
+    inline_typeids: bool = False
+    inline_typenames: bool = False
     schema_object_ids: Optional[Mapping[str, uuid.UUID]] = None
     source: Optional[edgeql.Source] = None
     backend_instance_params: BackendInstanceParams = BackendInstanceParams()
@@ -581,7 +583,7 @@ class Compiler(BaseCompiler):
 
         single_stmt_mode = ctx.stmt_mode is enums.CompileStatementMode.SINGLE
 
-        implicit_fields = (
+        can_have_implicit_fields = (
             native_out_format and
             single_stmt_mode
         )
@@ -601,8 +603,13 @@ class Compiler(BaseCompiler):
             schema=current_tx.get_schema(),
             options=qlcompiler.CompilerOptions(
                 modaliases=current_tx.get_modaliases(),
-                implicit_tid_in_shapes=implicit_fields,
-                implicit_id_in_shapes=implicit_fields,
+                implicit_tid_in_shapes=(
+                    can_have_implicit_fields and ctx.inline_typeids
+                ),
+                implicit_tname_in_shapes=(
+                    can_have_implicit_fields and ctx.inline_typenames
+                ),
+                implicit_id_in_shapes=can_have_implicit_fields,
                 constant_folding=not disable_constant_folding,
                 json_parameters=ctx.json_parameters,
                 implicit_limit=ctx.implicit_limit,
@@ -1613,6 +1620,8 @@ class Compiler(BaseCompiler):
         stmt_mode: Optional[enums.CompileStatementMode],
         capability: enums.Capability,
         implicit_limit: int=0,
+        inline_typeids: bool=False,
+        inline_typenames: bool=False,
         json_parameters: bool=False,
         schema: Optional[s_schema.Schema] = None,
         schema_object_ids: Optional[Mapping[str, uuid.UUID]] = None,
@@ -1650,6 +1659,8 @@ class Compiler(BaseCompiler):
             output_format=io_format,
             expected_cardinality_one=expect_one,
             implicit_limit=implicit_limit,
+            inline_typeids=inline_typeids,
+            inline_typenames=inline_typenames,
             stmt_mode=stmt_mode,
             json_parameters=json_parameters,
             schema_object_ids=schema_object_ids,
@@ -1667,6 +1678,8 @@ class Compiler(BaseCompiler):
         io_format: enums.IoFormat,
         expect_one: bool,
         implicit_limit: int,
+        inline_typeids: bool,
+        inline_typenames: bool,
         stmt_mode: enums.CompileStatementMode,
     ):
         state = self._load_state(txid)
@@ -1676,6 +1689,8 @@ class Compiler(BaseCompiler):
             output_format=io_format,
             expected_cardinality_one=expect_one,
             implicit_limit=implicit_limit,
+            inline_typeids=inline_typeids,
+            inline_typenames=inline_typenames,
             stmt_mode=stmt_mode,
             source=source,
         )
@@ -1742,6 +1757,7 @@ class Compiler(BaseCompiler):
             io_format=enums.IoFormat.BINARY,
             expect_one=False,
             implicit_limit=implicit_limit,
+            inline_typenames=True,
             modaliases=DEFAULT_MODULE_ALIASES_MAP,
             session_config=EMPTY_MAP,
             stmt_mode=enums.CompileStatementMode.SINGLE,
@@ -1768,6 +1784,8 @@ class Compiler(BaseCompiler):
                     io_format=enums.IoFormat.BINARY,
                     expect_one=False,
                     implicit_limit=implicit_limit,
+                    inline_typeids=False,
+                    inline_typenames=True,
                     stmt_mode=enums.CompileStatementMode.SINGLE,
                 )
 
@@ -1797,6 +1815,8 @@ class Compiler(BaseCompiler):
         io_format: enums.IoFormat,
         expect_one: bool,
         implicit_limit: int,
+        inline_typeids: bool,
+        inline_typenames: bool,
         stmt_mode: enums.CompileStatementMode,
         capability: enums.Capability,
         json_parameters: bool=False,
@@ -1808,6 +1828,8 @@ class Compiler(BaseCompiler):
             io_format=io_format,
             expect_one=expect_one,
             implicit_limit=implicit_limit,
+            inline_typeids=inline_typeids,
+            inline_typenames=inline_typenames,
             modaliases=sess_modaliases,
             session_config=sess_config,
             stmt_mode=enums.CompileStatementMode(stmt_mode),
@@ -1824,6 +1846,8 @@ class Compiler(BaseCompiler):
         io_format: enums.IoFormat,
         expect_one: bool,
         implicit_limit: int,
+        inline_typeids: bool,
+        inline_typenames: bool,
         stmt_mode: enums.CompileStatementMode,
     ) -> List[dbstate.QueryUnit]:
 
@@ -1833,6 +1857,8 @@ class Compiler(BaseCompiler):
             io_format=io_format,
             expect_one=expect_one,
             implicit_limit=implicit_limit,
+            inline_typeids=inline_typeids,
+            inline_typenames=inline_typenames,
             stmt_mode=enums.CompileStatementMode(stmt_mode),
         )
 
