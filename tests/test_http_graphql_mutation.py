@@ -1268,6 +1268,91 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                 }
             """)
 
+    def test_graphql_mutation_insert_multiple_01(self):
+        # Issue #1566
+        # Test multiple mutations.
+        data_s = {
+            'name': 'multisetting01',
+            'value': 'yellow',
+        }
+        data_p = {
+            'name': 'multiprofile01',
+            'value': 'multirofile',
+        }
+
+        validation_query = r"""
+            query {
+                Setting(filter: {name: {eq: "multisetting01"}}) {
+                    name
+                    value
+                }
+                Profile(filter: {name: {eq: "multiprofile01"}}) {
+                    name
+                    value
+                }
+            }
+        """
+
+        self.assert_graphql_query_result(r"""
+            mutation multi_insert {
+                insert_Setting(
+                    data: [{
+                        name: "multisetting01",
+                        value: "yellow"
+                    }]
+                ) {
+                    name
+                    value
+                }
+                insert_Profile(
+                    data: [{
+                        name: "multiprofile01",
+                        value: "multirofile"
+                    }]
+                ) {
+                    name
+                    value
+                }
+            }
+        """, {
+            "insert_Setting": [data_s],
+            "insert_Profile": [data_p]
+        })
+
+        self.assert_graphql_query_result(validation_query, {
+            "Setting": [data_s],
+            "Profile": [data_p],
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation multi_delete {
+                delete_Setting(
+                    filter: {
+                        name: {eq: "multisetting01"}
+                    }
+                ) {
+                    name
+                    value
+                }
+                delete_Profile(
+                    filter: {
+                        name: {eq: "multiprofile01"}
+                    }
+                ) {
+                    name
+                    value
+                }
+            }
+        """, {
+            "delete_Setting": [data_s],
+            "delete_Profile": [data_p]
+        })
+
+        self.assert_graphql_query_result(validation_query, {
+            "Setting": [],
+            "Profile": [],
+        })
+
     def test_graphql_mutation_update_scalars_01(self):
         orig_data = {
             'p_bool': True,
@@ -2389,6 +2474,97 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                     }
                 }
             """)
+
+    def test_graphql_mutation_update_multiple_01(self):
+        # Issue #1566
+        # Test multiple mutations.
+        validation_query = r"""
+            query {
+                Setting(filter: {name: {eq: "perks"}}) {
+                    name
+                    value
+                }
+                Profile(filter: {name: {eq: "Alice profile"}}) {
+                    name
+                    value
+                }
+            }
+        """
+
+        self.assert_graphql_query_result(r"""
+            mutation multi_update {
+                update_Setting(
+                    filter: {name: {eq: "perks"}},
+                    data: {
+                        value: {set: "min"}
+                    }
+                ) {
+                    name
+                    value
+                }
+                update_Profile(
+                    filter: {name: {eq: "Alice profile"}},
+                    data: {
+                        value: {set: "updated"}
+                    }
+                ) {
+                    name
+                    value
+                }
+            }
+        """, {
+            "update_Setting": [{
+                'name': 'perks',
+                'value': 'min',
+            }],
+            "update_Profile": [{
+                'name': 'Alice profile',
+                'value': 'updated',
+            }]
+        })
+
+        self.assert_graphql_query_result(validation_query, {
+            "Setting": [{
+                'name': 'perks',
+                'value': 'min',
+            }],
+            "Profile": [{
+                'name': 'Alice profile',
+                'value': 'updated',
+            }]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation multi_update {
+                update_Setting(
+                    filter: {name: {eq: "perks"}},
+                    data: {
+                        value: {set: "full"}
+                    }
+                ) {
+                    name
+                    value
+                }
+                update_Profile(
+                    filter: {name: {eq: "Alice profile"}},
+                    data: {
+                        value: {set: "special"}
+                    }
+                ) {
+                    name
+                    value
+                }
+            }
+        """, {
+            "update_Setting": [{
+                'name': 'perks',
+                'value': 'full',
+            }],
+            "update_Profile": [{
+                'name': 'Alice profile',
+                'value': 'special',
+            }]
+        })
 
     def test_graphql_mutation_delete_alias_01(self):
         self.assert_graphql_query_result(r"""
