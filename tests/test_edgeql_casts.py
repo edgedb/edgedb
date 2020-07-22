@@ -2261,6 +2261,29 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             [('3000', '-1'), ('1', 'null')],
         )
 
+        self.assertEqual(
+            await self.con.query_one(
+                r"""
+                    SELECT <tuple<int64, tuple<a: int64, b: int64>>>
+                    to_json('[3000, {"a": 1, "b": 2}]')
+                """
+            ),
+            (3000, edgedb.NamedTuple(a=1, b=2))
+        )
+
+        self.assertEqual(
+            await self.con.query_one(
+                r"""
+                    SELECT <tuple<int64, array<tuple<a: int64, b: str>>>>
+                    to_json('[3000, [{"a": 1, "b": "foo"},
+                                     {"a": 12, "b": "bar"}]]')
+                """
+            ),
+            (3000,
+             [edgedb.NamedTuple(a=1, b="foo"),
+              edgedb.NamedTuple(a=12, b="bar")])
+        )
+
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
                 r'expected json number, null; got json string'):
