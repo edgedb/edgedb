@@ -2833,6 +2833,19 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
+    def test_graphql_functional_variables_43(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"Only scalar input variables are allowed\. "
+                r"Variable 'f' has non-scalar value\."):
+            self.graphql_query(r"""
+                query user($f: FilterUser!) {
+                    User(filter: $f) {
+                        name
+                    }
+                }
+            """, variables={"f": {"name": {"eq": "Alice"}}})
+
     def test_graphql_functional_enum_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
