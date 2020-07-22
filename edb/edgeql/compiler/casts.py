@@ -104,13 +104,15 @@ def compile_cast(
         # and is always a wider domain, so we simply reassign
         # the stype.
         return _inheritance_cast_to_ir(
-            ir_set, orig_stype, new_stype, cardinality_mod, ctx=ctx)
+            ir_set, orig_stype, new_stype,
+            cardinality_mod=cardinality_mod, ctx=ctx)
 
     elif new_stype.issubclass(ctx.env.schema, orig_stype):
         # The new type is a subtype, so may potentially have
         # a more restrictive domain, generate a cast call.
         return _inheritance_cast_to_ir(
-            ir_set, orig_stype, new_stype, cardinality_mod, ctx=ctx)
+            ir_set, orig_stype, new_stype,
+            cardinality_mod=cardinality_mod, ctx=ctx)
 
     elif orig_stype.is_array():
         return _cast_array(
@@ -213,8 +215,8 @@ def _inheritance_cast_to_ir(
         ir_set: irast.Set,
         orig_stype: s_types.Type,
         new_stype: s_types.Type,
-        cardinality_mod: Optional[qlast.CardinalityModifier],
         *,
+        cardinality_mod: Optional[qlast.CardinalityModifier],
         ctx: context.ContextLevel) -> irast.Set:
 
     orig_typeref = typegen.type_to_typeref(orig_stype, env=ctx.env)
@@ -371,15 +373,13 @@ def _cast_json_to_tuple(
         srcctx: Optional[parsing.ParserContext],
         ctx: context.ContextLevel) -> irast.Set:
 
-    new_subtypes = dict(new_stype.iter_subtypes(ctx.env.schema))
-
     with ctx.new() as subctx:
         subctx.anchors = subctx.anchors.copy()
         source_alias = subctx.aliases.get('a')
         subctx.anchors[source_alias] = ir_set
 
         elements = []
-        for new_el_name, new_st in new_subtypes.items():
+        for new_el_name, new_st in new_stype.iter_subtypes(ctx.env.schema):
             val_e = qlast.FunctionCall(
                 func=('__std__', 'json_get'),
                 args=[
