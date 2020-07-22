@@ -1473,6 +1473,11 @@ class GraphQLTranslator:
             vartype = vartype.type
             optional = False
 
+        if vartype.name.value not in gt.GQL_TO_EDB_SCALARS_MAP:
+            raise errors.QueryError(
+                f"Only scalar input variables are allowed. "
+                f"Variable {varname!r} has non-scalar value.")
+
         casttype = qlast.TypeName(
             maintype=qlast.ObjectRef(
                 name=gt.GQL_TO_EDB_SCALARS_MAP[vartype.name.value])
