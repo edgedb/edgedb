@@ -450,6 +450,10 @@ class ContextLevel(compiler.ContextLevel):
     implicit_tid_in_shapes: bool
     """Whether to include the type id property in object shapes implicitly."""
 
+    implicit_tname_in_shapes: bool
+    """Whether to include the type name property in object shapes
+       implicitly."""
+
     implicit_limit: int
     """Implicit LIMIT clause in SELECT statements."""
 
@@ -531,6 +535,7 @@ class ContextLevel(compiler.ContextLevel):
             self.toplevel_result_view_name = None
             self.implicit_id_in_shapes = False
             self.implicit_tid_in_shapes = False
+            self.implicit_tname_in_shapes = False
             self.implicit_limit = 0
             self.inhibit_implicit_limit = False
             self.special_computables_in_mutation_shape = frozenset()
@@ -576,6 +581,7 @@ class ContextLevel(compiler.ContextLevel):
             self.toplevel_stmt = prevlevel.toplevel_stmt
             self.implicit_id_in_shapes = prevlevel.implicit_id_in_shapes
             self.implicit_tid_in_shapes = prevlevel.implicit_tid_in_shapes
+            self.implicit_tname_in_shapes = prevlevel.implicit_tname_in_shapes
             self.implicit_limit = prevlevel.implicit_limit
             self.inhibit_implicit_limit = prevlevel.inhibit_implicit_limit
             self.special_computables_in_mutation_shape = \

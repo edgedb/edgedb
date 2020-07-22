@@ -55,6 +55,8 @@ if TYPE_CHECKING:
     from edb.schema import lproperties as s_props
     from edb.schema import sources as s_sources
 
+    ShapePtr = Tuple[irast.Set, s_pointers.Pointer, qlast.ShapeOp]
+
 
 def process_view(
     *,
@@ -509,7 +511,7 @@ def _normalize_view_ptr_expr(
             ctx.env.pointer_specified_info[ptrcls] = (
                 shape_el.cardinality, shape_el.required, shape_el.context)
 
-        implicit_tid = has_implicit_tid(
+        implicit_tid = has_implicit_type_computables(
             ptr_target,
             is_mutation=is_mutation,
             ctx=ctx,
@@ -1022,13 +1024,84 @@ def has_implicit_tid(
     )
 
 
+def has_implicit_tname(
+        stype: s_types.Type, *,
+        is_mutation: bool,
+        ctx: context.ContextLevel) -> bool:
+
+    return (
+        stype.is_object_type()
+        and not is_mutation
+        and ctx.implicit_tname_in_shapes
+    )
+
+
+def has_implicit_type_computables(
+        stype: s_types.Type, *,
+        is_mutation: bool,
+        ctx: context.ContextLevel) -> bool:
+
+    return (
+        has_implicit_tid(stype, is_mutation=is_mutation, ctx=ctx)
+        or has_implicit_tname(stype, is_mutation=is_mutation, ctx=ctx)
+    )
+
+
+def _inline_type_computable(
+    ir_set: irast.Set,
+    stype: s_objtypes.ObjectType,
+    compname: str,
+    propname: str,
+    *,
+    ctx: context.ContextLevel,
+    shape_ptrs: List[ShapePtr]
+) -> None:
+    assert isinstance(stype, s_objtypes.ObjectType)
+
+    try:
+        ptr = setgen.resolve_ptr(stype, compname, track_ref=None, ctx=ctx)
+    except errors.InvalidReferenceError:
+        ql = qlast.ShapeElement(
+            expr=qlast.Path(
+                steps=[qlast.Ptr(
+                    ptr=qlast.ObjectRef(name=compname),
+                    direction=s_pointers.PointerDirection.Outbound,
+                )],
+            ),
+            compexpr=qlast.Path(
+                steps=[
+                    qlast.Source(),
+                    qlast.Ptr(
+                        ptr=qlast.ObjectRef(name='__type__'),
+                        direction=s_pointers.PointerDirection.Outbound,
+                    ),
+                    qlast.Ptr(
+                        ptr=qlast.ObjectRef(name=propname),
+                        direction=s_pointers.PointerDirection.Outbound,
+                    )
+                ]
+            )
+        )
+        with ctx.newscope(fenced=True) as scopectx:
+            scopectx.anchors = scopectx.anchors.copy()
+            scopectx.anchors[qlast.Source().name] = ir_set
+            ptr = _normalize_view_ptr_expr(
+                ql, stype, path_id=ir_set.path_id, ctx=scopectx)
+
+    view_shape = ctx.env.view_shapes[stype]
+    view_shape_ptrs = {p for p, _ in view_shape}
+    if ptr not in view_shape_ptrs:
+        view_shape.insert(0, (ptr, qlast.ShapeOp.ASSIGN))
+        shape_ptrs.insert(0, (ir_set, ptr, qlast.ShapeOp.ASSIGN))
+
+
 def _get_shape_configuration(
     ir_set: irast.Set,
     *,
     rptr: Optional[irast.Pointer]=None,
     parent_view_type: Optional[s_types.ExprType]=None,
     ctx: context.ContextLevel
-) -> List[Tuple[irast.Set, s_pointers.Pointer, qlast.ShapeOp]]:
+) -> List[ShapePtr]:
 
     """Return a list of (source_set, ptrcls) pairs as a shape for a given set.
     """
@@ -1112,50 +1185,21 @@ def _get_shape_configuration(
         s_types.ExprType.Update
     }
 
-    implicit_tid = (
+    if (
         stype is not None
         and has_implicit_tid(stype, is_mutation=is_mutation, ctx=ctx)
-    )
-
-    if implicit_tid:
+    ):
         assert isinstance(stype, s_objtypes.ObjectType)
+        _inline_type_computable(
+            ir_set, stype, '__tid__', 'id', ctx=ctx, shape_ptrs=shape_ptrs)
 
-        try:
-            ptr = setgen.resolve_ptr(stype, '__tid__', track_ref=None, ctx=ctx)
-        except errors.InvalidReferenceError:
-            ql = qlast.ShapeElement(
-                expr=qlast.Path(
-                    steps=[qlast.Ptr(
-                        ptr=qlast.ObjectRef(name='__tid__'),
-                        direction=s_pointers.PointerDirection.Outbound,
-                    )],
-                ),
-                compexpr=qlast.Path(
-                    steps=[
-                        qlast.Source(),
-                        qlast.Ptr(
-                            ptr=qlast.ObjectRef(name='__type__'),
-                            direction=s_pointers.PointerDirection.Outbound,
-                        ),
-                        qlast.Ptr(
-                            ptr=qlast.ObjectRef(name='id'),
-                            direction=s_pointers.PointerDirection.Outbound,
-                        )
-                    ]
-                )
-            )
-            with ctx.newscope(fenced=True) as scopectx:
-                scopectx.anchors = scopectx.anchors.copy()
-                scopectx.anchors[qlast.Source().name] = ir_set
-                ptr = _normalize_view_ptr_expr(
-                    ql, stype, path_id=ir_set.path_id,
-                    ctx=scopectx)
-
-        view_shape = ctx.env.view_shapes[stype]
-        view_shape_ptrs = {p for p, _ in view_shape}
-        if ptr not in view_shape_ptrs:
-            view_shape.insert(0, (ptr, qlast.ShapeOp.ASSIGN))
-            shape_ptrs.insert(0, (ir_set, ptr, qlast.ShapeOp.ASSIGN))
+    if (
+        stype is not None
+        and has_implicit_tname(stype, is_mutation=is_mutation, ctx=ctx)
+    ):
+        assert isinstance(stype, s_objtypes.ObjectType)
+        _inline_type_computable(
+            ir_set, stype, '__tname__', 'name', ctx=ctx, shape_ptrs=shape_ptrs)
 
     return shape_ptrs
 

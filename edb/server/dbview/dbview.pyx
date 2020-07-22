@@ -174,28 +174,23 @@ cdef class DatabaseConnectionView:
     cdef in_tx_error(self):
         return self._tx_error
 
-    cdef cache_compiled_query(self, str eql, object io_format,
-                              bint expect_one, int implicit_limit, query_unit):
-
+    cdef cache_compiled_query(self, object key, object query_unit):
         assert query_unit.cacheable
 
-        key = (eql, io_format, expect_one, implicit_limit,
-               self._modaliases, self._config)
+        key = (key, self._modaliases, self._config)
 
         if self._in_tx_with_ddl:
             self._eql_to_compiled[key] = query_unit
         else:
             self._db._cache_compiled_query(key, query_unit)
 
-    cdef lookup_compiled_query(self, str eql, object io_format,
-                               bint expect_one, int implicit_limit):
+    cdef lookup_compiled_query(self, object key):
         if (self._tx_error or
                 not self._query_cache_enabled or
                 self._in_tx_with_ddl):
             return None
 
-        key = (eql, io_format, expect_one, implicit_limit,
-               self._modaliases, self._config)
+        key = (key, self._modaliases, self._config)
 
         if self._in_tx_with_ddl or self._in_tx_with_set:
             query_unit = self._eql_to_compiled.get(key)

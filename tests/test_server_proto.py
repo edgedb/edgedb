@@ -268,18 +268,17 @@ class TestServerProto(tb.QueryTestCase):
                 r = await self.con.query_json(q)
                 self.assertEqual(r, '[]')
 
-        for q in qs:
-            with self.assertRaisesRegex(
-                    edgedb.InterfaceError,
-                    r'cannot be executed with query_one\(\).*'
-                    r'not return'):
-                await self.con.query_one(q)
+        with self.assertRaisesRegex(
+                edgedb.InterfaceError,
+                r'cannot be executed with query_one\(\).*'
+                r'not return'):
+            await self.con.query_one('START TRANSACTION')
 
-            with self.assertRaisesRegex(
-                    edgedb.InterfaceError,
-                    r'cannot be executed with query_one_json\(\).*'
-                    r'not return'):
-                await self.con.query_one_json(q)
+        with self.assertRaisesRegex(
+                edgedb.InterfaceError,
+                r'cannot be executed with query_one_json\(\).*'
+                r'not return'):
+            await self.con.query_one_json('START TRANSACTION')
 
     async def test_server_proto_fetch_single_command_04(self):
         with self.assertRaisesRegex(edgedb.ProtocolError,

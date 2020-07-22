@@ -137,6 +137,8 @@ cdef class Protocol(http.HttpProtocol):
                 IoFormat.JSON,  # json mode
                 False,          # expected cardinality is MANY
                 0,              # no implicit limit
+                False,          # no inlining of type IDs
+                False,          # no inlining of type names
                 compiler.CompileStatementMode.SINGLE,
                 compiler.Capability.QUERY,
                 True,           # json parameters

@@ -45,6 +45,7 @@ EMPTY_TUPLE_ID = s_obj.get_known_type_id('empty-tuple').bytes
 EMPTY_TUPLE_DESC = b'\x04' + EMPTY_TUPLE_ID + b'\x00\x00'
 
 UUID_TYPE_ID = s_obj.get_known_type_id('std::uuid')
+STR_TYPE_ID = s_obj.get_known_type_id('std::str')
 
 NULL_TYPE_ID = b'\x00' * 16
 NULL_TYPE_DESC = b''
@@ -274,6 +275,12 @@ class TypeSerializer:
                     if el_type != UUID_TYPE_ID:
                         raise errors.InternalServerError(
                             f"{el_name!r} is expected to be a 'std::uuid' "
+                            f"singleton")
+                    flags |= self.EDGE_POINTER_IS_IMPLICIT
+                elif el_name == '__tname__':
+                    if el_type != STR_TYPE_ID:
+                        raise errors.InternalServerError(
+                            f"{el_name!r} is expected to be a 'std::str' "
                             f"singleton")
                     flags |= self.EDGE_POINTER_IS_IMPLICIT
                 if el_l:

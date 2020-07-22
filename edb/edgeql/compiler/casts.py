@@ -127,6 +127,7 @@ def compile_cast(
             with ctx.new() as subctx:
                 subctx.implicit_id_in_shapes = False
                 subctx.implicit_tid_in_shapes = False
+                subctx.implicit_tname_in_shapes = False
                 viewgen.compile_view_shapes(ir_set, ctx=subctx)
         elif (orig_stype.issubclass(ctx.env.schema, json_t)
               and new_stype.is_enum(ctx.env.schema)):
