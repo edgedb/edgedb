@@ -2169,15 +2169,13 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         )
 
         with self.assertRaisesRegex(
-                # FIXME: This should be a different error
-                edgedb.InternalServerError,
+                edgedb.InvalidValueError,
                 r'expected json number, null; got json string'):
             await self.con.query_one(
                 r"SELECT <array<int64>><json>['asdf']")
 
         with self.assertRaisesRegex(
-                # FIXME: This should be a different error
-                edgedb.InternalServerError,
+                edgedb.InvalidValueError,
                 r'expected json number, null; got json string'):
             await self.con.query_one(
                 r"SELECT <array<int64>>to_json('[1, 2, \"asdf\"]')")

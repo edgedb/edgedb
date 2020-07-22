@@ -47,6 +47,7 @@ class PGErrorCode(enum.Enum):
     NumericValueOutOfRange = '22003'
     InvalidParameterValue = '22023'
     InvalidTextRepresentation = '22P02'
+    WrongObjectType = '42809'
 
     DivisionByZeroError = '22012'
 
@@ -294,6 +295,12 @@ def static_interpret_backend_error(fields):
         return SchemaRequired
 
     elif err_details.code == PGErrorCode.InvalidParameterValue:
+        return errors.InvalidValueError(
+            err_details.message,
+            details=err_details.detail if err_details.detail else None
+        )
+
+    elif err_details.code == PGErrorCode.WrongObjectType:
         return errors.InvalidValueError(
             err_details.message,
             details=err_details.detail if err_details.detail else None
