@@ -73,6 +73,7 @@ class ConstraintMech:
         objtype_biased = {}
 
         ref_ptrs = {}
+        refs = list(refs)
         for ref in refs:
             rptr = ref.rptr
             if rptr is not None:
@@ -87,6 +88,9 @@ class ConstraintMech:
                         # This specialized pointer was derived specifically
                         # for the purposes of constraint expr compilation.
                         src = src.get_bases(schema).first(schema)
+                elif ptr.is_tuple_indirection():
+                    refs.append(ref.rptr.source)
+                    continue
                 else:
                     schema, src = irtyputils.ir_typeref_to_type(
                         schema, ref.rptr.source.typeref)

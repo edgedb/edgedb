@@ -641,6 +641,15 @@ def _compile_set_in_singleton_mode(
             ptrref = node.rptr.ptrref
             source = node.rptr.source
 
+            if isinstance(ptrref, irast.TupleIndirectionPointerRef):
+                tuple_val = dispatch.compile(source, ctx=ctx)
+                set_expr = astutils.tuple_getattr(
+                    tuple_val,
+                    source.typeref,
+                    ptrref.shortname.name,
+                )
+                return set_expr
+
             if ptrref.source_ptr is None and source.rptr is not None:
                 raise RuntimeError(
                     'unexpectedly long path in simple expr')
