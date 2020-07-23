@@ -153,12 +153,24 @@ CREATE CAST FROM anytuple TO std::json {
 };
 
 
+CREATE CAST FROM std::json TO anytuple {
+    SET volatility := 'STABLE';
+    USING SQL EXPRESSION;
+};
+
+
 CREATE CAST FROM std::json TO array<json> {
     SET volatility := 'IMMUTABLE';
     USING SQL $$
         SELECT array_agg(j)
         FROM jsonb_array_elements(val) AS j
     $$;
+};
+
+
+CREATE CAST FROM std::json TO array<anytype> {
+    SET volatility := 'STABLE';
+    USING SQL EXPRESSION;
 };
 
 
