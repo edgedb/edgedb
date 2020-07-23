@@ -1033,7 +1033,8 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
-                "Constraint std::exclusive may not be used on scalar types"):
+                "abstract constraint 'std::exclusive' may not "
+                "be used on scalar types"):
             await self.con.execute(qry)
 
     async def test_constraints_ddl_error_06(self):
