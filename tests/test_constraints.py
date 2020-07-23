@@ -1025,6 +1025,17 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
                 "got scalar type 'std::str'"):
             await self.con.execute(qry)
 
+        qry = """
+            CREATE SCALAR TYPE wrong extending str {
+                CREATE CONSTRAINT exclusive;
+            };
+        """
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                "Constraint std::exclusive may not be used on scalar types"):
+            await self.con.execute(qry)
+
     async def test_constraints_ddl_error_06(self):
         async with self._run_and_rollback():
             with self.assertRaisesRegex(
