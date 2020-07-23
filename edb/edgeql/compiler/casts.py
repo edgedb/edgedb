@@ -77,7 +77,8 @@ def compile_cast(
     ir_set = setgen.ensure_set(ir_expr, ctx=ctx)
     orig_stype = setgen.get_set_type(ir_set, ctx=ctx)
 
-    if orig_stype == new_stype:
+    if (orig_stype == new_stype and
+            cardinality_mod is not qlast.CardinalityModifier.Required):
         return ir_set
     elif orig_stype.is_object_type() and new_stype.is_object_type():
         # Object types cannot be cast between themselves,
@@ -103,13 +104,15 @@ def compile_cast(
         # and is always a wider domain, so we simply reassign
         # the stype.
         return _inheritance_cast_to_ir(
-            ir_set, orig_stype, new_stype, ctx=ctx)
+            ir_set, orig_stype, new_stype,
+            cardinality_mod=cardinality_mod, ctx=ctx)
 
     elif new_stype.issubclass(ctx.env.schema, orig_stype):
         # The new type is a subtype, so may potentially have
         # a more restrictive domain, generate a cast call.
         return _inheritance_cast_to_ir(
-            ir_set, orig_stype, new_stype, ctx=ctx)
+            ir_set, orig_stype, new_stype,
+            cardinality_mod=cardinality_mod, ctx=ctx)
 
     elif orig_stype.is_array():
         return _cast_array(
@@ -148,6 +151,10 @@ def compile_cast(
             return compile_cast(
                 json_array_ir, new_stype, cardinality_mod=cardinality_mod,
                 srcctx=srcctx, ctx=ctx)
+        elif (orig_stype.issubclass(ctx.env.schema, json_t)
+              and isinstance(new_stype, s_types.Tuple)):
+            return _cast_json_to_tuple(
+                ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
 
         return _compile_cast(
             ir_expr, orig_stype, new_stype, cardinality_mod=cardinality_mod,
@@ -207,7 +214,9 @@ def _cast_to_ir(
 def _inheritance_cast_to_ir(
         ir_set: irast.Set,
         orig_stype: s_types.Type,
-        new_stype: s_types.Type, *,
+        new_stype: s_types.Type,
+        *,
+        cardinality_mod: Optional[qlast.CardinalityModifier],
         ctx: context.ContextLevel) -> irast.Set:
 
     orig_typeref = typegen.type_to_typeref(orig_stype, env=ctx.env)
@@ -216,6 +225,7 @@ def _inheritance_cast_to_ir(
         expr=ir_set,
         from_type=orig_typeref,
         to_type=new_typeref,
+        cardinality_mod=cardinality_mod,
         cast_name=None,
         sql_function=None,
         sql_cast=True,
@@ -354,6 +364,46 @@ def _find_cast(
             context=srcctx)
     else:
         return None
+
+
+def _cast_json_to_tuple(
+        ir_set: irast.Set,
+        orig_stype: s_types.Type,
+        new_stype: s_types.Tuple, *,
+        srcctx: Optional[parsing.ParserContext],
+        ctx: context.ContextLevel) -> irast.Set:
+
+    with ctx.new() as subctx:
+        subctx.anchors = subctx.anchors.copy()
+        source_alias = subctx.aliases.get('a')
+        subctx.anchors[source_alias] = ir_set
+
+        # TODO: try using jsonb_to_record instead of a bunch of
+        # json_get calls and see if that is faster.
+        elements = []
+        for new_el_name, new_st in new_stype.iter_subtypes(ctx.env.schema):
+            val_e = qlast.FunctionCall(
+                func=('__std__', 'json_get'),
+                args=[
+                    qlast.Path(steps=[qlast.ObjectRef(name=source_alias)]),
+                    qlast.StringConstant(value=new_el_name),
+                ],
+            )
+
+            val = dispatch.compile(val_e, ctx=subctx)
+
+            val = compile_cast(
+                val, new_st,
+                cardinality_mod=qlast.CardinalityModifier.Required,
+                ctx=subctx, srcctx=srcctx)
+
+            elements.append(irast.TupleElement(name=new_el_name, val=val))
+
+        return setgen.new_tuple_set(
+            elements,
+            named=new_stype.is_named(ctx.env.schema),
+            ctx=subctx,
+        )
 
 
 def _cast_tuple(
