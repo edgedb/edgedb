@@ -378,6 +378,8 @@ def _cast_json_to_tuple(
         source_alias = subctx.aliases.get('a')
         subctx.anchors[source_alias] = ir_set
 
+        # TODO: try using jsonb_to_record instead of a bunch of
+        # json_get calls and see if that is faster.
         elements = []
         for new_el_name, new_st in new_stype.iter_subtypes(ctx.env.schema):
             val_e = qlast.FunctionCall(
