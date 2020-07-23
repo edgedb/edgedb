@@ -682,7 +682,13 @@ class GraphQLTranslator:
                 filterable.result.expr = qlast.Path(
                     steps=[qlast.ObjectRef(name=alias)])
 
-        path.pop()
+        # Remove the processed path.
+        self._context.path[-1].pop()
+        if len(self._context.path[-1]) == 0:
+            # If this was the last shape field, remove the now empty
+            # shell for the shape paths.
+            self._context.path.pop()
+
         return spec
 
     def visit_InlineFragmentNode(self, node):
