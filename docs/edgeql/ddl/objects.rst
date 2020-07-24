@@ -225,7 +225,7 @@ The following subcommands are allowed in the ``ALTER TYPE`` block:
     :eql:stmt:`ALTER CONSTRAINT` for details.
 
 :eql:synopsis:`DROP CONSTRAINT <constraint-name>;`
-    Remove a constraint from this link.  See
+    Remove a constraint from this object type.  See
     :eql:stmt:`DROP CONSTRAINT` for details.
 
 :eql:synopsis:`DROP INDEX ON <index-expr>`
