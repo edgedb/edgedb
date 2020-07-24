@@ -933,6 +933,61 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
                 };
             """)
 
+    async def test_constraints_ddl_07(self):
+        await self.con.execute("""
+            SET MODULE test;
+            CREATE TYPE Test {
+                CREATE PROPERTY first_name -> str;
+                CREATE PROPERTY last_name -> str;
+                CREATE CONSTRAINT exclusive on (__subject__.first_name);
+            };
+        """)
+
+        await self.con.execute("""
+            INSERT Test { first_name := "foo", last_name := "bar" }
+        """)
+
+        with self.assertRaisesRegex(
+                edgedb.ConstraintViolationError,
+                "Test violates exclusivity constraint"):
+            await self.con.execute("""
+                INSERT Test { first_name := "foo", last_name := "baz" }
+            """)
+
+        await self.con.execute("""
+            ALTER TYPE Test {
+                DROP CONSTRAINT exclusive on (__subject__.first_name);
+            }
+        """)
+
+        await self.con.execute("""
+            ALTER TYPE Test {
+                CREATE CONSTRAINT exclusive
+                on ((__subject__.first_name, __subject__.last_name));
+            }
+        """)
+
+        await self.con.execute("""
+            ALTER TYPE Test {
+                ALTER CONSTRAINT exclusive
+                on ((__subject__.first_name, __subject__.last_name)) {
+                    SET errmessage := "nope!";
+                }
+            }
+        """)
+
+        # This one should work now
+        await self.con.execute("""
+            INSERT Test { first_name := "foo", last_name := "baz" }
+        """)
+
+        with self.assertRaisesRegex(
+                edgedb.ConstraintViolationError,
+                "nope!"):
+            await self.con.execute("""
+                INSERT Test { first_name := "foo", last_name := "bar" }
+            """)
+
     async def test_constraints_ddl_function(self):
         await self.con.execute('''\
             CREATE FUNCTION test::comp_func(s: str) -> str {
