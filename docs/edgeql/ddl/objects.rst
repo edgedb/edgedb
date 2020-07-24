@@ -221,7 +221,7 @@ The following subcommands are allowed in the ``ALTER TYPE`` block:
     :eql:stmt:`DROP PROPERTY` for details.
 
 :eql:synopsis:`ALTER CONSTRAINT <constraint-name> ...`
-    Alter the definition of a constraint for this link.  See
+    Alter the definition of a constraint for this object type.  See
     :eql:stmt:`ALTER CONSTRAINT` for details.
 
 :eql:synopsis:`DROP CONSTRAINT <constraint-name>;`
