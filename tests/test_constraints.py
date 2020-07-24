@@ -1043,3 +1043,27 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
                         };
                     };
                 """)
+
+    async def test_constraints_tuple(self):
+        async with self._run_and_rollback():
+            await self.con.execute(r"""
+                CREATE TYPE Transaction {
+                    CREATE PROPERTY credit
+                      -> tuple<nest: tuple<amount: decimal, currency: str>> {
+                        CREATE CONSTRAINT max_value(0)
+                          ON (__subject__.nest.amount)
+                    };
+                };
+            """)
+            await self.con.execute(r"""
+                INSERT Transaction {
+                    credit := (nest := (amount := -1, currency := "usd")) };
+            """)
+
+            with self.assertRaisesRegex(
+                    edgedb.ConstraintViolationError,
+                    "Maximum allowed value for credit is 0."):
+                await self.con.execute(r"""
+                    INSERT Transaction {
+                        credit := (nest := (amount := 1, currency := "usd")) };
+                """)
