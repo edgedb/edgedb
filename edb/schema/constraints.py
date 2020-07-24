@@ -28,6 +28,7 @@ from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes as ft
 from edb.edgeql import parser as qlparser
 from edb.edgeql import utils as qlutils
+from edb.schema import scalars as s_scalars
 
 from . import abc as s_abc
 from . import annos as s_anno
@@ -44,7 +45,6 @@ from . import utils
 
 if TYPE_CHECKING:
     from edb.common import parsing as c_parsing
-    from edb.schema import scalars as s_scalars
     from edb.schema import schema as s_schema
 
 
@@ -102,6 +102,9 @@ class Constraint(referencing.ReferencedInheritingObject,
 
     errmessage = so.SchemaField(
         str, default=None, compcoef=0.971, allow_ddl_set=True)
+
+    is_aggregate = so.SchemaField(
+        bool, default=False, compcoef=0.971, allow_ddl_set=False)
 
     def get_verbosename(
         self,
@@ -731,6 +734,13 @@ class CreateConstraint(
                 and subjectexpr.text != base_subjectexpr.text):
             raise errors.InvalidConstraintDefinitionError(
                 f'subjectexpr is already defined for {name!r}'
+            )
+
+        if (isinstance(subject_obj, s_scalars.ScalarType)
+                and constr_base.get_is_aggregate(schema)):
+            raise errors.InvalidConstraintDefinitionError(
+                f'{constr_base.get_verbosename(schema)} may not '
+                f'be used on scalar types'
             )
 
         if subjectexpr is not None:

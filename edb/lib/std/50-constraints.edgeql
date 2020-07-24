@@ -46,6 +46,7 @@ std::expression EXTENDING std::constraint
 CREATE ABSTRACT CONSTRAINT
 std::exclusive EXTENDING std::constraint
 {
+    SET is_aggregate := true;
     SET errmessage := '{__subject__} violates exclusivity constraint';
     USING (std::_is_exclusive(__subject__));
 };
