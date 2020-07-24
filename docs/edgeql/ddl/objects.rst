@@ -90,7 +90,7 @@ The following subcommands are allowed in the ``CREATE TYPE`` block:
     :eql:stmt:`CREATE PROPERTY` for details.
 
 :eql:synopsis:`CREATE CONSTRAINT <constraint-name> ...`
-    Define a concrete constraint for this link.  See
+    Define a concrete constraint for this object type.  See
     :eql:stmt:`CREATE CONSTRAINT` for details.
 
 :eql:synopsis:`CREATE INDEX ON <index-expr>`
