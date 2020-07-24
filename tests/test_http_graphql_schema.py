@@ -1177,213 +1177,6 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                     {
                         "__typename": "__Type",
                         "kind": "OBJECT",
-                        "name": "SettingAliasAugmented_Type",
-                        "description": None,
-                        "fields": [
-                            {
-                                "__typename": "__Field",
-                                "name": "id",
-                                "description": None,
-                                "type": {
-                                    "__typename": "__Type",
-                                    "name": None,
-                                    "kind": "NON_NULL",
-                                    "ofType": {
-                                        "__typename": "__Type",
-                                        "name": "ID",
-                                        "kind": "SCALAR"
-                                    }
-                                },
-                                "isDeprecated": False,
-                                "deprecationReason": None
-                            },
-                            {
-                                "__typename": "__Field",
-                                "name": "name",
-                                "description": None,
-                                "type": {
-                                    "__typename": "__Type",
-                                    "name": None,
-                                    "kind": "NON_NULL",
-                                    "ofType": {
-                                        "__typename": "__Type",
-                                        "name": "String",
-                                        "kind": "SCALAR"
-                                    }
-                                },
-                                "isDeprecated": False,
-                                "deprecationReason": None
-                            },
-                            {
-                                "__typename": "__Field",
-                                "name": "of_group",
-                                "description": None,
-                                "type": {
-                                    "__typename": "__Type",
-                                    "name": "_edb__"
-                                            "SettingAliasAugmented__of_group",
-                                    "kind": "INTERFACE",
-                                    "ofType": None
-                                },
-                                "isDeprecated": False,
-                                "deprecationReason": None
-                            },
-                            {
-                                "__typename": "__Field",
-                                "name": "value",
-                                "description": None,
-                                "type": {
-                                    "__typename": "__Type",
-                                    "name": None,
-                                    "kind": "NON_NULL",
-                                    "ofType": {
-                                        "__typename": "__Type",
-                                        "name": "String",
-                                        "kind": "SCALAR"
-                                    }
-                                },
-                                "isDeprecated": False,
-                                "deprecationReason": None
-                            }
-                        ],
-                        "interfaces": [
-                            {
-                                "__typename": "__Type",
-                                "name": "BaseObject",
-                                "kind": "INTERFACE"
-                            },
-                            {
-                                "__typename": "__Type",
-                                "name": "NamedObject",
-                                "kind": "INTERFACE"
-                            },
-                            {
-                                "__typename": "__Type",
-                                "name": "Object",
-                                "kind": "INTERFACE"
-                            },
-                            {
-                                "__typename": "__Type",
-                                "name": "Setting",
-                                "kind": "INTERFACE"
-                            },
-                            {
-                                "__typename": "__Type",
-                                "name": "SettingAliasAugmented",
-                                "kind": "INTERFACE"
-                            },
-                        ],
-                        "possibleTypes": None,
-                        "enumValues": None,
-                        "inputFields": None,
-                        "ofType": None
-                    },
-                    {
-                        "__typename": "__Type",
-                        "kind": "OBJECT",
-                        "name": "SettingAlias_Type",
-                        "description": None,
-                        "fields": [
-                            {
-                                "__typename": "__Field",
-                                "name": "id",
-                                "description": None,
-                                "type": {
-                                    "__typename": "__Type",
-                                    "name": None,
-                                    "kind": "NON_NULL",
-                                    "ofType": {
-                                        "__typename": "__Type",
-                                        "name": "ID",
-                                        "kind": "SCALAR"
-                                    }
-                                },
-                                "isDeprecated": False,
-                                "deprecationReason": None
-                            },
-                            {
-                                "__typename": "__Field",
-                                "name": "name",
-                                "description": None,
-                                "type": {
-                                    "__typename": "__Type",
-                                    "name": None,
-                                    "kind": "NON_NULL",
-                                    "ofType": {
-                                        "__typename": "__Type",
-                                        "name": "String",
-                                        "kind": "SCALAR"
-                                    }
-                                },
-                                "isDeprecated": False,
-                                "deprecationReason": None
-                            },
-                            {
-                                "__typename": "__Field",
-                                "name": "of_group",
-                                "description": None,
-                                "type": {
-                                    "__typename": "__Type",
-                                    "name": 'UserGroup',
-                                    "kind": "INTERFACE",
-                                    "ofType": None
-                                },
-                                "isDeprecated": False,
-                                "deprecationReason": None
-                            },
-                            {
-                                "__typename": "__Field",
-                                "name": "value",
-                                "description": None,
-                                "type": {
-                                    "__typename": "__Type",
-                                    "name": None,
-                                    "kind": "NON_NULL",
-                                    "ofType": {
-                                        "__typename": "__Type",
-                                        "name": "String",
-                                        "kind": "SCALAR"
-                                    }
-                                },
-                                "isDeprecated": False,
-                                "deprecationReason": None
-                            }
-                        ],
-                        "interfaces": [
-                            {
-                                "__typename": "__Type",
-                                "name": "BaseObject",
-                                "kind": "INTERFACE"
-                            },
-                            {
-                                "__typename": "__Type",
-                                "name": "NamedObject",
-                                "kind": "INTERFACE"
-                            },
-                            {
-                                "__typename": "__Type",
-                                "name": "Object",
-                                "kind": "INTERFACE"
-                            },
-                            {
-                                "__typename": "__Type",
-                                "name": "Setting",
-                                "kind": "INTERFACE"
-                            },
-                            {
-                                "__typename": "__Type",
-                                "name": "SettingAlias",
-                                "kind": "INTERFACE"
-                            },
-                        ],
-                        "possibleTypes": None,
-                        "enumValues": None,
-                        "inputFields": None,
-                        "ofType": None
-                    },
-                    {
-                        "__typename": "__Type",
-                        "kind": "OBJECT",
                         "name": "Setting_Type",
                         "description": None,
                         "fields": [
@@ -1692,114 +1485,6 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                             {
                                 "__typename": "__Type",
                                 "name": "User",
-                                "kind": "INTERFACE"
-                            },
-                        ],
-                        "possibleTypes": None,
-                        "enumValues": None,
-                        "inputFields": None,
-                        "ofType": None
-                    },
-                    {
-                        "__typename": "__Type",
-                        "kind": "OBJECT",
-                        "name": "_edb__SettingAliasAugmented__of_group_Type",
-                        "description": None,
-                        "fields": [
-                            {
-                                "__typename": "__Field",
-                                "name": "id",
-                                "description": None,
-                                "type": {
-                                    "__typename": "__Type",
-                                    "name": None,
-                                    "kind": "NON_NULL",
-                                    "ofType": {
-                                        "__typename": "__Type",
-                                        "name": "ID",
-                                        "kind": "SCALAR"
-                                    }
-                                },
-                                "isDeprecated": False,
-                                "deprecationReason": None
-                            },
-                            {
-                                "__typename": "__Field",
-                                "name": "name",
-                                "description": None,
-                                "type": {
-                                    "__typename": "__Type",
-                                    "name": None,
-                                    "kind": "NON_NULL",
-                                    "ofType": {
-                                        "__typename": "__Type",
-                                        "name": "String",
-                                        "kind": "SCALAR"
-                                    }
-                                },
-                                "isDeprecated": False,
-                                "deprecationReason": None
-                            },
-                            {
-                                "__typename": "__Field",
-                                "name": "name_upper",
-                                "description": None,
-                                "type": {
-                                    "__typename": "__Type",
-                                    "name": None,
-                                    "kind": "NON_NULL",
-                                    "ofType": {
-                                        "__typename": "__Type",
-                                        "name": "String",
-                                        "kind": "SCALAR"
-                                    }
-                                },
-                                "isDeprecated": False,
-                                "deprecationReason": None
-                            },
-                            {
-                                "__typename": "__Field",
-                                "name": "settings",
-                                "description": None,
-                                "type": {
-                                    "__typename": "__Type",
-                                    "name": None,
-                                    "kind": "LIST",
-                                    "ofType": {
-                                        "__typename": "__Type",
-                                        "name": None,
-                                        "kind": "NON_NULL"
-                                    }
-                                },
-                                "isDeprecated": False,
-                                "deprecationReason": None
-                            }
-                        ],
-                        "interfaces": [
-                            {
-                                "__typename": "__Type",
-                                "name": "BaseObject",
-                                "kind": "INTERFACE"
-                            },
-                            {
-                                "__typename": "__Type",
-                                "name": "NamedObject",
-                                "kind": "INTERFACE"
-                            },
-                            {
-                                "__typename": "__Type",
-                                "name": "Object",
-                                "kind": "INTERFACE"
-                            },
-                            {
-                                "__typename": "__Type",
-                                "name": "UserGroup",
-                                "kind": "INTERFACE"
-                            },
-                            {
-                                "__typename": "__Type",
-                                "name": "_edb__"
-                                        "SettingAliasAugmented__of_group",
                                 "kind": "INTERFACE"
                             },
                         ],
@@ -2523,5 +2208,156 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                 "name": "other__Foo_Type",
                 "__typename": "__Type",
                 "description": 'Test type "Foo"',
+            }
+        })
+
+    def test_graphql_schema_type_18(self):
+        self.assert_graphql_query_result(r"""
+            fragment _t on __Type {
+                __typename
+                name
+                kind
+            }
+
+            fragment _f on __Type {
+                fields {
+                    __typename
+                    name
+                    description
+                    type {
+                        ..._t
+                        ofType {
+                            ..._t
+                        }
+                    }
+                    isDeprecated
+                    deprecationReason
+                }
+            }
+
+            fragment _T on __Type {
+                        __typename
+                        kind
+                        name
+                        description
+                        ..._f
+                        interfaces {
+                            ..._t
+                        }
+                        possibleTypes {
+                            name
+                        }
+                        enumValues {
+                            name
+                        }
+                        inputFields {
+                            name
+                        }
+                        ofType {
+                            name
+                        }
+            }
+
+            query {
+                __type(name: "SettingAliasAugmented") {
+                    __typename
+                    kind
+                    name
+                    description
+                    ..._f
+                    interfaces {
+                        ..._T
+                    }
+                    possibleTypes {
+                        ..._T
+                    }
+                    enumValues {
+                        name
+                    }
+                    inputFields {
+                        name
+                    }
+                    ofType {
+                        name
+                    }
+                }
+            }
+        """, {
+            "__type": {
+                "kind": "OBJECT",
+                "name": "SettingAliasAugmented",
+                "fields": [
+                    {
+                        "name": "id",
+                        "type": {
+                            "kind": "NON_NULL",
+                            "name": None,
+                            "ofType": {
+                                "kind": "SCALAR",
+                                "name": "ID",
+                                "__typename": "__Type"
+                            },
+                            "__typename": "__Type"
+                        },
+                        "__typename": "__Field",
+                        "description": None,
+                        "isDeprecated": False,
+                        "deprecationReason": None,
+                    },
+                    {
+                        "name": "name",
+                        "type": {
+                            "kind": "NON_NULL",
+                            "name": None,
+                            "ofType": {
+                                "kind": "SCALAR",
+                                "name": "String",
+                                "__typename": "__Type"
+                            },
+                            "__typename": "__Type"
+                        },
+                        "__typename": "__Field",
+                        "description": None,
+                        "isDeprecated": False,
+                        "deprecationReason": None,
+                    },
+                    {
+                        "name": "of_group",
+                        "type": {
+                            "kind": "OBJECT",
+                            "name": "_edb__SettingAliasAugmented__of_group",
+                            "ofType": None,
+                            "__typename": "__Type"
+                        },
+                        "__typename": "__Field",
+                        "description": None,
+                        "isDeprecated": False,
+                        "deprecationReason": None,
+                    },
+                    {
+                        "name": "value",
+                        "type": {
+                            "kind": "NON_NULL",
+                            "name": None,
+                            "ofType": {
+                                "kind": "SCALAR",
+                                "name": "String",
+                                "__typename": "__Type"
+                            },
+                            "__typename": "__Type"
+                        },
+                        "__typename": "__Field",
+                        "description": None,
+                        "isDeprecated": False,
+                        "deprecationReason": None,
+                    },
+                ],
+                "ofType": None,
+                "__typename": "__Type",
+                "enumValues": None,
+                "interfaces": [],
+                "description": None,
+                "inputFields": None,
+                "possibleTypes": None,
             }
         })
