@@ -57,6 +57,93 @@ from edb.schema import objects as s_objects
 from . import errors as g_errors
 
 
+'''
+This module is responsible for mapping EdgeDB types onto the GraphQL
+types. However, this is an imperfect mapping because not all the types
+or relationships between them can be expressed.
+
+# Aliased Types
+
+Aliased types present a particular problem. Basically, they break
+inheritance and GraphQL fragments become useless for them.
+
+Consider a link friends in this alias:
+```
+    type User {... multi link friends -> User}
+    type SpecialUser extending User {property special-> str}
+    alias UserAlias := User {friends: {some_new_prop := 'foo'}}
+```
+
+In GraphQL we will have type UserType implementing interfaces User,
+Object and SpecialUserType implementing SpecialUser, User, Object. The
+trouble starts with our implicit aliased type for the aliased friends
+link that targets __UserAlias__friends. This type gets reflected into
+a GraphQL _edb__UserAlias__friends that implements... what? We have 2
+options:
+
+    1) Implement interfaces mirroring the EdgeDB types: User, Object.
+
+    2) Implement it's own interface (or just omit interfaces here,
+       since if the interface is unique it's not adding anything).
+
+Case 2) preserves all the fields defined in the alias to be accessible
+and filterable, etc., but loses inheritance information.
+
+Case 1) leads to the following additional choices:
+
+    a) The friends target is still interface User, then the field
+       some_new_prop will not appear in the nesting, but will require
+       a specialized fragment:
+
+        query {
+            UserAlias {
+                friends {
+                    ... on _edb__UserAlias_friends {
+                        some_new_prop
+                    }
+                }
+            }
+        }
+
+    b) We can make the target of friends of UserAlias to be the actual
+       type _edb__UserAlias__friends (similar to case 2), but then we
+       cannot use the typed fragment `... on SpecialUser` construct
+       inside it because the SpecialUser is a sibling of our aliased
+       type and will cause a GraphQL validation error.
+
+    c) The field target can be a union type, but it will still only
+       have fields that are common to all union members and will
+       require awkward inlined typed fragments to work with just like
+       the first bullet point.
+
+In the end I think that rather than preserving the inheritance and
+then essentially forcing the use of `... on _edb__UserAlias_friends`
+just to access the very field for which the alias was created in the
+first place it's better to bite the bullet accept that in GraphQL
+aliased types reflection removes all inheritance info, but at least
+provide all the fields as per normal. The reasoning being that the
+fields and data are probably much more important for practical
+purposes than inheritance purity. To allow the SpecialUser
+polymorphism I'd rather suggest to the user to bake it into the alias
+like so:
+```
+    alias UserAlias := User {
+        friends: {
+            some_new_prop := 'foo',
+            [IS SpecialUser].special,
+        }
+    }
+```
+
+Also, note that for the same reasons as outlined above that make
+aliased types into a sibling branch in GraphQL, we can't give an
+accurate __typename for them, like we can in EdgeQL (__type__.name)
+because the "correct" types would violate the declared GraphQL type
+hierarchy. So aliased types are necessarily opaque in GraphQL in all
+these ways. Unlike in EdgeQL.
+'''
+
+
 def coerce_int64(value):
     if isinstance(value, int):
         num = value
@@ -243,6 +330,11 @@ class GQLCoreSchema:
         module, shortname = name.split('::', 1)
         if module in {'default', 'std'}:
             if shortname.startswith('__'):
+                # Use '_edb' prefix to mark derived and otherwise
+                # internal types. We opt out of '__edb' because we
+                # still rely on the first occurrence of '__' in
+                # GraphQL names to separate the module from the rest
+                # of the name in some code.
                 return '_edb' + shortname
             else:
                 return shortname
@@ -291,6 +383,11 @@ class GQLCoreSchema:
                 return el_type
             else:
                 target = GraphQLList(GraphQLNonNull(el_type))
+
+        elif edb_target.is_view(self.edb_schema):
+            target = self._gql_objtypes.get(
+                edb_target.get_name(self.edb_schema)
+            )
 
         elif edb_target.is_object_type():
             target = self._gql_interfaces.get(
@@ -395,7 +492,10 @@ class GQLCoreSchema:
         if typename == 'Query':
             for name, gqltype in sorted(self._gql_interfaces.items(),
                                         key=lambda x: x[1].name):
-                if name in TOP_LEVEL_TYPES:
+                # '_edb' prefix indicates an internally generated type
+                # (e.g. nested aliased type), which should not be
+                # exposed as a top-level query option.
+                if name in TOP_LEVEL_TYPES or gqltype.name.startswith('_edb'):
                     continue
                 fields[gqltype.name] = GraphQLField(
                     GraphQLList(GraphQLNonNull(gqltype)),
@@ -404,7 +504,10 @@ class GQLCoreSchema:
         elif typename == 'Mutation':
             for name, gqltype in sorted(self._gql_objtypes.items(),
                                         key=lambda x: x[1].name):
-                if name in TOP_LEVEL_TYPES:
+                # '_edb' prefix indicates an internally generated type
+                # (e.g. nested aliased type), which should not be
+                # exposed as a top-level mutation option.
+                if name in TOP_LEVEL_TYPES or gqltype.name.startswith('_edb'):
                     continue
                 gname = self.get_gql_name(name)
                 fields[f'delete_{gname}'] = GraphQLField(
@@ -421,6 +524,7 @@ class GQLCoreSchema:
             for name, gqltype in sorted(self._gql_interfaces.items(),
                                         key=lambda x: x[1].name):
                 if (name in TOP_LEVEL_TYPES or
+                    gqltype.name.startswith('_edb') or
                         f'Update{name}' not in self._gql_inobjtypes):
                     continue
                 gname = self.get_gql_name(name)
@@ -438,24 +542,30 @@ class GQLCoreSchema:
                 if name == '__type__':
                     continue
 
-                # We want to look at the pointer lineage because that
-                # will be reflected into GraphQL interface that is
-                # being extended and the type cannot be changed.
-                lineage = s_objects.compute_lineage(self.edb_schema, ptr)
+                tgt = ptr.get_target(self.edb_schema)
+                # Aliased types ignore their ancestors in order to
+                # allow all their fields appear properly in the
+                # filters.
+                if not tgt.is_view(self.edb_schema):
+                    # We want to look at the pointer lineage because that
+                    # will be reflected into GraphQL interface that is
+                    # being extended and the type cannot be changed.
+                    lineage = s_objects.compute_lineage(self.edb_schema, ptr)
 
-                # We want the first non-generic ancestor of this
-                # pointer as its target type will dictate the target
-                # types of all its derived pointers.
-                #
-                # NOTE: We're guaranteed to have a non-generic one
-                # since we're inspecting the lineage of a pointer
-                # belonging to an actual type.
-                for ancestor in reversed(lineage):
-                    if not ancestor.generic(self.edb_schema):
-                        ptr = ancestor
-                        break
+                    # We want the first non-generic ancestor of this
+                    # pointer as its target type will dictate the target
+                    # types of all its derived pointers.
+                    #
+                    # NOTE: We're guaranteed to have a non-generic one
+                    # since we're inspecting the lineage of a pointer
+                    # belonging to an actual type.
+                    for ancestor in reversed(lineage):
+                        if not ancestor.generic(self.edb_schema):
+                            ptr = ancestor
+                            break
 
                 target = self._get_target(ptr)
+
                 if target is not None:
                     if ptr.get_target(self.edb_schema).is_object_type():
                         args = self._get_query_args(
@@ -879,12 +989,23 @@ class GQLCoreSchema:
         for t in interface_types:
             t_name = t.get_name(self.edb_schema)
             gql_name = self.get_gql_name(t_name)
-            gqltype = GraphQLInterfaceType(
-                name=gql_name,
-                fields=partial(self.get_fields, t_name),
-                resolve_type=lambda obj, info: obj,
-                description=self._get_description(t),
-            )
+
+            if t.is_view(self.edb_schema):
+                # The aliased types actually only reflect as an object
+                # type, but the rest of the processing is identical to
+                # interfaces.
+                gqltype = GraphQLObjectType(
+                    name=gql_name,
+                    fields=partial(self.get_fields, t_name),
+                    description=self._get_description(t),
+                )
+            else:
+                gqltype = GraphQLInterfaceType(
+                    name=gql_name,
+                    fields=partial(self.get_fields, t_name),
+                    resolve_type=lambda obj, info: obj,
+                    description=self._get_description(t),
+                )
             self._gql_interfaces[t_name] = gqltype
 
             # input object types corresponding to this interface
@@ -920,19 +1041,25 @@ class GQLCoreSchema:
             interfaces = []
             t_name = t.get_name(self.edb_schema)
 
+            if t.is_view(self.edb_schema):
+                # Just copy the object type from "interfaces".
+                self._gql_objtypes[t_name] = self._gql_interfaces[t_name]
+                continue
+
             if t_name in self._gql_interfaces:
                 interfaces.append(self._gql_interfaces[t_name])
 
             ancestors = t.get_ancestors(self.edb_schema)
             for st in ancestors.objects(self.edb_schema):
                 if (st.is_object_type() and
-                        st.get_name(self.edb_schema) in self._gql_interfaces):
+                    st.get_name(self.edb_schema) in
+                        self._gql_interfaces):
                     interfaces.append(
                         self._gql_interfaces[st.get_name(self.edb_schema)])
 
             gql_name = self.get_gql_name(t_name)
             gqltype = GraphQLObjectType(
-                name=gql_name + '_Type',
+                name=f'{gql_name}_Type',
                 fields=partial(self.get_fields, t_name),
                 interfaces=interfaces,
                 description=self._get_description(t),
@@ -941,12 +1068,11 @@ class GQLCoreSchema:
 
             # input object types corresponding to this object (only
             # real objects can appear as input objects)
-            if not t.is_view(self.edb_schema):
-                gqlinserttype = GraphQLInputObjectType(
-                    name=self.get_input_name('Insert', gql_name),
-                    fields=partial(self.get_insert_fields, t_name),
-                )
-                self._gql_inobjtypes[f'Insert{t_name}'] = gqlinserttype
+            gqlinserttype = GraphQLInputObjectType(
+                name=self.get_input_name('Insert', gql_name),
+                fields=partial(self.get_insert_fields, t_name),
+            )
+            self._gql_inobjtypes[f'Insert{t_name}'] = gqlinserttype
 
     def get(self, name, *, dummy=False):
         '''Get a special GQL type either by name or based on EdgeDB type.'''
@@ -1110,11 +1236,16 @@ class GQLBaseType(metaclass=GQLTypeMeta):
     def gql_typename(self):
         name = self.name
         module, shortname = name.split('::', 1)
+        if self.edb_base.is_view(self.edb_schema):
+            suffix = ''
+        else:
+            suffix = '_Type'
+
         if module in {'default', 'std'}:
-            return f'{shortname}_Type'
+            return f'{shortname}{suffix}'
         else:
             assert module != '', 'gql_typename ' + module
-            return f'{module}__{shortname}_Type'
+            return f'{module}__{shortname}{suffix}'
 
     @property
     def schema(self):

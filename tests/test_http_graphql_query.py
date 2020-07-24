@@ -564,12 +564,12 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             {
                 "SettingAlias": [
                     {
-                        "__typename": "SettingAlias_Type",
+                        "__typename": "SettingAlias",
                         "name": "perks",
                         "value": "full",
                     },
                     {
-                        "__typename": "SettingAlias_Type",
+                        "__typename": "SettingAlias",
                         "name": "template",
                         "value": "blue",
                     },
@@ -608,7 +608,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             {
                 "SettingAlias": [
                     {
-                        "__typename": "SettingAlias_Type",
+                        "__typename": "SettingAlias",
                         "name": "perks",
                         "value": "full",
                         "of_group": {
@@ -617,7 +617,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                         }
                     },
                     {
-                        "__typename": "SettingAlias_Type",
+                        "__typename": "SettingAlias",
                         "name": "template",
                         "value": "blue",
                         "of_group": {
@@ -649,23 +649,23 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             {
                 "SettingAliasAugmented": [
                     {
-                        "__typename": "SettingAliasAugmented_Type",
+                        "__typename": "SettingAliasAugmented",
                         "name": "perks",
                         "value": "full",
                         "of_group": {
                             "__typename":
-                                "__SettingAliasAugmented__of_group_Type",
+                                "__SettingAliasAugmented__of_group",
                             "name": "upgraded",
                             "name_upper": "UPGRADED",
                         }
                     },
                     {
-                        "__typename": "SettingAliasAugmented_Type",
+                        "__typename": "SettingAliasAugmented",
                         "name": "template",
                         "value": "blue",
                         "of_group": {
                             "__typename":
-                                "__SettingAliasAugmented__of_group_Type",
+                                "__SettingAliasAugmented__of_group",
                             "name": "upgraded",
                             "name_upper": "UPGRADED",
                         }
@@ -693,7 +693,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             {
                 "ProfileAlias": [
                     {
-                        "__typename": "ProfileAlias_Type",
+                        "__typename": "ProfileAlias",
                         "name": "Alice profile",
                         "value": "special",
                         "owner": [
@@ -727,6 +727,72 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         """, {
             'User': [{'name': 'Alice'}]
         })
+
+    def test_graphql_functional_alias_05(self):
+        self.assert_graphql_query_result(
+            r"""
+                {
+                    SettingAliasAugmented(
+                        filter: {of_group: {name_upper: {eq: "UPGRADED"}}}
+                    ) {
+                        name
+                        of_group {
+                            name
+                            name_upper
+                        }
+                    }
+                }
+            """,
+            {
+                "SettingAliasAugmented": [
+                    {
+                        "name": "perks",
+                        "of_group": {
+                            "name": "upgraded",
+                            "name_upper": "UPGRADED",
+                        }
+                    },
+                    {
+                        "name": "template",
+                        "of_group": {
+                            "name": "upgraded",
+                            "name_upper": "UPGRADED",
+                        }
+                    },
+                ],
+            },
+            sort=lambda x: x['name']
+        )
+
+    def test_graphql_functional_alias_06(self):
+        self.assert_graphql_query_result(
+            r"""
+                {
+                    SettingAliasAugmented(
+                        filter: {name: {eq: "perks"}}
+                    ) {
+                        name
+                        of_group(
+                            filter: {name_upper: {gt: "U"}}
+                        ) {
+                            name
+                            name_upper
+                        }
+                    }
+                }
+            """,
+            {
+                "SettingAliasAugmented": [
+                    {
+                        "name": "perks",
+                        "of_group": {
+                            "name": "upgraded",
+                            "name_upper": "UPGRADED",
+                        }
+                    },
+                ],
+            },
+        )
 
     def test_graphql_functional_arguments_01(self):
         result = self.graphql_query(r"""
