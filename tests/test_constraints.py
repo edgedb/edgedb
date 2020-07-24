@@ -936,7 +936,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
     async def test_constraints_ddl_07(self):
         await self.con.execute("""
             SET MODULE test;
-            CREATE TYPE Test {
+            CREATE TYPE ObjCnstr {
                 CREATE PROPERTY first_name -> str;
                 CREATE PROPERTY last_name -> str;
                 CREATE CONSTRAINT exclusive on (__subject__.first_name);
@@ -944,31 +944,31 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
         """)
 
         await self.con.execute("""
-            INSERT Test { first_name := "foo", last_name := "bar" }
+            INSERT ObjCnstr { first_name := "foo", last_name := "bar" }
         """)
 
         with self.assertRaisesRegex(
                 edgedb.ConstraintViolationError,
-                "Test violates exclusivity constraint"):
+                "ObjCnstr violates exclusivity constraint"):
             await self.con.execute("""
-                INSERT Test { first_name := "foo", last_name := "baz" }
+                INSERT ObjCnstr { first_name := "foo", last_name := "baz" }
             """)
 
         await self.con.execute("""
-            ALTER TYPE Test {
+            ALTER TYPE ObjCnstr {
                 DROP CONSTRAINT exclusive on (__subject__.first_name);
             }
         """)
 
         await self.con.execute("""
-            ALTER TYPE Test {
+            ALTER TYPE ObjCnstr {
                 CREATE CONSTRAINT exclusive
                 on ((__subject__.first_name, __subject__.last_name));
             }
         """)
 
         await self.con.execute("""
-            ALTER TYPE Test {
+            ALTER TYPE ObjCnstr {
                 ALTER CONSTRAINT exclusive
                 on ((__subject__.first_name, __subject__.last_name)) {
                     SET errmessage := "nope!";
@@ -978,15 +978,37 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
 
         # This one should work now
         await self.con.execute("""
-            INSERT Test { first_name := "foo", last_name := "baz" }
+            INSERT ObjCnstr { first_name := "foo", last_name := "baz" }
         """)
 
         with self.assertRaisesRegex(
                 edgedb.ConstraintViolationError,
                 "nope!"):
             await self.con.execute("""
-                INSERT Test { first_name := "foo", last_name := "bar" }
+                INSERT ObjCnstr { first_name := "foo", last_name := "bar" }
             """)
+
+    async def test_constraints_ddl_08(self):
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                SET MODULE test;
+                CREATE TYPE ObjCnstr2 {
+                    CREATE MULTI PROPERTY first_name -> str;
+                    CREATE MULTI PROPERTY last_name -> str;
+                    CREATE CONSTRAINT exclusive on (__subject__.first_name);
+                };
+            """)
+
+            with self.assertRaisesRegex(
+                    edgedb.InvalidConstraintDefinitionError,
+                    "Constraint with multi cardinality may not "
+                    "reference multiple fields"):
+                await self.con.execute("""
+                    ALTER TYPE ObjCnstr2 {
+                        CREATE CONSTRAINT exclusive
+                        on ((__subject__.first_name, __subject__.last_name));
+                    };
+                """)
 
     async def test_constraints_ddl_function(self):
         await self.con.execute('''\
