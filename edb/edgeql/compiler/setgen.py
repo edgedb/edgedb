@@ -61,15 +61,20 @@ if TYPE_CHECKING:
 PtrDir = s_pointers.PointerDirection
 
 
-def new_set(*, stype: s_types.Type, ctx: context.ContextLevel,
-            **kwargs: Any) -> irast.Set:
+def new_set(
+    *,
+    stype: s_types.Type,
+    ctx: context.ContextLevel,
+    ircls: Type[irast.Set] = irast.Set,
+    **kwargs: Any,
+) -> irast.Set:
     """Create a new ir.Set instance with given attributes.
 
     Absolutely all ir.Set instances must be created using this
     constructor.
     """
     typeref = typegen.type_to_typeref(stype, env=ctx.env)
-    ir_set = irast.Set(typeref=typeref, **kwargs)
+    ir_set = ircls(typeref=typeref, **kwargs)
     ctx.env.set_types[ir_set] = stype
     return ir_set
 
@@ -125,7 +130,8 @@ def new_set_from_set(
         expr=ir_set.expr,
         rptr=rptr,
         context=ir_set.context,
-        ctx=ctx
+        ircls=type(ir_set),
+        ctx=ctx,
     )
 
 
