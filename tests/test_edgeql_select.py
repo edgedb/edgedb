@@ -3797,6 +3797,42 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 } ORDER BY .number;
                 """)
 
+    async def test_edgeql_select_empty_object_01(self):
+        await self.assert_query_result(
+            r'''
+            WITH MODULE test
+            SELECT <Issue>{}
+            ''',
+            [],
+        )
+
+    async def test_edgeql_select_empty_object_02(self):
+        await self.assert_query_result(
+            r'''
+            WITH MODULE test
+            SELECT NOT EXISTS (<Issue>{})
+            ''',
+            [True],
+        )
+
+    async def test_edgeql_select_empty_object_03(self):
+        await self.assert_query_result(
+            r'''
+            WITH MODULE test
+            SELECT ((SELECT Issue FILTER false) ?= <Issue>{})
+            ''',
+            [True],
+        )
+
+    async def test_edgeql_select_empty_object_04(self):
+        await self.assert_query_result(
+            r'''
+            WITH MODULE test
+            SELECT count(<Issue>{}) = 0
+            ''',
+            [True],
+        )
+
     async def test_edgeql_select_cross_01(self):
         await self.assert_query_result(
             r"""
