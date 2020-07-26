@@ -454,9 +454,13 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
         fence.fenced = True
 
     for ir_set, scope_info in extra_scopes.items():
+        for cb in scope_info.tentative_work:
+            stmtctx.at_stmt_fini(cb, ctx=ctx)
+
+        scope_info.tentative_work[:] = []
+
         nodes = tuple(
             node for node in ctx.path_scope.find_descendants(ir_set.path_id)
-            # if node.parent_fence not in fences
         )
 
         if not nodes:
@@ -468,11 +472,6 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
         assert len(nodes) == 1
 
         nodes[0].fuse_subtree(scope_info.path_scope.copy())
-
-        for cb in scope_info.tentative_work:
-            stmtctx.at_stmt_fini(cb, ctx=ctx)
-
-        scope_info.tentative_work[:] = []
 
         if ir_set.path_scope_id is None:
             pathctx.assign_set_scope(ir_set, nodes[0], ctx=ctx)
