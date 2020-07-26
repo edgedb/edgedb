@@ -1260,8 +1260,28 @@ def process_set_as_ifelse(
             defresult=else_val,
         )
 
-        pathctx.put_path_value_var_if_not_exists(
-            stmt, ir_set.path_id, set_expr, env=ctx.env)
+        with ctx.subrel() as subctx:
+            pathctx.put_path_value_var_if_not_exists(
+                subctx.rel,
+                ir_set.path_id,
+                set_expr,
+                env=ctx.env,
+            )
+            sub_rvar = relctx.rvar_for_rel(
+                subctx.rel,
+                lateral=True,
+                ctx=subctx,
+            )
+            relctx.include_rvar(stmt, sub_rvar, ir_set.path_id, ctx=subctx)
+
+        rvar = pathctx.get_path_value_var(
+            stmt, path_id=ir_set.path_id, env=ctx.env)
+        stmt.where_clause = astutils.extend_binop(
+            stmt.where_clause,
+            pgast.NullTest(
+                arg=rvar, negated=True
+            )
+        )
 
     else:
         with ctx.subrel() as _, _.newscope() as subctx:
