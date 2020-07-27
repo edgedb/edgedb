@@ -352,6 +352,37 @@ class TestConstraintsSchema(tb.QueryTestCase):
                     };
                 """)
 
+    async def test_constraints_objects(self):
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.ConstraintViolationError,
+                    "ObjCnstr violates exclusivity constraint"):
+                await self.con.execute("""
+                    INSERT test::ObjCnstr {
+                        first_name := "foo", last_name := "bar" };
+
+                    INSERT test::ObjCnstr {
+                        first_name := "foo", last_name := "baz" }
+            """)
+
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                INSERT test::ObjCnstr {
+                    first_name := "foo", last_name := "bar",
+                    label := (INSERT test::Label {text := "obj_test" })
+                };
+            """)
+
+            with self.assertRaisesRegex(
+                    edgedb.ConstraintViolationError,
+                    "ObjCnstr violates exclusivity constraint"):
+                await self.con.execute("""
+                    INSERT test::ObjCnstr {
+                        first_name := "emarg", last_name := "hatch",
+                        label := (SELECT test::Label
+                                  FILTER .text = "obj_test" LIMIT 1) };
+                """)
+
 
 class TestConstraintsSchemaMigration(tb.QueryTestCase):
     ISOLATED_METHODS = False
@@ -513,6 +544,18 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
                         name := 'exclusive_name_AP8'
                     };
                 """)
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.ConstraintViolationError,
+                    "nope!"):
+                await self.con.execute("""
+                    INSERT test::ObjCnstr {
+                        first_name := "foo", last_name := "bar" };
+
+                    INSERT test::ObjCnstr {
+                        first_name := "foo", last_name := "baz" }
+            """)
 
 
 class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):

@@ -896,6 +896,8 @@ sdl_commands_block(
     ConcretePropertyShort,
     ConcreteLinkBlock,
     ConcreteLinkShort,
+    ConcreteConstraintBlock,
+    ConcreteConstraintShort,
     IndexDeclarationBlock,
     IndexDeclarationShort,
 )
