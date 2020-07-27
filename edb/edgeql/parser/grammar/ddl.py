@@ -1348,6 +1348,8 @@ commands_block(
     AlterConcretePropertyStmt,
     CreateConcreteLinkStmt,
     AlterConcreteLinkStmt,
+    CreateConcreteConstraintStmt,
+    AlterConcreteConstraintStmt,
     CreateIndexStmt,
     AlterIndexStmt,
 )
@@ -1397,6 +1399,9 @@ commands_block(
     CreateConcreteLinkStmt,
     AlterConcreteLinkStmt,
     DropConcreteLinkStmt,
+    CreateConcreteConstraintStmt,
+    AlterConcreteConstraintStmt,
+    DropConcreteConstraintStmt,
     CreateIndexStmt,
     AlterIndexStmt,
     DropIndexStmt,

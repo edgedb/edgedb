@@ -28,6 +28,7 @@ CREATE TYPE
       CREATE ANNOTATION <annotation-name> := <value>
       CREATE LINK <link-name> ...
       CREATE PROPERTY <property-name> ...
+      CREATE CONSTRAINT <constraint-name> ...
       CREATE INDEX ON <index-expr>
 
 Description
@@ -88,6 +89,10 @@ The following subcommands are allowed in the ``CREATE TYPE`` block:
     Define a new property for this object type.  See
     :eql:stmt:`CREATE PROPERTY` for details.
 
+:eql:synopsis:`CREATE CONSTRAINT <constraint-name> ...`
+    Define a concrete constraint for this object type.  See
+    :eql:stmt:`CREATE CONSTRAINT` for details.
+
 :eql:synopsis:`CREATE INDEX ON <index-expr>`
     Define a new :ref:`index <ref_datamodel_indexes>`
     using *index-expr* for this object type.  See
@@ -139,6 +144,9 @@ Change the definition of an
       CREATE PROPERTY <property-name> ...
       ALTER PROPERTY <property-name> ...
       DROP PROPERTY <property-name> ...
+      CREATE CONSTRAINT <constraint-name> ...
+      ALTER CONSTRAINT <constraint-name> ...
+      DROP CONSTRAINT <constraint-name> ...
       CREATE INDEX ON <index-expr>
       DROP INDEX ON <index-expr>
 
@@ -211,6 +219,14 @@ The following subcommands are allowed in the ``ALTER TYPE`` block:
 :eql:synopsis:`DROP PROPERTY <property-name>`
     Remove a property item from this object type.  See
     :eql:stmt:`DROP PROPERTY` for details.
+
+:eql:synopsis:`ALTER CONSTRAINT <constraint-name> ...`
+    Alter the definition of a constraint for this object type.  See
+    :eql:stmt:`ALTER CONSTRAINT` for details.
+
+:eql:synopsis:`DROP CONSTRAINT <constraint-name>;`
+    Remove a constraint from this object type.  See
+    :eql:stmt:`DROP CONSTRAINT` for details.
 
 :eql:synopsis:`DROP INDEX ON <index-expr>`
     Remove an :ref:`index <ref_datamodel_indexes>` defined as *index-expr*

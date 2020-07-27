@@ -38,6 +38,7 @@ from . import functions as s_func
 from . import inheriting
 from . import name as sn
 from . import objects as so
+from . import types as s_types
 from . import pseudo as s_pseudo
 from . import referencing
 from . import utils
@@ -722,6 +723,7 @@ class CreateConstraint(
         **kwargs: Any
     ) -> None:
         from edb.ir import ast as ir_ast
+        from edb.ir import utils as ir_utils
 
         constr_base = schema.get(name, type=Constraint)
 
@@ -824,6 +826,27 @@ class CreateConstraint(
                 f'{expr_type.get_verbosename(schema)}',
                 context=expr_context
             )
+
+        if (subjectexpr is not None and isinstance(subject_obj, s_types.Type)
+                and subject_obj.is_object_type()):
+            final_subjectexpr = s_expr.Expression.compiled(
+                subjectexpr,
+                schema=schema,
+                options=qlcompiler.CompilerOptions(
+                    anchors={qlast.Subject().name: subject},
+                    singletons=frozenset({subject_obj}),
+                ),
+            )
+            assert isinstance(final_subjectexpr.irast, ir_ast.Statement)
+
+            if final_subjectexpr.irast.cardinality.is_multi():
+                refs = ir_utils.get_longest_paths(final_expr.irast)
+                if len(refs) > 1:
+                    raise errors.InvalidConstraintDefinitionError(
+                        "Constraint with multi cardinality may not "
+                        "reference multiple links or properties",
+                        context=expr_context
+                    )
 
         attrs['return_type'] = constr_base.get_return_type(schema)
         attrs['return_typemod'] = constr_base.get_return_typemod(schema)

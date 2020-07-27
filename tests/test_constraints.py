@@ -933,6 +933,107 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
                 };
             """)
 
+    async def test_constraints_ddl_07(self):
+        await self.con.execute("""
+            CREATE TYPE test::ObjCnstr {
+                CREATE PROPERTY first_name -> str;
+                CREATE PROPERTY last_name -> str;
+                CREATE CONSTRAINT exclusive on (__subject__.first_name);
+            };
+        """)
+
+        await self.con.execute("""
+            INSERT test::ObjCnstr { first_name := "foo", last_name := "bar" }
+        """)
+
+        with self.assertRaisesRegex(
+                edgedb.ConstraintViolationError,
+                "ObjCnstr violates exclusivity constraint"):
+            await self.con.execute("""
+                INSERT test::ObjCnstr {
+                    first_name := "foo", last_name := "baz" }
+            """)
+
+        await self.con.execute("""
+            ALTER TYPE test::ObjCnstr {
+                DROP CONSTRAINT exclusive on (__subject__.first_name);
+            }
+        """)
+
+        await self.con.execute("""
+            ALTER TYPE test::ObjCnstr {
+                CREATE CONSTRAINT exclusive
+                on ((__subject__.first_name, __subject__.last_name));
+            }
+        """)
+
+        await self.con.execute("""
+            ALTER TYPE test::ObjCnstr {
+                ALTER CONSTRAINT exclusive
+                on ((__subject__.first_name, __subject__.last_name)) {
+                    SET errmessage := "nope!";
+                }
+            }
+        """)
+
+        # This one should work now
+        await self.con.execute("""
+            INSERT test::ObjCnstr { first_name := "foo", last_name := "baz" }
+        """)
+
+        with self.assertRaisesRegex(
+                edgedb.ConstraintViolationError,
+                "nope!"):
+            await self.con.execute("""
+                INSERT test::ObjCnstr {
+                    first_name := "foo", last_name := "bar" }
+            """)
+
+    async def test_constraints_ddl_08(self):
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                CREATE TYPE test::ObjCnstr2 {
+                    CREATE MULTI PROPERTY first_name -> str;
+                    CREATE MULTI PROPERTY last_name -> str;
+                    CREATE CONSTRAINT exclusive on (__subject__.first_name);
+                };
+            """)
+
+            with self.assertRaisesRegex(
+                    edgedb.InvalidConstraintDefinitionError,
+                    "Constraint with multi cardinality may not "
+                    "reference multiple links or properties"):
+                await self.con.execute("""
+                    ALTER TYPE test::ObjCnstr2 {
+                        CREATE CONSTRAINT exclusive
+                        on ((__subject__.first_name, __subject__.last_name));
+                    };
+                """)
+
+    async def test_constraints_ddl_09(self):
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                CREATE TYPE test::Label {
+                    CREATE PROPERTY text -> str;
+                };
+                CREATE TYPE test::ObjCnstr3 {
+                    CREATE LINK label -> test::Label;
+                    CREATE CONSTRAINT exclusive on (__subject__.label);
+                };
+                INSERT test::ObjCnstr3 {
+                    label := (INSERT test::Label {text := "obj_test" })
+                };
+            """)
+
+            with self.assertRaisesRegex(
+                    edgedb.ConstraintViolationError,
+                    "ObjCnstr3 violates exclusivity constraint"):
+                await self.con.execute("""
+                    INSERT test::ObjCnstr3 {
+                        label := (SELECT test::Label
+                                  FILTER .text = "obj_test" LIMIT 1) };
+                """)
+
     async def test_constraints_ddl_function(self):
         await self.con.execute('''\
             CREATE FUNCTION test::comp_func(s: str) -> str {
