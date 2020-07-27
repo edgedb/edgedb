@@ -109,6 +109,12 @@ type Object {
     property c_my_enum -> constraint_my_enum;
 }
 
+type ObjCnstr {
+    required property first_name -> str;
+    required property last_name -> str;
+    constraint exclusive on (__subject__.first_name);
+}
+
 type UniqueName {
     property name -> str {
         constraint exclusive;

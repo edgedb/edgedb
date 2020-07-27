@@ -67,6 +67,7 @@ commands <ref_eql_ddl_object_types>`.
         [ <annotation-declarations> ]
         [ <property-declarations> ]
         [ <link-declarations> ]
+        [ <constraint-declarations> ]
         [ <index-declarations> ]
         ...
       "}" ]
@@ -83,6 +84,10 @@ while the valid SDL sub-declarations are listed below:
 
 :sdl:synopsis:`<property-declarations>`
     Define a concrete :ref:`property <ref_eql_sdl_props>` for this object type.
+
+:sdl:synopsis:`<constraint-declarations>`
+    Define a concrete :ref:`constraint <ref_eql_sdl_constraints>` for this
+    object type.
 
 :sdl:synopsis:`<link-declarations>`
     Define a concrete :ref:`link <ref_eql_sdl_links>` for this object type.

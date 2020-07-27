@@ -101,6 +101,14 @@ type Object {
     }
 }
 
+type ObjCnstr {
+    required property first_name -> str;
+    required property last_name -> str;
+    constraint exclusive on (__subject__.first_name) {
+        errmessage := "nope!";
+    }
+}
+
 type UniqueName {
     property name -> str {
         constraint exclusive;
