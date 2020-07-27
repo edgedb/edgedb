@@ -1002,7 +1002,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
             with self.assertRaisesRegex(
                     edgedb.InvalidConstraintDefinitionError,
                     "Constraint with multi cardinality may not "
-                    "reference multiple fields"):
+                    "reference multiple links or properties"):
                 await self.con.execute("""
                     ALTER TYPE ObjCnstr2 {
                         CREATE CONSTRAINT exclusive

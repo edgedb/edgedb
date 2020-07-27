@@ -844,7 +844,7 @@ class CreateConstraint(
                 if len(refs) > 1:
                     raise errors.InvalidConstraintDefinitionError(
                         "Constraint with multi cardinality may not "
-                        "reference multiple fields",
+                        "reference multiple links or properties",
                         context=expr_context
                     )
 
