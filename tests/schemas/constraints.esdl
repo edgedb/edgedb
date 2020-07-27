@@ -112,7 +112,9 @@ type Object {
 type ObjCnstr {
     required property first_name -> str;
     required property last_name -> str;
+    link label -> Label;
     constraint exclusive on (__subject__.first_name);
+    constraint exclusive on (__subject__.label);
 }
 
 type UniqueName {
