@@ -1010,6 +1010,31 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
                     };
                 """)
 
+    async def test_constraints_ddl_09(self):
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                CREATE TYPE test::Label {
+                    CREATE PROPERTY text -> str;
+                };
+                CREATE TYPE test::ObjCnstr3 {
+                    CREATE LINK label -> test::Label;
+                    CREATE CONSTRAINT exclusive on (__subject__.label);
+                };
+                INSERT test::ObjCnstr3 {
+                    label := (SELECT (INSERT test::Label {
+                                          text := "obj_test" }))
+                };
+            """)
+
+            with self.assertRaisesRegex(
+                    edgedb.ConstraintViolationError,
+                    "ObjCnstr3 violates exclusivity constraint"):
+                await self.con.execute("""
+                    INSERT test::ObjCnstr3 {
+                        label := (SELECT test::Label
+                                  FILTER .text = "obj_test" LIMIT 1) };
+                """)
+
     async def test_constraints_ddl_function(self):
         await self.con.execute('''\
             CREATE FUNCTION test::comp_func(s: str) -> str {
