@@ -1021,8 +1021,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
                     CREATE CONSTRAINT exclusive on (__subject__.label);
                 };
                 INSERT test::ObjCnstr3 {
-                    label := (SELECT (INSERT test::Label {
-                                          text := "obj_test" }))
+                    label := (INSERT test::Label {text := "obj_test" })
                 };
             """)
 
