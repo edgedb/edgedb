@@ -67,8 +67,7 @@ class ReferencedObject(so.DerivableObject):
             schema=schema,
             disable_dep_verification=True,
         )
-        delta, cmd = self._get_command_stack(schema, context, sd.DeleteObject)
-
+        delta, _ = self.init_delta_branch(schema, cmdtype=sd.DeleteObject)
         with context(sd.DeltaRootContext(schema=schema, op=delta)):
             schema = delta.apply(schema, context)
 
@@ -154,8 +153,8 @@ class ReferencedObject(so.DerivableObject):
                 cmd.add(rebase_cmd)
 
         context = sd.CommandContext(modaliases={}, schema=schema)
-        delta, parent_cmd = cmd._build_alter_cmd_stack(
-            schema, context, self, referrer=referrer)
+        delta, parent_cmd = self.init_parent_delta_branch(
+            schema, referrer=referrer)
 
         with context(sd.DeltaRootContext(schema=schema, op=delta)):
             if not inheritance_merge:
@@ -194,6 +193,39 @@ class ReferencedObject(so.DerivableObject):
                 return f'{vn} of {pn}'
 
         return vn
+
+    def init_parent_delta_branch(
+        self: ReferencedT,
+        schema: s_schema.Schema,
+        *,
+        referrer: Optional[so.Object] = None,
+    ) -> Tuple[sd.DeltaRoot, sd.ObjectCommand[ReferencedT]]:
+
+        delta = sd.DeltaRoot()
+        if referrer is None:
+            referrer = self.get_referrer(schema)
+
+        assert referrer is not None
+        obj: Optional[so.Object] = referrer
+        object_stack: List[so.Object] = [referrer]
+
+        while obj is not None:
+            if isinstance(obj, ReferencedObject):
+                obj = obj.get_referrer(schema)
+                if obj is not None:
+                    object_stack.append(obj)
+            else:
+                obj = None
+
+        cmd: sd.Command = delta
+        for obj in reversed(object_stack):
+            alter_cmd = obj.init_delta_command(schema, sd.AlterObject)
+            cmd.add(alter_cmd)
+            cmd = alter_cmd
+
+        cmd = cast(sd.ObjectCommand[ReferencedT], cmd)
+
+        return delta, cmd
 
 
 class ReferencedInheritingObject(
@@ -373,43 +405,6 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase[ReferencedT]):
                 return self.astnode[1]
             else:
                 return self.astnode
-
-    def _build_alter_cmd_stack(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        scls: so.Object,
-        *,
-        referrer: Optional[so.Object] = None
-    ) -> Tuple[sd.DeltaRoot, sd.Command]:
-
-        delta = sd.DeltaRoot()
-
-        if referrer is None:
-            assert isinstance(scls, ReferencedObject)
-            referrer = scls.get_referrer(schema)
-
-        obj = referrer
-        object_stack = []
-
-        if type(self) != type(referrer):
-            object_stack.append(referrer)
-
-        while obj is not None:
-            if isinstance(obj, ReferencedObject):
-                obj = obj.get_referrer(schema)
-                object_stack.append(obj)
-            else:
-                obj = None
-
-        cmd: sd.Command = delta
-        for obj in reversed(object_stack):
-            assert obj is not None
-            alter_cmd = obj.init_delta_command(schema, sd.AlterObject)
-            cmd.add(alter_cmd)
-            cmd = alter_cmd
-
-        return delta, cmd
 
 
 class CreateReferencedObject(

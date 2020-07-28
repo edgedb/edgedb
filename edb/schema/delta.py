@@ -1140,17 +1140,6 @@ class ObjectCommand(
         classname = cls._classname_from_ast(schema, astnode, context)
         return cls(classname=classname)
 
-    def _build_alter_cmd_stack(
-        self,
-        schema: s_schema.Schema,
-        context: CommandContext,
-        scls: so.Object,
-        *,
-        referrer: Optional[so.Object] = None,
-    ) -> Tuple[DeltaRoot, Command]:
-        root = DeltaRoot()
-        return root, root
-
     def _propagate_if_expr_refs(
         self,
         schema: s_schema.Schema,
@@ -1170,21 +1159,33 @@ class ObjectCommand(
                 from . import indexes as s_indexes
                 from . import pointers as s_pointers
 
+                cmd_drop: Command
+                cmd_create: Command
+
                 if isinstance(ref, s_indexes.Index):
                     # If the affected entity is an index, just drop it and
                     # schedule it to be re-created.
-                    context.affected_finalization[self] = ref._create_command(
-                        schema, context)
+                    create_root, create_parent = ref.init_parent_delta_branch(
+                        schema)
+                    create_cmd = ref.init_delta_command(schema, CreateObject)
+                    for fname in type(ref).get_fields():
+                        value = ref.get_explicit_field_value(
+                            schema, fname, None)
+                        if value is not None:
+                            create_cmd.set_attribute_value(fname, value)
+                    create_parent.add(create_cmd)
+                    context.affected_finalization[self] = (
+                        create_root, create_cmd)
                     schema = ref.delete(schema)
                     continue
 
                 elif isinstance(ref, s_pointers.Pointer):
                     # If the affected entity is a pointer, drop/create
                     # the default value or computable.
-                    delta_drop, cmd_drop = ref._get_command_stack(
-                        schema, context, AlterObject)
-                    delta_create, cmd_create = ref._get_command_stack(
-                        schema, context, AlterObject)
+                    delta_drop, cmd_drop = ref.init_delta_branch(
+                        schema, cmdtype=AlterObject)
+                    delta_create, cmd_create = ref.init_delta_branch(
+                        schema, cmdtype=AlterObject)
 
                     # Copy own fields into the create command.
                     value = ref.get_explicit_field_value(schema, fn, None)
@@ -1202,10 +1203,10 @@ class ObjectCommand(
                     # to change the body to a dummy version (removing
                     # the dependency) and then reset the body to
                     # original expression.
-                    delta_drop, cmd_drop = ref._get_command_stack(
-                        schema, context, AlterObject)
-                    delta_create, cmd_create = ref._get_command_stack(
-                        schema, context, AlterObject)
+                    delta_drop, cmd_drop = ref.init_delta_branch(
+                        schema, cmdtype=AlterObject)
+                    delta_create, cmd_create = ref.init_delta_branch(
+                        schema, cmdtype=AlterObject)
 
                     # Copy own fields into the create command.
                     value = ref.get_explicit_field_value(schema, fn, None)

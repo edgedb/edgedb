@@ -1247,6 +1247,40 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             **kwargs,
         )
 
+    def init_parent_delta_branch(
+        self: Object_T,
+        schema: s_schema.Schema,
+        *,
+        referrer: Optional[Object] = None,
+    ) -> Tuple[sd.DeltaRoot, sd.Command]:
+        from . import delta as sd
+        root = sd.DeltaRoot()
+        return root, root
+
+    def init_delta_branch(
+        self: Object_T,
+        schema: s_schema.Schema,
+        cmdtype: Type[sd.ObjectCommand[Object]],
+        *,
+        classname: Optional[str] = None,
+        referrer: Optional[Object] = None,
+        **kwargs: Any,
+    ) -> Tuple[sd.DeltaRoot, sd.ObjectCommand[Object_T]]:
+        root_cmd, parent_cmd = self.init_parent_delta_branch(
+            schema=schema,
+            referrer=referrer,
+        )
+
+        self_cmd = self.init_delta_command(
+            schema,
+            cmdtype=cmdtype,
+            classname=classname,
+            **kwargs,
+        )
+        parent_cmd.add(self_cmd)
+
+        return root_cmd, self_cmd
+
     def as_create_delta(
         self: Object_T,
         schema: s_schema.Schema,
@@ -1526,37 +1560,6 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
     def __repr__(self) -> str:
         return f'<{type(self).__name__} {self.id} at 0x{id(self):#x}>'
-
-    def _get_command_stack(
-        self: Object_T,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        command_cls: Type[sd.ObjectCommand[Object_T]],
-    ) -> Tuple[sd.DeltaRoot, sd.Command]:
-        from . import delta as sd
-        cmdcls = sd.ObjectCommandMeta.get_command_class_or_die(
-            command_cls, type(self))
-        cmd = cmdcls(classname=self.get_name(schema))
-        delta, parent_cmd = cmd._build_alter_cmd_stack(schema, context, self)
-        parent_cmd.add(cmd)
-        return delta, cmd
-
-    def _create_command(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-    ) -> Tuple[sd.DeltaRoot, sd.Command]:
-        from edb.schema import delta as sd
-        delta, cmd = self._get_command_stack(schema, context, sd.CreateObject)
-
-        # Copy own fields into the create command.
-        fields = type(self).get_fields()
-        for fname, _ in fields.items():
-            value = self.get_explicit_field_value(schema, fname, None)
-            if value is not None:
-                cmd.set_attribute_value(fname, value)
-
-        return delta, cmd
 
 
 class QualifiedObject(Object):

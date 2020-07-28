@@ -824,9 +824,7 @@ class AlterInheritingObject(
                 schema = descendant_alter.inherit_fields(
                     schema, context, d_bases, fields=props)
 
-            droot, dcmd = descendant_alter._build_alter_cmd_stack(
-                schema, context, descendant
-            )
+            droot, dcmd = descendant.init_parent_delta_branch(schema)
 
             dcmd.add(descendant_alter)
 
