@@ -2609,6 +2609,14 @@ aa';
         UNION (UPDATE Foo FILTER (Foo.id = x.0) SET {bar := x.1});
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected '}'",
+                  line=2, col=27)
+    def test_edgeql_syntax_empty_for_01(self):
+        """
+        SELECT (FOR x in {} UNION ());
+        """
+
     def test_edgeql_syntax_coalesce_01(self):
         """
         SELECT (a ?? x);

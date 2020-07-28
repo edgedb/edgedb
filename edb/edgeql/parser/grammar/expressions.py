@@ -112,7 +112,7 @@ class ByExprList(ListNonterm, element=ByExpr, separator=tokens.T_COMMA):
 
 class SimpleFor(Nonterm):
     def reduce_For(self, *kids):
-        r"%reduce FOR Identifier IN Set \
+        r"%reduce FOR Identifier IN NonEmptySet \
                   UNION OptionallyAliasedExpr"
         self.val = qlast.ForQuery(
             iterator_alias=kids[1].val,
@@ -956,6 +956,11 @@ class NamedTupleElementList(ListNonterm, element=NamedTupleElement,
     pass
 
 
+class NonEmptySet(Nonterm):
+    def reduce_LBRACE_TrailingCommaExprList_RBRACE(self, *kids):
+        self.val = qlast.Set(elements=kids[1].val)
+
+
 class Set(Nonterm):
     def reduce_LBRACE_OptExprList_RBRACE(self, *kids):
         self.val = qlast.Set(elements=kids[1].val)
@@ -976,6 +981,14 @@ class OptExprList(Nonterm):
 
     def reduce_empty(self, *kids):
         self.val = []
+
+
+class TrailingCommaExprList(Nonterm):
+    def reduce_ExprList_COMMA(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_ExprList(self, *kids):
+        self.val = kids[0].val
 
 
 class ExprList(ListNonterm, element=Expr, separator=tokens.T_COMMA):
