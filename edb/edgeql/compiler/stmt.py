@@ -38,6 +38,7 @@ from edb.schema import name as s_name
 from edb.schema import objects as s_obj
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
+from edb.schema import pseudo as s_pseudo
 from edb.schema import types as s_types
 
 from edb.edgeql import ast as qlast
@@ -130,6 +131,14 @@ def compile_ForQuery(
 
             iterator_stmt = setgen.new_set_from_set(
                 iterator_view, preserve_scope_ns=True, ctx=scopectx)
+
+            ptr_target = inference.infer_type(iterator_stmt, ctx.env)
+            anytype = ptr_target.find_any(ctx.env.schema)
+            if anytype is not None:
+                raise errors.QueryError(
+                    'FOR statement has iterator of indeterminate type',
+                    context=ctx.env.type_origins.get(anytype),
+                )
 
             if iterator_ctx is not None and iterator_ctx.stmt is not None:
                 iterator_ctx.stmt.hoisted_iterators.append(iterator_stmt)
@@ -768,7 +777,14 @@ def fini_stmt(
     view: Optional[s_types.Type]
     path_id: Optional[irast.PathId]
 
-    if t.get_name(ctx.env.schema) == view_name:
+    if (isinstance(t, s_pseudo.PseudoType)
+            and t.is_any(ctx.env.schema)):
+        # Need to produce something valid. Should get caught as an
+        # error later.
+        view = None
+        path_id = None
+
+    elif t.get_name(ctx.env.schema) == view_name:
         # The view statement did contain a view declaration and
         # generated a view class with the requested name.
         view = t
