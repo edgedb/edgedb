@@ -34,3 +34,4 @@ docs/_build
 /.pytest_cache
 /.mypy_cache
 /.vagga
+/.dmypy.json

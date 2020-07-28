@@ -87,7 +87,7 @@ EXTRA_DEPS = {
         'black~=19.3b0',
         'flake8~=3.8.1',
         'flake8-bugbear~=19.8.0',
-        'mypy==0.770',
+        'mypy==0.782',
         'coverage~=4.5.2',
         'requests-xml~=0.2.3',
         'lxml',
