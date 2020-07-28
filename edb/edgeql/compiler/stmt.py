@@ -132,8 +132,8 @@ def compile_ForQuery(
             iterator_stmt = setgen.new_set_from_set(
                 iterator_view, preserve_scope_ns=True, ctx=scopectx)
 
-            ptr_target = inference.infer_type(iterator_stmt, ctx.env)
-            anytype = ptr_target.find_any(ctx.env.schema)
+            iterator_type = inference.infer_type(iterator_stmt, ctx.env)
+            anytype = iterator_type.find_any(ctx.env.schema)
             if anytype is not None:
                 raise errors.QueryError(
                     'FOR statement has iterator of indeterminate type',

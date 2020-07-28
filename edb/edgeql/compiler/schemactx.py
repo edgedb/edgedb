@@ -214,7 +214,7 @@ def derive_view(
                         ptrcls=ptr, ctx=ctx)
 
     else:
-        raise RuntimeError("unsupported type in derive_view")
+        raise TypeError("unsupported type in derive_view")
 
     ctx.view_nodes[derived.get_name(ctx.env.schema)] = derived
 
