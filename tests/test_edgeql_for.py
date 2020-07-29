@@ -19,6 +19,8 @@
 
 import os.path
 
+import edgedb
+
 from edb.testbase import server as tb
 from edb.tools import test
 
@@ -418,3 +420,21 @@ class TestEdgeQLFor(tb.QueryTestCase):
                 }
             ]
         )
+
+    async def test_edgeql_for_empty_01(self):
+        with self.assertRaisesRegex(
+            edgedb.errors.QueryError,
+            "FOR statement has iterator of indeterminate type",
+        ):
+            await self.con.execute("""
+                SELECT (FOR x in {} UNION ());
+            """)
+
+    async def test_edgeql_for_empty_02(self):
+        with self.assertRaisesRegex(
+            edgedb.errors.QueryError,
+            "FOR statement has iterator of indeterminate type",
+        ):
+            await self.con.execute("""
+                WITH s := {} SELECT (FOR x in {s} UNION ());
+            """)

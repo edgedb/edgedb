@@ -213,6 +213,9 @@ def derive_view(
                     stmtctx.pend_pointer_cardinality_inference(
                         ptrcls=ptr, ctx=ctx)
 
+    else:
+        raise TypeError("unsupported type in derive_view")
+
     ctx.view_nodes[derived.get_name(ctx.env.schema)] = derived
 
     if preserve_shape and stype in ctx.env.view_shapes:
