@@ -132,7 +132,7 @@ def compile_ForQuery(
             iterator_stmt = setgen.new_set_from_set(
                 iterator_view, preserve_scope_ns=True, ctx=scopectx)
 
-            iterator_type = inference.infer_type(iterator_stmt, ctx.env)
+            iterator_type = setgen.get_set_type(iterator_stmt, ctx=ctx)
             anytype = iterator_type.find_any(ctx.env.schema)
             if anytype is not None:
                 raise errors.QueryError(
