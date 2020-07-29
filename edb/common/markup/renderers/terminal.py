@@ -367,7 +367,7 @@ class LangRenderer(BaseRenderer):
 
     def _render_lang_List(self, element):
         with self.buffer.foldable_lines():
-            self.buffer.write('[', style=self.styles.bracket)
+            self.buffer.write(element.brackets[0], style=self.styles.bracket)
 
             item_count = len(element.items)
             if item_count:
@@ -382,7 +382,7 @@ class LangRenderer(BaseRenderer):
             if element.trimmed:
                 self.buffer.write('...')
 
-            self.buffer.write(']', style=self.styles.bracket)
+            self.buffer.write(element.brackets[1], style=self.styles.bracket)
 
     def _render_mapping_(self, mapping, trimmed=False):
         self.buffer.write('{', style=self.styles.bracket)
