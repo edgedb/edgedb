@@ -64,7 +64,7 @@ class MarkupTests(unittest.TestCase):
         assert markup.dumps('123') == "'123'"
 
         expected = \
-            "[\n    '123',\n    1,\n    1.1,\n    {\n        foo: []\n    }\n]"
+            "[\n    '123',\n    1,\n    1.1,\n    {\n        foo: ()\n    }\n]"
         expected = expected.replace(' ', '')
         assert markup.dumps(['123', 1, 1.1, {'foo': ()}]).replace(
             ' ', '') == expected
