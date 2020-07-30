@@ -1357,7 +1357,10 @@ class ObjectCommand(
         mcls = self.get_schema_metaclass()
 
         for fop in self.get_subcommands(type=AlterObjectProperty):
-            if fop.source != 'inheritance' or context.descriptive_mode:
+            if (
+                (fop.source != 'inheritance' or context.descriptive_mode)
+                and fop.old_value != fop.new_value
+            ):
                 self._apply_field_ast(schema, context, node, fop)
 
         for field in self.get_ddl_identity_fields(context):

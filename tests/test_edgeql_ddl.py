@@ -869,15 +869,148 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-        with self.assertRaisesRegex(
-            edgedb.SchemaError,
-            "cannot drop property 'foo' of link 'target' of "
-            "object type 'test::Child'",
-        ):
-            await self.con.execute("""
-                SET MODULE test;
-                ALTER TYPE Child ALTER LINK target DROP OWNED;
-            """)
+        await self.con.execute("""
+            SET MODULE test;
+            ALTER TYPE Child ALTER LINK target DROP OWNED;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH
+                    C := (SELECT schema::ObjectType
+                          FILTER .name = 'test::Child')
+                SELECT
+                    C {
+                        links: {
+                            @is_owned,
+                            required,
+                            properties: {
+                                name,
+                            }
+                        }
+                        FILTER .name = 'target'
+                    };
+            """,
+            [
+                {
+                    'links': [{
+                        '@is_owned': False,
+                        'required': False,
+                        'properties': [],
+                    }],
+                },
+            ],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH
+                    C := (SELECT schema::ObjectType
+                          FILTER .name = 'test::Grandchild')
+                SELECT
+                    C {
+                        links: {
+                            @is_owned,
+                            required,
+                            properties: {
+                                name,
+                                @is_owned,
+                                constraints: {
+                                    name,
+                                }
+                            } FILTER .name = 'foo'
+                        }
+                        FILTER .name = 'target'
+                    };
+            """,
+            [
+                {
+                    'links': [{
+                        '@is_owned': True,
+                        'required': True,
+                        'properties': [{
+                            'name': 'foo',
+                            '@is_owned': True,
+                            'constraints': [{
+                                'name': 'std::exclusive',
+                            }]
+                        }],
+                    }],
+                },
+            ],
+        )
+
+    async def test_edgeql_ddl_27(self):
+        await self.con.execute("""
+            SET MODULE test;
+            CREATE TYPE Base {
+                CREATE PROPERTY foo -> str;
+            };
+            CREATE TYPE Derived EXTENDING Base {
+                ALTER PROPERTY foo SET REQUIRED;
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH
+                    C := (SELECT schema::ObjectType
+                          FILTER .name = 'test::Derived')
+                SELECT
+                    C {
+                        properties: {
+                            @is_owned,
+                            required,
+                            inherited_fields,
+                        }
+                        FILTER .name = 'foo'
+                    };
+            """,
+            [
+                {
+                    'properties': [{
+                        '@is_owned': True,
+                        'required': True,
+                        'inherited_fields': {
+                            'cardinality',
+                            'readonly',
+                            'target',
+                        },
+                    }],
+                },
+            ],
+        )
+
+        await self.con.execute("""
+            SET MODULE test;
+            ALTER TYPE Base DROP PROPERTY foo;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH
+                    C := (SELECT schema::ObjectType
+                          FILTER .name = 'test::Derived')
+                SELECT
+                    C {
+                        properties: {
+                            @is_owned,
+                            required,
+                            inherited_fields,
+                        }
+                        FILTER .name = 'foo'
+                    };
+            """,
+            [
+                {
+                    'properties': [{
+                        '@is_owned': True,
+                        'required': True,
+                        'inherited_fields': [],
+                    }],
+                },
+            ],
+        )
 
     async def test_edgeql_ddl_27(self):
         # Test that identifiers that are SQL keywords get quoted.
@@ -5071,14 +5204,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE TYPE Derived EXTENDING Base0, Base1;
         ''')
 
-        # XXX: The error message is awkward as it refers to conflict
-        # of the Derived with Base1, whereas the more accurate error
-        # message would refer to Base0 and Base1.
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
                 "cannot redefine the readonly flag of property 'foo' of "
                 "object type 'test::Derived': it is defined as False in "
-                "property 'foo' of object type 'test::Derived' and as "
+                "property 'foo' of object type 'test::Base0' and as "
                 "True in property 'foo' of object type 'test::Base1'."):
             await self.con.execute('''
                 ALTER TYPE Base1 {
@@ -5172,14 +5302,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE TYPE Derived EXTENDING Base0, Base1;
         ''')
 
-        # XXX: The error message is awkward as it refers to conflict
-        # of the Derived with Base1, whereas the more accurate error
-        # message would refer to Base0 and Base1.
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
                 "cannot redefine the readonly flag of link 'foo' of "
                 "object type 'test::Derived': it is defined as False in "
-                "link 'foo' of object type 'test::Derived' and as "
+                "link 'foo' of object type 'test::Base0' and as "
                 "True in link 'foo' of object type 'test::Base1'."):
             await self.con.execute('''
                 ALTER TYPE Base1 {
@@ -5292,15 +5419,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE TYPE Derived EXTENDING Base0, Base1;
         ''')
 
-        # XXX: The error message is awkward as it refers to conflict
-        # of the Derived with Base1, whereas the more accurate error
-        # message would refer to Base0 and Base1.
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
                 "cannot redefine the readonly flag of property 'bar' of "
                 "link 'foo' of object type 'test::Derived': it is defined "
                 "as False in property 'bar' of link 'foo' of object type "
-                "'test::Derived' and as True in property 'bar' of link "
+                "'test::Base0' and as True in property 'bar' of link "
                 "'foo' of object type 'test::Base1'."):
             await self.con.execute('''
                 ALTER TYPE Base1 {

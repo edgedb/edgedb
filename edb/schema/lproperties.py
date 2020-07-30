@@ -412,6 +412,13 @@ class AlterProperty(
                         type=utils.typeref_to_ast(schema, op.new_value),
                     ),
                 )
+        elif op.property == 'required':
+            node.commands.append(
+                qlast.SetSpecialField(
+                    name='required',
+                    value=op.new_value,
+                ),
+            )
         else:
             super()._apply_field_ast(schema, context, node, op)
 

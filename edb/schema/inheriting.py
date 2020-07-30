@@ -78,11 +78,18 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         if cur_inh_fields != inh_fields:
             if inh_fields:
                 self.set_attribute_value(
-                    'inherited_fields', frozenset(inh_fields))
+                    'inherited_fields',
+                    frozenset(inh_fields),
+                    orig_value=cur_inh_fields,
+                )
                 schema = self.scls.set_field_value(
                     schema, 'inherited_fields', inh_fields)
             else:
-                self.set_attribute_value('inherited_fields', None)
+                self.set_attribute_value(
+                    'inherited_fields',
+                    None,
+                    orig_value=cur_inh_fields,
+                )
                 schema = self.scls.set_field_value(
                     schema, 'inherited_fields', None)
 
@@ -124,6 +131,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         inherited_fields_update = {}
 
         for field_name in field_names:
+            ignore_local_field = ignore_local or field_name in inherited_fields
             field = mcls.get_field(field_name)
 
             try:
@@ -131,7 +139,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
                     scls,
                     bases,
                     field_name,
-                    ignore_local=ignore_local,
+                    ignore_local=ignore_local_field,
                     schema=schema,
                 )
             except errors.SchemaDefinitionError as e:
@@ -143,7 +151,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
                     e.set_source_context(field_op.source_context)
                 raise
 
-            if field_name not in inherited_fields and not ignore_local:
+            if not ignore_local_field:
                 ours = scls.get_explicit_field_value(schema, field_name, None)
             else:
                 ours = None
@@ -306,8 +314,12 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
             schema,
             so.compute_ancestors(schema, scls),
         )
+        self.set_attribute_value(
+            'ancestors',
+            new_ancestors,
+            orig_value=scls.get_ancestors(schema),
+        )
         schema = scls.set_field_value(schema, 'ancestors', new_ancestors)
-        self.set_attribute_value('ancestors', new_ancestors)
 
         bases = scls.get_bases(schema).objects(schema)
         schema = self.inherit_fields(schema, context, bases)
@@ -860,8 +872,12 @@ class RebaseInheritingObject(
 
         if not context.canonical:
             bases = self._apply_base_delta(schema, context, scls)
+            self.set_attribute_value(
+                'bases',
+                bases,
+                orig_value=scls.get_bases(schema),
+            )
             schema = scls.set_field_value(schema, 'bases', bases)
-            self.set_attribute_value('bases', bases)
 
             schema = self._recompute_inheritance(schema, context)
 

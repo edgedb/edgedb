@@ -1232,7 +1232,7 @@ class DeleteReferencedInheritingObject(
 
             rebase_cmd = child_ref.init_delta_command(
                 schema,
-                sd.AlterObject,
+                inheriting.RebaseInheritingObject,
                 added_bases=added_bases,
                 removed_bases=removed_bases,
             )
