@@ -62,6 +62,7 @@ class Object(BaseObject):
 class List(BaseObject):
     items = Field(base.MarkupList, default=base.MarkupList, coerce=True)
     trimmed = Field(bool, default=False)
+    brackets = Field(str, default="[]")
 
 
 class Dict(BaseObject):

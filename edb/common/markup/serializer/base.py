@@ -304,12 +304,22 @@ def serialize_sequence(obj, *, ctx, trim_at=100):
     els = []
     cnt = 0
     trim = ctx.trim
+
+    if isinstance(obj, tuple):
+        brackets = "()"
+    elif isinstance(obj,
+                    (collections.abc.Set, weakref.WeakSet, set, frozenset)):
+        brackets = "{}"
+    else:
+        brackets = "[]"
+
     for cnt, item in enumerate(obj):
         els.append(serialize(item, ctx=ctx))
         if trim and cnt >= trim_at:
             break
     return elements.lang.List(
-        items=els, id=id(obj), trimmed=(trim and cnt >= trim_at))
+        items=els, id=id(obj), brackets=brackets,
+        trimmed=(trim and cnt >= trim_at))
 
 
 @serializer.register(dict)
