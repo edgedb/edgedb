@@ -541,13 +541,17 @@ def ptrref_from_ptrcls(
     base_ptr: Optional[irast.BasePointerRef]
     if is_derived:
         base_ptrcls = ptrcls.get_bases(schema).first(schema)
-        base_ptr = ptrref_from_ptrcls(
-            ptrcls=base_ptrcls,
-            direction=direction,
-            schema=schema,
-            cache=cache,
-            typeref_cache=typeref_cache,
-        )
+        top_ptr_name = type(base_ptrcls).get_default_base_name()
+        if base_ptrcls.get_name(schema) != top_ptr_name:
+            base_ptr = ptrref_from_ptrcls(
+                ptrcls=base_ptrcls,
+                direction=direction,
+                schema=schema,
+                cache=cache,
+                typeref_cache=typeref_cache,
+            )
+        else:
+            base_ptr = None
     else:
         base_ptr = None
 

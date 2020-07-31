@@ -82,7 +82,9 @@ CREATE ALIAS test::AliasedFriends := (
 CREATE ALIAS test::AwardAlias := (
     test::Award {
         # this should be a single link, because awards are exclusive
-        winner := test::Award.<awards[IS test::User]
+        winner := test::Award.<awards[IS test::User] {
+            name_upper := str_upper(.name)
+        }
     }
 );
 

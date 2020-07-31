@@ -710,6 +710,24 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
             ],
         )
 
+    async def test_edgeql_aliases_nested_03(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT AwardAlias {
+                    winner: {
+                        name_upper
+                    }
+                }
+                FILTER
+                    .winner.name_upper = 'ALICE';
+            """,
+            [
+                {'winner': {'name_upper': 'ALICE'}},
+                {'winner': {'name_upper': 'ALICE'}},
+            ],
+        )
+
     async def test_edgeql_aliases_deep_01(self):
         # fetch the result we will compare to
         res = await self.con.query_json(r"""
