@@ -148,6 +148,11 @@ def compile_ForQuery(
             view_scope_info = scopectx.path_scope_map[iterator_view]
             iterator_scope = view_scope_info.path_scope
 
+            for cb in view_scope_info.tentative_work:
+                stmtctx.at_stmt_fini(cb, ctx=ctx)
+
+            view_scope_info.tentative_work[:] = []
+
         pathctx.register_set_in_scope(
             iterator_stmt,
             path_scope=iterator_scope_parent,

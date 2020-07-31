@@ -3996,6 +3996,15 @@ aa \
             [],
         )
 
+    async def test_edgeql_expr_if_else_09(self):
+        await self.assert_query_result(
+            r"""
+                FOR _ IN {<str>{'1'} IF false ELSE <str>{}}
+                UNION ();
+            """,
+            [],
+        )
+
     async def test_edgeql_expr_setop_01(self):
         await self.assert_query_result(
             r"""SELECT EXISTS <str>{};""",
