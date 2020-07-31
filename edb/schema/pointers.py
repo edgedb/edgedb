@@ -138,7 +138,7 @@ def merge_readonly(
                 other_repr = source.get_verbosename(
                     schema, with_parent=True)
 
-                raise errors.SchemaError(
+                raise errors.SchemaDefinitionError(
                     f'cannot redefine the readonly flag of '
                     f'{tgt_repr}: it is defined '
                     f'as {current} in {cf_repr} and '
@@ -146,6 +146,51 @@ def merge_readonly(
                 )
 
     return current
+
+
+def merge_required(
+    ptr: Pointer,
+    bases: List[Pointer],
+    field_name: str,
+    *,
+    ignore_local: bool = False,
+    schema: s_schema.Schema,
+) -> Optional[bool]:
+    """Merge function for the REQUIRED qualifier on links and properties."""
+
+    local_required = ptr.get_explicit_local_field_value(
+        schema, field_name, None)
+
+    if ignore_local or local_required is None:
+        # No explicit local declaration, so True if any of the bases
+        # have it as required, and False otherwise.
+        return utils.merge_reduce(
+            ptr,
+            bases,
+            field_name=field_name,
+            ignore_local=ignore_local,
+            schema=schema,
+            f=max,
+            type=bool,
+        )
+    elif local_required:
+        # If set locally and True, just use that.
+        assert isinstance(local_required, bool)
+        return local_required
+    else:
+        # Explicitly set locally as False, check if any of the bases
+        # are REQUIRED, and if so, raise.
+        for base in bases:
+            base_required = base.get_field_value(schema, field_name)
+            if base_required:
+                ptr_repr = ptr.get_verbosename(schema, with_parent=True)
+                base_repr = base.get_verbosename(schema, with_parent=True)
+                raise errors.SchemaDefinitionError(
+                    f'cannot make {ptr_repr} optional: its parent {base_repr} '
+                    f'is defined as required'
+                )
+
+        return False
 
 
 def merge_target(
@@ -199,7 +244,7 @@ class Pointer(referencing.ReferencedInheritingObject,
     required = so.SchemaField(
         bool,
         default=False, compcoef=0.909,
-        merge_fn=utils.merge_sticky_bool)
+        merge_fn=merge_required)
 
     readonly = so.SchemaField(
         bool,
@@ -1086,10 +1131,18 @@ class PointerCommand(
         This may be called in the context of either Create or Alter.
         """
         if astnode.is_required is not None:
-            self.set_attribute_value('required', astnode.is_required)
+            self.set_attribute_value(
+                'required',
+                astnode.is_required,
+                source_context=astnode.context,
+            )
 
         if astnode.cardinality is not None:
-            self.set_attribute_value('cardinality', astnode.cardinality)
+            self.set_attribute_value(
+                'cardinality',
+                astnode.cardinality,
+                source_context=astnode.context,
+            )
 
         parent_ctx = self.get_referrer_context_or_die(context)
         source_name = parent_ctx.op.classname

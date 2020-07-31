@@ -20,6 +20,8 @@
 from __future__ import annotations
 from typing import *
 
+from edb import errors
+
 from edb.common import struct
 from edb.edgeql import ast as qlast
 from edb.schema import schema as s_schema
@@ -123,13 +125,23 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
 
         for field_name in field_names:
             field = mcls.get_field(field_name)
-            result = field.merge_fn(
-                scls,
-                bases,
-                field_name,
-                ignore_local=ignore_local,
-                schema=schema,
-            )
+
+            try:
+                result = field.merge_fn(
+                    scls,
+                    bases,
+                    field_name,
+                    ignore_local=ignore_local,
+                    schema=schema,
+                )
+            except errors.SchemaDefinitionError as e:
+                field_op = self.get_attribute_set_cmd(field_name)
+                if (
+                    field_op is not None
+                    and field_op.source_context is not None
+                ):
+                    e.set_source_context(field_op.source_context)
+                raise
 
             if field_name not in inherited_fields and not ignore_local:
                 ours = scls.get_explicit_field_value(schema, field_name, None)

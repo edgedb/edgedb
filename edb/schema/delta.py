@@ -2433,41 +2433,11 @@ class AlterSpecialObjectProperty(Command):
                 context.modaliases,
                 orig_text=orig_text,
             )
-        elif field.name == 'required' and not new_value:
-            # disallow dropping required that is not locally set
-            parent_obj = parent_op.get_object(schema, context, default=None)
-            errmsg = None
-
-            if parent_obj:
-                local_required = parent_obj.get_explicit_local_field_value(
-                    schema, 'required', None)
-
-                if not local_required:
-                    parent_repr = parent_obj.get_verbosename(
-                        schema, with_parent=True)
-                    errmsg = (
-                        f'cannot drop required qualifier because it is not '
-                        f'defined directly on {parent_repr}'
-                    )
-            else:
-                # We don't have a parent object which means we're in
-                # the process of creating it.
-                shortname = sn.shortname_from_fullname(
-                    parent_op.classname).name
-
-                parent_classname = parent_cls.get_schema_class_displayname()
-
-                errmsg = (
-                    f'cannot drop required qualifier of an '
-                    f'inherited {parent_classname} {shortname!r}'
-                )
-
-            if errmsg:
-                raise errors.SchemaError(errmsg, context=astnode.context)
 
         return AlterObjectProperty(
             property=astnode.name,
-            new_value=new_value
+            new_value=new_value,
+            source_context=astnode.context,
         )
 
 

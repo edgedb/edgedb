@@ -4973,7 +4973,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         # Test that read-only flag must be consistent in the
         # inheritance hierarchy.
         with self.assertRaisesRegex(
-                edgedb.SchemaError,
+                edgedb.SchemaDefinitionError,
                 "cannot redefine the readonly flag of property 'foo' of "
                 "object type 'test::Derived': it is defined as True in "
                 "property 'foo' of object type 'test::Derived' and as "
@@ -4995,7 +4995,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         # Test that read-only flag must be consistent in the
         # inheritance hierarchy.
         with self.assertRaisesRegex(
-                edgedb.SchemaError,
+                edgedb.SchemaDefinitionError,
                 "cannot redefine the readonly flag of property 'foo' of "
                 "object type 'test::Derived': it is defined as False in "
                 "property 'foo' of object type 'test::Derived' and as "
@@ -5019,7 +5019,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         # Test that read-only flag must be consistent in the
         # inheritance hierarchy.
         with self.assertRaisesRegex(
-                edgedb.SchemaError,
+                edgedb.SchemaDefinitionError,
                 "cannot redefine the readonly flag of property 'foo' of "
                 "object type 'test::Derived': it is defined as False in "
                 "property 'foo' of object type 'test::Base0' and as "
@@ -5057,7 +5057,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         # of the Derived with Base1, whereas the more accurate error
         # message would refer to Base0 and Base1.
         with self.assertRaisesRegex(
-                edgedb.SchemaError,
+                edgedb.SchemaDefinitionError,
                 "cannot redefine the readonly flag of property 'foo' of "
                 "object type 'test::Derived': it is defined as False in "
                 "property 'foo' of object type 'test::Derived' and as "
@@ -5074,7 +5074,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         # Test that read-only flag must be consistent in the
         # inheritance hierarchy.
         with self.assertRaisesRegex(
-                edgedb.SchemaError,
+                edgedb.SchemaDefinitionError,
                 "cannot redefine the readonly flag of link 'foo' of "
                 "object type 'test::Derived': it is defined as True in "
                 "link 'foo' of object type 'test::Derived' and as "
@@ -5096,7 +5096,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         # Test that read-only flag must be consistent in the
         # inheritance hierarchy.
         with self.assertRaisesRegex(
-                edgedb.SchemaError,
+                edgedb.SchemaDefinitionError,
                 "cannot redefine the readonly flag of link 'foo' of "
                 "object type 'test::Derived': it is defined as False in "
                 "link 'foo' of object type 'test::Derived' and as "
@@ -5120,7 +5120,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         # Test that read-only flag must be consistent in the
         # inheritance hierarchy.
         with self.assertRaisesRegex(
-                edgedb.SchemaError,
+                edgedb.SchemaDefinitionError,
                 "cannot redefine the readonly flag of link 'foo' of "
                 "object type 'test::Derived': it is defined as False in "
                 "link 'foo' of object type 'test::Base0' and as "
@@ -5158,7 +5158,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         # of the Derived with Base1, whereas the more accurate error
         # message would refer to Base0 and Base1.
         with self.assertRaisesRegex(
-                edgedb.SchemaError,
+                edgedb.SchemaDefinitionError,
                 "cannot redefine the readonly flag of link 'foo' of "
                 "object type 'test::Derived': it is defined as False in "
                 "link 'foo' of object type 'test::Derived' and as "
@@ -5175,7 +5175,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         # Test that read-only flag must be consistent in the
         # inheritance hierarchy.
         with self.assertRaisesRegex(
-                edgedb.SchemaError,
+                edgedb.SchemaDefinitionError,
                 "cannot redefine the readonly flag of property 'bar' of "
                 "link 'foo' of object type 'test::Derived': it is defined "
                 "as True in property 'bar' of link 'foo' of object type "
@@ -5202,7 +5202,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         # Test that read-only flag must be consistent in the
         # inheritance hierarchy.
         with self.assertRaisesRegex(
-                edgedb.SchemaError,
+                edgedb.SchemaDefinitionError,
                 "cannot redefine the readonly flag of property 'bar' of "
                 "link 'foo' of object type 'test::Derived': it is defined "
                 "as False in property 'bar' of link 'foo' of object type "
@@ -5231,7 +5231,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         # Test that read-only flag must be consistent in the
         # inheritance hierarchy.
         with self.assertRaisesRegex(
-                edgedb.SchemaError,
+                edgedb.SchemaDefinitionError,
                 "cannot redefine the readonly flag of property 'bar' of "
                 "link 'foo' of object type 'test::Derived': it is defined "
                 "as False in property 'bar' of link 'foo' of object type "
@@ -5278,7 +5278,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         # of the Derived with Base1, whereas the more accurate error
         # message would refer to Base0 and Base1.
         with self.assertRaisesRegex(
-                edgedb.SchemaError,
+                edgedb.SchemaDefinitionError,
                 "cannot redefine the readonly flag of property 'bar' of "
                 "link 'foo' of object type 'test::Derived': it is defined "
                 "as False in property 'bar' of link 'foo' of object type "
@@ -5298,14 +5298,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         # Test that required qualifier cannot be dropped if it was not
         # actually set on the particular property.
         with self.assertRaisesRegex(
-                edgedb.SchemaError, "cannot drop required"):
+            edgedb.SchemaDefinitionError,
+            "cannot make.*optional",
+        ):
             await self.con.execute('''
                 SET MODULE test;
 
                 CREATE TYPE Base {
-                    CREATE PROPERTY foo -> str;
+                    CREATE REQUIRED PROPERTY foo -> str;
                 };
-                ALTER TYPE Base {
+                CREATE TYPE Derived EXTENDING Base;
+                ALTER TYPE Derived {
                     ALTER PROPERTY foo {
                         DROP REQUIRED;
                     };
@@ -5316,26 +5319,9 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         # Test that required qualifier cannot be dropped if it was not
         # actually set on the particular property.
         with self.assertRaisesRegex(
-                edgedb.SchemaError, "cannot drop required"):
-            await self.con.execute('''
-                SET MODULE test;
-
-                CREATE TYPE Base {
-                    CREATE REQUIRED PROPERTY foo -> str;
-                };
-                CREATE TYPE Derived EXTENDING Base;
-                ALTER TYPE Derived {
-                    ALTER PROPERTY foo {
-                        DROP REQUIRED;
-                    };
-                };
-            ''')
-
-    async def test_edgeql_ddl_required_03(self):
-        # Test that required qualifier cannot be dropped if it was not
-        # actually set on the particular property.
-        with self.assertRaisesRegex(
-                edgedb.SchemaError, "cannot drop required"):
+            edgedb.SchemaDefinitionError,
+            "cannot make.*optional",
+        ):
             await self.con.execute('''
                 SET MODULE test;
 
@@ -5349,18 +5335,41 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             ''')
 
-    async def test_edgeql_ddl_required_04(self):
+    async def test_edgeql_ddl_required_03(self):
         # Test that required qualifier cannot be dropped if it was not
         # actually set on the particular link.
         with self.assertRaisesRegex(
-                edgedb.SchemaError, "cannot drop required"):
+            edgedb.SchemaDefinitionError,
+            "cannot make.*optional",
+        ):
             await self.con.execute('''
                 SET MODULE test;
 
                 CREATE TYPE Base {
-                    CREATE LINK foo -> Object;
+                    CREATE REQUIRED LINK foo -> Object;
                 };
-                ALTER TYPE Base {
+                CREATE TYPE Derived EXTENDING Base;
+                ALTER TYPE Derived {
+                    ALTER LINK foo {
+                        DROP REQUIRED;
+                    };
+                };
+            ''')
+
+    async def test_edgeql_ddl_required_04(self):
+        # Test that required qualifier cannot be dropped if it was not
+        # actually set on the particular link.
+        with self.assertRaisesRegex(
+            edgedb.SchemaDefinitionError,
+            "cannot make.*optional",
+        ):
+            await self.con.execute('''
+                SET MODULE test;
+
+                CREATE TYPE Base {
+                    CREATE REQUIRED LINK foo -> Object;
+                };
+                CREATE TYPE Derived EXTENDING Base {
                     ALTER LINK foo {
                         DROP REQUIRED;
                     };
@@ -5371,57 +5380,21 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         # Test that required qualifier cannot be dropped if it was not
         # actually set on the particular link.
         with self.assertRaisesRegex(
-                edgedb.SchemaError, "cannot drop required"):
+            edgedb.SchemaDefinitionError,
+            "cannot make.*optional",
+        ):
             await self.con.execute('''
                 SET MODULE test;
 
                 CREATE TYPE Base {
+                    CREATE OPTIONAL LINK foo -> Object;
+                };
+                CREATE TYPE Base2 {
                     CREATE REQUIRED LINK foo -> Object;
                 };
-                CREATE TYPE Derived EXTENDING Base;
-                ALTER TYPE Derived {
+                CREATE TYPE Derived EXTENDING Base, Base2 {
                     ALTER LINK foo {
                         DROP REQUIRED;
-                    };
-                };
-            ''')
-
-    async def test_edgeql_ddl_required_06(self):
-        # Test that required qualifier cannot be dropped if it was not
-        # actually set on the particular link.
-        with self.assertRaisesRegex(
-                edgedb.SchemaError, "cannot drop required"):
-            await self.con.execute('''
-                SET MODULE test;
-
-                CREATE TYPE Base {
-                    CREATE REQUIRED LINK foo -> Object;
-                };
-                CREATE TYPE Derived EXTENDING Base {
-                    ALTER LINK foo {
-                        DROP REQUIRED;
-                    };
-                };
-            ''')
-
-    async def test_edgeql_ddl_required_07(self):
-        # Test that required qualifier cannot be dropped if it was not
-        # actually set on the particular link property.
-        with self.assertRaisesRegex(
-                edgedb.SchemaError, "cannot drop required"):
-            await self.con.execute('''
-                SET MODULE test;
-
-                CREATE TYPE Base {
-                    CREATE LINK foo -> Object {
-                        CREATE PROPERTY bar -> str;
-                    };
-                };
-                CREATE TYPE Derived EXTENDING Base {
-                    ALTER LINK foo {
-                        ALTER PROPERTY bar {
-                            DROP REQUIRED;
-                        };
                     };
                 };
             ''')
@@ -5570,24 +5543,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ''',
             [1],
         )
-
-    async def test_edgeql_ddl_required_10(self):
-        # Test that required qualifier cannot be dropped if it was not
-        # actually set on the particular property.
-        with self.assertRaisesRegex(
-                edgedb.SchemaError, "cannot drop required"):
-            await self.con.execute('''
-                SET MODULE test;
-
-                CREATE TYPE Base {
-                    CREATE OPTIONAL PROPERTY foo -> str;
-                };
-                ALTER TYPE Base {
-                    ALTER PROPERTY foo {
-                        DROP REQUIRED;
-                    };
-                };
-            ''')
 
     async def test_edgeql_ddl_index_01(self):
         with self.assertRaisesRegex(

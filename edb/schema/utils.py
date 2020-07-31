@@ -37,6 +37,8 @@ if TYPE_CHECKING:
     from . import schema as s_schema
     from . import types as s_types
 
+    T = TypeVar('T')
+
 
 def ast_objref_to_object_shell(
     node: qlast.ObjectRef, *,
@@ -530,8 +532,9 @@ def merge_reduce(
     *,
     ignore_local: bool,
     schema: s_schema.Schema,
-    f: Callable[[List[Any]], so.InheritingObjectT],
-) -> Optional[so.InheritingObjectT]:
+    f: Callable[[List[T]], T],
+    type: Type[T],
+) -> Optional[T]:
     values = []
     if not ignore_local:
         ours = target.get_explicit_local_field_value(schema, field_name, None)
@@ -546,42 +549,6 @@ def merge_reduce(
         return f(values)
     else:
         return None
-
-
-def merge_sticky_bool(
-    target: so.InheritingObjectT,
-    sources: Iterable[so.InheritingObjectT],
-    field_name: str,
-    *,
-    ignore_local: bool,
-    schema: s_schema.Schema
-) -> Optional[so.InheritingObjectT]:
-    return merge_reduce(
-        target,
-        sources,
-        field_name,
-        ignore_local=ignore_local,
-        schema=schema,
-        f=max,
-    )
-
-
-def merge_weak_bool(
-    target: so.InheritingObjectT,
-    sources: Iterable[so.InheritingObjectT],
-    field_name: str,
-    *,
-    ignore_local: bool,
-    schema: s_schema.Schema,
-) -> Optional[so.InheritingObjectT]:
-    return merge_reduce(
-        target,
-        sources,
-        field_name,
-        ignore_local=ignore_local,
-        schema=schema,
-        f=min,
-    )
 
 
 def get_nq_name(schema: s_schema.Schema,

@@ -277,6 +277,42 @@ _123456789_123456789_123456789 -> str
             }
         """
 
+    @tb.must_fail(errors.SchemaDefinitionError,
+                  "cannot make property 'title' of object type 'test::B' "
+                  "optional: its parent property 'title' of object type "
+                  "'test::A' is defined as required",
+                  line=7, col=17)
+    def test_schema_optionality_consistency_check_01(self):
+        """
+            type A {
+                required property title -> str;
+            }
+
+            type B extending A {
+                overloaded optional property title -> str;
+            }
+        """
+
+    @tb.must_fail(errors.SchemaDefinitionError,
+                  "cannot make property 'title' of object type 'test::C' "
+                  "optional: its parent property 'title' of object type "
+                  "'test::B' is defined as required",
+                  line=11, col=17)
+    def test_schema_optionality_consistency_check_02(self):
+        """
+            type A {
+                optional property title -> str;
+            }
+
+            type B {
+                required property title -> str;
+            }
+
+            type C extending A, B {
+                overloaded optional property title -> str;
+            }
+        """
+
     def test_schema_refs_01(self):
         schema = self.load_schema("""
             type Object1;
