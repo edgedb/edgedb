@@ -750,7 +750,12 @@ def _update_lprops(
         target_link = mcls.get_reflection_link()
         assert target_link is not None
         target_field = mcls.get_field(target_link)
-        target_obj = cmd.get_orig_attribute_value(target_link)
+        target_obj = cmd.get_ddl_identity(target_link)
+        if target_obj is None:
+            raise AssertionError(
+                f'cannot find link target in ddl_identity of a command for '
+                f'schema class reflected as link: {cmd!r}'
+            )
         target_ref = target_obj.get_name(schema)
         target_clsname = target_field.type.__name__
     else:

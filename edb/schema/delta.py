@@ -1528,7 +1528,14 @@ class ObjectCommand(
                 name = rename
         return schema.get_global(metaclass, name, default=default)
 
-    def resolve_refs(
+    def canonicalize_attributes(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> s_schema.Schema:
+        return schema
+
+    def populate_ddl_identity(
         self,
         schema: s_schema.Schema,
         context: CommandContext,
@@ -1659,6 +1666,12 @@ class ObjectCommand(
             self.ddl_identity is not None
             and self.ddl_identity.get(aspect) is not None
         )
+
+    def set_ddl_identity(self, aspect: str, value: Any) -> None:
+        if self.ddl_identity is None:
+            self.ddl_identity = {}
+
+        self.ddl_identity[aspect] = value
 
 
 class ObjectCommandContext(CommandContextToken[ObjectCommand[so.Object_T]]):
@@ -1831,8 +1844,8 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
                 self.set_attribute_value('id', specified_id)
 
         if not context.canonical:
-            self.set_attribute_value('builtin', context.stdmode)
-            schema = self.resolve_refs(schema, context)
+            schema = self.populate_ddl_identity(schema, context)
+            schema = self.canonicalize_attributes(schema, context)
             self.validate_create(schema, context)
 
         props = self.get_resolved_attributes(schema, context)
@@ -1843,6 +1856,15 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
             # Record the generated ID.
             self.set_attribute_value('id', self.scls.id)
 
+        return schema
+
+    def canonicalize_attributes(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> s_schema.Schema:
+        schema = super().canonicalize_attributes(schema, context)
+        self.set_attribute_value('builtin', context.stdmode)
         return schema
 
     def _get_ast(
@@ -1934,7 +1956,8 @@ class AlterObjectFragment(ObjectCommand[so.Object_T]):
             schema = op.apply(schema, context)
 
         if not context.canonical:
-            schema = self.resolve_refs(schema, context)
+            schema = self.populate_ddl_identity(schema, context)
+            schema = self.canonicalize_attributes(schema, context)
 
         props = self.get_resolved_attributes(schema, context)
         return self.scls.update(schema, props)
@@ -2221,7 +2244,8 @@ class AlterObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
             schema = op.apply(schema, context)
 
         if not context.canonical:
-            schema = self.resolve_refs(schema, context)
+            schema = self.populate_ddl_identity(schema, context)
+            schema = self.canonicalize_attributes(schema, context)
             self.validate_alter(schema, context)
 
         props = self.get_resolved_attributes(schema, context)
@@ -2290,13 +2314,16 @@ class DeleteObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
 
         self._validate_legal_command(schema, context)
 
-        if (not context.canonical
-                and not context.get_value(('delcanon', self))):
-            commands = self._canonicalize(schema, context, self.scls)
-            root = DeltaRoot()
-            root.update(commands)
-            root = ordering.linearize_delta(root, schema, schema)
-            self.update(root.get_subcommands())
+        if not context.canonical:
+            schema = self.populate_ddl_identity(schema, context)
+            schema = self.canonicalize_attributes(schema, context)
+
+            if not context.get_value(('delcanon', self)):
+                commands = self._canonicalize(schema, context, self.scls)
+                root = DeltaRoot()
+                root.update(commands)
+                root = ordering.linearize_delta(root, schema, schema)
+                self.update(root.get_subcommands())
 
         return schema
 

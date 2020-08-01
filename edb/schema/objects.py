@@ -195,7 +195,8 @@ class Field(struct.ProtoField, Generic[T]):
     #: command in DDL.
     allow_ddl_set: bool
     #: Whether the field is used to identify the object
-    #: in DDL operations.
+    #: in DDL operations and schema reflection when object
+    #: name is insufficient.
     ddl_identity: bool
     #: Used for fields holding references to objects.  If True,
     #: the reference is considered "weak", i.e. not essential for

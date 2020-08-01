@@ -67,7 +67,7 @@ class AnnotationValue(
         so.Object, compcoef=1.0, default=None, inheritable=False)
 
     annotation = so.SchemaField(
-        Annotation, compcoef=0.429)
+        Annotation, compcoef=0.429, ddl_identity=True)
 
     value = so.SchemaField(
         str, compcoef=0.909)
@@ -238,6 +238,17 @@ class AnnotationValueCommand(
         assert isinstance(name, sn.Name)
         return name
 
+    def populate_ddl_identity(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super().populate_ddl_identity(schema, context)
+        annoname = sn.shortname_from_fullname(self.classname)
+        anno = schema.get(annoname, type=Annotation)
+        self.set_ddl_identity('annotation', anno)
+        return schema
+
 
 class CreateAnnotationValue(
     AnnotationValueCommand,
@@ -278,23 +289,19 @@ class CreateAnnotationValue(
 
         return cmd
 
-    def _create_begin(
+    def canonicalize_attributes(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        if not context.canonical:
-            anno = self.get_resolved_attribute_value(
-                'annotation',
-                schema=schema,
-                context=context,
-            )
-            if anno is not None:
-                self.set_attribute_value(
-                    'is_final',
-                    not anno.get_inheritable(schema),
-                )
-        return super()._create_begin(schema, context)
+        schema = super().canonicalize_attributes(schema, context)
+        anno = self.get_ddl_identity('annotation')
+        assert anno is not None
+        self.set_attribute_value(
+            'is_final',
+            not anno.get_inheritable(schema),
+        )
+        return schema
 
     def _apply_field_ast(self,
                          schema: s_schema.Schema,
@@ -402,17 +409,17 @@ class DeleteAnnotationValue(
 
         return cmd
 
-    def _delete_begin(
+    def canonicalize_attributes(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        if (
-            not context.canonical
-            and not self.has_attribute_value('annotation')
-        ):
-            annoname = sn.shortname_from_fullname(self.classname)
-            anno = schema.get(annoname, type=Annotation)
-            self.set_attribute_value('annotation', value=None, orig_value=anno)
-
-        return super()._delete_begin(schema, context)
+        schema = super().canonicalize_attributes(schema, context)
+        anno = self.get_ddl_identity('annotation')
+        assert anno is not None
+        self.set_attribute_value(
+            'annotation',
+            value=None,
+            orig_value=anno,
+        )
+        return schema

@@ -246,14 +246,15 @@ class IndexCommand(
         assert isinstance(astnode, qlast.IndexOp)
         cmd = super()._cmd_from_ast(schema, astnode, context)
         orig_text = cls.get_orig_expr_text(schema, astnode, 'expr')
-        cmd.ddl_identity = {
-            'expr': s_expr.Expression.from_ast(
+        cmd.set_ddl_identity(
+            'expr',
+            s_expr.Expression.from_ast(
                 astnode.expr,
                 schema,
                 context.modaliases,
                 orig_text=orig_text,
             ),
-        }
+        )
         return cmd
 
     def get_ast_attr_for_field(self, field: str) -> Optional[str]:

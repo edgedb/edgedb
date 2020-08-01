@@ -4153,6 +4153,71 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
+    async def test_edgeql_migration_annotation_04(self):
+        # Test migration of annotation value ano nothing else.
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self.migrate(r"""
+            abstract annotation description;
+
+            type Base {
+                annotation description := "1";
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT ObjectType {
+                    name,
+                    annotations: {
+                        name,
+                        @value
+                    } ORDER BY .name
+                }
+                FILTER .name LIKE 'test::%'
+                ORDER BY .name;
+            """,
+            [{
+                'name': 'test::Base',
+                'annotations': [{
+                    'name': 'test::description',
+                    '@value': '1',
+                }],
+            }],
+        )
+
+        await self.migrate(r"""
+            abstract annotation description;
+
+            type Base {
+                annotation description := "2";
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT ObjectType {
+                    name,
+                    annotations: {
+                        name,
+                        @value
+                    } ORDER BY .name
+                }
+                FILTER .name LIKE 'test::%'
+                ORDER BY .name;
+            """,
+            [{
+                'name': 'test::Base',
+                'annotations': [{
+                    'name': 'test::description',
+                    '@value': '2',
+                }],
+            }],
+        )
+
     @test.xfail('''
         Fails on the last migration that attempts to rename the
         property being indexed.

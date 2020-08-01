@@ -799,12 +799,12 @@ class PointerCommandOrFragment(
     referencing.ReferencedObjectCommandBase[Pointer]
 ):
 
-    def resolve_refs(
+    def canonicalize_attributes(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        schema = super().resolve_refs(schema, context)
+        schema = super().canonicalize_attributes(schema, context)
         target_ref = self.get_local_attribute_value('target')
 
         if target_ref is not None:
