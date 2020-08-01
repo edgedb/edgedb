@@ -563,7 +563,7 @@ class CallArg(ImmutableBase):
     __ast_mutable_fields__ = frozenset(('cardinality',))
 
     expr: Set
-    cardinality: qltypes.Cardinality = qltypes.Cardinality.ONE
+    cardinality: qltypes.Cardinality = qltypes.Cardinality.UNKNOWN
 
 
 class Call(ImmutableExpr):

@@ -95,6 +95,8 @@ class Cardinality(s_enum.StrEnum):
     MANY = 'MANY'
     # [1, inf)
     AT_LEAST_ONE = 'AT_LEAST_ONE'
+    # Sentinel
+    UNKNOWN = 'UNKNOWN'
 
     def is_single(self) -> bool:
         return self in {Cardinality.AT_MOST_ONE, Cardinality.ONE}

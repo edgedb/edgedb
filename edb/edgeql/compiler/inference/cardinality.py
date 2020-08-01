@@ -272,11 +272,11 @@ def __infer_type_introspection(
     return ONE
 
 
-def _is_visible(
+def _find_visible(
     ir: irast.Set,
     scope_tree: irast.ScopeTreeNode,
     env: context.Environment,
-) -> bool:
+) -> Optional[irast.ScopeTreeNode]:
     parent_fence = scope_tree.parent_fence
     if parent_fence is not None:
         if scope_tree.namespaces:
@@ -284,9 +284,9 @@ def _is_visible(
         else:
             path_id = ir.path_id
 
-        return parent_fence.is_visible(path_id)
+        return parent_fence.find_visible(path_id)
     else:
-        return False
+        return None
 
 
 @_infer_cardinality.register
@@ -297,8 +297,10 @@ def __infer_set(
     singletons: Collection[irast.PathId],
     env: context.Environment,
 ) -> qltypes.Cardinality:
-    if _is_visible(ir, scope_tree, env) or ir.path_id in singletons:
+    if ir.path_id in singletons:
         return ONE
+    if (node := _find_visible(ir, scope_tree, env)) is not None:
+        return AT_MOST_ONE if node.optional else ONE
 
     rptr = ir.rptr
     if rptr is not None:
@@ -308,12 +310,14 @@ def __infer_set(
             ind_prefix, ind_ptrs = irutils.collapse_type_intersection(ir)
             new_scope = _get_set_scope(ir, scope_tree)
             if ind_prefix.rptr is None:
-                return infer_cardinality(
+                prefix_card = infer_cardinality(
                     ind_prefix,
                     scope_tree=new_scope,
                     singletons=singletons,
                     env=env,
                 )
+
+                return cartesian_cardinality([prefix_card, AT_MOST_ONE])
             else:
                 # Expression before type intersection is a path,
                 # i.e Foo.<bar[IS Type].  In this case we must
@@ -321,7 +325,7 @@ def __infer_set(
                 # link union into account.
                 # We're basically restating the body of this function
                 # in this block, but with extra conditions.
-                if _is_visible(ind_prefix, new_scope, env):
+                if _find_visible(ind_prefix, new_scope, env) is not None:
                     return AT_MOST_ONE
                 else:
                     rptr_spec: Set[irast.PointerRef] = set()

@@ -471,3 +471,13 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 % OK %
         subtitle: ONE
         """
+
+    def test_edgeql_ir_card_inference_46(self):
+        """
+        WITH MODULE test
+        SELECT Named {
+            as_card := Named[IS Card]
+        }
+% OK %
+        as_card: AT_MOST_ONE
+        """
