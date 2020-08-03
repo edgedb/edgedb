@@ -226,7 +226,7 @@ class ProductionHelper:
     def _singleton_list(self, cmd):
         self.val = [cmd.val]
 
-    def _empty(self):
+    def _empty(self, *kids):
         self.val = []
 
     def _block(self, lbrace, cmdlist, sc2, rbrace):
@@ -263,6 +263,8 @@ def commands_block(parent, *commands, opt=True):
     clsdict['reduce_LBRACE_Semicolons_' + cmdlist.__name__ +
             '_OptSemicolons_RBRACE'] = \
         ProductionHelper._block2
+    clsdict['reduce_LBRACE_OptSemicolons_RBRACE'] = \
+        ProductionHelper._empty
     if not opt:
         #
         #   | Command

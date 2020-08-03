@@ -180,7 +180,7 @@ class SDLProductionHelper:
     def _singleton_list(self, cmd):
         self.val = [cmd.val]
 
-    def _empty(self):
+    def _empty(self, *kids):
         self.val = []
 
     def _block(self, lbrace, sc1, cmdl, rbrace):
@@ -249,6 +249,8 @@ def sdl_commands_block(parent, *commands, opt=True):
     clsdict[f'reduce_LBRACE_OptSemicolons_{cmdlist.__name__}_OptSemicolons_' +
             f'{cmd_s.__name__}_RBRACE'] = \
         SDLProductionHelper._block3
+    clsdict[f'reduce_LBRACE_OptSemicolons_RBRACE'] = \
+        SDLProductionHelper._empty
     _new_nonterm(f'{parent}SDLCommandsBlock', clsdict=clsdict)
 
     if opt is False:
