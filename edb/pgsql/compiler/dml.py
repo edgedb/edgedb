@@ -535,6 +535,20 @@ def process_insert_body(
                 env=subctx.env,
             )
 
+    if isinstance(ir_stmt, irast.InsertStmt) and ir_stmt.on_conflict:
+        assert not insert_stmt.on_conflict
+
+        fields = []
+        for ptrref in ir_stmt.on_conflict:
+            ptr_info = pg_types.get_ptrref_storage_info(
+                ptrref, resolve_type=True, link_bias=False)
+            fields.append(pgast.ColumnRef(name=[ptr_info.column_name]))
+
+        insert_stmt.on_conflict = pgast.OnConflictClause(
+            action='nothing',
+            infer=pgast.InferClause(index_elems=fields),
+        )
+
     toplevel = ctx.toplevel_stmt
     toplevel.ctes.append(insert_cte)
 

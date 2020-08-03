@@ -715,7 +715,7 @@ class MutatingStmt(Stmt):
 
 
 class InsertStmt(MutatingStmt):
-    pass
+    on_conflict: typing.Optional[typing.List[PointerRef]] = None
 
 
 class UpdateStmt(MutatingStmt, FilteredStmt):
