@@ -30,6 +30,7 @@ from edb import errors
 
 from edb.ir import ast as irast
 from edb.ir import utils as irutils
+from edb.ir import staeval as ireval
 
 from edb.schema import ddl as s_ddl
 from edb.schema import functions as s_func
@@ -258,12 +259,13 @@ def compile_GroupQuery(
     return result
 
 
-def simple_stmt_eq(lhs: irast.Base, rhs: irast.Base) -> bool:
+def simple_stmt_eq(lhs: irast.Base, rhs: irast.Base,
+                   schema: s_schema.Schema) -> bool:
     if (
         isinstance(lhs, irast.BaseConstant)
         and isinstance(rhs, irast.BaseConstant)
-        and lhs.typeref == rhs.typeref  # XXX?
-        and lhs.value == rhs.value
+        and (ireval.evaluate_to_python_val(lhs, schema) ==
+             ireval.evaluate_to_python_val(rhs, schema))
     ):
         return True
     elif (
@@ -328,7 +330,8 @@ def handle_conditional_insert(
 
     shape_props = {}
     for shape_set, _ in rhs.subject.shape:
-        # what's the base_ptr deal here???
+        # We need to go through to the base_ptr to get at the
+        # underlying type (instead of the shape's subtype)
         base_ptr = shape_set.rptr.ptrref.base_ptr
         if (not isinstance(base_ptr, irast.PointerRef)
                 or not isinstance(shape_set.expr, irast.SelectStmt)):
@@ -344,7 +347,7 @@ def handle_conditional_insert(
             error("property in FILTER clause does not match INSERT")
         result, rptr = shape_props[name]
 
-        if not simple_stmt_eq(ptr_set.expr, result.expr):
+        if not simple_stmt_eq(ptr_set.expr, result.expr, schema):
             error("value in FILTER clause does not match INSERT")
         ret.append(rptr)
 
