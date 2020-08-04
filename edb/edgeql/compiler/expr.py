@@ -90,8 +90,6 @@ def compile_coalesce_insert(
         )
         rir = setgen.scoped_set(setgen.ensure_stmt(rir, ctx=rctx), ctx=rctx)
 
-    # Now we flip-flop the coalesce so that the SELECT gets executed
-    # if the INSERT is empty.
     with ctx.new() as subctx:
         subctx.anchors = subctx.anchors.copy()
         l_alias = subctx.aliases.get('l')

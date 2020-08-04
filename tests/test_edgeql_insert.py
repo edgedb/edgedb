@@ -1671,7 +1671,8 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_in_conditional_bad_02(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                'INSERT statements cannot be used inside conditional expressions'):
+                'INSERT statements cannot be used inside '
+                'conditional expressions'):
             await self.con.execute(r'''
                 WITH MODULE test
                 SELECT
