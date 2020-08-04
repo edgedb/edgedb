@@ -31,6 +31,7 @@ from edb import errors
 from edb.ir import ast as irast
 from edb.ir import utils as irutils
 from edb.ir import staeval as ireval
+from edb.ir import typeutils
 
 from edb.schema import ddl as s_ddl
 from edb.schema import functions as s_func
@@ -60,6 +61,7 @@ from . import typegen
 
 if TYPE_CHECKING:
     from edb.schema import constraints as s_constr
+    from edb.schema import schema as s_schema
 
 
 @dispatch.compile.register(qlast.SelectQuery)
@@ -336,21 +338,21 @@ def handle_conditional_insert(
         if (not isinstance(base_ptr, irast.PointerRef)
                 or not isinstance(shape_set.expr, irast.SelectStmt)):
             continue
-        prop_id = base_ptr.name
-        shape_props[prop_id] = shape_set.expr.result, base_ptr
+        schema, pptr = typeutils.ptrcls_from_ptrref(base_ptr, schema=schema)
+        shape_props[pptr] = shape_set.expr.result, base_ptr
 
     ret = []
     for ptr, ptr_set in filtered_ptrs:
         ptr = ptr.get_nearest_non_derived_parent(schema)
-        name = ptr.get_name(schema)
-        if name not in shape_props:
+        if ptr not in shape_props:
             error("property in FILTER clause does not match INSERT")
-        result, rptr = shape_props[name]
+        result, rptr = shape_props[ptr]
 
         if not simple_stmt_eq(ptr_set.expr, result.expr, schema):
             error("value in FILTER clause does not match INSERT")
         ret.append(rptr)
 
+    ctx.env.schema = schema
     return ret
 
 
