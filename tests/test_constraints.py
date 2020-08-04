@@ -383,6 +383,119 @@ class TestConstraintsSchema(tb.QueryTestCase):
                                   FILTER .text = "obj_test" LIMIT 1) };
                 """)
 
+    async def test_select_coalesce_insert_01(self):
+        # We use parameters here because normalization prevents
+        # constants from appearing the same.
+        # TODO: Fix normalization and update this test.
+        query = r'''
+        SELECT
+         ((SELECT test::UniqueName_2 FILTER .name = <str>$0)
+          ?? (INSERT test::UniqueName_2 {name := <str>$0})) {name};
+        '''
+
+        await self.assert_query_result(
+            query,
+            [{"name": "test"}],
+            variables=("test",)
+        )
+
+        await self.assert_query_result(
+            query,
+            [{"name": "test"}],
+            variables=("test",)
+        )
+
+        query2 = r'''
+        SELECT
+         ((SELECT test::UniqueName_2 FILTER .name = <str>$0)
+          ?? (INSERT test::UniqueName_2 {name := <str>$0}));
+        '''
+
+        res = await self.con.query(query2, "test2")
+        res2 = await self.con.query(query2, "test2")
+        assert res == res2
+
+        res3 = await self.con.query(query2, "test3")
+        assert res != res3
+
+    async def test_select_coalesce_insert_02(self):
+        base = 'Invalid conditional INSERT statement'
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.QueryError,
+                    f"{base}: left hand side is not SELECT"):
+                await self.con.query(r'''
+                    SELECT
+                     ((INSERT test::UniqueName_2 {name := "status"})
+                      ?? (INSERT test::UniqueName_2 {name := <str>$0}));
+                ''')
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.QueryError,
+                    f"{base}: types do not match"):
+                await self.con.query(r'''
+                    SELECT
+                     ((SELECT test::ParentUniqueName FILTER .name = <str>$0)
+                      ?? (INSERT test::UniqueName_2 {name := <str>$0}));
+                ''')
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.QueryError,
+                    f"{base}: does not contain exactly one FILTER clause"):
+                await self.con.query(r'''
+                    SELECT
+                     ((SELECT test::UniqueName_2)
+                      ?? (INSERT test::UniqueName_2 {name := <str>$0}));
+                ''', "test")
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.QueryError,
+                    f"{base}: does not contain exactly one FILTER clause"):
+                await self.con.query(r'''
+                    SELECT
+                     ((SELECT test::UniqueName_2
+                       FILTER .name = <str>$0 OR .name = <str>$0 ++ "!")
+                      ?? (INSERT test::UniqueName_2 {name := <str>$0}));
+                ''')
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.QueryError,
+                    f"{base}: does not contain exactly one FILTER clause"):
+                await self.con.query(r'''
+                    SELECT
+                     ((SELECT test::LosingParent
+                       FILTER .name = <str>$0 AND .lp = <str>$1)
+                      ?? (INSERT test::LosingParent {
+                             name := <str>$0, lp := <str>$1}));
+                ''')
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.QueryError,
+                    f"{base}: FILTER is not on an exclusive property"):
+                await self.con.query(r'''
+                    SELECT
+                     ((SELECT test::LosingParent
+                       FILTER .lp = <str>$0)
+                      ?? (INSERT test::LosingParent {
+                             name := "hello", lp := <str>$0}));
+                ''')
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.QueryError,
+                    f"{base}: value in FILTER clause does not match INSERT"):
+                await self.con.query(r'''
+                    SELECT
+                     ((SELECT test::UniqueName_2 FILTER .name = "foo")
+                      ?? (INSERT test::UniqueName_2 {name := "bar"}));
+                ''')
+
 
 class TestConstraintsSchemaMigration(tb.QueryTestCase):
     ISOLATED_METHODS = False
