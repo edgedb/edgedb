@@ -385,7 +385,6 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.visit_list(node.index_elems, newlines=False)
             self.write(')')
 
-
     def visit_MultiAssignRef(self, node):
         self.write('(')
         self.visit_list(node.columns, newlines=False)

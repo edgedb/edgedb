@@ -722,7 +722,7 @@ class MutatingStmt(Stmt):
 
 
 class InsertStmt(MutatingStmt):
-    on_conflict: typing.Optional[typing.List[ConstraintRef]] = None
+    on_conflict: typing.Optional[ConstraintRef] = None
 
 
 class UpdateStmt(MutatingStmt, FilteredStmt):

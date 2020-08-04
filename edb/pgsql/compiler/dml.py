@@ -44,7 +44,6 @@ from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
 
 from edb.pgsql import ast as pgast
-from edb.pgsql import common as pg_common
 from edb.pgsql import types as pg_types
 
 from . import astutils
@@ -539,9 +538,7 @@ def process_insert_body(
     if isinstance(ir_stmt, irast.InsertStmt) and ir_stmt.on_conflict:
         assert not insert_stmt.on_conflict
 
-        conflict = ir_stmt.on_conflict[0]
-
-        constraint_name = f'"{conflict.id};schemaconstr"'
+        constraint_name = f'"{ir_stmt.on_conflict.id};schemaconstr"'
 
         insert_stmt.on_conflict = pgast.OnConflictClause(
             action='nothing',

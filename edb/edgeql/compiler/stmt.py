@@ -286,7 +286,7 @@ def handle_conditional_insert(
         rhs: irast.InsertStmt,
         lhs_set: Union[irast.Expr, irast.Set],
         *, ctx: context.ContextLevel,
-) -> List[irast.ConstraintRef]:
+) -> irast.ConstraintRef:
     def error(s: str) -> NoReturn:
         raise errors.QueryError(
             f'Invalid conditional INSERT statement: {s}',
@@ -330,34 +330,30 @@ def handle_conditional_insert(
         schema, pptr = typeutils.ptrcls_from_ptrref(base_ptr, schema=schema)
         shape_props[pptr] = shape_set.expr.result, base_ptr
 
-    ret = []
-    for ptr, ptr_set in filtered_ptrs:
-        ptr = ptr.get_nearest_non_derived_parent(schema)
-        if ptr not in shape_props:
-            error("property in FILTER clause does not match INSERT")
-        result, rptr = shape_props[ptr]
+    ptr, ptr_set = filtered_ptrs[0]
 
-        if not simple_stmt_eq(ptr_set.expr, result.expr, schema):
-            error("value in FILTER clause does not match INSERT")
+    ptr = ptr.get_nearest_non_derived_parent(schema)
+    if ptr not in shape_props:
+        error("property in FILTER clause does not match INSERT")
+    result, rptr = shape_props[ptr]
 
-        ex_cnstrs = [c for c in ptr.get_constraints(schema).objects(schema)
-                     if c.issubclass(schema, exclusive_constr)
-                     and not c.get_subjectexpr(schema)]
+    if not simple_stmt_eq(ptr_set.expr, result.expr, schema):
+        error("value in FILTER clause does not match INSERT")
 
-        if len(ex_cnstrs) != 1 or not ptr.is_property(schema):
-            error("FILTER is not on an exclusive property")
+    ex_cnstrs = [c for c in ptr.get_constraints(schema).objects(schema)
+                 if c.issubclass(schema, exclusive_constr)
+                 and not c.get_subjectexpr(schema)]
 
-        if len(ex_cnstrs) == 1:
-            error("too many constraints on the table")
-        ex_cnstr = ex_cnstrs[0]
+    if len(ex_cnstrs) != 1 or not ptr.is_property(schema):
+        error("FILTER is not on an exclusive property")
 
-        module_id = schema.get_global(
-            s_mod.Module, ptr.get_name(schema).module).id
-        ret.append(irast.ConstraintRef(
-            id=ex_cnstr.id, module_id=module_id))
+    ex_cnstr = ex_cnstrs[0]
+
+    module_id = schema.get_global(
+        s_mod.Module, ptr.get_name(schema).module).id
 
     ctx.env.schema = schema
-    return ret
+    return irast.ConstraintRef(id=ex_cnstr.id, module_id=module_id)
 
 
 @dispatch.compile.register(qlast.InsertQuery)

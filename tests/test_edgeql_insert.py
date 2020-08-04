@@ -1821,7 +1821,7 @@ class TestInsertCoalesce(tb.QueryTestCase):
                      ((SELECT test::LosingParent
                        FILTER .lp = <str>$0)
                       ?? (INSERT test::LosingParent {
-                             name := "hello", lp := <str>$1}));
+                             name := "hello", lp := <str>$0}));
                 ''')
 
         async with self._run_and_rollback():
