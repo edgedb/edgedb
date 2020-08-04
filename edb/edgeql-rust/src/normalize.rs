@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{HashMap, BTreeSet};
 
 use edgeql_parser::tokenizer::{TokenStream, Kind};
 use edgeql_parser::position::Pos;
@@ -8,11 +8,11 @@ use bigdecimal::BigDecimal;
 use crate::tokenizer::{CowToken};
 
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum Value {
     Str(String),
     Int(i64),
-    Float(f64),
+    Float(u64), // ... we store the raw bits here so that this can be Eq
     BigInt(BigInt),
     Decimal(BigDecimal),
 }
@@ -111,6 +111,10 @@ pub fn normalize<'x>(text: &'x str)
     };
     let mut rewritten_tokens = Vec::with_capacity(tokens.len());
     let mut variables = Vec::new();
+    // We want to map identical constants to identical variables (so
+    // that the database doesn't lose that information), so keep a map
+    // from constant values to our variable names.
+    let mut var_map: HashMap<Value, String> = HashMap::new();
     let next_var = |num: usize| {
         if named_args {
             format!("$__edb_arg_{}", var_idx + num)
@@ -118,6 +122,21 @@ pub fn normalize<'x>(text: &'x str)
             format!("${}", var_idx + num)
         }
     };
+
+    let mut process = |res: &mut Vec<CowToken<'x>>, token: &CowToken<'x>,
+                       typ: &'x str, value: Value| {
+        let var = match var_map.get(&value) {
+            Some(old_var) => old_var.clone(),
+            None => {
+                let new_var = next_var(variables.len());
+                variables.push(Variable { value: value.clone() });
+                var_map.insert(value, new_var.clone());
+                new_var
+            }
+        };
+        push_var(res, typ, var, token.start, token.end);
+    };
+
     for tok in &tokens {
         match tok.kind {
             Kind::IntConst
@@ -131,22 +150,15 @@ pub fn normalize<'x>(text: &'x str)
                     if value.eq_ignore_ascii_case("LIMIT")))
             && tok.value != "9223372036854775808"
             => {
-                push_var(&mut rewritten_tokens, "__std__::int64",
-                    next_var(variables.len()),
-                    tok.start, tok.end);
-                variables.push(Variable {
-                    value: Value::Int(tok.value.replace("_", "").parse()
+                let value = Value::Int(
+                    tok.value.replace("_", "").parse()
                         .map_err(|e| Error::Tokenizer(
                             format!("can't parse integer: {}", e),
-                            tok.start))?),
-                });
-                continue;
+                            tok.start))?);
+                process(&mut rewritten_tokens, tok, "__std__::int64", value);
             }
             Kind::FloatConst => {
-                push_var(&mut rewritten_tokens, "__std__::float64",
-                    next_var(variables.len()),
-                    tok.start, tok.end);
-                let value = tok.value.replace("_", "").parse()
+                let value: f64 = tok.value.replace("_", "").parse()
                     .map_err(|e| Error::Tokenizer(
                         format!("can't parse std::float64: {}", e),
                         tok.start))?;
@@ -155,54 +167,39 @@ pub fn normalize<'x>(text: &'x str)
                         format!("number is out of range for std::float64"),
                         tok.start));
                 }
-                variables.push(Variable {
-                    value: Value::Float(value),
-                });
-                continue;
+                process(&mut rewritten_tokens, tok, "__std__::float64",
+                   Value::Float(value.to_bits()));
             }
             Kind::BigIntConst => {
-                push_var(&mut rewritten_tokens, "__std__::bigint",
-                    next_var(variables.len()),
-                    tok.start, tok.end);
                 let dec: BigDecimal = tok.value[..tok.value.len()-1]
                         .replace("_", "").parse()
                         .map_err(|e| Error::Tokenizer(
                             format!("can't parse bigint: {}", e),
                             tok.start))?;
-                variables.push(Variable {
-                    value: Value::BigInt(dec.to_bigint()
+                let value = Value::BigInt(
+                    dec.to_bigint()
                         .ok_or_else(|| Error::Assertion(
                             format!("number is not integer"),
-                            tok.start))?),
-                });
-                continue;
+                            tok.start))?);
+                process(&mut rewritten_tokens, tok, "__std__::bigint", value);
             }
             Kind::DecimalConst => {
-                push_var(&mut rewritten_tokens, "__std__::decimal",
-                    next_var(variables.len()),
-                    tok.start, tok.end);
-                variables.push(Variable {
-                    value: Value::Decimal(
-                        tok.value[..tok.value.len()-1]
+                let value = Value::Decimal(
+                    tok.value[..tok.value.len()-1]
                         .replace("_", "")
                         .parse()
                         .map_err(|e| Error::Tokenizer(
                             format!("can't parse decimal: {}", e),
-                            tok.start))?),
-                });
-                continue;
+                            tok.start))?);
+                process(&mut rewritten_tokens, tok, "__std__::decimal", value);
             }
             Kind::Str => {
-                push_var(&mut rewritten_tokens, "__std__::str",
-                    next_var(variables.len()),
-                    tok.start, tok.end);
-                variables.push(Variable {
-                    value: Value::Str(unquote_string(&tok.value)
+                let value = Value::Str(
+                    unquote_string(&tok.value)
                         .map_err(|e| Error::Tokenizer(
                             format!("can't unquote string: {}", e),
-                            tok.start))?.into()),
-                });
-                continue;
+                            tok.start))?.into());
+                process(&mut rewritten_tokens, tok, "__std__::str", value);
             }
             Kind::Keyword
             if (matches!(&(&tok.value[..].to_uppercase())[..],

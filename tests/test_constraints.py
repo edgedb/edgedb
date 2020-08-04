@@ -384,25 +384,20 @@ class TestConstraintsSchema(tb.QueryTestCase):
                 """)
 
     async def test_select_coalesce_insert_01(self):
-        # We use parameters here because normalization prevents
-        # constants from appearing the same.
-        # TODO: Fix normalization and update this test.
         query = r'''
         SELECT
-         ((SELECT test::UniqueName_2 FILTER .name = <str>$0)
-          ?? (INSERT test::UniqueName_2 {name := <str>$0})) {name};
+         ((SELECT test::UniqueName_2 FILTER .name = "test")
+          ?? (INSERT test::UniqueName_2 {name := "test"})) {name};
         '''
 
         await self.assert_query_result(
             query,
             [{"name": "test"}],
-            variables=("test",)
         )
 
         await self.assert_query_result(
             query,
             [{"name": "test"}],
-            variables=("test",)
         )
 
         query2 = r'''

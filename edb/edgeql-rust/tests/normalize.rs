@@ -60,10 +60,10 @@ fn test_float() {
         "SELECT(<__std__::float64>$0)+(<__std__::float64>$1)");
     assert_eq!(entry.variables, vec![
         Variable {
-            value: Value::Float(1.5),
+            value: Value::Float((1.5_f64).to_bits()),
         },
         Variable {
-            value: Value::Float(23.25),
+            value: Value::Float((23.25_f64).to_bits()),
         }
     ]);
 }
@@ -168,6 +168,45 @@ fn test_tuple_access() {
     assert_eq!(entry.variables, vec![
         Variable {
             value: Value::Int(2),
+        },
+    ]);
+}
+
+#[test]
+fn test_matching_int() {
+    let entry = normalize(r###"
+        SELECT 1 + 1
+    "###).unwrap();
+    assert_eq!(entry.key, "SELECT(<__std__::int64>$0)+(<__std__::int64>$0)");
+    assert_eq!(entry.variables, vec![
+        Variable {
+            value: Value::Int(1),
+        },
+    ]);
+}
+
+#[test]
+fn test_matching_str() {
+    let entry = normalize(r###"
+        SELECT "foo" ++ "foo"
+    "###).unwrap();
+    assert_eq!(entry.key, "SELECT(<__std__::str>$0)++(<__std__::str>$0)");
+    assert_eq!(entry.variables, vec![
+        Variable {
+            value: Value::Str("foo".into()),
+        },
+    ]);
+}
+
+#[test]
+fn test_matching_float() {
+    let entry = normalize(r###"
+        SELECT 3.14 + 3.14
+    "###).unwrap();
+    assert_eq!(entry.key, "SELECT(<__std__::float64>$0)+(<__std__::float64>$0)");
+    assert_eq!(entry.variables, vec![
+        Variable {
+            value: Value::Float((3.14_f64).to_bits()),
         },
     ]);
 }
