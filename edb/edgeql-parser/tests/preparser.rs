@@ -1,4 +1,4 @@
-use edgeql_parser::preparser::full_statement;
+use edgeql_parser::preparser::{full_statement, is_empty};
 
 fn test_statement(data: &[u8], len: usize) {
     for i in 0..len-1 {
@@ -119,4 +119,27 @@ fn test_schema() {
             }
         };
         "###, 532);
+}
+
+#[test]
+fn empty() {
+    assert!(is_empty(""));
+    assert!(is_empty(" "));
+    assert!(is_empty("\n"));
+    assert!(is_empty("#xx"));
+    assert!(is_empty("#xx\n"));
+    assert!(is_empty("# xx\n# yy"));
+    assert!(is_empty(" #xx\n  #yy"));
+    assert!(!is_empty("a"));
+    assert!(!is_empty("ab cd"));
+    assert!(!is_empty(","));
+    assert!(!is_empty(";"));
+    assert!(!is_empty(";;"));
+    assert!(!is_empty(";ab;"));
+    assert!(!is_empty("ab;;de"));
+    assert!(!is_empty("    xy"));
+    assert!(!is_empty("    xy #c"));
+    assert!(!is_empty("    '#c"));
+    assert!(!is_empty("    ;\n#cd"));
+    assert!(!is_empty("ab\n#cd"));
 }

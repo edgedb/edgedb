@@ -133,3 +133,34 @@ pub fn full_statement(data: &[u8], continuation: Option<Continuation>)
     }
     return Err(Continuation { position: data.len(), braces: braces_buf });
 }
+
+/// Returns true if the text has no partial statements
+///
+/// This equivalent to `text.trim().is_empty()` except it also ignores
+/// EdgeQL comments.
+///
+/// This is useful to find out whether last part of text split by
+/// `full_statement` contains anything relevant. Before this function we
+/// couldn't add a comment at the end of EdgeQL file.
+pub fn is_empty(text: &str) -> bool {
+    let mut iter = text.chars();
+    loop {
+        let cur_char = match iter.next() {
+            Some(c) => c,
+            None => return true,
+        };
+        match cur_char {
+            '\u{feff}' | '\r' | '\t' | '\n' | ' ' => continue,
+            // Comment
+            '#' => {
+                while let Some(c) = iter.next() {
+                    if c == '\r' || c == '\n' {
+                        break;
+                    }
+                }
+                continue;
+            }
+            _ => return false,
+        }
+    }
+}
