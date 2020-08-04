@@ -37,6 +37,7 @@ from edb.schema import ddl as s_ddl
 from edb.schema import functions as s_func
 from edb.schema import links as s_links
 from edb.schema import lproperties as s_lprops
+from edb.schema import modules as s_mod
 from edb.schema import name as s_name
 from edb.schema import objects as s_obj
 from edb.schema import objtypes as s_objtypes
@@ -285,7 +286,7 @@ def handle_conditional_insert(
         rhs: irast.InsertStmt,
         lhs_set: Union[irast.Expr, irast.Set],
         *, ctx: context.ContextLevel,
-) -> List[irast.PointerRef]:
+) -> List[irast.ConstraintRef]:
     def error(s: str) -> NoReturn:
         raise errors.QueryError(
             f'Invalid conditional INSERT statement: {s}',
@@ -318,18 +319,6 @@ def handle_conditional_insert(
 
     exclusive_constr: s_constr.Constraint = schema.get('std::exclusive')
 
-    # Every filter must be on a unique pointer
-    # Adapted from _analyze_filter_caluse
-    for ptr, _ in filtered_ptrs:
-        ptr = ptr.get_nearest_non_derived_parent(schema)
-        is_unique = (
-            ptr.is_id_pointer(schema) or
-            any(c.issubclass(schema, exclusive_constr)
-                for c in ptr.get_constraints(schema).objects(schema))
-        )
-        if not is_unique or not ptr.is_property(schema):
-            error("FILTER is not on an exclusive property")
-
     shape_props = {}
     for shape_set, _ in rhs.subject.shape:
         # We need to go through to the base_ptr to get at the
@@ -350,7 +339,22 @@ def handle_conditional_insert(
 
         if not simple_stmt_eq(ptr_set.expr, result.expr, schema):
             error("value in FILTER clause does not match INSERT")
-        ret.append(rptr)
+
+        ex_cnstrs = [c for c in ptr.get_constraints(schema).objects(schema)
+                     if c.issubclass(schema, exclusive_constr)
+                     and not c.get_subjectexpr(schema)]
+
+        if len(ex_cnstrs) != 1 or not ptr.is_property(schema):
+            error("FILTER is not on an exclusive property")
+
+        if len(ex_cnstrs) == 1:
+            error("too many constraints on the table")
+        ex_cnstr = ex_cnstrs[0]
+
+        module_id = schema.get_global(
+            s_mod.Module, ptr.get_name(schema).module).id
+        ret.append(irast.ConstraintRef(
+            id=ex_cnstr.id, module_id=module_id))
 
     ctx.env.schema = schema
     return ret

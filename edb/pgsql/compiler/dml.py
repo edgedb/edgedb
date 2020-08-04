@@ -44,6 +44,7 @@ from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
 
 from edb.pgsql import ast as pgast
+from edb.pgsql import common as pg_common
 from edb.pgsql import types as pg_types
 
 from . import astutils
@@ -538,15 +539,13 @@ def process_insert_body(
     if isinstance(ir_stmt, irast.InsertStmt) and ir_stmt.on_conflict:
         assert not insert_stmt.on_conflict
 
-        fields = []
-        for ptrref in ir_stmt.on_conflict:
-            ptr_info = pg_types.get_ptrref_storage_info(
-                ptrref, resolve_type=True, link_bias=False)
-            fields.append(pgast.ColumnRef(name=[ptr_info.column_name]))
+        conflict = ir_stmt.on_conflict[0]
+
+        constraint_name = f'"{conflict.id};schemaconstr"'
 
         insert_stmt.on_conflict = pgast.OnConflictClause(
             action='nothing',
-            infer=pgast.InferClause(index_elems=fields),
+            infer=pgast.InferClause(conname=constraint_name),
         )
 
     toplevel = ctx.toplevel_stmt
