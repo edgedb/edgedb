@@ -362,7 +362,19 @@ def compile_InsertQuery(
         ctx: context.ContextLevel,
         conditioned_on: Optional[irast.Set] = None) -> irast.Set:
 
+    if ctx.in_conditional is not None:
+        raise errors.QueryError(
+            'INSERT statements cannot be used inside conditional '
+            'expressions',
+            context=expr.context,
+        )
+
     with ctx.subquery() as ictx:
+        # Disallow nested INSERTs inside the shape in SELECT-or-INSERT.
+        # TODO: Support this.
+        if conditioned_on:
+            ictx.in_conditional = expr.context
+
         stmt = irast.InsertStmt()
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
@@ -425,13 +437,6 @@ def compile_InsertQuery(
     if conditioned_on:
         stmt.on_conflict = handle_conditional_insert(
             expr, stmt, conditioned_on, ctx=ctx)
-
-    if ctx.in_conditional is not None:
-        raise errors.QueryError(
-            'INSERT statements cannot be used inside conditional '
-            'expressions',
-            context=expr.context,
-        )
 
     return result
 
