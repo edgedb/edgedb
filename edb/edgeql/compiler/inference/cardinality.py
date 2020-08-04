@@ -573,14 +573,17 @@ def extract_filters(
     scope_tree: irast.ScopeTreeNode,
     singletons: Collection[irast.PathId],
     env: context.Environment,
-) -> Sequence[Tuple[s_pointers.Pointer, irast.Set]]:
+    *,
+    # When strict=False, ignore any clauses in the filter_set we don't
+    # care about. If True, return None if any exist.
+    strict: bool = False,
+) -> Optional[Sequence[Tuple[s_pointers.Pointer, irast.Set]]]:
 
     schema = env.schema
     scope_tree = _get_set_scope(filter_set, scope_tree)
 
     ptr: s_pointers.Pointer
 
-    ptr_filters = []
     expr = filter_set.expr
     if isinstance(expr, irast.OperatorCall):
         if expr.func_shortname == 'std::=':
@@ -614,7 +617,7 @@ def extract_filters(
                     assert isinstance(_ptr, s_pointers.Pointer)
                     ptr = _ptr
 
-                    ptr_filters.append((ptr, right))
+                    return [(ptr, right)]
 
             elif _is_ptr_or_self_ref(right, result_set, env):
                 if infer_cardinality(
@@ -633,23 +636,31 @@ def extract_filters(
                     assert isinstance(_ptr, s_pointers.Pointer)
                     ptr = _ptr
 
-                    ptr_filters.append((ptr, left))
+                    return [(ptr, right)]
 
         elif expr.func_shortname == 'std::AND':
             left, right = (a.expr for a in expr.args)
 
-            ptr_filters.extend(
-                extract_filters(
-                    result_set, left, scope_tree, singletons, env
-                )
+            left_filters = extract_filters(
+                result_set, left, scope_tree, singletons, env
             )
-            ptr_filters.extend(
-                extract_filters(
-                    result_set, right, scope_tree, singletons, env
-                )
+            right_filters = extract_filters(
+                result_set, right, scope_tree, singletons, env
             )
 
-    return ptr_filters
+            ptr_filters: List[Tuple[s_pointers.Pointer, irast.Set]] = []
+            if left_filters is not None:
+                ptr_filters.extend(left_filters)
+            elif strict:
+                return None
+            if right_filters is not None:
+                ptr_filters.extend(right_filters)
+            elif strict:
+                return None
+
+            return ptr_filters
+
+    return None
 
 
 def _analyse_filter_clause(

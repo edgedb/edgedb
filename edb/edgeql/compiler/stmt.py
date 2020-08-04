@@ -29,11 +29,15 @@ from collections import defaultdict
 from edb import errors
 
 from edb.ir import ast as irast
+from edb.ir import utils as irutils
+from edb.ir import staeval as ireval
+from edb.ir import typeutils
 
 from edb.schema import ddl as s_ddl
 from edb.schema import functions as s_func
 from edb.schema import links as s_links
 from edb.schema import lproperties as s_lprops
+from edb.schema import modules as s_mod
 from edb.schema import name as s_name
 from edb.schema import objects as s_obj
 from edb.schema import objtypes as s_objtypes
@@ -55,6 +59,10 @@ from . import viewgen
 from . import schemactx
 from . import stmtctx
 from . import typegen
+
+if TYPE_CHECKING:
+    from edb.schema import constraints as s_constr
+    from edb.schema import schema as s_schema
 
 
 @dispatch.compile.register(qlast.SelectQuery)
@@ -254,17 +262,119 @@ def compile_GroupQuery(
     return result
 
 
+def simple_stmt_eq(lhs: irast.Base, rhs: irast.Base,
+                   schema: s_schema.Schema) -> bool:
+    if (
+        isinstance(lhs, irast.BaseConstant)
+        and isinstance(rhs, irast.BaseConstant)
+        and (ireval.evaluate_to_python_val(lhs, schema) ==
+             ireval.evaluate_to_python_val(rhs, schema))
+    ):
+        return True
+    elif (
+        isinstance(lhs, irast.Parameter)
+        and isinstance(rhs, irast.Parameter)
+        and lhs.name == rhs.name
+    ):
+        return True
+    else:
+        return False
+
+
+def handle_conditional_insert(
+        expr: qlast.InsertQuery,
+        rhs: irast.InsertStmt,
+        lhs_set: Union[irast.Expr, irast.Set],
+        *, ctx: context.ContextLevel,
+) -> irast.ConstraintRef:
+    def error(s: str) -> NoReturn:
+        raise errors.QueryError(
+            f'Invalid conditional INSERT statement: {s}',
+            context=expr.context,
+        )
+
+    schema = ctx.env.schema
+
+    if not isinstance(lhs_set, irast.Set):
+        error("left hand side is not SELECT")
+    lhs_set = irutils.unwrap_set(lhs_set)
+    if not isinstance(lhs_set.expr, irast.SelectStmt):
+        error("left hand side is not SELECT")
+    lhs = lhs_set.expr
+
+    if lhs.result.path_id != rhs.subject.path_id:
+        error("types do not match")
+
+    if lhs.where:
+        filtered_ptrs = inference.cardinality.extract_filters(
+            lhs.result, lhs.where,
+            scope_tree=ctx.path_scope, singletons=(), env=ctx.env, strict=True)
+    else:
+        filtered_ptrs = None
+
+    # TODO: Can we support some >1 cases?
+    if not filtered_ptrs or len(filtered_ptrs) > 1:
+        error("does not contain exactly one FILTER clause")
+        return None
+
+    exclusive_constr: s_constr.Constraint = schema.get('std::exclusive')
+
+    shape_props = {}
+    for shape_set, _ in rhs.subject.shape:
+        # We need to go through to the base_ptr to get at the
+        # underlying type (instead of the shape's subtype)
+        base_ptr = shape_set.rptr.ptrref.base_ptr
+        if (not isinstance(base_ptr, irast.PointerRef)
+                or not isinstance(shape_set.expr, irast.SelectStmt)):
+            continue
+        schema, pptr = typeutils.ptrcls_from_ptrref(base_ptr, schema=schema)
+        shape_props[pptr] = shape_set.expr.result, base_ptr
+
+    ptr, ptr_set = filtered_ptrs[0]
+
+    ptr = ptr.get_nearest_non_derived_parent(schema)
+    if ptr not in shape_props:
+        error("property in FILTER clause does not match INSERT")
+    result, rptr = shape_props[ptr]
+
+    if not simple_stmt_eq(ptr_set.expr, result.expr, schema):
+        error("value in FILTER clause does not match INSERT")
+
+    ex_cnstrs = [c for c in ptr.get_constraints(schema).objects(schema)
+                 if c.issubclass(schema, exclusive_constr)
+                 and not c.get_subjectexpr(schema)]
+
+    if len(ex_cnstrs) != 1 or not ptr.is_property(schema):
+        error("FILTER is not on an exclusive property")
+
+    ex_cnstr = ex_cnstrs[0]
+
+    module_id = schema.get_global(
+        s_mod.Module, ptr.get_name(schema).module).id
+
+    ctx.env.schema = schema
+    return irast.ConstraintRef(id=ex_cnstr.id, module_id=module_id)
+
+
 @dispatch.compile.register(qlast.InsertQuery)
 def compile_InsertQuery(
-        expr: qlast.InsertQuery, *, ctx: context.ContextLevel) -> irast.Set:
+        expr: qlast.InsertQuery, *,
+        ctx: context.ContextLevel,
+        conditioned_on: Optional[irast.Set] = None) -> irast.Set:
 
     if ctx.in_conditional is not None:
         raise errors.QueryError(
-            'INSERT statements cannot be used inside conditional expressions',
+            'INSERT statements cannot be used inside conditional '
+            'expressions',
             context=expr.context,
         )
 
     with ctx.subquery() as ictx:
+        # Disallow nested INSERTs inside the shape in SELECT-or-INSERT.
+        # TODO: Support this.
+        if conditioned_on:
+            ictx.in_conditional = expr.context
+
         stmt = irast.InsertStmt()
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
@@ -323,6 +433,10 @@ def compile_InsertQuery(
             )
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
+
+    if conditioned_on:
+        stmt.on_conflict = handle_conditional_insert(
+            expr, stmt, conditioned_on, ctx=ctx)
 
     return result
 

@@ -535,6 +535,16 @@ def process_insert_body(
                 env=subctx.env,
             )
 
+    if isinstance(ir_stmt, irast.InsertStmt) and ir_stmt.on_conflict:
+        assert not insert_stmt.on_conflict
+
+        constraint_name = f'"{ir_stmt.on_conflict.id};schemaconstr"'
+
+        insert_stmt.on_conflict = pgast.OnConflictClause(
+            action='nothing',
+            infer=pgast.InferClause(conname=constraint_name),
+        )
+
     toplevel = ctx.toplevel_stmt
     toplevel.ctes.append(insert_cte)
 

@@ -211,6 +211,13 @@ class PointerRef(BasePointerRef):
     module_id: uuid.UUID
 
 
+class ConstraintRef(ImmutableBase):
+    # The id of the constraint
+    id: uuid.UUID
+    # The module id of the constraint
+    module_id: uuid.UUID
+
+
 class TupleIndirectionLink(s_pointers.PseudoPointer):
     """A Link-alike that can be used in tuple indirection path ids."""
 
@@ -715,7 +722,7 @@ class MutatingStmt(Stmt):
 
 
 class InsertStmt(MutatingStmt):
-    pass
+    on_conflict: typing.Optional[ConstraintRef] = None
 
 
 class UpdateStmt(MutatingStmt, FilteredStmt):

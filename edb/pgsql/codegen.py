@@ -276,9 +276,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.write('ON CONFLICT')
 
             if node.on_conflict.infer:
-                self.write(' (')
                 self.visit(node.on_conflict.infer)
-                self.write(')')
 
             self.write(' DO ')
             self.write(node.on_conflict.action.upper())
@@ -378,7 +376,14 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.indentation -= 1
 
     def visit_InferClause(self, node):
-        self.visit_list(node.index_elems, newlines=False)
+        assert not node.conname or not node.index_elems
+        if node.conname:
+            self.write(' ON CONSTRAINT ')
+            self.write(node.conname)
+        if node.index_elems:
+            self.write(' (')
+            self.visit_list(node.index_elems, newlines=False)
+            self.write(')')
 
     def visit_MultiAssignRef(self, node):
         self.write('(')
