@@ -1327,8 +1327,13 @@ def process_set_as_coalesce(
         newctx.expr_exposed = False
         left_ir, right_ir = (a.expr for a in expr.args)
         left_card, right_card = (a.cardinality for a in expr.args)
+        is_object = ir_set.path_id.is_objtype_path()
 
-        if right_card is qltypes.Cardinality.ONE:
+        # The cardinality optimziations below apply to non-object
+        # expressions only, because we don't want to have to deal
+        # with the complexity of resolving coalesced sources for
+        # potential link or property references.
+        if right_card is qltypes.Cardinality.ONE and not is_object:
             # Non-optional singleton RHS, simply use scalar COALESCE
             # without any precautions.
             left = dispatch.compile(left_ir, ctx=newctx)
@@ -1341,7 +1346,7 @@ def process_set_as_coalesce(
                 env=newctx.env,
             )
 
-        elif right_card is qltypes.Cardinality.AT_MOST_ONE:
+        elif right_card is qltypes.Cardinality.AT_MOST_ONE and not is_object:
             # Optional singleton RHS, use scalar COALESCE, but
             # be careful not to JOIN the RHS as-is and instead
             # turn it into a value and make sure to filter out

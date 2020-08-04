@@ -1215,6 +1215,42 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         )
 
+    async def test_edgeql_coalesce_object_11(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT
+                    (
+                        (SELECT Issue FILTER .number = '1')
+                        ??
+                        (SELECT Issue FILTER .number = '2')
+                    ) {
+                        number
+                    }
+            ''',
+            [{
+                'number': '1',
+            }]
+        )
+
+    async def test_edgeql_coalesce_object_12(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT
+                    (
+                        (SELECT Issue FILTER .number = '100')
+                        ??
+                        (SELECT Issue FILTER .number = '2')
+                    ) {
+                        number
+                    }
+            ''',
+            [{
+                'number': '2',
+            }]
+        )
+
     async def test_edgeql_coalesce_wrapping_optional(self):
         await self.con.execute(
             r'''
