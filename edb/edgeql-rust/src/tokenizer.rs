@@ -14,6 +14,7 @@ use edgeql_parser::tokenizer::{MAX_KEYWORD_LENGTH};
 use edgeql_parser::position::Pos;
 use edgeql_parser::keywords::{CURRENT_RESERVED_KEYWORDS, UNRESERVED_KEYWORDS};
 use edgeql_parser::keywords::{FUTURE_RESERVED_KEYWORDS};
+use edgeql_parser::helpers::unquote_string;
 use crate::errors::TokenizerError;
 use crate::pynormalize::py_pos;
 
@@ -543,9 +544,9 @@ fn convert(py: Python, tokens: &Tokens, cache: &mut Cache,
                    .into_object()))
         }
         Str => {
-            let content = decode_string(value)
+            let content = unquote_string(value)
                 .map_err(|s| TokenizerError::new(py,
-                    (s, py_pos(py, &token.start))))?;
+                    (s.to_string(), py_pos(py, &token.start))))?;
             Ok((tokens.sconst.clone_ref(py),
                 PyString::new(py, value),
                 PyString::new(py, &content).into_object()))
@@ -628,101 +629,6 @@ impl<'a> From<SpannedToken<'a>> for CowToken<'a> {
     }
 }
 
-pub fn decode_string<'a>(value: &'a str) -> Result<Cow<'a, str>, String> {
-    if value.starts_with('r') {
-        Ok(value[2..value.len()-1].into())
-    } else if value.starts_with('$') {
-        let msize = value[1..].find('$').unwrap() + 2;
-        Ok(value[msize..value.len()-msize].into())
-    } else {
-        Ok(unquote_string(&value[1..value.len()-1])?.into())
-    }
-}
-
-fn unquote_string<'a>(s: &'a str) -> Result<String, String> {
-    let mut res = String::with_capacity(s.len());
-    let mut chars = s.chars();
-    while let Some(c) = chars.next() {
-        match c {
-            '\\' => {
-                match chars.next().expect("slash cant be at the end") {
-                    c@'"' | c@'\\' | c@'/' | c@'\'' => res.push(c),
-                    'b' => res.push('\u{0010}'),
-                    'f' => res.push('\u{000C}'),
-                    'n' => res.push('\n'),
-                    'r' => res.push('\r'),
-                    't' => res.push('\t'),
-                    'x' => {
-                        let hex = chars.as_str().get(0..2);
-                        let code = hex.and_then(|s| {
-                            u8::from_str_radix(s, 16).ok()
-                        }).ok_or_else(|| {
-                            format!("invalid string literal: \
-                                invalid escape sequence '\\x{}'",
-                                hex.unwrap_or_else(|| chars.as_str())
-                                .escape_debug())
-                        })?;
-                        if code > 0x7f {
-                            return Err(format!(
-                                "invalid string literal: \
-                                 invalid escape sequence '\\x{:x}' \
-                                 (only ascii allowed)", code));
-                        }
-                        res.push(code as char);
-                        chars.nth(1);
-                    }
-                    'u' => {
-                        let hex = chars.as_str().get(0..4);
-                        let ch = hex.and_then(|s| {
-                                u32::from_str_radix(s, 16).ok()
-                            })
-                            .and_then(|code| char::from_u32(code))
-                            .ok_or_else(|| {
-                                format!("invalid string literal: \
-                                    invalid escape sequence '\\u{}'",
-                                    hex.unwrap_or_else(|| chars.as_str())
-                                    .escape_debug())
-                            })?;
-                        res.push(ch);
-                        chars.nth(3);
-                    }
-                    'U' => {
-                        let hex = chars.as_str().get(0..8);
-                        let ch = hex.and_then(|s| {
-                                u32::from_str_radix(s, 16).ok()
-                            })
-                            .and_then(|code| char::from_u32(code))
-                            .ok_or_else(|| {
-                                format!("invalid string literal: \
-                                    invalid escape sequence '\\U{}'",
-                                    hex.unwrap_or_else(|| chars.as_str())
-                                    .escape_debug())
-                            })?;
-                        res.push(ch);
-                        chars.nth(7);
-                    },
-                    '\r' | '\n' => {
-                        let nleft = chars.as_str().trim_start().len();
-                        let nskip = chars.as_str().len() - nleft;
-                        if nskip > 0 {
-                            chars.nth(nskip - 1);
-                        }
-                    }
-                    c => {
-                        return Err(format!(
-                            "invalid string literal: \
-                             invalid escape sequence '\\{}'",
-                            c.escape_debug()));
-                    }
-                }
-            }
-            c => res.push(c),
-        }
-    }
-
-    Ok(res)
-}
-
 fn unquote_bytes<'a>(s: &'a str) -> Result<Vec<u8>, String> {
     let mut res = Vec::with_capacity(s.len());
     let mut bytes = s.as_bytes().iter();
@@ -777,42 +683,6 @@ fn unquote_bytes<'a>(s: &'a str) -> Result<Vec<u8>, String> {
     }
 
     Ok(res)
-}
-
-#[test]
-fn unquote_unicode_string() {
-    assert_eq!(unquote_string(r#"\x09"#).unwrap(), "\u{09}");
-    assert_eq!(unquote_string(r#"\u000A"#).unwrap(), "\u{000A}");
-    assert_eq!(unquote_string(r#"\u000D"#).unwrap(), "\u{000D}");
-    assert_eq!(unquote_string(r#"\u0020"#).unwrap(), "\u{0020}");
-    assert_eq!(unquote_string(r#"\uFFFF"#).unwrap(), "\u{FFFF}");
-}
-
-#[test]
-fn newline_escaping_str() {
-    assert_eq!(unquote_string(r"hello \
-                                world").unwrap(), "hello world");
-
-    assert_eq!(unquote_string(r"bb\
-aa \
-            bb").unwrap(), "bbaa bb");
-    assert_eq!(unquote_string(r"bb\
-
-        aa").unwrap(), "bbaa");
-    assert_eq!(unquote_string(r"bb\
-        \
-        aa").unwrap(), "bbaa");
-    assert_eq!(unquote_string("bb\\\r   aa").unwrap(), "bbaa");
-    assert_eq!(unquote_string("bb\\\r\n   aa").unwrap(), "bbaa");
-}
-
-#[test]
-fn complex_strings() {
-    assert_eq!(unquote_string(r#"\u0009 hello \u000A there"#).unwrap(),
-        "\u{0009} hello \u{000A} there");
-
-    assert_eq!(unquote_string(r#"\x62:\u2665:\U000025C6"#).unwrap(),
-        "\u{62}:\u{2665}:\u{25C6}");
 }
 
 #[test]

@@ -2,9 +2,10 @@ use std::collections::BTreeSet;
 
 use edgeql_parser::tokenizer::{TokenStream, Kind};
 use edgeql_parser::position::Pos;
+use edgeql_parser::helpers::unquote_string;
 use num_bigint::{BigInt, ToBigInt};
 use bigdecimal::BigDecimal;
-use crate::tokenizer::{CowToken, decode_string};
+use crate::tokenizer::{CowToken};
 
 
 #[derive(Debug, PartialEq)]
@@ -196,7 +197,7 @@ pub fn normalize<'x>(text: &'x str)
                     next_var(variables.len()),
                     tok.start, tok.end);
                 variables.push(Variable {
-                    value: Value::Str(decode_string(&tok.value)
+                    value: Value::Str(unquote_string(&tok.value)
                         .map_err(|e| Error::Tokenizer(
                             format!("can't unquote string: {}", e),
                             tok.start))?.into()),
