@@ -1,4 +1,5 @@
 use std::collections::{HashMap, BTreeSet};
+use std::hash::{Hash, Hasher};
 
 use edgeql_parser::tokenizer::{TokenStream, Kind};
 use edgeql_parser::position::Pos;
@@ -7,12 +8,32 @@ use num_bigint::{BigInt, ToBigInt};
 use bigdecimal::BigDecimal;
 use crate::tokenizer::{CowToken};
 
+// Rust floats are not Eq or Hash, but we want to be able to use a
+// hash table to map identical constants to identical variables
+// anyway, so we wrap them in a newtype and implement the classes
+// ourselves.  This just delegates to the bit representation of the
+// floats, which should be fine; the only downside is that -0.0 and
+// 0.0 won't compare equal, which seems OK.
+#[derive(Debug, Clone)]
+pub struct FloatWrapper(pub f64);
+
+impl PartialEq for FloatWrapper {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.to_bits() == other.0.to_bits()
+    }
+}
+impl Eq for FloatWrapper { }
+impl Hash for FloatWrapper {
+    fn hash<H: Hasher>(&self, hasher: &mut H) {
+        self.0.to_bits().hash(hasher)
+    }
+}
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum Value {
     Str(String),
     Int(i64),
-    Float(u64), // ... we store the raw bits here so that this can be Eq
+    Float(FloatWrapper),
     BigInt(BigInt),
     Decimal(BigDecimal),
 }
@@ -168,7 +189,7 @@ pub fn normalize<'x>(text: &'x str)
                         tok.start));
                 }
                 process(&mut rewritten_tokens, tok, "__std__::float64",
-                   Value::Float(value.to_bits()));
+                   Value::Float(FloatWrapper(value)));
             }
             Kind::BigIntConst => {
                 let dec: BigDecimal = tok.value[..tok.value.len()-1]

@@ -1,4 +1,4 @@
-use edgeql_rust::normalize::{normalize, Value, Variable};
+use edgeql_rust::normalize::{normalize, Value, Variable, FloatWrapper};
 
 
 #[test]
@@ -60,10 +60,10 @@ fn test_float() {
         "SELECT(<__std__::float64>$0)+(<__std__::float64>$1)");
     assert_eq!(entry.variables, vec![
         Variable {
-            value: Value::Float((1.5_f64).to_bits()),
+            value: Value::Float(FloatWrapper(1.5)),
         },
         Variable {
-            value: Value::Float((23.25_f64).to_bits()),
+            value: Value::Float(FloatWrapper(23.25)),
         }
     ]);
 }
@@ -206,7 +206,7 @@ fn test_matching_float() {
     assert_eq!(entry.key, "SELECT(<__std__::float64>$0)+(<__std__::float64>$0)");
     assert_eq!(entry.variables, vec![
         Variable {
-            value: Value::Float((3.14_f64).to_bits()),
+            value: Value::Float(FloatWrapper(3.14)),
         },
     ]);
 }

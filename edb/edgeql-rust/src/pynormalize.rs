@@ -43,7 +43,7 @@ py_class!(pub class Entry |py| {
                 match var.value {
                     Value::Int(ref v) => v.to_py_object(py).into_object(),
                     Value::Str(ref v) => v.to_py_object(py).into_object(),
-                    Value::Float(ref v) => v.to_py_object(py).into_object(),
+                    Value::Float(ref v) => v.0.to_py_object(py).into_object(),
                     Value::BigInt(ref v) => {
                         py.get_type::<PyInt>()
                         .call(py,
@@ -103,7 +103,7 @@ pub fn serialize_extra(variables: &[Variable]) -> Result<Bytes, String> {
                     .map_err(|e| format!("str cannot be encoded: {}", e))?;
             }
             Value::Float(ref v) => {
-                codec::Float64.encode(&mut buf, &P::Float64(f64::from_bits(*v)))
+                codec::Float64.encode(&mut buf, &P::Float64(v.0))
                     .map_err(|e| format!("float cannot be encoded: {}", e))?;
             }
             Value::BigInt(ref v) => {
