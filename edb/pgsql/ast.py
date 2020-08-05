@@ -117,7 +117,7 @@ class EdgeQLPathInfo(Base):
 
     # Ignore the below fields in AST visitor/transformer.
     __ast_meta__ = {
-        'path_scope', 'path_outputs', 'path_id', 'is_distinct', 'value_scope',
+        'path_scope', 'path_outputs', 'path_id', 'is_distinct',
         'path_id_mask', 'path_namespace'
     }
 
@@ -129,9 +129,6 @@ class EdgeQLPathInfo(Base):
 
     # A subset of paths necessary to perform joining.
     path_scope: typing.Set[irast.PathId]
-
-    # A set of path ids for which this node provides the value aspect.
-    value_scope: typing.Set[irast.PathId]
 
     # Map of res target names corresponding to paths.
     path_outputs: typing.Dict[typing.Tuple[irast.PathId, str], OutputVar]

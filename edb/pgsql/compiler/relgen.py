@@ -1650,7 +1650,6 @@ def process_set_as_type_introspection(
     type_rvar = relctx.range_for_typeref(
         ir_set.typeref, ir_set.path_id, ctx=ctx)
     pathctx.put_rvar_path_bond(type_rvar, ir_set.path_id)
-    type_rvar.query.value_scope.add(ir_set.path_id)
     clsname = pgast.StringConstant(val=str(typeref.id))
     nameref = astutils.get_column(type_rvar, 'id', nullable=False)
 

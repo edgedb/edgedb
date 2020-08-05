@@ -67,8 +67,6 @@ def pull_path_namespace(
 
     for source_q in source_qs:
         s_paths: Set[Tuple[irast.PathId, str]] = set()
-        if hasattr(source_q, 'value_scope'):
-            s_paths.update((p, 'value') for p in source_q.value_scope)
         if hasattr(source_q, 'path_outputs'):
             s_paths.update(source_q.path_outputs)
         if hasattr(source_q, 'path_namespace'):
@@ -319,7 +317,6 @@ def new_empty_rvar(
     nullrel = pgast.NullRelation(path_id=ir_set.path_id)
     rvar = rvar_for_rel(nullrel, ctx=ctx)
     pathctx.put_rvar_path_bond(rvar, ir_set.path_id)
-    rvar.query.value_scope.add(ir_set.path_id)
     return rvar
 
 
@@ -361,7 +358,6 @@ def new_root_rvar(
     set_rvar = range_for_typeref(
         typeref, ir_set.path_id, dml_source=dml_source, ctx=ctx)
     pathctx.put_rvar_path_bond(set_rvar, ir_set.path_id)
-    set_rvar.query.value_scope.add(ir_set.path_id)
 
     if ir_set.rptr and ir_set.rptr.is_inbound:
         ptrref = ir_set.rptr.ptrref
