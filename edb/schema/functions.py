@@ -757,15 +757,20 @@ class CallableCommand(sd.QualifiedObjectCommand[CallableObjectT]):
         context: sd.CommandContext,
     ) -> FuncParameterList:
         params = self.get_attribute_value('params')
+        result: Any
         if params is None:
             param_list = []
             for cr_param in self.get_subcommands(type=ParameterCommand):
                 param = schema.get(cr_param.classname, type=Parameter)
                 param_list.append(param)
-            params = FuncParameterList.create(schema, param_list)
+            result = FuncParameterList.create(schema, param_list)
+        elif isinstance(params, so.ObjectCollectionShell):
+            result = params.resolve(schema)
+        else:
+            result = params
 
-        assert isinstance(params, FuncParameterList)
-        return params
+        assert isinstance(result, FuncParameterList)
+        return result
 
     @classmethod
     def _get_param_desc_from_ast(

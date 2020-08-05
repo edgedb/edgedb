@@ -58,9 +58,36 @@ def _assert_not_none(value: Optional[T]) -> T:
     return value
 
 
+def merge_constraint_params(
+    constraint: Constraint,
+    supers: List[Constraint],
+    field_name: str,
+    *,
+    ignore_local: bool,
+    schema: s_schema.Schema,
+) -> Any:
+    if constraint.get_subject(schema) is None:
+        # consistency of abstract constraint params is checked
+        # in CreateConstraint.validate_create
+        return constraint.get_explicit_field_value(schema, field_name, None)
+    else:
+        # concrete constraints cannot redefined parameters and always
+        # inherit from super.
+        return supers[0].get_explicit_field_value(schema, field_name, None)
+
+
 class Constraint(referencing.ReferencedInheritingObject,
                  s_func.CallableObject, s_abc.Constraint,
                  qlkind=ft.SchemaObjectClass.CONSTRAINT):
+
+    params = so.SchemaField(
+        s_func.FuncParameterList,
+        coerce=True,
+        compcoef=0.4,
+        default=so.DEFAULT_CONSTRUCTOR,
+        inheritable=True,
+        merge_fn=merge_constraint_params,
+    )
 
     expr = so.SchemaField(
         s_expr.Expression, default=None, compcoef=0.909,
@@ -210,44 +237,6 @@ class Constraint(referencing.ReferencedInheritingObject,
             ddl_identity.pop('subjectexpr', None)
 
         return ddl_identity
-
-    @classmethod
-    def delta_properties(
-        cls,
-        delta: sd.ObjectCommand[Constraint],
-        old: Optional[Constraint],
-        new: Optional[Constraint],
-        *,
-        context: so.ComparisonContext,
-        old_schema: Optional[s_schema.Schema],
-        new_schema: Optional[s_schema.Schema],
-    ) -> None:
-        super().delta_properties(
-            delta,
-            old,
-            new,
-            context=context,
-            old_schema=old_schema,
-            new_schema=new_schema,
-        )
-
-        if new is not None:
-            assert new_schema is not None
-
-            if new.get_subject(new_schema) is not None:
-                new_params = new.get_params(new_schema)
-
-                if old is not None:
-                    assert old_schema is not None
-
-                if old is None or new_params != old.get_params(
-                    _assert_not_none(old_schema)
-                ):
-                    delta.set_attribute_value(
-                        'params',
-                        new_params,
-                        inherited=True,
-                    )
 
     @classmethod
     def get_root_classes(cls) -> Tuple[sn.Name, ...]:
