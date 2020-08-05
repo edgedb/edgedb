@@ -208,59 +208,6 @@ def compile_GroupQuery(
         "'GROUP' statement is not currently implemented",
         context=expr.context)
 
-    with ctx.subquery() as ictx:
-        stmt = irast.GroupStmt()
-        init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
-
-        typename = s_name.Name(
-            module='__group__', name=ctx.aliases.get('Group'))
-        obj = ctx.env.get_track_schema_object('std::BaseObject')
-        stmt.group_path_id = pathctx.get_path_id(
-            obj, typename=typename, ctx=ictx)
-
-        pathctx.register_set_in_scope(stmt.group_path_id, ctx=ictx)
-
-        with ictx.newscope(fenced=True) as subjctx:
-            subject_set = setgen.scoped_set(
-                dispatch.compile(expr.subject, ctx=subjctx), ctx=subjctx)
-
-            alias = expr.subject_alias or subject_set.path_id.target_name_hint
-            stmt.subject = stmtctx.declare_inline_view(
-                subject_set, alias, ctx=ictx)
-
-            with subjctx.new() as grpctx:
-                stmt.groupby = compile_groupby_clause(
-                    expr.groupby, ctx=grpctx)
-
-        with ictx.subquery() as isctx, isctx.newscope(fenced=True) as sctx:
-            o_stmt = sctx.stmt = irast.SelectStmt()
-
-            o_stmt.result = compile_result_clause(
-                expr.result,
-                view_scls=ctx.view_scls,
-                view_rptr=ctx.view_rptr,
-                result_alias=expr.result_alias,
-                view_name=ctx.toplevel_result_view_name,
-                ctx=sctx)
-
-            clauses.compile_where_clause(
-                o_stmt, expr.where, ctx=sctx)
-
-            o_stmt.orderby = clauses.compile_orderby_clause(
-                expr.orderby, ctx=sctx)
-
-            o_stmt.offset = clauses.compile_limit_offset_clause(
-                expr.offset, ctx=sctx)
-
-            o_stmt.limit = clauses.compile_limit_offset_clause(
-                expr.limit, ctx=sctx)
-
-            stmt.result = setgen.scoped_set(o_stmt, ctx=sctx)
-
-        result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
-
-    return result
-
 
 def simple_stmt_eq(lhs: irast.Base, rhs: irast.Base,
                    schema: s_schema.Schema) -> bool:
