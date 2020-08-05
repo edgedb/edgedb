@@ -1253,14 +1253,30 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             sd.CreateObject,
             canonical=True,
         )
-        cls.delta_properties(
-            delta,
-            None,
-            self,
-            context=context,
-            old_schema=None,
-            new_schema=schema,
-        )
+
+        # IDs are assigned once when the object is created and
+        # never changed.
+        id_value = self.get_explicit_field_value(schema, 'id')
+        delta.set_attribute_value('id', id_value)
+
+        ff = cls.get_fields(sorted=True).items()
+        fields = {
+            fn: f for fn, f in ff
+            if f.simpledelta and not f.ephemeral and f.introspectable
+        }
+
+        for fn, f in fields.items():
+            value = self.get_explicit_field_value(schema, fn, None)
+            if value is not None:
+                v: Any
+                if (
+                    issubclass(f.type, s_abc.ObjectContainer)
+                    and not context.related_schemas
+                ):
+                    v = value.as_shell(schema)
+                else:
+                    v = value
+                self.delta_property(schema, delta, fn, v)
 
         for refdict in cls.get_refdicts():
             refcoll = self.get_field_value(schema, refdict.attr)
@@ -1289,14 +1305,70 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             sd.AlterObject,
             canonical=True,
         )
-        cls.delta_properties(
-            delta,
-            self,
-            other,
-            context=context,
-            old_schema=self_schema,
-            new_schema=other_schema,
-        )
+
+        my_name = self.get_name(self_schema)
+        other_name = other.get_name(other_schema)
+
+        if my_name != other_name:
+            rename_op = self.init_delta_command(
+                self_schema,
+                sd.RenameObject,
+                new_name=other_name,
+            )
+
+            rename_op.set_attribute_value(
+                'name', other_name, orig_value=my_name)
+
+            delta.add(rename_op)
+
+        ff = cls.get_fields(sorted=True).items()
+        fields = {
+            fn: f for fn, f in ff
+            if f.simpledelta and not f.ephemeral and f.introspectable
+        }
+
+        for fn, f in fields.items():
+            oldattr_v = self.get_explicit_field_value(self_schema, fn, None)
+            newattr_v = other.get_explicit_field_value(other_schema, fn, None)
+
+            old_v: Any
+            new_v: Any
+
+            if (
+                issubclass(f.type, s_abc.ObjectContainer)
+                and not context.related_schemas
+            ):
+                if oldattr_v is not None:
+                    old_v = oldattr_v.as_shell(self_schema)
+                else:
+                    old_v = None
+                if newattr_v is not None:
+                    new_v = newattr_v.as_shell(other_schema)
+                else:
+                    new_v = None
+            else:
+                old_v = oldattr_v
+                new_v = newattr_v
+
+            if f.compcoef is not None:
+                fcoef = cls.compare_obj_field_value(
+                    f,
+                    self,
+                    other,
+                    our_schema=self_schema,
+                    their_schema=other_schema,
+                    context=context,
+                    explicit=True,
+                )
+
+                if fcoef != 1.0:
+                    other.delta_property(
+                        other_schema,
+                        delta,
+                        fn,
+                        value=new_v,
+                        orig_value=old_v,
+                    )
 
         for refdict in cls.get_refdicts():
             oldcoll = self.get_field_value(self_schema, refdict.attr)
@@ -1337,14 +1409,31 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             sd.DeleteObject,
             canonical=True,
         )
-        cls.delta_properties(
-            delta,
-            self,
-            None,
-            context=context,
-            old_schema=schema,
-            new_schema=None,
-        )
+
+        ff = cls.get_fields(sorted=True).items()
+        fields = {
+            fn: f for fn, f in ff
+            if f.simpledelta and not f.ephemeral and f.introspectable
+        }
+
+        for fn, f in fields.items():
+            value = self.get_explicit_field_value(schema, fn, None)
+            if value is not None:
+                if (
+                    issubclass(f.type, s_abc.ObjectContainer)
+                    and not context.related_schemas
+                ):
+                    v = value.as_shell(schema)
+                else:
+                    v = value
+
+                self.delta_property(
+                    schema,
+                    delta,
+                    fn,
+                    value=None,
+                    orig_value=v,
+                )
 
         for refdict in cls.get_refdicts():
             refcoll = self.get_field_value(schema, refdict.attr)
@@ -1353,139 +1442,15 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
         return delta
 
-    @classmethod
-    def delta_properties(
-        cls: Type[Object_T],
-        delta: sd.ObjectCommand[Object_T],
-        old: Optional[Object_T],
-        new: Optional[Object_T],
-        *,
-        context: ComparisonContext,
-        old_schema: Optional[s_schema.Schema],
-        new_schema: Optional[s_schema.Schema],
-    ) -> None:
-        ff = cls.get_fields(sorted=True).items()
-        fields = {fn: f for fn, f in ff
-                  if f.simpledelta and not f.ephemeral and f.introspectable}
-
-        if old and new:
-            assert \
-                old_schema is not None, \
-                "`old` provided but `old_schema is None"
-            assert \
-                new_schema is not None, \
-                "`new` provided but `new_schema is None"
-            if old.get_name(old_schema) != new.get_name(new_schema):
-                delta.add(old.delta_rename(old, new.get_name(new_schema),
-                                           old_schema=old_schema,
-                                           new_schema=new_schema))
-
-            for fn, f in fields.items():
-                oldattr_v = old.get_explicit_field_value(old_schema, fn, None)
-                newattr_v = new.get_explicit_field_value(new_schema, fn, None)
-
-                old_v: Any
-                new_v: Any
-
-                if (issubclass(f.type, s_abc.ObjectContainer)
-                        and not context.related_schemas):
-                    if oldattr_v is not None:
-                        old_v = oldattr_v.as_shell(old_schema)
-                    else:
-                        old_v = None
-                    if newattr_v is not None:
-                        new_v = newattr_v.as_shell(new_schema)
-                    else:
-                        new_v = None
-                else:
-                    old_v = oldattr_v
-                    new_v = newattr_v
-
-                if f.compcoef is not None:
-                    fcoef = cls.compare_obj_field_value(
-                        f,
-                        old,
-                        new,
-                        our_schema=old_schema,
-                        their_schema=new_schema,
-                        context=context,
-                        explicit=True,
-                    )
-
-                    if fcoef != 1.0:
-                        cls.delta_property(
-                            new_schema,
-                            new,
-                            delta,
-                            fn,
-                            value=new_v,
-                            orig_value=old_v,
-                        )
-        elif new:
-            # IDs are assigned once when the object is created and
-            # never changed.
-            assert new_schema is not None
-            id_value = new.get_explicit_field_value(new_schema, 'id')
-            delta.set_attribute_value('id', id_value)
-
-            for fn, f in fields.items():
-                value = new.get_explicit_field_value(new_schema, fn, None)
-                if value is not None:
-                    v: Any
-                    if (issubclass(f.type, s_abc.ObjectContainer)
-                            and not context.related_schemas):
-                        v = value.as_shell(new_schema)
-                    else:
-                        v = value
-                    cls.delta_property(new_schema, new, delta, fn, v)
-
-        elif old:
-            assert old_schema is not None
-
-            for fn, f in fields.items():
-                value = old.get_explicit_field_value(old_schema, fn, None)
-                if value is not None:
-                    if (issubclass(f.type, s_abc.ObjectContainer)
-                            and not context.related_schemas):
-                        v = value.as_shell(old_schema)
-                    else:
-                        v = value
-
-                    delta.set_attribute_value(
-                        fn,
-                        value=None,
-                        orig_value=v,
-                    )
-
-    @classmethod
     def delta_property(
-        cls: Type[Object_T],
+        self: Object_T,
         schema: s_schema.Schema,
-        scls: Object_T,
         delta: sd.ObjectCommand[Object_T],
         fname: str,
         value: Any,
         orig_value: Any = None,
     ) -> None:
         delta.set_attribute_value(fname, value, orig_value=orig_value)
-
-    @classmethod
-    def delta_rename(
-        cls,
-        obj: Object,
-        new_name: str,
-        *,
-        old_schema: s_schema.Schema,
-        new_schema: s_schema.Schema,
-    ) -> sd.RenameObject[Object_T]:
-        from . import delta as sd
-
-        rename_class = sd.ObjectCommandMeta.get_command_class_or_die(
-            sd.RenameObject, type(obj))
-
-        return rename_class(classname=obj.get_name(old_schema),
-                            new_name=new_name,
-                            metaclass=type(obj))
 
     def dump(self, schema: s_schema.Schema) -> str:
         return (
@@ -2494,18 +2459,15 @@ class InheritingObject(SubclassableObject):
 
         return delta
 
-    @classmethod
     def delta_property(
-        cls,
+        self,
         schema: s_schema.Schema,
-        scls: Object,
         delta: sd.Command,
         fname: str,
         value: Any,
         orig_value: Any = None,
     ) -> None:
-        assert isinstance(scls, InheritingObject)
-        inherited_fields = scls.get_inherited_fields(schema)
+        inherited_fields = self.get_inherited_fields(schema)
         delta.set_attribute_value(
             fname,
             value,
