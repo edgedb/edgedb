@@ -2882,6 +2882,48 @@ aa';
         };
         """
 
+    def test_edgeql_syntax_ddl_create_migration_01(self):
+        """
+        CREATE MIGRATION {};
+
+% OK %
+
+        CREATE MIGRATION;
+        """
+
+    def test_edgeql_syntax_ddl_create_migration_02(self):
+        """
+        CREATE MIGRATION { ;;; CREATE TYPE Foo ;;; CREATE TYPE Bar ;;; };
+
+% OK %
+
+        CREATE MIGRATION {
+            CREATE TYPE Foo;
+            CREATE TYPE Bar;
+        };
+        """
+
+    def test_edgeql_syntax_ddl_create_migration_03(self):
+        """
+        CREATE MIGRATION {
+            CREATE TYPE Foo;
+        };
+        """
+
+    def test_edgeql_syntax_ddl_create_migration_04(self):
+        """
+        CREATE MIGRATION m123123123 {
+            CREATE TYPE Foo;
+        };
+        """
+
+    def test_edgeql_syntax_ddl_create_migration_05(self):
+        """
+        CREATE MIGRATION m123123123 ONTO m134134134 {
+            CREATE TYPE Foo;
+        };
+        """
+
     # TODO: remove this test once the entire grammar is converted
     def test_edgeql_syntax_ddl_aggregate_00(self):
         """

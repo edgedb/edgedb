@@ -46,6 +46,7 @@ pub const UNRESERVED_KEYWORDS: &[&str] = &[
     "oids",
     "on",
     "only",
+    "onto",
     "operator",
     "overloaded",
     "owned",

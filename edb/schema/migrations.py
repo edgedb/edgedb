@@ -26,6 +26,8 @@ from typing import *
 import base64
 import hashlib
 
+from edb import errors
+
 from edb.edgeql import ast as qlast
 from edb.edgeql import codegen as qlcodegen
 from edb.edgeql import qltypes
@@ -86,17 +88,28 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
     ) -> CreateMigration:
         assert isinstance(astnode, qlast.CreateMigration)
 
-        if astnode.commands:
-            text = ';\n'.join(
-                qlcodegen.generate_source(stmt)
-                for stmt in astnode.commands
-            ) + ';'
+        if astnode.name is not None:
+            specified_name = astnode.name.name
         else:
-            text = ''
+            specified_name = None
 
-        tokenstream = ''.join(token.text() for token in qltokenize(text))
+        parent_migration = schema.get_last_migration()
+
+        parent: Optional[so.ObjectShell]
+
         if astnode.parent is None:
-            parent = None
+            if parent_migration is not None:
+                parent = parent_migration.as_shell(schema)
+            else:
+                parent = None
+        elif parent_migration is None:
+            if astnode.parent.name.lower() == 'initial':
+                parent = None
+            else:
+                raise errors.SchemaDefinitionError(
+                    f'specified migration parent does not exist',
+                    context=astnode.parent.context,
+                )
         else:
             parent = s_utils.ast_objref_to_object_shell(
                 astnode.parent,
@@ -104,13 +117,49 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
                 schema=schema,
                 modaliases={},
             )
-            tokenstream = f'PARENT: {astnode.parent.name}\n{tokenstream}'
 
-        hashsum = hashlib.sha256(tokenstream.encode()).digest()
+            actual_parent_name = parent_migration.get_name(schema)
+            if parent.name != actual_parent_name:
+                raise errors.SchemaDefinitionError(
+                    f'specified migration parent is not the most '
+                    f'recent migration, expected {actual_parent_name!r}',
+                    context=astnode.parent.context,
+                )
+
+        if parent is not None:
+            parent_name = parent.name
+        else:
+            parent_name = 'initial'
+
+        stmt_text = f'CREATE MIGRATION ONTO {parent_name}\n{{'
+
+        if astnode.commands:
+            ddl_text = ';\n'.join(
+                qlcodegen.generate_source(stmt)
+                for stmt in astnode.commands
+            ) + ';'
+        else:
+            ddl_text = ''
+
+        stmt_text += f'{ddl_text}\n}}'
+
+        tokenstream = b'\x00'.join(
+            token.text().encode('utf-8') for token in qltokenize(stmt_text)
+        )
+
+        hashsum = hashlib.sha256(tokenstream).digest()
         name = f'm1{base64.b32encode(hashsum).decode().strip("=").lower()}'
 
+        if specified_name is not None and name != specified_name:
+            raise errors.SchemaDefinitionError(
+                f'specified migration name does not match the name derived '
+                f'from the migration contents: {specified_name!r}, expected '
+                f'{name!r}',
+                context=astnode.name.context,
+            )
+
         cmd = cls(classname=name)
-        cmd.set_attribute_value('script', text)
+        cmd.set_attribute_value('script', ddl_text)
         cmd.set_attribute_value('builtin', False)
         if parent is not None:
             cmd.set_attribute_value('parents', [parent])

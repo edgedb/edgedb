@@ -5036,3 +5036,107 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             # };
             """,
         )
+
+
+class TestCreateMigration(tb.BaseSchemaTest):
+
+    def test_create_migration_on_empty_01(self):
+        schema = self.schema
+        schema = self.run_ddl(schema, 'CREATE MODULE default;')
+
+        m1 = 'm1vrzjotjgjxhdratq7jz5vdxmhvg2yun2xobiddag4aqr3y4gavgq'
+        schema = self.run_ddl(
+            schema,
+            f'''
+                CREATE MIGRATION {m1} ONTO initial {{
+                    CREATE TYPE Foo;
+                }};
+            '''
+        )
+
+    def test_create_migration_on_empty_02(self):
+        schema = self.schema
+        schema = self.run_ddl(schema, 'CREATE MODULE default;')
+
+        m1 = 'm1vrzjotjgjxhdratq7jz5vdxmhvg2yun2xobiddag4aqr3y4gavgq'
+        schema = self.run_ddl(
+            schema,
+            f'''
+                CREATE MIGRATION {m1} {{
+                    CREATE TYPE Foo;
+                }};
+            '''
+        )
+
+    def test_create_migration_on_empty_bad_01(self):
+        schema = self.schema
+        schema = self.run_ddl(schema, 'CREATE MODULE default;')
+
+        with self.assertRaisesRegex(
+            errors.SchemaDefinitionError,
+            "specified migration parent does not exist",
+        ):
+            m1 = 'm1vrzjotjgjxhdratq7jz5vdxmhvg2yun2xobiddag4aqr3y4gavgq'
+            schema = self.run_ddl(
+                schema,
+                f'''
+                    CREATE MIGRATION {m1} ONTO foo {{
+                        CREATE TYPE Foo;
+                    }};
+                '''
+            )
+
+    def test_create_migration_sequence_01(self):
+        schema = self.schema
+        schema = self.run_ddl(schema, 'CREATE MODULE default;')
+
+        m1 = 'm1vrzjotjgjxhdratq7jz5vdxmhvg2yun2xobiddag4aqr3y4gavgq'
+        schema = self.run_ddl(
+            schema,
+            f'''
+                CREATE MIGRATION {m1} {{
+                    CREATE TYPE Foo;
+                }};
+            '''
+        )
+
+        m2 = 'm1fgy2elz3ks3t5wdpujxsjnmojs24n4ov7i5yvgtz7x643ekda6oq'
+        schema = self.run_ddl(
+            schema,
+            f'''
+                CREATE MIGRATION {m2} ONTO {m1} {{
+                    CREATE TYPE Bar;
+                }};
+            '''
+        )
+
+        with self.assertRaisesRegex(
+            errors.SchemaDefinitionError,
+            f"specified migration parent is not the most recent migration, "
+            f"expected {m2!r}",
+        ):
+            m3 = 'm1vrzjotjgjxhdratq7jz5vdxmhvg2yun2xobiddag4aqr3y4gavgq'
+            schema = self.run_ddl(
+                schema,
+                f'''
+                    CREATE MIGRATION {m3} ONTO {m1} {{
+                        CREATE TYPE Baz;
+                    }};
+                '''
+            )
+
+        m3_bad = 'm1vrzjotjgjxhdratq7jz5vdxmhvg2yun2xobiddag4aqr3y4gavgq'
+        m3_good = 'm1ccjw4emykq2c5i4bvaglxjvx7ebr2cgrurvcroggpemdzyjrn6da'
+        with self.assertRaisesRegex(
+            errors.SchemaDefinitionError,
+            f"specified migration name does not match the name derived from "
+            f"the migration contents: {m3_bad!r}, expected {m3_good!r}"
+        ):
+            schema = self.run_ddl(
+                schema,
+                f'''
+                    CREATE MIGRATION {m3_bad} ONTO {m2} {{
+                        CREATE TYPE Baz;
+                    }};
+                '''
+            )

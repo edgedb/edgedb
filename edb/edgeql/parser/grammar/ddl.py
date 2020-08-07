@@ -2149,12 +2149,62 @@ class CreateMigrationBody(
     pass
 
 
+class OptCreateMigrationBody(Nonterm):
+
+    def reduce_1(self, *kids):
+        """%reduce
+            LBRACE CreateMigrationBody OptSemicolons RBRACE
+        """
+        self.val = kids[1].val
+
+    def reduce_2(self, *kids):
+        """%reduce
+            LBRACE Semicolons CreateMigrationBody OptSemicolons RBRACE
+        """
+        self.val = kids[2].val
+
+    def reduce_3(self, *kids):
+        """%reduce
+            LBRACE OptSemicolons RBRACE
+        """
+        self.val = []
+
+    def reduce_empty(self):
+        self.val = []
+
+
+class MigrationNameAndParent(typing.NamedTuple):
+
+    name: typing.Optional[qlast.ObjectRef]
+    parent: typing.Optional[qlast.ObjectRef]
+
+
+class OptMigrationNameParentName(Nonterm):
+
+    def reduce_ShortNodeName_ONTO_ShortNodeName(self, *kids):
+        self.val = MigrationNameAndParent(
+            name=kids[0].val,
+            parent=kids[2].val,
+        )
+
+    def reduce_ShortNodeName(self, *kids):
+        self.val = MigrationNameAndParent(
+            name=kids[0].val,
+            parent=None,
+        )
+
+    def reduce_empty(self):
+        self.val = MigrationNameAndParent(
+            name=None,
+            parent=None,
+        )
+
+
 class CreateMigrationStmt(Nonterm):
 
     def reduce_CreateMigration_Commands(self, *kids):
         r"""%reduce
-            CREATE MIGRATION
-            LBRACE CreateMigrationBody OptSemicolons RBRACE
+            CREATE MIGRATION OptMigrationNameParentName OptCreateMigrationBody
         """
         message = None
 
@@ -2172,6 +2222,8 @@ class CreateMigrationStmt(Nonterm):
                 body.append(stmt)
 
         self.val = qlast.CreateMigration(
+            name=kids[2].val.name,
+            parent=kids[2].val.parent,
             message=message,
             commands=body,
         )
