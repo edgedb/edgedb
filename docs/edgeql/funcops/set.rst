@@ -23,6 +23,9 @@ Set
     * - :eql:op:`EXISTS set <EXISTS>`
       - :eql:op-desc:`EXISTS`
 
+    * - :eql:op:`set IF bool ELSE set <IF..ELSE>`
+      - :eql:op-desc:`IF..ELSE`
+
     * - :eql:op:`OPTIONAL anytype ?? set <COALESCE>`
       - :eql:op-desc:`COALESCE`
 
@@ -137,6 +140,42 @@ Set
 
 
 ----------
+
+
+.. eql:operator:: IF..ELSE: SET OF anytype IF bool ELSE SET OF anytype \
+                                -> SET OF anytype
+
+    :index: if else ifelse elif ternary
+
+    Conditionally provide one or the other result.
+
+    .. eql:synopsis::
+
+        <left_expr> IF <condition> ELSE <right_expr>
+
+    If :eql:synopsis:`<condition>` is ``true``, then the value of the
+    ``IF..ELSE`` expression is the value of :eql:synopsis:`<left_expr>`,
+    if :eql:synopsis:`<condition>` is ``false``, the result is the value of
+    :eql:synopsis:`<right_expr>`.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT 'hello' IF 2 * 2 = 4 ELSE 'bye';
+        {'hello'}
+
+    ``IF..ELSE`` expressions can be chained when checking multiple conditions
+    is necessary:
+
+    .. code-block:: edgeql-repl
+
+        db> WITH color := 'yellow'
+        ... SELECT 'Apple' IF color = 'red' ELSE
+        ...        'Banana' IF color = 'yellow' ELSE
+        ...        'Orange' IF color = 'orange' ELSE
+        ...        'Other';
+        {'Banana'}
+
+-----------
 
 
 .. eql:operator:: COALESCE: OPTIONAL anytype ?? SET OF anytype \

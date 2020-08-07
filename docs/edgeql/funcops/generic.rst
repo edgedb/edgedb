@@ -34,9 +34,6 @@ Generic
     * - :eql:op:`anytype \>= anytype <GTEQ>`
       - :eql:op-desc:`GTEQ`
 
-    * - :eql:op:`anytype IF bool ELSE anytype <IF..ELSE>`
-      - :eql:op-desc:`IF..ELSE`
-
     * - :eql:func:`len`
       - :eql:func-desc:`len`
 
@@ -52,41 +49,6 @@ Generic
     * - :eql:func:`random`
       - :eql:func-desc:`random`
 
-
------------
-
-
-.. eql:operator:: IF..ELSE: anytype IF bool ELSE anytype -> anytype
-
-    :index: if else ifelse elif ternary
-
-    Conditionally provide one or the other result.
-
-    .. eql:synopsis::
-
-        <left_expr> IF <condition> ELSE <right_expr>
-
-    If :eql:synopsis:`<condition>` is ``true``, then the value of the
-    ``IF..ELSE`` expression is the value of :eql:synopsis:`<left_expr>`,
-    if :eql:synopsis:`<condition>` is ``false``, the result is the value of
-    :eql:synopsis:`<right_expr>`.
-
-    .. code-block:: edgeql-repl
-
-        db> SELECT 'hello' IF 2 * 2 = 4 ELSE 'bye';
-        {'hello'}
-
-    ``IF..ELSE`` expressions can be chained when checking multiple conditions
-    is necessary:
-
-    .. code-block:: edgeql-repl
-
-        db> WITH color := 'yellow'
-        ... SELECT 'Apple' IF color = 'red' ELSE
-        ...        'Banana' IF color = 'yellow' ELSE
-        ...        'Orange' IF color = 'orange' ELSE
-        ...        'Other';
-        {'Banana'}
 
 -----------
 
