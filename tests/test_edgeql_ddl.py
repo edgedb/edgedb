@@ -5837,3 +5837,24 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     WITH MODULE test
                     DROP FUNCTION foo___1(a: int64);
                 ''')
+
+    async def test_edgeql_ddl_create_migration_01(self):
+        await self.con.execute(f'''
+            CREATE MIGRATION
+            {{
+                CREATE TYPE Type1 {{
+                    CREATE PROPERTY field1 -> str;
+                }};
+            }};
+        ''')
+
+        await self.assert_query_result(
+            '''
+            SELECT schema::ObjectType {
+                name
+            } FILTER .name = 'default::Type1'
+            ''',
+            [{
+                'name': 'default::Type1',
+            }]
+        )

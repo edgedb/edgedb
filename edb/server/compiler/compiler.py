@@ -769,7 +769,10 @@ class Compiler(BaseCompiler):
         current_tx = ctx.state.current_tx()
         schema = current_tx.get_schema()
 
-        if isinstance(ql, qlast.StartMigration):
+        if isinstance(ql, qlast.CreateMigration):
+            query = self._compile_and_apply_ddl_stmt(ctx, ql)
+
+        elif isinstance(ql, qlast.StartMigration):
             if current_tx.is_implicit():
                 savepoint_name = None
                 tx_cmd = qlast.StartTransaction()
