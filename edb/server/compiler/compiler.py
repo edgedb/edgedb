@@ -880,7 +880,12 @@ class Compiler(BaseCompiler):
 
                 desc = json.dumps({
                     'confirmed': confirmed,
-                    'proposed': proposed,
+                    'proposed': [{
+                        'statements': [{
+                            'text': proposed[0],
+                        }],
+                        'confidence': 1.0,
+                    }],
                 }).encode('unicode_escape').decode('utf-8')
 
                 desc_ql = edgeql.parse(
