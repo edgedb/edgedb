@@ -75,6 +75,9 @@ class flags(metaclass=FlagsMeta):
     bootstrap = Flag(
         doc="Debug server catalog bootstrap.")
 
+    cache_yolo = Flag(
+        doc="Disable consistency check.")
+
     edgeql_parser = Flag(
         doc="Debug EdgeQL parser (rebuild grammar verbosly).")
 
