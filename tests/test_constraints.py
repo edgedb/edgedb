@@ -383,32 +383,27 @@ class TestConstraintsSchema(tb.QueryTestCase):
                                   FILTER .text = "obj_test" LIMIT 1) };
                 """)
 
-    async def test_select_coalesce_insert_01(self):
-        # We use parameters here because normalization prevents
-        # constants from appearing the same.
-        # TODO: Fix normalization and update this test.
+    async def test_insert_unless_conflict_01(self):
         query = r'''
         SELECT
-         ((SELECT test::UniqueName_2 FILTER .name = <str>$0)
-          ?? (INSERT test::UniqueName_2 {name := <str>$0})) {name};
+         ((INSERT test::UniqueName_2 {name := "test"} UNLESS CONFLICT)
+          ?? (SELECT test::UniqueName_2 FILTER .name = "test")) {name};
         '''
 
         await self.assert_query_result(
             query,
             [{"name": "test"}],
-            variables=("test",)
         )
 
         await self.assert_query_result(
             query,
             [{"name": "test"}],
-            variables=("test",)
         )
 
         query2 = r'''
         SELECT
-         ((SELECT test::UniqueName_2 FILTER .name = <str>$0)
-          ?? (INSERT test::UniqueName_2 {name := <str>$0}));
+         ((INSERT test::UniqueName_2 {name := <str>$0} UNLESS CONFLICT)
+          ?? (SELECT test::UniqueName_2 FILTER .name = <str>$0));
         '''
 
         res = await self.con.query(query2, "test2")
@@ -418,82 +413,24 @@ class TestConstraintsSchema(tb.QueryTestCase):
         res3 = await self.con.query(query2, "test3")
         assert res != res3
 
-    async def test_select_coalesce_insert_02(self):
-        base = 'Invalid conditional INSERT statement'
-
+    async def test_insert_unless_conflict_02(self):
         async with self._run_and_rollback():
             with self.assertRaisesRegex(
                     edgedb.QueryError,
-                    f"{base}: left hand side is not SELECT"):
+                    "ON CONFLICT argument must be a property"):
                 await self.con.query(r'''
-                    SELECT
-                     ((INSERT test::UniqueName_2 {name := "status"})
-                      ?? (INSERT test::UniqueName_2 {name := <str>$0}));
+                    INSERT test::UniqueName_2 {name := "hello"}
+                    UNLESS CONFLICT ON 20;
                 ''')
 
         async with self._run_and_rollback():
             with self.assertRaisesRegex(
                     edgedb.QueryError,
-                    f"{base}: types do not match"):
+                    "ON CONFLICT property must have a "
+                    "single exclusive constraint"):
                 await self.con.query(r'''
-                    SELECT
-                     ((SELECT test::ParentUniqueName FILTER .name = <str>$0)
-                      ?? (INSERT test::UniqueName_2 {name := <str>$0}));
-                ''')
-
-        async with self._run_and_rollback():
-            with self.assertRaisesRegex(
-                    edgedb.QueryError,
-                    f"{base}: does not contain exactly one FILTER clause"):
-                await self.con.query(r'''
-                    SELECT
-                     ((SELECT test::UniqueName_2)
-                      ?? (INSERT test::UniqueName_2 {name := <str>$0}));
-                ''', "test")
-
-        async with self._run_and_rollback():
-            with self.assertRaisesRegex(
-                    edgedb.QueryError,
-                    f"{base}: does not contain exactly one FILTER clause"):
-                await self.con.query(r'''
-                    SELECT
-                     ((SELECT test::UniqueName_2
-                       FILTER .name = <str>$0 OR .name = <str>$0 ++ "!")
-                      ?? (INSERT test::UniqueName_2 {name := <str>$0}));
-                ''')
-
-        async with self._run_and_rollback():
-            with self.assertRaisesRegex(
-                    edgedb.QueryError,
-                    f"{base}: does not contain exactly one FILTER clause"):
-                await self.con.query(r'''
-                    SELECT
-                     ((SELECT test::LosingParent
-                       FILTER .name = <str>$0 AND .lp = <str>$1)
-                      ?? (INSERT test::LosingParent {
-                             name := <str>$0, lp := <str>$1}));
-                ''')
-
-        async with self._run_and_rollback():
-            with self.assertRaisesRegex(
-                    edgedb.QueryError,
-                    f"{base}: FILTER is not on an exclusive property"):
-                await self.con.query(r'''
-                    SELECT
-                     ((SELECT test::LosingParent
-                       FILTER .lp = <str>$0)
-                      ?? (INSERT test::LosingParent {
-                             name := "hello", lp := <str>$0}));
-                ''')
-
-        async with self._run_and_rollback():
-            with self.assertRaisesRegex(
-                    edgedb.QueryError,
-                    f"{base}: value in FILTER clause does not match INSERT"):
-                await self.con.query(r'''
-                    SELECT
-                     ((SELECT test::UniqueName_2 FILTER .name = "foo")
-                      ?? (INSERT test::UniqueName_2 {name := "bar"}));
+                    INSERT test::LosingParent {name := "hello", lp := "lp"}
+                    UNLESS CONFLICT ON .lp;
                 ''')
 
 

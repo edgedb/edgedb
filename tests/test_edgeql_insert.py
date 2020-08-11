@@ -1720,23 +1720,22 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_dependent_01(self):
         query = r'''
             WITH MODULE test
-            SELECT ((SELECT Person FILTER .name =  <str>$0)
-              ?? (INSERT Person {
-                      name :=  <str>$0,
-                      notes := (INSERT Note {name := "tag!" })}))
-             {name};
+            SELECT (
+                INSERT Person {
+                    name :=  "Test",
+                    notes := (INSERT Note {name := "tag!" })
+                } UNLESS CONFLICT
+            ) {name};
         '''
 
         await self.assert_query_result(
             query,
-            [{"name": "test"}],
-            variables=("test",)
+            [{"name": "Test"}]
         )
 
         await self.assert_query_result(
             query,
-            [{"name": "test"}],
-            variables=("test",)
+            [],
         )
 
         # Make sure only 1 insert into Note happened
@@ -1795,28 +1794,18 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_dependent_04(self):
         query = r'''
             WITH MODULE test
-            SELECT ((SELECT Person FILTER .name =  <str>$0)
-              ?? (INSERT Person {
-                      name :=  <str>$0,
-                      notes := (FOR note in {"hello", "world"}
-                                UNION (INSERT Note { name := note }))}))
-             {name};
+            INSERT Person {
+                name :=  "Zendaya",
+                notes := (FOR note in {"hello", "world"}
+                          UNION (INSERT Note { name := note }))
+            } UNLESS CONFLICT;
         '''
 
-        await self.assert_query_result(
-            query,
-            [{"name": "test"}],
-            variables=("test",)
-        )
-
-        await self.assert_query_result(
-            query,
-            [{"name": "test"}],
-            variables=("test",)
-        )
+        await self.con.execute(query)
+        await self.con.execute(query)
 
         # Make sure only the 2 inserts into Note happened
         await self.assert_query_result(
-            r'''SELECT count(test::Note)''',
+            r'''SELECT DISTINCT count(test::Person.notes)''',
             [2],
         )

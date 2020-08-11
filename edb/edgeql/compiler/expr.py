@@ -47,7 +47,6 @@ from . import inference
 from . import pathctx
 from . import setgen
 from . import typegen
-from . import stmt
 
 from . import func  # NOQA
 
@@ -72,51 +71,9 @@ def compile_Path(
     return setgen.compile_path(expr, ctx=ctx)
 
 
-def compile_coalesce_insert(
-        left: qlast.Expr, right: qlast.InsertQuery,
-        ctx: context.ContextLevel) -> irast.Set:
-
-    # This maybe could have been implemented with less code by
-    # modifying compile_operator directly, but all of those approaches
-    # seemed to require some spaghetti code or adding dead-drop state
-    # in context.
-    with ctx.newscope() as lctx:
-        lir = setgen.ensure_set(dispatch.compile(left, ctx=lctx), ctx=lctx)
-        lir = setgen.scoped_set(setgen.ensure_stmt(lir, ctx=lctx), ctx=lctx)
-    with ctx.newscope() as rctx:
-        rir = setgen.ensure_set(
-            stmt.compile_InsertQuery(right, ctx=rctx, conditioned_on=lir),
-            ctx=rctx
-        )
-        rir = setgen.scoped_set(setgen.ensure_stmt(rir, ctx=rctx), ctx=rctx)
-
-    with ctx.new() as subctx:
-        subctx.anchors = subctx.anchors.copy()
-        l_alias = subctx.aliases.get('l')
-        subctx.anchors[l_alias] = lir
-        r_alias = subctx.aliases.get('r')
-        subctx.anchors[r_alias] = rir
-
-        rpath = qlast.Path(steps=[qlast.ObjectRef(name=r_alias)])
-        lpath = qlast.Path(steps=[qlast.ObjectRef(name=l_alias)])
-
-        # Only one side of the the ?? will possibly be non-empty, so
-        # we just union them together.
-        e = qlast.BinOp(op='UNION', left=lpath, right=rpath)
-
-        return setgen.ensure_set(dispatch.compile(e, ctx=subctx), ctx=subctx)
-
-
 @dispatch.compile.register(qlast.BinOp)
 def compile_BinOp(
         expr: qlast.BinOp, *, ctx: context.ContextLevel) -> irast.Set:
-
-    if (
-        expr.op == '??'
-        and not ctx.in_conditional
-        and isinstance(expr.right, qlast.InsertQuery)
-    ):
-        return compile_coalesce_insert(expr.left, expr.right, ctx=ctx)
 
     op_node = func.compile_operator(
         expr, op_name=expr.op, qlargs=[expr.left, expr.right], ctx=ctx)

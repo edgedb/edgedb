@@ -177,7 +177,7 @@ class SimpleGroup(Nonterm):
 
 class SimpleInsert(Nonterm):
     def reduce_Insert(self, *kids):
-        r'%reduce INSERT OptionallyAliasedExpr'
+        r'%reduce INSERT OptionallyAliasedExpr OptOnConflictClause'
 
         subj = kids[1].val.expr
         subj_alias = kids[1].val.alias
@@ -190,6 +190,8 @@ class SimpleInsert(Nonterm):
             objtype = subj
             shape = []
 
+        on_conflict = kids[2].val
+
         if not isinstance(objtype, qlast.Path):
             raise EdgeQLSyntaxError(
                 "insert expression must be an object type reference",
@@ -199,6 +201,7 @@ class SimpleInsert(Nonterm):
             subject=objtype,
             subject_alias=subj_alias,
             shape=shape,
+            on_conflict=on_conflict,
         )
 
 
@@ -580,6 +583,35 @@ class ComputableShapePointer(Nonterm):
             op=qlast.ShapeOp.SUBTRACT,
             context=kids[1].context,
         )
+
+
+class OnConflictSpecifier(Nonterm):
+    def reduce_ON_Expr(self, *kids):
+        self.val = kids[1].val
+
+    def reduce_empty(self, *kids):
+        self.val = None
+
+
+class OnConflictElse(Nonterm):
+    def reduce_ELSE_Expr(self, *kids):
+        self.val = kids[1].val
+
+    def reduce_empty(self, *kids):
+        self.val = None
+
+
+class OnConflictCause(Nonterm):
+    def reduce_UNLESS_CONFLICT_OnConflictSpecifier_OnConflictElse(self, *kids):
+        self.val = (kids[2].val, kids[3].val)
+
+
+class OptOnConflictClause(Nonterm):
+    def reduce_OnConflictCause(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_empty(self, *kids):
+        self.val = None
 
 
 class FilterClause(Nonterm):
