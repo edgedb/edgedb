@@ -82,7 +82,8 @@ def pull_path_namespace(
             if path_id in squery.path_id_mask:
                 continue
 
-            rvar = maybe_get_path_rvar(target, path_id, aspect=aspect, ctx=ctx)
+            rvar = pathctx.maybe_get_path_rvar(
+                target, path_id, aspect=aspect, env=ctx.env)
             if rvar is None:
                 pathctx.put_path_rvar(
                     target, path_id, source, aspect=aspect, env=ctx.env)

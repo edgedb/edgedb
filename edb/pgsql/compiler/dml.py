@@ -1241,21 +1241,6 @@ def process_link_values(
                 row_query, ir_stmt.subject.path_id, env=input_rel_ctx.env)
             dispatch.visit(ir_expr, ctx=input_rel_ctx)
 
-            if is_insert:
-                target_rvar = pathctx.get_path_rvar(
-                    input_rel,
-                    ir_expr.path_id,
-                    aspect='identity',
-                    env=input_rel_ctx.env,
-                )
-                pathctx.put_path_rvar(
-                    input_rel,
-                    ir_stmt.subject.path_id,
-                    rvar=target_rvar,
-                    aspect='identity',
-                    env=input_rel_ctx.env,
-                )
-
             if (
                 isinstance(ir_expr.expr, irast.Stmt)
                 and ir_expr.expr.iterator_stmt is not None
@@ -1271,21 +1256,6 @@ def process_link_values(
                         inner_iterator_cte = cte
                         break
                 if inner_iterator_cte is not None:
-                    target_rvar = pathctx.get_path_rvar(
-                        input_rel,
-                        ir_expr.path_id,
-                        aspect='identity',
-                        env=input_rel_ctx.env,
-                    )
-
-                    pathctx.put_path_rvar(
-                        input_rel,
-                        inner_iterator_path_id,
-                        rvar=target_rvar,
-                        aspect='identity',
-                        env=input_rel_ctx.env,
-                    )
-
                     inner_iterator_rvar = relctx.rvar_for_rel(
                         inner_iterator_cte, lateral=True, ctx=subrelctx)
 
