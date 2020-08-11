@@ -595,6 +595,11 @@ def process_insert_body(
     toplevel = ctx.toplevel_stmt
     toplevel.ctes.append(insert_cte)
 
+    iterator = None
+    if iterator_set:
+        assert iterator_cte
+        iterator = iterator_set, iterator_cte
+
     # Process necessary updates to the link tables.
     for shape_el, props_only in external_inserts:
         process_link_update(
@@ -604,7 +609,7 @@ def process_insert_body(
             wrapper=wrapper,
             dml_cte=insert_cte,
             source_typeref=typeref,
-            iterator_cte=iterator_cte,
+            iterator=iterator,
             is_insert=True,
             ctx=ctx,
         )
@@ -768,7 +773,7 @@ def process_update_body(
             props_only=False,
             wrapper=wrapper,
             dml_cte=update_cte,
-            iterator_cte=None,
+            iterator=None,
             is_insert=False,
             shape_op=shape_op,
             source_typeref=typeref,
@@ -802,7 +807,7 @@ def process_link_update(
     source_typeref: irast.TypeRef,
     wrapper: pgast.Query,
     dml_cte: pgast.CommonTableExpr,
-    iterator_cte: Optional[pgast.CommonTableExpr],
+    iterator: Optional[Tuple[irast.Set, pgast.CommonTableExpr]],
     ctx: context.CompilerContextLevel,
 ) -> pgast.CommonTableExpr:
     """Perform updates to a link relation as part of a DML statement.
@@ -818,8 +823,8 @@ def process_link_update(
     :param dml_cte:
         CTE representing the SQL INSERT or UPDATE to the main
         relation of the Object.
-    :param iterator_cte:
-        CTE representing the iterator range in the FOR clause of the
+    :param iterator:
+        IR and CTE representing the iterator range in the FOR clause of the
         EdgeQL DML statement.
     """
     toplevel = ctx.toplevel_stmt
@@ -887,7 +892,7 @@ def process_link_update(
         target_is_scalar=target_is_scalar,
         dml_cte=dml_cte,
         is_insert=is_insert,
-        iterator_cte=iterator_cte,
+        iterator=iterator,
         ctx=ctx,
     )
 
@@ -1190,7 +1195,7 @@ def process_link_values(
     target_is_scalar: bool,
     dml_cte: pgast.CommonTableExpr,
     is_insert: bool,
-    iterator_cte: Optional[pgast.CommonTableExpr],
+    iterator: Optional[Tuple[irast.Set, pgast.CommonTableExpr]],
     ctx: context.CompilerContextLevel,
 ) -> Tuple[pgast.CommonTableExpr, List[str]]:
     """Unpack data from an update expression into a series of selects.
@@ -1209,8 +1214,8 @@ def process_link_values(
         Whether this link update only touches link properties.
     :param target_is_scalar:
         Whether the link target is an ScalarType.
-    :param iterator_cte:
-        CTE representing the iterator range in the FOR clause of the
+    :param iterator:
+        IR and CTE representing the iterator range in the FOR clause of the
         EdgeQL DML statement.
     """
     with ctx.newscope() as newscope, newscope.newrel() as subrelctx:
@@ -1222,19 +1227,18 @@ def process_link_values(
                             path_id=ir_stmt.subject.path_id, ctx=subrelctx)
         subrelctx.path_scope[ir_stmt.subject.path_id] = row_query
 
-        if iterator_cte is not None:
+        if iterator is not None:
+            iterator_set, iterator_cte = iterator
             iterator_rvar = relctx.rvar_for_rel(
                 iterator_cte, lateral=True, ctx=subrelctx)
-            # XXX???
-            if iterator_cte.query.path_id:
-                relctx.include_rvar(row_query, iterator_rvar,
-                                    path_id=iterator_cte.query.path_id,
-                                    ctx=subrelctx)
+            relctx.include_rvar(row_query, iterator_rvar,
+                                path_id=iterator_set.path_id,
+                                ctx=subrelctx)
 
         with subrelctx.newscope() as sctx, sctx.subrel() as input_rel_ctx:
             input_rel = input_rel_ctx.rel
-            if iterator_cte is not None:
-                input_rel_ctx.path_scope[iterator_cte.query.path_id] = \
+            if iterator is not None:
+                input_rel_ctx.path_scope[iterator[1].query.path_id] = \
                     row_query
             input_rel_ctx.expr_exposed = False
             input_rel_ctx.volatility_ref = pathctx.get_path_identity_var(
