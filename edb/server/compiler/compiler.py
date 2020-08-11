@@ -882,10 +882,10 @@ class Compiler(BaseCompiler):
                     'confirmed': confirmed,
                     'proposed': [{
                         'statements': [{
-                            'text': proposed[0],
+                            'text': item,
                         }],
                         'confidence': 1.0,
-                    }],
+                    } for item in proposed],
                 }).encode('unicode_escape').decode('utf-8')
 
                 desc_ql = edgeql.parse(
