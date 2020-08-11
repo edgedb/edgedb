@@ -44,6 +44,13 @@ type Note {
     link subject -> Object;
 }
 
+type Person {
+    required single property name -> std::str {
+        constraint std::exclusive;
+    };
+    optional multi link notes -> Note;
+}
+
 type DefaultTest1 {
     property num -> int64 {
         default := 42;

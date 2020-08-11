@@ -317,11 +317,6 @@ def compile_InsertQuery(
         )
 
     with ctx.subquery() as ictx:
-        # Disallow nested INSERTs inside the shape in SELECT-or-INSERT.
-        # TODO: Support this.
-        if conditioned_on:
-            ictx.in_conditional = expr.context
-
         stmt = irast.InsertStmt()
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 

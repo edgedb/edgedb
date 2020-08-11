@@ -417,13 +417,47 @@ def process_insert_body(
     else:
         iterator_set = None
 
+    pseudo_iterator_set: Optional[irast.Set]
+    pseudo_iterator_cte: Optional[pgast.CommonTableExpr]
+    if ctx.enclosing_insert:
+        insert_expr, pseudo_iterator_cte = ctx.enclosing_insert
+        pseudo_iterator_set = insert_expr.subject
+    else:
+        pseudo_iterator_cte = None
+        pseudo_iterator_set = None
+
     iterator_cte: Optional[pgast.CommonTableExpr]
     iterator_id: Optional[pgast.BaseExpr]
 
     if iterator_set is not None:
         with ctx.substmt() as ictx:
+            # This has been lifted up to the top level, so we can't
+            # have it inheriting anything from where it would have
+            # been nested.
+            # TODO: Inherit from the nearest iterator instead?
+            del ictx.rel_hierarchy[ictx.rel]
             ictx.path_scope = ictx.path_scope.new_child()
             ictx.path_scope[iterator_set.path_id] = ictx.rel
+
+            # If there is an enclosing insert *and* an explicit iterator,
+            # we need to correlate the enclosing insert with the iterator.
+            if pseudo_iterator_set is not None:
+                assert pseudo_iterator_cte
+                pseudo_iterator_rvar = relctx.rvar_for_rel(
+                    pseudo_iterator_cte, ctx=ictx)
+
+                pathctx.put_path_bond(ictx.rel, pseudo_iterator_set.path_id)
+                relctx.include_rvar(
+                    ictx.rel, pseudo_iterator_rvar,
+                    path_id=pseudo_iterator_set.path_id,
+                    overwrite_path_rvar=True,
+                    ctx=ictx)
+
+                ictx.volatility_ref = pathctx.get_path_identity_var(
+                    ictx.rel,
+                    pseudo_iterator_set.path_id,
+                    env=ictx.env)
+
             clauses.compile_iterator_expr(ictx.rel, iterator_set, ctx=ictx)
             ictx.rel.path_id = iterator_set.path_id
             pathctx.put_path_bond(ictx.rel, iterator_set.path_id)
@@ -437,6 +471,19 @@ def process_insert_body(
                             path_id=ictx.rel.path_id, ctx=ctx)
         iterator_id = pathctx.get_path_identity_var(
             select, iterator_set.path_id, env=ctx.env)
+
+    elif pseudo_iterator_set is not None:
+        assert pseudo_iterator_cte is not None
+        iterator_rvar = relctx.rvar_for_rel(pseudo_iterator_cte, ctx=ctx)
+        relctx.include_rvar(select, iterator_rvar,
+                            path_id=pseudo_iterator_set.path_id, ctx=ctx)
+
+        iterator_set = pseudo_iterator_set
+        iterator_cte = pseudo_iterator_cte
+        iterator_id = relctx.get_path_var(
+            select, pseudo_iterator_set.path_id,
+            aspect='identity', ctx=ctx)
+
     else:
         iterator_cte = None
         iterator_id = None
@@ -838,6 +885,8 @@ def process_link_update(
         sources=[],
         props_only=props_only,
         target_is_scalar=target_is_scalar,
+        dml_cte=dml_cte,
+        is_insert=is_insert,
         iterator_cte=iterator_cte,
         ctx=ctx,
     )
@@ -1139,6 +1188,8 @@ def process_link_values(
     sources: Iterable[pgast.BaseRangeVar],
     props_only: bool,
     target_is_scalar: bool,
+    dml_cte: pgast.CommonTableExpr,
+    is_insert: bool,
     iterator_cte: Optional[pgast.CommonTableExpr],
     ctx: context.CompilerContextLevel,
 ) -> Tuple[pgast.CommonTableExpr, List[str]]:
@@ -1163,6 +1214,8 @@ def process_link_values(
         EdgeQL DML statement.
     """
     with ctx.newscope() as newscope, newscope.newrel() as subrelctx:
+        if is_insert:
+            subrelctx.enclosing_insert = (ir_stmt, dml_cte)
         row_query = subrelctx.rel
 
         relctx.include_rvar(row_query, dml_rvar,
@@ -1172,9 +1225,11 @@ def process_link_values(
         if iterator_cte is not None:
             iterator_rvar = relctx.rvar_for_rel(
                 iterator_cte, lateral=True, ctx=subrelctx)
-            relctx.include_rvar(row_query, iterator_rvar,
-                                path_id=iterator_cte.query.path_id,
-                                ctx=subrelctx)
+            # XXX???
+            if iterator_cte.query.path_id:
+                relctx.include_rvar(row_query, iterator_rvar,
+                                    path_id=iterator_cte.query.path_id,
+                                    ctx=subrelctx)
 
         with subrelctx.newscope() as sctx, sctx.subrel() as input_rel_ctx:
             input_rel = input_rel_ctx.rel
@@ -1185,6 +1240,22 @@ def process_link_values(
             input_rel_ctx.volatility_ref = pathctx.get_path_identity_var(
                 row_query, ir_stmt.subject.path_id, env=input_rel_ctx.env)
             dispatch.visit(ir_expr, ctx=input_rel_ctx)
+
+            if is_insert:
+                target_rvar = pathctx.get_path_rvar(
+                    input_rel,
+                    ir_expr.path_id,
+                    aspect='identity',
+                    env=input_rel_ctx.env,
+                )
+                pathctx.put_path_rvar(
+                    input_rel,
+                    ir_stmt.subject.path_id,
+                    rvar=target_rvar,
+                    aspect='identity',
+                    env=input_rel_ctx.env,
+                )
+
             if (
                 isinstance(ir_expr.expr, irast.Stmt)
                 and ir_expr.expr.iterator_stmt is not None
@@ -1252,6 +1323,12 @@ def process_link_values(
         )
     )
 
+    if is_insert:
+        pathctx.put_rvar_path_bond(input_rvar, ir_stmt.subject.path_id)
+    relctx.include_rvar(row_query, input_rvar,
+                        path_id=ir_stmt.subject.path_id,
+                        ctx=ctx)
+
     source_data: Dict[str, pgast.BaseExpr] = {}
 
     if isinstance(input_stmt, pgast.SelectStmt) and input_stmt.op is not None:
@@ -1293,7 +1370,7 @@ def process_link_values(
         ))
         specified_cols.append(col)
 
-    row_query.from_clause += list(sources) + [input_rvar]
+    row_query.from_clause += list(sources)
 
     link_rows = pgast.CommonTableExpr(
         query=row_query,
