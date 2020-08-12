@@ -1238,7 +1238,7 @@ def process_link_values(
         with subrelctx.newscope() as sctx, sctx.subrel() as input_rel_ctx:
             input_rel = input_rel_ctx.rel
             if iterator is not None:
-                input_rel_ctx.path_scope[iterator[1].query.path_id] = \
+                input_rel_ctx.path_scope[iterator[0].query.path_id] = \
                     row_query
             input_rel_ctx.expr_exposed = False
             input_rel_ctx.volatility_ref = pathctx.get_path_identity_var(
