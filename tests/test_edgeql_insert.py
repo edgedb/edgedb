@@ -1716,3 +1716,107 @@ class TestInsert(tb.QueryTestCase):
                     Subordinate,
                 );
             ''')
+
+    async def test_edgeql_insert_dependent_01(self):
+        query = r'''
+            WITH MODULE test
+            SELECT ((SELECT Person FILTER .name =  <str>$0)
+              ?? (INSERT Person {
+                      name :=  <str>$0,
+                      notes := (INSERT Note {name := "tag!" })}))
+             {name};
+        '''
+
+        await self.assert_query_result(
+            query,
+            [{"name": "test"}],
+            variables=("test",)
+        )
+
+        await self.assert_query_result(
+            query,
+            [{"name": "test"}],
+            variables=("test",)
+        )
+
+        # Make sure only 1 insert into Note happened
+        await self.assert_query_result(
+            r'''SELECT count(test::Note)''',
+            [1],
+        )
+
+    async def test_edgeql_insert_dependent_02(self):
+        await self.con.execute(r"""
+            WITH MODULE test
+            FOR noob in {"Phil Emarg", "Madeline Hatch"}
+            UNION (
+                INSERT Person {name := noob,
+                               notes := (INSERT Note {name := "tag" })});
+        """)
+
+        await self.assert_query_result(
+            "SELECT test::Person { name, notes: {name} }",
+            [{"name": "Phil Emarg", "notes": [{"name": "tag"}]},
+             {"name": "Madeline Hatch", "notes": [{"name": "tag"}]}],
+        )
+
+        # Make sure the notes are distinct
+        await self.assert_query_result(
+            r'''SELECT count(DISTINCT test::Person.notes)''',
+            [2],
+        )
+
+    async def test_edgeql_insert_dependent_03(self):
+        await self.con.execute(r"""
+            WITH MODULE test
+            FOR noob in {"Phil Emarg", "Madeline Hatch"}
+            UNION (
+                INSERT Person {
+                    name := noob,
+                    notes := (FOR note in {"hello", "world"}
+                              UNION (INSERT Note { name := note }))});
+        """)
+
+        await self.assert_query_result(
+            "SELECT test::Person { name, notes: {name} }",
+            [{"name": "Phil Emarg",
+              "notes": [{"name": "hello"}, {"name": "world"}]},
+             {"name": "Madeline Hatch",
+              "notes": [{"name": "hello"}, {"name": "world"}]},
+             ]
+        )
+
+        # Make sure the notes are distinct
+        await self.assert_query_result(
+            r'''SELECT count(DISTINCT test::Person.notes)''',
+            [4],
+        )
+
+    async def test_edgeql_insert_dependent_04(self):
+        query = r'''
+            WITH MODULE test
+            SELECT ((SELECT Person FILTER .name =  <str>$0)
+              ?? (INSERT Person {
+                      name :=  <str>$0,
+                      notes := (FOR note in {"hello", "world"}
+                                UNION (INSERT Note { name := note }))}))
+             {name};
+        '''
+
+        await self.assert_query_result(
+            query,
+            [{"name": "test"}],
+            variables=("test",)
+        )
+
+        await self.assert_query_result(
+            query,
+            [{"name": "test"}],
+            variables=("test",)
+        )
+
+        # Make sure only the 2 inserts into Note happened
+        await self.assert_query_result(
+            r'''SELECT count(test::Note)''',
+            [2],
+        )

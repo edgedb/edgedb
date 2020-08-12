@@ -82,7 +82,8 @@ def pull_path_namespace(
             if path_id in squery.path_id_mask:
                 continue
 
-            rvar = maybe_get_path_rvar(target, path_id, aspect=aspect, ctx=ctx)
+            rvar = pathctx.maybe_get_path_rvar(
+                target, path_id, aspect=aspect, env=ctx.env)
             if rvar is None:
                 pathctx.put_path_rvar(
                     target, path_id, source, aspect=aspect, env=ctx.env)
@@ -589,6 +590,19 @@ def ensure_transient_identity_for_set(
     pathctx.put_path_identity_var(stmt, ir_set.path_id,
                                   id_expr, force=True, env=ctx.env)
     pathctx.put_path_bond(stmt, ir_set.path_id)
+
+    if (ctx.volatility_ref is not None and
+            ctx.volatility_ref is not context.NO_VOLATILITY and
+            isinstance(stmt, pgast.SelectStmt)):
+        # Apply the volatility reference.
+        # See the comment in process_set_as_subquery().
+        stmt.where_clause = astutils.extend_binop(
+            stmt.where_clause,
+            pgast.NullTest(
+                arg=ctx.volatility_ref,
+                negated=True,
+            )
+        )
 
 
 def get_scope(
