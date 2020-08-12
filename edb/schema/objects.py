@@ -1357,6 +1357,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                     other.record_field_alter_delta(
                         other_schema,
                         delta,
+                        context,
                         fname=fn,
                         value=new_v,
                         orig_value=old_v,
@@ -1465,6 +1466,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         self: Object_T,
         schema: s_schema.Schema,
         delta: sd.ObjectCommand[Object_T],
+        context: ComparisonContext,
         *,
         fname: str,
         value: Any,
@@ -1490,6 +1492,8 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             )
 
             delta.add(rename_op)
+
+            context.renames[orig_value] = value
         else:
             self.record_simple_field_delta(
                 schema,

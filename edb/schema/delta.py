@@ -80,18 +80,9 @@ def delta_objects(
         key=lambda pair: pair[0].get_name(new_schema) not in common_names,
     )
 
-    comparison_x: Dict[so.Object, Tuple[float, so.Object]] = {}
-    comparison_y: Dict[so.Object, Tuple[float, so.Object]] = {}
+    full_matrix: List[Tuple[so.Object, so.Object, float]] = []
+
     for x, y in pairs:
-        prev_comparison_x = comparison_x.get(x)
-        prev_comparison_y = comparison_y.get(y)
-
-        if (
-            (prev_comparison_x is not None and prev_comparison_x[0] == 1.0)
-            or (prev_comparison_y is not None and prev_comparison_y[0] == 1.0)
-        ):
-            continue
-
         similarity = x.compare(
             y,
             our_schema=new_schema,
@@ -99,27 +90,28 @@ def delta_objects(
             context=context,
         )
 
-        if (
-            (
-                prev_comparison_x is None
-                or prev_comparison_x[0] < similarity
-            ) and (
-                prev_comparison_y is None
-                or prev_comparison_y[0] < similarity
-            )
-        ):
-            comparison_x[x] = (similarity, y)
-            comparison_y[y] = (similarity, x)
+        full_matrix.append((x, y, similarity))
+
+    full_matrix.sort(key=lambda v: v[2], reverse=True)
+
+    seen_x = set()
+    seen_y = set()
+    comparison_map: Dict[so.Object, Tuple[float, so.Object]] = {}
+    for x, y, similarity in full_matrix:
+        if x not in seen_x and y not in seen_y:
+            comparison_map[x] = (similarity, y)
+            seen_x.add(x)
+            seen_y.add(y)
 
     altered = []
 
-    if comparison_x:
-        if isinstance(next(iter(comparison_x)), so.InheritingObject):
+    if comparison_map:
+        if isinstance(next(iter(comparison_map)), so.InheritingObject):
             # Generate the diff from the top of the inheritance
             # hierarchy, since changes to parent objects may inform
             # how the delta in child objects is treated.
             graph = {}
-            for x in comparison_x:
+            for x in comparison_map:
                 assert isinstance(x, so.InheritingObject)
                 graph[x] = {
                     'item': x,
@@ -128,16 +120,11 @@ def delta_objects(
 
             order_x = topological.sort(graph, allow_unresolved=True)
         else:
-            order_x = comparison_x.keys()
+            order_x = comparison_map
 
         for x in order_x:
-            s, y = comparison_x[x]
+            s, y = comparison_map[x]
             if 0.6 < s < 1.0:
-                x_name = x.get_name(new_schema)
-                y_name = y.get_name(old_schema)
-                if x_name != y_name:
-                    context.renames[y_name] = x_name
-
                 alter = y.as_alter_delta(
                     other=x,
                     context=context,
@@ -147,8 +134,8 @@ def delta_objects(
 
                 altered.append(alter)
 
-    deleted = old - {y for _, (s, y) in comparison_x.items() if s > 0.6}
-    created = new - {x for x, (s, _) in comparison_x.items() if s > 0.6}
+    deleted = old - {y for _, (s, y) in comparison_map.items() if s > 0.6}
+    created = new - {x for x, (s, _) in comparison_map.items() if s > 0.6}
 
     for x in created:
         delta.add(
