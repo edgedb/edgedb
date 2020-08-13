@@ -2454,6 +2454,36 @@ aa';
         };
         """
 
+    def test_edgeql_syntax_insert_18(self):
+        """
+        INSERT Foo {
+            bar := 42,
+        } UNLESS CONFLICT;
+        """
+
+    def test_edgeql_syntax_insert_19(self):
+        """
+        INSERT Foo {
+            bar := 42,
+        } UNLESS CONFLICT ON .bar;
+        """
+
+    def test_edgeql_syntax_insert_20(self):
+        """
+        INSERT Foo {
+            bar := 42,
+        } UNLESS CONFLICT ON .bar
+        ELSE (SELECT Foo);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=4, col=27)
+    def test_edgeql_syntax_insert_21(self):
+        """
+        INSERT Foo {
+            bar := 42,
+        } UNLESS CONFLICT ELSE (SELECT Foo);
+        """
+
     def test_edgeql_syntax_delete_01(self):
         """
         DELETE Foo;
