@@ -1743,10 +1743,10 @@ class TestInsert(tb.QueryTestCase):
 
         res = await self.con.query(query2, "test2")
         res2 = await self.con.query(query2, "test2")
-        assert res == res2
+        self.assertEqual(res, res2)
 
         res3 = await self.con.query(query2, "test3")
-        assert res != res3
+        self.assertNotEqual(res, res3)
 
     async def test_edgeql_insert_unless_conflict_02(self):
         async with self._run_and_rollback():
