@@ -227,10 +227,10 @@ def simple_stmt_eq(lhs: irast.Base, rhs: irast.Base,
         return False
 
 
-def compile_insert_on_conflict_constraint(
-        stmt: irast.InsertStmt,
-        constraint_spec: qlast.Expr,
-        *, ctx: context.ContextLevel,
+def compile_insert_unless_conflict(
+    stmt: irast.InsertStmt,
+    constraint_spec: qlast.Expr,
+    *, ctx: context.ContextLevel,
 ) -> irast.ConstraintRef:
     ctx.partial_path_prefix = stmt.subject
 
@@ -343,19 +343,19 @@ def compile_InsertQuery(
             ctx=ctx,
         )
 
-        if expr.on_conflict is not None:
-            constraint_spec, else_branch = expr.on_conflict
+        if expr.unless_conflict is not None:
+            constraint_spec, else_branch = expr.unless_conflict
 
             if constraint_spec:
                 with ictx.new() as constraint_ctx:
-                    stmt.on_conflict = compile_insert_on_conflict_constraint(
+                    stmt.on_conflict = compile_insert_unless_conflict(
                         stmt, constraint_spec, ctx=constraint_ctx)
             else:
                 stmt.on_conflict = True
 
             if else_branch:
                 raise errors.UnsupportedFeatureError(
-                    'ON CONFLICT ... ELSE currently unimplemented',
+                    'UNLESS CONFLICT ... ELSE currently unimplemented',
                     context=else_branch.context,
                 )
 

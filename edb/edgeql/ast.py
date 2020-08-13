@@ -518,7 +518,7 @@ class GroupQuery(SelectQuery, SubjectMixin):
 class InsertQuery(Statement, SubjectMixin):
     subject: Path
     shape: typing.List[ShapeElement]
-    on_conflict: typing.Optional[
+    unless_conflict: typing.Optional[
         typing.Tuple[typing.Optional[Expr], typing.Optional[Expr]]]
 
 

@@ -177,7 +177,7 @@ class SimpleGroup(Nonterm):
 
 class SimpleInsert(Nonterm):
     def reduce_Insert(self, *kids):
-        r'%reduce INSERT OptionallyAliasedExpr OptOnConflictClause'
+        r'%reduce INSERT OptionallyAliasedExpr OptUnlessConflictClause'
 
         subj = kids[1].val.expr
         subj_alias = kids[1].val.alias
@@ -190,7 +190,7 @@ class SimpleInsert(Nonterm):
             objtype = subj
             shape = []
 
-        on_conflict = kids[2].val
+        unless_conflict = kids[2].val
 
         if not isinstance(objtype, qlast.Path):
             raise EdgeQLSyntaxError(
@@ -201,7 +201,7 @@ class SimpleInsert(Nonterm):
             subject=objtype,
             subject_alias=subj_alias,
             shape=shape,
-            on_conflict=on_conflict,
+            unless_conflict=unless_conflict,
         )
 
 
@@ -585,7 +585,7 @@ class ComputableShapePointer(Nonterm):
         )
 
 
-class OnConflictSpecifier(Nonterm):
+class UnlessConflictSpecifier(Nonterm):
     def reduce_ON_Expr_ELSE_Expr(self, *kids):
         self.val = (kids[1].val, kids[3].val)
 
@@ -596,13 +596,13 @@ class OnConflictSpecifier(Nonterm):
         self.val = (None, None)
 
 
-class OnConflictCause(Nonterm):
-    def reduce_UNLESS_CONFLICT_OnConflictSpecifier(self, *kids):
+class UnlessConflictCause(Nonterm):
+    def reduce_UNLESS_CONFLICT_UnlessConflictSpecifier(self, *kids):
         self.val = kids[2].val
 
 
-class OptOnConflictClause(Nonterm):
-    def reduce_OnConflictCause(self, *kids):
+class OptUnlessConflictClause(Nonterm):
+    def reduce_UnlessConflictCause(self, *kids):
         self.val = kids[0].val
 
     def reduce_empty(self, *kids):
