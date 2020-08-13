@@ -383,66 +383,6 @@ class TestConstraintsSchema(tb.QueryTestCase):
                                   FILTER .text = "obj_test" LIMIT 1) };
                 """)
 
-    async def test_insert_unless_conflict_01(self):
-        query = r'''
-        SELECT
-         ((INSERT test::UniqueName_2 {name := "test"} UNLESS CONFLICT)
-          ?? (SELECT test::UniqueName_2 FILTER .name = "test")) {name};
-        '''
-
-        await self.assert_query_result(
-            query,
-            [{"name": "test"}],
-        )
-
-        await self.assert_query_result(
-            query,
-            [{"name": "test"}],
-        )
-
-        query2 = r'''
-        SELECT
-         ((INSERT test::UniqueName_2 {name := <str>$0} UNLESS CONFLICT)
-          ?? (SELECT test::UniqueName_2 FILTER .name = <str>$0));
-        '''
-
-        res = await self.con.query(query2, "test2")
-        res2 = await self.con.query(query2, "test2")
-        assert res == res2
-
-        res3 = await self.con.query(query2, "test3")
-        assert res != res3
-
-    async def test_insert_unless_conflict_02(self):
-        async with self._run_and_rollback():
-            with self.assertRaisesRegex(
-                    edgedb.QueryError,
-                    "ON CONFLICT argument must be a property"):
-                await self.con.query(r'''
-                    INSERT test::UniqueName_2 {name := "hello"}
-                    UNLESS CONFLICT ON 20;
-                ''')
-
-        async with self._run_and_rollback():
-            with self.assertRaisesRegex(
-                    edgedb.QueryError,
-                    "ON CONFLICT argument must be a property of "
-                    "the type being inserted"):
-                await self.con.query(r'''
-                    INSERT test::UniqueName_2 {name := "hello"}
-                    UNLESS CONFLICT ON test::UniqueName.name;
-                ''')
-
-        async with self._run_and_rollback():
-            with self.assertRaisesRegex(
-                    edgedb.QueryError,
-                    "ON CONFLICT property must have a "
-                    "single exclusive constraint"):
-                await self.con.query(r'''
-                    INSERT test::LosingParent {name := "hello", lp := "lp"}
-                    UNLESS CONFLICT ON .lp;
-                ''')
-
 
 class TestConstraintsSchemaMigration(tb.QueryTestCase):
     ISOLATED_METHODS = False
