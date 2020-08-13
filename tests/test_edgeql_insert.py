@@ -1737,7 +1737,7 @@ class TestInsert(tb.QueryTestCase):
 
         query2 = r'''
         SELECT
-         ((INSERT test::Person {name := <str>$0} UNLESS CONFLICT)
+         ((INSERT test::Person {name := <str>$0} UNLESS CONFLICT ON .name)
           ?? (SELECT test::Person FILTER .name = <str>$0));
         '''
 
