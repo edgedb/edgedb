@@ -230,9 +230,16 @@ def simple_stmt_eq(lhs: irast.Base, rhs: irast.Base,
 def compile_insert_unless_conflict(
     stmt: irast.InsertStmt,
     constraint_spec: qlast.Expr,
+    else_branch: Optional[qlast.Expr],
     *, ctx: context.ContextLevel,
 ) -> irast.ConstraintRef:
     ctx.partial_path_prefix = stmt.subject
+
+    if else_branch:
+        raise errors.UnsupportedFeatureError(
+            'UNLESS CONFLICT ... ELSE currently unimplemented',
+            context=else_branch.context,
+        )
 
     # We compile the name here so we can analyze it, but we don't do
     # anything else with it.
@@ -349,15 +356,9 @@ def compile_InsertQuery(
             if constraint_spec:
                 with ictx.new() as constraint_ctx:
                     stmt.on_conflict = compile_insert_unless_conflict(
-                        stmt, constraint_spec, ctx=constraint_ctx)
+                        stmt, constraint_spec, else_branch, ctx=constraint_ctx)
             else:
                 stmt.on_conflict = True
-
-            if else_branch:
-                raise errors.UnsupportedFeatureError(
-                    'UNLESS CONFLICT ... ELSE currently unimplemented',
-                    context=else_branch.context,
-                )
 
         with ictx.new() as resultctx:
             if ictx.stmt is ctx.toplevel_stmt:
