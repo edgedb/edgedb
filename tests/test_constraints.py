@@ -426,6 +426,16 @@ class TestConstraintsSchema(tb.QueryTestCase):
         async with self._run_and_rollback():
             with self.assertRaisesRegex(
                     edgedb.QueryError,
+                    "ON CONFLICT argument must be a property of "
+                    "the type being inserted"):
+                await self.con.query(r'''
+                    INSERT test::UniqueName_2 {name := "hello"}
+                    UNLESS CONFLICT ON test::UniqueName.name;
+                ''')
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.QueryError,
                     "ON CONFLICT property must have a "
                     "single exclusive constraint"):
                 await self.con.query(r'''

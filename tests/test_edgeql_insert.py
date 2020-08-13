@@ -1659,7 +1659,8 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_in_conditional_bad_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                'Invalid conditional INSERT statement'):
+                'INSERT statements cannot be used inside '
+                'conditional expressions'):
             await self.con.execute(r'''
                 WITH MODULE test
                 SELECT
@@ -1794,15 +1795,26 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_dependent_04(self):
         query = r'''
             WITH MODULE test
-            INSERT Person {
-                name :=  "Zendaya",
-                notes := (FOR note in {"hello", "world"}
-                          UNION (INSERT Note { name := note }))
-            } UNLESS CONFLICT;
+            SELECT (
+                INSERT Person {
+                    name :=  "Zendaya",
+                    notes := (FOR note in {"hello", "world"}
+                              UNION (INSERT Note { name := note }))
+                } UNLESS CONFLICT
+            ) { name, notes: {name} };
         '''
 
-        await self.con.execute(query)
-        await self.con.execute(query)
+        # Execute twice and then make sure that there weren't any
+        # stray side-effects from the second.
+        await self.assert_query_result(
+            query,
+            [{"name": "Zendaya",
+              "notes": [{"name": "hello"}, {"name": "world"}]}],
+        )
+        await self.assert_query_result(
+            query,
+            [],
+        )
 
         # Make sure only the 2 inserts into Note happened
         await self.assert_query_result(

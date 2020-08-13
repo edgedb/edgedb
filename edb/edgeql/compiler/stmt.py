@@ -239,11 +239,21 @@ def compile_insert_on_conflict_constraint(
     cspec_res = setgen.ensure_set(dispatch.compile(
         constraint_spec, ctx=ctx), ctx=ctx)
 
+    stmtctx.enforce_singleton(cspec_res, ctx=ctx)
+
     if not cspec_res.rptr:
         raise errors.QueryError(
             'ON CONFLICT argument must be a property',
             context=constraint_spec.context,
         )
+
+    if cspec_res.rptr.source.path_id != stmt.subject.path_id:
+        raise errors.QueryError(
+            'ON CONFLICT argument must be a property of the '
+            'type being inserted',
+            context=constraint_spec.context,
+        )
+
     schema = ctx.env.schema
     schema, ptr = (
         typeutils.ptrcls_from_ptrref(cspec_res.rptr.ptrref,
@@ -344,7 +354,7 @@ def compile_InsertQuery(
                 stmt.on_conflict = True
 
             if else_branch:
-                raise errors.QueryError(
+                raise errors.UnsupportedFeatureError(
                     'ON CONFLICT ... ELSE currently unimplemented',
                     context=else_branch.context,
                 )
