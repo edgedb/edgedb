@@ -17,17 +17,17 @@ jobs:
     runs-on: ubuntu-18.04
 
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
       with:
         fetch-depth: 50
         submodules: true
 
     - name: Set up Python
-      uses: actions/setup-python@v1
+      uses: actions/setup-python@v2
       with:
         python-version: 3.8
 
-    - uses: actions/cache@v1
+    - uses: actions/cache@v2
       id: depcache
       with:
         path: deps
@@ -47,7 +47,7 @@ jobs:
         mkdir -p .tmp
         python setup.py --quiet gen_build_cache_key >.tmp/build_cache_key.txt
 
-    - uses: actions/cache@v1
+    - uses: actions/cache@v2
       id: buildcache
       with:
         path: build

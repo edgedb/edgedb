@@ -24,7 +24,7 @@ jobs:
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
         EXTRA_OPTIMIZATIONS: "true"
 
-    - uses: actions/upload-artifact@v1
+    - uses: actions/upload-artifact@v2
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< tgt.name >>
@@ -34,7 +34,7 @@ jobs:
     runs-on: macos-latest
 
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -86,7 +86,7 @@ jobs:
       run: |
         edgedb-pkg/integration/macos/build.sh
 
-    - uses: actions/upload-artifact@v1
+    - uses: actions/upload-artifact@v2
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< tgt.name >>
@@ -97,7 +97,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v1
+    - uses: actions/download-artifact@v2
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< tgt.name >>
@@ -116,13 +116,13 @@ jobs:
     runs-on: macos-latest
 
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
       with:
         repository: edgedb/edgedb-pkg
         ref: master
         path: edgedb/edgedb-pkg
 
-    - uses: actions/download-artifact@v1
+    - uses: actions/download-artifact@v2
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< tgt.name >>
@@ -141,7 +141,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v1
+    - uses: actions/download-artifact@v2
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< tgt.name >>
@@ -169,7 +169,7 @@ jobs:
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
       with:
         repository: edgedb/edgedb-docker
         ref: master
@@ -193,12 +193,12 @@ jobs:
     runs-on: macos-latest
 
     steps:
-    - uses: actions/download-artifact@v1
+    - uses: actions/download-artifact@v2
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< tgt.name >>
 
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
       with:
         repository: edgedb/edgedb-pkg
         ref: master

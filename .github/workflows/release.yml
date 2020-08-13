@@ -27,7 +27,7 @@ jobs:
         PKG_PLATFORM_VERSION: "stretch"
         EXTRA_OPTIMIZATIONS: "true"
 
-    - uses: actions/upload-artifact@v1
+    - uses: actions/upload-artifact@v2
       with:
         name: builds-debian-stretch
         path: artifacts/debian-stretch
@@ -53,7 +53,7 @@ jobs:
         PKG_PLATFORM_VERSION: "buster"
         EXTRA_OPTIMIZATIONS: "true"
 
-    - uses: actions/upload-artifact@v1
+    - uses: actions/upload-artifact@v2
       with:
         name: builds-debian-buster
         path: artifacts/debian-buster
@@ -79,7 +79,7 @@ jobs:
         PKG_PLATFORM_VERSION: "xenial"
         EXTRA_OPTIMIZATIONS: "true"
 
-    - uses: actions/upload-artifact@v1
+    - uses: actions/upload-artifact@v2
       with:
         name: builds-ubuntu-xenial
         path: artifacts/ubuntu-xenial
@@ -105,7 +105,7 @@ jobs:
         PKG_PLATFORM_VERSION: "bionic"
         EXTRA_OPTIMIZATIONS: "true"
 
-    - uses: actions/upload-artifact@v1
+    - uses: actions/upload-artifact@v2
       with:
         name: builds-ubuntu-bionic
         path: artifacts/ubuntu-bionic
@@ -131,7 +131,7 @@ jobs:
         PKG_PLATFORM_VERSION: "focal"
         EXTRA_OPTIMIZATIONS: "true"
 
-    - uses: actions/upload-artifact@v1
+    - uses: actions/upload-artifact@v2
       with:
         name: builds-ubuntu-focal
         path: artifacts/ubuntu-focal
@@ -157,7 +157,7 @@ jobs:
         PKG_PLATFORM_VERSION: "7"
         EXTRA_OPTIMIZATIONS: "true"
 
-    - uses: actions/upload-artifact@v1
+    - uses: actions/upload-artifact@v2
       with:
         name: builds-centos-7
         path: artifacts/centos-7
@@ -183,7 +183,7 @@ jobs:
         PKG_PLATFORM_VERSION: "8"
         EXTRA_OPTIMIZATIONS: "true"
 
-    - uses: actions/upload-artifact@v1
+    - uses: actions/upload-artifact@v2
       with:
         name: builds-centos-8
         path: artifacts/centos-8
@@ -200,7 +200,7 @@ jobs:
       run: echo ::set-output name=version::${BRANCH#releases/}
       id: whichver
 
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -264,7 +264,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v1
+    - uses: actions/download-artifact@v2
       with:
         name: builds-debian-stretch
         path: artifacts/debian-stretch
@@ -281,7 +281,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v1
+    - uses: actions/download-artifact@v2
       with:
         name: builds-debian-buster
         path: artifacts/debian-buster
@@ -298,7 +298,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v1
+    - uses: actions/download-artifact@v2
       with:
         name: builds-ubuntu-xenial
         path: artifacts/ubuntu-xenial
@@ -315,7 +315,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v1
+    - uses: actions/download-artifact@v2
       with:
         name: builds-ubuntu-bionic
         path: artifacts/ubuntu-bionic
@@ -332,7 +332,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v1
+    - uses: actions/download-artifact@v2
       with:
         name: builds-ubuntu-focal
         path: artifacts/ubuntu-focal
@@ -349,7 +349,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v1
+    - uses: actions/download-artifact@v2
       with:
         name: builds-centos-7
         path: artifacts/centos-7
@@ -366,7 +366,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v1
+    - uses: actions/download-artifact@v2
       with:
         name: builds-centos-8
         path: artifacts/centos-8
@@ -384,13 +384,13 @@ jobs:
     runs-on: macos-latest
 
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
       with:
         repository: edgedb/edgedb-pkg
         ref: master
         path: edgedb/edgedb-pkg
 
-    - uses: actions/download-artifact@v1
+    - uses: actions/download-artifact@v2
       with:
         name: builds-macos-x86_64
         path: artifacts/macos-x86_64
@@ -408,7 +408,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v1
+    - uses: actions/download-artifact@v2
       with:
         name: builds-debian-stretch
         path: artifacts/debian-stretch
@@ -434,7 +434,7 @@ jobs:
         PKG_PLATFORM_VERSION: "stretch"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
       with:
         repository: edgedb/edgedb-docker
         ref: master
@@ -457,7 +457,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v1
+    - uses: actions/download-artifact@v2
       with:
         name: builds-debian-buster
         path: artifacts/debian-buster
@@ -483,7 +483,7 @@ jobs:
         PKG_PLATFORM_VERSION: "buster"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
       with:
         repository: edgedb/edgedb-docker
         ref: master
@@ -495,7 +495,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v1
+    - uses: actions/download-artifact@v2
       with:
         name: builds-ubuntu-xenial
         path: artifacts/ubuntu-xenial
@@ -521,7 +521,7 @@ jobs:
         PKG_PLATFORM_VERSION: "xenial"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
       with:
         repository: edgedb/edgedb-docker
         ref: master
@@ -533,7 +533,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v1
+    - uses: actions/download-artifact@v2
       with:
         name: builds-ubuntu-bionic
         path: artifacts/ubuntu-bionic
@@ -559,7 +559,7 @@ jobs:
         PKG_PLATFORM_VERSION: "bionic"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
       with:
         repository: edgedb/edgedb-docker
         ref: master
@@ -571,7 +571,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v1
+    - uses: actions/download-artifact@v2
       with:
         name: builds-ubuntu-focal
         path: artifacts/ubuntu-focal
@@ -597,7 +597,7 @@ jobs:
         PKG_PLATFORM_VERSION: "focal"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
       with:
         repository: edgedb/edgedb-docker
         ref: master
@@ -609,7 +609,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v1
+    - uses: actions/download-artifact@v2
       with:
         name: builds-centos-7
         path: artifacts/centos-7
@@ -635,7 +635,7 @@ jobs:
         PKG_PLATFORM_VERSION: "7"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
       with:
         repository: edgedb/edgedb-docker
         ref: master
@@ -647,7 +647,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v1
+    - uses: actions/download-artifact@v2
       with:
         name: builds-centos-8
         path: artifacts/centos-8
@@ -673,7 +673,7 @@ jobs:
         PKG_PLATFORM_VERSION: "8"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
       with:
         repository: edgedb/edgedb-docker
         ref: master
@@ -686,12 +686,12 @@ jobs:
     runs-on: macos-latest
 
     steps:
-    - uses: actions/download-artifact@v1
+    - uses: actions/download-artifact@v2
       with:
         name: builds-macos-x86_64
         path: artifacts/macos-x86_64
 
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
       with:
         repository: edgedb/edgedb-pkg
         ref: master
