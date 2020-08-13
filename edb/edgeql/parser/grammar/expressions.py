@@ -586,24 +586,19 @@ class ComputableShapePointer(Nonterm):
 
 
 class OnConflictSpecifier(Nonterm):
+    def reduce_ON_Expr_ELSE_Expr(self, *kids):
+        self.val = (kids[1].val, kids[3].val)
+
     def reduce_ON_Expr(self, *kids):
-        self.val = kids[1].val
+        self.val = (kids[1].val, None)
 
     def reduce_empty(self, *kids):
-        self.val = None
-
-
-class OnConflictElse(Nonterm):
-    def reduce_ELSE_Expr(self, *kids):
-        self.val = kids[1].val
-
-    def reduce_empty(self, *kids):
-        self.val = None
+        self.val = (None, None)
 
 
 class OnConflictCause(Nonterm):
-    def reduce_UNLESS_CONFLICT_OnConflictSpecifier_OnConflictElse(self, *kids):
-        self.val = (kids[2].val, kids[3].val)
+    def reduce_UNLESS_CONFLICT_OnConflictSpecifier(self, *kids):
+        self.val = kids[2].val
 
 
 class OptOnConflictClause(Nonterm):
