@@ -47,7 +47,7 @@ RUNTIME_DEPS = [
     'httptools>=0.0.13',
     'immutables>=0.13',
     'parsing~=1.6.1',
-    'prompt_toolkit>=2.0.0',
+    'prompt_toolkit==3.0.3',
     'psutil~=5.6.1',
     'Pygments~=2.3.0',
     'setproctitle~=1.1.10',
