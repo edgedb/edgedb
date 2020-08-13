@@ -5895,3 +5895,24 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         )
 
         self.assertEqual(json.loads(result), expected)
+
+    async def test_edgeql_ddl_describe_migration_json_02(self):
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                };
+            };
+        ''')
+
+        expected = {
+            'confirmed': [],
+            'proposed': [],
+        }
+
+        result = await self.con.query_one(
+            '''
+                DESCRIBE CURRENT MIGRATION AS JSON;
+            ''',
+        )
+
+        self.assertEqual(json.loads(result), expected)

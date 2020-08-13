@@ -878,14 +878,19 @@ class Compiler(BaseCompiler):
                     diff,
                 )
 
-                desc = json.dumps({
-                    'confirmed': confirmed,
-                    'proposed': [{
+                if proposed:
+                    proposed_desc = [{
                         'statements': [{
                             'text': proposed[0],
                         }],
                         'confidence': 1.0,
-                    }],
+                    }]
+                else:
+                    proposed_desc = []
+
+                desc = json.dumps({
+                    'confirmed': confirmed,
+                    'proposed': proposed_desc,
                 }).encode('unicode_escape').decode('utf-8')
 
                 desc_ql = edgeql.parse(
