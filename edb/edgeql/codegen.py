@@ -209,6 +209,18 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self._visit_shape(node.shape)
             self.indentation -= 1
 
+        if node.unless_conflict:
+            on_expr, else_expr = node.unless_conflict
+            self.write('UNLESS CONFLICT')
+
+            if on_expr:
+                self.write(' ON ')
+                self.visit(on_expr)
+
+                if else_expr:
+                    self.write(' ELSE ')
+                    self.visit(else_expr)
+
         if parenthesise:
             self.write(')')
 

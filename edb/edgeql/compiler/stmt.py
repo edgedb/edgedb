@@ -29,7 +29,6 @@ from collections import defaultdict
 from edb import errors
 
 from edb.ir import ast as irast
-from edb.ir import utils as irutils
 from edb.ir import staeval as ireval
 from edb.ir import typeutils
 
@@ -228,86 +227,75 @@ def simple_stmt_eq(lhs: irast.Base, rhs: irast.Base,
         return False
 
 
-def handle_conditional_insert(
-        expr: qlast.InsertQuery,
-        rhs: irast.InsertStmt,
-        lhs_set: Union[irast.Expr, irast.Set],
-        *, ctx: context.ContextLevel,
+def compile_insert_unless_conflict(
+    stmt: irast.InsertStmt,
+    constraint_spec: qlast.Expr,
+    else_branch: Optional[qlast.Expr],
+    *, ctx: context.ContextLevel,
 ) -> irast.ConstraintRef:
-    def error(s: str) -> NoReturn:
+    ctx.partial_path_prefix = stmt.subject
+
+    if else_branch:
+        raise errors.UnsupportedFeatureError(
+            'UNLESS CONFLICT ... ELSE currently unimplemented',
+            context=else_branch.context,
+        )
+
+    # We compile the name here so we can analyze it, but we don't do
+    # anything else with it.
+    cspec_res = setgen.ensure_set(dispatch.compile(
+        constraint_spec, ctx=ctx), ctx=ctx)
+
+    stmtctx.enforce_singleton(cspec_res, ctx=ctx)
+
+    if not cspec_res.rptr:
         raise errors.QueryError(
-            f'Invalid conditional INSERT statement: {s}',
-            context=expr.context,
+            'ON CONFLICT argument must be a property',
+            context=constraint_spec.context,
+        )
+
+    if cspec_res.rptr.source.path_id != stmt.subject.path_id:
+        raise errors.QueryError(
+            'ON CONFLICT argument must be a property of the '
+            'type being inserted',
+            context=constraint_spec.context,
         )
 
     schema = ctx.env.schema
-
-    if not isinstance(lhs_set, irast.Set):
-        error("left hand side is not SELECT")
-    lhs_set = irutils.unwrap_set(lhs_set)
-    if not isinstance(lhs_set.expr, irast.SelectStmt):
-        error("left hand side is not SELECT")
-    lhs = lhs_set.expr
-
-    if lhs.result.path_id != rhs.subject.path_id:
-        error("types do not match")
-
-    if lhs.where:
-        filtered_ptrs = inference.cardinality.extract_filters(
-            lhs.result, lhs.where,
-            scope_tree=ctx.path_scope, singletons=(), env=ctx.env, strict=True)
-    else:
-        filtered_ptrs = None
-
-    # TODO: Can we support some >1 cases?
-    if not filtered_ptrs or len(filtered_ptrs) > 1:
-        error("does not contain exactly one FILTER clause")
-        return None
-
-    exclusive_constr: s_constr.Constraint = schema.get('std::exclusive')
-
-    shape_props = {}
-    for shape_set, _ in rhs.subject.shape:
-        # We need to go through to the base_ptr to get at the
-        # underlying type (instead of the shape's subtype)
-        base_ptr = shape_set.rptr.ptrref.base_ptr
-        if (not isinstance(base_ptr, irast.PointerRef)
-                or not isinstance(shape_set.expr, irast.SelectStmt)):
-            continue
-        schema, pptr = typeutils.ptrcls_from_ptrref(base_ptr, schema=schema)
-        shape_props[pptr] = shape_set.expr.result, base_ptr
-
-    ptr, ptr_set = filtered_ptrs[0]
+    schema, ptr = (
+        typeutils.ptrcls_from_ptrref(cspec_res.rptr.ptrref,
+                                     schema=schema))
+    if not isinstance(ptr, s_pointers.Pointer):
+        raise errors.QueryError(
+            'ON CONFLICT property must be a property',
+            context=constraint_spec.context,
+        )
 
     ptr = ptr.get_nearest_non_derived_parent(schema)
-    if ptr not in shape_props:
-        error("property in FILTER clause does not match INSERT")
-    result, rptr = shape_props[ptr]
 
-    if not simple_stmt_eq(ptr_set.expr, result.expr, schema):
-        error("value in FILTER clause does not match INSERT")
-
+    exclusive_constr: s_constr.Constraint = schema.get('std::exclusive')
     ex_cnstrs = [c for c in ptr.get_constraints(schema).objects(schema)
-                 if c.issubclass(schema, exclusive_constr)
-                 and not c.get_subjectexpr(schema)]
+                 if c.issubclass(schema, exclusive_constr)]
 
-    if len(ex_cnstrs) != 1 or not ptr.is_property(schema):
-        error("FILTER is not on an exclusive property")
-
-    ex_cnstr = ex_cnstrs[0]
+    if len(ex_cnstrs) != 1:
+        raise errors.QueryError(
+            'ON CONFLICT property must have a single exclusive constraint',
+            context=constraint_spec.context,
+        )
 
     module_id = schema.get_global(
         s_mod.Module, ptr.get_name(schema).module).id
 
     ctx.env.schema = schema
-    return irast.ConstraintRef(id=ex_cnstr.id, module_id=module_id)
+
+    return irast.ConstraintRef(
+        id=ex_cnstrs[0].id, module_id=module_id)
 
 
 @dispatch.compile.register(qlast.InsertQuery)
 def compile_InsertQuery(
         expr: qlast.InsertQuery, *,
-        ctx: context.ContextLevel,
-        conditioned_on: Optional[irast.Set] = None) -> irast.Set:
+        ctx: context.ContextLevel) -> irast.Set:
 
     if ctx.in_conditional is not None:
         raise errors.QueryError(
@@ -362,6 +350,16 @@ def compile_InsertQuery(
             ctx=ctx,
         )
 
+        if expr.unless_conflict is not None:
+            constraint_spec, else_branch = expr.unless_conflict
+
+            if constraint_spec:
+                with ictx.new() as constraint_ctx:
+                    stmt.on_conflict = compile_insert_unless_conflict(
+                        stmt, constraint_spec, else_branch, ctx=constraint_ctx)
+            else:
+                stmt.on_conflict = True
+
         with ictx.new() as resultctx:
             if ictx.stmt is ctx.toplevel_stmt:
                 resultctx.expr_exposed = True
@@ -375,10 +373,6 @@ def compile_InsertQuery(
             )
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
-
-    if conditioned_on:
-        stmt.on_conflict = handle_conditional_insert(
-            expr, stmt, conditioned_on, ctx=ctx)
 
     return result
 

@@ -1659,7 +1659,8 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_in_conditional_bad_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                'Invalid conditional INSERT statement'):
+                'INSERT statements cannot be used inside '
+                'conditional expressions'):
             await self.con.execute(r'''
                 WITH MODULE test
                 SELECT
@@ -1717,26 +1718,85 @@ class TestInsert(tb.QueryTestCase):
                 );
             ''')
 
-    async def test_edgeql_insert_dependent_01(self):
+    async def test_edgeql_insert_unless_conflict_01(self):
         query = r'''
-            WITH MODULE test
-            SELECT ((SELECT Person FILTER .name =  <str>$0)
-              ?? (INSERT Person {
-                      name :=  <str>$0,
-                      notes := (INSERT Note {name := "tag!" })}))
-             {name};
+        SELECT
+         ((INSERT test::Person {name := "test"} UNLESS CONFLICT)
+          ?? (SELECT test::Person FILTER .name = "test")) {name};
         '''
 
         await self.assert_query_result(
             query,
             [{"name": "test"}],
-            variables=("test",)
         )
 
         await self.assert_query_result(
             query,
             [{"name": "test"}],
-            variables=("test",)
+        )
+
+        query2 = r'''
+        SELECT
+         ((INSERT test::Person {name := <str>$0} UNLESS CONFLICT ON .name)
+          ?? (SELECT test::Person FILTER .name = <str>$0));
+        '''
+
+        res = await self.con.query(query2, "test2")
+        res2 = await self.con.query(query2, "test2")
+        self.assertEqual(res, res2)
+
+        res3 = await self.con.query(query2, "test3")
+        self.assertNotEqual(res, res3)
+
+    async def test_edgeql_insert_unless_conflict_02(self):
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.QueryError,
+                    "ON CONFLICT argument must be a property"):
+                await self.con.query(r'''
+                    INSERT test::Person {name := "hello"}
+                    UNLESS CONFLICT ON 20;
+                ''')
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.QueryError,
+                    "ON CONFLICT argument must be a property of "
+                    "the type being inserted"):
+                await self.con.query(r'''
+                    INSERT test::Person {name := "hello"}
+                    UNLESS CONFLICT ON test::Note.name;
+                ''')
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.QueryError,
+                    "ON CONFLICT property must have a "
+                    "single exclusive constraint"):
+                await self.con.query(r'''
+                    INSERT test::Note {name := "hello"}
+                    UNLESS CONFLICT ON .name;
+                ''')
+
+    async def test_edgeql_insert_dependent_01(self):
+        query = r'''
+            WITH MODULE test
+            SELECT (
+                INSERT Person {
+                    name :=  "Test",
+                    notes := (INSERT Note {name := "tag!" })
+                } UNLESS CONFLICT
+            ) {name};
+        '''
+
+        await self.assert_query_result(
+            query,
+            [{"name": "Test"}]
+        )
+
+        await self.assert_query_result(
+            query,
+            [],
         )
 
         # Make sure only 1 insert into Note happened
@@ -1795,28 +1855,29 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_dependent_04(self):
         query = r'''
             WITH MODULE test
-            SELECT ((SELECT Person FILTER .name =  <str>$0)
-              ?? (INSERT Person {
-                      name :=  <str>$0,
-                      notes := (FOR note in {"hello", "world"}
-                                UNION (INSERT Note { name := note }))}))
-             {name};
+            SELECT (
+                INSERT Person {
+                    name :=  "Zendaya",
+                    notes := (FOR note in {"hello", "world"}
+                              UNION (INSERT Note { name := note }))
+                } UNLESS CONFLICT
+            ) { name, notes: {name} };
         '''
 
+        # Execute twice and then make sure that there weren't any
+        # stray side-effects from the second.
         await self.assert_query_result(
             query,
-            [{"name": "test"}],
-            variables=("test",)
+            [{"name": "Zendaya",
+              "notes": [{"name": "hello"}, {"name": "world"}]}],
         )
-
         await self.assert_query_result(
             query,
-            [{"name": "test"}],
-            variables=("test",)
+            [],
         )
 
         # Make sure only the 2 inserts into Note happened
         await self.assert_query_result(
-            r'''SELECT count(test::Note)''',
+            r'''SELECT DISTINCT count(test::Person.notes)''',
             [2],
         )

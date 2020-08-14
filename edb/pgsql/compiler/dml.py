@@ -585,11 +585,14 @@ def process_insert_body(
     if isinstance(ir_stmt, irast.InsertStmt) and ir_stmt.on_conflict:
         assert not insert_stmt.on_conflict
 
-        constraint_name = f'"{ir_stmt.on_conflict.id};schemaconstr"'
+        infer = None
+        if isinstance(ir_stmt.on_conflict, irast.ConstraintRef):
+            constraint_name = f'"{ir_stmt.on_conflict.id};schemaconstr"'
+            infer = pgast.InferClause(conname=constraint_name)
 
         insert_stmt.on_conflict = pgast.OnConflictClause(
             action='nothing',
-            infer=pgast.InferClause(conname=constraint_name),
+            infer=infer,
         )
 
     toplevel = ctx.toplevel_stmt
