@@ -125,3 +125,8 @@ type Genre extending NamedObject {
 type Game extending NamedObject {
     multi link players -> User
 }
+
+# Recursive structure
+type LinkedList extending NamedObject {
+    link next -> LinkedList
+}

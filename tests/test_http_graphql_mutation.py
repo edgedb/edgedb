@@ -2148,6 +2148,8 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             'groups': [{
                 'name': 'basic'
             }, {
+                'name': 'unused'
+            }, {
                 'name': 'upgraded'
             }],
         }
@@ -2269,6 +2271,8 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             'name': 'John',
             'groups': [{
                 'name': 'basic'
+            }, {
+                'name': 'unused'
             }, {
                 'name': 'upgraded'
             }],

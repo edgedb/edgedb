@@ -36,6 +36,16 @@ INSERT UserGroup {
     settings := (SELECT Setting)
 };
 
+INSERT UserGroup {
+    name := 'unused',
+    settings := (
+        INSERT Setting {
+            name := 'template',
+            value := 'none'
+        }
+    )
+};
+
 INSERT User {
     name := 'John',
     age := 25,
@@ -69,7 +79,11 @@ INSERT Person {
     name := 'Bob',
     age := 21,
     active := True,
-    score := 4.2
+    score := 4.2,
+    profile := (INSERT Profile {
+        name := 'Bob profile',
+        value := 'special',
+    }),
 };
 
 WITH MODULE other
@@ -135,4 +149,36 @@ INSERT Rab {
 
 INSERT Rab2 {
     blah := (SELECT Bar2 LIMIT 1)
+};
+
+
+INSERT LinkedList {
+    name := '4th',
+};
+
+INSERT LinkedList {
+    name := '3rd',
+    next := (
+        SELECT DETACHED LinkedList
+        FILTER .name = '4th'
+        LIMIT 1
+    )
+};
+
+INSERT LinkedList {
+    name := '2nd',
+    next := (
+        SELECT DETACHED LinkedList
+        FILTER .name = '3rd'
+        LIMIT 1
+    )
+};
+
+INSERT LinkedList {
+    name := '1st',
+    next := (
+        SELECT DETACHED LinkedList
+        FILTER .name = '2nd'
+        LIMIT 1
+    )
 };
