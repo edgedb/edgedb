@@ -1891,6 +1891,14 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                         }
                     },
                     {
+                        "name": "profile",
+                        "type": {
+                            "name": "OrderProfile",
+                            "kind": "INPUT_OBJECT",
+                            "ofType": None
+                        }
+                    },
+                    {
                         "name": "score",
                         "type": {
                             "name": "Ordering",

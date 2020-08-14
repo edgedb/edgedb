@@ -60,7 +60,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                     'application/json')
                 self.assertEqual(
                     json.loads(data)['data'],
-                    {'Setting': [{'value': 'blue'}, {'value': 'full'}]})
+                    {'Setting': [{'value': 'blue'}, {'value': 'full'},
+                                 {'value': 'none'}]})
 
                 req2_data = {
                     'query': '''
@@ -140,13 +141,16 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """, {
                 'Setting': [{
+                    'name': 'template',
+                    'value': 'blue',
+                }, {
                     'name': 'perks',
                     'value': 'full',
                 }, {
                     'name': 'template',
-                    'value': 'blue',
+                    'value': 'none',
                 }],
-            }, sort=lambda x: x['name'])
+            }, sort=lambda x: x['value'])
 
     def test_graphql_functional_query_02(self):
         self.assert_graphql_query_result(r"""
@@ -208,6 +212,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
             'Setting': [{
                 'name': 'perks',
+            }, {
+                'name': 'template',
             }, {
                 'name': 'template',
             }],
@@ -309,6 +315,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                     'name': 'perks',
                 }, {
                     'name': 'template',
+                }, {
+                    'name': 'template',
                 }],
             },
             sort=lambda x: x['name'],
@@ -334,6 +342,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                     'value': 'blue',
                 }, {
                     'value': 'full',
+                }, {
+                    'value': 'none',
                 }],
             },
             sort=lambda x: x['value'],
@@ -540,6 +550,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                     {'name': 'basic'},
                     {'name': 'perks'},
                     {'name': 'template'},
+                    {'name': 'template'},
+                    {'name': 'unused'},
                     {'name': 'upgraded'},
                 ]
             }],
@@ -565,16 +577,26 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 "SettingAlias": [
                     {
                         "__typename": "SettingAlias",
+                        "name": "template",
+                        "value": "blue",
+                    },
+                    {
+                        "__typename": "SettingAlias",
                         "name": "perks",
                         "value": "full",
                     },
                     {
                         "__typename": "SettingAlias",
                         "name": "template",
-                        "value": "blue",
+                        "value": "none",
                     },
                 ],
                 "Setting": [
+                    {
+                        "__typename": "Setting_Type",
+                        "name": "template",
+                        "value": "blue",
+                    },
                     {
                         "__typename": "Setting_Type",
                         "name": "perks",
@@ -583,11 +605,11 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                     {
                         "__typename": "Setting_Type",
                         "name": "template",
-                        "value": "blue",
+                        "value": "none",
                     },
                 ],
             },
-            sort=lambda x: x['name']
+            sort=lambda x: x['value']
         )
 
     def test_graphql_functional_alias_02(self):
@@ -609,6 +631,15 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 "SettingAlias": [
                     {
                         "__typename": "SettingAlias",
+                        "name": "template",
+                        "value": "blue",
+                        "of_group": {
+                            "__typename": "UserGroup_Type",
+                            "name": "upgraded",
+                        }
+                    },
+                    {
+                        "__typename": "SettingAlias",
                         "name": "perks",
                         "value": "full",
                         "of_group": {
@@ -619,15 +650,15 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                     {
                         "__typename": "SettingAlias",
                         "name": "template",
-                        "value": "blue",
+                        "value": "none",
                         "of_group": {
                             "__typename": "UserGroup_Type",
-                            "name": "upgraded",
+                            "name": "unused",
                         }
                     },
                 ],
             },
-            sort=lambda x: x['name']
+            sort=lambda x: x['value']
         )
 
     def test_graphql_functional_alias_03(self):
@@ -650,6 +681,17 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 "SettingAliasAugmented": [
                     {
                         "__typename": "SettingAliasAugmented",
+                        "name": "template",
+                        "value": "blue",
+                        "of_group": {
+                            "__typename":
+                                "__SettingAliasAugmented__of_group",
+                            "name": "upgraded",
+                            "name_upper": "UPGRADED",
+                        }
+                    },
+                    {
+                        "__typename": "SettingAliasAugmented",
                         "name": "perks",
                         "value": "full",
                         "of_group": {
@@ -662,17 +704,17 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                     {
                         "__typename": "SettingAliasAugmented",
                         "name": "template",
-                        "value": "blue",
+                        "value": "none",
                         "of_group": {
                             "__typename":
                                 "__SettingAliasAugmented__of_group",
-                            "name": "upgraded",
-                            "name_upper": "UPGRADED",
+                            "name": "unused",
+                            "name_upper": "UNUSED",
                         }
                     },
                 ],
             },
-            sort=lambda x: x['name']
+            sort=lambda x: x['value']
         )
 
     def test_graphql_functional_alias_04(self):
@@ -699,6 +741,17 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                         "owner": [
                             {
                                 "__typename": "User_Type",
+                                "id": uuid.UUID,
+                            }
+                        ]
+                    },
+                    {
+                        "__typename": "ProfileAlias",
+                        "name": "Bob profile",
+                        "value": "special",
+                        "owner": [
+                            {
+                                "__typename": "Person_Type",
                                 "id": uuid.UUID,
                             }
                         ]
@@ -1589,14 +1642,21 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }
         """, {
             "NamedObject": [
+                {"age": None, "name": "1st", "score": None},
+                {"age": None, "name": "2nd", "score": None},
+                {"age": None, "name": "3rd", "score": None},
+                {"age": None, "name": "4th", "score": None},
                 {"age": 27, "name": "Alice", "score": 5},
                 {"age": None, "name": "Alice profile", "score": None},
                 {"age": 21, "name": "Bob", "score": 4.2},
+                {"age": None, "name": "Bob profile", "score": None},
                 {"age": 25, "name": "Jane", "score": 1.23},
                 {"age": 25, "name": "John", "score": 3.14},
                 {"age": None, "name": "basic", "score": None},
                 {"age": None, "name": "perks", "score": None},
                 {"age": None, "name": "template", "score": None},
+                {"age": None, "name": "template", "score": None},
+                {"age": None, "name": "unused", "score": None},
                 {"age": None, "name": "upgraded", "score": None},
             ]
         }, sort=lambda x: x['name'])
@@ -1615,14 +1675,21 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }
         """, {
             "NamedObject": [
+                {"id": uuid.UUID, "name": "1st"},
+                {"id": uuid.UUID, "name": "2nd"},
+                {"id": uuid.UUID, "name": "3rd"},
+                {"id": uuid.UUID, "name": "4th"},
                 {"id": uuid.UUID, "name": "Alice"},
                 {"id": uuid.UUID, "name": "Alice profile"},
                 {"id": uuid.UUID, "name": "Bob"},
+                {"id": uuid.UUID, "name": "Bob profile"},
                 {"id": uuid.UUID, "name": "Jane"},
                 {"id": uuid.UUID, "name": "John"},
                 {"id": uuid.UUID, "name": "basic"},
                 {"id": uuid.UUID, "name": "perks"},
                 {"id": uuid.UUID, "name": "template"},
+                {"id": uuid.UUID, "name": "template"},
+                {"id": uuid.UUID, "name": "unused"},
                 {"id": uuid.UUID, "name": "upgraded"},
             ]
         }, sort=lambda x: x['name'])
@@ -1682,14 +1749,21 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }
         """, {
             "NamedObject": [
+                {"id": uuid.UUID, "name": "1st", "age": None},
+                {"id": uuid.UUID, "name": "2nd", "age": None},
+                {"id": uuid.UUID, "name": "3rd", "age": None},
+                {"id": uuid.UUID, "name": "4th", "age": None},
                 {"id": uuid.UUID, "name": "Alice", "age": 27},
                 {"id": uuid.UUID, "name": "Alice profile", "age": None},
                 {"id": uuid.UUID, "name": "Bob", "age": 21},
+                {"id": uuid.UUID, "name": "Bob profile", "age": None},
                 {"id": uuid.UUID, "name": "Jane", "age": 25},
                 {"id": uuid.UUID, "name": "John", "age": 25},
                 {"id": uuid.UUID, "name": "basic", "age": None},
                 {"id": uuid.UUID, "name": "perks", "age": None},
                 {"id": uuid.UUID, "name": "template", "age": None},
+                {"id": uuid.UUID, "name": "template", "age": None},
+                {"id": uuid.UUID, "name": "unused", "age": None},
                 {"id": uuid.UUID, "name": "upgraded", "age": None},
             ]
         }, sort=lambda x: x['name'])
@@ -1731,11 +1805,18 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }
         """, {
             "NamedObject": [
+                {"age": None},
+                {"age": None},
+                {"age": None},
+                {"age": None},
                 {"age": 27},
                 {"age": None},
                 {"age": 21},
+                {"age": None},
                 {"age": 25},
                 {"age": 25},
+                {"age": None},
+                {"age": None},
                 {"age": None},
                 {"age": None},
                 {"age": None},
@@ -3007,6 +3088,143 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                     'w': 'special'
                 }
             }],
+        })
+
+    def test_graphql_functional_order_01(self):
+        # Test order by nested objects
+        self.assert_graphql_query_result(r"""
+            query {
+                Rab(order: {blah: {q: {dir: DESC}}}) {
+                    blah {
+                        q
+                    }
+                }
+            }
+        """, {
+            "Rab": [
+                {
+                    "blah": {
+                        "q": "bar2"
+                    }
+                },
+                {
+                    "blah": {
+                        "q": "bar"
+                    },
+                }
+            ]
+        })
+
+    def test_graphql_functional_order_02(self):
+        # Test order by nested objects
+        self.assert_graphql_query_result(r"""
+            query {
+                SettingAliasAugmented(
+                    order: {
+                        of_group: {name_upper: {dir: ASC}},
+                        name: {dir: DESC}
+                    }
+                ) {
+                    name
+                    of_group {
+                        name_upper
+                    }
+                }
+            }
+        """, {
+            "SettingAliasAugmented": [
+                {
+                    "name": "template",
+                    "of_group": {
+                        "name_upper": "UNUSED"
+                    },
+                },
+                {
+                    "name": "template",
+                    "of_group": {
+                        "name_upper": "UPGRADED"
+                    },
+                },
+                {
+                    "name": "perks",
+                    "of_group": {
+                        "name_upper": "UPGRADED"
+                    },
+                },
+            ]
+        })
+
+    def test_graphql_functional_order_03(self):
+        # Test order by nested objects
+        self.assert_graphql_query_result(r"""
+            query {
+                LinkedList(order: {
+                    next: {next: {name: {dir: DESC, nulls: SMALLEST}}},
+                    name: {dir: ASC}
+                }) {
+                    name
+                }
+            }
+        """, {
+
+            "LinkedList": [
+                {
+                    "name": "2nd"
+                },
+                {
+                    "name": "1st"
+                },
+                {
+                    "name": "3rd"
+                },
+                {
+                    "name": "4th"
+                }
+            ]
+        })
+
+    def test_graphql_functional_order_04(self):
+        # Test order by nested objects
+        self.assert_graphql_query_result(r"""
+            query {
+                User(order: {
+                    profile: {
+                        value: {dir: ASC},
+                        name: {dir: DESC}
+                    }
+                }) {
+                    name
+                    profile {
+                        name
+                        value
+                    }
+                }
+            }
+        """, {
+            "User": [
+                {
+                    "name": "John",
+                    "profile": None,
+                },
+                {
+                    "name": "Jane",
+                    "profile": None,
+                },
+                {
+                    "name": "Bob",
+                    "profile": {
+                        "name": "Bob profile",
+                        "value": "special",
+                    },
+                },
+                {
+                    "name": "Alice",
+                    "profile": {
+                        "name": "Alice profile",
+                        "value": "special",
+                    },
+                }
+            ]
         })
 
 

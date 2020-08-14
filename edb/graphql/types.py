@@ -949,21 +949,31 @@ class GQLCoreSchema:
 
             ptr = edb_type.getptr(self.edb_schema, name)
 
-            if not ptr.get_target(self.edb_schema).is_scalar():
+            if not ptr.singular(self.edb_schema):
                 continue
 
-            target = self._convert_edb_type(ptr.get_target(self.edb_schema))
+            t = ptr.get_target(self.edb_schema)
+            target = self._convert_edb_type(t)
+
             if target is None:
-                # don't expose this
+                # Don't expose this
                 continue
 
-            # this makes sure that we can only order by properties
-            # that can be reflected into GraphQL
-            intype = self._gql_inobjtypes.get(f'Filter{target.name}')
-            if intype:
-                fields[name] = GraphQLInputObjectField(
-                    self._gql_ordertypes['Ordering']
-                )
+            if t.is_scalar():
+                # This makes sure that we can only order by properties
+                # that can be reflected into GraphQL
+                intype = self._gql_inobjtypes.get(f'Filter{target.name}')
+
+                if intype:
+                    fields[name] = GraphQLInputObjectField(
+                        self._gql_ordertypes['Ordering']
+                    )
+            elif t.is_object_type():
+                # It's a link so we need the link's type order input
+                t_name = t.get_name(self.edb_schema)
+                fields[name] = self._gql_ordertypes[t_name]
+
+            # We ignore pointers that aren't scalars or objects.
 
         return fields
 

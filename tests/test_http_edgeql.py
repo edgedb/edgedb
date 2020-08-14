@@ -83,11 +83,12 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
                             name,
                             value
                         }
-                        ORDER BY .name ASC;
+                        ORDER BY .value ASC;
                     """,
                     [
+                        {'name': 'template', 'value': 'blue'},
                         {'name': 'perks', 'value': 'full'},
-                        {'name': 'template', 'value': 'blue'}
+                        {'name': 'template', 'value': 'none'},
                     ],
                     use_http_post=use_http_post
                 )

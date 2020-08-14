@@ -144,6 +144,13 @@ class TranspiledOperation(NamedTuple):
     variables_desc: dict
 
 
+class Ordering(NamedTuple):
+
+    names: List[str]
+    direction: qlast.SortOrder
+    nulls: qlast.NonesOrder
+
+
 class BookkeepDict(dict):
 
     def __init__(self, values):
@@ -1412,36 +1419,52 @@ class GraphQLTranslator:
         # Ordering is handled by specifying a list of special Ordering objects.
         # Validation is already handled by this point.
         orderby = []
-        for enum in node.fields:
-            name, direction, nulls = self._visit_order_item(enum)
+        for ordering in self._visit_order_item(node):
             orderby.append(qlast.SortExpr(
                 path=qlast.Path(
-                    steps=[qlast.Ptr(ptr=qlast.ObjectRef(name=name))],
+                    steps=[
+                        qlast.Ptr(ptr=qlast.ObjectRef(name=name))
+                        for name in ordering.names
+                    ],
                     partial=True,
                 ),
-                direction=direction,
-                nones_order=nulls,
+                direction=ordering.direction,
+                nones_order=ordering.nulls,
             ))
 
         return orderby
 
     def _visit_order_item(self, node):
-        if not isinstance(node, gql_ast.ObjectFieldNode):
+        if not isinstance(node, gql_ast.ObjectValueNode):
             raise g_errors.GraphQLTranslationError(
                 f'an object is expected for "order"')
 
-        if not isinstance(node.value, gql_ast.ObjectValueNode):
-            raise g_errors.GraphQLTranslationError(
-                f'an object is expected for "order"')
-
-        name = node.name.value
+        orderings = []
         direction = nulls = None
 
-        for part in node.value.fields:
-            if part.name.value == 'dir':
+        for part in node.fields:
+            # Check if there's a longer nested path here. If there is,
+            # validate that there's only one option chosen at this
+            # level.
+            if isinstance(part.value, gql_ast.ObjectValueNode):
+                for subordering in self._visit_order_item(part.value):
+                    orderings.append(
+                        Ordering(
+                            names=[part.name.value] + subordering.names,
+                            direction=subordering.direction,
+                            nulls=subordering.nulls
+                        )
+                    )
+
+            elif part.name.value == 'dir':
                 direction = part.value.value
-            if part.name.value == 'nulls':
+            elif part.name.value == 'nulls':
                 nulls = part.value.value
+
+        if orderings:
+            # We have compiled some ordering paths, so we don't have
+            # any direction or nulls on this level.
+            return orderings
 
         # direction is a required field, so we can rely on it having
         # one of two values
@@ -1461,7 +1484,7 @@ class GraphQLTranslator:
             else:
                 nulls = qlast.NonesLast
 
-        return name, direction, nulls
+        return [Ordering(names=[], direction=direction, nulls=nulls)]
 
     def visit_VariableNode(self, node):
         varname = node.name.value
