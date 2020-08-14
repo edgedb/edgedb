@@ -419,9 +419,9 @@ def process_insert_body(
 
     pseudo_iterator_set: Optional[irast.Set]
     pseudo_iterator_cte: Optional[pgast.CommonTableExpr]
-    if ctx.enclosing_insert:
-        insert_expr, pseudo_iterator_cte = ctx.enclosing_insert
-        pseudo_iterator_set = insert_expr.subject
+    if ctx.enclosing_dml:
+        dml_expr, pseudo_iterator_cte = ctx.enclosing_dml
+        pseudo_iterator_set = dml_expr.subject
     else:
         pseudo_iterator_cte = None
         pseudo_iterator_set = None
@@ -894,7 +894,6 @@ def process_link_update(
         props_only=props_only,
         target_is_scalar=target_is_scalar,
         dml_cte=dml_cte,
-        is_insert=is_insert,
         iterator=iterator,
         ctx=ctx,
     )
@@ -1197,7 +1196,6 @@ def process_link_values(
     props_only: bool,
     target_is_scalar: bool,
     dml_cte: pgast.CommonTableExpr,
-    is_insert: bool,
     iterator: Optional[Tuple[irast.Set, pgast.CommonTableExpr]],
     ctx: context.CompilerContextLevel,
 ) -> Tuple[pgast.CommonTableExpr, List[str]]:
@@ -1221,9 +1219,9 @@ def process_link_values(
         IR and CTE representing the iterator range in the FOR clause of the
         EdgeQL DML statement.
     """
+    old_cte_count = len(ctx.toplevel_stmt.ctes)
     with ctx.newscope() as newscope, newscope.newrel() as subrelctx:
-        if is_insert:
-            subrelctx.enclosing_insert = (ir_stmt, dml_cte)
+        subrelctx.enclosing_dml = (ir_stmt, dml_cte)
         row_query = subrelctx.rel
 
         relctx.include_rvar(row_query, dml_rvar,
@@ -1300,7 +1298,8 @@ def process_link_values(
         )
     )
 
-    if is_insert:
+    if len(ctx.toplevel_stmt.ctes) > old_cte_count:
+        # If there were any nested inserts, we need to join them in.
         pathctx.put_rvar_path_bond(input_rvar, ir_stmt.subject.path_id)
     relctx.include_rvar(row_query, input_rvar,
                         path_id=ir_stmt.subject.path_id,

@@ -161,9 +161,9 @@ class CompilerContextLevel(compiler.ContextLevel):
         ]
     ]
 
-    #: The ir statement and CTE of any enclosing insert currently being
-    #: compiled.
-    enclosing_insert: Optional[
+    #: The ir statement and CTE of any enclosing insert/update currently
+    #: being compiled.
+    enclosing_dml: Optional[
         Tuple[irast.MutatingStmt, pgast.CommonTableExpr]]
 
     def __init__(
@@ -204,7 +204,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.scope_tree = scope_tree
             self.type_rel_overlays = collections.defaultdict(list)
             self.ptr_rel_overlays = collections.defaultdict(list)
-            self.enclosing_insert = None
+            self.enclosing_dml = None
 
         else:
             self.env = prevlevel.env
@@ -233,7 +233,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.scope_tree = prevlevel.scope_tree
             self.type_rel_overlays = prevlevel.type_rel_overlays
             self.ptr_rel_overlays = prevlevel.ptr_rel_overlays
-            self.enclosing_insert = prevlevel.enclosing_insert
+            self.enclosing_dml = prevlevel.enclosing_dml
 
             if mode in {ContextSwitchMode.SUBREL, ContextSwitchMode.NEWREL,
                         ContextSwitchMode.SUBSTMT}:

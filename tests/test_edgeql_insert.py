@@ -1881,3 +1881,68 @@ class TestInsert(tb.QueryTestCase):
             r'''SELECT DISTINCT count(test::Person.notes)''',
             [2],
         )
+
+    async def test_edgeql_insert_dependent_05(self):
+        await self.con.execute(r"""
+            WITH MODULE test
+            FOR noob in {"Phil Emarg", "Madeline Hatch"}
+            UNION (
+                INSERT Person {name := noob}
+            );
+        """)
+
+        await self.con.execute(r"""
+            WITH MODULE test
+            FOR noob in {"Phil Emarg", "Madeline Hatch"}
+            UNION (
+                UPDATE Person FILTER .name = noob
+                SET {notes := (INSERT Note { name := "tag" }) }
+            );
+        """)
+
+        await self.assert_query_result(
+            "SELECT test::Person { name, notes: {name} }",
+            [{"name": "Phil Emarg", "notes": [{"name": "tag"}]},
+             {"name": "Madeline Hatch", "notes": [{"name": "tag"}]}],
+        )
+
+        # Make sure the notes are distinct
+        await self.assert_query_result(
+            r'''SELECT count(DISTINCT test::Person.notes)''',
+            [2],
+        )
+
+    async def test_edgeql_insert_dependent_06(self):
+        await self.con.execute(r"""
+            WITH MODULE test
+            FOR noob in {"Phil Emarg", "Madeline Hatch"}
+            UNION (
+                INSERT Person {name := noob}
+            );
+        """)
+
+        await self.con.execute(r"""
+            WITH MODULE test
+            FOR noob in {"Phil Emarg", "Madeline Hatch"}
+            UNION (
+                UPDATE Person FILTER .name = noob
+                SET {
+                    notes := (FOR note in {"hello", "world"}
+                              UNION (INSERT Note { name := note }))
+                }
+            );
+        """)
+
+        await self.assert_query_result(
+            "SELECT test::Person { name, notes: {name} }",
+            [{"name": "Phil Emarg",
+              "notes": [{"name": "hello"}, {"name": "world"}]},
+             {"name": "Madeline Hatch",
+              "notes": [{"name": "hello"}, {"name": "world"}]}]
+        )
+
+        # Make sure the notes are distinct
+        await self.assert_query_result(
+            r'''SELECT count(DISTINCT test::Person.notes)''',
+            [4],
+        )
