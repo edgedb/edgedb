@@ -248,6 +248,7 @@ GQL_TO_EDB_SCALARS_MAP = {
 
 
 GQL_TO_OPS_MAP = {
+    'exists': 'EXISTS',
     'eq': '=',
     'neq': '!=',
     'gt': '>',
@@ -581,12 +582,16 @@ class GQLCoreSchema:
     def get_filter_fields(self, typename, nested=False):
         selftype = self._gql_inobjtypes[typename]
         fields = OrderedDict()
+
         if not nested:
             fields['and'] = GraphQLInputObjectField(
                 GraphQLList(GraphQLNonNull(selftype)))
             fields['or'] = GraphQLInputObjectField(
                 GraphQLList(GraphQLNonNull(selftype)))
             fields['not'] = GraphQLInputObjectField(selftype)
+        else:
+            # Always include the 'exists' operation
+            fields['exists'] = GraphQLInputObjectField(GraphQLBoolean)
 
         edb_type = self.edb_schema.get(typename)
         pointers = edb_type.get_pointers(self.edb_schema)
@@ -892,24 +897,31 @@ class GQLCoreSchema:
         comp = eq + ['gte', 'gt', 'lte', 'lt']
         string = comp + ['like', 'ilike']
 
-        self._make_generic_input_type(GraphQLBoolean, eq)
-        self._make_generic_input_type(GraphQLID, eq)
-        self._make_generic_input_type(GraphQLInt, comp)
-        self._make_generic_input_type(GraphQLInt64, comp)
-        self._make_generic_input_type(GraphQLBigint, comp)
-        self._make_generic_input_type(GraphQLFloat, comp)
-        self._make_generic_input_type(GraphQLDecimal, comp)
-        self._make_generic_input_type(GraphQLString, string)
+        self._make_generic_filter_type(GraphQLBoolean, eq)
+        self._make_generic_filter_type(GraphQLID, eq)
+        self._make_generic_filter_type(GraphQLInt, comp)
+        self._make_generic_filter_type(GraphQLInt64, comp)
+        self._make_generic_filter_type(GraphQLBigint, comp)
+        self._make_generic_filter_type(GraphQLFloat, comp)
+        self._make_generic_filter_type(GraphQLDecimal, comp)
+        self._make_generic_filter_type(GraphQLString, string)
 
         for name, etype in self._gql_enums.items():
             if name not in {'directionEnum', 'nullsOrderingEnum'}:
-                self._make_generic_input_type(etype, comp)
+                self._make_generic_filter_type(etype, comp)
 
-    def _make_generic_input_type(self, base, ops):
+    def _make_generic_filter_type(self, base, ops):
         name = f'Filter{base.name}'
+        fields = OrderedDict()
+
+        # Always include the 'exists' operation
+        fields['exists'] = GraphQLInputObjectField(GraphQLBoolean)
+        for op in ops:
+            fields[op] = GraphQLInputObjectField(base)
+
         self._gql_inobjtypes[name] = GraphQLInputObjectType(
             name=name,
-            fields={op: GraphQLInputObjectField(base) for op in ops},
+            fields=fields,
         )
 
     def define_generic_insert_types(self):
