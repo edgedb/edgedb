@@ -81,7 +81,10 @@ def needs_quoting(string):
                string.replace('_', 'a').isalnum())
     return (
         not isalnum or
-        string.lower() in pg_keywords.by_type[pg_keywords.RESERVED_KEYWORD] or
+        string.lower() in pg_keywords.by_type[
+            pg_keywords.RESERVED_KEYWORD] or
+        string.lower() in pg_keywords.by_type[
+            pg_keywords.TYPE_FUNC_NAME_KEYWORD] or
         string.lower() != string
     )
 

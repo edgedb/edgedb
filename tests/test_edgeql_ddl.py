@@ -879,6 +879,21 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 ALTER TYPE Child ALTER LINK target DROP OWNED;
             """)
 
+    async def test_edgeql_ddl_27(self):
+        # Test that identifiers that are SQL keywords get quoted.
+        # Issue 1667
+        await self.con.execute("""
+            CREATE TYPE test::Foo {
+                CREATE PROPERTY left -> str;
+                CREATE PROPERTY smallint -> str;
+                CREATE PROPERTY natural -> str;
+                CREATE PROPERTY null -> str;
+                CREATE PROPERTY `like` -> str;
+                CREATE PROPERTY `create` -> str;
+                CREATE PROPERTY `link` -> str;
+            };
+        """)
+
     async def test_edgeql_ddl_default_01(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
