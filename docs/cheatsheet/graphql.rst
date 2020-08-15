@@ -103,6 +103,24 @@ reviews):
         }
     }
 
+Use the :ref:`MovieAlias <ref_cheatsheet_aliases>` in order to find
+movies that have no reviews:
+
+.. code-block:: graphql
+
+    {
+        MovieAlias(
+            filter: {
+                reviews: {exists: false},
+            }
+        ) {
+            id
+            title
+            year
+            description
+        }
+    }
+
 Use a GraphQL :ref:`mutation <ref_graphql_mutations>` to add a user:
 
 .. code-block:: graphql

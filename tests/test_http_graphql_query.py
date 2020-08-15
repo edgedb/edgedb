@@ -3227,6 +3227,210 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         })
 
+    def test_graphql_functional_exists_01(self):
+        self.assert_graphql_query_result(r"""
+            query {
+                User(
+                    filter: {profile: {exists: true}},
+                    order: {name: {dir: ASC}}
+                ) {
+                    name
+                    profile {
+                        name
+                    }
+                }
+            }
+        """, {
+            "User": [
+                {
+                    "name": "Alice",
+                    "profile": {
+                        "name": "Alice profile",
+                    },
+                },
+                {
+                    "name": "Bob",
+                    "profile": {
+                        "name": "Bob profile",
+                    },
+                },
+            ]
+        })
+
+    def test_graphql_functional_exists_02(self):
+        self.assert_graphql_query_result(r"""
+            query {
+                User(
+                    filter: {profile: {exists: false}},
+                    order: {name: {dir: ASC}}
+                ) {
+                    name
+                    profile {
+                        name
+                    }
+                }
+            }
+        """, {
+            "User": [
+                {
+                    "name": "Jane",
+                    "profile": None,
+                },
+                {
+                    "name": "John",
+                    "profile": None,
+                },
+            ]
+        })
+
+    def test_graphql_functional_exists_03(self):
+        self.assert_graphql_query_result(r"""
+            query {
+                User(
+                    filter: {groups: {settings: {exists: false}}},
+                    order: {name: {dir: ASC}}
+                ) {
+                    name
+                    groups {
+                        name
+                        settings {
+                            name
+                        }
+                    }
+                }
+            }
+        """, {
+            "User": [
+                {
+                    "name": "Alice",
+                    "groups": [],
+                },
+                {
+                    "name": "Bob",
+                    "groups": [],
+                },
+                {
+                    "name": "John",
+                    "groups": [
+                        {
+                            "name": "basic",
+                            "settings": [],
+                        }
+                    ],
+                },
+            ]
+        })
+
+    def test_graphql_functional_exists_04(self):
+        self.assert_graphql_query_result(r"""
+            query {
+                User(
+                    filter: {groups: {settings: {exists: true}}}
+                ) {
+                    name
+                    groups {
+                        name
+                        settings(order: {name: {dir: ASC}}) {
+                            name
+                        }
+                    }
+                }
+            }
+        """, {
+            "User": [
+                {
+                    "name": "Jane",
+                    "groups": [
+                        {
+                            "name": "upgraded",
+                            "settings": [
+                                {
+                                    "name": "perks",
+                                },
+                                {
+                                    "name": "template",
+                                },
+                            ]
+                        }
+                    ]
+                }
+            ]
+        })
+
+    def test_graphql_functional_exists_05(self):
+        self.assert_graphql_query_result(r"""
+            query {
+                User(
+                    filter: {groups: {settings: {id: {exists: false}}}},
+                    order: {name: {dir: ASC}}
+                ) {
+                    name
+                    groups {
+                        name
+                        settings {
+                            name
+                        }
+                    }
+                }
+            }
+        """, {
+            "User": [
+                {
+                    "name": "Alice",
+                    "groups": [],
+                },
+                {
+                    "name": "Bob",
+                    "groups": [],
+                },
+                {
+                    "name": "John",
+                    "groups": [
+                        {
+                            "name": "basic",
+                            "settings": [],
+                        }
+                    ],
+                },
+            ]
+        })
+
+    def test_graphql_functional_exists_06(self):
+        self.assert_graphql_query_result(r"""
+            query {
+                User(
+                    filter: {groups: {settings: {id: {exists: true}}}}
+                ) {
+                    name
+                    groups {
+                        name
+                        settings(order: {name: {dir: ASC}}) {
+                            name
+                        }
+                    }
+                }
+            }
+        """, {
+            "User": [
+                {
+                    "name": "Jane",
+                    "groups": [
+                        {
+                            "name": "upgraded",
+                            "settings": [
+                                {
+                                    "name": "perks",
+                                },
+                                {
+                                    "name": "template",
+                                },
+                            ]
+                        }
+                    ]
+                }
+            ]
+        })
+
 
 class TestGraphQLInit(tb.GraphQLTestCase):
     """Test GraphQL initialization on an empty database."""

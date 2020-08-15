@@ -73,20 +73,10 @@ Filtering
 Filtering the retrieved data is done by specifying a ``filter``
 argument. The ``filter`` argument is customized to each specific type
 based on the available fields. In case of the sample schema, here's
-what the specification for the available filter arguments:
+what the specification for the available filter arguments for querying
+``Book``:
 
 .. code-block:: graphql-schema
-
-    # this is Author-specific
-    input FilterAuthor {
-        # basic boolean operators that combine conditions
-        and: [FilterAuthor!]
-        or: [FilterAuthor!]
-        not: FilterAuthor
-
-        # fields available for filtering (properties in EdgeQL)
-        name: FilterString
-    }
 
     # this is Book-specific
     input FilterBook {
@@ -99,11 +89,24 @@ what the specification for the available filter arguments:
         title: FilterString
         synopsis: FilterString
         isbn: FilterString
-        author: FilterAuthor
+        author: NestedFilterAuthor
+    }
+
+    # this is Author-specific
+    input NestedFilterAuthor {
+        # instead of boolean operations, "exists" check is available
+        # for links
+        exists: Boolean
+
+        # fields available for filtering (properties in EdgeQL)
+        name: FilterString
     }
 
     # this is generic
     input FilterString {
+        # "exists" check is available for every property, too
+        exists: Boolean
+
         # equality
         eq: String
         neq: String
@@ -182,6 +185,32 @@ example:
     |                 }               |         AND                     |
     |             }                   |         Book.title < 'o';       |
     |         ) {                     |                                 |
+    |             title               |                                 |
+    |         }                       |                                 |
+    |     }                           |                                 |
+    +---------------------------------+---------------------------------+
+
+
+It is possible to search for books that don't specify the author for
+some reason:
+
+.. table::
+    :class: codeblocks
+
+    +---------------------------------+---------------------------------+
+    | GraphQL                         | EdgeQL equivalent               |
+    +=================================+=================================+
+    | .. code-block:: graphql         | .. code-block:: edgeql          |
+    |                                 |                                 |
+    |     {                           |     SELECT                      |
+    |         Book(                   |         Book {                  |
+    |             filter: {           |             id,                 |
+    |                 author: {       |             title               |
+    |                   exists: false |         }                       |
+    |                 }               |     FILTER                      |
+    |             }                   |         NOT EXISTS              |
+    |         ) {                     |             Book.author;        |
+    |             id                  |                                 |
     |             title               |                                 |
     |         }                       |                                 |
     |     }                           |                                 |
