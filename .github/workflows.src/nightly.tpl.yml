@@ -38,7 +38,7 @@ jobs:
       with:
         repository: edgedb/edgedb-pkg
         ref: master
-        path: edgedb/edgedb-pkg
+        path: edgedb-pkg
 
     - uses: actions/cache@v2
       id: sdk1010cache
@@ -120,7 +120,7 @@ jobs:
       with:
         repository: edgedb/edgedb-pkg
         ref: master
-        path: edgedb/edgedb-pkg
+        path: edgedb-pkg
 
     - uses: actions/download-artifact@v2
       with:
@@ -173,7 +173,7 @@ jobs:
       with:
         repository: edgedb/edgedb-docker
         ref: master
-        path: edgedb/dockerfile
+        path: dockerfile
     <% if tgt.name == 'debian-stretch' %>
 
     - name: Publish Docker Image
@@ -202,7 +202,7 @@ jobs:
       with:
         repository: edgedb/edgedb-pkg
         ref: master
-        path: edgedb/edgedb-pkg
+        path: edgedb-pkg
 
     - name: Describe
       id: describe

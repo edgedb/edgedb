@@ -146,7 +146,7 @@ jobs:
       with:
         repository: edgedb/edgedb-pkg
         ref: master
-        path: edgedb/edgedb-pkg
+        path: edgedb-pkg
 
     - uses: actions/cache@v2
       id: sdk1010cache
@@ -336,7 +336,7 @@ jobs:
       with:
         repository: edgedb/edgedb-pkg
         ref: master
-        path: edgedb/edgedb-pkg
+        path: edgedb-pkg
 
     - uses: actions/download-artifact@v2
       with:
@@ -389,7 +389,7 @@ jobs:
       with:
         repository: edgedb/edgedb-docker
         ref: master
-        path: edgedb/dockerfile
+        path: dockerfile
     
 
     - name: Publish Docker Image
@@ -440,7 +440,7 @@ jobs:
       with:
         repository: edgedb/edgedb-docker
         ref: master
-        path: edgedb/dockerfile
+        path: dockerfile
     
 
   publish-ubuntu-xenial:
@@ -480,7 +480,7 @@ jobs:
       with:
         repository: edgedb/edgedb-docker
         ref: master
-        path: edgedb/dockerfile
+        path: dockerfile
     
 
   publish-ubuntu-bionic:
@@ -520,7 +520,7 @@ jobs:
       with:
         repository: edgedb/edgedb-docker
         ref: master
-        path: edgedb/dockerfile
+        path: dockerfile
     
 
   publish-ubuntu-focal:
@@ -560,7 +560,7 @@ jobs:
       with:
         repository: edgedb/edgedb-docker
         ref: master
-        path: edgedb/dockerfile
+        path: dockerfile
     
 
   publish-centos-7:
@@ -600,7 +600,7 @@ jobs:
       with:
         repository: edgedb/edgedb-docker
         ref: master
-        path: edgedb/dockerfile
+        path: dockerfile
     
 
   publish-centos-8:
@@ -640,7 +640,7 @@ jobs:
       with:
         repository: edgedb/edgedb-docker
         ref: master
-        path: edgedb/dockerfile
+        path: dockerfile
     
 
 
@@ -658,7 +658,7 @@ jobs:
       with:
         repository: edgedb/edgedb-pkg
         ref: master
-        path: edgedb/edgedb-pkg
+        path: edgedb-pkg
 
     - name: Describe
       id: describe
