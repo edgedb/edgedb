@@ -1048,6 +1048,22 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_CommitMigration(self, node: qlast.CommitMigration) -> None:
         self.write('COMMIT MIGRATION')
 
+    def visit_AbortMigration(self, node: qlast.AbortMigration) -> None:
+        self.write('ABORT MIGRATION')
+
+    def visit_DescribeCurrentMigration(
+        self,
+        node: qlast.DescribeCurrentMigration,
+    ) -> None:
+        self.write('DESCRIBE CURRENT MIGRATION AS ')
+        self.write(node.language.upper())
+
+    def visit_AlterCurrentMigrationRejectProposed(
+        self,
+        node: qlast.AlterCurrentMigrationRejectProposed,
+    ) -> None:
+        self.write('ALTER CURRENT MIGRATION REJECT PROPOSED')
+
     def visit_AlterMigration(self, node: qlast.AlterMigration) -> None:
         self._visit_AlterObject(node, 'MIGRATION')
 

@@ -2116,6 +2116,9 @@ class MigrationStmt(Nonterm):
     def reduce_AlterMigrationStmt(self, *kids):
         self.val = kids[0].val
 
+    def reduce_AlterCurrentMigrationStmt(self, *kids):
+        self.val = kids[0].val
+
     def reduce_StartMigrationStmt(self, *kids):
         self.val = kids[0].val
 
@@ -2245,6 +2248,12 @@ class PopulateMigrationStmt(Nonterm):
 
     def reduce_POPULATE_MIGRATION(self, *kids):
         self.val = qlast.PopulateMigration()
+
+
+class AlterCurrentMigrationStmt(Nonterm):
+
+    def reduce_ALTER_CURRENT_MIGRATION_REJECT_PROPOSED(self, *kids):
+        self.val = qlast.AlterCurrentMigrationRejectProposed()
 
 
 class AbortMigrationStmt(Nonterm):

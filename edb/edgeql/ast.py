@@ -718,6 +718,10 @@ class PopulateMigration(DDLCommand, Migration):
     pass
 
 
+class AlterCurrentMigrationRejectProposed(DDLCommand, Migration):
+    pass
+
+
 class DescribeCurrentMigration(DDLCommand, Migration):
 
     language: qltypes.DescribeLanguage

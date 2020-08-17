@@ -82,7 +82,12 @@ def _ddl_migr_populate(ql):
 
 @get_status.register(qlast.DescribeCurrentMigration)
 def _ddl_migr_describe_current(ql):
-    return b'DESCRIBE MIGRATION'
+    return b'DESCRIBE CURRENT MIGRATION'
+
+
+@get_status.register(qlast.AlterCurrentMigrationRejectProposed)
+def _ddl_migr_alter_current(ql):
+    return b'ALTER CURRENT MIGRATION'
 
 
 @get_status.register(qlast.SelectQuery)

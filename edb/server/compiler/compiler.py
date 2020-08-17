@@ -915,6 +915,15 @@ class Compiler(BaseCompiler):
                     f' is not implemented'
                 )
 
+        elif isinstance(ql, qlast.AlterCurrentMigrationRejectProposed):
+            mstate = current_tx.get_migration_state()
+            if mstate is None:
+                raise errors.QueryError(
+                    'unexpected ALTER CURRENT MIGRATION:'
+                    ' not currently in a migration block',
+                    context=ql.context,
+                )
+
         elif isinstance(ql, qlast.CommitMigration):
             mstate = current_tx.get_migration_state()
             if mstate is None:
