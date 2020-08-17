@@ -1219,7 +1219,7 @@ def process_link_values(
         IR and CTE representing the iterator range in the FOR clause of the
         EdgeQL DML statement.
     """
-    old_cte_count = len(ctx.toplevel_stmt.ctes)
+    old_dml_count = len(ctx.dml_stmts)
     with ctx.newscope() as newscope, newscope.newrel() as subrelctx:
         subrelctx.enclosing_dml = (ir_stmt, dml_cte)
         row_query = subrelctx.rel
@@ -1298,7 +1298,7 @@ def process_link_values(
         )
     )
 
-    if len(ctx.toplevel_stmt.ctes) > old_cte_count:
+    if len(ctx.dml_stmts) > old_dml_count:
         # If there were any nested inserts, we need to join them in.
         pathctx.put_rvar_path_bond(input_rvar, ir_stmt.subject.path_id)
     relctx.include_rvar(row_query, input_rvar,
