@@ -5874,8 +5874,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         ''')
 
         expected = {
+            'parent': 'm1a2l6lbzimqokzygdzbkyjrhbmjh3iljg7i2m6r2ias2z2de4x4cq',
             'confirmed': [],
-            'proposed': [{
+            'complete': False,
+            'proposed': {
                 'statements': [{
                     'text': (
                         'CREATE TYPE default::Type1 {\n'
@@ -5885,7 +5887,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     )
                 }],
                 'confidence': 1.0,
-            }]
+            },
         }
 
         result = await self.con.query_one(
@@ -5905,8 +5907,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         ''')
 
         expected = {
+            'parent': 'm1a2l6lbzimqokzygdzbkyjrhbmjh3iljg7i2m6r2ias2z2de4x4cq',
             'confirmed': [],
-            'proposed': [],
+            'complete': True,
+            'proposed': None,
         }
 
         result = await self.con.query_one(

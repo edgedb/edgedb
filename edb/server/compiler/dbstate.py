@@ -30,6 +30,7 @@ from edb import errors
 
 from edb.edgeql import ast as qlast
 from edb.schema import delta as s_delta
+from edb.schema import migrations as s_migrations
 from edb.schema import schema as s_schema
 from edb.server import config
 
@@ -218,6 +219,7 @@ class QueryUnit:
 
 class MigrationState(NamedTuple):
 
+    parent_migration: Optional[s_migrations.Migration]
     initial_schema: s_schema.Schema
     initial_savepoint: Optional[str]
     target_schema: s_schema.Schema

@@ -790,6 +790,7 @@ class Compiler(BaseCompiler):
 
             current_tx.update_migration_state(
                 dbstate.MigrationState(
+                    parent_migration=schema.get_last_migration(),
                     initial_schema=schema,
                     initial_savepoint=savepoint_name,
                     target_schema=target_schema,
@@ -879,16 +880,22 @@ class Compiler(BaseCompiler):
                 )
 
                 if proposed:
-                    proposed_desc = [{
+                    proposed_desc = {
                         'statements': [{
                             'text': proposed[0],
                         }],
                         'confidence': 1.0,
-                    }]
+                    }
                 else:
-                    proposed_desc = []
+                    proposed_desc = None
 
                 desc = json.dumps({
+                    'parent': (
+                        mstate.parent_migration.get_name(schema)
+                        if mstate.parent_migration is not None
+                        else 'initial'
+                    ),
+                    'complete': not bool(list(diff.get_subcommands())),
                     'confirmed': confirmed,
                     'proposed': proposed_desc,
                 }).encode('unicode_escape').decode('utf-8')
