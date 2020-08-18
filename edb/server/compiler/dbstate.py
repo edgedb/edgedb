@@ -314,6 +314,7 @@ class Transaction:
                 modaliases=self.get_modaliases(),
                 config=self.get_session_config(),
                 cached_reflection=self.get_cached_reflection(),
+                migration_state=self.get_migration_state(),
             ),
         )
 
@@ -326,6 +327,7 @@ class Transaction:
                 modaliases=self.get_modaliases(),
                 config=self.get_session_config(),
                 cached_reflection=self.get_cached_reflection(),
+                migration_state=self.get_migration_state(),
             ),
         )
 

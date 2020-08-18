@@ -5920,3 +5920,76 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         )
 
         self.assertEqual(json.loads(result), expected)
+
+    async def test_edgeql_ddl_describe_migration_json_03(self):
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type Type1 {
+                        property field1 -> str;
+                    };
+                };
+            };
+
+            DECLARE SAVEPOINT migration_01;
+        ''')
+
+        expected_1 = {
+            'parent': 'm1a2l6lbzimqokzygdzbkyjrhbmjh3iljg7i2m6r2ias2z2de4x4cq',
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': (
+                        'CREATE TYPE test::Type1 {\n'
+                        '    CREATE OPTIONAL SINGLE PROPERTY field1'
+                        ' -> std::str;\n'
+                        '};'
+                    )
+                }],
+                'confidence': 1.0,
+            },
+        }
+
+        result = await self.con.query_one(
+            '''
+                DESCRIBE CURRENT MIGRATION AS JSON;
+            ''',
+        )
+
+        self.assertEqual(json.loads(result), expected_1)
+
+        await self.con.execute('''
+            CREATE TYPE test::Type1 {
+                CREATE OPTIONAL SINGLE PROPERTY field1 -> std::str;
+            };
+        ''')
+
+        expected_2 = {
+            'parent': 'm1a2l6lbzimqokzygdzbkyjrhbmjh3iljg7i2m6r2ias2z2de4x4cq',
+            'confirmed': [
+                'CREATE TYPE test::Type1 {\n'
+                '    CREATE OPTIONAL SINGLE PROPERTY field1 -> std::str;\n'
+                '}'
+            ],
+            'complete': True,
+            'proposed': None,
+        }
+
+        result = await self.con.query_one(
+            '''
+                DESCRIBE CURRENT MIGRATION AS JSON;
+            ''',
+        )
+
+        self.assertEqual(json.loads(result), expected_2)
+
+        await self.con.execute('ROLLBACK TO SAVEPOINT migration_01;')
+
+        result = await self.con.query_one(
+            '''
+                DESCRIBE CURRENT MIGRATION AS JSON;
+            ''',
+        )
+
+        self.assertEqual(json.loads(result), expected_1)
