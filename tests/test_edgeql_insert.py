@@ -1718,6 +1718,18 @@ class TestInsert(tb.QueryTestCase):
                 );
             ''')
 
+    async def test_edgeql_insert_correlated_bad_03(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                "cannot reference correlated set 'Person' here"):
+            await self.con.execute(r'''
+                WITH MODULE test
+                SELECT (
+                    Person,
+                    (INSERT Person {name := 'insert bad'}),
+                )
+            ''')
+
     async def test_edgeql_insert_unless_conflict_01(self):
         query = r'''
         SELECT
