@@ -89,9 +89,10 @@ def new_scope_tree() -> ScopeTreeNode:
 
 class Base(ast.AST):
     __abstract_node__ = True
-    __ast_hidden__ = {'context'}
+    __ast_hidden__ = {'context', 'has_dml'}
 
     context: parsing.ParserContext
+    has_dml: bool = False
 
     def __repr__(self) -> str:
         return (

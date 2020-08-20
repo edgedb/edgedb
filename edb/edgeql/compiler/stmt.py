@@ -305,7 +305,8 @@ def compile_InsertQuery(
         )
 
     with ctx.subquery() as ictx:
-        stmt = irast.InsertStmt()
+        # A DML statement should have the has_dml flag set
+        stmt = irast.InsertStmt(has_dml=True)
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
         subject = dispatch.compile(expr.subject, ctx=ictx)
@@ -374,6 +375,13 @@ def compile_InsertQuery(
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
+        # top-level statement or at least current statement should be
+        # marked as having DML
+        if ctx.toplevel_stmt:
+            ctx.toplevel_stmt.has_dml = True
+        elif ctx.stmt:
+            ctx.stmt.has_dml = True
+
     return result
 
 
@@ -388,7 +396,8 @@ def compile_UpdateQuery(
         )
 
     with ctx.subquery() as ictx:
-        stmt = irast.UpdateStmt()
+        # A DML statement should have the has_dml flag set
+        stmt = irast.UpdateStmt(has_dml=True)
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
         subject = dispatch.compile(expr.subject, ctx=ictx)
@@ -442,6 +451,13 @@ def compile_UpdateQuery(
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
+        # top-level statement or at least current statement should be
+        # marked as having DML
+        if ctx.toplevel_stmt:
+            ctx.toplevel_stmt.has_dml = True
+        elif ctx.stmt:
+            ctx.stmt.has_dml = True
+
     return result
 
 
@@ -456,7 +472,8 @@ def compile_DeleteQuery(
         )
 
     with ctx.subquery() as ictx:
-        stmt = irast.DeleteStmt()
+        # A DML statement should have the has_dml flag set
+        stmt = irast.DeleteStmt(has_dml=True)
         # Expand the DELETE from sugar into full DELETE (SELECT ...)
         # form, if there's any additional clauses.
         if any([expr.where, expr.orderby, expr.offset, expr.limit]):
@@ -536,6 +553,13 @@ def compile_DeleteQuery(
             )
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
+
+        # top-level statement or at least current statement should be
+        # marked as having DML
+        if ctx.toplevel_stmt:
+            ctx.toplevel_stmt.has_dml = True
+        elif ctx.stmt:
+            ctx.stmt.has_dml = True
 
     return result
 
@@ -865,6 +889,8 @@ def fini_stmt(
 
     if view is not None:
         parent_ctx.view_sets[view] = result
+
+    result.has_dml = irstmt.has_dml
 
     return result
 

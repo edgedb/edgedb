@@ -979,6 +979,9 @@ class Function(CallableObject, VolatilitySubject, s_abc.Function,
     error_on_null_result = so.SchemaField(
         str, default=None, compcoef=0.9, introspectable=False)
 
+    mutating_stmts = so.SchemaField(
+        bool, default=False, allow_ddl_set=True, ephemeral=True)
+
     initial_value = so.SchemaField(
         expr.Expression, default=None, compcoef=0.4, coerce=True)
 
@@ -1137,6 +1140,9 @@ class FunctionCommand(
         ir = compiled.irast
         assert isinstance(ir, irast.Statement)
         schema = ir.schema
+
+        # Record whether the function has any mutations
+        self.set_attribute_value('mutating_stmts', ir.has_dml)
 
         return_type = self._get_attribute_value(schema, context, 'return_type')
         if (not ir.stype.issubclass(schema, return_type)

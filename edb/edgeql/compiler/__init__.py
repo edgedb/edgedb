@@ -293,6 +293,7 @@ def compile_ast_fragment_to_ir(
         expr=ir_set,
         schema=ctx.env.schema,
         stype=result_type,
+        has_dml=ir_set.has_dml,
     )
 
 

@@ -211,7 +211,17 @@ def compile_FunctionCall(
         tuple_path_ids=tuple_path_ids,
     )
 
-    return setgen.ensure_set(fcall, typehint=rtype, path_id=path_id, ctx=ctx)
+    result = setgen.ensure_set(fcall, typehint=rtype, path_id=path_id, ctx=ctx)
+    result.has_dml = func.get_mutating_stmts(env.schema)
+
+    # top-level statement or at least current statement should be
+    # marked as having DML
+    if ctx.toplevel_stmt:
+        ctx.toplevel_stmt.has_dml = True
+    elif ctx.stmt:
+        ctx.stmt.has_dml = True
+
+    return result
 
 
 #: A dictionary of conditional callables and the indices

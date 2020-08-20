@@ -232,6 +232,7 @@ def fini_expression(
             t for t in ctx.env.created_schema_objects
             if isinstance(t, s_types.Collection) and t != expr_type
         ),
+        has_dml=ir.has_dml,
     )
     return result
 
