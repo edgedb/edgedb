@@ -694,7 +694,12 @@ class TestIntrospection(tb.QueryTestCase):
             [
                 {
                     "name": "std::count",
-                    "annotations": [],
+                    "annotations": [
+                        {
+                            "name": "std::description",
+                            "@value": "Return the number of elements in a set."
+                        }
+                    ],
                     "params": [
                         {
                             "kind": "POSITIONAL",
@@ -713,7 +718,12 @@ class TestIntrospection(tb.QueryTestCase):
                 },
                 {
                     "name": "sys::get_version",
-                    "annotations": [],
+                    "annotations": [
+                        {
+                            "name": "std::description",
+                            "@value": "Return the server version as a tuple."
+                        }
+                    ],
                     "params": [],
                     "return_typemod": "SINGLETON",
                     "return_type": {

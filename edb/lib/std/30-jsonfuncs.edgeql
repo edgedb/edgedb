@@ -23,6 +23,8 @@
 CREATE FUNCTION
 std::json_typeof(json: std::json) -> std::str
 {
+    CREATE ANNOTATION std::description :=
+        'Return the type of the outermost JSON value as a string.';
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'jsonb_typeof';
 };
@@ -31,6 +33,8 @@ std::json_typeof(json: std::json) -> std::str
 CREATE FUNCTION
 std::json_array_unpack(array: std::json) -> SET OF std::json
 {
+    CREATE ANNOTATION std::description :=
+        'Return elements of JSON array as a set of `json`.';
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'jsonb_array_elements';
 };
@@ -39,6 +43,8 @@ std::json_array_unpack(array: std::json) -> SET OF std::json
 CREATE FUNCTION
 std::json_object_unpack(obj: std::json) -> SET OF tuple<std::str, std::json>
 {
+    CREATE ANNOTATION std::description :=
+        'Return set of key/value tuples that make up the JSON object.';
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'jsonb_each';
     # jsonb_each is defined as (jsonb, OUT key text, OUT value jsonb),
@@ -57,6 +63,8 @@ std::json_get(
     VARIADIC path: std::str,
     NAMED ONLY default: OPTIONAL std::json={}) -> OPTIONAL std::json
 {
+    CREATE ANNOTATION std::description :=
+        'Return the JSON value at the end of the specified path or an empty set.';
     SET volatility := 'IMMUTABLE';
     USING SQL $$
     SELECT COALESCE(

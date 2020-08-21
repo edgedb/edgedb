@@ -52,6 +52,8 @@ ALTER TYPE sys::Role {
 CREATE FUNCTION
 sys::sleep(duration: std::float64) -> std::bool
 {
+    CREATE ANNOTATION std::description :=
+        'Make the current session sleep for *duration* time.';
     # This function has side-effect.
     SET volatility := 'VOLATILE';
     SET session_only := True;
@@ -64,6 +66,8 @@ sys::sleep(duration: std::float64) -> std::bool
 CREATE FUNCTION
 sys::sleep(duration: std::duration) -> std::bool
 {
+    CREATE ANNOTATION std::description :=
+        'Make the current session sleep for *duration* time.';
     # This function has side-effect.
     SET volatility := 'VOLATILE';
     SET session_only := True;
@@ -76,6 +80,8 @@ sys::sleep(duration: std::duration) -> std::bool
 CREATE FUNCTION
 sys::advisory_lock(key: std::int64) -> std::bool
 {
+    CREATE ANNOTATION std::description :=
+        'Obtain an exclusive session-level advisory lock.';
     # This function has side-effect.
     SET volatility := 'VOLATILE';
     SET session_only := True;
@@ -92,6 +98,8 @@ sys::advisory_lock(key: std::int64) -> std::bool
 CREATE FUNCTION
 sys::advisory_unlock(key: std::int64) -> std::bool
 {
+    CREATE ANNOTATION std::description :=
+        'Release an exclusive session-level advisory lock.';
     # This function has side-effect.
     SET volatility := 'VOLATILE';
     SET session_only := True;
@@ -108,6 +116,8 @@ sys::advisory_unlock(key: std::int64) -> std::bool
 CREATE FUNCTION
 sys::advisory_unlock_all() -> std::bool
 {
+    CREATE ANNOTATION std::description :=
+        'Release all session-level advisory locks held by the current session.';
     # This function has side-effect.
     SET volatility := 'VOLATILE';
     SET session_only := True;
@@ -153,6 +163,8 @@ sys::get_version() -> tuple<major: std::int64,
                             stage_no: std::int64,
                             local: array<std::str>>
 {
+    CREATE ANNOTATION std::description :=
+        'Return the server version as a tuple.';
     SET volatility := 'STABLE';
     USING (
         SELECT <tuple<major: std::int64,
@@ -167,6 +179,8 @@ sys::get_version() -> tuple<major: std::int64,
 CREATE FUNCTION
 sys::get_version_as_str() -> std::str
 {
+    CREATE ANNOTATION std::description :=
+        'Return the server version as a string.';
     SET volatility := 'STABLE';
     USING (
         WITH v := sys::get_version()
@@ -184,6 +198,8 @@ sys::get_version_as_str() -> std::str
 CREATE FUNCTION
 sys::get_transaction_isolation() -> sys::TransactionIsolation
 {
+    CREATE ANNOTATION std::description :=
+        'Return the isolation level of the current transaction.';
     # This function only reads from a table.
     SET volatility := 'STABLE';
     SET force_return_cast := true;
@@ -194,6 +210,8 @@ sys::get_transaction_isolation() -> sys::TransactionIsolation
 CREATE FUNCTION
 sys::get_current_database() -> str
 {
+    CREATE ANNOTATION std::description :=
+        'Return the name of the current database as a string.';
     # The results won't change within a single statement.
     SET volatility := 'STABLE';
     USING SQL FUNCTION 'current_database';

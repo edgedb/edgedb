@@ -23,6 +23,8 @@
 CREATE FUNCTION
 std::array_agg(s: SET OF anytype) -> array<anytype>
 {
+    CREATE ANNOTATION std::description :=
+        'Return the array made from all of the input set elements.';
     SET volatility := 'IMMUTABLE';
     SET initial_value := [];
     USING SQL FUNCTION 'array_agg';
@@ -32,6 +34,7 @@ std::array_agg(s: SET OF anytype) -> array<anytype>
 CREATE FUNCTION
 std::array_unpack(array: array<anytype>) -> SET OF anytype
 {
+    CREATE ANNOTATION std::description := 'Return array elements as a set.';
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'unnest';
 };
@@ -44,6 +47,8 @@ std::array_get(
     NAMED ONLY default: OPTIONAL anytype={}
 ) -> OPTIONAL anytype
 {
+    CREATE ANNOTATION std::description :=
+        'Return the element of *array* at the specified *index*.';
     SET volatility := 'IMMUTABLE';
     USING SQL $$
     SELECT COALESCE(
@@ -60,6 +65,7 @@ std::array_get(
 CREATE FUNCTION
 std::array_join(array: array<std::str>, delimiter: std::str) -> std::str
 {
+    CREATE ANNOTATION std::description := 'Render an array to a string.';
     SET volatility := 'STABLE';
     USING SQL $$
     SELECT array_to_string("array", "delimiter");

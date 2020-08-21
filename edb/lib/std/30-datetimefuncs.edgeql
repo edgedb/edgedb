@@ -23,6 +23,8 @@
 CREATE FUNCTION
 std::datetime_current() -> std::datetime
 {
+    CREATE ANNOTATION std::description :=
+        'Return the current server date and time.';
     SET volatility := 'VOLATILE';
     USING SQL FUNCTION 'clock_timestamp';
 };
@@ -31,6 +33,8 @@ std::datetime_current() -> std::datetime
 CREATE FUNCTION
 std::datetime_of_transaction() -> std::datetime
 {
+    CREATE ANNOTATION std::description :=
+        'Return the date and time of the start of the current transaction.';
     SET volatility := 'STABLE';
     USING SQL FUNCTION 'transaction_timestamp';
 };
@@ -39,6 +43,8 @@ std::datetime_of_transaction() -> std::datetime
 CREATE FUNCTION
 std::datetime_of_statement() -> std::datetime
 {
+    CREATE ANNOTATION std::description :=
+        'Return the date and time of the start of the current statement.';
     SET volatility := 'STABLE';
     USING SQL FUNCTION 'statement_timestamp';
 };
@@ -47,6 +53,8 @@ std::datetime_of_statement() -> std::datetime
 CREATE FUNCTION
 std::datetime_get(dt: std::datetime, el: std::str) -> std::float64
 {
+    CREATE ANNOTATION std::description :=
+        'Extract a specific element of input datetime by name.';
     # date_part of timestamptz is STABLE in PostgreSQL
     SET volatility := 'STABLE';
     USING SQL $$
@@ -77,6 +85,8 @@ std::datetime_get(dt: std::datetime, el: std::str) -> std::float64
 CREATE FUNCTION
 std::datetime_truncate(dt: std::datetime, unit: std::str) -> std::datetime
 {
+    CREATE ANNOTATION std::description :=
+        'Truncate the input datetime to a particular precision.';
     # date_trunc of timestamptz is STABLE in PostgreSQL
     SET volatility := 'STABLE';
     USING SQL $$
@@ -105,6 +115,8 @@ std::datetime_truncate(dt: std::datetime, unit: std::str) -> std::datetime
 CREATE FUNCTION
 std::duration_truncate(dt: std::duration, unit: std::str) -> std::duration
 {
+    CREATE ANNOTATION std::description :=
+        'Truncate the input duration to a particular precision.';
     SET volatility := 'IMMUTABLE';
     USING SQL $$
     SELECT CASE WHEN "unit" in ('microseconds', 'milliseconds',
@@ -127,6 +139,8 @@ std::duration_truncate(dt: std::duration, unit: std::str) -> std::duration
 CREATE FUNCTION
 std::duration_to_seconds(dur: std::duration) -> std::decimal
 {
+    CREATE ANNOTATION std::description :=
+        'Return duration as total number of seconds in interval.';
     SET volatility := 'IMMUTABLE';
     USING SQL $$
     SELECT EXTRACT(epoch FROM date_trunc('minute', dur))::bigint::decimal +

@@ -25,6 +25,8 @@
 CREATE FUNCTION
 std::len(str: std::str) -> std::int64
 {
+    CREATE ANNOTATION std::description :=
+        'A polymorphic function to calculate a "length" of its first argument.';
     SET volatility := 'IMMUTABLE';
     USING SQL $$
     SELECT char_length("str")::bigint
@@ -35,6 +37,8 @@ std::len(str: std::str) -> std::int64
 CREATE FUNCTION
 std::len(bytes: std::bytes) -> std::int64
 {
+    CREATE ANNOTATION std::description :=
+        'A polymorphic function to calculate a "length" of its first argument.';
     SET volatility := 'IMMUTABLE';
     USING SQL $$
     SELECT length("bytes")::bigint
@@ -45,6 +49,8 @@ std::len(bytes: std::bytes) -> std::int64
 CREATE FUNCTION
 std::len(array: array<anytype>) -> std::int64
 {
+    CREATE ANNOTATION std::description :=
+        'A polymorphic function to calculate a "length" of its first argument.';
     SET volatility := 'IMMUTABLE';
     USING SQL $$
     SELECT cardinality("array")::bigint
@@ -58,6 +64,8 @@ std::len(array: array<anytype>) -> std::int64
 CREATE FUNCTION
 std::sum(s: SET OF std::bigint) -> std::bigint
 {
+    CREATE ANNOTATION std::description :=
+        'Return the sum of the set of numbers.';
     SET volatility := 'IMMUTABLE';
     SET initial_value := 0;
     SET force_return_cast := true;
@@ -68,6 +76,8 @@ std::sum(s: SET OF std::bigint) -> std::bigint
 CREATE FUNCTION
 std::sum(s: SET OF std::decimal) -> std::decimal
 {
+    CREATE ANNOTATION std::description :=
+        'Return the sum of the set of numbers.';
     SET volatility := 'IMMUTABLE';
     SET initial_value := 0;
     USING SQL FUNCTION 'sum';
@@ -77,6 +87,8 @@ std::sum(s: SET OF std::decimal) -> std::decimal
 CREATE FUNCTION
 std::sum(s: SET OF std::int32) -> std::int64
 {
+    CREATE ANNOTATION std::description :=
+        'Return the sum of the set of numbers.';
     SET volatility := 'IMMUTABLE';
     SET initial_value := 0;
     SET force_return_cast := true;
@@ -87,6 +99,8 @@ std::sum(s: SET OF std::int32) -> std::int64
 CREATE FUNCTION
 std::sum(s: SET OF std::int64) -> std::int64
 {
+    CREATE ANNOTATION std::description :=
+        'Return the sum of the set of numbers.';
     SET volatility := 'IMMUTABLE';
     SET initial_value := 0;
     SET force_return_cast := true;
@@ -97,6 +111,8 @@ std::sum(s: SET OF std::int64) -> std::int64
 CREATE FUNCTION
 std::sum(s: SET OF std::float32) -> std::float32
 {
+    CREATE ANNOTATION std::description :=
+        'Return the sum of the set of numbers.';
     SET volatility := 'IMMUTABLE';
     SET initial_value := 0;
     USING SQL FUNCTION 'sum';
@@ -106,6 +122,8 @@ std::sum(s: SET OF std::float32) -> std::float32
 CREATE FUNCTION
 std::sum(s: SET OF std::float64) -> std::float64
 {
+    CREATE ANNOTATION std::description :=
+        'Return the sum of the set of numbers.';
     SET volatility := 'IMMUTABLE';
     SET initial_value := 0;
     USING SQL FUNCTION 'sum';
@@ -118,6 +136,8 @@ std::sum(s: SET OF std::float64) -> std::float64
 CREATE FUNCTION
 std::count(s: SET OF anytype) -> std::int64
 {
+    CREATE ANNOTATION std::description :=
+        'Return the number of elements in a set.';
     SET volatility := 'IMMUTABLE';
     SET initial_value := 0;
     USING SQL FUNCTION 'count';
@@ -130,6 +150,8 @@ std::count(s: SET OF anytype) -> std::int64
 CREATE FUNCTION
 std::random() -> std::float64
 {
+    CREATE ANNOTATION std::description :=
+        'Return a pseudo-random number in the range `0.0 <= x < 1.0`';
     SET volatility := 'VOLATILE';
     USING SQL FUNCTION 'random';
 };
@@ -141,6 +163,8 @@ std::random() -> std::float64
 CREATE FUNCTION
 std::min(vals: SET OF anytype) -> OPTIONAL anytype
 {
+    CREATE ANNOTATION std::description :=
+        'Return the smallest value of the input set.';
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'min';
 };
@@ -152,6 +176,8 @@ std::min(vals: SET OF anytype) -> OPTIONAL anytype
 CREATE FUNCTION
 std::max(vals: SET OF anytype) -> OPTIONAL anytype
 {
+    CREATE ANNOTATION std::description :=
+        'Return the greatest value of the input set.';
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'max';
 };
@@ -163,6 +189,8 @@ std::max(vals: SET OF anytype) -> OPTIONAL anytype
 CREATE FUNCTION
 std::all(vals: SET OF std::bool) -> std::bool
 {
+    CREATE ANNOTATION std::description :=
+        'Generalized boolean `AND` applied to the set of *values*.';
     SET volatility := 'IMMUTABLE';
     SET initial_value := True;
     USING SQL FUNCTION 'bool_and';
@@ -175,6 +203,8 @@ std::all(vals: SET OF std::bool) -> std::bool
 CREATE FUNCTION
 std::any(vals: SET OF std::bool) -> std::bool
 {
+    CREATE ANNOTATION std::description :=
+        'Generalized boolean `OR` applied to the set of *values*.';
     SET volatility := 'IMMUTABLE';
     SET initial_value := False;
     USING SQL FUNCTION 'bool_or';
@@ -189,6 +219,8 @@ std::enumerate(
     vals: SET OF anytype
 ) -> SET OF tuple<std::int64, anytype>
 {
+    CREATE ANNOTATION std::description :=
+        'Return a set of tuples of the form `(index, element)`.';
     SET volatility := 'IMMUTABLE';
     USING SQL EXPRESSION;
 };
@@ -200,6 +232,7 @@ std::enumerate(
 CREATE FUNCTION
 std::round(val: std::int64) -> std::int64
 {
+    CREATE ANNOTATION std::description := 'Round to the nearest value.';
     SET volatility := 'IMMUTABLE';
     USING SQL $$
     SELECT "val"
@@ -210,6 +243,7 @@ std::round(val: std::int64) -> std::int64
 CREATE FUNCTION
 std::round(val: std::float64) -> std::float64
 {
+    CREATE ANNOTATION std::description := 'Round to the nearest value.';
     SET volatility := 'IMMUTABLE';
     USING SQL $$
     SELECT round("val")
@@ -220,6 +254,7 @@ std::round(val: std::float64) -> std::float64
 CREATE FUNCTION
 std::round(val: std::bigint) -> std::bigint
 {
+    CREATE ANNOTATION std::description := 'Round to the nearest value.';
     SET volatility := 'IMMUTABLE';
     USING SQL $$
     SELECT "val";
@@ -230,6 +265,7 @@ std::round(val: std::bigint) -> std::bigint
 CREATE FUNCTION
 std::round(val: std::decimal) -> std::decimal
 {
+    CREATE ANNOTATION std::description := 'Round to the nearest value.';
     SET volatility := 'IMMUTABLE';
     USING SQL $$
     SELECT round("val");
@@ -240,6 +276,7 @@ std::round(val: std::decimal) -> std::decimal
 CREATE FUNCTION
 std::round(val: std::decimal, d: std::int64) -> std::decimal
 {
+    CREATE ANNOTATION std::description := 'Round to the nearest value.';
     SET volatility := 'IMMUTABLE';
     USING SQL $$
     SELECT round("val", "d"::int4)
@@ -253,6 +290,8 @@ std::round(val: std::decimal, d: std::int64) -> std::decimal
 CREATE FUNCTION
 std::contains(haystack: std::str, needle: std::str) -> std::bool
 {
+    CREATE ANNOTATION std::description :=
+        'A polymorphic function to test if a sequence contains a certain element.';
     SET volatility := 'IMMUTABLE';
     USING SQL $$
     SELECT (
@@ -273,6 +312,8 @@ std::contains(haystack: std::str, needle: std::str) -> std::bool
 CREATE FUNCTION
 std::contains(haystack: std::bytes, needle: std::bytes) -> std::bool
 {
+    CREATE ANNOTATION std::description :=
+        'A polymorphic function to test if a sequence contains a certain element.';
     SET volatility := 'IMMUTABLE';
     USING SQL $$
     SELECT position("needle" in "haystack") != 0
@@ -283,6 +324,8 @@ std::contains(haystack: std::bytes, needle: std::bytes) -> std::bool
 CREATE FUNCTION
 std::contains(haystack: array<anytype>, needle: anytype) -> std::bool
 {
+    CREATE ANNOTATION std::description :=
+        'A polymorphic function to test if a sequence contains a certain element.';
     SET volatility := 'IMMUTABLE';
     USING SQL $$
     SELECT
@@ -300,6 +343,8 @@ std::contains(haystack: array<anytype>, needle: anytype) -> std::bool
 CREATE FUNCTION
 std::find(haystack: std::str, needle: std::str) -> std::int64
 {
+    CREATE ANNOTATION std::description :=
+        'A polymorphic function to find index of an element in a sequence.';
     SET volatility := 'IMMUTABLE';
     USING SQL $$
     SELECT (
@@ -320,6 +365,8 @@ std::find(haystack: std::str, needle: std::str) -> std::int64
 CREATE FUNCTION
 std::find(haystack: std::bytes, needle: std::bytes) -> std::int64
 {
+    CREATE ANNOTATION std::description :=
+        'A polymorphic function to find index of an element in a sequence.';
     SET volatility := 'IMMUTABLE';
     USING SQL $$
     SELECT (position("needle" in "haystack") - 1)::int8
@@ -331,6 +378,8 @@ CREATE FUNCTION
 std::find(haystack: array<anytype>, needle: anytype,
           from_pos: std::int64=0) -> std::int64
 {
+    CREATE ANNOTATION std::description :=
+        'A polymorphic function to find index of an element in a sequence.';
     SET volatility := 'IMMUTABLE';
     USING SQL $$
     SELECT COALESCE(

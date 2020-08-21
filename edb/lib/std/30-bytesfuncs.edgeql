@@ -23,6 +23,8 @@
 CREATE FUNCTION
 std::bytes_get_bit(bytes: std::bytes, num: int64) -> std::int64
 {
+    CREATE ANNOTATION std::description :=
+        'Get the *nth* bit of the *bytes* value.';
     SET volatility := 'IMMUTABLE';
     USING SQL $$
     SELECT get_bit("bytes", "num"::int)::bigint

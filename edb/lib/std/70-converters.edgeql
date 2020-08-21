@@ -33,6 +33,8 @@
 CREATE FUNCTION
 std::to_str(dt: std::datetime, fmt: OPTIONAL str={}) -> std::str
 {
+    CREATE ANNOTATION std::description :=
+        'Return string representation of the input value.';
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
     USING SQL $$
@@ -61,6 +63,8 @@ std::to_str(dt: std::datetime, fmt: OPTIONAL str={}) -> std::str
 CREATE FUNCTION
 std::to_str(td: std::duration, fmt: OPTIONAL str={}) -> std::str
 {
+    CREATE ANNOTATION std::description :=
+        'Return string representation of the input value.';
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
     USING SQL $$
@@ -94,6 +98,8 @@ std::to_str(td: std::duration, fmt: OPTIONAL str={}) -> std::str
 CREATE FUNCTION
 std::to_str(i: std::int64, fmt: OPTIONAL str={}) -> std::str
 {
+    CREATE ANNOTATION std::description :=
+        'Return string representation of the input value.';
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
     USING SQL $$
@@ -122,6 +128,8 @@ std::to_str(i: std::int64, fmt: OPTIONAL str={}) -> std::str
 CREATE FUNCTION
 std::to_str(f: std::float64, fmt: OPTIONAL str={}) -> std::str
 {
+    CREATE ANNOTATION std::description :=
+        'Return string representation of the input value.';
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
     USING SQL $$
@@ -150,6 +158,8 @@ std::to_str(f: std::float64, fmt: OPTIONAL str={}) -> std::str
 CREATE FUNCTION
 std::to_str(d: std::bigint, fmt: OPTIONAL str={}) -> std::str
 {
+    CREATE ANNOTATION std::description :=
+        'Return string representation of the input value.';
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
     USING SQL $$
@@ -178,6 +188,8 @@ std::to_str(d: std::bigint, fmt: OPTIONAL str={}) -> std::str
 CREATE FUNCTION
 std::to_str(d: std::decimal, fmt: OPTIONAL str={}) -> std::str
 {
+    CREATE ANNOTATION std::description :=
+        'Return string representation of the input value.';
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
     USING SQL $$
@@ -209,6 +221,8 @@ std::to_str(d: std::decimal, fmt: OPTIONAL str={}) -> std::str
 CREATE FUNCTION
 std::to_str(array: array<std::str>, delimiter: std::str) -> std::str
 {
+    CREATE ANNOTATION std::description :=
+        'Return string representation of the input value.';
     SET volatility := 'STABLE';
     USING (
         SELECT std::array_join(array, delimiter)
@@ -221,6 +235,8 @@ std::to_str(array: array<std::str>, delimiter: std::str) -> std::str
 CREATE FUNCTION
 std::to_str(json: std::json, fmt: OPTIONAL str={}) -> std::str
 {
+    CREATE ANNOTATION std::description :=
+        'Return string representation of the input value.';
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
     USING SQL $$
@@ -251,6 +267,8 @@ std::to_str(json: std::json, fmt: OPTIONAL str={}) -> std::str
 CREATE FUNCTION
 std::to_json(str: std::str) -> std::json
 {
+    CREATE ANNOTATION std::description :=
+        'Return JSON value represented by the input *string*.';
     # Casting of jsonb to and from text in PostgreSQL is IMMUTABLE.
     SET volatility := 'IMMUTABLE';
     USING SQL $$
@@ -262,6 +280,7 @@ std::to_json(str: std::str) -> std::json
 CREATE FUNCTION
 std::to_datetime(s: std::str, fmt: OPTIONAL str={}) -> std::datetime
 {
+    CREATE ANNOTATION std::description := 'Create a `datetime` value.';
     # Helper function to_datetime is VOLATILE.
     SET volatility := 'VOLATILE';
     USING SQL $$
@@ -292,6 +311,7 @@ std::to_datetime(year: std::int64, month: std::int64, day: std::int64,
                  timezone: std::str)
     -> std::datetime
 {
+    CREATE ANNOTATION std::description := 'Create a `datetime` value.';
     # make_timestamptz is STABLE
     SET volatility := 'STABLE';
     USING SQL $$
@@ -306,6 +326,7 @@ std::to_datetime(year: std::int64, month: std::int64, day: std::int64,
 CREATE FUNCTION
 std::to_datetime(epochseconds: std::float64) -> std::datetime
 {
+    CREATE ANNOTATION std::description := 'Create a `datetime` value.';
     SET volatility := 'STABLE';
     USING SQL $$
     SELECT to_timestamp("epochseconds")
@@ -316,6 +337,7 @@ std::to_datetime(epochseconds: std::float64) -> std::datetime
 CREATE FUNCTION
 std::to_datetime(epochseconds: std::int64) -> std::datetime
 {
+    CREATE ANNOTATION std::description := 'Create a `datetime` value.';
     SET volatility := 'STABLE';
     USING SQL $$
     SELECT to_timestamp("epochseconds")
@@ -326,6 +348,7 @@ std::to_datetime(epochseconds: std::int64) -> std::datetime
 CREATE FUNCTION
 std::to_datetime(epochseconds: std::decimal) -> std::datetime
 {
+    CREATE ANNOTATION std::description := 'Create a `datetime` value.';
     SET volatility := 'STABLE';
     USING SQL $$
     SELECT to_timestamp("epochseconds")
@@ -341,6 +364,7 @@ std::to_duration(
         NAMED ONLY microseconds: std::int64=0
     ) -> std::duration
 {
+    CREATE ANNOTATION std::description := 'Create a `duration` value.';
     SET volatility := 'IMMUTABLE';
     USING SQL $$
     SELECT make_interval(
@@ -359,6 +383,7 @@ std::to_duration(
 CREATE FUNCTION
 std::to_bigint(s: std::str, fmt: OPTIONAL str={}) -> std::bigint
 {
+    CREATE ANNOTATION std::description := 'Create a `bigint` value.';
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
     USING SQL $$
@@ -387,6 +412,7 @@ std::to_bigint(s: std::str, fmt: OPTIONAL str={}) -> std::bigint
 CREATE FUNCTION
 std::to_decimal(s: std::str, fmt: OPTIONAL str={}) -> std::decimal
 {
+    CREATE ANNOTATION std::description := 'Create a `decimal` value.';
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
     USING SQL $$
@@ -415,6 +441,7 @@ std::to_decimal(s: std::str, fmt: OPTIONAL str={}) -> std::decimal
 CREATE FUNCTION
 std::to_int64(s: std::str, fmt: OPTIONAL str={}) -> std::int64
 {
+    CREATE ANNOTATION std::description := 'Create a `int64` value.';
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
     USING SQL $$
@@ -445,6 +472,7 @@ std::to_int64(s: std::str, fmt: OPTIONAL str={}) -> std::int64
 CREATE FUNCTION
 std::to_int32(s: std::str, fmt: OPTIONAL str={}) -> std::int32
 {
+    CREATE ANNOTATION std::description := 'Create a `int32` value.';
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
     USING SQL $$
@@ -475,6 +503,7 @@ std::to_int32(s: std::str, fmt: OPTIONAL str={}) -> std::int32
 CREATE FUNCTION
 std::to_int16(s: std::str, fmt: OPTIONAL str={}) -> std::int16
 {
+    CREATE ANNOTATION std::description := 'Create a `int16` value.';
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
     USING SQL $$
@@ -505,6 +534,7 @@ std::to_int16(s: std::str, fmt: OPTIONAL str={}) -> std::int16
 CREATE FUNCTION
 std::to_float64(s: std::str, fmt: OPTIONAL str={}) -> std::float64
 {
+    CREATE ANNOTATION std::description := 'Create a `float64` value.';
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
     USING SQL $$
@@ -533,6 +563,7 @@ std::to_float64(s: std::str, fmt: OPTIONAL str={}) -> std::float64
 CREATE FUNCTION
 std::to_float32(s: std::str, fmt: OPTIONAL str={}) -> std::float32
 {
+    CREATE ANNOTATION std::description := 'Create a `float32` value.';
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
     USING SQL $$

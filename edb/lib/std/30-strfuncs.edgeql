@@ -129,6 +129,8 @@ std::`>=` (l: std::str, r: std::str) -> std::bool {
 CREATE FUNCTION
 std::str_repeat(s: std::str, n: std::int64) -> std::str
 {
+    CREATE ANNOTATION std::description :=
+        'Repeat the input *string* *n* times.';
     SET volatility := 'IMMUTABLE';
     USING SQL $$
     SELECT repeat("s", "n"::int4)
@@ -139,6 +141,8 @@ std::str_repeat(s: std::str, n: std::int64) -> std::str
 CREATE FUNCTION
 std::str_lower(s: std::str) -> std::str
 {
+    CREATE ANNOTATION std::description :=
+        'Return a lowercase copy of the input *string*.';
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'lower';
 };
@@ -147,6 +151,8 @@ std::str_lower(s: std::str) -> std::str
 CREATE FUNCTION
 std::str_upper(s: std::str) -> std::str
 {
+    CREATE ANNOTATION std::description :=
+        'Return an uppercase copy of the input *string*.';
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'upper';
 };
@@ -155,6 +161,8 @@ std::str_upper(s: std::str) -> std::str
 CREATE FUNCTION
 std::str_title(s: std::str) -> std::str
 {
+    CREATE ANNOTATION std::description :=
+        'Return a titlecase copy of the input *string*.';
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'initcap';
 };
@@ -163,6 +171,8 @@ std::str_title(s: std::str) -> std::str
 CREATE FUNCTION
 std::str_lpad(s: std::str, n: std::int64, fill: std::str=' ') -> std::str
 {
+    CREATE ANNOTATION std::description :=
+        'Return the input *string* left-padded to the length *n*.';
     SET volatility := 'IMMUTABLE';
     USING SQL $$
     SELECT lpad("s", "n"::int4, "fill")
@@ -173,6 +183,8 @@ std::str_lpad(s: std::str, n: std::int64, fill: std::str=' ') -> std::str
 CREATE FUNCTION
 std::str_rpad(s: std::str, n: std::int64, fill: std::str=' ') -> std::str
 {
+    CREATE ANNOTATION std::description :=
+        'Return the input *string* right-padded to the length *n*.';
     SET volatility := 'IMMUTABLE';
     USING SQL $$
     SELECT rpad("s", "n"::int4, "fill")
@@ -183,6 +195,8 @@ std::str_rpad(s: std::str, n: std::int64, fill: std::str=' ') -> std::str
 CREATE FUNCTION
 std::str_ltrim(s: std::str, tr: std::str=' ') -> std::str
 {
+    CREATE ANNOTATION std::description :=
+        'Return the input *string* with all leftmost *trim* characters removed.';
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'ltrim';
 };
@@ -191,6 +205,8 @@ std::str_ltrim(s: std::str, tr: std::str=' ') -> std::str
 CREATE FUNCTION
 std::str_rtrim(s: std::str, tr: std::str=' ') -> std::str
 {
+    CREATE ANNOTATION std::description :=
+        'Return the input *string* with all rightmost *trim* characters removed.';
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'rtrim';
 };
@@ -199,6 +215,8 @@ std::str_rtrim(s: std::str, tr: std::str=' ') -> std::str
 CREATE FUNCTION
 std::str_trim(s: std::str, tr: std::str=' ') -> std::str
 {
+    CREATE ANNOTATION std::description :=
+        'Return the input *string* with *trim* characters removed from both ends.';
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'btrim';
 };
@@ -207,6 +225,8 @@ std::str_trim(s: std::str, tr: std::str=' ') -> std::str
 CREATE FUNCTION
 std::str_split(s: std::str, delimiter: std::str) -> array<std::str>
 {
+    CREATE ANNOTATION std::description :=
+        'Split string into array elements using the supplied delimiter.';
     SET volatility := 'IMMUTABLE';
     USING SQL $$
         SELECT (
