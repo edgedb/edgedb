@@ -4182,6 +4182,8 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             """
             function std::array_agg(s: SET OF anytype) ->  array<anytype> {
                 volatility := 'IMMUTABLE';
+                annotation std::description := 'Return the array made from all
+                    of the input set elements.';
                 using sql;
             };
             """,
@@ -4570,6 +4572,8 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             {
                 SET errmessage := '{__subject__} must be no longer
                                    than {max} characters.';
+                CREATE ANNOTATION std::description := 'Specifies the maximum
+                    length of subject string representation.';
             };
             ''',
 
@@ -5201,6 +5205,8 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             # function std::all(vals: SET OF std::bool) ->  std::bool {
             #     volatility := 'IMMUTABLE';
+            #     annotation std::description := 'Generalized boolean `AND`
+                      applied to the set of *values*.';
             #     using sql
             # ;};
             """,
