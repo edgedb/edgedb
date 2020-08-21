@@ -22,6 +22,7 @@
 
 CREATE FUNCTION
 std::uuid_generate_v1mc() -> std::uuid {
+    CREATE ANNOTATION std::description := 'Return a version 1 UUID.';
     SET volatility := 'VOLATILE';
     USING SQL $$
     SELECT edgedb.uuid_generate_v1mc()
