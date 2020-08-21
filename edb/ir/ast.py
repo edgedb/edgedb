@@ -80,7 +80,7 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
 from .pathid import PathId, AnyNamespace, WeakNamespace  # noqa
-from .scopetree import InvalidScopeConfiguration, ScopeTreeNode  # noqa
+from .scopetree import ScopeTreeNode  # noqa
 
 
 def new_scope_tree() -> ScopeTreeNode:

@@ -26,6 +26,7 @@ import functools
 from typing import *
 
 from edb import errors
+from edb.common import context as pctx
 
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
@@ -65,6 +66,7 @@ def process_view(
     is_insert: bool = False,
     is_update: bool = False,
     is_delete: bool = False,
+    parser_context: pctx.ParserContext,
     ctx: context.ContextLevel,
 ) -> s_objtypes.ObjectType:
 
@@ -74,7 +76,7 @@ def process_view(
         return view_scls
 
     with ctx.newscope(fenced=True, temporary=True) as scopectx:
-        scopectx.path_scope.attach_path(path_id)
+        scopectx.path_scope.attach_path(path_id, context=parser_context)
         view_path_id_ns = None
         if ctx.expr_exposed or is_insert or is_update:
             view_path_id_ns = irast.WeakNamespace(ctx.aliases.get('ns'))
@@ -91,6 +93,7 @@ def process_view(
             is_update=is_update,
             is_delete=is_delete,
             path_id_namespace=view_path_id_ns,
+            parser_context=parser_context,
             ctx=scopectx,
         )
 
@@ -110,6 +113,7 @@ def _process_view(
     is_insert: bool = False,
     is_update: bool = False,
     is_delete: bool = False,
+    parser_context: pctx.ParserContext,
     ctx: context.ContextLevel,
 ) -> s_objtypes.ObjectType:
 
@@ -170,7 +174,8 @@ def _process_view(
                 shape_el, view_scls, path_id=path_id,
                 path_id_namespace=path_id_namespace,
                 is_insert=is_insert, is_update=is_update,
-                view_rptr=view_rptr, ctx=scopectx)
+                view_rptr=view_rptr,
+                ctx=scopectx)
 
             if pointer in pointers:
                 schema = ctx.env.schema
@@ -519,7 +524,8 @@ def _normalize_view_ptr_expr(
                 ns=ctx.path_id_namespace,
                 ctx=ctx)
 
-            ctx.path_scope.attach_path(sub_path_id)
+            ctx.path_scope.attach_path(sub_path_id,
+                                       context=shape_el.context)
 
             if is_update:
                 for subel in shape_el.elements or []:
@@ -536,13 +542,17 @@ def _normalize_view_ptr_expr(
                     stype=ptr_target, path_id=sub_path_id,
                     path_id_namespace=path_id_namespace,
                     view_rptr=sub_view_rptr,
-                    elements=shape_el.elements, is_update=True, ctx=ctx)
+                    elements=shape_el.elements, is_update=True,
+                    parser_context=shape_el.context,
+                    ctx=ctx)
             else:
                 ptr_target = _process_view(
                     stype=ptr_target, path_id=sub_path_id,
                     path_id_namespace=path_id_namespace,
                     view_rptr=sub_view_rptr,
-                    elements=shape_el.elements, ctx=ctx)
+                    elements=shape_el.elements,
+                    parser_context=shape_el.context,
+                    ctx=ctx)
 
     else:
         base_ptrcls = ptrcls = None
@@ -1131,7 +1141,8 @@ def _get_shape_configuration(
                 scopectx.anchors = scopectx.anchors.copy()
                 scopectx.anchors[qlast.Source().name] = ir_set
                 ptr = _normalize_view_ptr_expr(
-                    ql, stype, path_id=ir_set.path_id, ctx=scopectx)
+                    ql, stype, path_id=ir_set.path_id,
+                    ctx=scopectx)
 
         view_shape = ctx.env.view_shapes[stype]
         view_shape_ptrs = {p for p, _ in view_shape}

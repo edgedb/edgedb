@@ -779,12 +779,9 @@ def compile_Shape(
             f'shapes cannot be applied to '
             f'{expr_stype.get_verbosename(ctx.env.schema)}'
         )
-    try:
-        view_type = viewgen.process_view(
-            stype=expr_stype, path_id=expr.path_id,
-            elements=shape.elements, ctx=ctx)
-    except irast.InvalidScopeConfiguration as e:
-        raise errors.QueryError(e.args[0], context=shape.context) from e
+    view_type = viewgen.process_view(
+        stype=expr_stype, path_id=expr.path_id,
+        elements=shape.elements, parser_context=shape.context, ctx=ctx)
 
     return setgen.ensure_set(expr, type_override=view_type, ctx=ctx)
 
@@ -1044,20 +1041,18 @@ def compile_query_subject(
                 f'{expr_stype.get_verbosename(ctx.env.schema)}'
             )
 
-        try:
-            view_scls = viewgen.process_view(
-                stype=expr_stype,
-                path_id=expr.path_id,
-                elements=shape,
-                view_rptr=view_rptr,
-                view_name=view_name,
-                is_insert=is_insert,
-                is_update=is_update,
-                is_delete=is_delete,
-                ctx=ctx,
-            )
-        except irast.InvalidScopeConfiguration as e:
-            raise errors.QueryError(e.args[0], context=expr.context) from e
+        view_scls = viewgen.process_view(
+            stype=expr_stype,
+            path_id=expr.path_id,
+            elements=shape,
+            view_rptr=view_rptr,
+            view_name=view_name,
+            is_insert=is_insert,
+            is_update=is_update,
+            is_delete=is_delete,
+            parser_context=expr.context,
+            ctx=ctx,
+        )
 
     if view_scls is not None:
         expr = setgen.ensure_set(expr, type_override=view_scls, ctx=ctx)

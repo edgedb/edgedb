@@ -89,14 +89,11 @@ def register_set_in_scope(
     if path_scope is None:
         path_scope = ctx.path_scope
 
-    try:
-        return path_scope.attach_path(
-            ir_set.path_id,
-            fence_points=fence_points,
-        )
-    except irast.InvalidScopeConfiguration as e:
-        raise errors.QueryError(
-            e.args[0], context=ir_set.context) from e
+    return path_scope.attach_path(
+        ir_set.path_id,
+        fence_points=fence_points,
+        context=ir_set.context,
+    )
 
 
 def assign_set_scope(

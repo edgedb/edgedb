@@ -80,7 +80,7 @@ def init_context(
         # the necessary fashion.
         for singleton in options.singletons:
             path_id = pathctx.get_path_id(singleton, ctx=ctx)
-            ctx.env.path_scope.attach_path(path_id)
+            ctx.env.path_scope.attach_path(path_id, context=None)
 
         ctx.path_scope = ctx.env.path_scope.attach_fence()
 
