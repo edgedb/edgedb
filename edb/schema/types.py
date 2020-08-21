@@ -531,6 +531,17 @@ class UnionTypeShell(TypeExprShell):
         type_id, _ = get_union_type_id(schema, components, module=self.module)
         return schema.get_by_id(type_id, type=Type)
 
+    def get_name(
+        self,
+        schema: s_schema.Schema,
+    ) -> str:
+        _, name = get_union_type_id(
+            schema,
+            self.components,
+            module=self.module,
+        )
+        return name
+
     def as_create_delta(
         self,
         schema: s_schema.Schema,
@@ -603,6 +614,17 @@ class IntersectionTypeShell(TypeExprShell):
         type_id, _ = get_intersection_type_id(
             schema, components, module=self.module)
         return schema.get_by_id(type_id, type=Type)
+
+    def get_name(
+        self,
+        schema: s_schema.Schema,
+    ) -> str:
+        _, name = get_intersection_type_id(
+            schema,
+            self.components,
+            module=self.module,
+        )
+        return name
 
 
 class Collection(Type, s_abc.Collection):

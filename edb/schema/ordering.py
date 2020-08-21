@@ -22,6 +22,7 @@ from typing import *
 
 import collections
 
+from edb.common import ordered
 from edb.common import topological
 
 from . import delta as sd
@@ -47,7 +48,7 @@ def linearize_delta(
     opmap: Dict[sd.Command, List[sd.Command]] = {}
     strongrefs: Dict[str, str] = {}
 
-    for op in delta.get_subcommands():
+    for op in _get_sorted_subcommands(delta):
         _break_down(opmap, strongrefs, [delta, op])
 
     depgraph: Dict[Tuple[str, str], Dict[str, Any]] = {}
@@ -73,12 +74,12 @@ def linearize_delta(
     depgraph = dict(
         filter(lambda i: i[1].get('item') is not None, depgraph.items()))
 
-    ordered = list(topological.sort(depgraph, allow_unresolved=True,
-                                    return_record=True))
+    sortedlist = list(topological.sort(depgraph, allow_unresolved=True,
+                                       return_record=True))
 
     dependencies: Dict[sd.Command, Set[sd.Command]]
     dependencies = collections.defaultdict(set)
-    max_offset = len(ordered)
+    max_offset = len(sortedlist)
     offsets: Dict[sd.Command, int] = {}
     ops: List[sd.Command] = []
     opindex: Dict[
@@ -100,7 +101,7 @@ def linearize_delta(
         # higher than the op we're moving to.
         return all(offsets.get(dep, max_offset) <= move_offset for dep in deps)
 
-    for _key, info in ordered:
+    for _key, info in sortedlist:
         op = info['op']
         opstack = info['item']
         for i, pop in enumerate(opstack[1:]):
@@ -116,7 +117,7 @@ def linearize_delta(
             assert isinstance(dep_parent, sd.ObjectCommand)
             dependencies[op].add(dep_op)
 
-    for _key, info in ordered:
+    for _key, info in sortedlist:
         op = info['op']
         # Elide empty ALTER statements from output.
         if isinstance(op, sd.AlterObject) and not op.get_subcommands():
@@ -176,6 +177,21 @@ def linearize_delta(
     return delta
 
 
+def _command_key(cmd: sd.Command) -> Any:
+    if isinstance(cmd, sd.ObjectCommand):
+        return (cmd.get_schema_metaclass().__name__, cmd.classname)
+    elif isinstance(cmd, sd.AlterObjectProperty):
+        return ('.field', cmd.property)
+    else:
+        return ('_generic', type(cmd).__name__)
+
+
+def _get_sorted_subcommands(cmd: sd.Command) -> List[sd.Command]:
+    subcommands = list(cmd.get_subcommands())
+    subcommands.sort(key=_command_key)
+    return subcommands
+
+
 def _get_parent_op(opstack: List[sd.Command]) -> sd.ObjectCommand[so.Object]:
     parent_op = opstack[1]
     assert isinstance(parent_op, sd.ObjectCommand)
@@ -194,7 +210,7 @@ def _break_down(
 
     op = new_opstack[-1]
 
-    for sub_op in op.get_subcommands():
+    for sub_op in _get_sorted_subcommands(op):
         if isinstance(sub_op, (referencing.ReferencedObjectCommand,
                                sd.RenameObject,
                                inheriting.RebaseInheritingObject)):
@@ -208,7 +224,13 @@ def _break_down(
             field = mcls.get_field(sub_op.property)
             # Break a possible reference cycle
             # (i.e. Type.rptr <-> Pointer.target)
-            if field.weak_ref:
+            if (
+                field.weak_ref
+                or (
+                    isinstance(op, sd.AlterObject)
+                    and issubclass(field.type, so.Object)
+                )
+            ):
                 _break_down(opmap, strongrefs, new_opstack + [sub_op])
         elif isinstance(sub_op, referencing.StronglyReferencedObjectCommand):
             assert isinstance(op, sd.ObjectCommand)
@@ -227,7 +249,7 @@ def _trace_op(
     old_schema: Optional[s_schema.Schema],
     new_schema: s_schema.Schema,
 ) -> None:
-    deps: Set[Tuple[str, str]] = set()
+    deps: ordered.OrderedSet[Tuple[str, str]] = ordered.OrderedSet()
     graph_key: str
     implicit_ancestors: List[str] = []
 
@@ -347,7 +369,7 @@ def _trace_op(
             deps.add(('create', new_value_name))
             deps.add(('alter', new_value_name))
         elif isinstance(op.new_value, so.ObjectShell):
-            nvn = op.new_value.name
+            nvn = op.new_value.get_name(new_schema)
             if nvn is not None:
                 deps.add(('create', nvn))
                 deps.add(('alter', nvn))
@@ -521,7 +543,7 @@ def _get_referrers(
     schema: s_schema.Schema,
     obj: so.Object,
     strongrefs: Dict[str, str],
-) -> Set[so.Object]:
+) -> List[so.Object]:
     refs = schema.get_referrers(obj)
     result: Set[so.Object] = set()
 
@@ -537,7 +559,10 @@ def _get_referrers(
 
         result.add(referrer)
 
-    return result
+    return list(sorted(
+        result,
+        key=lambda o: (type(o).__name__, o.get_name(schema)),
+    ))
 
 
 def _extract_op(stack: Sequence[sd.Command]) -> List[sd.Command]:

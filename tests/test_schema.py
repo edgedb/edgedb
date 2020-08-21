@@ -4965,17 +4965,16 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             """
             CREATE TYPE test::Foo {
-                CREATE OPTIONAL SINGLE PROPERTY annotated_compprop {
-                    USING ('foo');
-                    CREATE ANNOTATION std::title := 'compprop';
-                };
                 CREATE OPTIONAL SINGLE LINK annotated_link {
                     USING (SELECT test::Foo LIMIT 1);
                     CREATE ANNOTATION std::title := 'complink';
                 };
-                CREATE OPTIONAL SINGLE LINK complink := (
-                    SELECT test::Foo LIMIT 1
-                );
+                CREATE OPTIONAL SINGLE LINK complink :=
+                    (SELECT test::Foo LIMIT 1);
+                CREATE OPTIONAL SINGLE PROPERTY annotated_compprop {
+                    USING ('foo');
+                    CREATE ANNOTATION std::title := 'compprop';
+                };
                 CREATE REQUIRED SINGLE PROPERTY compprop := ('foo');
             };
             """
@@ -5002,10 +5001,6 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             """
             CREATE TYPE test::Foo {
-                CREATE OPTIONAL SINGLE PROPERTY annotated_compprop {
-                    USING ('foo');
-                    CREATE ANNOTATION std::title := 'compprop';
-                };
                 CREATE OPTIONAL SINGLE LINK annotated_link {
                     USING (SELECT test::Foo LIMIT 1);
                     CREATE ANNOTATION std::title := 'complink';
@@ -5013,6 +5008,10 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 CREATE OPTIONAL SINGLE LINK complink := (
                     SELECT test::Foo LIMIT 1
                 );
+                CREATE OPTIONAL SINGLE PROPERTY annotated_compprop {
+                    USING ('foo');
+                    CREATE ANNOTATION std::title := 'compprop';
+                };
                 CREATE REQUIRED SINGLE PROPERTY compprop := ('foo');
             };
             """

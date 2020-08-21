@@ -68,10 +68,12 @@ def delta_objects(
 
     old = ordered.OrderedSet[so.Object_T](
         o for o in old
-        if oldkeys[o.id] not in unchanged)
+        if oldkeys[o.id] not in unchanged
+    )
     new = ordered.OrderedSet[so.Object_T](
         o for o in new
-        if newkeys[o.id] not in unchanged)
+        if newkeys[o.id] not in unchanged
+    )
 
     oldnames = {o.get_name(old_schema) for o in old}
     newnames = {o.get_name(new_schema) for o in new}
@@ -94,7 +96,13 @@ def delta_objects(
 
         full_matrix.append((x, y, similarity))
 
-    full_matrix.sort(key=lambda v: v[2], reverse=True)
+    full_matrix.sort(
+        key=lambda v: (
+            1.0 - v[2],
+            v[0].get_name(new_schema),
+            v[1].get_name(old_schema),
+        ),
+    )
 
     seen_x = set()
     seen_y = set()

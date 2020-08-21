@@ -592,8 +592,10 @@ class Pointer(referencing.ReferencedInheritingObject,
         refdict: so.RefDict,
     ) -> bool:
         object_type = self.get_source(schema)
-        assert isinstance(object_type, s_types.Type)
-        return not object_type.is_view(schema)
+        if isinstance(object_type, s_types.Type):
+            return not object_type.is_view(schema)
+        else:
+            return True
 
     def get_schema_reflection_default(
         self,
