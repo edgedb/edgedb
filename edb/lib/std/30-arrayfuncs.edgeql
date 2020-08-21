@@ -23,8 +23,8 @@
 CREATE FUNCTION
 std::array_agg(s: SET OF anytype) -> array<anytype>
 {
-    CREATE ANNOTATION std::description := 'Return the array made from all of \
-        the input set elements.';
+    CREATE ANNOTATION std::description :=
+        'Return the array made from all of the input set elements.';
     SET volatility := 'IMMUTABLE';
     SET initial_value := [];
     USING SQL FUNCTION 'array_agg';
@@ -47,8 +47,8 @@ std::array_get(
     NAMED ONLY default: OPTIONAL anytype={}
 ) -> OPTIONAL anytype
 {
-    CREATE ANNOTATION std::description := 'Return the element of *array* at \
-        the specified *index*.';
+    CREATE ANNOTATION std::description :=
+        'Return the element of *array* at the specified *index*.';
     SET volatility := 'IMMUTABLE';
     USING SQL $$
     SELECT COALESCE(

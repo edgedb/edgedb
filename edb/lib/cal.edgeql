@@ -32,8 +32,8 @@ CREATE FUNCTION
 cal::to_local_datetime(s: std::str, fmt: OPTIONAL str={})
     -> cal::local_datetime
 {
-    CREATE ANNOTATION std::description := 'Create a `cal::local_datetime` \
-        value.';
+    CREATE ANNOTATION std::description :=
+        'Create a `cal::local_datetime` value.';
     # Helper function to_local_datetime is VOLATILE.
     SET volatility := 'VOLATILE';
     USING SQL $$
@@ -64,8 +64,8 @@ cal::to_local_datetime(year: std::int64, month: std::int64, day: std::int64,
                        hour: std::int64, min: std::int64, sec: std::float64)
     -> cal::local_datetime
 {
-    CREATE ANNOTATION std::description := 'Create a `cal::local_datetime` \
-        value.';
+    CREATE ANNOTATION std::description :=
+        'Create a `cal::local_datetime` value.';
     SET volatility := 'IMMUTABLE';
     USING SQL $$
     SELECT make_timestamp(
@@ -80,8 +80,8 @@ CREATE FUNCTION
 cal::to_local_datetime(dt: std::datetime, zone: std::str)
     -> cal::local_datetime
 {
-    CREATE ANNOTATION std::description := 'Create a `cal::local_datetime` \
-        value.';
+    CREATE ANNOTATION std::description :=
+        'Create a `cal::local_datetime` value.';
     # The version of timezone with these arguments is IMMUTABLE.
     SET volatility := 'IMMUTABLE';
     USING SQL $$
@@ -202,8 +202,8 @@ cal::to_local_time(hour: std::int64, min: std::int64, sec: std::float64)
 CREATE FUNCTION
 cal::time_get(dt: cal::local_time, el: std::str) -> std::float64
 {
-    CREATE ANNOTATION std::description := 'Extract a specific element of \
-        input time by name.';
+    CREATE ANNOTATION std::description :=
+        'Extract a specific element of input time by name.';
     SET volatility := 'IMMUTABLE';
     USING SQL $$
     SELECT CASE WHEN "el" IN ('hour', 'microseconds', 'milliseconds',
@@ -228,8 +228,8 @@ cal::time_get(dt: cal::local_time, el: std::str) -> std::float64
 CREATE FUNCTION
 cal::date_get(dt: cal::local_date, el: std::str) -> std::float64
 {
-    CREATE ANNOTATION std::description := 'Extract a specific element of \
-        input date by name.';
+    CREATE ANNOTATION std::description :=
+        'Extract a specific element of input date by name.';
     SET volatility := 'IMMUTABLE';
     USING SQL $$
     SELECT CASE WHEN "el" IN (
@@ -653,8 +653,8 @@ CREATE CAST FROM std::json TO cal::local_time {
 CREATE FUNCTION
 std::datetime_get(dt: cal::local_datetime, el: std::str) -> std::float64
 {
-    CREATE ANNOTATION std::description := 'Extract a specific element of \
-        input datetime by name.';
+    CREATE ANNOTATION std::description :=
+        'Extract a specific element of input datetime by name.';
     SET volatility := 'IMMUTABLE';
     USING SQL $$
     SELECT CASE WHEN "el" IN (
@@ -684,8 +684,8 @@ std::datetime_get(dt: cal::local_datetime, el: std::str) -> std::float64
 CREATE FUNCTION
 std::to_str(dt: cal::local_datetime, fmt: OPTIONAL str={}) -> std::str
 {
-    CREATE ANNOTATION std::description := 'Return string representation of \
-        the input value.';
+    CREATE ANNOTATION std::description :=
+        'Return string representation of the input value.';
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
     USING SQL $$
@@ -714,8 +714,8 @@ std::to_str(dt: cal::local_datetime, fmt: OPTIONAL str={}) -> std::str
 CREATE FUNCTION
 std::to_str(d: cal::local_date, fmt: OPTIONAL str={}) -> std::str
 {
-    CREATE ANNOTATION std::description := 'Return string representation of \
-        the input value.';
+    CREATE ANNOTATION std::description :=
+        'Return string representation of the input value.';
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
     USING SQL $$
@@ -750,8 +750,8 @@ std::to_str(d: cal::local_date, fmt: OPTIONAL str={}) -> std::str
 CREATE FUNCTION
 std::to_str(nt: cal::local_time, fmt: OPTIONAL str={}) -> std::str
 {
-    CREATE ANNOTATION std::description := 'Return string representation of \
-        the input value.';
+    CREATE ANNOTATION std::description :=
+        'Return string representation of the input value.';
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
     USING SQL $$

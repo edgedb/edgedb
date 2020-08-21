@@ -33,8 +33,8 @@
 CREATE FUNCTION
 std::to_str(dt: std::datetime, fmt: OPTIONAL str={}) -> std::str
 {
-    CREATE ANNOTATION std::description := 'Return string representation of \
-        the input value.';
+    CREATE ANNOTATION std::description :=
+        'Return string representation of the input value.';
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
     USING SQL $$
@@ -63,8 +63,8 @@ std::to_str(dt: std::datetime, fmt: OPTIONAL str={}) -> std::str
 CREATE FUNCTION
 std::to_str(td: std::duration, fmt: OPTIONAL str={}) -> std::str
 {
-    CREATE ANNOTATION std::description := 'Return string representation of \
-        the input value.';
+    CREATE ANNOTATION std::description :=
+        'Return string representation of the input value.';
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
     USING SQL $$
@@ -98,8 +98,8 @@ std::to_str(td: std::duration, fmt: OPTIONAL str={}) -> std::str
 CREATE FUNCTION
 std::to_str(i: std::int64, fmt: OPTIONAL str={}) -> std::str
 {
-    CREATE ANNOTATION std::description := 'Return string representation of \
-        the input value.';
+    CREATE ANNOTATION std::description :=
+        'Return string representation of the input value.';
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
     USING SQL $$
@@ -128,8 +128,8 @@ std::to_str(i: std::int64, fmt: OPTIONAL str={}) -> std::str
 CREATE FUNCTION
 std::to_str(f: std::float64, fmt: OPTIONAL str={}) -> std::str
 {
-    CREATE ANNOTATION std::description := 'Return string representation of \
-        the input value.';
+    CREATE ANNOTATION std::description :=
+        'Return string representation of the input value.';
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
     USING SQL $$
@@ -158,8 +158,8 @@ std::to_str(f: std::float64, fmt: OPTIONAL str={}) -> std::str
 CREATE FUNCTION
 std::to_str(d: std::bigint, fmt: OPTIONAL str={}) -> std::str
 {
-    CREATE ANNOTATION std::description := 'Return string representation of \
-        the input value.';
+    CREATE ANNOTATION std::description :=
+        'Return string representation of the input value.';
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
     USING SQL $$
@@ -188,8 +188,8 @@ std::to_str(d: std::bigint, fmt: OPTIONAL str={}) -> std::str
 CREATE FUNCTION
 std::to_str(d: std::decimal, fmt: OPTIONAL str={}) -> std::str
 {
-    CREATE ANNOTATION std::description := 'Return string representation of \
-        the input value.';
+    CREATE ANNOTATION std::description :=
+        'Return string representation of the input value.';
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
     USING SQL $$
@@ -221,8 +221,8 @@ std::to_str(d: std::decimal, fmt: OPTIONAL str={}) -> std::str
 CREATE FUNCTION
 std::to_str(array: array<std::str>, delimiter: std::str) -> std::str
 {
-    CREATE ANNOTATION std::description := 'Return string representation of \
-        the input value.';
+    CREATE ANNOTATION std::description :=
+        'Return string representation of the input value.';
     SET volatility := 'STABLE';
     USING (
         SELECT std::array_join(array, delimiter)
@@ -235,8 +235,8 @@ std::to_str(array: array<std::str>, delimiter: std::str) -> std::str
 CREATE FUNCTION
 std::to_str(json: std::json, fmt: OPTIONAL str={}) -> std::str
 {
-    CREATE ANNOTATION std::description := 'Return string representation of \
-        the input value.';
+    CREATE ANNOTATION std::description :=
+        'Return string representation of the input value.';
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
     USING SQL $$
@@ -267,8 +267,8 @@ std::to_str(json: std::json, fmt: OPTIONAL str={}) -> std::str
 CREATE FUNCTION
 std::to_json(str: std::str) -> std::json
 {
-    CREATE ANNOTATION std::description := 'Return JSON value represented by \
-        the input *string*.';
+    CREATE ANNOTATION std::description :=
+        'Return JSON value represented by the input *string*.';
     # Casting of jsonb to and from text in PostgreSQL is IMMUTABLE.
     SET volatility := 'IMMUTABLE';
     USING SQL $$

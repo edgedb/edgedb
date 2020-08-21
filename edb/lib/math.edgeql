@@ -22,8 +22,8 @@ CREATE MODULE math;
 CREATE FUNCTION
 math::abs(x: std::anyreal) -> std::anyreal
 {
-    CREATE ANNOTATION std::description := 'Return the absolute value of the \
-        input *x*.';
+    CREATE ANNOTATION std::description :=
+        'Return the absolute value of the input *x*.';
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'abs';
 };
@@ -104,8 +104,8 @@ math::floor(x: std::decimal) -> std::decimal
 CREATE FUNCTION
 math::ln(x: std::int64) -> std::float64
 {
-    CREATE ANNOTATION std::description := 'Return the natural logarithm of \
-        the input value.';
+    CREATE ANNOTATION std::description :=
+        'Return the natural logarithm of the input value.';
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'ln';
 };
@@ -114,8 +114,8 @@ math::ln(x: std::int64) -> std::float64
 CREATE FUNCTION
 math::ln(x: std::float64) -> std::float64
 {
-    CREATE ANNOTATION std::description := 'Return the natural logarithm of \
-        the input value.';
+    CREATE ANNOTATION std::description :=
+        'Return the natural logarithm of the input value.';
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'ln';
 };
@@ -124,8 +124,8 @@ math::ln(x: std::float64) -> std::float64
 CREATE FUNCTION
 math::ln(x: std::decimal) -> std::decimal
 {
-    CREATE ANNOTATION std::description := 'Return the natural logarithm of \
-        the input value.';
+    CREATE ANNOTATION std::description :=
+        'Return the natural logarithm of the input value.';
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'ln';
 };
@@ -134,8 +134,8 @@ math::ln(x: std::decimal) -> std::decimal
 CREATE FUNCTION
 math::lg(x: std::int64) -> std::float64
 {
-    CREATE ANNOTATION std::description := 'Return the base 10 logarithm of \
-        the input value.';
+    CREATE ANNOTATION std::description :=
+        'Return the base 10 logarithm of the input value.';
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'log';
 };
@@ -144,8 +144,8 @@ math::lg(x: std::int64) -> std::float64
 CREATE FUNCTION
 math::lg(x: std::float64) -> std::float64
 {
-    CREATE ANNOTATION std::description := 'Return the base 10 logarithm of \
-        the input value.';
+    CREATE ANNOTATION std::description :=
+        'Return the base 10 logarithm of the input value.';
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'log';
 };
@@ -154,8 +154,8 @@ math::lg(x: std::float64) -> std::float64
 CREATE FUNCTION
 math::lg(x: std::decimal) -> std::decimal
 {
-    CREATE ANNOTATION std::description := 'Return the base 10 logarithm of \
-        the input value.';
+    CREATE ANNOTATION std::description :=
+        'Return the base 10 logarithm of the input value.';
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'log';
 };
@@ -164,8 +164,8 @@ math::lg(x: std::decimal) -> std::decimal
 CREATE FUNCTION
 math::log(x: std::decimal, NAMED ONLY base: std::decimal) -> std::decimal
 {
-    CREATE ANNOTATION std::description := 'Return the logarithm of the input \
-        value in the specified *base*.';
+    CREATE ANNOTATION std::description :=
+        'Return the logarithm of the input value in the specified *base*.';
     SET volatility := 'IMMUTABLE';
     USING SQL $$
     SELECT log("base", "x")
@@ -180,8 +180,8 @@ math::log(x: std::decimal, NAMED ONLY base: std::decimal) -> std::decimal
 CREATE FUNCTION
 math::mean(vals: SET OF std::decimal) -> std::decimal
 {
-    CREATE ANNOTATION std::description := 'Return the arithmetic mean of the \
-        input set.';
+    CREATE ANNOTATION std::description :=
+        'Return the arithmetic mean of the input set.';
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'avg';
     SET error_on_null_result := 'invalid input to mean(): not ' ++
@@ -192,8 +192,8 @@ math::mean(vals: SET OF std::decimal) -> std::decimal
 CREATE FUNCTION
 math::mean(vals: SET OF std::int64) -> std::float64
 {
-    CREATE ANNOTATION std::description := 'Return the arithmetic mean of the \
-        input set.';
+    CREATE ANNOTATION std::description :=
+        'Return the arithmetic mean of the input set.';
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'avg';
     # SQL 'avg' returns numeric on integer inputs.
@@ -206,8 +206,8 @@ math::mean(vals: SET OF std::int64) -> std::float64
 CREATE FUNCTION
 math::mean(vals: SET OF std::float64) -> std::float64
 {
-    CREATE ANNOTATION std::description := 'Return the arithmetic mean of the \
-        input set.';
+    CREATE ANNOTATION std::description :=
+        'Return the arithmetic mean of the input set.';
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'avg';
     SET error_on_null_result := 'invalid input to mean(): not ' ++
@@ -220,8 +220,8 @@ math::mean(vals: SET OF std::float64) -> std::float64
 CREATE FUNCTION
 math::stddev(vals: SET OF std::decimal) -> std::decimal
 {
-    CREATE ANNOTATION std::description := 'Return the sample standard \
-        deviation of the input set.';
+    CREATE ANNOTATION std::description :=
+        'Return the sample standard deviation of the input set.';
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'stddev';
     SET error_on_null_result := 'invalid input to stddev(): not ' ++
@@ -232,8 +232,8 @@ math::stddev(vals: SET OF std::decimal) -> std::decimal
 CREATE FUNCTION
 math::stddev(vals: SET OF std::int64) -> std::float64
 {
-    CREATE ANNOTATION std::description := 'Return the sample standard \
-        deviation of the input set.';
+    CREATE ANNOTATION std::description :=
+        'Return the sample standard deviation of the input set.';
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'stddev';
     # SQL 'stddev' returns numeric on integer inputs.
@@ -246,8 +246,8 @@ math::stddev(vals: SET OF std::int64) -> std::float64
 CREATE FUNCTION
 math::stddev(vals: SET OF std::float64) -> std::float64
 {
-    CREATE ANNOTATION std::description := 'Return the sample standard \
-        deviation of the input set.';
+    CREATE ANNOTATION std::description :=
+        'Return the sample standard deviation of the input set.';
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'stddev';
     SET error_on_null_result := 'invalid input to stddev(): not ' ++
@@ -260,8 +260,8 @@ math::stddev(vals: SET OF std::float64) -> std::float64
 CREATE FUNCTION
 math::stddev_pop(vals: SET OF std::decimal) -> std::decimal
 {
-    CREATE ANNOTATION std::description := 'Return the population standard \
-        deviation of the input set.';
+    CREATE ANNOTATION std::description :=
+        'Return the population standard deviation of the input set.';
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'stddev_pop';
     SET error_on_null_result := 'invalid input to stddev_pop(): not ' ++
@@ -272,8 +272,8 @@ math::stddev_pop(vals: SET OF std::decimal) -> std::decimal
 CREATE FUNCTION
 math::stddev_pop(vals: SET OF std::int64) -> std::float64
 {
-    CREATE ANNOTATION std::description := 'Return the population standard \
-        deviation of the input set.';
+    CREATE ANNOTATION std::description :=
+        'Return the population standard deviation of the input set.';
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'stddev_pop';
     # SQL 'stddev_pop' returns numeric on integer inputs.
@@ -286,8 +286,8 @@ math::stddev_pop(vals: SET OF std::int64) -> std::float64
 CREATE FUNCTION
 math::stddev_pop(vals: SET OF std::float64) -> std::float64
 {
-    CREATE ANNOTATION std::description := 'Return the population standard \
-        deviation of the input set.';
+    CREATE ANNOTATION std::description :=
+        'Return the population standard deviation of the input set.';
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'stddev_pop';
     SET error_on_null_result := 'invalid input to stddev_pop(): not ' ++
@@ -300,8 +300,8 @@ math::stddev_pop(vals: SET OF std::float64) -> std::float64
 CREATE FUNCTION
 math::var(vals: SET OF std::decimal) -> OPTIONAL std::decimal
 {
-    CREATE ANNOTATION std::description := 'Return the sample variance of the \
-        input set.';
+    CREATE ANNOTATION std::description :=
+        'Return the sample variance of the input set.';
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'variance';
     SET error_on_null_result := 'invalid input to var(): not ' ++
@@ -312,8 +312,8 @@ math::var(vals: SET OF std::decimal) -> OPTIONAL std::decimal
 CREATE FUNCTION
 math::var(vals: SET OF std::int64) -> OPTIONAL std::float64
 {
-    CREATE ANNOTATION std::description := 'Return the sample variance of the \
-        input set.';
+    CREATE ANNOTATION std::description :=
+        'Return the sample variance of the input set.';
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'variance';
     # SQL 'var' returns numeric on integer inputs.
@@ -326,8 +326,8 @@ math::var(vals: SET OF std::int64) -> OPTIONAL std::float64
 CREATE FUNCTION
 math::var(vals: SET OF std::float64) -> OPTIONAL std::float64
 {
-    CREATE ANNOTATION std::description := 'Return the sample variance of the \
-        input set.';
+    CREATE ANNOTATION std::description :=
+        'Return the sample variance of the input set.';
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'variance';
     SET error_on_null_result := 'invalid input to var(): not ' ++
@@ -340,8 +340,8 @@ math::var(vals: SET OF std::float64) -> OPTIONAL std::float64
 CREATE FUNCTION
 math::var_pop(vals: SET OF std::decimal) -> OPTIONAL std::decimal
 {
-    CREATE ANNOTATION std::description := 'Return the population variance of \
-        the input set.';
+    CREATE ANNOTATION std::description :=
+        'Return the population variance of the input set.';
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'var_pop';
     SET error_on_null_result := 'invalid input to var_pop(): not ' ++
@@ -352,8 +352,8 @@ math::var_pop(vals: SET OF std::decimal) -> OPTIONAL std::decimal
 CREATE FUNCTION
 math::var_pop(vals: SET OF std::int64) -> OPTIONAL std::float64
 {
-    CREATE ANNOTATION std::description := 'Return the population variance of \
-        the input set.';
+    CREATE ANNOTATION std::description :=
+        'Return the population variance of the input set.';
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'var_pop';
     # SQL 'var_pop' returns numeric on integer inputs.
@@ -366,8 +366,8 @@ math::var_pop(vals: SET OF std::int64) -> OPTIONAL std::float64
 CREATE FUNCTION
 math::var_pop(vals: SET OF std::float64) -> OPTIONAL std::float64
 {
-    CREATE ANNOTATION std::description := 'Return the population variance of \
-        the input set.';
+    CREATE ANNOTATION std::description :=
+        'Return the population variance of the input set.';
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'var_pop';
     SET error_on_null_result := 'invalid input to var_pop(): not ' ++
