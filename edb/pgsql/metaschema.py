@@ -2291,7 +2291,6 @@ async def bootstrap(conn):
         dbops.DropSchema(name='public'),
         dbops.CreateSchema(name='edgedb'),
         dbops.CreateSchema(name='edgedbss'),
-        dbops.CreateExtension(dbops.Extension(name='uuid-ossp')),
         dbops.CreateCompositeType(ExpressionType()),
     ])
 
@@ -2358,6 +2357,19 @@ async def bootstrap(conn):
         dbops.CreateFunction(GetBaseScalarTypeMap()),
     ])
 
+    block = dbops.PLTopBlock()
+    commands.generate(block)
+    await _execute_block(conn, block)
+
+
+async def create_pg_extensions(conn):
+    commands = dbops.CommandGroup()
+    commands.add_commands([
+        dbops.CreateSchema(name='edgedbext'),
+        dbops.CreateExtension(
+            dbops.Extension(name='uuid-ossp', schema='edgedbext'),
+        ),
+    ])
     block = dbops.PLTopBlock()
     commands.generate(block)
     await _execute_block(conn, block)
@@ -2761,7 +2773,7 @@ def _build_key_expr(key_components):
         (SELECT
             (CASE WHEN array_position(q.v, NULL) IS NULL
              THEN
-                 edgedb.uuid_generate_v5(
+                 edgedbext.uuid_generate_v5(
                      '{DATABASE_ID_NAMESPACE}'::uuid,
                      array_to_string(q.v, ';')
                  )
@@ -3100,10 +3112,18 @@ def _generate_config_type_view(schema, stype, *, path, rptr, _memo=None):
 
 
 async def _execute_block(conn, block):
-    sql_text = block.to_string()
+    await _execute_sql_script(conn, block.to_string())
+
+
+async def _execute_sql_script(conn, sql_text):
     if debug.flags.bootstrap:
         debug.header('Bootstrap Script')
-        debug.dump_code(sql_text, lexer='sql')
+        if len(sql_text) > 102400:
+            # Make sure we don't hog CPU by attempting to highlight
+            # huge scripts.
+            print(sql_text)
+        else:
+            debug.dump_code(sql_text, lexer='sql')
 
     try:
         await conn.execute(sql_text)

@@ -136,7 +136,7 @@ class BaseCluster:
     def is_managed(self) -> bool:
         raise NotImplementedError
 
-    def dump_database(self, dbname, *, exclude_schema=None):
+    def dump_database(self, dbname, *, exclude_schemas=None):
         status = self.get_status()
         if status != 'running':
             raise ClusterError('cannot dump: cluster is not running')
@@ -146,6 +146,7 @@ class BaseCluster:
 
         args = [
             pg_dump,
+            '--inserts',
             f'--dbname={dbname}',
             f'--host={conn_spec["host"]}',
             f'--port={conn_spec["port"]}',
@@ -156,8 +157,9 @@ class BaseCluster:
         if conn_spec.get("password"):
             env['PGPASSWORD'] = conn_spec["password"]
 
-        if exclude_schema:
-            args.append(f'--exclude-schema={exclude_schema}')
+        if exclude_schemas:
+            for exclude_schema in exclude_schemas:
+                args.append(f'--exclude-schema={exclude_schema}')
 
         process = subprocess.run(
             args,
@@ -174,42 +176,6 @@ class BaseCluster:
             )
 
         return process.stdout
-
-    def restore_database(self, dbname, dump):
-        status = self.get_status()
-        if status != 'running':
-            raise ClusterError('cannot restore: cluster is not running')
-
-        psql = self._find_pg_binary('psql')
-        conn_spec = self.get_connection_spec()
-
-        args = [
-            psql,
-            f'--dbname={dbname}',
-            f'--host={conn_spec["host"]}',
-            f'--port={conn_spec["port"]}',
-            f'--username={conn_spec["user"]}',
-            f'--single-transaction',
-        ]
-
-        env = os.environ.copy()
-        if conn_spec.get("password"):
-            env['PGPASSWORD'] = conn_spec["password"]
-
-        process = subprocess.run(
-            args,
-            input=dump,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            env=env,
-        )
-
-        if process.returncode != 0:
-            raise ClusterError(
-                'psql exited with status {:d}: {}'.format(
-                    process.returncode, process.stderr.decode()
-                )
-            )
 
     def _find_pg_binary(self, binary):
         bpath = platform_exe(os.path.join(self._pg_bin_dir, binary))
