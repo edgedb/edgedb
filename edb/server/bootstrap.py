@@ -77,13 +77,8 @@ CACHE_SRC_DIRS = s_std.CACHE_SRC_DIRS + (
 logger = logging.getLogger('edb.server')
 
 
-async def _statement(conn, query, *args, method):
-    logger.debug('query: %s, args: %s', query, args)
-    return await getattr(conn, method)(query, *args)
-
-
-async def _execute(conn, query, *args):
-    return await _statement(conn, query, *args, method='execute')
+async def _execute(conn, query):
+    return await metaschema._execute_sql_script(conn, query)
 
 
 async def _execute_block(conn, block: dbops.SQLBlock) -> None:
@@ -92,9 +87,6 @@ async def _execute_block(conn, block: dbops.SQLBlock) -> None:
         stmts = block.get_statements()
     else:
         stmts = [block.to_string()]
-    if debug.flags.bootstrap:
-        debug.header('Bootstrap')
-        debug.dump_code(';\n'.join(stmts), lexer='sql')
 
     for stmt in stmts:
         await _execute(conn, stmt)
@@ -273,6 +265,11 @@ async def _store_static_json_cache(cluster, key: str, data: str) -> None:
         await _execute(dbconn, text)
     finally:
         await dbconn.close()
+
+
+async def _ensure_extensions(conn):
+    logger.info('Creating the necessary PostgreSQL extensions...')
+    await metaschema.create_pg_extensions(conn)
 
 
 async def _ensure_meta_schema(conn):
@@ -522,13 +519,29 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
     else:
         cache_hit = True
 
+    await _ensure_extensions(conn)
+
     if tpldbdump is None:
         await _ensure_meta_schema(conn)
         await _execute_ddl(conn, stdlib.sqltext)
 
         if in_dev_mode or specified_cache_dir:
             tpldbdump = cluster.dump_database(
-                edbdef.EDGEDB_TEMPLATE_DB, exclude_schema='edgedbinstdata')
+                edbdef.EDGEDB_TEMPLATE_DB,
+                exclude_schemas=['edgedbinstdata', 'edgedbext'],
+            )
+
+            # Excluding the "edgedbext" schema above apparently
+            # doesn't apply to extensions created in that schema,
+            # so we have to resort to commenting out extension
+            # statements in the dump.
+            tpldbdump = re.sub(
+                rb'^(CREATE|COMMENT ON) EXTENSION.*$',
+                rb'-- \g<0>',
+                tpldbdump,
+                flags=re.MULTILINE,
+            )
+
             buildmeta.write_data_cache(
                 tpldbdump,
                 src_hash,
@@ -537,7 +550,7 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
                 target_dir=cache_dir,
             )
     else:
-        cluster.restore_database(edbdef.EDGEDB_TEMPLATE_DB, tpldbdump)
+        await metaschema._execute_sql_script(conn, tpldbdump.decode('utf-8'))
 
         # When we restore a database from a dump, OIDs for non-system
         # Postgres types might get skewed as they are not part of the dump.
