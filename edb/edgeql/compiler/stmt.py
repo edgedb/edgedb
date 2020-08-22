@@ -25,11 +25,11 @@ from __future__ import annotations
 from typing import *
 import textwrap
 
+import copy
 from collections import defaultdict
 from edb import errors
 
 from edb.ir import ast as irast
-from edb.ir import staeval as ireval
 from edb.ir import typeutils
 
 from edb.schema import ddl as s_ddl
@@ -61,7 +61,6 @@ from . import typegen
 
 if TYPE_CHECKING:
     from edb.schema import constraints as s_constr
-    from edb.schema import schema as s_schema
 
 
 @dispatch.compile.register(qlast.SelectQuery)
@@ -208,45 +207,24 @@ def compile_GroupQuery(
         context=expr.context)
 
 
-def simple_stmt_eq(lhs: irast.Base, rhs: irast.Base,
-                   schema: s_schema.Schema) -> bool:
-    if (
-        isinstance(lhs, irast.BaseConstant)
-        and isinstance(rhs, irast.BaseConstant)
-        and (ireval.evaluate_to_python_val(lhs, schema) ==
-             ireval.evaluate_to_python_val(rhs, schema))
-    ):
-        return True
-    elif (
-        isinstance(lhs, irast.Parameter)
-        and isinstance(rhs, irast.Parameter)
-        and lhs.name == rhs.name
-    ):
-        return True
-    else:
-        return False
-
-
 def compile_insert_unless_conflict(
+    subject: irast.Set,
     stmt: irast.InsertStmt,
+    insert_subject: qlast.Path,
+    shape: List[qlast.ShapeElement],
     constraint_spec: qlast.Expr,
     else_branch: Optional[qlast.Expr],
     *, ctx: context.ContextLevel,
-) -> irast.ConstraintRef:
-    ctx.partial_path_prefix = stmt.subject
+) -> Tuple[Optional[irast.ConstraintRef],
+           Optional[Tuple[irast.Set, irast.Set]]]:
 
-    if else_branch:
-        raise errors.UnsupportedFeatureError(
-            'UNLESS CONFLICT ... ELSE currently unimplemented',
-            context=else_branch.context,
-        )
+    with ctx.new() as constraint_ctx:
+        constraint_ctx.partial_path_prefix = subject
 
-    # We compile the name here so we can analyze it, but we don't do
-    # anything else with it.
-    cspec_res = setgen.ensure_set(dispatch.compile(
-        constraint_spec, ctx=ctx), ctx=ctx)
-
-    stmtctx.enforce_singleton(cspec_res, ctx=ctx)
+        # We compile the name here so we can analyze it, but we don't do
+        # anything else with it.
+        cspec_res = setgen.ensure_set(dispatch.compile(
+            constraint_spec, ctx=constraint_ctx), ctx=constraint_ctx)
 
     if not cspec_res.rptr:
         raise errors.QueryError(
@@ -254,7 +232,7 @@ def compile_insert_unless_conflict(
             context=constraint_spec.context,
         )
 
-    if cspec_res.rptr.source.path_id != stmt.subject.path_id:
+    if cspec_res.rptr.source.path_id != subject.path_id:
         raise errors.QueryError(
             'ON CONFLICT argument must be a property of the '
             'type being inserted',
@@ -268,6 +246,11 @@ def compile_insert_unless_conflict(
     if not isinstance(ptr, s_pointers.Pointer):
         raise errors.QueryError(
             'ON CONFLICT property must be a property',
+            context=constraint_spec.context,
+        )
+    if ptr.get_cardinality(schema) != qltypes.SchemaCardinality.ONE:
+        raise errors.QueryError(
+            'ON CONFLICT property must be a SINGLE property',
             context=constraint_spec.context,
         )
 
@@ -286,10 +269,73 @@ def compile_insert_unless_conflict(
     module_id = schema.get_global(
         s_mod.Module, ptr.get_name(schema).module).id
 
+    # Find the source expression corresponding to our field
+    # FIXME: Is there a better way to do this?
+    field_name = cspec_res.rptr.ptrref.shortname.split('::')[-1]
+    for i, elem in enumerate(shape):
+        if (
+            isinstance(elem.expr, qlast.Path)
+            and len(elem.expr.steps) == 1
+            and isinstance(elem.expr.steps[0], qlast.Ptr)
+            and isinstance(elem.expr.steps[0].ptr, qlast.ObjectRef)
+            and elem.expr.steps[0].ptr.name == field_name
+        ):
+            idx = i
+            break
+    else:
+        raise errors.QueryError(
+            'INSERT ON CONFLICT property requires matching shape',
+            context=constraint_spec.context,
+        )
+
+    elem_fixed = copy.copy(elem)
+
+    # Lift the index element out into an anchor.
+    # FIXME: The goal here is to avoid duplicating the computation of the
+    # index element if it is volatile but it doesn't actually work yet.
+    new_set = setgen.ensure_set(dispatch.compile(
+        elem.compexpr, ctx=ctx), ctx=ctx)
+    ctx.anchors = ctx.anchors.copy()
+    source_alias = ctx.aliases.get('a')
+    ctx.anchors[source_alias] = new_set
+
+    elem_fixed.compexpr = qlast.Path(
+        steps=[qlast.ObjectRef(name=source_alias)])
+    shape[idx] = elem_fixed
+
     ctx.env.schema = schema
 
-    return irast.ConstraintRef(
-        id=ex_cnstrs[0].id, module_id=module_id)
+    # Compile an else branch
+    else_info = None
+    if else_branch:
+        with ctx.subquery() as ectx:
+            # Produce a query that finds the conflicting objects
+            nobe = qlast.SelectQuery(
+                result=insert_subject,
+                where=qlast.BinOp(
+                    op='=',
+                    left=constraint_spec,
+                    right=elem_fixed.compexpr
+                ),
+            )
+            select_ir = dispatch.compile(nobe, ctx=ectx)
+            select_ir = setgen.scoped_set(
+                select_ir, force_reassign=True, ctx=ectx)
+            assert isinstance(select_ir, irast.Set)
+
+            # The ELSE needs to be able to reference the subject in an
+            # UPDATE, even though that would normally be prohibited.
+            ectx.path_scope.factoring_allowlist.add(subject.path_id)
+
+            # Compile else
+            else_ir = dispatch.compile(else_branch, ctx=ectx)
+            assert isinstance(else_ir, irast.Set)
+            else_info = select_ir, else_ir
+
+    return (
+        irast.ConstraintRef(id=ex_cnstrs[0].id, module_id=module_id),
+        else_info
+    )
 
 
 @dispatch.compile.register(qlast.InsertQuery)
@@ -324,6 +370,18 @@ def compile_InsertQuery(
                 f'{subject_stype.get_shortname(ctx.env.schema)!r}',
                 context=expr.subject.context)
 
+        expr_shape = expr.shape[:]
+        if expr.unless_conflict is not None:
+            constraint_spec, else_branch = expr.unless_conflict
+
+            if constraint_spec:
+                stmt.on_conflict = compile_insert_unless_conflict(
+                    subject, stmt,
+                    expr.subject, expr_shape, constraint_spec, else_branch,
+                    ctx=ictx)
+            else:
+                stmt.on_conflict = (None, None)
+
         with ictx.new() as bodyctx:
             # Self-references in INSERT are prohibited.
             bodyctx.banned_paths = ictx.banned_paths.copy()
@@ -335,7 +393,7 @@ def compile_InsertQuery(
 
             stmt.subject = compile_query_subject(
                 subject,
-                shape=expr.shape,
+                shape=expr_shape,
                 view_rptr=ctx.view_rptr,
                 compile_views=True,
                 result_alias=expr.subject_alias,
@@ -349,16 +407,6 @@ def compile_InsertQuery(
             path_id=stmt.subject.path_id,
             ctx=ctx,
         )
-
-        if expr.unless_conflict is not None:
-            constraint_spec, else_branch = expr.unless_conflict
-
-            if constraint_spec:
-                with ictx.new() as constraint_ctx:
-                    stmt.on_conflict = compile_insert_unless_conflict(
-                        stmt, constraint_spec, else_branch, ctx=constraint_ctx)
-            else:
-                stmt.on_conflict = True
 
         with ictx.new() as resultctx:
             if ictx.stmt is ctx.toplevel_stmt:

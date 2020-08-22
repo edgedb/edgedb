@@ -722,7 +722,9 @@ class MutatingStmt(Stmt):
 
 
 class InsertStmt(MutatingStmt):
-    on_conflict: typing.Optional[typing.Union[bool, ConstraintRef]] = None
+    on_conflict: typing.Optional[typing.Tuple[
+        typing.Optional[ConstraintRef],
+        typing.Optional[typing.Tuple[Set, Set]]]] = None
 
 
 class UpdateStmt(MutatingStmt, FilteredStmt):
