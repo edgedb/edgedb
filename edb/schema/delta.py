@@ -40,7 +40,7 @@ from edb.common import verutils
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
-
+from edb.edgeql import quote as qlquote
 
 from . import expr as s_expr
 from . import name as sn
@@ -87,12 +87,21 @@ def delta_objects(
     full_matrix: List[Tuple[so.Object_T, so.Object_T, float]] = []
 
     for x, y in pairs:
-        similarity = y.compare(
-            x,
-            our_schema=old_schema,
-            their_schema=new_schema,
-            context=context,
-        )
+        x_name = x.get_name(new_schema)
+        y_name = y.get_name(old_schema)
+
+        if (
+            context.guidance is not None
+            and (sclass, (y_name, x_name)) in context.guidance.banned_alters
+        ):
+            similarity = 0.0
+        else:
+            similarity = y.compare(
+                x,
+                our_schema=old_schema,
+                their_schema=new_schema,
+                context=context,
+            )
 
         full_matrix.append((x, y, similarity))
 
@@ -145,17 +154,25 @@ def delta_objects(
     created = new - {x for x, (s, _) in comparison_map.items() if s > 0.6}
 
     for x in created:
-        delta.add(
-            x.as_create_delta(
-                schema=new_schema,
-                context=context,
-            ),
-        )
+        if (
+            context.guidance is None
+            or (
+                (sclass, x.get_name(new_schema))
+                not in context.guidance.banned_creations
+            )
+        ):
+            delta.add(
+                x.as_create_delta(
+                    schema=new_schema,
+                    context=context,
+                ),
+            )
 
     delta.update(alters)
 
     deleted_order: Iterable[so.Object]
     deleted = old - {y for _, (s, y) in comparison_map.items() if s > 0.6}
+
     if issubclass(sclass, so.InheritingObject):
         deleted_order = _sort_by_inheritance(
             old_schema,
@@ -165,12 +182,19 @@ def delta_objects(
         deleted_order = deleted
 
     for obj in deleted_order:
-        delta.add(
-            obj.as_delete_delta(
-                schema=old_schema,
-                context=context,
-            ),
-        )
+        if (
+            context.guidance is None
+            or (
+                (sclass, obj.get_name(old_schema))
+                not in context.guidance.banned_deletions
+            )
+        ):
+            delta.add(
+                obj.as_delete_delta(
+                    schema=old_schema,
+                    context=context,
+                ),
+            )
 
     return delta
 
@@ -2114,6 +2138,10 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
                 orig_value=self.classname,
             )
 
+            if not context.get_value(('renamecanon', self)):
+                commands = self._canonicalize(schema, context, self.scls)
+                self.update(commands)
+
         for op in self.get_prerequisites():
             schema = op.apply(schema, context)
 
@@ -2156,6 +2184,53 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
         schema = self._rename_finalize(schema, context)
 
         return schema
+
+    def _canonicalize(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+        scls: so.Object,
+    ) -> Sequence[Command]:
+        mcls = self.get_schema_metaclass()
+        commands = []
+
+        for refdict in mcls.get_refdicts():
+            all_refs = set(
+                scls.get_field_value(schema, refdict.attr).objects(schema)
+            )
+
+            for ref in all_refs:
+                alter = ref.init_delta_command(schema, AlterObject)
+                ref_name = ref.get_name(schema)
+                quals = list(sn.quals_from_fullname(ref_name))
+                quals[0] = self.new_name
+                shortname = sn.shortname_from_fullname(ref_name)
+                new_ref_name = sn.Name(
+                    name=sn.get_specialized_name(shortname, *quals),
+                    module=ref_name.module,
+                )
+                rename = ref.init_delta_command(
+                    schema,
+                    RenameObject,
+                    new_name=new_ref_name,
+                )
+                rename.set_attribute_value(
+                    'name',
+                    value=new_ref_name,
+                    orig_value=ref_name,
+                )
+                with alter.new_context(schema, context, ref):
+                    rename.update(rename._canonicalize(schema, context, ref))
+                alter.canonical = True
+                alter.add(rename)
+                commands.append(alter)
+
+        # Record the fact that RenameObject._canonicalize
+        # was called on this object to guard against possible
+        # duplicate calls.
+        context.store_value(('renamecanon', self), True)
+
+        return commands
 
     def _get_ast(
         self,
@@ -2866,3 +2941,27 @@ def get_object_delta_command(
         ddl_identity=ddl_identity,
         **kwargs,
     )
+
+
+def get_object_command_id(delta: ObjectCommand[so.Object]) -> str:
+    quoted_name: str
+
+    if isinstance(delta.classname, sn.Name):
+        quoted_module = qlquote.quote_ident(delta.classname.module)
+        quoted_nqname = qlquote.quote_ident(delta.classname.name)
+        quoted_name = sn.Name(module=quoted_module, name=quoted_nqname)
+    else:
+        quoted_name = qlquote.quote_ident(delta.classname)
+
+    if isinstance(delta, CreateObject):
+        qlop = 'CREATE'
+    elif isinstance(delta, AlterObject):
+        qlop = 'ALTER'
+    elif isinstance(delta, DeleteObject):
+        qlop = 'DROP'
+    else:
+        raise AssertionError(f'unexpected command type: {type(delta)}')
+
+    qlcls = delta.get_schema_metaclass().get_ql_class_or_die()
+
+    return f'{qlop} {qlcls} {quoted_name}'

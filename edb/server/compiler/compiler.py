@@ -797,6 +797,7 @@ class Compiler(BaseCompiler):
                     parent_migration=schema.get_last_migration(),
                     initial_schema=schema,
                     initial_savepoint=savepoint_name,
+                    guidance=s_obj.DeltaGuidance(),
                     target_schema=target_schema,
                     current_ddl=tuple(),
                 ),
@@ -820,7 +821,11 @@ class Compiler(BaseCompiler):
                     context=ql.context,
                 )
 
-            diff = s_ddl.delta_schemas(schema, mstate.target_schema)
+            diff = s_ddl.delta_schemas(
+                schema,
+                mstate.target_schema,
+                guidance=mstate.guidance,
+            )
             new_ddl = s_ddl.ddlast_from_delta(mstate.target_schema, diff)
             all_ddl = mstate.current_ddl + new_ddl
             if not mstate.current_ddl:
@@ -877,18 +882,35 @@ class Compiler(BaseCompiler):
                         qlcodegen.generate_source(stmt, pretty=True),
                     )
 
-                diff = s_ddl.delta_schemas(schema, mstate.target_schema)
-                proposed = s_ddl.statements_from_delta(
+                guided_diff = s_ddl.delta_schemas(
+                    schema,
                     mstate.target_schema,
-                    diff,
+                    generate_prompts=True,
+                    guidance=mstate.guidance,
                 )
 
-                if proposed:
+                auto_diff = s_ddl.delta_schemas(
+                    schema,
+                    mstate.target_schema,
+                )
+
+                proposed_ddl = s_ddl.statements_from_delta(
+                    mstate.target_schema,
+                    guided_diff,
+                )
+
+                if proposed_ddl:
+                    top_op = next(iter(guided_diff.get_subcommands()))
+                    op_id = top_op.get_annotation('op_id')
+                    assert op_id is not None
+
                     proposed_desc = {
                         'statements': [{
-                            'text': proposed[0],
+                            'text': proposed_ddl[0],
                         }],
                         'confidence': 1.0,
+                        'prompt': top_op.get_annotation('user_prompt'),
+                        'operation_id': op_id,
                     }
                 else:
                     proposed_desc = None
@@ -899,7 +921,7 @@ class Compiler(BaseCompiler):
                         if mstate.parent_migration is not None
                         else 'initial'
                     ),
-                    'complete': not bool(list(diff.get_subcommands())),
+                    'complete': not bool(list(auto_diff.get_subcommands())),
                     'confirmed': confirmed,
                     'proposed': proposed_desc,
                 }).encode('unicode_escape').decode('utf-8')
@@ -927,6 +949,61 @@ class Compiler(BaseCompiler):
                     ' not currently in a migration block',
                     context=ql.context,
                 )
+
+            diff = s_ddl.delta_schemas(
+                schema,
+                mstate.target_schema,
+                generate_prompts=True,
+                guidance=mstate.guidance,
+            )
+            top_command = next(iter(diff.get_subcommands()))
+
+            if (orig_cmdclass := top_command.get_annotation('orig_cmdclass')):
+                top_cmdclass = orig_cmdclass
+            else:
+                top_cmdclass = type(top_command)
+
+            if issubclass(top_cmdclass, s_delta.AlterObject):
+                new_guidance = mstate.guidance._replace(
+                    banned_alters=mstate.guidance.banned_alters | {(
+                        top_command.get_schema_metaclass(),
+                        (
+                            top_command.classname,
+                            top_command.get_annotation('new_name'),
+                        ),
+                    )}
+                )
+            elif issubclass(top_cmdclass, s_delta.CreateObject):
+                new_guidance = mstate.guidance._replace(
+                    banned_creations=mstate.guidance.banned_creations | {(
+                        top_command.get_schema_metaclass(),
+                        top_command.classname,
+                    )}
+                )
+            elif issubclass(top_cmdclass, s_delta.DeleteObject):
+                new_guidance = mstate.guidance._replace(
+                    banned_deletions=mstate.guidance.banned_deletions | {(
+                        top_command.get_schema_metaclass(),
+                        top_command.classname,
+                    )}
+                )
+            else:
+                raise AssertionError(
+                    f'unexpected top-level command in '
+                    f'delta diff: {top_cmdclass!r}',
+                )
+
+            mstate = mstate._replace(guidance=new_guidance)
+            current_tx.update_migration_state(mstate)
+
+            query = dbstate.MigrationControlQuery(
+                sql=(b'SELECT LIMIT 0',),
+                tx_action=None,
+                action=dbstate.MigrationAction.REJECT_PROPOSED,
+                cacheable=False,
+                modaliases=None,
+                single_unit=False,
+            )
 
         elif isinstance(ql, qlast.CommitMigration):
             mstate = current_tx.get_migration_state()

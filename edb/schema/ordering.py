@@ -577,6 +577,7 @@ def _extract_op(stack: Sequence[sd.Command]) -> List[sd.Command]:
         alter_delta = alter_class(
             classname=stack_op.classname,
             ddl_identity=stack_op.ddl_identity,
+            annotations=stack_op.annotations,
         )
         parent_op.add(alter_delta)
         parent_op = alter_delta

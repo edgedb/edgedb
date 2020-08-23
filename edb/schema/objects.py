@@ -149,17 +149,29 @@ def get_known_type_id(
     return default
 
 
+class DeltaGuidance(NamedTuple):
+
+    banned_creations: FrozenSet[Tuple[Type[Object], str]] = frozenset()
+    banned_deletions: FrozenSet[Tuple[Type[Object], str]] = frozenset()
+    banned_alters: FrozenSet[
+        Tuple[Type[Object], Tuple[str, str]]
+    ] = frozenset()
+
+
 class ComparisonContext:
 
     renames: Dict[Tuple[Type[Object], str], sd.RenameObject[Object]]
     deletions: Dict[Tuple[Type[Object], str], sd.DeleteObject[Object]]
+    guidance: Optional[DeltaGuidance]
 
     def __init__(
         self,
         *,
-        related_schemas: bool = False,
+        generate_prompts: bool = False,
+        guidance: Optional[DeltaGuidance] = None,
     ) -> None:
-        self.related_schemas = related_schemas
+        self.generate_prompts = generate_prompts
+        self.guidance = guidance
         self.renames = {}
         self.deletions = {}
 
@@ -1316,6 +1328,13 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             canonical=True,
         )
 
+        if context.generate_prompts:
+            svn = self.get_verbosename(schema, with_parent=True)
+            prompt = f'did you create {svn}?'
+            delta.set_annotation('user_prompt', prompt)
+            delta.set_annotation('op_id', sd.get_object_command_id(delta))
+            delta.set_annotation('orig_cmdclass', type(delta))
+
         # IDs are assigned once when the object is created and
         # never changed.
         id_value = self.get_explicit_field_value(schema, 'id')
@@ -1331,10 +1350,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             value = self.get_explicit_field_value(schema, fn, None)
             if value is not None:
                 v: Any
-                if (
-                    issubclass(f.type, s_abc.ObjectContainer)
-                    and not context.related_schemas
-                ):
+                if issubclass(f.type, s_abc.ObjectContainer):
                     v = value.as_shell(schema)
                 else:
                     v = value
@@ -1368,6 +1384,21 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             canonical=True,
         )
 
+        if context.generate_prompts:
+            svn = self.get_verbosename(self_schema, with_parent=True)
+            self_name = self.get_name(self_schema)
+            other_name = other.get_name(other_schema)
+            if self_name != other_name:
+                ovn = other.get_displayname(other_schema)
+                prompt = f'did you rename {svn} to {ovn!r}?'
+            else:
+                prompt = f'did you alter {svn}?'
+
+            delta.set_annotation('user_prompt', prompt)
+            delta.set_annotation('new_name', other_name)
+            delta.set_annotation('op_id', sd.get_object_command_id(delta))
+            delta.set_annotation('orig_cmdclass', type(delta))
+
         ff = cls.get_fields(sorted=True).items()
         fields = {
             fn: f for fn, f in ff
@@ -1381,10 +1412,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             old_v: Any
             new_v: Any
 
-            if (
-                issubclass(f.type, s_abc.ObjectContainer)
-                and not context.related_schemas
-            ):
+            if issubclass(f.type, s_abc.ObjectContainer):
                 if oldattr_v is not None:
                     old_v = oldattr_v.as_shell(self_schema)
                 else:
@@ -1461,6 +1489,13 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             canonical=True,
         )
 
+        if context.generate_prompts:
+            svn = self.get_verbosename(schema, with_parent=True)
+            prompt = f'did you drop {svn}?'
+            delta.set_annotation('user_prompt', prompt)
+            delta.set_annotation('op_id', sd.get_object_command_id(delta))
+            delta.set_annotation('orig_cmdclass', type(delta))
+
         context.deletions[type(self), delta.classname] = delta
 
         ff = cls.get_fields(sorted=True).items()
@@ -1472,10 +1507,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         for fn, f in fields.items():
             value = self.get_explicit_field_value(schema, fn, None)
             if value is not None:
-                if (
-                    issubclass(f.type, s_abc.ObjectContainer)
-                    and not context.related_schemas
-                ):
+                if issubclass(f.type, s_abc.ObjectContainer):
                     v = value.as_shell(schema)
                 else:
                     v = value

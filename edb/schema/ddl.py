@@ -61,6 +61,8 @@ def delta_schemas(
     include_derived_types: bool=True,
     include_migrations: bool=False,
     linearize_delta: bool=True,
+    generate_prompts: bool=False,
+    guidance: Optional[so.DeltaGuidance]=None,
 ) -> sd.DeltaRoot:
     """Return difference between *schema_a* and *schema_b*.
 
@@ -115,6 +117,13 @@ def delta_schemas(
         linearize_delta:
             Whether the resulting diff should be properly ordered
             using the dependencies between objects.
+
+        generate_prompts:
+            Whether to generate prompts that can be used in
+            DESCRIBE MIGRATION.
+
+        guidance:
+            Optional explicit guidance to schema diff.
 
     Returns:
         A :class:`schema.delta.DeltaRoot` instances representing
@@ -205,7 +214,10 @@ def delta_schemas(
             result.add(create)
 
     objects = sd.DeltaRoot(canonical=True)
-    context = so.ComparisonContext()
+    context = so.ComparisonContext(
+        generate_prompts=generate_prompts,
+        guidance=guidance,
+    )
 
     schemaclasses = [
         schemacls

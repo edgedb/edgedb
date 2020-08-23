@@ -373,11 +373,13 @@ def _build_object_mutation_shape(
             target_expr = f'''
                 array_agg(<{eltype.get_name(schema)}>
                     json_array_unpack(<json>${var_n}))
+                IF json_typeof(<json>${var_n}) != 'null'
+                ELSE <array<{eltype.get_name(schema)}>>{{}}
             '''
             if v is not None:
                 target_value = list(v)
             else:
-                target_value = []
+                target_value = None
 
         else:
             target_expr = f'${var_n}'

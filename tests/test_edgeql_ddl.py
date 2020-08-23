@@ -6026,6 +6026,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     )
                 }],
                 'confidence': 1.0,
+                'operation_id': 'CREATE TYPE default::Type1',
+                'prompt': "did you create object type 'default::Type1'?",
             },
         }
 
@@ -6087,6 +6089,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     )
                 }],
                 'confidence': 1.0,
+                'operation_id': 'CREATE TYPE test::Type1',
+                'prompt': "did you create object type 'test::Type1'?",
             },
         }
 
@@ -6132,3 +6136,98 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         )
 
         self.assertEqual(json.loads(result), expected_1)
+
+    async def test_edgeql_ddl_describe_migration_json_04(self):
+        self.maxDiff = None
+        await self.migrate('''
+            type Test;
+        ''')
+
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type Test2;
+                    type Test3;
+                };
+            };
+        ''')
+
+        expected = {
+            'parent': 'm1xh653zionj2aehqbh7x6km5lo3b2mjaftxdkvqoh3wluc3iv6k2a',
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': 'ALTER TYPE test::Test RENAME TO test::Test2;',
+                }],
+                'confidence': 1.0,
+                'operation_id': 'ALTER TYPE test::Test',
+                'prompt': (
+                    "did you rename object type 'test::Test' to 'test::Test2'?"
+                ),
+            },
+        }
+
+        result = await self.con.query_one(
+            '''
+                DESCRIBE CURRENT MIGRATION AS JSON;
+            ''',
+        )
+
+        self.assertEqual(json.loads(result), expected)
+
+        await self.con.execute('''
+            ALTER CURRENT MIGRATION REJECT PROPOSED;
+        ''')
+
+        expected_1 = {
+            'parent': 'm1xh653zionj2aehqbh7x6km5lo3b2mjaftxdkvqoh3wluc3iv6k2a',
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': 'ALTER TYPE test::Test RENAME TO test::Test3;',
+                }],
+                'confidence': 1.0,
+                'operation_id': 'ALTER TYPE test::Test',
+                'prompt': (
+                    "did you rename object type 'test::Test' to 'test::Test3'?"
+                ),
+            },
+        }
+
+        result = await self.con.query_one(
+            '''
+                DESCRIBE CURRENT MIGRATION AS JSON;
+            ''',
+        )
+
+        self.assertEqual(json.loads(result), expected_1)
+
+        await self.con.execute('''
+            ALTER TYPE test::Test RENAME TO test::Test3;
+        ''')
+
+        expected_2 = {
+            'parent': 'm1xh653zionj2aehqbh7x6km5lo3b2mjaftxdkvqoh3wluc3iv6k2a',
+            'confirmed': ['ALTER TYPE test::Test RENAME TO test::Test3'],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': 'CREATE TYPE test::Test2;',
+                }],
+                'confidence': 1.0,
+                'operation_id': 'CREATE TYPE test::Test2',
+                'prompt': (
+                    "did you create object type 'test::Test2'?"
+                ),
+            },
+        }
+
+        result = await self.con.query_one(
+            '''
+                DESCRIBE CURRENT MIGRATION AS JSON;
+            ''',
+        )
+
+        self.assertEqual(json.loads(result), expected_2)
