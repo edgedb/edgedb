@@ -307,29 +307,29 @@ def compile_insert_unless_conflict(
     # Compile an else branch
     else_info = None
     if else_branch:
-        with ctx.subquery() as ectx:
-            # Produce a query that finds the conflicting objects
-            nobe = qlast.SelectQuery(
-                result=insert_subject,
-                where=qlast.BinOp(
-                    op='=',
-                    left=constraint_spec,
-                    right=elem_fixed.compexpr
-                ),
-            )
-            select_ir = dispatch.compile(nobe, ctx=ectx)
-            select_ir = setgen.scoped_set(
-                select_ir, force_reassign=True, ctx=ectx)
-            assert isinstance(select_ir, irast.Set)
+        # Produce a query that finds the conflicting objects
+        nobe = qlast.SelectQuery(
+            result=insert_subject,
+            where=qlast.BinOp(
+                op='=',
+                left=constraint_spec,
+                right=elem_fixed.compexpr
+            ),
+        )
+        select_ir = dispatch.compile(nobe, ctx=ctx)
+        select_ir = setgen.scoped_set(
+            select_ir, force_reassign=True, ctx=ctx)
+        assert isinstance(select_ir, irast.Set)
 
-            # The ELSE needs to be able to reference the subject in an
-            # UPDATE, even though that would normally be prohibited.
-            ectx.path_scope.factoring_allowlist.add(subject.path_id)
+        # The ELSE needs to be able to reference the subject in an
+        # UPDATE, even though that would normally be prohibited.
+        ctx.path_scope.factoring_allowlist.add(subject.path_id)
 
-            # Compile else
-            else_ir = dispatch.compile(else_branch, ctx=ectx)
-            assert isinstance(else_ir, irast.Set)
-            else_info = irast.OnConflictElse(select_ir, else_ir)
+        # Compile else
+        else_ir = dispatch.compile(
+            astutils.ensure_qlstmt(else_branch), ctx=ctx)
+        assert isinstance(else_ir, irast.Set)
+        else_info = irast.OnConflictElse(select_ir, else_ir)
 
     return irast.OnConflictClause(
         irast.ConstraintRef(id=ex_cnstrs[0].id, module_id=module_id),
