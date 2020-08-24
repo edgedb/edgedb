@@ -119,11 +119,10 @@ def compile_InsertStmt(
         if top_typeref.material_type is not None:
             top_typeref = top_typeref.material_type
         insert_cte, insert_rvar = parts.dml_ctes[top_typeref]
-        else_cte = parts.dml_ctes.get(None)
 
         # Process INSERT body.
         dml.process_insert_body(
-            stmt, ctx.rel, insert_cte, insert_rvar, else_cte, ctx=ctx)
+            stmt, ctx.rel, insert_cte, insert_rvar, parts.else_cte, ctx=ctx)
 
         # Wrap up.
         return dml.fini_dml_stmt(
@@ -146,7 +145,6 @@ def compile_UpdateStmt(
         toplevel.ctes.append(range_cte)
 
         for typeref, (update_cte, _) in parts.dml_ctes.items():
-            assert typeref
             # Process UPDATE body.
             dml.process_update_body(
                 stmt,

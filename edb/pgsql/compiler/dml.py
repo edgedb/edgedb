@@ -60,9 +60,11 @@ from . import shapecomp
 class DMLParts(NamedTuple):
 
     dml_ctes: Mapping[
-        Optional[irast.TypeRef],
+        irast.TypeRef,
         Tuple[pgast.CommonTableExpr, pgast.PathRangeVar],
     ]
+
+    else_cte: Optional[Tuple[pgast.CommonTableExpr, pgast.PathRangeVar]]
 
     union_cte: pgast.CommonTableExpr
 
@@ -122,10 +124,7 @@ def init_dml_stmt(
         if top_typeref.descendants:
             typerefs.extend(top_typeref.descendants)
 
-    dml_map: Dict[
-        Optional[irast.TypeRef],
-        Tuple[pgast.CommonTableExpr, pgast.PathRangeVar],
-    ] = {}
+    dml_map = {}
 
     for typeref in typerefs:
         dml_cte, dml_rvar = gen_dml_cte(
@@ -137,6 +136,9 @@ def init_dml_stmt(
 
         dml_map[typeref] = (dml_cte, dml_rvar)
 
+    dml_entries = list(dml_map.values())
+
+    else_cte = None
     if (
         isinstance(ir_stmt, irast.InsertStmt)
         and ir_stmt.on_conflict and ir_stmt.on_conflict[1] is not None
@@ -146,13 +148,14 @@ def init_dml_stmt(
             name=ctx.env.aliases.get(hint='m')
         )
         dml_rvar = relctx.rvar_for_rel(dml_cte, ctx=ctx)
-        dml_map[None] = (dml_cte, dml_rvar)
+        else_cte = (dml_cte, dml_rvar)
+        dml_entries.append(else_cte)
 
-    if len(dml_map) == 1:
-        union_cte, union_rvar = next(iter(dml_map.values()))
+    if len(dml_entries) == 1:
+        union_cte, union_rvar = dml_entries[0]
     else:
         union_components = []
-        for _, dml_rvar in dml_map.values():
+        for _, dml_rvar in dml_entries:
             union_component = pgast.SelectStmt()
             relctx.include_rvar(
                 union_component,
@@ -191,7 +194,12 @@ def init_dml_stmt(
 
     ctx.dml_stmts[ir_stmt] = union_cte
 
-    return DMLParts(dml_ctes=dml_map, range_cte=range_cte, union_cte=union_cte)
+    return DMLParts(
+        dml_ctes=dml_map,
+        range_cte=range_cte,
+        else_cte=else_cte,
+        union_cte=union_cte,
+    )
 
 
 def gen_dml_cte(
@@ -302,7 +310,7 @@ def fini_dml_stmt(
     ctx: context.CompilerContextLevel,
 ) -> pgast.Query:
 
-    if len(parts.dml_ctes) > 1:
+    if len(parts.dml_ctes) > 1 or parts.else_cte:
         ctx.toplevel_stmt.ctes.append(parts.union_cte)
 
     # Record the effect of this insertion in the relation overlay
