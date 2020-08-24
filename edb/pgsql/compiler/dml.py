@@ -628,9 +628,8 @@ def process_insert_body(
     if isinstance(ir_stmt, irast.InsertStmt) and ir_stmt.on_conflict:
         assert not insert_stmt.on_conflict
 
-        constraint, else_part = ir_stmt.on_conflict
         compile_insert_else_body(
-            insert_stmt, ir_stmt, constraint, else_part, else_cte_rvar,
+            insert_stmt, ir_stmt, ir_stmt.on_conflict, else_cte_rvar,
             iterator, ctx=ctx)
 
     toplevel = ctx.toplevel_stmt
@@ -654,8 +653,7 @@ def process_insert_body(
 def compile_insert_else_body(
         insert_stmt: pgast.InsertStmt,
         ir_stmt: irast.InsertStmt,
-        constraint: Optional[irast.ConstraintRef],
-        else_part: Optional[Tuple[irast.Set, irast.Set]],
+        on_conflict: irast.OnConflictClause,
         else_cte_rvar: Optional[
             Tuple[pgast.CommonTableExpr, pgast.PathRangeVar]],
         iterator: Optional[Tuple[irast.Set, pgast.CommonTableExpr]],
@@ -663,8 +661,8 @@ def compile_insert_else_body(
         ctx: context.CompilerContextLevel) -> None:
 
     infer = None
-    if constraint:
-        constraint_name = f'"{constraint.id};schemaconstr"'
+    if on_conflict.constraint:
+        constraint_name = f'"{on_conflict.constraint.id};schemaconstr"'
         infer = pgast.InferClause(conname=constraint_name)
 
     insert_stmt.on_conflict = pgast.OnConflictClause(
@@ -672,17 +670,12 @@ def compile_insert_else_body(
         infer=infer,
     )
 
-    if else_part:
-        else_select, else_branch = else_part
+    if on_conflict.else_ir:
+        else_select, else_branch = on_conflict.else_ir
 
         subject_id = ir_stmt.subject.path_id
 
-        with ctx.subrel() as sctx, sctx.newscope() as ictx:
-            # This has been lifted up to the top level, so we can't
-            # have it inheriting anything from where it would have
-            # been nested.
-            # TODO: Inherit from the nearest iterator instead?
-            del ictx.rel_hierarchy[ictx.rel]
+        with ctx.newrel() as ictx:
             ictx.path_scope[subject_id] = ictx.rel
 
             if iterator is not None:
@@ -708,11 +701,7 @@ def compile_insert_else_body(
 
         else_select_rvar = relctx.rvar_for_rel(else_select_cte, ctx=ctx)
 
-        # We always compile the else branch explicitly as a CTE
-        # because it makes it easy to integrate with the DML logic
-        # producing a result from a union.
-        with ctx.subrel() as sctx, sctx.newscope() as ictx:
-            del ictx.rel_hierarchy[ictx.rel]
+        with ctx.newrel() as ictx:
             ictx.rel_hierarchy[ictx.rel] = else_select_rel
             ictx.path_scope[subject_id] = ictx.rel
 

@@ -215,8 +215,7 @@ def compile_insert_unless_conflict(
     constraint_spec: qlast.Expr,
     else_branch: Optional[qlast.Expr],
     *, ctx: context.ContextLevel,
-) -> Tuple[Optional[irast.ConstraintRef],
-           Optional[Tuple[irast.Set, irast.Set]]]:
+) -> irast.OnConflictClause:
 
     with ctx.new() as constraint_ctx:
         constraint_ctx.partial_path_prefix = subject
@@ -330,9 +329,9 @@ def compile_insert_unless_conflict(
             # Compile else
             else_ir = dispatch.compile(else_branch, ctx=ectx)
             assert isinstance(else_ir, irast.Set)
-            else_info = select_ir, else_ir
+            else_info = irast.OnConflictElse(select_ir, else_ir)
 
-    return (
+    return irast.OnConflictClause(
         irast.ConstraintRef(id=ex_cnstrs[0].id, module_id=module_id),
         else_info
     )
@@ -380,7 +379,8 @@ def compile_InsertQuery(
                     expr.subject, expr_shape, constraint_spec, else_branch,
                     ctx=ictx)
             else:
-                stmt.on_conflict = (None, None)
+                stmt.on_conflict = irast.OnConflictClause(
+                    constraint=None, else_ir=None)
 
         with ictx.new() as bodyctx:
             # Self-references in INSERT are prohibited.
