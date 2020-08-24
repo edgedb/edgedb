@@ -1907,6 +1907,42 @@ class TestInsert(tb.QueryTestCase):
             ]
         )
 
+    async def test_edgeql_insert_unless_conflict_07(self):
+        # Test it using default values
+        query = r'''
+            WITH MODULE test
+            SELECT (
+                INSERT Person UNLESS CONFLICT
+                ON .name ELSE (UPDATE Person SET { tag := "redo" })
+            ) {name};
+        '''
+
+        await self.assert_query_result(
+            query,
+            [{"name": "Nemo"}],
+        )
+
+        await self.assert_query_result(
+            "SELECT test::Person {name, tag}",
+            [{"name": "Nemo", "tag": None}]
+        )
+
+        await self.assert_query_result(
+            query,
+            [{"name": "Nemo"}],
+        )
+
+        await self.con.execute(r'''
+            INSERT test::Person { name := "Phil Emarg" }
+        ''')
+
+        # Only the correct record should be updated
+        await self.assert_query_result(
+            "SELECT test::Person {name, tag}",
+            [{"name": "Nemo", "tag": "redo"},
+             {"name": "Phil Emarg", "tag": None}]
+        )
+
     async def test_edgeql_insert_dependent_01(self):
         query = r'''
             WITH MODULE test
