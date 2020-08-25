@@ -22,6 +22,7 @@ import os
 import os.path
 import pathlib
 import platform
+import re
 import shutil
 import subprocess
 import textwrap
@@ -540,9 +541,84 @@ else:
     rust_extensions = []
 
 
+def custom_scm_version():
+    posint = r'(0|[1-9]\d*)'
+    pep440_version_re = re.compile(
+        rf"""
+        ^
+        (?P<major>{posint})
+        \.
+        (?P<minor>{posint})
+        (
+            \.
+            (?P<micro>{posint})
+        )?
+        (
+            (?P<prekind>a|b|rc)
+            (?P<preval>{posint})
+        )?
+        $
+        """,
+        re.X,
+    )
+
+    proc = subprocess.run(
+        ['git', 'tag', '--list', 'v*'],
+        stdout=subprocess.PIPE,
+        universal_newlines=True,
+        check=True,
+    )
+    versions = proc.stdout.split('\n')
+    latest_version = max(versions)
+
+    proc = subprocess.run(
+        ['git', 'tag', '--points-at', 'HEAD'],
+        stdout=subprocess.PIPE,
+        universal_newlines=True,
+        check=True,
+    )
+    tags = proc.stdout.split('\n')
+    exact_tags = set(versions) & set(tags)
+
+    proc = subprocess.run(
+        ['git', 'rev-list', '--count', 'HEAD'],
+        stdout=subprocess.PIPE,
+        universal_newlines=True,
+        check=True,
+    )
+    commits_on_branch = proc.stdout.strip()
+
+    def version_scheme(version):
+        if exact_tags:
+            return exact_tags.pop()[1:]
+
+        m = pep440_version_re.match(latest_version[1:])
+        if not m:
+            return f'{latest_version[1:]}.dev{commits_on_branch}'
+
+        major = m.group('major')
+        minor = m.group('minor')
+        micro = m.group('micro') or ''
+        microkind = '.' if micro else ''
+        prekind = m.group('prekind') or ''
+        preval = m.group('preval') or ''
+
+        if prekind and preval:
+            preval = str(int(preval) + 1)
+        elif micro:
+            micro = str(int(micro) + 1)
+        else:
+            minor = str(int(minor) + 1)
+
+        incremented_ver = f'{major}.{minor}{microkind}{micro}{prekind}{preval}'
+        return f'{incremented_ver}.dev{commits_on_branch}'
+
+    return {'version_scheme': version_scheme}
+
+
 setuptools.setup(
     setup_requires=RUNTIME_DEPS + BUILD_DEPS,
-    use_scm_version=True,
+    use_scm_version=custom_scm_version,
     name='edgedb-server',
     description='EdgeDB Server',
     author='MagicStack Inc.',
