@@ -155,7 +155,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
             "(test::Card)",
             "(test::User)",
             "FENCE": {
-                "(__derived__::__derived__|U@@w~1)": {
+                "(__derived__::__derived__|U@w~1)": {
                     "FENCE": {
                         "(test::User)"
                     }
@@ -373,7 +373,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         """
 
     def test_edgeql_ir_scope_tree_16(self):
-        # Apparent misplaced "(__derived__::__derived__|U@@w~1)" in the FILTER
+        # Apparent misplaced "(__derived__::__derived__|U@w~1)" in the FILTER
         # fence is due to a alias_map replacement artifact.
         """
         WITH MODULE test,
@@ -391,13 +391,13 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
 % OK %
         "FENCE": {
-            "(__derived__::__derived__|U@@w~1).>cards[IS test::Card]\
+            "(__derived__::__derived__|U@w~1).>cards[IS test::Card]\
 .>foo[IS std::float64]": {
                 "BRANCH": {
-                    "(__derived__::__derived__|U@@w~1)\
+                    "(__derived__::__derived__|U@w~1)\
 .>cards[IS test::Card]": {
                         "BRANCH": {
-                            "(__derived__::__derived__|U@@w~1)": {
+                            "(__derived__::__derived__|U@w~1)": {
                                 "FENCE": {
                                     "(test::User)",
                                     "FENCE": {
@@ -409,9 +409,9 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                         "FENCE": {
                             "(test::Card)",
                             "FENCE": {
-                                "(__derived__::__derived__|U@@w~1)\
+                                "(__derived__::__derived__|U@w~1)\
 .>deck[IS test::Card]": {
-                                    "(__derived__::__derived__|U@@w~1)"
+                                    "(__derived__::__derived__|U@w~1)"
                                 }
                             }
                         }
@@ -483,7 +483,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
 % OK %
         "FENCE": {
-            "(__derived__::__derived__|x@@w~1)": {
+            "(__derived__::__derived__|x@w~1)": {
                 "FENCE": {
                     "(test::User).>friends[IS test::User]": {
                         "(test::User)"
@@ -509,7 +509,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                 }
             },
             "FENCE": {
-                "(__derived__::__derived__|x@@w~1)\
+                "(__derived__::__derived__|x@w~1)\
 .>0[IS std::float64]"
             }
         }
@@ -611,14 +611,14 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         "FENCE": {
             "(test::User)",
             "FENCE": {
-                "(__derived__::__derived__|x@@w~1)": {
+                "(__derived__::__derived__|x@w~1)": {
                     "FENCE": {
                         "(test::User).>deck[IS test::Card]"
                     }
                 },
                 "(test::User).>deck[IS test::Card]",
                 "FENCE": {
-                    "(__derived__::__derived__|x@@w~1)\
+                    "(__derived__::__derived__|x@w~1)\
 .>name[IS std::str]"
                 }
             }
@@ -634,9 +634,9 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
 % OK %
         "FENCE": {
-            "(__derived__::__derived__|_@@w~2)": {
+            "(__derived__::__derived__|_@w~2)": {
                 "FENCE": {
-                    "(__derived__::__derived__|A@@w~1)",
+                    "(__derived__::__derived__|A@w~1)",
                     "(test::User)"
                 }
             }
@@ -663,7 +663,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         "FENCE": {
             "(test::User)",
             "FENCE": {
-                "(__derived__::__derived__|letter@@w~1)",
+                "(__derived__::__derived__|letter@w~1)",
                 "(test::User).>select_deck[IS test::Card]",
                 "FENCE": {
                     "(test::User).>deck[IS test::Card]",
@@ -698,7 +698,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         "FENCE": {
             "(test::User)",
             "FENCE": {
-                "(__derived__::__derived__|foo@@w~2)": {
+                "(__derived__::__derived__|foo@w~2)": {
                     "FENCE": {
                         "(test::User).>deck[IS test::Card]",
                         "FENCE": {
@@ -707,7 +707,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                         }
                     }
                 },
-                "(__derived__::__derived__|letter@@w~1)",
+                "(__derived__::__derived__|letter@w~1)",
                 "(test::User).>select_deck[IS test::Card]"
             },
             "FENCE": {
@@ -753,16 +753,16 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
             "(test::Card)",
             "(test::Card).>name[IS std::str]",
             "FENCE": {
-                "(__derived__::__derived__|A@@w~1).>owners[IS test::User]": {
+                "(__derived__::__derived__|A@w~1).>owners[IS test::User]": {
                     "BRANCH": {
-                        "(__derived__::__derived__|A@@w~1)"
+                        "(__derived__::__derived__|A@w~1)"
                     },
                     "FENCE": {
-                        "ns~2@@(__derived__::__derived__|A@@w~1)\
+                        "ns~2@@(__derived__::__derived__|A@w~1)\
 .<deck[IS __derived__::(@SID@)].>indirection[IS test::User]": {
-                            "ns~2@@(__derived__::__derived__|A@@w~1)\
+                            "ns~2@@(__derived__::__derived__|A@w~1)\
 .<deck[IS __derived__::(@SID@)]": {
-                                "(__derived__::__derived__|A@@w~1)"
+                                "(__derived__::__derived__|A@w~1)"
                             }
                         }
                     }

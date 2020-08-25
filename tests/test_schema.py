@@ -593,7 +593,7 @@ _123456789_123456789_123456789 -> str
         base_names = constr.get_bases(schema).names(schema)
         self.assertEqual(len(base_names), 1)
         self.assertTrue(base_names[0].startswith(
-            'default::std|exclusive@@default|__|name@@default|Named@'))
+            'default::std|exclusive@default|__||name&default||Named@'))
 
     def test_schema_constraint_inheritance_02(self):
         schema = tb._load_std_schema()
@@ -618,7 +618,7 @@ _123456789_123456789_123456789 -> str
         base_names = constr.get_bases(schema).names(schema)
         self.assertEqual(len(base_names), 1)
         self.assertTrue(base_names[0].startswith(
-            'default::std|exclusive@@default|__|name@@default|Named@'))
+            'default::std|exclusive@default|__||name&default||Named@'))
 
     def test_schema_constraint_inheritance_03(self):
         schema = tb._load_std_schema()

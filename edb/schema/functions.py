@@ -349,7 +349,7 @@ class Parameter(so.ObjectFragment, ParameterLike):
 
     @classmethod
     def paramname_from_fullname(cls, fullname: sn.Name) -> str:
-        parts = str(fullname.name).split('@@', 1)
+        parts = str(fullname.name).split('@', 1)
         if len(parts) == 2:
             return sn.unmangle_name(parts[0])
         elif '::' in fullname:

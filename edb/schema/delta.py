@@ -35,6 +35,7 @@ from edb.common import ordered
 from edb.common import parsing
 from edb.common import struct
 from edb.common import topological
+from edb.common import verutils
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
@@ -256,8 +257,6 @@ Command_T = TypeVar("Command_T", bound="Command")
 
 
 class Command(struct.MixedStruct, metaclass=CommandMeta):
-    """Abstract base class for all delta commands."""
-
     source_context = struct.Field(parsing.ParserContext, default=None)
     canonical = struct.Field(bool, default=False)
 
@@ -812,6 +811,7 @@ class CommandContext:
             Mapping[Tuple[str, Optional[str]], uuid.UUID]
         ] = None,
         backend_superuser_role: Optional[str] = None,
+        compat_ver: Optional[verutils.Version] = None,
     ) -> None:
         self.stack: List[CommandContextToken[Command]] = []
         self._cache: Dict[Hashable, Any] = {}
@@ -831,6 +831,7 @@ class CommandContext:
         self.backend_superuser_role = backend_superuser_role
         self.affected_finalization: \
             Dict[Command, Tuple[DeltaRoot, Command]] = dict()
+        self.compat_ver = compat_ver
 
     @property
     def modaliases(self) -> Mapping[Optional[str], str]:
@@ -1910,7 +1911,19 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
                 qlclass = None
             else:
                 qlclass = mcls.get_ql_class_or_die()
-            key = (self.classname, qlclass)
+
+            objname = self.classname
+            if (
+                context.compat_ver is not None
+                and (
+                    context.compat_ver
+                    < (1, 0, verutils.VersionStage.ALPHA, 5)
+                )
+            ):
+                # Pre alpha.5 used to have a different name mangling scheme.
+                objname = sn.compat_name_remangle(objname)
+
+            key = (objname, qlclass)
             specified_id = context.schema_object_ids.get(key)
             if specified_id is not None:
                 self.set_attribute_value('id', specified_id)

@@ -39,6 +39,8 @@ from . import schema as s_schema
 if TYPE_CHECKING:
     import uuid
 
+    from edb.common import verutils
+
 
 def delta_schemas(
     schema_a: Optional[s_schema.Schema],
@@ -424,10 +426,17 @@ def delta_from_ddl(
     schema_object_ids: Optional[
         Mapping[Tuple[str, Optional[str]], uuid.UUID]
     ]=None,
+    compat_ver: verutils.Version = None,
 ) -> sd.DeltaRoot:
-    _, cmd = _delta_from_ddl(ddl_stmt, schema=schema, modaliases=modaliases,
-                             stdmode=stdmode, testmode=testmode,
-                             schema_object_ids=schema_object_ids)
+    _, cmd = _delta_from_ddl(
+        ddl_stmt,
+        schema=schema,
+        modaliases=modaliases,
+        stdmode=stdmode,
+        testmode=testmode,
+        schema_object_ids=schema_object_ids,
+        compat_ver=compat_ver,
+    )
     return cmd
 
 
@@ -441,6 +450,7 @@ def _delta_from_ddl(
     schema_object_ids: Optional[
         Mapping[Tuple[str, Optional[str]], uuid.UUID]
     ]=None,
+    compat_ver: verutils.Version = None,
 ) -> Tuple[s_schema.Schema, sd.DeltaRoot]:
     delta = sd.DeltaRoot()
     context = sd.CommandContext(
@@ -449,6 +459,7 @@ def _delta_from_ddl(
         stdmode=stdmode,
         testmode=testmode,
         schema_object_ids=schema_object_ids,
+        compat_ver=compat_ver,
     )
 
     with context(sd.DeltaRootContext(schema=schema, op=delta)):

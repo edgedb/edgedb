@@ -39,6 +39,7 @@ from edb.pgsql import compiler as pg_compiler
 
 from edb import edgeql
 from edb.common import debug
+from edb.common import verutils
 from edb.common import uuidgen
 
 from edb.edgeql import ast as qlast
@@ -107,6 +108,7 @@ class CompileContext:
     schema_object_ids: Optional[Mapping[str, uuid.UUID]] = None
     first_extracted_var: Optional[int] = None
     backend_instance_params: BackendInstanceParams = BackendInstanceParams()
+    compat_ver: Optional[verutils.Version] = None
 
 
 EMPTY_MAP = immutables.Map()
@@ -390,6 +392,7 @@ class Compiler(BaseCompiler):
         context.testmode = self._in_testmode(ctx)
         context.stdmode = self._bootstrap_mode
         context.schema_object_ids = ctx.schema_object_ids
+        context.compat_ver = ctx.compat_ver
         context.backend_superuser_role = (
             self._backend_instance_params.explicit_superuser_role)
         return context
@@ -714,6 +717,7 @@ class Compiler(BaseCompiler):
             modaliases=current_tx.get_modaliases(),
             testmode=self._in_testmode(ctx),
             schema_object_ids=ctx.schema_object_ids,
+            compat_ver=ctx.compat_ver,
         )
 
         if debug.flags.delta_plan_input:
@@ -1519,6 +1523,7 @@ class Compiler(BaseCompiler):
         schema: Optional[s_schema.Schema] = None,
         schema_object_ids: Optional[Mapping[str, uuid.UUID]] = None,
         first_extracted_var: Optional[int] = None,
+        compat_ver: Optional[verutils.Version] = None,
     ) -> CompileContext:
 
         if session_config is None:
@@ -1555,6 +1560,7 @@ class Compiler(BaseCompiler):
             stmt_mode=stmt_mode,
             json_parameters=json_parameters,
             schema_object_ids=schema_object_ids,
+            compat_ver=compat_ver,
             first_extracted_var=first_extracted_var,
         )
 
@@ -1936,6 +1942,7 @@ class Compiler(BaseCompiler):
     async def describe_database_restore(
         self,
         tx_snapshot_id: str,
+        dump_server_ver_str: Optional[str],
         schema_ddl: bytes,
         schema_ids: List[Tuple[str, str, bytes]],
         blocks: List[Tuple[bytes, bytes]],  # type_id, typespec
@@ -1944,6 +1951,11 @@ class Compiler(BaseCompiler):
             (name, qltype if qltype else None): uuidgen.from_bytes(objid)
             for name, qltype, objid in schema_ids
         }
+
+        if dump_server_ver_str is not None:
+            dump_server_ver = verutils.parse_version(dump_server_ver_str)
+        else:
+            dump_server_ver = None
 
         schema = await self._introspect_schema_in_snapshot(tx_snapshot_id)
         ctx = await self._ctx_new_con_state(
@@ -1956,7 +1968,9 @@ class Compiler(BaseCompiler):
             capability=enums.Capability.ALL,
             json_parameters=False,
             schema=schema,
-            schema_object_ids=schema_object_ids)
+            schema_object_ids=schema_object_ids,
+            compat_ver=dump_server_ver,
+        )
         ctx.state.start_tx()
 
         units = self._compile(
@@ -2000,7 +2014,7 @@ class Compiler(BaseCompiler):
                     raise RuntimeError(
                         'Link table dump data has extra fields')
 
-            else:
+            elif isinstance(obj, s_objtypes.ObjectType):
                 assert isinstance(desc, sertypes.ShapeDesc)
                 desc_cols = list(desc.fields.keys())
 
@@ -2021,6 +2035,12 @@ class Compiler(BaseCompiler):
                 if set(desc_cols) != set(cols):
                     raise RuntimeError(
                         'Object table dump data has extra fields')
+
+            else:
+                raise AssertionError(
+                    f'unexpected object type in restore '
+                    f'type descriptor: {obj!r}'
+                )
 
             table_name = pg_common.get_backend_name(
                 schema, obj, catenate=True)

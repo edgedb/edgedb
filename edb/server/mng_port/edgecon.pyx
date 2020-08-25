@@ -1884,11 +1884,13 @@ cdef class EdgeConnection:
 
         # Now parse the embedded dump header message:
 
-        # Ignore headers
+        dump_server_ver_str = None
         headers_num = self.buffer.read_int16()
         for _ in range(headers_num):
-            self.buffer.read_int16()
-            self.buffer.read_len_prefixed_bytes()
+            hdrname = self.buffer.read_int16()
+            hdrval = self.buffer.read_len_prefixed_bytes()
+            if hdrname == DUMP_HEADER_SERVER_VER:
+                dump_server_ver_str = hdrval.decode('utf-8')
 
         proto_major = self.buffer.read_int16()
         proto_minor = self.buffer.read_int16()
@@ -1939,6 +1941,7 @@ cdef class EdgeConnection:
                 await self.get_backend().compiler.call(
                     'describe_database_restore',
                     tx_snapshot_id,
+                    dump_server_ver_str,
                     schema_ddl,
                     schema_ids,
                     blocks,

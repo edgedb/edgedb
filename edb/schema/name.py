@@ -21,6 +21,7 @@ from __future__ import annotations
 from typing import *
 
 import functools
+import re
 
 from edb import errors
 
@@ -118,45 +119,79 @@ def split_name(
 
 
 def mangle_name(name: Union[SchemaName, str]) -> str:
-    return name.replace('::', '|')
+    return (
+        name
+        .replace('|', '||')
+        .replace('&', '&&')
+        .replace('::', '|')
+        .replace('@', '&')
+    )
 
 
 def unmangle_name(name: str) -> str:
-    return name.replace('|', '::')
+    name = re.sub(r'(?<![|])\|(?![|])', '::', name)
+    name = re.sub(r'(?<![&])&(?![&])', '@', name)
+    return name.replace('||', '|').replace('&&', '&')
 
 
 @functools.lru_cache(4096)
-def shortname_from_fullname(fullname: SchemaName) -> SchemaName:
+def shortname_str_from_fullname(fullname: str) -> str:
     if isinstance(fullname, SchemaName):
         name = fullname.name
     else:
         # `name` is a str
         name = fullname
 
-    parts = str(name).split('@@', 1)
+    parts = str(name).split('@', 1)
     if len(parts) == 2:
-        return SchemaName(unmangle_name(parts[0]))
+        return unmangle_name(parts[0])
     else:
-        return SchemaName(fullname)
+        return fullname
+
+
+@functools.lru_cache(4096)
+def shortname_from_fullname(fullname: SchemaName) -> SchemaName:
+    return SchemaName(shortname_str_from_fullname(fullname))
 
 
 @functools.lru_cache(4096)
 def quals_from_fullname(fullname: SchemaName) -> List[str]:
-    _, _, mangled_quals = fullname.name.partition('@@')
+    _, _, mangled_quals = fullname.name.partition('@')
     return [unmangle_name(p) for p in mangled_quals.split('@')]
 
 
 def get_specialized_name(
     basename: Union[SchemaName, str], *qualifiers: str
 ) -> str:
-    return (mangle_name(basename) +
-            '@@' +
-            '@'.join(mangle_name(qualifier)
-                     for qualifier in qualifiers if qualifier))
+    mangled_quals = '@'.join(mangle_name(qual) for qual in qualifiers if qual)
+    return f'{mangle_name(basename)}@{mangled_quals}'
 
 
 def is_fullname(name: str) -> bool:
-    return (
-        SchemaName.is_qualified(name)
-        and '@@' in name
+    return SchemaName.is_qualified(name) and '@' in name
+
+
+def compat_get_specialized_name(
+    basename: Union[SchemaName, str], *qualifiers: str
+) -> str:
+    mangled_quals = '@'.join(
+        compat_mangle_name(qual) for qual in qualifiers if qual
     )
+    return f'{compat_mangle_name(basename)}@@{mangled_quals}'
+
+
+def compat_mangle_name(name: Union[SchemaName, str]) -> str:
+    return name.replace('::', '|')
+
+
+def compat_name_remangle(name: str) -> str:
+    if is_fullname(name):
+        qname = SchemaName(name)
+        sn = shortname_str_from_fullname(qname)
+        quals = list(quals_from_fullname(qname))
+        if quals and is_fullname(quals[0]):
+            quals[0] = compat_name_remangle(quals[0])
+        compat_sn = compat_get_specialized_name(sn, *quals)
+        return SchemaName(name=compat_sn, module=qname.module)
+    else:
+        return name

@@ -700,17 +700,17 @@ class IsinstanceFunction(dbops.Function):
 class NormalizeNameFunction(dbops.Function):
     text = '''
         SELECT
-            CASE WHEN strpos(name, '@@') = 0 THEN
+            CASE WHEN strpos(name, '@') = 0 THEN
                 name
             ELSE
                 CASE WHEN strpos(name, '::') = 0 THEN
-                    replace(split_part(name, '@@', 1), '|', '::')
+                    replace(split_part(name, '@', 1), '|', '::')
                 ELSE
                     replace(
                         split_part(
                             -- "reverse" calls are to emulate "rsplit"
                             reverse(split_part(reverse(name), '::', 1)),
-                            '@@', 1),
+                            '@', 1),
                         '|', '::')
                 END
             END;
