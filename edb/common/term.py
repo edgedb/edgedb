@@ -111,7 +111,10 @@ def use_colors(fileno=None):
     assert _colorize == 'auto'
 
     if fileno is None:
-        fileno = sys.stdout.fileno()
+        try:
+            fileno = sys.stdout.fileno()
+        except OSError:
+            return False
 
     return supports_colors(fileno)
 
