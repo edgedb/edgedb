@@ -1,0 +1,119 @@
+===========
+1.0 Alpha 5
+===========
+
+This changelog summarizes new features and breaking changes in
+EdgeDB 1.0 alpha 5 "Luhman".
+
+
+EdgeQL
+======
+
+* Implement casts between JSON and enums, arrays and tuples
+  (:eql:gh:`#251`).
+* Allow constraints on tuple types (:eql:gh:`#1576`).
+* Allow constraints directly on object types in SDL (:eql:gh:`#1164`)
+* Disallow using :eql:constraint:`exclusive` on scalar types
+  (:eql:gh:`#1575`).
+* Proper implementation of ``SET/DROP OWNED``.
+* Fix issues with some ``FOR`` statements (:eql:gh:`#1594`).
+* Use fully-qualified names to disambiguate the expressions produced
+  by :eql:stmt:`DESCRIBE` (:eql:gh:`#1254`).
+* Initial implementation of :eql:stmt:`INSERT ... UNLESS CONFLICT ...
+  ELSE <INSERT>` (:eql:gh:`#1639`)
+* Implementation of more of the features of the new migration syntax
+  (`RFC 1000 <migrations_>`_).
+
+
+GraphQL
+=======
+
+* Allow several mutation operations in a single mutation query
+  (:eql:gh:`#1569`).
+* Reflect nested aliased types (:eql:gh:`#722`).
+* Enable sorting on non-trivial path (:eql:gh:`#1642`). Here's an
+  example of sorting movies by the director's last name and then by
+  the movie's title:
+
+  .. code-block:: graphql
+
+      {
+        Movie(
+          order: {
+            director: {last_name: {dir: ASC}},
+            title: {dir: ASC}
+          }
+        ) {
+          id
+          title
+        }
+      }
+
+* Add an ``exists`` filter operation (:eql:gh:`#1655`). Here's an
+  example of using it to get records with missing data:
+
+  .. code-block:: graphql
+
+      {
+        Movie(
+          filter: {director: {exists: false}}
+        ) {
+          id
+          title
+        }
+      }
+
+
+CLI
+===
+
+* Reworked auth setup via ``edgedb server init`` (`#91
+  <https://github.com/edgedb/edgedb-cli/issues/91>`_).
+* Initial support for the migrations CLI.
+* Add ``edgedb server status --all`` command to list all instances.
+
+
+Bindings
+========
+
+* Add transaction `API
+  </docs/clients/01_js/api/connection#connection>`_ to JS binding
+  (`#61 <https://github.com/edgedb/edgedb-js/pull/61>`_). Here's an
+  example of using transactions:
+
+  .. code-block:: javascript
+
+    await con.transaction(async () => {
+        await con.execute(`
+            INSERT Example {
+                name := 'Test Transaction 1'
+            };
+        `);
+        await con.execute("SELECT 1 / 0;");
+    });
+
+    // nested transactions are supported
+    // and handle save points
+    await con.transaction(async () => {
+
+        // nested transaction
+        await con.transaction(async () => {
+            await con.execute(`
+                INSERT Example {
+                    name := 'Test Transaction 2'
+                };
+            `);
+        });
+    });
+
+* Add support of connecting to instance by a name (`#112
+  <https://github.com/edgedb/edgedb-python/pull/113>`_).
+* Update the `edgedb-js <https://github.com/edgedb/edgedb-js>`_ driver
+  to v0.9.0.
+* Update the `edgedb-python <https://github.com/edgedb/edgedb-python>`_
+  driver to v0.10.0.
+
+
+
+.. _migrations:
+    https://github.com/edgedb/rfcs/blob/master/text/1000-migrations.rst
