@@ -704,8 +704,6 @@ def compile_insert_else_body(
             )
             ictx.toplevel_stmt.ctes.append(else_select_cte)
 
-            else_select_rel = ictx.rel
-
         else_select_rvar = relctx.rvar_for_rel(else_select_cte, ctx=ctx)
 
         with ctx.newrel() as sctx, sctx.newscope() as ictx:

@@ -721,22 +721,14 @@ class MutatingStmt(Stmt):
     subject: Set
 
 
-OnConflictElse = typing.NamedTuple(
-    "OnConflictClause",
-    [
-        ("select", Set),
-        ("body", Set),
-    ],
-)
+class OnConflictElse(typing.NamedTuple):
+    select: Set
+    body: Set
 
 
-OnConflictClause = typing.NamedTuple(
-    "OnConflictClause",
-    [
-        ("constraint", typing.Optional[ConstraintRef]),
-        ("else_ir", typing.Optional[OnConflictElse]),
-    ],
-)
+class OnConflictClause(typing.NamedTuple):
+    constraint: typing.Optional[ConstraintRef]
+    else_ir: typing.Optional[OnConflictElse]
 
 
 class InsertStmt(MutatingStmt):
