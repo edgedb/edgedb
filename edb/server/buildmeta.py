@@ -20,7 +20,6 @@
 from __future__ import annotations
 from typing import *
 
-import enum
 import hashlib
 import json
 import logging
@@ -33,11 +32,7 @@ import immutables as immu
 
 import edb
 from edb.common import devmode
-
-try:
-    import pkg_resources
-except ImportError:
-    pkg_resources = None  # type: ignore
+from edb.common import verutils
 
 try:
     import setuptools_scm
@@ -182,86 +177,18 @@ def write_data_cache(
         os.rename(f.name, full_path)
 
 
-class VersionStage(enum.IntEnum):
-
-    DEV = 0
-    ALPHA = 10
-    BETA = 20
-    RC = 30
-    FINAL = 40
-
-
-class Version(NamedTuple):
-
-    major: int
-    minor: int
-    stage: VersionStage
-    stage_no: int
-    local: Tuple[str, ...]
-
-    def __str__(self):
-        ver = f'{self.major}.{self.minor}'
-        if self.stage is not VersionStage.FINAL:
-            ver += f'-{self.stage.name.lower()}.{self.stage_no}'
-        if self.local:
-            ver += f'{("+" + ".".join(self.local)) if self.local else ""}'
-
-        return ver
-
-
-def parse_version(ver: Any) -> Version:
-    v = ver._version
-    local = []
-    if v.pre:
-        if v.pre[0] == 'a':
-            stage = VersionStage.ALPHA
-        elif v.pre[0] == 'b':
-            stage = VersionStage.BETA
-        elif v.pre[0] == 'c':
-            stage = VersionStage.RC
-        else:
-            raise MetadataError(
-                f'cannot determine release stage from {ver}')
-
-        stage_no = v.pre[1]
-
-        if v.dev:
-            local.extend(['dev', str(v.dev[1])])
-    elif v.dev:
-        stage = VersionStage.DEV
-        stage_no = v.dev[1]
-    else:
-        stage = VersionStage.FINAL
-        stage_no = 0
-
-    if v.local:
-        local.extend(v.local)
-
-    return Version(
-        major=v.release[0],
-        minor=v.release[1],
-        stage=stage,
-        stage_no=stage_no,
-        local=tuple(local),
-    )
-
-
-def get_version() -> Version:
+def get_version() -> verutils.Version:
     if devmode.is_in_dev_mode():
-        if pkg_resources is None:
-            raise MetadataError(
-                'cannot determine build version: no pkg_resources module')
         if setuptools_scm is None:
             raise MetadataError(
                 'cannot determine build version: no setuptools_scm module')
         version = setuptools_scm.get_version(
             root='../..', relative_to=__file__)
-        pv = pkg_resources.parse_version(version)
-        version = parse_version(pv)
+        version = verutils.parse_version(version)
     else:
         vertuple: List[Any] = list(get_build_metadata_value('VERSION'))
-        vertuple[2] = VersionStage(vertuple[2])
-        version = Version(*vertuple)
+        vertuple[2] = verutils.VersionStage(vertuple[2])
+        version = verutils.Version(*vertuple)
 
     return version
 

@@ -133,12 +133,9 @@ def _compile_parsers(build_lib, inplace=False):
 
 def _compile_build_meta(build_lib, version, pg_config, runstatedir,
                         shared_dir, version_suffix):
-    import pkg_resources
-    from edb.server import buildmeta
+    from edb.common import verutils
 
-    parsed_version = buildmeta.parse_version(
-        pkg_resources.parse_version(version))
-
+    parsed_version = verutils.parse_version(version)
     vertuple = list(parsed_version._asdict().values())
     vertuple[2] = int(vertuple[2])
     if version_suffix:
