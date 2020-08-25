@@ -1827,6 +1827,19 @@ class TestInsert(tb.QueryTestCase):
             [{"name": "test"}],
         )
 
+        query2 = r'''
+            WITH MODULE test
+            INSERT Person {name := <str>$0} UNLESS CONFLICT
+            ON .name ELSE (SELECT Person)
+        '''
+
+        res = await self.con.query(query2, "test2")
+        res2 = await self.con.query(query2, "test2")
+        self.assertEqual(res, res2)
+
+        res3 = await self.con.query(query2, "test3")
+        self.assertNotEqual(res, res3)
+
     async def test_edgeql_insert_unless_conflict_05(self):
         await self.con.execute(r'''
             INSERT test::Person { name := "Phil Emarg" }
@@ -1837,12 +1850,12 @@ class TestInsert(tb.QueryTestCase):
             SELECT (
                 INSERT Person {name := "Emmanuel Villip"} UNLESS CONFLICT
                 ON .name ELSE (UPDATE Person SET { tag := "redo" })
-            ) {name};
+            ) {name, tag};
         '''
 
         await self.assert_query_result(
             query,
-            [{"name": "Emmanuel Villip"}],
+            [{"name": "Emmanuel Villip", "tag": None}],
         )
 
         await self.assert_query_result(
@@ -1853,7 +1866,7 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             query,
-            [{"name": "Emmanuel Villip"}],
+            [{"name": "Emmanuel Villip", "tag": "redo"}],
         )
 
         # Only the correct record should be updated
@@ -1876,12 +1889,13 @@ class TestInsert(tb.QueryTestCase):
                     INSERT Person {name := noob} UNLESS CONFLICT
                     ON .name ELSE (UPDATE Person SET { tag := "redo" })
                 )
-            ) {name};
+            ) {name, tag};
         '''
 
         await self.assert_query_result(
             query,
-            [{"name": "Emmanuel Villip"}, {"name": "Madeline Hatch"}],
+            [{"name": "Emmanuel Villip", "tag": None},
+             {"name": "Madeline Hatch", "tag": "redo"}],
         )
 
         await self.assert_query_result(
@@ -1895,7 +1909,8 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             query,
-            [{"name": "Emmanuel Villip"}, {"name": "Madeline Hatch"}],
+            [{"name": "Emmanuel Villip", "tag": "redo"},
+             {"name": "Madeline Hatch", "tag": "redo"}],
         )
 
         await self.assert_query_result(

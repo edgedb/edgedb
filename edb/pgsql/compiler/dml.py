@@ -683,7 +683,7 @@ def compile_insert_else_body(
 
         subject_id = ir_stmt.subject.path_id
 
-        with ctx.newrel() as ictx:
+        with ctx.newrel() as sctx, sctx.newscope() as ictx:
             ictx.path_scope[subject_id] = ictx.rel
 
             if iterator is not None:
@@ -698,7 +698,6 @@ def compile_insert_else_body(
             dispatch.compile(else_select, ctx=ictx)
             ictx.rel.view_path_id_map[subject_id] = else_select.path_id
 
-            ictx.rel.path_id = subject_id
             else_select_cte = pgast.CommonTableExpr(
                 query=ictx.rel,
                 name=ctx.env.aliases.get('iter')
@@ -709,16 +708,15 @@ def compile_insert_else_body(
 
         else_select_rvar = relctx.rvar_for_rel(else_select_cte, ctx=ctx)
 
-        with ctx.newrel() as ictx:
-            ictx.rel_hierarchy[ictx.rel] = else_select_rel
+        with ctx.newrel() as sctx, sctx.newscope() as ictx:
             ictx.path_scope[subject_id] = ictx.rel
 
             relctx.include_rvar(ictx.rel, else_select_rvar,
                                 path_id=subject_id, ctx=ictx)
 
             ictx.enclosing_dml = (else_select, else_select_cte)
-
             dispatch.compile(else_branch, ctx=ictx)
+            ictx.rel.view_path_id_map[subject_id] = else_branch.path_id
 
             assert else_cte_rvar
             else_branch_cte = else_cte_rvar[0]
