@@ -30,6 +30,18 @@ Declare a *concrete* constraint on an integer type:
         constraint min_value(0);
     }
 
+Declare a *concrete* constraint on an object type:
+
+.. code-block:: sdl
+
+    type Vector {
+        required property x -> float64;
+        required property y -> float64;
+        constraint expression on (
+            __subject__.x^2 + __subject__.y^2 < 25
+        );
+    }
+
 
 Syntax
 ------
