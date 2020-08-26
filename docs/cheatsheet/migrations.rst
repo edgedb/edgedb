@@ -12,7 +12,7 @@ Migrate to a new schema using SDL:
     ...         abstract type HasImage {
     ...             # just a URL to the image
     ...             required property image -> str;
-    ...             index on (__subject__.image);
+    ...             index on (.image);
     ...         }
     ...         type User extending HasImage {
     ...             required property name -> str;
@@ -67,6 +67,11 @@ Migrate to a new schema using SDL:
     ...         type Movie extending HasImage {
     ...             required property title -> str;
     ...             required property year -> int64;
+    ...             # Add an index for accessing movies by title and year,
+    ...             # separately and in combination.
+    ...             index on (.title);
+    ...             index on (.year);
+    ...             index on ((.title, .year));
     ...             property description -> str;
     ...             multi link directors extending crew -> Person;
     ...             multi link actors extending crew -> Person;

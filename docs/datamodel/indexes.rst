@@ -21,7 +21,7 @@ or more properties directly:
 .. code-block:: sdl
 
     type User {
-        property name -> str;
+        required property name -> str;
         index on (__subject__.name);
     }
 
@@ -33,16 +33,27 @@ to find the matching objects:
 
     SELECT User FILTER User.name = 'Alice';
 
-Indexes may be defined using an arbitrary expression that references
-properties of the host object type:
+Typically the explicit ``__subject__`` can be omitted in favor of a
+short-form expression, since the index always appears nested inside
+its *subject*:
 
 .. code-block:: sdl
 
     type User {
-        property firstname -> str;
-        property lastname -> str;
+        required property name -> str;
+        index on (.name);
+    }
+
+Indexes may be defined using an arbitrary expression that references
+multiple properties of the host object type:
+
+.. code-block:: sdl
+
+    type User {
+        required property firstname -> str;
+        required property lastname -> str;
         index on (str_lower(
-            __subject__.firstname + ' ' + __subject__.lastname));
+            .firstname + ' ' + .lastname));
     }
 
 Similarly indexes may refer to the link properties if the *subject* is a link:
@@ -57,17 +68,6 @@ Similarly indexes may refer to the link properties if the *subject* is a link:
 The index expression must not reference any variables other than the
 properties of the index *subject*.  All functions used in the
 expression must not be set-returning.
-
-Typically the explicit ``__subject__`` can be omitted in favor of a
-short-form expression, since the index always appears nested inside
-its *subject*:
-
-.. code-block:: sdl
-
-    type User {
-        property name -> str;
-        index on (.name);
-    }
 
 There's no need to create an index on just the link itself, as indexes
 are already created for links implicitly. Also, as a special case,

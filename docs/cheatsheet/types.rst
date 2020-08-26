@@ -15,7 +15,7 @@ Define an abstract type:
     abstract type HasImage {
         # just a URL to the image
         required property image -> str;
-        index on (__subject__.image);
+        index on (.image);
     }
 
 Define a type extending from the abstract:
@@ -103,6 +103,13 @@ aggregates values from another linked type:
     type Movie extending HasImage {
         required property title -> str;
         required property year -> int64;
+
+        # Add an index for accessing movies by title and year,
+        # separately and in combination.
+        index on (.title);
+        index on (.year);
+        index on ((.title, .year));
+
         property description -> str;
 
         multi link directors extending crew -> Person;

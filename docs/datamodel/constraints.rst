@@ -39,12 +39,26 @@ The standard library defines the following constraints:
 
     Arbitrary constraint expression.
 
-    Example:
+    Example of using an ``expression`` constraint to create a custom
+    scalar:
 
     .. code-block:: sdl
 
         scalar type starts_with_a extending str {
             constraint expression on (__subject__[0] = 'A');
+        }
+
+    Example of using an ``expression`` constraint based on a couple of
+    object properties to restrict maximum magnitude for a vector:
+
+    .. code-block:: sdl
+
+        type Vector {
+            required property x -> float64;
+            required property y -> float64;
+            constraint expression on (
+                __subject__.x^2 + __subject__.y^2 < 25
+            );
         }
 
 .. eql:constraint:: std::max_value(max: anytype)

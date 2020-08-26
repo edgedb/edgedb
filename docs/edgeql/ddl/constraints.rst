@@ -309,11 +309,6 @@ Parameters
     ``__subject__``.  Note also that ``<subject-expr>`` itself has to
     be parenthesized.
 
-    .. note::
-
-        Currently EdgeDB only supports constraint expressions on scalar
-        types and properties.
-
 The following subcommands are allowed in the ``CERATE CONSTRAINT`` block:
 
 :eql:synopsis:`SET errmessage := <error_message>`
@@ -338,6 +333,18 @@ constraint:
     ALTER TYPE User CREATE PROPERTY score -> int64 {
         CREATE CONSTRAINT min_value(0)
     };
+
+Create a Vector with a maximum magnitude:
+
+.. code-block:: edgeql
+
+    CREATE TYPE Vector {
+        CREATE REQUIRED PROPERTY x -> float64;
+        CREATE REQUIRED PROPERTY y -> float64;
+        CREATE CONSTRAINT expression ON (
+            __subject__.x^2 + __subject__.y^2 < 25
+        );
+    }
 
 
 ALTER CONSTRAINT
