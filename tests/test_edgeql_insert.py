@@ -1720,9 +1720,9 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_unless_conflict_01(self):
         query = r'''
-        SELECT
-         ((INSERT test::Person {name := "test"} UNLESS CONFLICT)
-          ?? (SELECT test::Person FILTER .name = "test")) {name};
+            SELECT
+             ((INSERT test::Person {name := "test"} UNLESS CONFLICT)
+              ?? (SELECT test::Person FILTER .name = "test")) {name};
         '''
 
         await self.assert_query_result(
@@ -1736,9 +1736,9 @@ class TestInsert(tb.QueryTestCase):
         )
 
         query2 = r'''
-        SELECT
-         ((INSERT test::Person {name := <str>$0} UNLESS CONFLICT ON .name)
-          ?? (SELECT test::Person FILTER .name = <str>$0));
+            SELECT
+             ((INSERT test::Person {name := <str>$0} UNLESS CONFLICT ON .name)
+              ?? (SELECT test::Person FILTER .name = <str>$0));
         '''
 
         res = await self.con.query(query2, "test2")
@@ -1777,6 +1777,186 @@ class TestInsert(tb.QueryTestCase):
                     INSERT test::Note {name := "hello"}
                     UNLESS CONFLICT ON .name;
                 ''')
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.QueryError,
+                    "ON CONFLICT property must be a SINGLE property"):
+                await self.con.query(r'''
+                    INSERT test::Person {name := "hello", multi_prop := "lol"}
+                    UNLESS CONFLICT ON .multi_prop;
+                ''')
+
+    async def test_edgeql_insert_unless_conflict_03(self):
+        query = r'''
+            SELECT (
+                INSERT test::Person {name := "test"} UNLESS CONFLICT) {name};
+        '''
+
+        await self.assert_query_result(
+            query,
+            [{"name": "test"}],
+        )
+
+        await self.assert_query_result(
+            query,
+            [],
+        )
+
+    async def test_edgeql_insert_unless_conflict_04(self):
+        query = r'''
+            WITH MODULE test
+            SELECT (
+                INSERT Person {name := "test"} UNLESS CONFLICT
+                ON .name ELSE (SELECT Person)
+            ) {name};
+        '''
+
+        await self.assert_query_result(
+            query,
+            [{"name": "test"}],
+        )
+
+        await self.assert_query_result(
+            query,
+            [{"name": "test"}],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT test::Person {name}''',
+            [{"name": "test"}],
+        )
+
+        query2 = r'''
+            WITH MODULE test
+            INSERT Person {name := <str>$0} UNLESS CONFLICT
+            ON .name ELSE (SELECT Person)
+        '''
+
+        res = await self.con.query(query2, "test2")
+        res2 = await self.con.query(query2, "test2")
+        self.assertEqual(res, res2)
+
+        res3 = await self.con.query(query2, "test3")
+        self.assertNotEqual(res, res3)
+
+    async def test_edgeql_insert_unless_conflict_05(self):
+        await self.con.execute(r'''
+            INSERT test::Person { name := "Phil Emarg" }
+        ''')
+
+        query = r'''
+            WITH MODULE test
+            SELECT (
+                INSERT Person {name := "Emmanuel Villip"} UNLESS CONFLICT
+                ON .name ELSE (UPDATE Person SET { tag := "redo" })
+            ) {name, tag};
+        '''
+
+        await self.assert_query_result(
+            query,
+            [{"name": "Emmanuel Villip", "tag": None}],
+        )
+
+        await self.assert_query_result(
+            "SELECT test::Person {name, tag}",
+            [{"name": "Phil Emarg", "tag": None},
+             {"name": "Emmanuel Villip", "tag": None}]
+        )
+
+        await self.assert_query_result(
+            query,
+            [{"name": "Emmanuel Villip", "tag": "redo"}],
+        )
+
+        # Only the correct record should be updated
+        await self.assert_query_result(
+            "SELECT test::Person {name, tag}",
+            [{"name": "Phil Emarg", "tag": None},
+             {"name": "Emmanuel Villip", "tag": "redo"}]
+        )
+
+    async def test_edgeql_insert_unless_conflict_06(self):
+        await self.con.execute(r'''
+            INSERT test::Person { name := "Phil Emarg" };
+            INSERT test::Person { name := "Madeline Hatch" };
+        ''')
+
+        query = r'''
+            WITH MODULE test
+            SELECT (
+                FOR noob in {"Emmanuel Villip", "Madeline Hatch"} UNION (
+                    INSERT Person {name := noob} UNLESS CONFLICT
+                    ON .name ELSE (UPDATE Person SET { tag := "redo" })
+                )
+            ) {name, tag};
+        '''
+
+        await self.assert_query_result(
+            query,
+            [{"name": "Emmanuel Villip", "tag": None},
+             {"name": "Madeline Hatch", "tag": "redo"}],
+        )
+
+        await self.assert_query_result(
+            "SELECT test::Person {name, tag}",
+            [
+                {"name": "Phil Emarg", "tag": None},
+                {"name": "Emmanuel Villip", "tag": None},
+                {"name": "Madeline Hatch", "tag": "redo"},
+            ]
+        )
+
+        await self.assert_query_result(
+            query,
+            [{"name": "Emmanuel Villip", "tag": "redo"},
+             {"name": "Madeline Hatch", "tag": "redo"}],
+        )
+
+        await self.assert_query_result(
+            "SELECT test::Person {name, tag}",
+            [
+                {"name": "Phil Emarg", "tag": None},
+                {"name": "Emmanuel Villip", "tag": "redo"},
+                {"name": "Madeline Hatch", "tag": "redo"},
+            ]
+        )
+
+    async def test_edgeql_insert_unless_conflict_07(self):
+        # Test it using default values
+        query = r'''
+            WITH MODULE test
+            SELECT (
+                INSERT Person UNLESS CONFLICT
+                ON .name ELSE (UPDATE Person SET { tag := "redo" })
+            ) {name};
+        '''
+
+        await self.assert_query_result(
+            query,
+            [{"name": "Nemo"}],
+        )
+
+        await self.assert_query_result(
+            "SELECT test::Person {name, tag}",
+            [{"name": "Nemo", "tag": None}]
+        )
+
+        await self.assert_query_result(
+            query,
+            [{"name": "Nemo"}],
+        )
+
+        await self.con.execute(r'''
+            INSERT test::Person { name := "Phil Emarg" }
+        ''')
+
+        # Only the correct record should be updated
+        await self.assert_query_result(
+            "SELECT test::Person {name, tag}",
+            [{"name": "Nemo", "tag": "redo"},
+             {"name": "Phil Emarg", "tag": None}]
+        )
 
     async def test_edgeql_insert_dependent_01(self):
         query = r'''

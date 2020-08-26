@@ -122,7 +122,7 @@ def compile_InsertStmt(
 
         # Process INSERT body.
         dml.process_insert_body(
-            stmt, ctx.rel, insert_cte, insert_rvar, ctx=ctx)
+            stmt, ctx.rel, insert_cte, insert_rvar, parts.else_cte, ctx=ctx)
 
         # Wrap up.
         return dml.fini_dml_stmt(
@@ -154,9 +154,6 @@ def compile_UpdateStmt(
                 ctx=ctx,
             )
 
-        if len(parts.dml_ctes) > 1:
-            ctx.toplevel_stmt.ctes.append(parts.union_cte)
-
         return dml.fini_dml_stmt(
             stmt, ctx.rel, parts, parent_ctx=parent_ctx, ctx=ctx)
 
@@ -177,9 +174,6 @@ def compile_DeleteStmt(
 
         for delete_cte, _ in parts.dml_ctes.values():
             ctx.toplevel_stmt.ctes.append(delete_cte)
-
-        if len(parts.dml_ctes) > 1:
-            ctx.toplevel_stmt.ctes.append(parts.union_cte)
 
         # Wrap up.
         return dml.fini_dml_stmt(

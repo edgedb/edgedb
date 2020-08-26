@@ -721,8 +721,18 @@ class MutatingStmt(Stmt):
     subject: Set
 
 
+class OnConflictElse(typing.NamedTuple):
+    select: Set
+    body: Set
+
+
+class OnConflictClause(typing.NamedTuple):
+    constraint: typing.Optional[ConstraintRef]
+    else_ir: typing.Optional[OnConflictElse]
+
+
 class InsertStmt(MutatingStmt):
-    on_conflict: typing.Optional[typing.Union[bool, ConstraintRef]] = None
+    on_conflict: typing.Optional[OnConflictClause] = None
 
 
 class UpdateStmt(MutatingStmt, FilteredStmt):

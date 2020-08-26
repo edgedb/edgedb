@@ -64,6 +64,8 @@ class DMLParts(NamedTuple):
         Tuple[pgast.CommonTableExpr, pgast.PathRangeVar],
     ]
 
+    else_cte: Optional[Tuple[pgast.CommonTableExpr, pgast.PathRangeVar]]
+
     union_cte: pgast.CommonTableExpr
 
     range_cte: Optional[pgast.CommonTableExpr]
@@ -134,11 +136,26 @@ def init_dml_stmt(
 
         dml_map[typeref] = (dml_cte, dml_rvar)
 
-    if len(dml_map) == 1:
-        union_cte, union_rvar = next(iter(dml_map.values()))
+    dml_entries = list(dml_map.values())
+
+    else_cte = None
+    if (
+        isinstance(ir_stmt, irast.InsertStmt)
+        and ir_stmt.on_conflict and ir_stmt.on_conflict[1] is not None
+    ):
+        dml_cte = pgast.CommonTableExpr(
+            query=pgast.SelectStmt(),
+            name=ctx.env.aliases.get(hint='m')
+        )
+        dml_rvar = relctx.rvar_for_rel(dml_cte, ctx=ctx)
+        else_cte = (dml_cte, dml_rvar)
+        dml_entries.append(else_cte)
+
+    if len(dml_entries) == 1:
+        union_cte, union_rvar = dml_entries[0]
     else:
         union_components = []
-        for _, dml_rvar in dml_map.values():
+        for _, dml_rvar in dml_entries:
             union_component = pgast.SelectStmt()
             relctx.include_rvar(
                 union_component,
@@ -177,7 +194,12 @@ def init_dml_stmt(
 
     ctx.dml_stmts[ir_stmt] = union_cte
 
-    return DMLParts(dml_ctes=dml_map, range_cte=range_cte, union_cte=union_cte)
+    return DMLParts(
+        dml_ctes=dml_map,
+        range_cte=range_cte,
+        else_cte=else_cte,
+        union_cte=union_cte,
+    )
 
 
 def gen_dml_cte(
@@ -288,6 +310,9 @@ def fini_dml_stmt(
     ctx: context.CompilerContextLevel,
 ) -> pgast.Query:
 
+    if len(parts.dml_ctes) > 1 or parts.else_cte:
+        ctx.toplevel_stmt.ctes.append(parts.union_cte)
+
     # Record the effect of this insertion in the relation overlay
     # context to ensure that the RETURNING clause potentially
     # referencing this class yields the expected results.
@@ -357,6 +382,25 @@ def get_dml_range(
         else:
             iterator_set = None
 
+        # Merge in a pseudo-iterator from an enclosing DML
+        # statement. We don't bother merging it into an iterator_set
+        # instead (like we do in insert), because the purpose there is
+        # to allow the path_id of the iterator to represent both
+        # iterators, and that isn't handled properly in UPDATE anyway.
+        # This all needs to be unified and fixed up, though.
+        if ctx.enclosing_dml:
+            pseudo_iterator_set, pseudo_iterator_cte = ctx.enclosing_dml
+            pseudo_iterator_rvar = relctx.rvar_for_rel(
+                pseudo_iterator_cte, ctx=subctx)
+
+            pathctx.put_path_bond(subctx.rel, pseudo_iterator_set.path_id)
+            relctx.include_rvar(
+                subctx.rel, pseudo_iterator_rvar,
+                path_id=pseudo_iterator_set.path_id,
+                overwrite_path_rvar=True,
+                ctx=subctx)
+
+        # Merge an iterator, if present.
         if iterator_set is not None:
             scopectx.path_scope[iterator_set.path_id] = range_stmt
             relctx.update_scope(iterator_set, range_stmt, ctx=subctx)
@@ -388,7 +432,10 @@ def process_insert_body(
         ir_stmt: irast.MutatingStmt,
         wrapper: pgast.SelectStmt,
         insert_cte: pgast.CommonTableExpr,
-        insert_rvar: pgast.PathRangeVar, *,
+        insert_rvar: pgast.PathRangeVar,
+        else_cte_rvar: Optional[
+            Tuple[pgast.CommonTableExpr, pgast.PathRangeVar]],
+        *,
         ctx: context.CompilerContextLevel) -> None:
     """Generate SQL DML CTEs from an InsertStmt IR.
 
@@ -420,8 +467,7 @@ def process_insert_body(
     pseudo_iterator_set: Optional[irast.Set]
     pseudo_iterator_cte: Optional[pgast.CommonTableExpr]
     if ctx.enclosing_dml:
-        dml_expr, pseudo_iterator_cte = ctx.enclosing_dml
-        pseudo_iterator_set = dml_expr.subject
+        pseudo_iterator_set, pseudo_iterator_cte = ctx.enclosing_dml
     else:
         pseudo_iterator_cte = None
         pseudo_iterator_set = None
@@ -582,26 +628,20 @@ def process_insert_body(
                 env=subctx.env,
             )
 
-    if isinstance(ir_stmt, irast.InsertStmt) and ir_stmt.on_conflict:
-        assert not insert_stmt.on_conflict
-
-        infer = None
-        if isinstance(ir_stmt.on_conflict, irast.ConstraintRef):
-            constraint_name = f'"{ir_stmt.on_conflict.id};schemaconstr"'
-            infer = pgast.InferClause(conname=constraint_name)
-
-        insert_stmt.on_conflict = pgast.OnConflictClause(
-            action='nothing',
-            infer=infer,
-        )
-
-    toplevel = ctx.toplevel_stmt
-    toplevel.ctes.append(insert_cte)
-
     iterator = None
     if iterator_set:
         assert iterator_cte
         iterator = iterator_set, iterator_cte
+
+    if isinstance(ir_stmt, irast.InsertStmt) and ir_stmt.on_conflict:
+        assert not insert_stmt.on_conflict
+
+        compile_insert_else_body(
+            insert_stmt, ir_stmt, ir_stmt.on_conflict, else_cte_rvar,
+            iterator, ctx=ctx)
+
+    toplevel = ctx.toplevel_stmt
+    toplevel.ctes.append(insert_cte)
 
     # Process necessary updates to the link tables.
     for shape_el, props_only in external_inserts:
@@ -616,6 +656,70 @@ def process_insert_body(
             is_insert=True,
             ctx=ctx,
         )
+
+
+def compile_insert_else_body(
+        insert_stmt: pgast.InsertStmt,
+        ir_stmt: irast.InsertStmt,
+        on_conflict: irast.OnConflictClause,
+        else_cte_rvar: Optional[
+            Tuple[pgast.CommonTableExpr, pgast.PathRangeVar]],
+        iterator: Optional[Tuple[irast.Set, pgast.CommonTableExpr]],
+        *,
+        ctx: context.CompilerContextLevel) -> None:
+
+    infer = None
+    if on_conflict.constraint:
+        constraint_name = f'"{on_conflict.constraint.id};schemaconstr"'
+        infer = pgast.InferClause(conname=constraint_name)
+
+    insert_stmt.on_conflict = pgast.OnConflictClause(
+        action='nothing',
+        infer=infer,
+    )
+
+    if on_conflict.else_ir:
+        else_select, else_branch = on_conflict.else_ir
+
+        subject_id = ir_stmt.subject.path_id
+
+        with ctx.newrel() as sctx, sctx.newscope() as ictx:
+            ictx.path_scope[subject_id] = ictx.rel
+
+            if iterator is not None:
+                iterator_set, iterator_cte = iterator
+                iterator_rvar = relctx.rvar_for_rel(
+                    iterator_cte, lateral=True, ctx=ictx)
+                relctx.include_rvar(ictx.rel, iterator_rvar,
+                                    path_id=iterator_set.path_id, ctx=ictx)
+                ictx.path_scope[iterator_cte.query.path_id] = ictx.rel
+
+            pathctx.put_path_bond(ictx.rel, subject_id)
+            dispatch.compile(else_select, ctx=ictx)
+            ictx.rel.view_path_id_map[subject_id] = else_select.path_id
+
+            else_select_cte = pgast.CommonTableExpr(
+                query=ictx.rel,
+                name=ctx.env.aliases.get('iter')
+            )
+            ictx.toplevel_stmt.ctes.append(else_select_cte)
+
+        else_select_rvar = relctx.rvar_for_rel(else_select_cte, ctx=ctx)
+
+        with ctx.newrel() as sctx, sctx.newscope() as ictx:
+            ictx.path_scope[subject_id] = ictx.rel
+
+            relctx.include_rvar(ictx.rel, else_select_rvar,
+                                path_id=subject_id, ctx=ictx)
+
+            ictx.enclosing_dml = (else_select, else_select_cte)
+            dispatch.compile(else_branch, ctx=ictx)
+            ictx.rel.view_path_id_map[subject_id] = else_branch.path_id
+
+            assert else_cte_rvar
+            else_branch_cte = else_cte_rvar[0]
+            else_branch_cte.query = ictx.rel
+            ictx.toplevel_stmt.ctes.append(else_branch_cte)
 
 
 def compile_insert_shape_element(
@@ -1221,7 +1325,7 @@ def process_link_values(
     """
     old_dml_count = len(ctx.dml_stmts)
     with ctx.newscope() as newscope, newscope.newrel() as subrelctx:
-        subrelctx.enclosing_dml = (ir_stmt, dml_cte)
+        subrelctx.enclosing_dml = (ir_stmt.subject, dml_cte)
         row_query = subrelctx.rel
 
         relctx.include_rvar(row_query, dml_rvar,

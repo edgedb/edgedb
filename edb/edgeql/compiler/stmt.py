@@ -29,7 +29,6 @@ from collections import defaultdict
 from edb import errors
 
 from edb.ir import ast as irast
-from edb.ir import staeval as ireval
 from edb.ir import typeutils
 
 from edb.schema import ddl as s_ddl
@@ -61,7 +60,6 @@ from . import typegen
 
 if TYPE_CHECKING:
     from edb.schema import constraints as s_constr
-    from edb.schema import schema as s_schema
 
 
 @dispatch.compile.register(qlast.SelectQuery)
@@ -208,45 +206,21 @@ def compile_GroupQuery(
         context=expr.context)
 
 
-def simple_stmt_eq(lhs: irast.Base, rhs: irast.Base,
-                   schema: s_schema.Schema) -> bool:
-    if (
-        isinstance(lhs, irast.BaseConstant)
-        and isinstance(rhs, irast.BaseConstant)
-        and (ireval.evaluate_to_python_val(lhs, schema) ==
-             ireval.evaluate_to_python_val(rhs, schema))
-    ):
-        return True
-    elif (
-        isinstance(lhs, irast.Parameter)
-        and isinstance(rhs, irast.Parameter)
-        and lhs.name == rhs.name
-    ):
-        return True
-    else:
-        return False
-
-
 def compile_insert_unless_conflict(
     stmt: irast.InsertStmt,
+    insert_subject: qlast.Path,
     constraint_spec: qlast.Expr,
     else_branch: Optional[qlast.Expr],
     *, ctx: context.ContextLevel,
-) -> irast.ConstraintRef:
-    ctx.partial_path_prefix = stmt.subject
+) -> irast.OnConflictClause:
 
-    if else_branch:
-        raise errors.UnsupportedFeatureError(
-            'UNLESS CONFLICT ... ELSE currently unimplemented',
-            context=else_branch.context,
-        )
+    with ctx.new() as constraint_ctx:
+        constraint_ctx.partial_path_prefix = stmt.subject
 
-    # We compile the name here so we can analyze it, but we don't do
-    # anything else with it.
-    cspec_res = setgen.ensure_set(dispatch.compile(
-        constraint_spec, ctx=ctx), ctx=ctx)
-
-    stmtctx.enforce_singleton(cspec_res, ctx=ctx)
+        # We compile the name here so we can analyze it, but we don't do
+        # anything else with it.
+        cspec_res = setgen.ensure_set(dispatch.compile(
+            constraint_spec, ctx=constraint_ctx), ctx=constraint_ctx)
 
     if not cspec_res.rptr:
         raise errors.QueryError(
@@ -272,6 +246,11 @@ def compile_insert_unless_conflict(
         )
 
     ptr = ptr.get_nearest_non_derived_parent(schema)
+    if ptr.get_cardinality(schema) != qltypes.SchemaCardinality.ONE:
+        raise errors.QueryError(
+            'ON CONFLICT property must be a SINGLE property',
+            context=constraint_spec.context,
+        )
 
     exclusive_constr: s_constr.Constraint = schema.get('std::exclusive')
     ex_cnstrs = [c for c in ptr.get_constraints(schema).objects(schema)
@@ -286,10 +265,59 @@ def compile_insert_unless_conflict(
     module_id = schema.get_global(
         s_mod.Module, ptr.get_name(schema).module).id
 
+    field_name = cspec_res.rptr.ptrref.shortname
+
+    # Find the IR corresponding to our field
+    # FIXME: Is there a better way to do this?
+    for elem, _ in stmt.subject.shape:
+        if elem.rptr.ptrref.shortname == field_name:
+            key = elem.expr
+            break
+    else:
+        raise errors.QueryError(
+            'INSERT ON CONFLICT property requires matching shape',
+            context=constraint_spec.context,
+        )
+
+    # FIXME: This reuse of the source
+    ctx.anchors = ctx.anchors.copy()
+    source_alias = ctx.aliases.get('a')
+    ctx.anchors[source_alias] = setgen.ensure_set(key, ctx=ctx)
+    anchor = qlast.Path(steps=[qlast.ObjectRef(name=source_alias)])
+
     ctx.env.schema = schema
 
-    return irast.ConstraintRef(
-        id=ex_cnstrs[0].id, module_id=module_id)
+    # Compile an else branch
+    else_info = None
+    if else_branch:
+        # Produce a query that finds the conflicting objects
+        nobe = qlast.SelectQuery(
+            result=insert_subject,
+            where=qlast.BinOp(
+                op='=',
+                left=constraint_spec,
+                right=anchor
+            ),
+        )
+        select_ir = dispatch.compile(nobe, ctx=ctx)
+        select_ir = setgen.scoped_set(
+            select_ir, force_reassign=True, ctx=ctx)
+        assert isinstance(select_ir, irast.Set)
+
+        # The ELSE needs to be able to reference the subject in an
+        # UPDATE, even though that would normally be prohibited.
+        ctx.path_scope.factoring_allowlist.add(stmt.subject.path_id)
+
+        # Compile else
+        else_ir = dispatch.compile(
+            astutils.ensure_qlstmt(else_branch), ctx=ctx)
+        assert isinstance(else_ir, irast.Set)
+        else_info = irast.OnConflictElse(select_ir, else_ir)
+
+    return irast.OnConflictClause(
+        irast.ConstraintRef(id=ex_cnstrs[0].id, module_id=module_id),
+        else_info
+    )
 
 
 @dispatch.compile.register(qlast.InsertQuery)
@@ -342,6 +370,16 @@ def compile_InsertQuery(
                 is_insert=True,
                 ctx=bodyctx)
 
+        if expr.unless_conflict is not None:
+            constraint_spec, else_branch = expr.unless_conflict
+
+            if constraint_spec:
+                stmt.on_conflict = compile_insert_unless_conflict(
+                    stmt, expr.subject, constraint_spec, else_branch, ctx=ictx)
+            else:
+                stmt.on_conflict = irast.OnConflictClause(
+                    constraint=None, else_ir=None)
+
         stmt_subject_stype = setgen.get_set_type(subject, ctx=ictx)
 
         result = setgen.class_set(
@@ -349,16 +387,6 @@ def compile_InsertQuery(
             path_id=stmt.subject.path_id,
             ctx=ctx,
         )
-
-        if expr.unless_conflict is not None:
-            constraint_spec, else_branch = expr.unless_conflict
-
-            if constraint_spec:
-                with ictx.new() as constraint_ctx:
-                    stmt.on_conflict = compile_insert_unless_conflict(
-                        stmt, constraint_spec, else_branch, ctx=constraint_ctx)
-            else:
-                stmt.on_conflict = True
 
         with ictx.new() as resultctx:
             if ictx.stmt is ctx.toplevel_stmt:

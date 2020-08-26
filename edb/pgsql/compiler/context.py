@@ -164,7 +164,7 @@ class CompilerContextLevel(compiler.ContextLevel):
     #: The ir statement and CTE of any enclosing insert/update currently
     #: being compiled.
     enclosing_dml: Optional[
-        Tuple[irast.MutatingStmt, pgast.CommonTableExpr]]
+        Tuple[irast.Set, pgast.CommonTableExpr]]
 
     def __init__(
         self,
