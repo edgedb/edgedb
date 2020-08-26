@@ -428,6 +428,67 @@ def get_dml_range(
         return range_cte
 
 
+def compile_iterator_ctes(
+        iterators: Iterable[irast.Set],
+        *,
+        ctx: context.CompilerContextLevel
+) -> Optional[Tuple[irast.Set, pgast.CommonTableExpr]]:
+
+    last_iterator_cte: Optional[pgast.CommonTableExpr] = None
+    last_iterator_set: Optional[irast.Set] = None
+
+    if ctx.enclosing_dml:
+        last_iterator_set, last_iterator_cte = ctx.enclosing_dml
+
+    for iterator_set in iterators:
+        with ctx.substmt() as ictx:
+            # This has been lifted up to the top level, so we can't
+            # have it inheriting anything from where it would have
+            # been nested.
+            # TODO: Inherit from the nearest iterator instead?
+            del ictx.rel_hierarchy[ictx.rel]
+            ictx.path_scope = ictx.path_scope.new_child()
+            ictx.path_scope[iterator_set.path_id] = ictx.rel
+
+            # If there is an enclosing insert *and* an explicit iterator,
+            # we need to correlate the enclosing insert with the iterator.
+            if last_iterator_set is not None:
+                assert last_iterator_cte
+                last_iterator_rvar = relctx.rvar_for_rel(
+                    last_iterator_cte, ctx=ictx)
+
+                pathctx.put_path_bond(ictx.rel, last_iterator_set.path_id)
+                relctx.include_rvar(
+                    ictx.rel, last_iterator_rvar,
+                    path_id=last_iterator_set.path_id,
+                    overwrite_path_rvar=True,
+                    ctx=ictx)
+
+                # HM!
+                ictx.volatility_ref = pathctx.get_path_identity_var(
+                    ictx.rel,
+                    last_iterator_set.path_id,
+                    env=ictx.env)
+
+            clauses.compile_iterator_expr(ictx.rel, iterator_set, ctx=ictx)
+            ictx.rel.path_id = iterator_set.path_id
+            pathctx.put_path_bond(ictx.rel, iterator_set.path_id)
+            iterator_cte = pgast.CommonTableExpr(
+                query=ictx.rel,
+                name=ctx.env.aliases.get('iter')
+            )
+            ictx.toplevel_stmt.ctes.append(iterator_cte)
+
+        last_iterator_cte = iterator_cte
+        last_iterator_set = iterator_set
+
+    if last_iterator_cte:
+        assert last_iterator_set
+        return (last_iterator_set, last_iterator_cte)
+    else:
+        return None
+
+
 def process_insert_body(
         ir_stmt: irast.MutatingStmt,
         wrapper: pgast.SelectStmt,
@@ -459,78 +520,33 @@ def process_insert_body(
     insert_stmt.cols = cols
     insert_stmt.select_stmt = select
 
-    if ir_stmt.parent_stmt is not None:
-        iterator_set = ir_stmt.parent_stmt.iterator_stmt
-    else:
-        iterator_set = None
+    iterators: List[irast.Set] = []
 
-    pseudo_iterator_set: Optional[irast.Set]
-    pseudo_iterator_cte: Optional[pgast.CommonTableExpr]
-    if ctx.enclosing_dml:
-        pseudo_iterator_set, pseudo_iterator_cte = ctx.enclosing_dml
-    else:
-        pseudo_iterator_cte = None
-        pseudo_iterator_set = None
+    parent = ir_stmt.parent_stmt
+    while parent is not None and not isinstance(parent, irast.MutatingStmt):
+        # XXX: Will this get duplicated with compilation of other parts?
+        if parent.iterator_stmt:
+            iterators.append(parent.iterator_stmt)
+        parent = parent.parent_stmt
 
-    iterator_cte: Optional[pgast.CommonTableExpr]
+    iterator_cte: Optional[pgast.CommonTableExpr] = None
+    iterator_set: Optional[irast.Set] = None
+
     iterator_id: Optional[pgast.BaseExpr]
 
-    if iterator_set is not None:
-        with ctx.substmt() as ictx:
-            # This has been lifted up to the top level, so we can't
-            # have it inheriting anything from where it would have
-            # been nested.
-            # TODO: Inherit from the nearest iterator instead?
-            del ictx.rel_hierarchy[ictx.rel]
-            ictx.path_scope = ictx.path_scope.new_child()
-            ictx.path_scope[iterator_set.path_id] = ictx.rel
-
-            # If there is an enclosing insert *and* an explicit iterator,
-            # we need to correlate the enclosing insert with the iterator.
-            if pseudo_iterator_set is not None:
-                assert pseudo_iterator_cte
-                pseudo_iterator_rvar = relctx.rvar_for_rel(
-                    pseudo_iterator_cte, ctx=ictx)
-
-                pathctx.put_path_bond(ictx.rel, pseudo_iterator_set.path_id)
-                relctx.include_rvar(
-                    ictx.rel, pseudo_iterator_rvar,
-                    path_id=pseudo_iterator_set.path_id,
-                    overwrite_path_rvar=True,
-                    ctx=ictx)
-
-                ictx.volatility_ref = pathctx.get_path_identity_var(
-                    ictx.rel,
-                    pseudo_iterator_set.path_id,
-                    env=ictx.env)
-
-            clauses.compile_iterator_expr(ictx.rel, iterator_set, ctx=ictx)
-            ictx.rel.path_id = iterator_set.path_id
-            pathctx.put_path_bond(ictx.rel, iterator_set.path_id)
-            iterator_cte = pgast.CommonTableExpr(
-                query=ictx.rel,
-                name=ctx.env.aliases.get('iter')
-            )
-            ictx.toplevel_stmt.ctes.append(iterator_cte)
+    iterator = compile_iterator_ctes(iterators, ctx=ctx)
+    if iterator is not None:
+        iterator_set, iterator_cte = iterator
+        # XXX: put_path_bond?
         iterator_rvar = relctx.rvar_for_rel(iterator_cte, ctx=ctx)
         relctx.include_rvar(select, iterator_rvar,
-                            path_id=ictx.rel.path_id, ctx=ctx)
-        iterator_id = pathctx.get_path_identity_var(
-            select, iterator_set.path_id, env=ctx.env)
+                            path_id=iterator_set.path_id, ctx=ctx)
 
-    elif pseudo_iterator_set is not None:
-        assert pseudo_iterator_cte is not None
-        iterator_rvar = relctx.rvar_for_rel(pseudo_iterator_cte, ctx=ctx)
-        relctx.include_rvar(select, iterator_rvar,
-                            path_id=pseudo_iterator_set.path_id, ctx=ctx)
-
-        iterator_set = pseudo_iterator_set
-        iterator_cte = pseudo_iterator_cte
         iterator_id = relctx.get_path_var(
-            select, pseudo_iterator_set.path_id,
+            select, iterator_set.path_id,
             aspect='identity', ctx=ctx)
-
     else:
+        iterator_set = None
         iterator_cte = None
         iterator_id = None
 
@@ -627,11 +643,6 @@ def process_insert_body(
                 aspect='identity',
                 env=subctx.env,
             )
-
-    iterator = None
-    if iterator_set:
-        assert iterator_cte
-        iterator = iterator_set, iterator_cte
 
     if isinstance(ir_stmt, irast.InsertStmt) and ir_stmt.on_conflict:
         assert not insert_stmt.on_conflict

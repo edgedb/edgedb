@@ -51,6 +51,8 @@ def compile_SelectStmt(
 
         if not isinstance(stmt.result.expr, irast.MutatingStmt):
             iterators = irutils.get_iterator_sets(stmt)
+            # if iterators:
+            #     assert not irutils.contains_dml(stmt)
             for iterator_set in iterators:
                 # Process FOR clause.
                 iterator_rvar = clauses.compile_iterator_expr(

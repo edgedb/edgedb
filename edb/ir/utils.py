@@ -290,3 +290,12 @@ def get_iterator_sets(stmt: irast.Stmt) -> Sequence[irast.Set]:
         iterators.extend(stmt.hoisted_iterators)
 
     return iterators
+
+
+def contains_dml(stmt: irast.Stmt) -> bool:
+    """Check whether a statement contains any DML in a subtree."""
+    # If this ends up being a perf problem, we can use a visitor
+    # directly and cache.
+    res = ast.find_children(stmt, lambda x: isinstance(x, irast.MutatingStmt),
+                            terminate_early=True)
+    return bool(res)
