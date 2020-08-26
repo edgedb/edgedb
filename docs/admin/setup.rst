@@ -21,7 +21,7 @@ To create a new EdgeDB instance:
 
 .. code-block:: bash
 
-    $ edgedb server init -I<instance-name>
+    $ edgedb server init <instance-name>
 
 The server would then populate the specified directory with the initial
 databases: ``edgedb`` and ``<user>``, where *<user>* the name of
@@ -33,19 +33,30 @@ both with superuser privileges.
 Configuring Client Authentication
 =================================
 
-By default, EdgeDB requires every connecting client to provide a password
-for authentication.  There is no default password, so one must be set on
-a newly created instance:
+By default, ``edgedb server init`` saves authentication credentials into
+user's home directory.  To use the stored credentials from a client,
+specify the name of an instance when connecting (we use ``my_instance`` in
+the following examples):
 
 .. code-block:: bash
 
-    $ edgedb -I<instance-name> --admin alter-role <username> --password
+   $ edgedb -Imy_instance
 
-The ``--admin`` option instructs the ``edgedb`` command to connect to
-the server using a dedicated administrative socket that does not require
-password authentication, but is protected by the OS permissions.
-The ``--admin`` option can only be used by the OS user that created the
-server instance (or by OS superuser).
+In Python:
+
+.. code-block:: python
+
+   import edgedb
+   pool = await edgedb.create_async_pool('my_instance')
+   await pool.query("SELECT 1+1")
+
+In JavaScript:
+
+.. code-block:: javascript
+
+   import {createPool} from "edgedb";
+   let pool = await createPool("my_instance")
+   await pool.query("SELECT 1+1")
 
 
 Setting Up Passwordless Connections
