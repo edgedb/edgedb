@@ -8,6 +8,7 @@ Cheat Sheet
 
     repl
     admin
+    cli
     select
     insert
     update
