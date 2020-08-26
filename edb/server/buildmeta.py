@@ -26,6 +26,8 @@ import logging
 import os
 import pathlib
 import pickle
+import re
+import subprocess
 import tempfile
 
 import immutables as immu
@@ -183,7 +185,10 @@ def get_version() -> verutils.Version:
             raise MetadataError(
                 'cannot determine build version: no setuptools_scm module')
         version = setuptools_scm.get_version(
-            root='../..', relative_to=__file__)
+            root='../..',
+            relative_to=__file__,
+            version_scheme=scm_version_scheme,
+        )
         version = verutils.parse_version(version)
     else:
         vertuple: List[Any] = list(get_build_metadata_value('VERSION'))
@@ -220,3 +225,84 @@ def get_version_json() -> str:
     if _version_json is None:
         _version_json = json.dumps(dict(get_version_dict()))
     return _version_json
+
+
+def scm_version_scheme(version):
+    pretend = os.environ.get('SETUPTOOLS_SCM_PRETEND_VERSION')
+    if pretend:
+        return pretend
+
+    posint = r'(0|[1-9]\d*)'
+    pep440_version_re = re.compile(
+        rf"""
+        ^
+        (?P<major>{posint})
+        \.
+        (?P<minor>{posint})
+        (
+            \.
+            (?P<micro>{posint})
+        )?
+        (
+            (?P<prekind>a|b|rc)
+            (?P<preval>{posint})
+        )?
+        $
+        """,
+        re.X,
+    )
+
+    proc = subprocess.run(
+        ['git', 'tag', '--list', 'v*'],
+        stdout=subprocess.PIPE,
+        universal_newlines=True,
+        check=True,
+    )
+    versions = proc.stdout.split('\n')
+    latest_version = max(versions)
+
+    proc = subprocess.run(
+        ['git', 'tag', '--points-at', 'HEAD'],
+        stdout=subprocess.PIPE,
+        universal_newlines=True,
+        check=True,
+    )
+    tag_list = proc.stdout.strip()
+    if tag_list:
+        tags = tag_list.strip('\n')
+    else:
+        tags = []
+
+    exact_tags = set(versions) & set(tags)
+
+    proc = subprocess.run(
+        ['git', 'rev-list', '--count', 'HEAD'],
+        stdout=subprocess.PIPE,
+        universal_newlines=True,
+        check=True,
+    )
+    commits_on_branch = proc.stdout.strip()
+
+    if exact_tags:
+        return exact_tags.pop()[1:]
+
+    m = pep440_version_re.match(latest_version[1:])
+    if not m:
+        return f'{latest_version[1:]}.dev{commits_on_branch}'
+
+    major = m.group('major')
+    minor = m.group('minor')
+    micro = m.group('micro') or ''
+    microkind = '.' if micro else ''
+    prekind = m.group('prekind') or ''
+    preval = m.group('preval') or ''
+
+    if prekind and preval:
+        preval = str(int(preval) + 1)
+    elif micro:
+        micro = str(int(micro) + 1)
+    else:
+        minor = str(int(minor) + 1)
+
+    incremented_ver = f'{major}.{minor}{microkind}{micro}{prekind}{preval}'
+    return f'{incremented_ver}.dev{commits_on_branch}'

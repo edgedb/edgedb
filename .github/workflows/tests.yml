@@ -19,6 +19,11 @@ jobs:
     steps:
     - uses: actions/checkout@v2
       with:
+        fetch-depth: 0
+        submodules: false
+
+    - uses: actions/checkout@v2
+      with:
         fetch-depth: 50
         submodules: true
 
