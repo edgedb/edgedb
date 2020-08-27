@@ -1566,6 +1566,49 @@ class TestUpdate(tb.QueryTestCase):
             ]
         )
 
+    async def test_edgeql_update_for_02(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                FOR x IN {
+                        'update-test1',
+                        'update-test2',
+                    }
+                UNION (
+                    UPDATE UpdateTest
+                    FILTER UpdateTest.name = x
+                    SET {
+                        comment := x ++ "!"
+                    }
+                );
+            """,
+            [{}, {}],  # since updates are in FOR they return objects
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest {
+                    name,
+                    comment
+                } ORDER BY UpdateTest.name;
+            """,
+            [
+                {
+                    'name': 'update-test1',
+                    'comment': 'update-test1!'
+                },
+                {
+                    'name': 'update-test2',
+                    'comment': 'update-test2!'
+                },
+                {
+                    'name': 'update-test3',
+                    'comment': 'third'
+                },
+            ]
+        )
+
     async def test_edgeql_update_empty_01(self):
         await self.assert_query_result(
             r"""

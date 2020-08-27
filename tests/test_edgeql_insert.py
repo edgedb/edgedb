@@ -940,6 +940,61 @@ class TestInsert(tb.QueryTestCase):
             }]
         )
 
+    async def test_edgeql_insert_for_06(self):
+        res = await self.con.query(r'''
+            WITH MODULE test
+            FOR a in {"a", "b"} UNION (
+                FOR b in {"c", "d"} UNION (
+                    INSERT Note {name := b}));
+        ''')
+        self.assertEqual(len(res), 4)
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Note.name
+                ORDER BY Note.name;
+            ''',
+            ["c", "c", "d", "d"]
+        )
+
+    async def test_edgeql_insert_for_07(self):
+        res = await self.con.query(r'''
+            WITH MODULE test
+            FOR a in {"a", "b"} UNION (
+                FOR b in {a++"c", a++"d"} UNION (
+                    INSERT Note {name := b}));
+        ''')
+        self.assertEqual(len(res), 4)
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Note.name
+                ORDER BY Note.name;
+            ''',
+            ["ac", "ad", "bc", "bd"]
+        )
+
+    async def test_edgeql_insert_for_08(self):
+        res = await self.con.query(r'''
+            WITH MODULE test
+            FOR a in {"a", "b"} UNION (
+                FOR b in {"a", "b"} UNION (
+                    FOR c in {a++b++"a", a++b++"b"} UNION (
+                        INSERT Note {name := c})));
+        ''')
+        self.assertEqual(len(res), 8)
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Note.name
+                ORDER BY Note.name;
+            ''',
+            ["aaa", "aab", "aba", "abb", "baa", "bab", "bba", "bbb"]
+        )
+
     async def test_edgeql_insert_default_01(self):
         await self.con.execute(r'''
             # create 10 DefaultTest3 objects, each object is defined

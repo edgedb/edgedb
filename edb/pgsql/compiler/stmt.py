@@ -32,6 +32,7 @@ from . import context
 from . import dispatch
 from . import dml
 from . import pathctx
+from . import relctx
 
 
 @dispatch.compile.register(irast.SelectStmt)
@@ -49,10 +50,30 @@ def compile_SelectStmt(
 
         query = ctx.stmt
 
-        if not isinstance(stmt.result.expr, irast.MutatingStmt):
-            iterators = irutils.get_iterator_sets(stmt)
-            # if iterators:
-            #     assert not irutils.contains_dml(stmt)
+        iterators = irutils.get_iterator_sets(stmt)
+        if iterators and irutils.contains_dml(stmt):
+            # If we have iterators and we contain nested DML
+            # statements, we need to hoist the iterators into CTEs and
+            # then explicitly join them back into the query.
+            iterator = dml.compile_iterator_ctes(iterators, ctx=ctx)
+            if iterator is not None:
+                # XXX: put_path_bond?
+                pathctx.put_path_bond(ctx.rel, iterator.set.path_id)
+
+                iterator_rvar = relctx.rvar_for_rel(iterator.cte, ctx=ctx)
+                relctx.include_rvar(ctx.rel, iterator_rvar,
+                                    path_id=iterator.set.path_id,
+                                    ctx=ctx)
+
+                ctx.path_scope = ctx.path_scope.new_child()
+                ctx.path_scope[iterator.set.path_id] = ctx.rel
+                for id in iterator.all_ids:
+                    ctx.path_scope[id] = ctx.rel
+
+            ctx.enclosing_cte_iterator = iterator
+
+        else:
+            iterator = None
             for iterator_set in iterators:
                 # Process FOR clause.
                 iterator_rvar = clauses.compile_iterator_expr(

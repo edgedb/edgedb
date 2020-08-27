@@ -824,3 +824,4 @@ class IteratorCTE(typing.NamedTuple):
     # ... Do we really need the Set, or this at all?
     set: irast.Set
     cte: CommonTableExpr
+    all_ids: typing.FrozenSet[irast.PathId]
