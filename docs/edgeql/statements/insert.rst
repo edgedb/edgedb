@@ -11,7 +11,10 @@ INSERT
 .. eql:synopsis::
 
     [ WITH <with-spec> [ ,  ... ] ]
-    INSERT <expression> [ <insert-shape> ] ;
+    INSERT <expression> [ <insert-shape> ]
+    [ UNLESS CONFLICT ON <property>
+        [ ELSE <alternative> ]
+    ] ;
 
 
 Description
@@ -46,6 +49,26 @@ See :ref:`Usage of FOR statement <ref_eql_forstatement>` for more details.
         INSERT <expression>
         [ "{" <link> := <insert-value-expr> [, ...]  "}" ]
 
+:eql:synopsis:`UNLESS CONFLICT ON <property>`
+    Handler of conflicts.
+
+    This clause allows to handle specific conflicts arising during
+    execution of ``INSERT`` without producing an error.  If the
+    conflict arises due to constraints on the specified *property*,
+    then instead of failing with an error the ``INSERT`` statement
+    produces an empty set (or an alternative result).
+
+:eql:synopsis:`ELSE <alternative>`
+    Alternative result in case of conflict.
+
+    This clause can only appear after ``UNLESS CONFLICT`` clause. Any
+    valid expression can be specified as the *alternative*. When a
+    conflict arises, the result of the ``INSERT`` becomes the
+    *alternative* expression (instead of the default ``{}``).
+
+    In order to refer to the conflicting object in the *alternative*
+    expression, the name used in the ``INSERT`` must be used (see
+    :ref:`example below <ref_eql_statements_insert_unless>`).
 
 Outputs
 -------
@@ -133,6 +156,28 @@ clause.
         status := Open
     });
 
+.. _ref_eql_statements_insert_unless:
+
+There's an important use-case where it is necessary to either insert a
+new object or update an existing one identified with some key. This is
+what ``UNLESS CONFLICT`` clause allows to do:
+
+.. code-block:: edgeql
+
+    WITH MODULE people
+    SELECT (
+        INSERT Person {
+            name := "Łukasz Langa", is_admin := true
+        }
+        UNLESS CONFLICT ON .name
+        ELSE (
+            UPDATE Person
+            SET { is_admin := true }
+        )
+    ) {
+        name,
+        is_admin
+    };
 
 .. note::
 
