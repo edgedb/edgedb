@@ -388,8 +388,8 @@ def get_dml_range(
         # to allow the path_id of the iterator to represent both
         # iterators, and that isn't handled properly in UPDATE anyway.
         # This all needs to be unified and fixed up, though.
-        if ctx.enclosing_dml:
-            pseudo_iterator_set, pseudo_iterator_cte = ctx.enclosing_dml
+        if ctx.enclosing_cte_iterator:
+            pseudo_iterator_set, pseudo_iterator_cte = ctx.enclosing_cte_iterator
             pseudo_iterator_rvar = relctx.rvar_for_rel(
                 pseudo_iterator_cte, ctx=subctx)
 
@@ -432,13 +432,9 @@ def compile_iterator_ctes(
         iterators: Iterable[irast.Set],
         *,
         ctx: context.CompilerContextLevel
-) -> Optional[Tuple[irast.Set, pgast.CommonTableExpr]]:
+) -> Optional[pgast.IteratorCTE]:
 
-    last_iterator_cte: Optional[pgast.CommonTableExpr] = None
-    last_iterator_set: Optional[irast.Set] = None
-
-    if ctx.enclosing_dml:
-        last_iterator_set, last_iterator_cte = ctx.enclosing_dml
+    last_iterator = ctx.enclosing_cte_iterator
 
     for iterator_set in iterators:
         with ctx.substmt() as ictx:
@@ -452,22 +448,21 @@ def compile_iterator_ctes(
 
             # If there is an enclosing insert *and* an explicit iterator,
             # we need to correlate the enclosing insert with the iterator.
-            if last_iterator_set is not None:
-                assert last_iterator_cte
+            if last_iterator is not None:
                 last_iterator_rvar = relctx.rvar_for_rel(
-                    last_iterator_cte, ctx=ictx)
+                    last_iterator.cte, ctx=ictx)
 
-                pathctx.put_path_bond(ictx.rel, last_iterator_set.path_id)
+                pathctx.put_path_bond(ictx.rel, last_iterator.set.path_id)
                 relctx.include_rvar(
                     ictx.rel, last_iterator_rvar,
-                    path_id=last_iterator_set.path_id,
+                    path_id=last_iterator.set.path_id,
                     overwrite_path_rvar=True,
                     ctx=ictx)
 
                 # HM!
                 ictx.volatility_ref = pathctx.get_path_identity_var(
                     ictx.rel,
-                    last_iterator_set.path_id,
+                    last_iterator.set.path_id,
                     env=ictx.env)
 
             clauses.compile_iterator_expr(ictx.rel, iterator_set, ctx=ictx)
@@ -479,14 +474,9 @@ def compile_iterator_ctes(
             )
             ictx.toplevel_stmt.ctes.append(iterator_cte)
 
-        last_iterator_cte = iterator_cte
-        last_iterator_set = iterator_set
+        last_iterator = pgast.IteratorCTE(iterator_set, iterator_cte)
 
-    if last_iterator_cte:
-        assert last_iterator_set
-        return (last_iterator_set, last_iterator_cte)
-    else:
-        return None
+    return last_iterator
 
 
 def process_insert_body(
@@ -529,25 +519,19 @@ def process_insert_body(
             iterators.append(parent.iterator_stmt)
         parent = parent.parent_stmt
 
-    iterator_cte: Optional[pgast.CommonTableExpr] = None
-    iterator_set: Optional[irast.Set] = None
-
     iterator_id: Optional[pgast.BaseExpr]
 
     iterator = compile_iterator_ctes(iterators, ctx=ctx)
     if iterator is not None:
-        iterator_set, iterator_cte = iterator
         # XXX: put_path_bond?
-        iterator_rvar = relctx.rvar_for_rel(iterator_cte, ctx=ctx)
+        iterator_rvar = relctx.rvar_for_rel(iterator.cte, ctx=ctx)
         relctx.include_rvar(select, iterator_rvar,
-                            path_id=iterator_set.path_id, ctx=ctx)
+                            path_id=iterator.set.path_id, ctx=ctx)
 
         iterator_id = relctx.get_path_var(
-            select, iterator_set.path_id,
+            select, iterator.set.path_id,
             aspect='identity', ctx=ctx)
     else:
-        iterator_set = None
-        iterator_cte = None
         iterator_id = None
 
     typeref = ir_stmt.subject.typeref
@@ -571,9 +555,9 @@ def process_insert_body(
 
         subctx.expr_exposed = False
 
-        if iterator_cte is not None:
+        if iterator is not None:
             subctx.path_scope = ctx.path_scope.new_child()
-            subctx.path_scope[iterator_cte.query.path_id] = select
+            subctx.path_scope[iterator.cte.query.path_id] = select
 
         # Process the Insert IR and separate links that go
         # into the main table from links that are inserted into
@@ -625,20 +609,20 @@ def process_insert_body(
             if ptr_info and ptr_info.table_type == 'link':
                 external_inserts.append((shape_el, props_only))
 
-        if iterator_set is not None:
+        if iterator is not None:
             cols.append(pgast.ColumnRef(name=['__edb_token']))
 
             values.append(pgast.ResTarget(val=iterator_id))
 
             pathctx.put_path_identity_var(
-                insert_stmt, iterator_set.path_id,
+                insert_stmt, iterator.set.path_id,
                 cols[-1], force=True, env=subctx.env
             )
 
-            pathctx.put_path_bond(insert_stmt, iterator_set.path_id)
+            pathctx.put_path_bond(insert_stmt, iterator.set.path_id)
             pathctx.put_path_rvar(
                 wrapper,
-                path_id=iterator_set.path_id,
+                path_id=iterator.set.path_id,
                 rvar=insert_rvar,
                 aspect='identity',
                 env=subctx.env,
@@ -675,7 +659,7 @@ def compile_insert_else_body(
         on_conflict: irast.OnConflictClause,
         else_cte_rvar: Optional[
             Tuple[pgast.CommonTableExpr, pgast.PathRangeVar]],
-        iterator: Optional[Tuple[irast.Set, pgast.CommonTableExpr]],
+        iterator: Optional[pgast.IteratorCTE],
         *,
         ctx: context.CompilerContextLevel) -> None:
 
@@ -698,12 +682,12 @@ def compile_insert_else_body(
             ictx.path_scope[subject_id] = ictx.rel
 
             if iterator is not None:
-                iterator_set, iterator_cte = iterator
                 iterator_rvar = relctx.rvar_for_rel(
-                    iterator_cte, lateral=True, ctx=ictx)
+                    iterator.cte, lateral=True, ctx=ictx)
+                # XXX: what is up with the path ids here.
                 relctx.include_rvar(ictx.rel, iterator_rvar,
-                                    path_id=iterator_set.path_id, ctx=ictx)
-                ictx.path_scope[iterator_cte.query.path_id] = ictx.rel
+                                    path_id=iterator.set.path_id, ctx=ictx)
+                ictx.path_scope[iterator.cte.query.path_id] = ictx.rel
 
             pathctx.put_path_bond(ictx.rel, subject_id)
             dispatch.compile(else_select, ctx=ictx)
@@ -723,7 +707,7 @@ def compile_insert_else_body(
             relctx.include_rvar(ictx.rel, else_select_rvar,
                                 path_id=subject_id, ctx=ictx)
 
-            ictx.enclosing_dml = (else_select, else_select_cte)
+            ictx.enclosing_cte_iterator = pgast.IteratorCTE(else_select, else_select_cte)
             dispatch.compile(else_branch, ctx=ictx)
             ictx.rel.view_path_id_map[subject_id] = else_branch.path_id
 
@@ -925,7 +909,7 @@ def process_link_update(
     source_typeref: irast.TypeRef,
     wrapper: pgast.Query,
     dml_cte: pgast.CommonTableExpr,
-    iterator: Optional[Tuple[irast.Set, pgast.CommonTableExpr]],
+    iterator: Optional[pgast.IteratorCTE],
     ctx: context.CompilerContextLevel,
 ) -> pgast.CommonTableExpr:
     """Perform updates to a link relation as part of a DML statement.
@@ -1311,7 +1295,7 @@ def process_link_values(
     props_only: bool,
     target_is_scalar: bool,
     dml_cte: pgast.CommonTableExpr,
-    iterator: Optional[Tuple[irast.Set, pgast.CommonTableExpr]],
+    iterator: Optional[pgast.IteratorCTE],
     ctx: context.CompilerContextLevel,
 ) -> Tuple[pgast.CommonTableExpr, List[str]]:
     """Unpack data from an update expression into a series of selects.
@@ -1336,7 +1320,7 @@ def process_link_values(
     """
     old_dml_count = len(ctx.dml_stmts)
     with ctx.newscope() as newscope, newscope.newrel() as subrelctx:
-        subrelctx.enclosing_dml = (ir_stmt.subject, dml_cte)
+        subrelctx.enclosing_cte_iterator = pgast.IteratorCTE(ir_stmt.subject, dml_cte)
         row_query = subrelctx.rel
 
         relctx.include_rvar(row_query, dml_rvar,
@@ -1344,11 +1328,10 @@ def process_link_values(
         subrelctx.path_scope[ir_stmt.subject.path_id] = row_query
 
         if iterator is not None:
-            iterator_set, iterator_cte = iterator
             iterator_rvar = relctx.rvar_for_rel(
-                iterator_cte, lateral=True, ctx=subrelctx)
+                iterator.cte, lateral=True, ctx=subrelctx)
             relctx.include_rvar(row_query, iterator_rvar,
-                                path_id=iterator_set.path_id,
+                                path_id=iterator.set.path_id,
                                 ctx=subrelctx)
 
         with subrelctx.newscope() as sctx, sctx.subrel() as input_rel_ctx:
