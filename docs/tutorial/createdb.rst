@@ -12,6 +12,11 @@
     `Sublime Text <https://packagecontrol.io/packages/EdgeDB>`_,
     and `Vim <https://github.com/edgedb/edgedb-vim>`_.
 
+To begin, launch the EdgeDB CLI and connect to the default server instance:
+
+.. code-block:: bash
+
+    $ edgedb -Idefault
 
 First step in a brand new project is to create the database for it:
 
