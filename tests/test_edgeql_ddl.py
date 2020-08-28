@@ -5686,6 +5686,14 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             [1],
         )
 
+    async def test_edgeql_ddl_prop_alias(self):
+        await self.con.execute("""
+            CREATE TYPE Named {
+                CREATE REQUIRED PROPERTY name -> str;
+                CREATE PROPERTY canonical_name := .name;
+            };
+        """)
+
     async def test_edgeql_ddl_index_01(self):
         with self.assertRaisesRegex(
             edgedb.ResultCardinalityMismatchError,

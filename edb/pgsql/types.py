@@ -355,7 +355,10 @@ def get_pointer_storage_info(
         link_bias=False):
     assert not pointer.generic(schema), \
         "only specialized pointers can be stored"
-    material_ptrcls = pointer.material_type(schema)
+    if pointer.get_computable(schema):
+        material_ptrcls = None
+    else:
+        material_ptrcls = pointer.material_type(schema)
     if material_ptrcls is not None:
         pointer = material_ptrcls
     return _PointerStorageInfo(
