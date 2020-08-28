@@ -117,3 +117,17 @@ aggregates values from another linked type:
 
         property avg_rating := math::mean(.<movie[IS Review].rating);
     }
+
+
+Define an :eql:type:`auto-incrementing <sequence>` scalar type and an
+object type using it as a property:
+
+.. code-block:: sdl
+
+    scalar type TicketNo extending sequence;
+
+    type Ticket {
+        property number -> TicketNo {
+            constraint exclusive;
+        }
+    }

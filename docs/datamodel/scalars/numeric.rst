@@ -186,6 +186,24 @@ from :eql:type:`str` and :eql:type:`json`.
 
     Auto-incrementing sequence of :eql:type:`int64`.
 
+    This type can be used to create auto-incrementing :ref:`properties
+    <ref_datamodel_props>`.
+
+    .. code-block:: sdl
+
+        scalar type TicketNo extending sequence;
+
+        type Ticket {
+            property number -> TicketNo {
+                constraint exclusive;
+            }
+        }
+
+    The sequence is bound to the scalar type, not to the property, so
+    if multiple properties use the same ``sequence`` type they will
+    share the same counter. For each distinct counter, a separate
+    scalar type that is extending ``sequence`` should be used.
+
 
 See Also
 --------
