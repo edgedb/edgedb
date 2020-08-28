@@ -208,7 +208,7 @@ class RelRangeVar(PathRangeVar):
     def __repr__(self) -> str:
         return (
             f'<pg.{self.__class__.__name__} '
-            f'name={self.relation.name!r} at 0x{id(self):x}>'
+            f'name={self.relation.name!r} at {id(self):#x}>'
         )
 
 
