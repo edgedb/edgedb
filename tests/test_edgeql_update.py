@@ -1880,6 +1880,18 @@ class TestUpdate(tb.QueryTestCase):
                 );
             ''')
 
+    async def test_edgeql_update_correlated_bad_03(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                "cannot reference correlated set 'UpdateTest' here"):
+            await self.con.execute(r'''
+                WITH MODULE test
+                SELECT (
+                    UpdateTest,
+                    (UPDATE UpdateTest SET {name := 'update bad'}),
+                )
+            ''')
+
     async def test_edgeql_update_protect_readonly_01(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,

@@ -809,7 +809,7 @@ def compile_Shape(
         )
     view_type = viewgen.process_view(
         stype=expr_stype, path_id=expr.path_id,
-        elements=shape.elements, ctx=ctx)
+        elements=shape.elements, parser_context=shape.context, ctx=ctx)
 
     return setgen.ensure_set(expr, type_override=view_type, ctx=ctx)
 
@@ -1078,6 +1078,7 @@ def compile_query_subject(
             is_insert=is_insert,
             is_update=is_update,
             is_delete=is_delete,
+            parser_context=expr.context,
             ctx=ctx,
         )
 

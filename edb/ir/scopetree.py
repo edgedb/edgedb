@@ -25,16 +25,9 @@ from typing import *
 import textwrap
 import weakref
 
+from edb import errors
+from edb.common import context as pctx
 from . import pathid
-
-
-class InvalidScopeConfiguration(Exception):
-    def __init__(self, msg: str, *,
-                 offending_node: ScopeTreeNode,
-                 existing_node: ScopeTreeNode) -> None:
-        super().__init__(msg)
-        self.offending_node = offending_node
-        self.existing_node = existing_node
 
 
 class FenceInfo(NamedTuple):
@@ -311,7 +304,8 @@ class ScopeTreeNode:
             node = node.parent
         return node
 
-    def attach_child(self, node: ScopeTreeNode) -> None:
+    def attach_child(self, node: ScopeTreeNode,
+                     context: Optional[pctx.ParserContext]=None) -> None:
         """Attach a child node to this node.
 
         This is a low-level operation, no tree validation is
@@ -320,10 +314,9 @@ class ScopeTreeNode:
         if node.path_id is not None:
             for child in self.children:
                 if child.path_id == node.path_id:
-                    raise InvalidScopeConfiguration(
+                    raise errors.InvalidReferenceError(
                         f'{node.path_id} is already present in {self!r}',
-                        existing_node=child,
-                        offending_node=node,
+                        context=context,
                     )
 
         if node.unique_id is not None:
@@ -349,6 +342,7 @@ class ScopeTreeNode:
         self,
         path_id: pathid.PathId,
         *,
+        context: Optional[pctx.ParserContext],
         fence_points: FrozenSet[pathid.PathId] = frozenset(),
     ) -> List[ScopeTreeNode]:
         """Attach a scope subtree representing *path_id*."""
@@ -406,10 +400,11 @@ class ScopeTreeNode:
                 parent.attach_child(fence)
                 parent = fence
 
-        self.attach_subtree(subtree)
+        self.attach_subtree(subtree, context=context)
         return fences
 
-    def attach_subtree(self, node: ScopeTreeNode) -> None:
+    def attach_subtree(self, node: ScopeTreeNode,
+                       context: Optional[pctx.ParserContext]=None) -> None:
         """Attach a subtree to this node.
 
         *node* is expected to be a balanced scope tree and may be modified
@@ -436,11 +431,10 @@ class ScopeTreeNode:
                     # scope and cannot be factored out, such as
                     # a reference to a correlated set inside a DML
                     # statement.
-                    raise InvalidScopeConfiguration(
+                    raise errors.InvalidReferenceError(
                         f'cannot reference correlated set '
                         f'{path_id.pformat()!r} here',
-                        offending_node=descendant,
-                        existing_node=visible,
+                        context=context,
                     )
 
                 # This path is already present in the tree, discard,
@@ -464,11 +458,10 @@ class ScopeTreeNode:
                     # scope and cannot be factored out, such as
                     # a reference to a correlated set inside a DML
                     # statement.
-                    raise InvalidScopeConfiguration(
+                    raise errors.InvalidReferenceError(
                         f'cannot reference correlated set '
                         f'{path_id.pformat()!r} here',
-                        offending_node=descendant,
-                        existing_node=existing,
+                        context=context,
                     )
 
                 unnest_fence = False
@@ -510,14 +503,13 @@ class ScopeTreeNode:
 
                             assert offending_node.path_id is not None
 
-                            raise InvalidScopeConfiguration(
+                            raise errors.InvalidReferenceError(
                                 f'reference to '
                                 f'{offending_node.path_id.pformat()!r} '
                                 f'changes the interpretation of '
                                 f'{existing.path_id.pformat()!r} '
                                 f'elsewhere in the query',
-                                offending_node=offending_node,
-                                existing_node=existing
+                                context=context,
                             )
 
                         parent_fence.remove_descendants(path_id)
