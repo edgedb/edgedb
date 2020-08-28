@@ -138,7 +138,7 @@ def read_data_cache(
     if full_path.exists():
         with open(full_path, 'rb') as f:
             src_hash = f.read(len(cache_key))
-            if src_hash == cache_key or debug.flags.cache_yolo:
+            if src_hash == cache_key or debug.flags.bootstrap_cache_yolo:
                 if pickled:
                     data = f.read()
                     try:
