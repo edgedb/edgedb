@@ -3,7 +3,7 @@
 ===========
 
 This changelog summarizes new features and breaking changes in
-EdgeDB 1.0 alpha 2.
+`EdgeDB 1.0 alpha 2 </blog/edgedb-1-0-alpha-2>`_.
 
 
 New JavaScript Driver

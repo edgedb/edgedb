@@ -19,7 +19,37 @@ Insert basic movie stub:
         directors := (
             SELECT Person
             FILTER
-                .last_name = 'Villeneuve'
+                .full_name = 'Denis Villeneuve'
+        )
+    }
+
+Alternatively, insert a movie using JSON input value:
+
+.. code-block:: edgeql
+
+    WITH
+        # Cast the JSON $input into a tuple, which we will
+        # use to populate the Person record.
+        data := <tuple<
+            title: str,
+            year: int64,
+            image: str,
+            directors: array<str>,
+            actors: array<str>
+        >> <json>$input
+    INSERT Movie {
+        title := data.title,
+        year := data.year,
+        image := data.image,
+        directors := (
+            SELECT Person
+            FILTER
+                .full_name IN array_unpack(data.directors)
+        ),
+        actors := (
+            SELECT Person
+            FILTER
+                .full_name IN array_unpack(data.actors)
         )
     }
 
@@ -50,3 +80,30 @@ Insert several nested objects at once:
             }
         )
     }
+
+"Upserts" as well as and other combinations of :eql:stmt:`INSERT` and
+some alternative operation are possible:
+
+.. code-block:: edgeql
+
+    WITH MODULE people
+    SELECT (
+        # Try to create a new Person,
+        INSERT Person {
+            name := "Łukasz Langa",
+            is_admin := true
+        }
+
+        # but if a Person with this name already exists,
+        UNLESS CONFLICT ON .name
+        ELSE (
+            # update that Person's record instead.
+            UPDATE Person
+            SET {
+                is_admin := true
+            }
+        )
+    ) {
+        name,
+        is_admin
+    };

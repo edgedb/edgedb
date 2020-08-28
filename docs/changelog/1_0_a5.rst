@@ -3,14 +3,42 @@
 ===========
 
 This changelog summarizes new features and breaking changes in
-EdgeDB 1.0 alpha 5 "Luhman".
+`EdgeDB 1.0 alpha 5 "Luhman" </blog/edgedb-1-0-alpha-5-luhman>`_.
 
 
 EdgeQL
 ======
 
 * Implement casts between JSON and enums, arrays and tuples
-  (:eql:gh:`#251`).
+  (:eql:gh:`#251`). For example, now there's a way to unpack JSON
+  input into a tuple, which can then be used to populate a new User
+  record:
+
+  .. code-block:: edgeql-repl
+
+      db> WITH
+      ...     data := <tuple<
+      ...        first_name: str,
+      ...        last_name: str,
+      ...        interests: array<str>
+      ...     >> <json>$input
+      ... INSERT User {
+      ...     first_name := data.first_name,
+      ...     last_name := data.last_name,
+      ...     interests := (
+      ...         SELECT
+      ...             Interest
+      ...         FILTER
+      ...             .label IN array_unpack(data.interests)
+      ...     )
+      ... };
+      Parameter <json>$input:
+      {
+        "first_name": "Phil",
+        "last_name": "Emarg",
+        "interests": ["fishing", "skiing"]
+      }
+
 * Allow constraints on tuple types (:eql:gh:`#1576`).
 * Allow constraints directly on object types in SDL (:eql:gh:`#1164`)
 * Disallow using :eql:constraint:`exclusive` on scalar types
