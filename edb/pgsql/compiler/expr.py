@@ -64,6 +64,8 @@ def compile_Set(
             return config.top_output_as_config_op(
                 ir_set, ctx.rel, env=ctx.env)
         else:
+            pathctx.get_path_serialized_output(
+                ctx.rel, ir_set.path_id, env=ctx.env)
             return output.top_output_as_value(ctx.rel, ir_set, env=ctx.env)
     else:
         value = pathctx.get_path_value_var(

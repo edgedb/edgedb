@@ -1277,3 +1277,17 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             r'''SELECT test::call38(C38);''',
             ['yay'],
         )
+
+    async def test_edgeql_calls_39(self):
+        # Test a function taking an object as an argument.
+        await self.con.execute('''
+            CREATE FUNCTION test::call39(
+                foo: str
+            ) -> str
+                USING (foo);
+        ''')
+
+        await self.assert_query_result(
+            r'''SELECT test::call39("identity");''',
+            ['identity'],
+        )
