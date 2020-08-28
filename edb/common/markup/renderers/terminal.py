@@ -641,7 +641,14 @@ def render(markup, *, ensure_newline=True, file=None, renderer=Renderer):
     if file is None:
         file = sys.stdout
 
-    fileno = file.fileno()
+    try:
+        fileno = file.fileno()
+    except OSError:
+        # This is a hack to try to get nice colorized dump output over
+        # a remote-pdb connection. If the output is redirected to
+        # something without fileno, use what ought to be stdout's fileno
+        # to decide on color, etc.
+        fileno = 1
     max_width = term.size(fileno)[1]
 
     style_table = None
