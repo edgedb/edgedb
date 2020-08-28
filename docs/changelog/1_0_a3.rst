@@ -3,7 +3,8 @@
 ===========
 
 This changelog summarizes new features and breaking changes in
-EdgeDB 1.0 alpha 3.
+`EdgeDB 1.0 alpha 3 "Proxima Centauri"
+</blog/edgedb-1-0-alpha-3-proxima-centauri>`_.
 
 
 CLI
