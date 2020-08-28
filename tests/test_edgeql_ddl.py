@@ -18,6 +18,7 @@
 
 import decimal
 import json
+import uuid
 
 import edgedb
 
@@ -1048,14 +1049,240 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 'expected std::str'):
             await self.con.execute(r"""
                 CREATE TYPE test::TestDefault02 {
-                    CREATE PROPERTY def01 -> str {
+                    CREATE PROPERTY def02 -> str {
                         SET default := '42';
                     };
                 };
 
                 ALTER TYPE test::TestDefault02 {
-                    ALTER PROPERTY def01 SET default := 42;
+                    ALTER PROPERTY def02 SET default := 42;
                 };
+            """)
+
+    @test.xfail('''
+        Issue #1721
+
+        Two TestDefaultInsert03 objects are created instead of one.
+    ''')
+    async def test_edgeql_ddl_default_03(self):
+        # Test INSERT as default link expression
+        await self.con.execute(r"""
+            CREATE TYPE test::TestDefaultInsert03;
+
+            CREATE TYPE test::TestDefault03 {
+                CREATE LINK def03 -> test::TestDefaultInsert03 {
+                    SET default := (INSERT test::TestDefaultInsert03);
+                };
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT (
+                    count(test::TestDefault03),
+                    count(test::TestDefaultInsert03)
+                );
+            """,
+            [[0, 0]],
+        )
+
+        await self.assert_query_result(
+            r"""
+                SELECT test::TestDefault03 {
+                    def03
+                };
+            """,
+            [],
+        )
+
+        # `assert_query_result` is used instead of `execute` to
+        # highlight the issue #1721
+        await self.assert_query_result(
+            r"""INSERT test::TestDefault03;""",
+            [{'id': uuid.UUID}]
+        )
+
+        await self.assert_query_result(
+            r"""
+                SELECT (
+                    count(test::TestDefault03),
+                    count(test::TestDefaultInsert03)
+                );
+            """,
+            [[1, 1]],
+        )
+
+        await self.assert_query_result(
+            r"""
+                SELECT test::TestDefault03 {
+                    def03
+                };
+            """,
+            [{
+                'def03': {
+                    'id': uuid.UUID
+                }
+            }],
+        )
+
+    async def test_edgeql_ddl_default_04(self):
+        # Test UPDATE as default link expression
+        await self.con.execute(r"""
+            CREATE TYPE test::TestDefaultUpdate04 {
+                CREATE PROPERTY val -> str {
+                    CREATE CONSTRAINT exclusive;
+                };
+            };
+
+            CREATE TYPE test::TestDefault04 {
+                CREATE LINK def04 -> test::TestDefaultUpdate04 {
+                    SET default := (
+                        UPDATE test::TestDefaultUpdate04
+                        FILTER .val = 'def04'
+                        SET {
+                            val := .val ++ '!'
+                        }
+                    );
+                };
+            };
+
+            INSERT test::TestDefaultUpdate04 {
+                val := 'notdef04'
+            };
+            INSERT test::TestDefaultUpdate04 {
+                val := 'def04'
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT test::TestDefaultUpdate04.val;
+            """,
+            {'def04', 'notdef04'},
+        )
+
+        await self.assert_query_result(r"""
+            SELECT {
+                (INSERT test::TestDefault04),
+                (INSERT test::TestDefault04)
+            };
+        """, [{'id': uuid.UUID}, {'id': uuid.UUID}])
+
+        await self.assert_query_result(
+            r"""
+                SELECT test::TestDefaultUpdate04.val;
+            """,
+            {'def04!', 'notdef04'},
+        )
+
+        await self.assert_query_result(
+            r"""
+                SELECT test::TestDefault04 {
+                    def04: {
+                        val
+                    }
+                } ORDER BY .def04.val EMPTY FIRST;
+            """,
+            [{
+                'def04': None
+            }, {
+                'def04': {
+                    'val': 'def04!'
+                }
+            }],
+        )
+
+    async def test_edgeql_ddl_default_05(self):
+        # Test DELETE as default property expression
+        await self.con.execute(r"""
+            CREATE TYPE test::TestDefaultDelete05 {
+                CREATE PROPERTY val -> str;
+            };
+
+            CREATE TYPE test::TestDefault05 {
+                CREATE PROPERTY def05 -> str {
+                    SET default := (SELECT (
+                        DELETE test::TestDefaultDelete05
+                        FILTER .val = 'def05'
+                        LIMIT 1
+                    ).val);
+                };
+            };
+
+            INSERT test::TestDefaultDelete05 {
+                val := 'notdef05'
+            };
+            INSERT test::TestDefaultDelete05 {
+                val := 'def05'
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT test::TestDefaultDelete05.val;
+            """,
+            {'def05', 'notdef05'},
+        )
+
+        await self.con.execute(r"""
+            INSERT test::TestDefault05;
+            INSERT test::TestDefault05;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT test::TestDefaultDelete05.val;
+            """,
+            {'notdef05'},
+        )
+
+        await self.assert_query_result(
+            r"""
+                SELECT test::TestDefault05 {
+                    def05
+                } ORDER BY .def05 EMPTY FIRST;
+            """,
+            [{
+                'def05': None
+            }, {
+                'def05': 'def05'
+            }],
+        )
+
+    async def test_edgeql_ddl_default_06(self):
+        # Test DELETE as default link expression
+        await self.con.execute(r"""
+            CREATE TYPE test::TestDefaultDelete06 {
+                CREATE PROPERTY val -> str;
+            };
+
+            CREATE TYPE test::TestDefault06 {
+                CREATE REQUIRED LINK def06 -> test::TestDefaultDelete06 {
+                    SET default := (
+                        DELETE test::TestDefaultDelete06
+                        FILTER .val = 'def06'
+                        LIMIT 1
+                    );
+                };
+            };
+
+            INSERT test::TestDefaultDelete06 {
+                val := 'notdef06'
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT test::TestDefaultDelete06.val;
+            """,
+            {'notdef06'},
+        )
+
+        with self.assertRaisesRegex(
+                edgedb.MissingRequiredError,
+                r'missing value for required.*test::TestDefault06.def06'):
+            await self.con.execute(r"""
+                INSERT test::TestDefault06;
             """)
 
     async def test_edgeql_ddl_default_circular(self):
