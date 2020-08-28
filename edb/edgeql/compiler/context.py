@@ -438,6 +438,9 @@ class ContextLevel(compiler.ContextLevel):
     iterator_ctx: Optional[ContextLevel]
     """The context of the statement where all iterators should be placed."""
 
+    iterator_path_ids: FrozenSet[irast.PathId]
+    """The path ids of all in scope iterator variables"""
+
     scope_id_ctr: compiler.SimpleCounter
     """Path scope id counter."""
 
@@ -528,6 +531,7 @@ class ContextLevel(compiler.ContextLevel):
             self.path_scope = irast.new_scope_tree()
             self.path_scope_map = {}
             self.iterator_ctx = None
+            self.iterator_path_ids = frozenset()
             self.scope_id_ctr = compiler.SimpleCounter()
             self.view_scls = None
             self.expr_exposed = False
@@ -565,6 +569,7 @@ class ContextLevel(compiler.ContextLevel):
             self.shape_type_cache = prevlevel.shape_type_cache
 
             self.iterator_ctx = prevlevel.iterator_ctx
+            self.iterator_path_ids = prevlevel.iterator_path_ids
             self.path_id_namespace = prevlevel.path_id_namespace
             self.pending_stmt_own_path_id_namespace = \
                 prevlevel.pending_stmt_own_path_id_namespace
@@ -625,6 +630,7 @@ class ContextLevel(compiler.ContextLevel):
                 self.banned_paths = set()
 
                 self.iterator_ctx = None
+                self.iterator_path_ids = frozenset()
 
                 self.view_rptr = None
                 self.view_scls = None
