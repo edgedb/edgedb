@@ -314,7 +314,7 @@ class ScopeTreeNode:
         if node.path_id is not None:
             for child in self.children:
                 if child.path_id == node.path_id:
-                    raise errors.InvalidScopeConfigurationError(
+                    raise errors.InvalidReferenceError(
                         f'{node.path_id} is already present in {self!r}',
                         context=context,
                     )
@@ -431,7 +431,7 @@ class ScopeTreeNode:
                     # scope and cannot be factored out, such as
                     # a reference to a correlated set inside a DML
                     # statement.
-                    raise errors.InvalidScopeConfigurationError(
+                    raise errors.InvalidReferenceError(
                         f'cannot reference correlated set '
                         f'{path_id.pformat()!r} here',
                         context=context,
@@ -458,7 +458,7 @@ class ScopeTreeNode:
                     # scope and cannot be factored out, such as
                     # a reference to a correlated set inside a DML
                     # statement.
-                    raise errors.InvalidScopeConfigurationError(
+                    raise errors.InvalidReferenceError(
                         f'cannot reference correlated set '
                         f'{path_id.pformat()!r} here',
                         context=context,
@@ -503,7 +503,7 @@ class ScopeTreeNode:
 
                             assert offending_node.path_id is not None
 
-                            raise errors.InvalidScopeConfigurationError(
+                            raise errors.InvalidReferenceError(
                                 f'reference to '
                                 f'{offending_node.path_id.pformat()!r} '
                                 f'changes the interpretation of '

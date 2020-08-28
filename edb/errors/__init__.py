@@ -152,10 +152,6 @@ class InvalidPropertyTargetError(InvalidTargetError):
     _code = 0x_04_02_01_02
 
 
-class InvalidScopeConfigurationError(InvalidTypeError):
-    _code = 0x_04_02_02_00
-
-
 class InvalidReferenceError(QueryError):
     _code = 0x_04_03_00_00
 
