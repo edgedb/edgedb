@@ -244,6 +244,9 @@ def compile_ast_to_ir(
         debug.header('EdgeDB IR')
         debug.dump(ir_expr, schema=getattr(ir_expr, 'schema', None))
 
+    if isinstance(ir_expr, irast.Statement):
+        ir_expr.dml_exprs = ctx.env.dml_exprs
+
     return ir_expr
 
 
@@ -293,6 +296,7 @@ def compile_ast_fragment_to_ir(
         expr=ir_set,
         schema=ctx.env.schema,
         stype=result_type,
+        dml_exprs=ctx.env.dml_exprs,
     )
 
 

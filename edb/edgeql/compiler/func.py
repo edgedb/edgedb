@@ -111,6 +111,33 @@ def compile_FunctionCall(
         matched_call = matched[0]
 
     func = matched_call.func
+
+    # Record this node in the list of potential DML expressions.
+    if isinstance(func, s_func.Function) and func.get_has_dml(env.schema):
+        ctx.env.dml_exprs.append(expr)
+
+        # This is some kind of mutation, so we need to check if it is
+        # allowed.
+        if ctx.env.options.in_ddl_context_name is not None:
+            raise errors.SchemaDefinitionError(
+                f'invalid mutation in {ctx.env.options.in_ddl_context_name}',
+                context=expr.context,
+            )
+        elif ((dv := ctx.defining_view) is not None and
+                dv.get_expr_type(ctx.env.schema) is s_types.ExprType.Select and
+                not ctx.env.options.allow_top_level_shape_dml):
+            # This is some shape in a regular query. Although
+            # DML is not allowed in the computable, but it may
+            # be possible to refactor it.
+            raise errors.QueryError(
+                f'invalid mutation in a shape computable',
+                hint=(
+                    f'To resolve this try to factor out the mutation '
+                    f'expression into the top-level WITH block.'
+                ),
+                context=expr.context,
+            )
+
     assert isinstance(func, s_func.Function)
     func_name = func.get_shortname(env.schema)
 
