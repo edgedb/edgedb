@@ -446,10 +446,8 @@ class DeleteProperty(
             prop = schema.get(cmd.classname, type=Property)
             target = prop.get_target(schema)
 
-            if target is not None and target.is_collection():
-                s_types.cleanup_schema_collection(
-                    schema, target, prop, cmd, context=context,
-                    src_context=astnode.context)
+            if target is not None and isinstance(target, s_types.Collection):
+                cmd.add(target.as_colltype_delete_delta(schema))
 
         return cmd
 

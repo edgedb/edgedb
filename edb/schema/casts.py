@@ -153,7 +153,7 @@ def get_cast_fullname(
     from_type: s_types.TypeShell,
     to_type: s_types.TypeShell,
 ) -> sn.Name:
-    quals = [from_type.name, to_type.name]
+    quals = [from_type.get_name(schema), to_type.get_name(schema)]
     shortname = sn.Name(f'{module}::cast')
     return sn.Name(
         module=shortname.module,
@@ -245,6 +245,18 @@ class CastCommand(sd.QualifiedObjectCommand[Cast],
 
         return get_cast_fullname(schema, 'std', from_type, to_type)
 
+    def canonicalize_attributes(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super().canonicalize_attributes(schema, context)
+        schema = s_types.materialize_type_in_attribute(
+            schema, context, self, 'from_type')
+        schema = s_types.materialize_type_in_attribute(
+            schema, context, self, 'to_type')
+        return schema
+
 
 class CreateCast(CastCommand, sd.CreateObject[Cast]):
     astnode = qlast.CreateCast
@@ -261,7 +273,7 @@ class CreateCast(CastCommand, sd.CreateObject[Cast]):
             to_type = self.get_attribute_value('to_type')
 
             raise errors.DuplicateCastDefinitionError(
-                f'a cast from {from_type.get_displayname(schema)!r}'
+                f'a cast from {from_type.get_displayname(schema)!r} '
                 f'to {to_type.get_displayname(schema)!r} is already defined',
                 context=self.source_context)
 
@@ -285,15 +297,6 @@ class CreateCast(CastCommand, sd.CreateObject[Cast]):
             schema=schema,
         )
 
-        if isinstance(from_type, s_types.CollectionTypeShell):
-            s_types.ensure_schema_collection(
-                schema,
-                from_type,
-                parent_cmd=cmd,
-                src_context=astnode.from_type.context,
-                context=context,
-            )
-
         cmd.set_attribute_value('from_type', from_type)
 
         to_type = utils.ast_to_type_shell(
@@ -301,15 +304,6 @@ class CreateCast(CastCommand, sd.CreateObject[Cast]):
             modaliases=modaliases,
             schema=schema,
         )
-
-        if isinstance(to_type, s_types.CollectionTypeShell):
-            s_types.ensure_schema_collection(
-                schema,
-                to_type,
-                parent_cmd=cmd,
-                src_context=astnode.to_type.context,
-                context=context,
-            )
 
         cmd.set_attribute_value('to_type', to_type)
 

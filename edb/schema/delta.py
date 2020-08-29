@@ -589,6 +589,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
 
     def discard(self, command: Command) -> None:
         self.ops.discard(command)
+        self.before_ops.discard(command)
         if isinstance(command, AlterObjectProperty):
             self._attrs.pop(command.property)
 
@@ -1064,7 +1065,6 @@ class DeltaRoot(CommandGroup, context_class=DeltaRootContext):
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.new_types: Set[uuid.UUID] = set()
-        self.deleted_types: Dict[uuid.UUID, Command] = {}
 
     def apply(
         self,
@@ -1620,6 +1620,13 @@ class ObjectCommand(
         schema: s_schema.Schema,
         context: CommandContext,
     ) -> s_schema.Schema:
+        """Resolve, canonicalize and amend field mutations in this command.
+
+        This is called just before the object described by this command
+        is created or updated but after all prerequisite command have
+        been applied, so it is safe to resolve object shells and do
+        other schema inquiries here.
+        """
         return schema
 
     def populate_ddl_identity(
@@ -2477,6 +2484,10 @@ class AlterObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
 class DeleteObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
     _delta_action = 'delete'
 
+    #: If True, apply the command only if the object has no referrers
+    #: in the schema.
+    if_unused = struct.Field(bool, default=False)
+
     def _delete_begin(
         self,
         schema: s_schema.Schema,
@@ -2592,6 +2603,17 @@ class DeleteObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         self.scls = scls
 
         with self.new_context(schema, context, scls):
+            if (
+                not self.canonical
+                and self.if_unused
+                and schema.get_referrers(scls)
+            ):
+                parent_ctx = context.parent()
+                if parent_ctx is not None:
+                    parent_ctx.op.discard(self)
+
+                return schema
+
             schema = self._delete_begin(schema, context)
             schema = self._delete_innards(schema, context)
             schema = self._delete_finalize(schema, context)

@@ -823,37 +823,8 @@ class PointerCommandOrFragment(
         target_ref = self.get_local_attribute_value('target')
 
         if target_ref is not None:
-            srcctx = self.get_attribute_source_context('target')
-
-            if isinstance(target_ref, s_types.TypeExprShell):
-                cc_cmd = s_types.ensure_schema_type_expr_type(
-                    schema,
-                    target_ref,
-                    parent_cmd=self,
-                    src_context=srcctx,
-                    context=context,
-                )
-                if cc_cmd is not None:
-                    schema = cc_cmd.apply(schema, context)
-
-            if isinstance(target_ref, s_types.TypeShell):
-                try:
-                    target = target_ref.resolve(schema)
-                except errors.InvalidReferenceError as e:
-                    refname = target_ref.get_refname(schema)
-                    if refname is not None:
-                        utils.enrich_schema_lookup_error(
-                            e,
-                            refname,
-                            modaliases=context.modaliases,
-                            schema=schema,
-                            item_type=s_types.Type,
-                            context=srcctx,
-                        )
-                    raise
-
-            elif isinstance(target_ref, ComputableRef):
-                schema, target_t, base = self._parse_computable(
+            if isinstance(target_ref, ComputableRef):
+                schema, target, base = self._parse_computable(
                     target_ref.expr, schema, context)
 
                 if base is not None:
@@ -870,12 +841,15 @@ class PointerCommandOrFragment(
                             'declared_overloaded', True
                         )
 
-                target = target_t
-
+                srcctx = self.get_attribute_source_context('target')
+                self.set_attribute_value(
+                    'target',
+                    target.as_shell(schema),
+                    source_context=srcctx,
+                )
             else:
-                target = target_ref
-
-            self.set_attribute_value('target', target, source_context=srcctx)
+                schema = s_types.materialize_type_in_attribute(
+                    schema, context, self, 'target')
 
         return schema
 
@@ -1218,16 +1192,6 @@ class PointerCommand(
             # Target is inherited.
             target_ref = None
 
-        if isinstance(target_ref, s_types.CollectionTypeShell):
-            assert astnode.target is not None
-            s_types.ensure_schema_collection(
-                schema,
-                target_ref,
-                parent_cmd=self,
-                src_context=astnode.target.context,
-                context=context,
-            )
-
         if isinstance(self, sd.CreateObject):
             assert astnode.target is not None
             self.set_attribute_value(
@@ -1438,25 +1402,6 @@ class SetPointerType(
                 modaliases=context.modaliases,
                 schema=schema,
             )
-
-        if isinstance(target_ref, s_types.CollectionTypeShell):
-            s_types.ensure_schema_collection(
-                schema,
-                target_ref,
-                parent_cmd=cmd,
-                src_context=astnode.type.context,
-                context=context,
-            )
-
-        ctx = context.current()
-        assert isinstance(ctx, sd.ObjectCommandContext)
-        ptr = ctx.op.get_object(schema, context, default=None)  # type: ignore
-        if ptr is not None:
-            orig_type = ptr.get_target(schema)
-            if orig_type.is_collection():
-                s_types.cleanup_schema_collection(
-                    schema, orig_type, ptr, cmd, context=context,
-                    src_context=astnode.context)
 
         cmd.set_attribute_value('target', target_ref)
 

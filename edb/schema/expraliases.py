@@ -166,14 +166,10 @@ class AliasCommand(
         derived_delta = sd.DeltaRoot()
 
         for ref in ir.new_coll_types:
-            s_types.ensure_schema_collection(
-                # not "new_schema", because that already contains this
-                # collection type.
-                schema,
-                ref.as_shell(new_schema),
-                derived_delta,
-                context=context,
-            )
+            colltype_shell = ref.as_shell(new_schema)
+            # not "new_schema", because that already contains this
+            # collection type.
+            derived_delta.add(colltype_shell.as_create_delta(schema))
 
         if is_alter:
             assert old_schema is not None

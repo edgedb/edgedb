@@ -468,11 +468,6 @@ class TypeShell(so.ObjectShell):
         self.expr = expr
 
     def resolve(self, schema: s_schema.Schema) -> Type:
-        if self.name is None:
-            raise TypeError(
-                'cannot resolve anonymous TypeShell'
-            )
-
         return schema.get(
             self.name,
             type=self.schemaclass,
@@ -631,8 +626,7 @@ class Collection(Type, s_abc.Collection):
 
     schema_name: typing.ClassVar[str]
 
-    #: True for collection types that are stored in schema persistently,
-    #: by ensure_schema_collection().
+    #: True for collection types that are stored in schema persistently
     is_persistent = so.SchemaField(
         bool,
         default=False,
@@ -728,6 +722,37 @@ class Collection(Type, s_abc.Collection):
             return True
 
         return self._issubclass(schema, parent)
+
+    @classmethod
+    def compare_field_value(
+        cls,
+        field: so.Field[typing.Type[so.T]],
+        our_value: so.T,
+        their_value: so.T,
+        *,
+        our_schema: s_schema.Schema,
+        their_schema: s_schema.Schema,
+        context: so.ComparisonContext,
+    ) -> float:
+        # Disregard differences in generated names, because those
+        # contain type ids which are volatile.
+        if field.name == 'name':
+            assert isinstance(our_value, str)
+            assert isinstance(their_value, str)
+            if (
+                our_value.startswith('__id:')
+                and their_value.startswith('__id:')
+            ):
+                return 1.0
+
+        return super().compare_field_value(
+            field,
+            our_value,
+            their_value,
+            our_schema=our_schema,
+            their_schema=their_schema,
+            context=context,
+        )
 
     @classmethod
     def compare_values(
@@ -1063,10 +1088,7 @@ class Array(
         st = next(iter(subtypes))
 
         if name is None:
-            dimensions = typemods[0]
-            tid = generate_array_type_id(schema, subtypes[0], dimensions)
-            name = type_name_from_id_and_displayname(
-                tid, f'array<{st.get_displayname(schema)}>')
+            name = '__unresolved__'
 
         return ArrayTypeShell(
             subtype=st,
@@ -1109,7 +1131,7 @@ class Array(
     ) -> Union[DeleteArray, DeleteArrayExprAlias]:
         cmd: Union[DeleteArray, DeleteArrayExprAlias]
         if view_name is None:
-            cmd = DeleteArray(classname=self.get_name(schema))
+            cmd = DeleteArray(classname=self.get_name(schema), if_unused=True)
         else:
             cmd = DeleteArrayExprAlias(classname=view_name)
 
@@ -1129,12 +1151,21 @@ class ArrayTypeShell(CollectionTypeShell):
         name: str,
         expr: Optional[str] = None,
         subtype: TypeShell,
-        typemods: Any = None,
+        typemods: typing.Tuple[typing.Any, ...],
         schemaclass: typing.Type[Array] = Array,
     ) -> None:
         super().__init__(name=name, schemaclass=schemaclass, expr=expr)
         self.subtype = subtype
         self.typemods = typemods
+
+    def get_name(self, schema: s_schema.Schema) -> str:
+        if self.name == '__unresolved__':
+            typemods = self.typemods
+            dimensions = typemods[0]
+            tid = generate_array_type_id(schema, self.subtype, dimensions)
+            self.name = type_name_from_id_and_displayname(
+                tid, f'array<{self.subtype.get_displayname(schema)}>')
+        return self.name
 
     def get_subtypes(
         self,
@@ -1146,12 +1177,13 @@ class ArrayTypeShell(CollectionTypeShell):
         return f'array<{self.subtype.get_displayname(schema)}>'
 
     def get_id(self, schema: s_schema.Schema) -> uuid.UUID:
-        stable_type_id = type_id_from_name(self.name)
+        name = self.get_name(schema)
+        stable_type_id = type_id_from_name(name)
         if stable_type_id is not None:
             return stable_type_id
 
-        dimensions = self.typemods[0] if self.typemods is not None else [-1]
-        quals = [self.name]
+        dimensions = self.typemods[0]
+        quals = [name]
         if self.expr is not None:
             quals.append(self.expr)
         return generate_array_type_id(
@@ -1176,7 +1208,7 @@ class ArrayTypeShell(CollectionTypeShell):
         type_id = self.get_id(schema)
         if view_name is None:
             ca = CreateArray(
-                classname=self.name,
+                classname=self.get_name(schema),
                 if_not_exists=True,
             )
         else:
@@ -1193,8 +1225,7 @@ class ArrayTypeShell(CollectionTypeShell):
         ca.set_attribute_value('name', ca.classname)
         ca.set_attribute_value('element_type', el)
         ca.set_attribute_value('is_persistent', True)
-        if self.typemods:
-            ca.set_attribute_value('dimensions', self.typemods[0])
+        ca.set_attribute_value('dimensions', self.typemods[0])
 
         if attrs:
             for k, v in attrs.items():
@@ -1405,13 +1436,8 @@ class Tuple(
         typemods: Any = None,
         name: Optional[str] = None,
     ) -> TupleTypeShell:
-        named = typemods is not None and typemods.get('named', False)
         if name is None:
-            tid = generate_tuple_type_id(schema, subtypes, named)
-            st_names = ', '.join(
-                st.get_displayname(schema) for st in subtypes.values()
-            )
-            name = type_name_from_id_and_displayname(tid, f'tuple<{st_names}>')
+            name = '__unresolved__'
 
         return TupleTypeShell(
             subtypes=subtypes,
@@ -1627,6 +1653,7 @@ class Tuple(
         if view_name is None:
             cmd = DeleteTuple(
                 classname=self.get_name(schema),
+                if_unused=True,
             )
         else:
             cmd = DeleteTupleExprAlias(
@@ -1656,6 +1683,19 @@ class TupleTypeShell(CollectionTypeShell):
         self.subtypes = subtypes
         self.typemods = typemods
 
+    def get_name(self, schema: s_schema.Schema) -> str:
+        if self.name == '__unresolved__':
+            typemods = self.typemods
+            subtypes = self.subtypes
+            named = typemods is not None and typemods.get('named', False)
+            tid = generate_tuple_type_id(schema, subtypes, named)
+            st_names = ', '.join(
+                st.get_displayname(schema) for st in subtypes.values()
+            )
+            name = type_name_from_id_and_displayname(tid, f'tuple<{st_names}>')
+            self.name = name
+        return self.name
+
     def get_displayname(self, schema: s_schema.Schema) -> str:
         st_names = ', '.join(st.get_displayname(schema)
                              for st in self.get_subtypes(schema))
@@ -1677,13 +1717,14 @@ class TupleTypeShell(CollectionTypeShell):
         return self.typemods is not None and self.typemods.get('named', False)
 
     def get_id(self, schema: s_schema.Schema) -> uuid.UUID:
-        stable_type_id = type_id_from_name(self.name)
+        name = self.get_name(schema)
+        stable_type_id = type_id_from_name(name)
         if stable_type_id is not None:
             return stable_type_id
 
         named = self.is_named()
 
-        quals = [self.name]
+        quals = [name]
         if self.expr is not None:
             quals.append(self.expr)
 
@@ -1704,7 +1745,7 @@ class TupleTypeShell(CollectionTypeShell):
         type_id = self.get_id(schema)
         if view_name is None:
             ct = CreateTuple(
-                classname=self.name,
+                classname=self.get_name(schema),
                 if_not_exists=True,
             )
         else:
@@ -2058,72 +2099,55 @@ class DeleteArrayExprAlias(DeleteCollectionExprAlias[ArrayExprAlias],
     pass
 
 
-def ensure_schema_collection(
+def materialize_type_in_attribute(
     schema: s_schema.Schema,
-    coll_type: TypeShell,
-    parent_cmd: sd.Command,
-    *,
-    src_context: Optional[parsing.ParserContext] = None,
     context: sd.CommandContext,
-) -> Optional[sd.Command]:
-    if not isinstance(coll_type, CollectionTypeShell):
-        raise AssertionError(f'{coll_type!r} is not a collection type shell')
+    cmd: sd.Command,
+    attrname: str,
+) -> s_schema.Schema:
+    assert isinstance(cmd, sd.ObjectCommand)
 
-    delta_root = context.top().op
-    assert isinstance(delta_root, sd.DeltaRoot)
-    cmd: Optional[sd.Command] = None
+    type_ref = cmd.get_local_attribute_value(attrname)
+    if type_ref is None:
+        return schema
 
-    coll_id = coll_type.get_id(schema)
+    srcctx = cmd.get_attribute_source_context('target')
 
-    if (schema.get_by_id(coll_id, None) is None
-            and coll_id not in delta_root.new_types):
-        cmd = coll_type.as_create_delta(schema)
-        if isinstance(parent_cmd, sd.DeltaRoot):
-            parent_cmd.add(cmd)
-        else:
-            parent_cmd.add_prerequisite(cmd)
+    if isinstance(type_ref, TypeExprShell):
+        cc_cmd = ensure_schema_type_expr_type(
+            schema,
+            type_ref,
+            parent_cmd=cmd,
+            src_context=srcctx,
+            context=context,
+        )
+        if cc_cmd is not None:
+            schema = cc_cmd.apply(schema, context)
 
-        delta_root.new_types.add(coll_id)
+    if isinstance(type_ref, CollectionTypeShell):
+        make_coll = type_ref.as_create_delta(schema)
+        cmd.add_prerequisite(make_coll)
+        schema = make_coll.apply(schema, context)
 
-    if coll_id in delta_root.deleted_types:
-        # Revert the deletion decision.
-        del_cmd = delta_root.deleted_types.pop(coll_id)
-        delta_root.discard(del_cmd)
+    if isinstance(type_ref, TypeShell):
+        try:
+            type_ref.resolve(schema)
+        except errors.InvalidReferenceError as e:
+            refname = type_ref.get_refname(schema)
+            if refname is not None:
+                utils.enrich_schema_lookup_error(
+                    e,
+                    refname,
+                    modaliases=context.modaliases,
+                    schema=schema,
+                    item_type=Type,
+                    context=srcctx,
+                )
+            raise
+    elif not isinstance(type_ref, Type):
+        raise AssertionError(
+            f'unexpected value in type attribute {attrname!r} of '
+            f'{cmd.get_verbosename()}: {type_ref!r}'
+        )
 
-    return cmd
-
-
-def cleanup_schema_collection(
-    schema: s_schema.Schema,
-    coll_type: Type,
-    parent: so.Object,
-    parent_cmd: sd.Command,
-    *,
-    src_context: Optional[parsing.ParserContext] = None,
-    context: sd.CommandContext,
-) -> None:
-    if context.canonical:
-        return
-
-    if not isinstance(coll_type, Collection):
-        raise ValueError(
-            f'{coll_type.get_displayname(schema)} is not a collection')
-
-    if coll_type.get_builtin(schema):
-        # Never attempt to drop collections derived from builtin
-        # schema.
-        return
-
-    delta_root = context.top().op
-    assert isinstance(delta_root, sd.DeltaRoot)
-
-    if coll_type.id in delta_root.deleted_types:
-        return
-
-    refs = schema.get_referrers(coll_type)
-    if (len(refs) == 1 and list(refs)[0].id == parent.id
-            and coll_type.id not in delta_root.deleted_types):
-        # The parent is the last user of this collection, drop it.
-        del_cmd = coll_type.as_colltype_delete_delta(schema)
-        delta_root.deleted_types[coll_type.id] = del_cmd
-        delta_root.add(del_cmd)
+    return schema

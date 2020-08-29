@@ -4010,6 +4010,36 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
+    def test_schema_migrations_equivalence_collections_23(self):
+        self._assert_migration_equivalence([r"""
+            scalar type MyScalar extending str;
+
+            type User {
+                required property tup -> tuple<x:MyScalar>;
+            };
+        """, r"""
+            scalar type MyScalar extending str;
+
+            type User {
+                required property tup -> array<x:MyScalar>;
+            };
+        """])
+
+    def test_schema_migrations_equivalence_collections_24(self):
+        self._assert_migration_equivalence([r"""
+            scalar type MyScalar extending str;
+
+            type User {
+                required property arr -> array<x:MyScalar>;
+            };
+        """, r"""
+            scalar type MyScalar extending str;
+
+            type User {
+                required property arr -> tuple<x:MyScalar>;
+            };
+        """])
+
 
 class TestDescribe(tb.BaseSchemaLoadTest):
     """Test the DESCRIBE command."""
