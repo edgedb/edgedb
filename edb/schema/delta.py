@@ -1577,6 +1577,10 @@ class ObjectCommand(
         mcls = self.get_schema_metaclass()
         return mcls.get_verbosename_static(self.classname)
 
+    def get_displayname(self) -> str:
+        mcls = self.get_schema_metaclass()
+        return mcls.get_displayname_static(self.classname)
+
     @overload
     def get_object(
         self,

@@ -2138,3 +2138,151 @@ class TestInsert(tb.QueryTestCase):
             r'''SELECT count(DISTINCT test::Person.notes)''',
             [4],
         )
+
+    async def test_edgeql_insert_dependent_07(self):
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.QueryError,
+                    "invalid mutation in a shape computable"):
+                await self.con.execute(
+                    r"""
+                        WITH MODULE test
+                        SELECT Person {
+                            name,
+                            foo := (
+                                INSERT Note {name := 'NoteDep07'}
+                            ) {
+                                name,
+                            }
+                        };
+                    """
+                )
+
+    async def test_edgeql_insert_dependent_08(self):
+        await self.con.execute(r"""
+            WITH MODULE test
+            INSERT Person {
+                name := 'PersonDep08'
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH
+                    MODULE test,
+                    foo := (
+                        INSERT Note {name := 'NoteDep08'}
+                    )
+                SELECT Person {
+                    name,
+                    foo := foo {
+                        name,
+                    }
+                };
+            """,
+            [
+                {
+                    'name': 'PersonDep08',
+                    'foo': {
+                        'name': 'NoteDep08',
+                    },
+                },
+            ]
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT Person {
+                    name,
+                    notes: {
+                        name,
+                    }
+                };
+            """,
+            [
+                {
+                    'name': 'PersonDep08',
+                    'notes': [],
+                },
+            ]
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT Note {
+                    name,
+                };
+            """,
+            [
+                {
+                    'name': 'NoteDep08',
+                },
+            ]
+        )
+
+    async def test_edgeql_insert_dependent_09(self):
+        await self.con.execute(r"""
+            WITH MODULE test
+            INSERT Person {
+                name := 'PersonDep09'
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH
+                    MODULE test,
+                    foo := (
+                        INSERT Note {name := 'NoteDep09'}
+                    )
+                SELECT Person {
+                    name,
+                    # Fake having an actual linked Note
+                    notes := foo {
+                        name,
+                    }
+                };
+            """,
+            [
+                {
+                    'name': 'PersonDep09',
+                    'notes': [{
+                        'name': 'NoteDep09',
+                    }],
+                },
+            ]
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT Person {
+                    name,
+                    notes: {
+                        name,
+                    }
+                };
+            """,
+            [
+                {
+                    'name': 'PersonDep09',
+                    'notes': [],
+                },
+            ]
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT Note {
+                    name,
+                };
+            """,
+            [
+                {
+                    'name': 'NoteDep09',
+                },
+            ]
+        )

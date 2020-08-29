@@ -818,6 +818,29 @@ def init_stmt(
         irstmt: irast.Stmt, qlstmt: qlast.Statement, *,
         ctx: context.ContextLevel, parent_ctx: context.ContextLevel) -> None:
 
+    if isinstance(irstmt, irast.MutatingStmt):
+        # This is some kind of mutation, so we need to check if it is
+        # allowed.
+        if ctx.env.options.in_ddl_context_name is not None:
+            raise errors.SchemaDefinitionError(
+                f'invalid mutation in {ctx.env.options.in_ddl_context_name}',
+                context=qlstmt.context,
+            )
+        elif ((dv := ctx.defining_view) is not None and
+                dv.get_expr_type(ctx.env.schema) is s_types.ExprType.Select and
+                not ctx.env.options.allow_top_level_shape_dml):
+            # This is some shape in a regular query. Although
+            # DML is not allowed in the computable, but it may
+            # be possible to refactor it.
+            raise errors.QueryError(
+                f'invalid mutation in a shape computable',
+                hint=(
+                    f'To resolve this try to factor out the mutation '
+                    f'expression into the top-level WITH block.'
+                ),
+                context=qlstmt.context,
+            )
+
     ctx.stmt = irstmt
     if ctx.toplevel_stmt is None:
         parent_ctx.toplevel_stmt = ctx.toplevel_stmt = irstmt

@@ -460,13 +460,13 @@ class ContextLevel(compiler.ContextLevel):
     """Whether to include the type id property in object shapes implicitly."""
 
     implicit_limit: int
-    """Implicit LIMIT clause in SELECT statments."""
+    """Implicit LIMIT clause in SELECT statements."""
 
     inhibit_implicit_limit: bool
     """Whether implicit limit injection should be inhibited."""
 
     special_computables_in_mutation_shape: FrozenSet[str]
-    """A set of "special" compiutable pointers allowed in mutation shape."""
+    """A set of "special" computable pointers allowed in mutation shape."""
 
     empty_result_type_hint: Optional[s_types.Type]
     """Type to use if the statement result expression is an empty set ctor."""
