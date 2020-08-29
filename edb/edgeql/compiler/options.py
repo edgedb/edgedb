@@ -66,6 +66,14 @@ class GlobalCompilerOptions:
     #: definitions.
     func_params: Optional[s_func.ParameterLikeList] = None
 
+    #: The name that can be used in a "DML is disallowed in ..."
+    #: error. When this is not None, any DML should cause an error.
+    in_ddl: Optional[str] = None
+
+    #: The query comes from compiling GraphQL, so it may contain DML
+    #: in the top-level shape computables.
+    from_graphql: bool = False
+
 
 @dataclass
 class CompilerOptions(GlobalCompilerOptions):

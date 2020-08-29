@@ -1663,21 +1663,22 @@ class TestUpdate(tb.QueryTestCase):
 
     async def test_edgeql_update_cardinality_02(self):
         await self.assert_query_result(r'''
-            WITH MODULE test
+            WITH
+                MODULE test,
+                x1 := (
+                    UPDATE UpdateTest
+                    FILTER .name = 'update-test1'
+                    SET {
+                        status := (
+                            SELECT Status
+                            # the ID is non-existent
+                            FILTER .id = <uuid>
+                                '10000000-aaaa-bbbb-cccc-d00000000000'
+                        )
+                    }
+                )
             SELECT stdgraphql::Query {
                 multi x0 := (
-                    WITH x1 := (
-                        UPDATE UpdateTest
-                        FILTER .name = 'update-test1'
-                        SET {
-                            status := (
-                                SELECT Status
-                                # the ID is non-existent
-                                FILTER .id = <uuid>
-                                    '10000000-aaaa-bbbb-cccc-d00000000000'
-                            )
-                        }
-                    )
                     SELECT x1 {
                         name,
                         status: {

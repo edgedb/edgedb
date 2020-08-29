@@ -113,6 +113,7 @@ class AliasCommand(
                 result_view_name=classname,
                 modaliases=context.modaliases,
                 schema_view_mode=True,
+                in_ddl='alias definition',
             ),
         )
 

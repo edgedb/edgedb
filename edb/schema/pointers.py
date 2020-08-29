@@ -896,6 +896,8 @@ class PointerCommandOrFragment(
 
         source = schema.get(source_name, type=s_objtypes.ObjectType)
 
+        ptr_name = sn.shortname_from_fullname(
+            self.get_attribute_value('name')).name
         expression = s_expr.Expression.compiled(
             s_expr.Expression.from_ast(expr, schema, context.modaliases),
             schema=schema,
@@ -904,6 +906,7 @@ class PointerCommandOrFragment(
                 anchors={qlast.Source().name: source},
                 path_prefix_anchor=qlast.Source().name,
                 singletons=frozenset([source]),
+                in_ddl=f'computable {ptr_name!r}',
             ),
         )
 
@@ -957,8 +960,6 @@ class PointerCommandOrFragment(
             spec_card = self.scls.get_cardinality(schema)
 
         if spec_required and not required:
-            ptr_name = sn.shortname_from_fullname(
-                self.get_attribute_value('name')).name
             srcctx = self.get_attribute_source_context('target')
             raise errors.SchemaDefinitionError(
                 f'possibly an empty set returned by an '
@@ -972,8 +973,6 @@ class PointerCommandOrFragment(
             spec_card in {None, qltypes.SchemaCardinality.ONE} and
             card is not qltypes.SchemaCardinality.ONE
         ):
-            ptr_name = sn.shortname_from_fullname(
-                self.get_attribute_value('name')).name
             srcctx = self.get_attribute_source_context('target')
             raise errors.SchemaDefinitionError(
                 f'possibly more than one element returned by an '

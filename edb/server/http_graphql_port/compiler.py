@@ -98,6 +98,7 @@ class Compiler(compiler.BaseCompiler):
             schema=db.schema,
             options=qlcompiler.CompilerOptions(
                 json_parameters=True,
+                from_graphql=True,
             ),
         )
 

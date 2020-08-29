@@ -613,6 +613,8 @@ def _normalize_view_ptr_expr(
                 is_update=is_update,
             )
 
+            # Mutation shapes don't obey the same rules as select shapes.
+            shape_expr_ctx.in_shape = not is_mutation
             shape_expr_ctx.defining_view = view_scls
             shape_expr_ctx.path_scope.unnest_fence = True
             shape_expr_ctx.partial_path_prefix = setgen.class_set(

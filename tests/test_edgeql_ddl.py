@@ -1431,6 +1431,115 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             """)
 
+    async def test_edgeql_ddl_bad_07(self):
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                r"invalid mutation in computable 'foo'"):
+            async with self.con.transaction():
+                await self.con.execute(r"""
+                    CREATE TYPE test::Foo;
+
+                    CREATE TYPE test::Bar {
+                        CREATE LINK foo := (INSERT test::Foo);
+                    };
+                """)
+
+    async def test_edgeql_ddl_bad_08(self):
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                r"invalid mutation in computable 'foo'"):
+            async with self.con.transaction():
+                await self.con.execute(r"""
+                    CREATE TYPE test::Foo;
+
+                    CREATE TYPE test::Bar {
+                        CREATE LINK foo := (
+                            WITH x := (INSERT test::Foo)
+                            SELECT x
+                        );
+                    };
+                """)
+
+    async def test_edgeql_ddl_bad_09(self):
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                r"invalid mutation in computable 'foo'"):
+            async with self.con.transaction():
+                await self.con.execute(r"""
+                    CREATE TYPE test::Foo;
+
+                    CREATE TYPE test::Bar {
+                        CREATE PROPERTY foo := (INSERT test::Foo).id;
+                    };
+                """)
+
+    async def test_edgeql_ddl_bad_10(self):
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                r"invalid mutation in alias definition"):
+            async with self.con.transaction():
+                await self.con.execute(r"""
+                    CREATE TYPE test::Foo;
+                    CREATE TYPE test::Bar;
+
+                    CREATE ALIAS test::Baz := test::Bar {
+                        foo := (INSERT test::Foo)
+                    };
+                """)
+
+    async def test_edgeql_ddl_bad_11(self):
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                r"invalid mutation in alias definition"):
+            async with self.con.transaction():
+                await self.con.execute(r"""
+                    CREATE TYPE test::Foo;
+                    CREATE TYPE test::Bar;
+
+                    CREATE ALIAS test::Baz := test::Bar {
+                        foo := (INSERT test::Foo).id
+                    };
+                """)
+
+    async def test_edgeql_ddl_bad_12(self):
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                r"invalid mutation in alias definition"):
+            async with self.con.transaction():
+                await self.con.execute(r"""
+                    CREATE TYPE test::Foo;
+                    CREATE TYPE test::Bar {
+                        CREATE LINK foo -> test::Foo;
+                    };
+
+                    CREATE ALIAS test::Baz := test::Bar {
+                        foo: {
+                            fuz := (INSERT test::Foo)
+                        }
+                    };
+                """)
+
+    async def test_edgeql_ddl_bad_13(self):
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                r"invalid mutation in alias definition"):
+            async with self.con.transaction():
+                await self.con.execute(r"""
+                    CREATE TYPE test::Foo;
+                    CREATE TYPE test::Bar {
+                        CREATE LINK foo -> test::Foo;
+                    };
+
+                    CREATE ALIAS test::Baz := (
+                        WITH x := (INSERT test::Foo)
+                        SELECT test::Bar {
+                            foo: {
+                                fuz := x
+                            }
+                        }
+                    );
+                """)
+
     async def test_edgeql_ddl_link_bad_01(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
@@ -1474,7 +1583,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     };
                 """)
 
-    async def test_edgeql_ddl_prop_bad_01(self):
+    async def test_edgeql_ddl_property_bad_01(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
                 f'link or property name length exceeds the maximum'):
