@@ -333,6 +333,9 @@ def compile_InsertQuery(
             context=expr.context,
         )
 
+    # Record this node in the list of potential DML expressions.
+    ctx.env.dml_exprs.append(expr)
+
     with ctx.subquery() as ictx:
         stmt = irast.InsertStmt()
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
@@ -416,6 +419,9 @@ def compile_UpdateQuery(
             context=expr.context,
         )
 
+    # Record this node in the list of potential DML expressions.
+    ctx.env.dml_exprs.append(expr)
+
     with ctx.subquery() as ictx:
         stmt = irast.UpdateStmt()
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
@@ -483,6 +489,9 @@ def compile_DeleteQuery(
             'DELETE statements cannot be used inside conditional expressions',
             context=expr.context,
         )
+
+    # Record this node in the list of potential DML expressions.
+    ctx.env.dml_exprs.append(expr)
 
     with ctx.subquery() as ictx:
         stmt = irast.DeleteStmt()

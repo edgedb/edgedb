@@ -985,6 +985,9 @@ class Function(CallableObject, VolatilitySubject, s_abc.Function,
     session_only = so.SchemaField(
         bool, default=False, compcoef=0.4, coerce=True, allow_ddl_set=True)
 
+    has_dml = so.SchemaField(
+        bool, default=False, allow_ddl_set=True, introspectable=False)
+
     def has_inlined_defaults(self, schema: s_schema.Schema) -> bool:
         # This can be relaxed to just `language is EdgeQL` when we
         # support non-constant defaults.
@@ -1137,6 +1140,11 @@ class FunctionCommand(
         ir = compiled.irast
         assert isinstance(ir, irast.Statement)
         schema = ir.schema
+
+        if ir.dml_exprs:
+            # DML inside function body detected. Right now is a good
+            # opportunity to raise exceptions or give warnings.
+            self.set_attribute_value('has_dml', True)
 
         return_type = self._get_attribute_value(schema, context, 'return_type')
         if (not ir.stype.issubclass(schema, return_type)

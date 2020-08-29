@@ -449,6 +449,7 @@ class Statement(Command):
                                          compiler.ContextLevel,
                                          PathId,
                                          typing.Optional[WeakNamespace]]]
+    dml_exprs: typing.List[qlast.Base]
 
 
 class TypeIntrospection(ImmutableExpr):

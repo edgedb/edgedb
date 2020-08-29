@@ -228,6 +228,11 @@ class Environment:
     ptr_ref_cache: PointerRefCache
     type_ref_cache: Dict[irtyputils.TypeRefCacheKey, irast.TypeRef]
 
+    dml_exprs: List[qlast.Base]
+    """A list of DML expressions (statements and DML-containing
+    functions) that appear in a function body.
+    """
+
     def __init__(
         self,
         *,
@@ -256,6 +261,7 @@ class Environment:
         self.created_schema_objects = set()
         self.ptr_ref_cache = PointerRefCache()
         self.type_ref_cache = {}
+        self.dml_exprs = []
 
     @overload
     def get_track_schema_object(  # NoQA: F811
