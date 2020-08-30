@@ -152,6 +152,7 @@ class SchemaObjectClass(s_enum.StrEnum):
     CONSTRAINT = 'CONSTRAINT'
     DATABASE = 'DATABASE'
     FUNCTION = 'FUNCTION'
+    INDEX = 'INDEX'
     LINK = 'LINK'
     MIGRATION = 'MIGRATION'
     MODULE = 'MODULE'

@@ -25,6 +25,7 @@ from edb import errors
 from edb.common import ast
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
+from edb.edgeql import qltypes
 
 from . import abc as s_abc
 from . import annos as s_anno
@@ -41,7 +42,11 @@ if TYPE_CHECKING:
     from . import types as s_types
 
 
-class Index(referencing.ReferencedInheritingObject, s_anno.AnnotationSubject):
+class Index(
+    referencing.ReferencedInheritingObject,
+    s_anno.AnnotationSubject,
+    qlkind=qltypes.SchemaObjectClass.INDEX,
+):
 
     subject = so.SchemaField(so.Object)
 
