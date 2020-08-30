@@ -791,9 +791,8 @@ def get_path_output(
         ptr_info: Optional[pg_types.PointerStorageInfo]=None,
         env: context.Environment) -> pgast.OutputVar:
 
-    view_path_id_map = getattr(rel, 'view_path_id_map', None)
-    if view_path_id_map:
-        path_id = map_path_id(path_id, view_path_id_map)
+    if isinstance(rel, pgast.Query):
+        path_id = map_path_id(path_id, rel.view_path_id_map)
 
     return _get_path_output(rel, path_id=path_id, aspect=aspect,
                             ptr_info=ptr_info, allow_nullable=allow_nullable,
@@ -959,6 +958,7 @@ def get_path_serialized_output(
     # must be kept outside of get_path_output() generic.
     aspect = 'serialized'
 
+    path_id = map_path_id(path_id, rel.view_path_id_map)
     result = rel.path_outputs.get((path_id, aspect))
     if result is not None:
         return result
