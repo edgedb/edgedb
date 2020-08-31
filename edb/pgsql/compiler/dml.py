@@ -309,12 +309,44 @@ def wrap_dml_cte(
     return dml_rvar
 
 
-def merge_iterator_scope(iter: Optional[pgast.IteratorCTE],
+def merge_iterator_scope(iterator: Optional[pgast.IteratorCTE],
                          select: pgast.SelectStmt,
                          *, ctx: context.CompilerContextLevel) -> None:
-    while iter:
-        ctx.path_scope[iter.path_id] = select
-        iter = iter.parent
+    while iterator:
+        ctx.path_scope[iterator.path_id] = select
+        iterator = iterator.parent
+
+
+def merge_iterator(iterator: Optional[pgast.IteratorCTE],
+                   select: pgast.SelectStmt,
+                   *,
+                   unmask: bool = False,
+                   put_path_bond: bool = True,
+                   ctx: context.CompilerContextLevel) -> None:
+    merge_iterator_scope(iterator, select, ctx=ctx)
+
+    while iterator:
+        iterator_rvar = relctx.rvar_for_rel(iterator.cte, ctx=ctx)
+
+        if put_path_bond:
+            pathctx.put_path_bond(select, iterator.path_id)
+        relctx.include_rvar(
+            select, iterator_rvar,
+            path_id=iterator.path_id,
+            overwrite_path_rvar=True,
+            ctx=ctx)
+        # We need nested iterators to re-export their enclosing
+        # iterators in some cases that the path_id_mask blocks
+        # otherwise.
+        select.path_id_mask.discard(iterator.path_id)
+
+        # DML pseudo iterators can't output the values from their
+        # surrounding iterators, since all they have to work with is
+        # their __edb_token, so we need to keep going up and including
+        # things.
+        if not iterator.is_dml_pseudo_iterator:
+            break
+        iterator = iterator.parent
 
 
 def fini_dml_stmt(
@@ -397,18 +429,7 @@ def get_dml_range(
             if stmt is ctx.rel or path_id == ir_stmt.subject.path_id:
                 scopectx.path_scope[path_id] = range_stmt
 
-        if ctx.enclosing_cte_iterator:
-            iterator = ctx.enclosing_cte_iterator
-            iterator_rvar = relctx.rvar_for_rel(iterator.cte, ctx=subctx)
-
-            pathctx.put_path_bond(subctx.rel, iterator.path_id)
-            relctx.include_rvar(
-                subctx.rel, iterator_rvar,
-                path_id=iterator.path_id,
-                overwrite_path_rvar=True,
-                ctx=subctx)
-
-            merge_iterator_scope(iterator, range_stmt, ctx=subctx)
+        merge_iterator(ctx.enclosing_cte_iterator, range_stmt, ctx=subctx)
 
         dispatch.visit(target_ir_set, ctx=subctx)
 
@@ -441,21 +462,10 @@ def compile_iterator_ctes(
         with ctx.newrel() as sctx, sctx.newscope() as ictx:
             ictx.path_scope[iterator_set.path_id] = ictx.rel
 
-            # If there is an enclosing insert *and* an explicit iterator,
-            # we need to correlate the enclosing insert with the iterator.
+            # Correlate with enclosing iterators
+            merge_iterator(last_iterator, ictx.rel, unmask=True, ctx=ictx)
             if last_iterator is not None:
-                last_iterator_rvar = relctx.rvar_for_rel(
-                    last_iterator.cte, ctx=ictx)
-
-                pathctx.put_path_bond(ictx.rel, last_iterator.path_id)
-                relctx.include_rvar(
-                    ictx.rel, last_iterator_rvar,
-                    path_id=last_iterator.path_id,
-                    overwrite_path_rvar=True,
-                    ctx=ictx)
-
-                merge_iterator_scope(last_iterator, ictx.rel, ctx=ictx)
-
+                # XXX: Should we move this into merge_iterator
                 ictx.volatility_ref = pathctx.get_path_identity_var(
                     ictx.rel,
                     last_iterator.path_id,
@@ -508,19 +518,11 @@ def process_insert_body(
     insert_stmt.cols = cols
     insert_stmt.select_stmt = select
 
-    iterator_id: Optional[pgast.BaseExpr]
+    iterator_id: Optional[pgast.BaseExpr] = None
     iterator = ctx.enclosing_cte_iterator
     if iterator is not None:
+        # XXX: THAT PATH BOND????
         pathctx.put_path_bond(insert_stmt, iterator.path_id)
-        iterator_rvar = relctx.rvar_for_rel(iterator.cte, ctx=ctx)
-        relctx.include_rvar(select, iterator_rvar,
-                            path_id=iterator.path_id, ctx=ctx)
-
-        iterator_id = relctx.get_path_var(
-            select, iterator.path_id,
-            aspect='identity', ctx=ctx)
-    else:
-        iterator_id = None
 
     typeref = ir_stmt.subject.typeref
     if typeref.material_type is not None:
@@ -545,7 +547,11 @@ def process_insert_body(
 
         if iterator is not None:
             subctx.path_scope = ctx.path_scope.new_child()
-            merge_iterator_scope(iterator, select, ctx=subctx)
+            # XXX: path_bond false??
+            merge_iterator(iterator, select, ctx=subctx)
+            iterator_id = relctx.get_path_var(
+                select, iterator.path_id,
+                aspect='identity', ctx=ctx)
 
         # Process the Insert IR and separate links that go
         # into the main table from links that are inserted into
@@ -1304,23 +1310,18 @@ def process_link_values(
     with ctx.newscope() as newscope, newscope.newrel() as subrelctx:
         subrelctx.enclosing_cte_iterator = pgast.IteratorCTE(
             path_id=ir_stmt.subject.path_id, cte=dml_cte,
-            parent=subrelctx.enclosing_cte_iterator)
+            parent=iterator,
+            is_dml_pseudo_iterator=True)
         row_query = subrelctx.rel
 
         relctx.include_rvar(row_query, dml_rvar,
                             path_id=ir_stmt.subject.path_id, ctx=subrelctx)
         subrelctx.path_scope[ir_stmt.subject.path_id] = row_query
 
-        if iterator is not None:
-            iterator_rvar = relctx.rvar_for_rel(
-                iterator.cte, lateral=True, ctx=subrelctx)
-            relctx.include_rvar(row_query, iterator_rvar,
-                                path_id=iterator.path_id,
-                                ctx=subrelctx)
+        merge_iterator(iterator, row_query, ctx=subrelctx)
 
         with subrelctx.newscope() as sctx, sctx.subrel() as input_rel_ctx:
             input_rel = input_rel_ctx.rel
-            merge_iterator_scope(iterator, row_query, ctx=input_rel_ctx)
             input_rel_ctx.expr_exposed = False
             input_rel_ctx.volatility_ref = pathctx.get_path_identity_var(
                 row_query, ir_stmt.subject.path_id, env=input_rel_ctx.env)

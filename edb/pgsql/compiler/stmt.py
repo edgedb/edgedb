@@ -32,7 +32,6 @@ from . import context
 from . import dispatch
 from . import dml
 from . import pathctx
-from . import relctx
 
 
 @dispatch.compile.register(irast.SelectStmt)
@@ -56,16 +55,8 @@ def compile_SelectStmt(
             # statements, we need to hoist the iterators into CTEs and
             # then explicitly join them back into the query.
             iterator = dml.compile_iterator_ctes(iterators, ctx=ctx)
-            if iterator is not None:
-                pathctx.put_path_bond(ctx.rel, iterator.path_id)
-
-                iterator_rvar = relctx.rvar_for_rel(iterator.cte, ctx=ctx)
-                relctx.include_rvar(ctx.rel, iterator_rvar,
-                                    path_id=iterator.path_id,
-                                    ctx=ctx)
-
-                ctx.path_scope = ctx.path_scope.new_child()
-                dml.merge_iterator_scope(iterator, ctx.rel, ctx=ctx)
+            ctx.path_scope = ctx.path_scope.new_child()
+            dml.merge_iterator(iterator, ctx.rel, ctx=ctx)
 
             ctx.enclosing_cte_iterator = iterator
 

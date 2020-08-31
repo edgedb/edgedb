@@ -824,3 +824,4 @@ class IteratorCTE(ImmutableBase):
     path_id: irast.PathId
     cte: CommonTableExpr
     parent: typing.Optional[IteratorCTE]
+    is_dml_pseudo_iterator: bool = False
