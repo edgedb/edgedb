@@ -57,18 +57,15 @@ def compile_SelectStmt(
             # then explicitly join them back into the query.
             iterator = dml.compile_iterator_ctes(iterators, ctx=ctx)
             if iterator is not None:
-                # XXX: put_path_bond?
-                pathctx.put_path_bond(ctx.rel, iterator.set.path_id)
+                pathctx.put_path_bond(ctx.rel, iterator.path_id)
 
                 iterator_rvar = relctx.rvar_for_rel(iterator.cte, ctx=ctx)
                 relctx.include_rvar(ctx.rel, iterator_rvar,
-                                    path_id=iterator.set.path_id,
+                                    path_id=iterator.path_id,
                                     ctx=ctx)
 
                 ctx.path_scope = ctx.path_scope.new_child()
-                ctx.path_scope[iterator.set.path_id] = ctx.rel
-                for id in iterator.all_ids:
-                    ctx.path_scope[id] = ctx.rel
+                dml.merge_iterator_scope(iterator, ctx.rel, ctx=ctx)
 
             ctx.enclosing_cte_iterator = iterator
 

@@ -820,8 +820,7 @@ class Set(ImmutableBaseExpr):
     value: BaseExpr
 
 
-class IteratorCTE(typing.NamedTuple):
-    # ... Do we really need the Set, or this at all?
-    set: irast.Set
+class IteratorCTE(ImmutableBase):
+    path_id: irast.PathId
     cte: CommonTableExpr
-    all_ids: typing.FrozenSet[irast.PathId]
+    parent: typing.Optional[IteratorCTE]

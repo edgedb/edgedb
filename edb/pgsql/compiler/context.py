@@ -161,7 +161,7 @@ class CompilerContextLevel(compiler.ContextLevel):
         ]
     ]
 
-    #: The ir statement and CTE of any enclosing iterator-like
+    #: The CTE and some metadata of any enclosing iterator-like
     #: construct (which includes iterators, insert/update, and INSERT
     #: ELSE select clauses) currently being compiled.
     enclosing_cte_iterator: Optional[pgast.IteratorCTE]
