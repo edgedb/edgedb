@@ -22,19 +22,18 @@ import os
 import os.path
 import pathlib
 import platform
-import re
 import shutil
 import subprocess
 import textwrap
+
+import setuptools
+from setuptools.command import develop as setuptools_develop
 
 import distutils
 from distutils import version
 from distutils import extension as distutils_extension
 from distutils.command import build as distutils_build
 from distutils.command import build_ext as distutils_build_ext
-
-import setuptools
-from setuptools.command import develop as setuptools_develop
 
 try:
     import setuptools_rust
