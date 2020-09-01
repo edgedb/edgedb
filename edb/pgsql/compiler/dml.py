@@ -476,7 +476,6 @@ def compile_iterator_ctes(
             # Correlate with enclosing iterators
             merge_iterator(last_iterator, ictx.rel, unmask=True, ctx=ictx)
             if last_iterator is not None:
-                # XXX: Should we move this into merge_iterator
                 ictx.volatility_ref = pathctx.get_path_identity_var(
                     ictx.rel,
                     last_iterator.path_id,
@@ -529,12 +528,6 @@ def process_insert_body(
     insert_stmt.cols = cols
     insert_stmt.select_stmt = select
 
-    iterator_id: Optional[pgast.BaseExpr] = None
-    iterator = ctx.enclosing_cte_iterator
-    if iterator is not None:
-        # XXX: THAT PATH BOND????
-        pathctx.put_path_bond(insert_stmt, iterator.path_id)
-
     typeref = ir_stmt.subject.typeref
     if typeref.material_type is not None:
         typeref = typeref.material_type
@@ -550,6 +543,9 @@ def process_insert_body(
 
     external_inserts = []
 
+    iterator_id: Optional[pgast.BaseExpr] = None
+    iterator = ctx.enclosing_cte_iterator
+
     with ctx.newrel() as subctx:
         subctx.rel = select
         subctx.rel_hierarchy[select] = insert_stmt
@@ -558,7 +554,6 @@ def process_insert_body(
 
         if iterator is not None:
             subctx.path_scope = ctx.path_scope.new_child()
-            # XXX: path_bond false??
             merge_iterator(iterator, select, ctx=subctx)
             iterator_id = relctx.get_path_var(
                 select, iterator.path_id,
