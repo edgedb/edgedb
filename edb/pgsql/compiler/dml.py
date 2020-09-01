@@ -309,18 +309,23 @@ def wrap_dml_cte(
     return dml_rvar
 
 
-def merge_iterator_scope(iterator: Optional[pgast.IteratorCTE],
-                         select: pgast.SelectStmt,
-                         *, ctx: context.CompilerContextLevel) -> None:
+def merge_iterator_scope(
+    iterator: Optional[pgast.IteratorCTE],
+    select: pgast.SelectStmt,
+    *,
+    ctx: context.CompilerContextLevel
+) -> None:
     while iterator:
         ctx.path_scope[iterator.path_id] = select
         iterator = iterator.parent
 
 
-def merge_iterator(iterator: Optional[pgast.IteratorCTE],
-                   select: pgast.SelectStmt,
-                   *,
-                   ctx: context.CompilerContextLevel) -> None:
+def merge_iterator(
+    iterator: Optional[pgast.IteratorCTE],
+    select: pgast.SelectStmt,
+    *,
+    ctx: context.CompilerContextLevel
+) -> None:
     merge_iterator_scope(iterator, select, ctx=ctx)
 
     while iterator:
