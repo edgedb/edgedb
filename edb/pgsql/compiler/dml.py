@@ -320,16 +320,13 @@ def merge_iterator_scope(iterator: Optional[pgast.IteratorCTE],
 def merge_iterator(iterator: Optional[pgast.IteratorCTE],
                    select: pgast.SelectStmt,
                    *,
-                   unmask: bool = False,
-                   put_path_bond: bool = True,
                    ctx: context.CompilerContextLevel) -> None:
     merge_iterator_scope(iterator, select, ctx=ctx)
 
     while iterator:
         iterator_rvar = relctx.rvar_for_rel(iterator.cte, ctx=ctx)
 
-        if put_path_bond:
-            pathctx.put_path_bond(select, iterator.path_id)
+        pathctx.put_path_bond(select, iterator.path_id)
         relctx.include_rvar(
             select, iterator_rvar,
             path_id=iterator.path_id,
@@ -474,7 +471,7 @@ def compile_iterator_ctes(
             ictx.path_scope[iterator_set.path_id] = ictx.rel
 
             # Correlate with enclosing iterators
-            merge_iterator(last_iterator, ictx.rel, unmask=True, ctx=ictx)
+            merge_iterator(last_iterator, ictx.rel, ctx=ictx)
             if last_iterator is not None:
                 ictx.volatility_ref = pathctx.get_path_identity_var(
                     ictx.rel,
