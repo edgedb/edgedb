@@ -2535,7 +2535,7 @@ class TestInsert(tb.QueryTestCase):
             ]
         )
 
-    async def test_edgeql_insert_dependent_08(self):
+    async def test_edgeql_insert_dependent_10(self):
         await self.con.execute(r"""INSERT test::Note { name := "foo" };""")
 
         query = r"""
