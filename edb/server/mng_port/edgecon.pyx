@@ -60,6 +60,7 @@ from edb.server import config
 
 from edb.server import buildmeta
 from edb.server import compiler
+from edb.server import defines as edbdef
 from edb.server.compiler import errormech
 from edb.server.pgcon cimport pgcon
 from edb.server.pgcon import errors as pgerror
@@ -263,6 +264,15 @@ cdef class EdgeConnection:
 
         logger.debug('received connection request by %s to database %s',
                      user, database)
+
+        if database == edbdef.EDGEDB_TEMPLATE_DB:
+            # Prevent connections to the system template database,
+            # which only purpose is to serve as a template for new
+            # databases.
+            raise errors.AccessError(
+                f'database {edbdef.EDGEDB_TEMPLATE_DB!r} does not '
+                f'accept connections'
+            )
 
         dbv = self.port.new_view(
             dbname=database, user=user,
