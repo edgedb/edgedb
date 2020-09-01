@@ -299,7 +299,7 @@ def run_server(args: ServerConfig):
                     cluster.set_connection_params(
                         pgconnparams.ConnectionParameters(
                             user=defines.EDGEDB_SUPERUSER,
-                            database=defines.EDGEDB_SUPERUSER_DB,
+                            database=defines.EDGEDB_TEMPLATE_DB,
                         ),
                     )
 

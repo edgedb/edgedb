@@ -92,6 +92,22 @@ async def _execute_block(conn, block: dbops.SQLBlock) -> None:
         await _execute(conn, stmt)
 
 
+async def _execute_edgeql_ddl(
+    schema: s_schema.Schema,
+    ddltext: str,
+    stdmode: bool = True,
+) -> s_schema.Schema:
+    context = sd.CommandContext(stdmode=stdmode)
+
+    for ddl_cmd in edgeql.parse_block(ddltext):
+        delta_command = s_ddl.delta_from_ddl(
+            ddl_cmd, modaliases={}, schema=schema, stdmode=stdmode)
+
+        schema = delta_command.apply(schema, context)
+
+    return schema
+
+
 async def _ensure_edgedb_role(
     cluster,
     conn,
@@ -214,17 +230,6 @@ async def _ensure_edgedb_template_database(cluster, conn):
                         edbdef.EDGEDB_SUPERUSER))
 
         return None
-
-
-async def _ensure_edgedb_template_not_connectable(conn):
-    result = await _get_db_info(conn, edbdef.EDGEDB_TEMPLATE_DB)
-    if result['datallowconn']:
-        await _execute(
-            conn,
-            f'''ALTER DATABASE {edbdef.EDGEDB_TEMPLATE_DB}
-                WITH ALLOW_CONNECTIONS = false
-            '''
-        )
 
 
 async def _store_static_bin_cache(cluster, key: str, data: bytes) -> None:
@@ -375,16 +380,9 @@ async def _make_stdlib(testmode: bool, global_ids) -> StdlibBits:
         f'''CREATE DATABASE {edbdef.EDGEDB_TEMPLATE_DB} {{
             SET id := <uuid>'{global_ids[edbdef.EDGEDB_TEMPLATE_DB]}'
         }};''',
-        f'CREATE DATABASE {edbdef.EDGEDB_SUPERUSER_DB};',
     ])
 
-    context = sd.CommandContext(stdmode=True)
-
-    for ddl_cmd in edgeql.parse_block(stdglobals):
-        delta_command = s_ddl.delta_from_ddl(
-            ddl_cmd, modaliases={}, schema=schema, stdmode=True)
-
-        schema = delta_command.apply(schema, context)
+    schema = await _execute_edgeql_ddl(schema, stdglobals)
 
     refldelta, classlayout, introparts = s_refl.generate_structure(schema)
     reflschema, reflplan = _process_delta(refldelta, schema)
@@ -1054,6 +1052,12 @@ async def bootstrap(cluster, args) -> bool:
             finally:
                 await conn.close()
 
+            schema = await _execute_edgeql_ddl(
+                schema,
+                f'CREATE DATABASE {edbdef.EDGEDB_SUPERUSER_DB}',
+                stdmode=False,
+            )
+
             superuser_db = schema.get_global(
                 s_db.Database, edbdef.EDGEDB_SUPERUSER_DB)
 
@@ -1062,12 +1066,11 @@ async def bootstrap(cluster, args) -> bool:
                 edbdef.EDGEDB_SUPERUSER_DB,
                 edbdef.EDGEDB_SUPERUSER,
                 cluster=cluster,
-                builtin=True,
                 objid=superuser_db.id,
             )
 
         else:
-            conn = await cluster.connect(database=edbdef.EDGEDB_SUPERUSER_DB)
+            conn = await cluster.connect(database=edbdef.EDGEDB_TEMPLATE_DB)
 
             try:
                 await _check_data_dir_compatibility(conn)
@@ -1078,8 +1081,6 @@ async def bootstrap(cluster, args) -> bool:
                 config.set_settings(config_spec)
             finally:
                 await conn.close()
-
-        await _ensure_edgedb_template_not_connectable(pgconn)
 
         await _ensure_edgedb_role(
             cluster,

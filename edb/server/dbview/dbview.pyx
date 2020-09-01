@@ -316,7 +316,7 @@ cdef class DatabaseIndex:
         return self._instance_data[key]
 
     async def reload_config(self):
-        conn = await self._server.new_pgcon(defines.EDGEDB_SUPERUSER_DB)
+        conn = await self._server.new_pgcon(defines.EDGEDB_TEMPLATE_DB)
 
         query = await self.get_sys_query(conn, 'config')
         try:

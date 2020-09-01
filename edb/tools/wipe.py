@@ -110,10 +110,10 @@ async def do_wipe(
 ) -> None:
 
     try:
-        pgconn = await cluster.connect(database=edbdef.EDGEDB_SUPERUSER_DB)
+        pgconn = await cluster.connect(database=edbdef.EDGEDB_TEMPLATE_DB)
     except asyncpg.InvalidCatalogNameError:
         click.secho(
-            f'Instance does not have the {edbdef.EDGEDB_SUPERUSER_DB!r} '
+            f'Instance does not have the {edbdef.EDGEDB_TEMPLATE_DB!r} '
             f'database. Is it already clean?'
         )
         return
