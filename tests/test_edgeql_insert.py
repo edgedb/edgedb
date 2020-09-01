@@ -2528,3 +2528,44 @@ class TestInsert(tb.QueryTestCase):
                 },
             ]
         )
+
+    async def test_edgeql_insert_dependent_08(self):
+        await self.con.execute(r"""INSERT test::Note { name := "foo" };""")
+
+        query = r"""
+            WITH MODULE test
+            FOR noob in {"foo", "bar"} UNION (
+                INSERT Person { name := noob,
+                                notes := (UPDATE Note FILTER .name = noob
+                                          SET { name := noob ++ "!"})
+                }
+                UNLESS CONFLICT
+            );
+        """
+
+        await self.con.execute(query)
+
+        await self.assert_query_result(
+            "SELECT test::Person { name, notes: {name} }",
+            [{"name": "foo",
+              "notes": [{"name": "foo!"}]},
+             {"name": "bar",
+              "notes": []}]
+        )
+
+        await self.con.execute(r"""INSERT test::Note { name := "bar" };""")
+
+        await self.con.execute(query)
+
+        await self.assert_query_result(
+            "SELECT test::Person { name, notes: {name} }",
+            [{"name": "foo",
+              "notes": [{"name": "foo!"}]},
+             {"name": "bar",
+              "notes": []}]
+        )
+
+        await self.assert_query_result(
+            "SELECT test::Note.name",
+            ["foo!", "bar"]
+        )

@@ -768,6 +768,9 @@ def process_update_body(
     update_stmt = update_cte.query
     assert isinstance(update_stmt, pgast.UpdateStmt)
 
+    if ctx.enclosing_cte_iterator:
+        pathctx.put_path_bond(update_stmt, ctx.enclosing_cte_iterator.path_id)
+
     external_updates = []
 
     with ctx.newscope() as subctx:
