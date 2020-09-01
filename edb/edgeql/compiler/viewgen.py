@@ -70,7 +70,7 @@ def process_view(
     ctx: context.ContextLevel,
 ) -> s_objtypes.ObjectType:
 
-    cache_key = (stype, tuple(elements))
+    cache_key = (stype, is_insert, is_update, is_delete, tuple(elements))
     view_scls = ctx.shape_type_cache.get(cache_key)
     if view_scls is not None:
         return view_scls
