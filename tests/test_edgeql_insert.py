@@ -1134,8 +1134,10 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             "SELECT test::Person { name, notes: {name} }",
-            [{"name": "Phil Emarg!", "notes": [{"name": "Phil Emarg"}]},
-             {"name": "Madeline Hatch!", "notes": [{"name": "Madeline Hatch"}]}],
+            [{"name": "Phil Emarg!",
+              "notes": [{"name": "Phil Emarg"}]},
+             {"name": "Madeline Hatch!",
+              "notes": [{"name": "Madeline Hatch"}]}],
         )
 
     async def test_edgeql_insert_for_16(self):
@@ -1153,9 +1155,11 @@ class TestInsert(tb.QueryTestCase):
             "SELECT test::Person { name, notes: {name} }",
             [
                 {"name": "Phil Emarg",
-                 "notes": [{"name": "Phil Emarg?"}, {"name": "Phil Emarg!"}]},
+                 "notes": [{"name": "Phil Emarg?"},
+                           {"name": "Phil Emarg!"}]},
                 {"name": "Madeline Hatch",
-                 "notes": [{"name": "Madeline Hatch?"}, {"name": "Madeline Hatch!"}]},
+                 "notes": [{"name": "Madeline Hatch?"},
+                           {"name": "Madeline Hatch!"}]},
             ],
         )
 
@@ -1176,9 +1180,11 @@ class TestInsert(tb.QueryTestCase):
             "SELECT test::Person { name, notes: {name} }",
             [
                 {"name": "Phil Emarg",
-                 "notes": [{"name": "Phil Emarg?"}, {"name": "Phil Emarg!"}]},
+                 "notes": [{"name": "Phil Emarg?"},
+                           {"name": "Phil Emarg!"}]},
                 {"name": "Madeline Hatch",
-                 "notes": [{"name": "Madeline Hatch?"}, {"name": "Madeline Hatch!"}]},
+                 "notes": [{"name": "Madeline Hatch?"},
+                           {"name": "Madeline Hatch!"}]},
             ],
         )
 
