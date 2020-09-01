@@ -169,6 +169,7 @@ def compile_ForQuery(
         # scope.
         iterator_scope_parent.factoring_allowlist.add(
             stmt.iterator_stmt.path_id)
+        sctx.iterator_path_ids |= {stmt.iterator_stmt.path_id}
         node = iterator_scope_parent.find_descendant(iterator_stmt.path_id)
         if node is not None:
             node.attach_subtree(iterator_scope)
@@ -864,6 +865,7 @@ def init_stmt(
 
     if isinstance(irstmt, irast.MutatingStmt):
         ctx.path_scope.factoring_fence = True
+        parent_ctx.path_scope.factoring_allowlist.update(ctx.iterator_path_ids)
         ctx.iterator_ctx = None
 
     irstmt.parent_stmt = parent_ctx.stmt

@@ -59,7 +59,7 @@ def find_children(node, test_func, *args, force_traversal=False,
 
                     if field_spec.child_traverse or force_traversal:
                         _n = _find_children(n, test_func)
-                        if _n is not None:
+                        if _n:
                             result.extend(_n)
                             if terminate_early:
                                 return result
@@ -76,7 +76,7 @@ def find_children(node, test_func, *args, force_traversal=False,
 
                 if field_spec.child_traverse or force_traversal:
                     _n = _find_children(value, test_func)
-                    if _n is not None:
+                    if _n:
                         result.extend(_n)
                         if terminate_early:
                             return result

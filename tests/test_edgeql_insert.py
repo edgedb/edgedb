@@ -940,6 +940,254 @@ class TestInsert(tb.QueryTestCase):
             }]
         )
 
+    async def test_edgeql_insert_for_06(self):
+        res = await self.con.query(r'''
+            WITH MODULE test
+            FOR a in {"a", "b"} UNION (
+                FOR b in {"c", "d"} UNION (
+                    INSERT Note {name := b}));
+        ''')
+        self.assertEqual(len(res), 4)
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Note.name
+                ORDER BY Note.name;
+            ''',
+            ["c", "c", "d", "d"]
+        )
+
+    async def test_edgeql_insert_for_07(self):
+        res = await self.con.query(r'''
+            WITH MODULE test
+            FOR a in {"a", "b"} UNION (
+                FOR b in {a++"c", a++"d"} UNION (
+                    INSERT Note {name := b}));
+        ''')
+        self.assertEqual(len(res), 4)
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Note.name
+                ORDER BY Note.name;
+            ''',
+            ["ac", "ad", "bc", "bd"]
+        )
+
+    async def test_edgeql_insert_for_08(self):
+        res = await self.con.query(r'''
+            WITH MODULE test
+            FOR a in {"a", "b"} UNION (
+                FOR b in {"a", "b"} UNION (
+                    FOR c in {a++b++"a", a++b++"b"} UNION (
+                        INSERT Note {name := c})));
+        ''')
+        self.assertEqual(len(res), 8)
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Note.name
+                ORDER BY Note.name;
+            ''',
+            ["aaa", "aab", "aba", "abb", "baa", "bab", "bba", "bbb"]
+        )
+
+    async def test_edgeql_insert_for_09(self):
+        res = await self.con.query(r'''
+            WITH MODULE test
+            FOR a in {"a", "b"} UNION (
+                FOR b in {"a", "b"} UNION (
+                    FOR c in {"a", "b"} UNION (
+                        INSERT Note {name := a++b++c})));
+        ''')
+        self.assertEqual(len(res), 8)
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Note.name
+                ORDER BY Note.name;
+            ''',
+            ["aaa", "aab", "aba", "abb", "baa", "bab", "bba", "bbb"]
+        )
+
+    async def test_edgeql_insert_for_10(self):
+        # Nested FOR where the inner-most one isn't referenced
+        res = await self.con.query(r'''
+            WITH MODULE test
+            FOR a in {"a", "b"} UNION (
+                FOR b in {"a", "b"} UNION (
+                    FOR c in {"a", "b"} UNION (
+                        INSERT Note {name := a++b})));
+        ''')
+        self.assertEqual(len(res), 8)
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Note.name
+                ORDER BY Note.name;
+            ''',
+            ["aa", "aa", "ab", "ab", "ba", "ba", "bb", "bb"]
+        )
+
+    async def test_edgeql_insert_for_11(self):
+        # Nested FOR where the inner-most two aren't referenced
+        res = await self.con.query(r'''
+            WITH MODULE test
+            FOR a in {"a", "b"} UNION (
+                FOR b in {"a", "b"} UNION (
+                    FOR c in {"a", "b"} UNION (
+                        INSERT Note {name := a})));
+        ''')
+        self.assertEqual(len(res), 8)
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Note.name
+                ORDER BY Note.name;
+            ''',
+            ["a", "a", "a", "a", "b", "b", "b", "b"]
+        )
+
+    async def test_edgeql_insert_for_12(self):
+        # FOR that has a correlated SELECT and INSERT
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                FOR a in {"foo", "bar"} UNION (
+                    (a,(INSERT Note {name:=a}))
+                )
+            ''',
+            [["foo", {}], ["bar", {}]],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Note.name
+                ORDER BY Note.name;
+            ''',
+            ["bar", "foo"]
+        )
+
+    async def test_edgeql_insert_for_13(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                FOR a in {"foo", "bar"} UNION (
+                    SELECT (INSERT Note {name:=a}) {name}
+                )
+            ''',
+            [{"name": "foo"}, {"name": "bar"}],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Note.name
+                ORDER BY Note.name;
+            ''',
+            ["bar", "foo"]
+        )
+
+    async def test_edgeql_insert_for_14(self):
+        # Nested FOR that has a correlated SELECT and INSERT
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                FOR a in {"a", "b"} UNION (
+                    FOR b in {"c", "d"} UNION (
+                        (a, b, (INSERT Note {name:=a++b}).name)
+                    )
+                )
+            ''',
+            [
+                ["a", "c", "ac"],
+                ["a", "d", "ad"],
+                ["b", "c", "bc"],
+                ["b", "d", "bd"],
+            ],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Note.name
+                ORDER BY Note.name;
+            ''',
+            ["ac", "ad", "bc", "bd"]
+        )
+
+    async def test_edgeql_insert_for_15(self):
+        await self.con.execute(r"""
+            WITH MODULE test
+            FOR noob in {"Phil Emarg", "Madeline Hatch"}
+            UNION (
+                INSERT Person {name := noob ++ "!",
+                               notes := (INSERT Note {name := noob})});
+        """)
+
+        await self.assert_query_result(
+            "SELECT test::Person { name, notes: {name} }",
+            [{"name": "Phil Emarg!",
+              "notes": [{"name": "Phil Emarg"}]},
+             {"name": "Madeline Hatch!",
+              "notes": [{"name": "Madeline Hatch"}]}],
+        )
+
+    async def test_edgeql_insert_for_16(self):
+        await self.con.execute(r"""
+            WITH MODULE test
+            FOR noob in {"Phil Emarg", "Madeline Hatch"}
+            UNION (
+                INSERT Person {name := noob,
+                               notes := (
+                    FOR suffix in {"?", "!"} UNION (
+                        INSERT Note {name := noob ++ suffix}))});
+        """)
+
+        await self.assert_query_result(
+            "SELECT test::Person { name, notes: {name} }",
+            [
+                {"name": "Phil Emarg",
+                 "notes": [{"name": "Phil Emarg?"},
+                           {"name": "Phil Emarg!"}]},
+                {"name": "Madeline Hatch",
+                 "notes": [{"name": "Madeline Hatch?"},
+                           {"name": "Madeline Hatch!"}]},
+            ],
+        )
+
+    async def test_edgeql_insert_for_17(self):
+        # same as above, but with a SELECT wrapping the inner FOR,
+        # which exposed some issues
+        await self.con.execute(r"""
+            WITH MODULE test
+            FOR noob in {"Phil Emarg", "Madeline Hatch"}
+            UNION (
+                INSERT Person {name := noob,
+                               notes := (SELECT (
+                    FOR suffix in {"?", "!"} UNION (
+                        INSERT Note {name := noob ++ suffix})))});
+        """)
+
+        await self.assert_query_result(
+            "SELECT test::Person { name, notes: {name} }",
+            [
+                {"name": "Phil Emarg",
+                 "notes": [{"name": "Phil Emarg?"},
+                           {"name": "Phil Emarg!"}]},
+                {"name": "Madeline Hatch",
+                 "notes": [{"name": "Madeline Hatch?"},
+                           {"name": "Madeline Hatch!"}]},
+            ],
+        )
+
     async def test_edgeql_insert_default_01(self):
         await self.con.execute(r'''
             # create 10 DefaultTest3 objects, each object is defined
@@ -2285,4 +2533,45 @@ class TestInsert(tb.QueryTestCase):
                     'name': 'NoteDep09',
                 },
             ]
+        )
+
+    async def test_edgeql_insert_dependent_10(self):
+        await self.con.execute(r"""INSERT test::Note { name := "foo" };""")
+
+        query = r"""
+            WITH MODULE test
+            FOR noob in {"foo", "bar"} UNION (
+                INSERT Person { name := noob,
+                                notes := (UPDATE Note FILTER .name = noob
+                                          SET { name := noob ++ "!"})
+                }
+                UNLESS CONFLICT
+            );
+        """
+
+        await self.con.execute(query)
+
+        await self.assert_query_result(
+            "SELECT test::Person { name, notes: {name} }",
+            [{"name": "foo",
+              "notes": [{"name": "foo!"}]},
+             {"name": "bar",
+              "notes": []}]
+        )
+
+        await self.con.execute(r"""INSERT test::Note { name := "bar" };""")
+
+        await self.con.execute(query)
+
+        await self.assert_query_result(
+            "SELECT test::Person { name, notes: {name} }",
+            [{"name": "foo",
+              "notes": [{"name": "foo!"}]},
+             {"name": "bar",
+              "notes": []}]
+        )
+
+        await self.assert_query_result(
+            "SELECT test::Note.name",
+            ["foo!", "bar"]
         )

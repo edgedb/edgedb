@@ -49,8 +49,19 @@ def compile_SelectStmt(
 
         query = ctx.stmt
 
-        if not isinstance(stmt.result.expr, irast.MutatingStmt):
-            iterators = irutils.get_iterator_sets(stmt)
+        iterators = irutils.get_iterator_sets(stmt)
+        if iterators and irutils.contains_dml(stmt):
+            # If we have iterators and we contain nested DML
+            # statements, we need to hoist the iterators into CTEs and
+            # then explicitly join them back into the query.
+            iterator = dml.compile_iterator_ctes(iterators, ctx=ctx)
+            ctx.path_scope = ctx.path_scope.new_child()
+            dml.merge_iterator(iterator, ctx.rel, ctx=ctx)
+
+            ctx.enclosing_cte_iterator = iterator
+
+        else:
+            iterator = None
             for iterator_set in iterators:
                 # Process FOR clause.
                 iterator_rvar = clauses.compile_iterator_expr(
