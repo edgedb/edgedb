@@ -1336,6 +1336,15 @@ class TestInsert(tb.QueryTestCase):
             {1, 2, 3}
         )
 
+    async def test_edgeql_insert_default_06(self):
+        res = await self.con.query(r'''
+            INSERT test::DefaultTest1;
+        ''')
+        assert len(res) == 1
+        obj = res[0]
+        # The result should not include the default param
+        assert not hasattr(obj, 'num')
+
     async def test_edgeql_insert_as_expr_01(self):
         await self.con.execute(r'''
             # insert several objects, then annotate one of the inserted batch

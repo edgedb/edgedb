@@ -1059,11 +1059,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             """)
 
-    @test.xfail('''
-        Issue #1721
-
-        Two TestDefaultInsert03 objects are created instead of one.
-    ''')
     async def test_edgeql_ddl_default_03(self):
         # Test INSERT as default link expression
         await self.con.execute(r"""

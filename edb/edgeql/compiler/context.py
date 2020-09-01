@@ -381,6 +381,7 @@ class ContextLevel(compiler.ContextLevel):
     shape_type_cache: Dict[
         Tuple[
             s_objtypes.ObjectType,
+            bool, bool, bool,
             Tuple[qlast.ShapeElement, ...],
         ],
         s_objtypes.ObjectType,
