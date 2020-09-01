@@ -628,7 +628,7 @@ def process_insert_body(
 
         compile_insert_else_body(
             insert_stmt, ir_stmt, ir_stmt.on_conflict, else_cte_rvar,
-            iterator, ctx=ctx)
+            ctx=ctx)
 
     toplevel = ctx.toplevel_stmt
     toplevel.ctes.append(insert_cte)
@@ -654,7 +654,6 @@ def compile_insert_else_body(
         on_conflict: irast.OnConflictClause,
         else_cte_rvar: Optional[
             Tuple[pgast.CommonTableExpr, pgast.PathRangeVar]],
-        iterator: Optional[pgast.IteratorCTE],
         *,
         ctx: context.CompilerContextLevel) -> None:
 
@@ -676,12 +675,7 @@ def compile_insert_else_body(
         with ctx.newrel() as sctx, sctx.newscope() as ictx:
             ictx.path_scope[subject_id] = ictx.rel
 
-            if iterator is not None:
-                iterator_rvar = relctx.rvar_for_rel(
-                    iterator.cte, lateral=True, ctx=ictx)
-                relctx.include_rvar(ictx.rel, iterator_rvar,
-                                    path_id=iterator.path_id, ctx=ictx)
-                merge_iterator_scope(iterator, ictx.rel, ctx=ictx)
+            merge_iterator(ctx.enclosing_cte_iterator, ictx.rel, ctx=ictx)
 
             pathctx.put_path_bond(ictx.rel, subject_id)
             dispatch.compile(else_select, ctx=ictx)
