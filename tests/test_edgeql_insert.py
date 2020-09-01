@@ -1159,6 +1159,29 @@ class TestInsert(tb.QueryTestCase):
             ],
         )
 
+    async def test_edgeql_insert_for_17(self):
+        # same as above, but with a SELECT wrapping the inner FOR,
+        # which exposed some issues
+        await self.con.execute(r"""
+            WITH MODULE test
+            FOR noob in {"Phil Emarg", "Madeline Hatch"}
+            UNION (
+                INSERT Person {name := noob,
+                               notes := (SELECT (
+                    FOR suffix in {"?", "!"} UNION (
+                        INSERT Note {name := noob ++ suffix})))});
+        """)
+
+        await self.assert_query_result(
+            "SELECT test::Person { name, notes: {name} }",
+            [
+                {"name": "Phil Emarg",
+                 "notes": [{"name": "Phil Emarg?"}, {"name": "Phil Emarg!"}]},
+                {"name": "Madeline Hatch",
+                 "notes": [{"name": "Madeline Hatch?"}, {"name": "Madeline Hatch!"}]},
+            ],
+        )
+
     async def test_edgeql_insert_default_01(self):
         await self.con.execute(r'''
             # create 10 DefaultTest3 objects, each object is defined

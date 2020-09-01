@@ -458,7 +458,18 @@ def compile_iterator_ctes(
 
     last_iterator = ctx.enclosing_cte_iterator
 
+    seen = set()
+    p = last_iterator
+    while p:
+        seen.add(p.path_id)
+        p = p.parent
+
     for iterator_set in iterators:
+        # Because of how the IR compiler hoists iterators, we may see
+        # an iterator twice.  Just ignore it if we do.
+        if iterator_set.path_id in seen:
+            continue
+
         with ctx.newrel() as sctx, sctx.newscope() as ictx:
             ictx.path_scope[iterator_set.path_id] = ictx.rel
 
@@ -681,7 +692,7 @@ def compile_insert_else_body(
 
             else_select_cte = pgast.CommonTableExpr(
                 query=ictx.rel,
-                name=ctx.env.aliases.get('iter')
+                name=ctx.env.aliases.get('else')
             )
             ictx.toplevel_stmt.ctes.append(else_select_cte)
 
