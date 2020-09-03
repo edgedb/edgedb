@@ -42,6 +42,7 @@ from edb.common import topological
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import codegen as qlcodegen
+from edb.edgeql import parser as qlparser
 from edb.edgeql import tracer as qltracer
 
 from edb.schema import name as s_name
@@ -480,6 +481,11 @@ def trace_Function(node: qlast.CreateFunction, *, ctx: DepTraceContext):
 
     if node.nativecode is not None:
         deps.append((node.nativecode, params))
+    elif (node.code is not None
+            and node.code.language is qlast.Language.EdgeQL
+            and node.code.code):
+        # Need to parse the actual code string and use that as the dependency.
+        deps.append((qlparser.parse(node.code.code), params))
 
     # XXX: hard_dep_expr is used because it ultimately calls the
     # _get_hard_deps helper that extracts the proper dependency list
