@@ -772,19 +772,6 @@ def _get_rel_path_output(
     return result
 
 
-def find_path_output(
-        rel: pgast.BaseRelation, path_id: irast.PathId, ref: pgast.BaseExpr, *,
-        env: context.Environment) -> Optional[pgast.OutputVar]:
-    if isinstance(ref, pgast.TupleVarBase):
-        return None
-
-    for key, other_ref in rel.path_namespace.items():
-        if _same_expr(other_ref, ref) and key in rel.path_outputs:
-            return rel.path_outputs.get(key)
-    else:
-        return None
-
-
 def get_path_output(
         rel: pgast.BaseRelation, path_id: irast.PathId, *,
         aspect: str, allow_nullable: bool=True,
@@ -817,7 +804,10 @@ def _get_path_output(
         # reference to the Object itself.
         src_path_id = path_id.src_path()
         assert src_path_id is not None
-        id_output = rel.path_outputs.get((src_path_id, 'value'))
+        id_output = maybe_get_path_output(rel, src_path_id,
+                                          aspect='value',
+                                          allow_nullable=allow_nullable,
+                                          ptr_info=ptr_info, env=env)
         if id_output is not None:
             _put_path_output_var(rel, path_id, aspect, id_output, env=env)
             return id_output
@@ -834,11 +824,6 @@ def _get_path_output(
         ref = pgast.ColumnRef(name=[alias])
     else:
         ref = get_path_var(rel, path_id, aspect=aspect, env=env)
-
-    other_output = find_path_output(rel, path_id, ref, env=env)
-    if other_output is not None:
-        _put_path_output_var(rel, path_id, aspect, other_output, env=env)
-        return other_output
 
     if isinstance(ref, pgast.TupleVarBase):
         elements = []
@@ -918,11 +903,12 @@ def _get_path_output(
 
 def maybe_get_path_output(
         rel: pgast.BaseRelation, path_id: irast.PathId, *,
-        aspect: str,
+        aspect: str, allow_nullable: bool=True,
         ptr_info: Optional[pg_types.PointerStorageInfo]=None,
         env: context.Environment) -> Optional[pgast.OutputVar]:
     try:
         return get_path_output(rel, path_id=path_id, aspect=aspect,
+                               allow_nullable=allow_nullable,
                                ptr_info=ptr_info, env=env)
     except LookupError:
         return None
