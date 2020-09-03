@@ -1840,6 +1840,26 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
+    def test_schema_get_migration_34(self):
+        # Make sure that awkward order of function definitions doesn't
+        # affect the migraiton.
+        #
+        # Issue #1649.
+        schema = r'''
+        function b() -> int64 {
+            using EdgeQL $$
+                SELECT a()
+            $$
+        }
+        function a() -> int64 {
+            using EdgeQL $$
+                SELECT 1
+            $$
+        }
+        '''
+
+        self._assert_migration_consistency(schema)
+
     def test_schema_get_migration_multi_module_01(self):
         schema = r'''
             # The two declared types declared are from different
