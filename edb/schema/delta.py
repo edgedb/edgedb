@@ -743,15 +743,6 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
             raise RuntimeError(f'context class not defined for {cls}')
         return ctxcls
 
-    def __str__(self) -> str:
-        return struct.MixedStruct.__str__(self)
-
-    def __repr__(self) -> str:
-        flds = struct.MixedStruct.__repr__(self)
-        return '<{}.{}{}>'.format(self.__class__.__module__,
-                                  self.__class__.__name__,
-                                  (' ' + flds) if flds else '')
-
 
 # Similarly to _dummy_object, we use _dummy_command for places where
 # the typing requires an object, but we don't have it just yet.
@@ -2049,11 +2040,6 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
             schema = self._create_finalize(schema, context)
         return schema
 
-    def __repr__(self) -> str:
-        return '<%s.%s "%s">' % (self.__class__.__module__,
-                                 self.__class__.__name__,
-                                 self.classname)
-
 
 class AlterObjectFragment(ObjectCommand[so.Object_T]):
 
@@ -2121,11 +2107,6 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
     astnode = qlast.Rename
 
     new_name = struct.Field(str)
-
-    def __repr__(self) -> str:
-        return '<%s.%s "%s" to "%s">' % (self.__class__.__module__,
-                                         self.__class__.__name__,
-                                         self.classname, self.new_name)
 
     def _rename_begin(
         self,

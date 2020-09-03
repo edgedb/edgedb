@@ -328,16 +328,22 @@ class Struct(metaclass=StructMeta):
         return iter(self.__class__._fields)
 
     def __str__(self) -> str:
-        fields = ', '.join(('%s=%s' % (name, value))
-                           for name, value in self.formatfields('str'))
-        return '<{}{}>'.format(
-            self.__class__.__name__, ' ' + fields if fields else '')
+        fields = ', '.join(
+            f'{name}={value}'
+            for name, value in self.formatfields('str')
+        )
+        if fields:
+            fields = f' {fields}'
+        return f'<{self.__class__.__name__}{fields} at {id(self):#x}>'
 
     def __repr__(self) -> str:
-        fields = ', '.join(('%s=%s' % (name, value))
-                           for name, value in self.formatfields('repr'))
-        return '<{}{}>'.format(
-            self.__class__.__name__, ' ' + fields if fields else '')
+        fields = ', '.join(
+            f'{name}={value}'
+            for name, value in self.formatfields('repr')
+        )
+        if fields:
+            fields = f' {fields}'
+        return f'<{self.__class__.__name__}{fields} at {id(self):#x}>'
 
     def _init_fields(
         self,
