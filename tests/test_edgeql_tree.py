@@ -716,12 +716,6 @@ class TestTree(tb.QueryTestCase):
             ],
         )
 
-    @test.xfail('''
-        This test fails with the following error:
-
-        edgedb.errors.MissingRequiredError:
-        missing value for required property test::Tree.val
-    ''')
     async def test_edgeql_tree_update_03(self):
         # Update all the tree nodes to base their val on the parent
         # val.
@@ -756,14 +750,6 @@ class TestTree(tb.QueryTestCase):
             ]
         )
 
-    @test.xfail('''
-        This test fails with the following error:
-
-        edgedb.errors.QueryError: possibly more than one element
-        returned by an expression where only singletons are allowed
-
-        Seems to be related to #1098.
-    ''')
     async def test_edgeql_tree_update_04(self):
         # Update all the tree nodes to base their val on the parent
         # val.
