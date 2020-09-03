@@ -109,7 +109,8 @@ class TestCaseMeta(type(unittest.TestCase)):
                     # retry the test.
                     self.loop.run_until_complete(
                         __meth__(self, *args, **kwargs))
-                except edgedb.TransactionSerializationError:
+                except (edgedb.TransactionSerializationError,
+                        edgedb.TransactionDeadlockError):
                     if try_no == 3:
                         raise
                     else:
