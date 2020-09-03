@@ -1971,6 +1971,28 @@ aa';
         SELECT <std::tuple<obj: Foo, count: int, name: str>>$1;
         """
 
+    def test_edgeql_syntax_cast_08(self):
+        """
+        SELECT <array<int64,>>$1;
+        SELECT <std::array<std::str,>>$1;
+
+% OK %
+
+        SELECT <array<int64>>$1;
+        SELECT <std::array<std::str>>$1;
+        """
+
+    def test_edgeql_syntax_cast_09(self):
+        """
+        SELECT <tuple<Foo, int, str,>>$1;
+        SELECT <std::tuple<obj: Foo, count: int, name: str,>>$1;
+
+% OK %
+
+        SELECT <tuple<Foo, int, str>>$1;
+        SELECT <std::tuple<obj: Foo, count: int, name: str>>$1;
+        """
+
     def test_edgeql_syntax_with_01(self):
         """
         WITH
