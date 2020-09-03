@@ -1383,6 +1383,12 @@ class CollectionTypeName(Nonterm):
             subtypes=kids[2].val,
         )
 
+    def reduce_NodeName_LANGBRACKET_SubtypeList_COMMA_RANGBRACKET(self, *kids):
+        self.val = qlast.TypeName(
+            maintype=kids[0].val,
+            subtypes=kids[2].val,
+        )
+
 
 class TypeName(Nonterm):
     def reduce_SimpleTypeName(self, *kids):
