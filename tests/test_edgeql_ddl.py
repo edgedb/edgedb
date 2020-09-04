@@ -4779,6 +4779,161 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             }
         ])
 
+    async def test_edgeql_ddl_constraint_02(self):
+        # Regression test for #1441.
+        with self.assertRaisesRegex(
+            edgedb.InvalidConstraintDefinitionError,
+            "must define parameters"
+        ):
+            async with self._run_and_rollback():
+                await self.con.execute('''
+                    CREATE ABSTRACT CONSTRAINT aaa EXTENDING max_len_value;
+
+                    CREATE SCALAR TYPE foo EXTENDING str {
+                        CREATE CONSTRAINT aaa(10);
+                    };
+                ''')
+
+    async def test_edgeql_ddl_constraint_03(self):
+        # Test for #1727. Usage of EXISTS in constraints.
+        await self.con.execute(r"""
+            CREATE TYPE test::TypeCon03 {
+                CREATE PROPERTY name -> str {
+                    # emulating "required"
+                    CREATE CONSTRAINT expression ON (EXISTS __subject__)
+                }
+            };
+        """)
+
+        await self.con.execute("""
+            INSERT test::TypeCon03 {name := 'OK'};
+        """)
+
+        with self.assertRaisesRegex(
+                edgedb.ConstraintViolationError,
+                r'invalid name'):
+            async with self.con.transaction():
+                await self.con.execute("""
+                    INSERT test::TypeCon03;
+                """)
+
+    @test.xfail('''
+        EXISTS constraint violation not raised for MULTI property.
+    ''')
+    async def test_edgeql_ddl_constraint_04(self):
+        # Test for #1727. Usage of EXISTS in constraints.
+        await self.con.execute(r"""
+            CREATE TYPE test::TypeCon04 {
+                CREATE MULTI PROPERTY name -> str {
+                    # emulating "required"
+                    CREATE CONSTRAINT expression ON (EXISTS __subject__)
+                }
+            };
+        """)
+
+        await self.con.execute("""
+            INSERT test::TypeCon04 {name := 'OK'};
+        """)
+
+        with self.assertRaisesRegex(
+                edgedb.ConstraintViolationError,
+                r'invalid name'):
+            async with self.con.transaction():
+                await self.con.execute("""
+                    INSERT test::TypeCon04 {name := {}};
+                """)
+
+        with self.assertRaisesRegex(
+                edgedb.ConstraintViolationError,
+                r'invalid name'):
+            async with self.con.transaction():
+                await self.con.execute("""
+                    INSERT test::TypeCon04;
+                """)
+
+    async def test_edgeql_ddl_constraint_05(self):
+        # Test for #1727. Usage of EXISTS in constraints.
+        await self.con.execute(r"""
+            CREATE TYPE test::Child05;
+            CREATE TYPE test::TypeCon05 {
+                CREATE LINK child -> test::Child05 {
+                    # emulating "required"
+                    CREATE CONSTRAINT expression ON (EXISTS __subject__)
+                }
+            };
+        """)
+
+        await self.con.execute("""
+            INSERT test::Child05;
+            INSERT test::TypeCon05 {child := (SELECT test::Child05 LIMIT 1)};
+        """)
+
+        with self.assertRaisesRegex(
+                edgedb.ConstraintViolationError,
+                r'invalid child'):
+            async with self.con.transaction():
+                await self.con.execute("""
+                    INSERT test::TypeCon05;
+                """)
+
+    @test.xfail('''
+        EXISTS constraint violation not raised for MULTI links.
+    ''')
+    async def test_edgeql_ddl_constraint_06(self):
+        # Test for #1727. Usage of EXISTS in constraints.
+        await self.con.execute(r"""
+            CREATE TYPE test::Child06;
+            CREATE TYPE test::TypeCon06 {
+                CREATE MULTI LINK children -> test::Child06 {
+                    # emulating "required"
+                    CREATE CONSTRAINT expression ON (EXISTS __subject__)
+                }
+            };
+        """)
+
+        await self.con.execute("""
+            INSERT test::Child06;
+            INSERT test::TypeCon06 {children := test::Child06};
+        """)
+
+        with self.assertRaisesRegex(
+                edgedb.ConstraintViolationError,
+                r'invalid children'):
+            async with self.con.transaction():
+                await self.con.execute("""
+                    INSERT test::TypeCon06;
+                """)
+
+    async def test_edgeql_ddl_constraint_07(self):
+        # Test for #1727. Usage of EXISTS in constraints.
+        await self.con.execute(r"""
+            CREATE TYPE test::Child07;
+            CREATE TYPE test::TypeCon07 {
+                CREATE LINK child -> test::Child07 {
+                    CREATE PROPERTY index -> int64;
+                    # emulating "required"
+                    CREATE CONSTRAINT expression ON (EXISTS __subject__@index)
+                }
+            };
+        """)
+
+        await self.con.execute("""
+            INSERT test::Child07;
+            INSERT test::TypeCon07 {
+                child := (SELECT test::Child07 LIMIT 1){@index := 0}
+            };
+        """)
+
+        with self.assertRaisesRegex(
+                edgedb.ConstraintViolationError,
+                r'invalid child'):
+            async with self.con.transaction():
+                await self.con.execute("""
+                    INSERT test::TypeCon07 {
+                        child := (SELECT test::Child07 LIMIT 1)
+                    };
+                """)
+
     async def test_edgeql_ddl_constraint_alter_01(self):
         await self.con.execute(r"""
             CREATE TYPE test::ConTest01 {
@@ -5022,21 +5177,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 }]
             }]
         )
-
-    async def test_edgeql_ddl_constraint_04(self):
-        # Regression test for #1441.
-        with self.assertRaisesRegex(
-            edgedb.InvalidConstraintDefinitionError,
-            "must define parameters"
-        ):
-            async with self._run_and_rollback():
-                await self.con.execute('''
-                    CREATE ABSTRACT CONSTRAINT aaa EXTENDING max_len_value;
-
-                    CREATE SCALAR TYPE foo EXTENDING str {
-                        CREATE CONSTRAINT aaa(10);
-                    };
-                ''')
 
     async def test_edgeql_ddl_drop_inherited_link(self):
         await self.con.execute(r"""
@@ -6016,6 +6156,63 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ''',
             [1],
         )
+
+    @test.xfail('''
+        MissingRequiredError not raised
+    ''')
+    async def test_edgeql_ddl_required_10(self):
+        # Test normal that required qualifier behavior.
+
+        await self.con.execute(r"""
+            CREATE TYPE test::Base {
+                CREATE REQUIRED MULTI PROPERTY name -> str;
+            };
+        """)
+
+        with self.assertRaisesRegex(
+                edgedb.MissingRequiredError,
+                r'Base.name'):
+            async with self.con.transaction():
+                await self.con.execute("""
+                    INSERT test::Base;
+                """)
+
+        with self.assertRaisesRegex(
+                edgedb.MissingRequiredError,
+                r'Base.name'):
+            async with self.con.transaction():
+                await self.con.execute("""
+                    INSERT test::Base {name := {}};
+                """)
+
+    @test.xfail('''
+        MissingRequiredError not raised
+    ''')
+    async def test_edgeql_ddl_required_11(self):
+        # Test normal that required qualifier behavior.
+
+        await self.con.execute(r"""
+            CREATE TYPE test::Child;
+            CREATE TYPE test::Base {
+                CREATE REQUIRED MULTI LINK children -> test::Child;
+            };
+        """)
+
+        with self.assertRaisesRegex(
+                edgedb.MissingRequiredError,
+                r'Base.children'):
+            async with self.con.transaction():
+                await self.con.execute("""
+                    INSERT test::Base;
+                """)
+
+        with self.assertRaisesRegex(
+                edgedb.MissingRequiredError,
+                r'Base.children'):
+            async with self.con.transaction():
+                await self.con.execute("""
+                    INSERT test::Base {children := {}};
+                """)
 
     async def test_edgeql_ddl_prop_alias(self):
         await self.con.execute("""

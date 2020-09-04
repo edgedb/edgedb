@@ -350,6 +350,8 @@ def compile_operator(
         args: Sequence[pgast.BaseExpr], *,
         ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
     lexpr = rexpr = None
+    result: Optional[pgast.BaseExpr] = None
+
     if expr.operator_kind is ql_ft.OperatorKind.INFIX:
         lexpr, rexpr = args
     elif expr.operator_kind is ql_ft.OperatorKind.PREFIX:
@@ -369,6 +371,9 @@ def compile_operator(
             sql_oper = '='
         else:
             sql_oper = '!='
+
+    elif expr.func_shortname == 'std::EXISTS':
+        result = pgast.NullTest(arg=rexpr, negated=True)
 
     elif expr.sql_operator:
         sql_oper = expr.sql_operator[0]
@@ -419,12 +424,14 @@ def compile_operator(
         sql_oper = common.get_operator_backend_name(
             expr.func_shortname, expr.func_module_id)[1]
 
-    result: pgast.BaseExpr = pgast.Expr(
-        kind=pgast.ExprKind.OP,
-        name=sql_oper,
-        lexpr=lexpr,
-        rexpr=rexpr,
-    )
+    # If result was not already computed, it's going to be a generic Expr.
+    if result is None:
+        result = pgast.Expr(
+            kind=pgast.ExprKind.OP,
+            name=sql_oper,
+            lexpr=lexpr,
+            rexpr=rexpr,
+        )
 
     if expr.force_return_cast:
         # The underlying operator has a return value type
