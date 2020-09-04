@@ -111,13 +111,13 @@ class TestCaseMeta(type(unittest.TestCase)):
                         __meth__(self, *args, **kwargs))
                 except (edgedb.TransactionSerializationError,
                         edgedb.TransactionDeadlockError):
-                    if try_no == 3:
+                    # Only do a retry loop when we have a transaction
+                    if try_no == 3 or not getattr(self, 'ISOLATED_METHODS'):
                         raise
                     else:
-                        if getattr(self, 'ISOLATED_METHODS'):
-                            self.loop.run_until_complete(self.xact.rollback())
-                            self.xact = self.con.transaction()
-                            self.loop.run_until_complete(self.xact.start())
+                        self.loop.run_until_complete(self.xact.rollback())
+                        self.xact = self.con.transaction()
+                        self.loop.run_until_complete(self.xact.start())
 
                         try_no += 1
                 else:
