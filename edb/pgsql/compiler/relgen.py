@@ -161,9 +161,9 @@ def get_set_rvar(
         is_empty_set = isinstance(ir_set, irast.EmptySet)
 
         path_scope = relctx.get_scope(ir_set, ctx=subctx)
-        scope = path_scope or subctx.scope_tree
+        new_scope = path_scope or subctx.scope_tree
         is_optional = (
-            scope.is_optional(path_id) or
+            new_scope.is_optional(path_id) or
             path_id in subctx.force_optional
         )
 
