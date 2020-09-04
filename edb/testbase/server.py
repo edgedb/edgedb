@@ -114,9 +114,11 @@ class TestCaseMeta(type(unittest.TestCase)):
                     if try_no == 3:
                         raise
                     else:
-                        self.loop.run_until_complete(self.con.execute(
-                            'ROLLBACK;'
-                        ))
+                        if getattr(self, 'ISOLATED_METHODS'):
+                            self.loop.run_until_complete(self.xact.rollback())
+                            self.xact = self.con.transaction()
+                            self.loop.run_until_complete(self.xact.start())
+
                         try_no += 1
                 else:
                     break
