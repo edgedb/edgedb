@@ -160,8 +160,10 @@ def get_set_rvar(
 
         is_empty_set = isinstance(ir_set, irast.EmptySet)
 
+        path_scope = relctx.get_scope(ir_set, ctx=subctx)
+        new_scope = path_scope or subctx.scope_tree
         is_optional = (
-            subctx.scope_tree.is_optional(path_id) or
+            new_scope.is_optional(path_id) or
             path_id in subctx.force_optional
         )
 
@@ -172,7 +174,6 @@ def get_set_rvar(
                 ir_set=ir_set, stmt=stmt, ctx=subctx)
             subctx.pending_query = subctx.rel = stmt
 
-        path_scope = relctx.get_scope(ir_set, ctx=subctx)
         if path_scope:
             if path_scope.is_visible(path_id):
                 subctx.path_scope[path_id] = scope_stmt
