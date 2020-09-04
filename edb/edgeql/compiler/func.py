@@ -94,7 +94,7 @@ def compile_FunctionCall(
         ctx.env.options.schema_object_context is s_constr.Constraint
     )
 
-    args, kwargs = compile_call_args(expr, funcname, ctx=ctx)
+    args, kwargs, arg_ctxs = compile_call_args(expr, funcname, ctx=ctx)
     matched = polyres.find_callable(funcs, args=args, kwargs=kwargs, ctx=ctx)
     if not matched:
         raise errors.QueryError(
@@ -140,6 +140,7 @@ def compile_FunctionCall(
     final_args, params_typemods = finalize_args(
         matched_call,
         is_polymorphic=is_polymorphic,
+        arg_ctxs=arg_ctxs,
         ctx=ctx,
     )
 
@@ -238,9 +239,11 @@ def compile_operator(
     fq_op_name = next(iter(opers)).get_shortname(ctx.env.schema)
     conditional_args = CONDITIONAL_OPS.get(fq_op_name)
 
+    arg_ctxs = {}
     args = []
     for ai, qlarg in enumerate(qlargs):
         with ctx.newscope(fenced=True) as fencectx:
+            fencectx.path_log = []
             # We put on a SET OF fence preemptively in case this is
             # a SET OF arg, which we don't know yet due to polymorphic
             # matching.  We will remove it if necessary in `finalize_args()`.
@@ -254,6 +257,8 @@ def compile_operator(
             arg_ir = setgen.scoped_set(
                 setgen.ensure_stmt(arg_ir, ctx=fencectx),
                 ctx=fencectx)
+
+            arg_ctxs[arg_ir] = fencectx
 
         arg_type = inference.infer_type(arg_ir, ctx.env)
         if arg_type is None:
@@ -456,6 +461,7 @@ def compile_operator(
 
     final_args, params_typemods = finalize_args(
         matched_call,
+        arg_ctxs=arg_ctxs,
         actual_typemods=actual_typemods,
         is_polymorphic=is_polymorphic,
         ctx=ctx,
@@ -563,9 +569,11 @@ def validate_recursive_operator(
     return matched
 
 
-def compile_call_arg(arg_ql: qlast.Expr, *,
-                     ctx: context.ContextLevel) -> irast.Set:
+def compile_call_arg(
+        arg_ql: qlast.Expr, *,
+        ctx: context.ContextLevel) -> Tuple[irast.Set, context.ContextLevel]:
     with ctx.new() as argctx:
+        argctx.path_log = []
         # We put on a SET OF fence preemptively in case this is
         # a SET OF arg, which we don't know yet due to polymorphic
         # matching.  We will remove it if necessary in `finalize_args()`.
@@ -576,7 +584,7 @@ def compile_call_arg(arg_ql: qlast.Expr, *,
         return setgen.ensure_set(
             dispatch.compile(arg_ql, ctx=argctx),
             ctx=argctx,
-        )
+        ), argctx
 
 
 def compile_call_args(
@@ -584,13 +592,15 @@ def compile_call_args(
         ctx: context.ContextLevel) \
         -> Tuple[
             List[Tuple[s_types.Type, irast.Set]],
-            Dict[str, Tuple[s_types.Type, irast.Set]]]:
+            Dict[str, Tuple[s_types.Type, irast.Set]],
+            Dict[irast.Set, context.ContextLevel]]:
 
     args = []
     kwargs = {}
+    arg_ctxs = {}
 
     for ai, arg in enumerate(expr.args):
-        arg_ir = compile_call_arg(arg, ctx=ctx)
+        arg_ir, arg_ctx = compile_call_arg(arg, ctx=ctx)
         arg_type = inference.infer_type(arg_ir, ctx.env)
         if arg_type is None:
             raise errors.QueryError(
@@ -598,10 +608,11 @@ def compile_call_args(
                 f'#{ai} of function {funcname}',
                 context=arg.context)
 
+        arg_ctxs[arg_ir] = arg_ctx
         args.append((arg_type, arg_ir))
 
     for aname, arg in expr.kwargs.items():
-        arg_ir = compile_call_arg(arg, ctx=ctx)
+        arg_ir, arg_ctx = compile_call_arg(arg, ctx=ctx)
 
         arg_type = inference.infer_type(arg_ir, ctx.env)
         if arg_type is None:
@@ -610,13 +621,41 @@ def compile_call_args(
                 f'${aname} of function {funcname}',
                 context=arg.context)
 
+        arg_ctxs[arg_ir] = arg_ctx
         kwargs[aname] = (arg_type, arg_ir)
 
-    return args, kwargs
+    return args, kwargs, arg_ctxs
+
+
+def process_path_log(arg_ctx: Optional[context.ContextLevel],
+                     arg_scope: Optional[irast.ScopeTreeNode]) -> None:
+    if arg_ctx and arg_ctx.path_log is not None:
+        # Since we don't know whether arguments are OPTIONAL or SET OF
+        # until after doing polymorphic matching, paths in an OPTIONAL
+        # or SET OF argument could get factored into an existing
+        # optional node, destroying its optionality.
+        #
+        # To fix this, we track all of the paths attached to the tree
+        # while compiling an argument and find and adjust the
+        # optionality of any factored out nodes after the fact.
+        for path_id in arg_ctx.path_log:
+            assert arg_scope is not None
+            # If the node is still here, nothing to do
+            desc = arg_scope.find_descendant(path_id)
+            if desc:
+                continue
+            visible = arg_scope.find_visible(path_id)
+            if visible:
+                if visible.was_optional:
+                    visible.was_optional -= 1
+                    if visible.was_optional == 0:
+                        visible.optional = True
+        arg_ctx.path_log = []
 
 
 def finalize_args(
     bound_call: polyres.BoundCall, *,
+    arg_ctxs: Dict[irast.Set, context.ContextLevel],
     actual_typemods: Sequence[ft.TypeModifier] = (),
     is_polymorphic: bool = False,
     ctx: context.ContextLevel,
@@ -641,26 +680,29 @@ def finalize_args(
 
         typemods.append(param_mod)
 
+        orig_arg = arg
+        arg_ctx = arg_ctxs.get(orig_arg)
+        arg_scope = pathctx.get_set_scope(arg, ctx=ctx)
         if param_mod is not ft.TypeModifier.SET_OF:
-            arg_scope = pathctx.get_set_scope(arg, ctx=ctx)
             param_shortname = param.get_parameter_name(ctx.env.schema)
 
             # Arg was wrapped for scope fencing purposes,
             # but that fence has been removed above, so unwrap it.
-            orig_arg = arg
             arg = irutils.unwrap_set(arg)
 
             if (param_mod is ft.TypeModifier.OPTIONAL or
                     param_shortname in bound_call.null_args):
 
+                process_path_log(arg_ctx, arg_scope)
+
                 if arg_scope is not None:
                     # Due to the construction of relgen, the (unfenced)
                     # subscope is necessary to shield LHS paths from the outer
                     # query to prevent path binding which may break OPTIONAL.
+                    arg_scope.mark_as_optional()
                     branch = arg_scope.unfence()
 
-                pathctx.register_set_in_scope(arg, ctx=ctx)
-                pathctx.mark_path_as_optional(arg.path_id, ctx=ctx)
+                pathctx.register_set_in_scope(arg, optional=True, ctx=ctx)
 
                 if arg_scope is not None:
                     pathctx.assign_set_scope(arg, branch, ctx=ctx)
@@ -670,6 +712,8 @@ def finalize_args(
                 if arg is orig_arg:
                     pathctx.assign_set_scope(arg, None, ctx=ctx)
         else:
+            process_path_log(arg_ctx, arg_scope)
+
             if (is_polymorphic
                     and ctx.expr_exposed
                     and ctx.implicit_limit
@@ -712,5 +756,10 @@ def finalize_args(
             target=call_arg, field='cardinality', irexpr=arg, ctx=ctx)
 
         args.append(call_arg)
+
+        # If we have any logged paths left over and our enclosing
+        # context is logging paths, propagate them up.
+        if arg_ctx and arg_ctx.path_log and ctx.path_log is not None:
+            ctx.path_log.extend(arg_ctx.path_log)
 
     return args, typemods
