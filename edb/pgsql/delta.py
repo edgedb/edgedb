@@ -2009,14 +2009,14 @@ class DeleteObjectType(ObjectTypeMetaCommand,
 
         orig_schema = schema
         schema = ObjectTypeMetaCommand.apply(self, schema, context)
+        schema = s_objtypes.DeleteObjectType.apply(self, schema, context)
 
-        if has_table(objtype, schema):
+        if has_table(objtype, orig_schema):
+            self.attach_alter_table(context)
             self.pgops.add(dbops.DropTable(name=old_table_name, priority=3))
             self.update_base_inhviews(orig_schema, context, objtype)
 
         self.schedule_inhview_deletion(orig_schema, context, objtype)
-
-        schema = s_objtypes.DeleteObjectType.apply(self, schema, context)
 
         return schema
 
@@ -2759,6 +2759,8 @@ class DeleteLink(LinkMetaCommand, adapts=s_links.DeleteLink):
             if link.get_is_owned(orig_schema):
                 self.schedule_endpoint_delete_action_update(
                     link, orig_schema, schema, context)
+
+            self.attach_alter_table(context)
 
         self.pgops.add(
             dbops.DropTable(

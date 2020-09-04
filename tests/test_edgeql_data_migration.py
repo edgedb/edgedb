@@ -2459,6 +2459,21 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }]
         )
 
+    async def test_edgeql_migration_43(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self.migrate(r"""
+            abstract link Ordered {
+                property index -> int32;
+            }
+            type User;
+            abstract type Permissions {
+                multi link owners extending Ordered -> User;
+            };
+        """)
+        await self.migrate(r"")
+
     async def test_edgeql_migration_function_01(self):
         await self.con.execute("""
             SET MODULE test;

@@ -543,7 +543,17 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
             return tuple(self.before_ops)
 
     def has_subcommands(self) -> bool:
-        return bool(self.ops)
+        return bool(self.ops) or bool(self.before_ops)
+
+    def get_nonattr_subcommand_count(self) -> int:
+        count = 0
+        for op in self.ops:
+            if not isinstance(op, AlterObjectProperty):
+                count += 1
+        for op in self.before_ops:
+            if not isinstance(op, AlterObjectProperty):
+                count += 1
+        return count
 
     def prepend_prerequisite(self, command: Command) -> None:
         if isinstance(command, CommandGroup):
@@ -742,15 +752,6 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         if ctxcls is None:
             raise RuntimeError(f'context class not defined for {cls}')
         return ctxcls
-
-    def __str__(self) -> str:
-        return struct.MixedStruct.__str__(self)
-
-    def __repr__(self) -> str:
-        flds = struct.MixedStruct.__repr__(self)
-        return '<{}.{}{}>'.format(self.__class__.__module__,
-                                  self.__class__.__name__,
-                                  (' ' + flds) if flds else '')
 
 
 # Similarly to _dummy_object, we use _dummy_command for places where
@@ -1545,6 +1546,14 @@ class ObjectCommand(
             raise TypeError(f'schema metaclass not set for {cls}')
         return cls._schema_metaclass
 
+    @classmethod
+    def get_other_command_class(
+        cls,
+        cmdtype: Type[ObjectCommand_T],
+    ) -> Type[ObjectCommand_T]:
+        mcls = cls.get_schema_metaclass()
+        return ObjectCommandMeta.get_command_class_or_die(cmdtype, mcls)
+
     def _validate_legal_command(
         self,
         schema: s_schema.Schema,
@@ -2049,11 +2058,6 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
             schema = self._create_finalize(schema, context)
         return schema
 
-    def __repr__(self) -> str:
-        return '<%s.%s "%s">' % (self.__class__.__module__,
-                                 self.__class__.__name__,
-                                 self.classname)
-
 
 class AlterObjectFragment(ObjectCommand[so.Object_T]):
 
@@ -2121,11 +2125,6 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
     astnode = qlast.Rename
 
     new_name = struct.Field(str)
-
-    def __repr__(self) -> str:
-        return '<%s.%s "%s" to "%s">' % (self.__class__.__module__,
-                                         self.__class__.__name__,
-                                         self.classname, self.new_name)
 
     def _rename_begin(
         self,
