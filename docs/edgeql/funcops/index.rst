@@ -67,3 +67,4 @@ singletons. Examples of aggregate functions include built-ins such as
     math
     sys
     uuid
+    deprecated

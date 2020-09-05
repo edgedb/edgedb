@@ -3520,18 +3520,39 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_str_pad_01(self):
         await self.assert_query_result(
-            r'''SELECT str_lpad('Hello', 20);''',
+            r'''SELECT str_pad_start('Hello', 20);''',
             {'               Hello'},
         )
 
         await self.assert_query_result(
-            r'''SELECT str_lpad('Hello', 20, '>');''',
+            r'''SELECT str_pad_start('Hello', 20, '>');''',
             {'>>>>>>>>>>>>>>>Hello'},
         )
 
         await self.assert_query_result(
-            r'''SELECT str_lpad('Hello', 20, '-->');''',
+            r'''SELECT str_pad_start('Hello', 20, '-->');''',
             {'-->-->-->-->-->Hello'},
+        )
+
+        await self.assert_query_result(
+            r'''SELECT str_pad_end('Hello', 20);''',
+            {'Hello               '},
+        )
+
+        await self.assert_query_result(
+            r'''SELECT str_pad_end('Hello', 20, '<');''',
+            {'Hello<<<<<<<<<<<<<<<'},
+        )
+
+        await self.assert_query_result(
+            r'''SELECT str_pad_end('Hello', 20, '<--');''',
+            {'Hello<--<--<--<--<--'},
+        )
+
+        # Call deprecated functions, too.
+        await self.assert_query_result(
+            r'''SELECT str_lpad('Hello', 20);''',
+            {'               Hello'},
         )
 
         await self.assert_query_result(
@@ -3539,44 +3560,34 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             {'Hello               '},
         )
 
-        await self.assert_query_result(
-            r'''SELECT str_rpad('Hello', 20, '<');''',
-            {'Hello<<<<<<<<<<<<<<<'},
-        )
-
-        await self.assert_query_result(
-            r'''SELECT str_rpad('Hello', 20, '<--');''',
-            {'Hello<--<--<--<--<--'},
-        )
-
     async def test_edgeql_functions_str_pad_02(self):
         await self.assert_query_result(
-            r'''SELECT str_lpad('Hello', 2);''',
+            r'''SELECT str_pad_start('Hello', 2);''',
             {'He'},
         )
 
         await self.assert_query_result(
-            r'''SELECT str_lpad('Hello', 2, '>');''',
+            r'''SELECT str_pad_start('Hello', 2, '>');''',
             {'He'},
         )
 
         await self.assert_query_result(
-            r'''SELECT str_lpad('Hello', 2, '-->');''',
+            r'''SELECT str_pad_start('Hello', 2, '-->');''',
             {'He'},
         )
 
         await self.assert_query_result(
-            r'''SELECT str_rpad('Hello', 2);''',
+            r'''SELECT str_pad_end('Hello', 2);''',
             {'He'},
         )
 
         await self.assert_query_result(
-            r'''SELECT str_rpad('Hello', 2, '<');''',
+            r'''SELECT str_pad_end('Hello', 2, '<');''',
             {'He'},
         )
 
         await self.assert_query_result(
-            r'''SELECT str_rpad('Hello', 2, '<--');''',
+            r'''SELECT str_pad_end('Hello', 2, '<--');''',
             {'He'},
         )
 
@@ -3584,7 +3595,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH l := {0, 2, 10, 20}
-                SELECT len(str_lpad('Hello', l)) = l;
+                SELECT len(str_pad_start('Hello', l)) = l;
             ''',
             [True, True, True, True],
         )
@@ -3592,7 +3603,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH l := {0, 2, 10, 20}
-                SELECT len(str_rpad('Hello', l)) = l;
+                SELECT len(str_pad_end('Hello', l)) = l;
             ''',
             [True, True, True, True],
         )
@@ -3603,6 +3614,17 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             {'Hello'},
         )
 
+        await self.assert_query_result(
+            r'''SELECT str_trim_start('    Hello    ');''',
+            {'Hello    '},
+        )
+
+        await self.assert_query_result(
+            r'''SELECT str_trim_end('    Hello    ');''',
+            {'    Hello'},
+        )
+
+        # Call deprecated functions, too.
         await self.assert_query_result(
             r'''SELECT str_ltrim('    Hello    ');''',
             {'Hello    '},
@@ -3615,32 +3637,32 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_str_trim_02(self):
         await self.assert_query_result(
-            r'''SELECT str_ltrim('               Hello', ' <->');''',
+            r'''SELECT str_trim_start('               Hello', ' <->');''',
             {'Hello'},
         )
 
         await self.assert_query_result(
-            r'''SELECT str_ltrim('>>>>>>>>>>>>>>>Hello', ' <->');''',
+            r'''SELECT str_trim_start('>>>>>>>>>>>>>>>Hello', ' <->');''',
             {'Hello'},
         )
 
         await self.assert_query_result(
-            r'''SELECT str_ltrim('-->-->-->-->-->Hello', ' <->');''',
+            r'''SELECT str_trim_start('-->-->-->-->-->Hello', ' <->');''',
             {'Hello'},
         )
 
         await self.assert_query_result(
-            r'''SELECT str_rtrim('Hello               ', ' <->');''',
+            r'''SELECT str_trim_end('Hello               ', ' <->');''',
             {'Hello'},
         )
 
         await self.assert_query_result(
-            r'''SELECT str_rtrim('Hello<<<<<<<<<<<<<<<', ' <->');''',
+            r'''SELECT str_trim_end('Hello<<<<<<<<<<<<<<<', ' <->');''',
             {'Hello'},
         )
 
         await self.assert_query_result(
-            r'''SELECT str_rtrim('Hello<--<--<--<--<--', ' <->');''',
+            r'''SELECT str_trim_end('Hello<--<--<--<--<--', ' <->');''',
             {'Hello'},
         )
 

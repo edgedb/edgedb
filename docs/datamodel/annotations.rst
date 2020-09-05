@@ -18,6 +18,7 @@ The following are the annotations which can be set on any schema item:
 
 - ``title``
 - ``description``
+- ``deprecated``
 
 For example, consider the following declaration:
 
@@ -61,6 +62,10 @@ and used to create a descriptive UI for an admin tool:
             }
         }
     }
+
+The ``deprecated`` annotation is used to mark deprecated items (e.g.
+:eql:func:`str_rpad`) and to provide some information such as what
+should be used instead.
 
 
 See Also
