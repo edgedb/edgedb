@@ -169,10 +169,10 @@ std::str_title(s: std::str) -> std::str
 
 
 CREATE FUNCTION
-std::str_lpad(s: std::str, n: std::int64, fill: std::str=' ') -> std::str
+std::str_pad_start(s: std::str, n: std::int64, fill: std::str=' ') -> std::str
 {
     CREATE ANNOTATION std::description :=
-        'Return the input *string* left-padded to the length *n*.';
+        'Return the input string padded at the start to the length *n*.';
     SET volatility := 'IMMUTABLE';
     USING SQL $$
     SELECT lpad("s", "n"::int4, "fill")
@@ -181,10 +181,24 @@ std::str_lpad(s: std::str, n: std::int64, fill: std::str=' ') -> std::str
 
 
 CREATE FUNCTION
-std::str_rpad(s: std::str, n: std::int64, fill: std::str=' ') -> std::str
+std::str_lpad(s: std::str, n: std::int64, fill: std::str=' ') -> std::str
 {
     CREATE ANNOTATION std::description :=
-        'Return the input *string* right-padded to the length *n*.';
+        'Return the input string left-padded to the length *n*.';
+    CREATE ANNOTATION std::deprecated :=
+        'This function is deprecated and is scheduled \
+         to be removed before 1.0.\n\
+         Use std::str_pad_start() instead.';
+    SET volatility := 'IMMUTABLE';
+    USING (std::str_pad_start(s, n, fill));
+};
+
+
+CREATE FUNCTION
+std::str_pad_end(s: std::str, n: std::int64, fill: std::str=' ') -> std::str
+{
+    CREATE ANNOTATION std::description :=
+        'Return the input string padded at the end to the length *n*.';
     SET volatility := 'IMMUTABLE';
     USING SQL $$
     SELECT rpad("s", "n"::int4, "fill")
@@ -193,12 +207,52 @@ std::str_rpad(s: std::str, n: std::int64, fill: std::str=' ') -> std::str
 
 
 CREATE FUNCTION
+std::str_rpad(s: std::str, n: std::int64, fill: std::str=' ') -> std::str
+{
+    CREATE ANNOTATION std::description :=
+        'Return the input string right-padded to the length *n*.';
+    CREATE ANNOTATION std::deprecated :=
+        'This function is deprecated and is scheduled \
+         to be removed before 1.0.\n\
+         Use std::str_pad_end() instead.';
+    SET volatility := 'IMMUTABLE';
+    USING (std::str_pad_end(s, n, fill));
+};
+
+
+CREATE FUNCTION
+std::str_trim_start(s: std::str, tr: std::str=' ') -> std::str
+{
+    CREATE ANNOTATION std::description :=
+        'Return the input string with all *trim* characters removed from \
+         its start.';
+    SET volatility := 'IMMUTABLE';
+    USING SQL FUNCTION 'ltrim';
+};
+
+
+CREATE FUNCTION
 std::str_ltrim(s: std::str, tr: std::str=' ') -> std::str
 {
     CREATE ANNOTATION std::description :=
-        'Return the input *string* with all leftmost *trim* characters removed.';
+        'Return the input string with all leftmost *trim* characters removed.';
+    CREATE ANNOTATION std::deprecated :=
+        'This function is deprecated and is scheduled \
+         to be removed before 1.0.\n\
+         Use std::str_trim_start() instead.';
     SET volatility := 'IMMUTABLE';
-    USING SQL FUNCTION 'ltrim';
+    USING (std::str_trim_start(s, tr));
+};
+
+
+CREATE FUNCTION
+std::str_trim_end(s: std::str, tr: std::str=' ') -> std::str
+{
+    CREATE ANNOTATION std::description :=
+        'Return the input string with all *trim* characters removed from \
+         its end.';
+    SET volatility := 'IMMUTABLE';
+    USING SQL FUNCTION 'rtrim';
 };
 
 
@@ -206,9 +260,13 @@ CREATE FUNCTION
 std::str_rtrim(s: std::str, tr: std::str=' ') -> std::str
 {
     CREATE ANNOTATION std::description :=
-        'Return the input *string* with all rightmost *trim* characters removed.';
+        'Return the input string with all rightmost *trim* characters removed.';
+    CREATE ANNOTATION std::deprecated :=
+        'This function is deprecated and is scheduled \
+         to be removed before 1.0.\n\
+         Use std::str_trim_end() instead.';
     SET volatility := 'IMMUTABLE';
-    USING SQL FUNCTION 'rtrim';
+    USING (std::str_trim_end(s, tr));
 };
 
 
@@ -216,7 +274,8 @@ CREATE FUNCTION
 std::str_trim(s: std::str, tr: std::str=' ') -> std::str
 {
     CREATE ANNOTATION std::description :=
-        'Return the input *string* with *trim* characters removed from both ends.';
+        'Return the input string with *trim* characters removed from \
+         both ends.';
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'btrim';
 };

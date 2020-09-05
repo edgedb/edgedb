@@ -215,14 +215,15 @@ std::to_str(d: std::decimal, fmt: OPTIONAL str={}) -> std::str
 };
 
 
-# TODO: This converter function is deprecated and
-# is scheduled to be removed before 1.0.
-# Use std::array_join() instead.
 CREATE FUNCTION
 std::to_str(array: array<std::str>, delimiter: std::str) -> std::str
 {
     CREATE ANNOTATION std::description :=
         'Return string representation of the input value.';
+    CREATE ANNOTATION std::deprecated :=
+        'This converter function is deprecated and \
+         is scheduled to be removed before 1.0.\n\
+         Use std::array_join() instead.';
     SET volatility := 'STABLE';
     USING (
         SELECT std::array_join(array, delimiter)
