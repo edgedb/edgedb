@@ -9,5 +9,11 @@ edition = "2018"
 snafu = "0.6.0"
 combine = "4.0.0-beta.1"
 twoway = "0.2.1"
+wasm-bindgen = {version="0.2", features=["serde-serialize"], optional=true}
+serde = {version="1.0.106", features=["derive"], optional=true}
+
+[features]
+default = []
+wasm-lexer = ["wasm-bindgen", "serde"]
 
 [lib]

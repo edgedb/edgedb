@@ -14,6 +14,9 @@ use crate::position::Pos;
 pub const MAX_KEYWORD_LENGTH: usize = 16;
 
 
+#[cfg_attr(feature="wasm-bindgen",
+    wasm_bindgen::prelude::wasm_bindgen(js_name=TokenKind))]
+#[cfg_attr(feature="wasm-bindgen", derive(serde::Serialize))]
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum Kind {
     Assign,           // :=
