@@ -35,6 +35,7 @@ import socket
 import sys
 import tempfile
 import typing
+import warnings
 
 import uvloop
 
@@ -137,9 +138,13 @@ def _init_cluster(cluster, args: ServerConfig) -> bool:
         'default_database_user': args.default_database_user,
         'testmode': args.testmode,
         'insecure': args.insecure,
+        'bootstrap_script': args.bootstrap_script,
+        'bootstrap_command': args.bootstrap_command,
     }
 
-    need_restart = asyncio.run(bootstrap.bootstrap(cluster, bootstrap_args))
+    need_restart = asyncio.run(
+        bootstrap.ensure_bootstrapped(cluster, bootstrap_args)
+    )
 
     global _server_initialized
     _server_initialized = True
@@ -260,7 +265,7 @@ def run_server(args: ServerConfig):
         specified_runstate_dir: Optional[pathlib.Path]
         if args.runstate_dir:
             specified_runstate_dir = args.runstate_dir
-        elif args.bootstrap:
+        elif args.bootstrap_only:
             # When bootstrapping a new EdgeDB instance it is often necessary
             # to avoid using the main runstate dir due to lack of permissions,
             # possibility of conflict with another running instance, etc.
@@ -294,7 +299,7 @@ def run_server(args: ServerConfig):
                 cluster.stop()
                 cluster.start(port=cluster_port)
 
-            if not args.bootstrap:
+            if not args.bootstrap_only:
                 if args.data_dir:
                     cluster.set_connection_params(
                         pgconnparams.ConnectionParameters(
@@ -384,7 +389,9 @@ class ServerConfig(typing.NamedTuple):
     postgres_dsn: str
     log_level: str
     log_to: str
-    bootstrap: bool
+    bootstrap_only: bool
+    bootstrap_command: str
+    bootstrap_script: pathlib.Path
     default_database: str
     default_database_user: str
     devmode: bool
@@ -461,7 +468,10 @@ _server_options = [
               'or "stderr"'),
         type=str, metavar='DEST', default='stderr'),
     click.option(
-        '--bootstrap', is_flag=True,
+        '--bootstrap', is_flag=True, hidden=True,
+        help='bootstrap the database cluster and exit'),
+    click.option(
+        '--bootstrap-only', is_flag=True,
         help='bootstrap the database cluster and exit'),
     click.option(
         '--default-database', type=str, default=getpass.getuser(),
@@ -469,6 +479,16 @@ _server_options = [
     click.option(
         '--default-database-user', type=str, default=getpass.getuser(),
         help='the name of the default database owner'),
+    click.option(
+        '--bootstrap-command', metavar="QUERIES",
+        help='run the commands when initializing the database. '
+             'Queries are executed by default user within default '
+             'database. May be used with or without `--bootstrap`.'),
+    click.option(
+        '--bootstrap-script', type=PathPath(), metavar="PATH",
+        help='run the script when initializing the database. '
+             'Script run by default user within default database. '
+             'May be used with or without `--bootstrap`.'),
     click.option(
         '--devmode/--no-devmode',
         help='enable or disable the development mode',
@@ -527,7 +547,7 @@ def server_options(func):
     return func
 
 
-def server_main(*, insecure=False, **kwargs):
+def server_main(*, insecure=False, bootstrap, **kwargs):
     logsetup.setup_logging(kwargs['log_level'], kwargs['log_to'])
     exceptions.install_excepthook()
 
@@ -538,9 +558,16 @@ def server_main(*, insecure=False, **kwargs):
     if kwargs['devmode'] is not None:
         devmode.enable_dev_mode(kwargs['devmode'])
 
+    if bootstrap:
+        warnings.warn(
+            "Option `--bootstrap` is deprecated, use `--bootstrap-only`",
+            DeprecationWarning,
+        )
+        kwargs['bootstrap_only'] = True
+
     if kwargs['temp_dir']:
-        if kwargs['bootstrap']:
-            abort('--temp-data-dir is incompatible with --bootstrap')
+        if kwargs['bootstrap_only']:
+            abort('--temp-data-dir is incompatible with --bootstrap-only')
         if kwargs['data_dir']:
             abort('--temp-data-dir is incompatible with --data-dir/-D')
         if kwargs['runstate_dir']:
