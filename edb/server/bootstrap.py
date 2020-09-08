@@ -990,119 +990,174 @@ async def _check_data_dir_compatibility(conn):
         )
 
 
-async def bootstrap(cluster, args) -> bool:
-    pgconn = await cluster.connect()
-    pgconn.add_log_listener(_pg_log_listener)
-    std_schema = None
+async def _init_config(cluster: pgcluster.BaseCluster) -> None:
+    conn = await cluster.connect(database=edbdef.EDGEDB_TEMPLATE_DB)
+    try:
+        await _check_data_dir_compatibility(conn)
+        compiler = edbcompiler.Compiler({})
+        await compiler.ensure_initialized(conn)
+        std_schema = compiler.get_std_schema()
+        config_spec = config.load_spec_from_schema(std_schema)
+
+        # Initialize global config
+        config.set_settings(config_spec)
+
+    finally:
+        await conn.close()
+
+
+async def _bootstrap(
+    cluster: pgcluster.BaseCluster,
+    pgconn: asyncpg_con.Connection,
+    args: Dict[str, Any],
+) -> None:
+    membership = set()
+    session_user = cluster.get_connection_params().user
+    if session_user != edbdef.EDGEDB_SUPERUSER:
+        membership.add(session_user)
+
+    superuser_uid = await _ensure_edgedb_role(
+        cluster,
+        pgconn,
+        edbdef.EDGEDB_SUPERUSER,
+        membership=membership,
+        is_superuser=True,
+        builtin=True,
+    )
+
+    await _execute(
+        pgconn,
+        f'SET ROLE {edbdef.EDGEDB_SUPERUSER};',
+    )
+    cluster.set_default_session_authorization(edbdef.EDGEDB_SUPERUSER)
+
+    new_template_db_id = await _ensure_edgedb_template_database(
+        cluster, pgconn)
+
+    conn = await cluster.connect(database=edbdef.EDGEDB_TEMPLATE_DB)
+    conn.add_log_listener(_pg_log_listener)
+
+    await _execute(
+        conn,
+        f'ALTER SCHEMA public OWNER TO {edbdef.EDGEDB_SUPERUSER}',
+    )
 
     try:
-        membership = set()
-        session_user = cluster.get_connection_params().user
-        if session_user != edbdef.EDGEDB_SUPERUSER:
-            membership.add(session_user)
+        conn.add_log_listener(_pg_log_listener)
 
-        superuser_uid = await _ensure_edgedb_role(
+        await _populate_misc_instance_data(cluster, conn)
+
+        std_schema, refl_schema, compiler = await _init_stdlib(
             cluster,
-            pgconn,
-            edbdef.EDGEDB_SUPERUSER,
-            membership=membership,
-            is_superuser=True,
-            builtin=True,
+            conn,
+            testmode=args['testmode'],
+            global_ids={
+                edbdef.EDGEDB_SUPERUSER: superuser_uid,
+                edbdef.EDGEDB_TEMPLATE_DB: new_template_db_id,
+            }
         )
+        await _bootstrap_config_spec(std_schema, cluster)
+        await _compile_sys_queries(refl_schema, compiler, cluster)
+        schema = await _init_defaults(std_schema, compiler, conn)
+        schema = await _populate_data(std_schema, compiler, conn)
+        await _configure(schema, compiler, conn, cluster,
+                         insecure=args['insecure'])
+    finally:
+        await conn.close()
 
-        if session_user != edbdef.EDGEDB_SUPERUSER:
-            await _execute(
-                pgconn,
-                f'SET ROLE {edbdef.EDGEDB_SUPERUSER};',
-            )
-            cluster.set_default_session_authorization(edbdef.EDGEDB_SUPERUSER)
+    schema = await _execute_edgeql_ddl(
+        schema,
+        f'CREATE DATABASE {edbdef.EDGEDB_SUPERUSER_DB}',
+        stdmode=False,
+    )
 
-        new_template_db_id = await _ensure_edgedb_template_database(
-            cluster, pgconn)
+    superuser_db = schema.get_global(
+        s_db.Database, edbdef.EDGEDB_SUPERUSER_DB)
 
-        if new_template_db_id:
-            conn = await cluster.connect(database=edbdef.EDGEDB_TEMPLATE_DB)
-            conn.add_log_listener(_pg_log_listener)
+    await _ensure_edgedb_database(
+        pgconn,
+        edbdef.EDGEDB_SUPERUSER_DB,
+        edbdef.EDGEDB_SUPERUSER,
+        cluster=cluster,
+        objid=superuser_db.id,
+    )
 
-            await _execute(
-                conn,
-                f'ALTER SCHEMA public OWNER TO {edbdef.EDGEDB_SUPERUSER}',
-            )
+    await _ensure_edgedb_role(
+        cluster,
+        pgconn,
+        args['default_database_user'],
+        membership=membership,
+        is_superuser=True,
+    )
 
-            try:
-                conn.add_log_listener(_pg_log_listener)
+    await _execute(
+        pgconn,
+        f"SET ROLE {args['default_database_user']};",
+    )
 
-                await _populate_misc_instance_data(cluster, conn)
+    await _ensure_edgedb_database(
+        pgconn,
+        args['default_database'],
+        args['default_database_user'],
+        cluster=cluster,
+    )
 
-                std_schema, refl_schema, compiler = await _init_stdlib(
-                    cluster,
-                    conn,
-                    testmode=args['testmode'],
-                    global_ids={
-                        edbdef.EDGEDB_SUPERUSER: superuser_uid,
-                        edbdef.EDGEDB_TEMPLATE_DB: new_template_db_id,
-                    }
-                )
-                await _bootstrap_config_spec(std_schema, cluster)
-                await _compile_sys_queries(refl_schema, compiler, cluster)
-                schema = await _init_defaults(std_schema, compiler, conn)
-                schema = await _populate_data(std_schema, compiler, conn)
-                await _configure(schema, compiler, conn, cluster,
-                                 insecure=args['insecure'])
-            finally:
-                await conn.close()
-
-            schema = await _execute_edgeql_ddl(
-                schema,
-                f'CREATE DATABASE {edbdef.EDGEDB_SUPERUSER_DB}',
-                stdmode=False,
-            )
-
-            superuser_db = schema.get_global(
-                s_db.Database, edbdef.EDGEDB_SUPERUSER_DB)
-
-            await _ensure_edgedb_database(
-                pgconn,
-                edbdef.EDGEDB_SUPERUSER_DB,
-                edbdef.EDGEDB_SUPERUSER,
-                cluster=cluster,
-                objid=superuser_db.id,
-            )
-
-        else:
-            conn = await cluster.connect(database=edbdef.EDGEDB_TEMPLATE_DB)
-
-            try:
-                await _check_data_dir_compatibility(conn)
-                compiler = edbcompiler.Compiler({})
-                await compiler.ensure_initialized(conn)
-                std_schema = compiler.get_std_schema()
-                config_spec = config.load_spec_from_schema(std_schema)
-                config.set_settings(config_spec)
-            finally:
-                await conn.close()
-
-        await _ensure_edgedb_role(
-            cluster,
-            pgconn,
-            args['default_database_user'],
-            membership=membership,
-            is_superuser=True,
-        )
-
+    if args['bootstrap_command'] or args['bootstrap_script']:
+        logger.info(f'Executing custom initialization')
+        init_conn = await cluster.connect(database=args['default_database'])
         await _execute(
-            pgconn,
+            init_conn,
             f"SET ROLE {args['default_database_user']};",
         )
+        compiler = edbcompiler.Compiler({})
+        await compiler.ensure_initialized(init_conn)
+        schema = await compiler.introspect(init_conn)
+        try:
+            if args['bootstrap_command']:
+                try:
+                    schema, sql = compile_bootstrap_script(
+                        compiler,
+                        schema,
+                        args['bootstrap_command'],
+                    )
+                    await _execute(init_conn, sql)
+                except Exception as e:
+                    raise RuntimeError(
+                        "Error executing --bootstrap-command"
+                    ) from e
+            if args['bootstrap_script']:
+                try:
+                    with open(args['bootstrap_script']) as f:
+                        queries = f.read()
+                    schema, sql = compile_bootstrap_script(
+                        compiler,
+                        schema,
+                        queries,
+                    )
+                    await _execute(init_conn, sql)
+                except Exception as e:
+                    raise RuntimeError(
+                        "Error executing --bootstrap-script"
+                    ) from e
+        finally:
+            await init_conn.close()
 
-        await _ensure_edgedb_database(
-            pgconn,
-            args['default_database'],
-            args['default_database_user'],
-            cluster=cluster,
-        )
+
+async def ensure_bootstrapped(
+    cluster: pgcluster.BaseCluster,
+    args: Dict[str, Any],
+) -> bool:
+    pgconn = await cluster.connect()
+    pgconn.add_log_listener(_pg_log_listener)
+
+    try:
+
+        if await _get_db_info(pgconn, edbdef.EDGEDB_TEMPLATE_DB):
+            await _init_config(cluster)
+            return False
+        else:
+            await _bootstrap(cluster, pgconn, args)
+            return True
 
     finally:
         await pgconn.close()
-
-    return new_template_db_id is not None
