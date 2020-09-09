@@ -25,7 +25,7 @@ String
         {'I ❤️ EdgeDB'}
 
     Note that when a :eql:type:`str` is cast into a :eql:type:`json`,
-    the result is JSON string value. Same applies for casting back
+    the result is a JSON string value. Same applies for casting back
     from :eql:type:`json` - only a JSON string value can be cast into
     a :eql:type:`str`:
 
@@ -35,7 +35,7 @@ String
         {'"Hello, world"'}
 
     There are two kinds of string literals in EdgeQL: regular and *raw*.
-    Raw strings literals do not evaluate ``\``, so ``\n`` in in a raw string
+    Raw string literals do not evaluate ``\``, so ``\n`` in in a raw string
     is two characters ``\`` and ``n``.
 
     The regular string literal syntax is ``'a string'`` or a ``"a string"``.
@@ -53,7 +53,7 @@ String
         nested \!$$'}
 
     Regular strings use ``\`` to indicate line continuation. When a
-    line continuation symbol is encountered the symbol itself as well
+    line continuation symbol is encountered, the symbol itself as well
     as all the whitespace characters up to the next non-whitespace
     character are omitted from the string:
 
