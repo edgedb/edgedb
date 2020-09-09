@@ -26,7 +26,7 @@ There are several kinds of strings:
     ...     line continuation';
     {'A string with line continuation'}
 
-The literals for limited range/precision numbers (like
+Literals for limited range/precision numbers (like
 :eql:type:`std::int64` and :eql:type:`std::float64`):
 
 .. code-block:: edgeql-repl
@@ -36,7 +36,7 @@ The literals for limited range/precision numbers (like
     db> SELECT 12.3;
     {12.3}
 
-The literals for unlimited range/precision numbers (like
+Literals for unlimited range/precision numbers (like
 :eql:type:`std::bigint` and :eql:type:`std::decimal`):
 
 .. code-block:: edgeql-repl
