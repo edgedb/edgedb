@@ -24,7 +24,7 @@ To create a new EdgeDB instance:
     $ edgedb server init <instance-name>
 
 The server would then populate the specified directory with the initial
-databases: ``edgedb`` and ``<user>``, where *<user>* the name of
+databases: ``edgedb`` and ``<user>``, where *<user>* is the name of
 the OS user that has started the server (if different from ``edgedb``).
 Two corresponding user roles are also created: ``edgedb`` and ``<user>``,
 both with superuser privileges.
