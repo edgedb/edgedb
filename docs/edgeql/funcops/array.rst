@@ -102,7 +102,7 @@ Array
         {[1]}
 
     Referencing an array slice beyond the array boundaries will result in
-    an empty array (unlike the direct reference to a specific index):
+    an empty array (unlike a direct reference to a specific index):
 
     .. code-block:: edgeql-repl
 
@@ -132,7 +132,7 @@ Array
 
     :index: aggregate array set
 
-    Return the array made from all of the input set elements.
+    Return an array made from all of the input set elements.
 
     The ordering of the input set will be preserved if specified.
 
