@@ -29,7 +29,7 @@ the database:
     ......... };
     CONFIGURE SYSTEM
 
-This will expose GraphQL API for the ``"your_database_name"`` on port 8888
+This will expose the GraphQL API for the ``"your_database_name"`` on port 8888
 (or any other port that was specified).
 
 Pointing your browser to ``http://127.0.0.1:8888/explore``
