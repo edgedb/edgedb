@@ -22,7 +22,7 @@ JSON
         {true}
 
     Note that a :eql:type:`json` value can be cast into a :eql:type:`str`
-    only when it is a JSON string.  Therefore the following will work
+    only when it is a JSON string.  Therefore, while the following will work
     as expected:
 
     .. code-block:: edgeql-repl
@@ -30,7 +30,7 @@ JSON
         db> SELECT <str>to_json('"something"');
         {'something'}
 
-    On the other hand, the below operation (casting a JSON array of
+    The operation below (casting a JSON array of
     string ``["a", "b", "c"]`` to a *str*) will result in an error:
 
     .. code-block:: edgeql-repl
@@ -109,8 +109,8 @@ particular JSON type can be cast back into that scalar:
 - JSON *array* can be cast into any valid EdgeDB array, so it must be
   homogeneous, and must not contain *null*
 
-*Regular* :eql:type:`tuple` is converted into a JSON *array* when cast
-into :eql:type:`json`. Whereas *named* :eql:type:`tuple` is converted
+A *regular* :eql:type:`tuple` is converted into a JSON *array* when cast
+into :eql:type:`json`, whereas a *named* :eql:type:`tuple` is converted
 into a JSON *object*. These casts are not reversible, i.e. it is not
 possible to cast a JSON value directly into a :eql:type:`tuple`.
 
