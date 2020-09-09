@@ -8,7 +8,7 @@ Constraints
 over which data is considered valid.  A constraint may be defined on a
 :ref:`scalar type <ref_datamodel_scalar_types>`, an
 :ref:`object type <ref_datamodel_object_types>`, a
-:ref:`concrete link <ref_datamodel_links>`, a
+:ref:`concrete link <ref_datamodel_links>`, or a
 :ref:`concrete property <ref_datamodel_props>`.  In case of a
 constraint on a scalar type, the *subjects* of the constraint are
 the instances of that scalar, thus the values that the scalar can
