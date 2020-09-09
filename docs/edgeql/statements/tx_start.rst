@@ -84,7 +84,7 @@ The :eql:synopsis:`<transaction-mode>` can be one of the following:
 
 :eql:synopsis:`READ ONLY`
     Sets the transaction access mode to read-only.  Any data
-    modification with :ref:`INSERT <ref_eql_statements_insert>`,
+    modifications with :ref:`INSERT <ref_eql_statements_insert>`,
     :ref:`UPDATE <ref_eql_statements_update>`, or
     :ref:`DELETE <ref_eql_statements_delete>` are disallowed.
     Schema mutations via :ref:`DDL <ref_eql_ddl>` are also
