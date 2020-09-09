@@ -857,7 +857,7 @@ Number formatting options
 | 0          | digit position (will not be dropped, even if        |
 |            | insignificant)                                      |
 +------------+-----------------------------------------------------+
-| .          | (period)  decimal point                              |
+| .          | (period)  decimal point                             |
 +------------+-----------------------------------------------------+
 | ,          | (comma)   group (thousands) separator               |
 +------------+-----------------------------------------------------+
