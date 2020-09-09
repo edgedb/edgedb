@@ -16,11 +16,11 @@ Every property is declared to have a specific
 :ref:`collection type <ref_datamodel_collection_types>` based on a scalar.
 
 There are two kinds of property item declarations: *abstract properties*,
-and *concrete properties*.  Abstract properties are defined on the module level
-and are not tied to any particular object type or link.  Typically this is
-done to set some :ref:`annotations <ref_datamodel_annotations>`, or define
-:ref:`constraints <ref_datamodel_constraints>`.  Concrete properties
-are defined on specific object types.
+and *concrete properties*.  Abstract properties are defined on the module 
+level and are not tied to any particular object type or link.  Typically 
+this is done to set some :ref:`annotations <ref_datamodel_annotations>`, 
+or define :ref:`constraints <ref_datamodel_constraints>`.  Concrete 
+properties are defined on specific object types.
 
 Similar to :ref:`links <ref_datamodel_links>`, properties have a
 *source* (the object on which they are defined) and one or more
