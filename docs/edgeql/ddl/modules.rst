@@ -66,7 +66,7 @@ Description
 -----------
 
 ``DROP MODULE`` removes an existing module from the current database.
-All schema items and data contained in the module is removed as well.
+All schema items and data contained in the module are removed as well.
 
 
 Examples
