@@ -1860,6 +1860,17 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
+    @test.xfail('''
+        The edgeql/tracer.py seems to have an issue resolving the
+        body expression.
+    ''')
+    def test_schema_get_migration_35(self):
+        schema = r'''
+            function bar() -> str using(SELECT <str>Object.id LIMIT 1);
+        '''
+
+        self._assert_migration_consistency(schema)
+
     def test_schema_get_migration_multi_module_01(self):
         schema = r'''
             # The two declared types declared are from different

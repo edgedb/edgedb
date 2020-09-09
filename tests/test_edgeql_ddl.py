@@ -28,6 +28,22 @@ from edb.tools import test
 
 class TestEdgeQLDDL(tb.DDLTestCase):
 
+    async def assert_describe_migration(self, exp_result_json, *, msg=None):
+        try:
+            tx = self.con.transaction()
+            await tx.start()
+            try:
+                res = await self.con.query_one(
+                    'DESCRIBE CURRENT MIGRATION AS JSON;')
+            finally:
+                await tx.rollback()
+
+            res = json.loads(res)
+            self._assert_data_shape(res, exp_result_json, message=msg)
+        except Exception:
+            self.add_fail_notes(serialization='json')
+            raise
+
     async def test_edgeql_ddl_01(self):
         await self.con.execute("""
             CREATE ABSTRACT LINK test::test_link;
@@ -3669,6 +3685,31 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             []
         )
 
+    async def test_edgeql_ddl_annotation_12(self):
+        with self.assertRaisesRegex(
+            edgedb.UnknownModuleError,
+            "module 'bogus' is not in this schema",
+        ):
+            await self.con.execute("""
+                CREATE ABSTRACT ANNOTATION bogus::anno12;
+            """)
+
+    @test.xfail('''
+        UnknownModuleError not raised.
+    ''')
+    async def test_edgeql_ddl_annotation_13(self):
+        await self.con.execute("""
+            CREATE ABSTRACT ANNOTATION test::anno13;
+        """)
+
+        with self.assertRaisesRegex(
+            edgedb.UnknownModuleError,
+            "module 'bogus' is not in this schema",
+        ):
+            await self.con.execute("""
+                ALTER ABSTRACT ANNOTATION test::anno13 RENAME TO bogus::anno13;
+            """)
+
     async def test_edgeql_ddl_anytype_01(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidPropertyTargetError,
@@ -6538,6 +6579,14 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         )
 
     async def test_edgeql_ddl_describe_migration_json_01(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"not currently in a migration block"):
+            await self.con.execute('''
+                ALTER CURRENT MIGRATION REJECT PROPOSED;
+            ''')
+
+    async def test_edgeql_ddl_describe_migration_json_02(self):
         await self.con.execute('''
             START MIGRATION TO {
                 module default {
@@ -6548,7 +6597,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         ''')
 
-        expected = {
+        await self.assert_describe_migration({
             'parent': 'm1a2l6lbzimqokzygdzbkyjrhbmjh3iljg7i2m6r2ias2z2de4x4cq',
             'confirmed': [],
             'complete': False,
@@ -6565,17 +6614,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 'operation_id': 'CREATE TYPE default::Type1',
                 'prompt': "did you create object type 'default::Type1'?",
             },
-        }
+        })
 
-        result = await self.con.query_one(
-            '''
-                DESCRIBE CURRENT MIGRATION AS JSON;
-            ''',
-        )
-
-        self.assertEqual(json.loads(result), expected)
-
-    async def test_edgeql_ddl_describe_migration_json_02(self):
+    @test.xfail('''
+        Rejecting an empty proposal should be a legal NOP.
+    ''')
+    async def test_edgeql_ddl_describe_migration_json_03(self):
         await self.con.execute('''
             START MIGRATION TO {
                 module test {
@@ -6583,22 +6627,62 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         ''')
 
-        expected = {
+        await self.assert_describe_migration({
             'parent': 'm1a2l6lbzimqokzygdzbkyjrhbmjh3iljg7i2m6r2ias2z2de4x4cq',
             'confirmed': [],
             'complete': True,
             'proposed': None,
-        }
+        })
 
-        result = await self.con.query_one(
-            '''
-                DESCRIBE CURRENT MIGRATION AS JSON;
-            ''',
-        )
+        # Reject an empty proposal, which should be an idempotent
+        # operation. So reject it several times.
+        await self.con.execute('''
+            ALTER CURRENT MIGRATION REJECT PROPOSED;
+            ALTER CURRENT MIGRATION REJECT PROPOSED;
+            ALTER CURRENT MIGRATION REJECT PROPOSED;
+        ''')
 
-        self.assertEqual(json.loads(result), expected)
+    @test.xfail('''
+        Rejecting an empty proposal should be a legal NOP.
+    ''')
+    async def test_edgeql_ddl_describe_migration_json_04(self):
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type Type0;
+                };
+            };
+        ''')
 
-    async def test_edgeql_ddl_describe_migration_json_03(self):
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': 'CREATE TYPE test::Type0;'
+                }],
+                'confidence': 1.0,
+                'operation_id': 'CREATE TYPE test::Type0',
+                'prompt': "did you create object type 'test::Type0'?",
+            },
+        })
+
+        # Reject a proposal until we run out of options.
+        await self.con.execute('''
+            ALTER CURRENT MIGRATION REJECT PROPOSED;
+            ALTER CURRENT MIGRATION REJECT PROPOSED;
+            ALTER CURRENT MIGRATION REJECT PROPOSED;
+            ALTER CURRENT MIGRATION REJECT PROPOSED;
+            ALTER CURRENT MIGRATION REJECT PROPOSED;
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': None,
+        })
+
+    async def test_edgeql_ddl_describe_migration_json_05(self):
         await self.con.execute('''
             START MIGRATION TO {
                 module test {
@@ -6611,7 +6695,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             DECLARE SAVEPOINT migration_01;
         ''')
 
-        expected_1 = {
+        await self.assert_describe_migration(orig_expected := {
             'parent': 'm1a2l6lbzimqokzygdzbkyjrhbmjh3iljg7i2m6r2ias2z2de4x4cq',
             'confirmed': [],
             'complete': False,
@@ -6628,15 +6712,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 'operation_id': 'CREATE TYPE test::Type1',
                 'prompt': "did you create object type 'test::Type1'?",
             },
-        }
-
-        result = await self.con.query_one(
-            '''
-                DESCRIBE CURRENT MIGRATION AS JSON;
-            ''',
-        )
-
-        self.assertEqual(json.loads(result), expected_1)
+        })
 
         await self.con.execute('''
             CREATE TYPE test::Type1 {
@@ -6644,7 +6720,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         ''')
 
-        expected_2 = {
+        await self.assert_describe_migration({
             'parent': 'm1a2l6lbzimqokzygdzbkyjrhbmjh3iljg7i2m6r2ias2z2de4x4cq',
             'confirmed': [
                 'CREATE TYPE test::Type1 {\n'
@@ -6653,27 +6729,13 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ],
             'complete': True,
             'proposed': None,
-        }
-
-        result = await self.con.query_one(
-            '''
-                DESCRIBE CURRENT MIGRATION AS JSON;
-            ''',
-        )
-
-        self.assertEqual(json.loads(result), expected_2)
+        })
 
         await self.con.execute('ROLLBACK TO SAVEPOINT migration_01;')
 
-        result = await self.con.query_one(
-            '''
-                DESCRIBE CURRENT MIGRATION AS JSON;
-            ''',
-        )
+        await self.assert_describe_migration(orig_expected)
 
-        self.assertEqual(json.loads(result), expected_1)
-
-    async def test_edgeql_ddl_describe_migration_json_04(self):
+    async def test_edgeql_ddl_describe_migration_json_06(self):
         self.maxDiff = None
         await self.migrate('''
             type Test;
@@ -6688,7 +6750,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         ''')
 
-        expected = {
+        await self.assert_describe_migration({
             'parent': 'm1xh653zionj2aehqbh7x6km5lo3b2mjaftxdkvqoh3wluc3iv6k2a',
             'confirmed': [],
             'complete': False,
@@ -6702,21 +6764,13 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     "did you rename object type 'test::Test' to 'test::Test2'?"
                 ),
             },
-        }
-
-        result = await self.con.query_one(
-            '''
-                DESCRIBE CURRENT MIGRATION AS JSON;
-            ''',
-        )
-
-        self.assertEqual(json.loads(result), expected)
+        })
 
         await self.con.execute('''
             ALTER CURRENT MIGRATION REJECT PROPOSED;
         ''')
 
-        expected_1 = {
+        await self.assert_describe_migration({
             'parent': 'm1xh653zionj2aehqbh7x6km5lo3b2mjaftxdkvqoh3wluc3iv6k2a',
             'confirmed': [],
             'complete': False,
@@ -6730,21 +6784,13 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     "did you rename object type 'test::Test' to 'test::Test3'?"
                 ),
             },
-        }
-
-        result = await self.con.query_one(
-            '''
-                DESCRIBE CURRENT MIGRATION AS JSON;
-            ''',
-        )
-
-        self.assertEqual(json.loads(result), expected_1)
+        })
 
         await self.con.execute('''
             ALTER TYPE test::Test RENAME TO test::Test3;
         ''')
 
-        expected_2 = {
+        await self.assert_describe_migration({
             'parent': 'm1xh653zionj2aehqbh7x6km5lo3b2mjaftxdkvqoh3wluc3iv6k2a',
             'confirmed': ['ALTER TYPE test::Test RENAME TO test::Test3'],
             'complete': False,
@@ -6758,12 +6804,348 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     "did you create object type 'test::Test2'?"
                 ),
             },
-        }
+        })
 
-        result = await self.con.query_one(
-            '''
-                DESCRIBE CURRENT MIGRATION AS JSON;
-            ''',
-        )
+    async def test_edgeql_ddl_describe_migration_json_07(self):
+        # Create and drop things to end up with an empty schema.
+        await self.con.execute('''
+            CREATE TYPE test::Type0;
+            DROP TYPE test::Type0;
+        ''')
 
-        self.assertEqual(json.loads(result), expected_2)
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type Type1 {
+                        property field1 -> str;
+                    };
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': (
+                        'CREATE TYPE test::Type1 {\n'
+                        '    CREATE OPTIONAL SINGLE PROPERTY field1'
+                        ' -> std::str;\n'
+                        '};'
+                    )
+                }],
+                'confidence': 1.0,
+                'operation_id': 'CREATE TYPE test::Type1',
+                'prompt': "did you create object type 'test::Type1'?",
+            },
+        })
+
+    @test.xfail('''
+        The migration needs to create a new module, but the module
+        command is not handled by the DESCRIBE.
+    ''')
+    async def test_edgeql_ddl_describe_migration_json_08(self):
+        # Migration that creates a new empty module.
+        await self.con.execute('''
+            START MIGRATION TO {
+                module new_module {
+                    type Type0;
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': 'CREATE MODULE new_module;'
+                }],
+                'confidence': 1.0,
+            },
+        })
+
+        await self.con.execute('''
+            CREATE MODULE new_module;
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [
+                'CREATE MODULE new_module',
+            ],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': 'CREATE TYPE new_module::Type0;'
+                }],
+            },
+        })
+
+    @test.xfail('''
+        The "complete" flag is not set even though the DDL from
+        "proposed" list is used. The specific way to trigger it is to
+        reject the proposed DDL and then use it anyway.
+    ''')
+    async def test_edgeql_ddl_describe_migration_json_09(self):
+        # Migration involving 2 modules
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type Test;
+                };
+
+                module other {
+                    type Test;
+                };
+            };
+            POPULATE MIGRATION;
+            COMMIT MIGRATION;
+        ''')
+
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type Test2;
+                };
+
+                module other {
+                    type Test3;
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': 'ALTER TYPE other::Test RENAME TO other::Test3;',
+                }],
+                'confidence': 1.0,
+                'operation_id': 'ALTER TYPE other::Test',
+                'prompt': (
+                    "did you rename object type 'other::Test' to "
+                    "'other::Test3'?"
+                ),
+            },
+        })
+
+        await self.con.execute('''
+            ALTER CURRENT MIGRATION REJECT PROPOSED;
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': 'ALTER TYPE other::Test RENAME TO test::Test2;',
+                }],
+                'confidence': 1.0,
+                'operation_id': 'ALTER TYPE other::Test',
+                'prompt': (
+                    "did you rename object type 'other::Test' to "
+                    "'test::Test2'?"
+                ),
+            },
+        })
+
+        await self.con.execute('''
+            ALTER TYPE other::Test RENAME TO test::Test2;
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [
+                'ALTER TYPE other::Test RENAME TO test::Test2'
+            ],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': 'ALTER TYPE test::Test RENAME TO other::Test3;',
+                }],
+                'confidence': 1.0,
+                'operation_id': 'ALTER TYPE test::Test',
+                'prompt': (
+                    "did you rename object type 'test::Test' to "
+                    "'other::Test3'?"
+                ),
+            },
+        })
+
+        await self.con.execute('''
+            ALTER CURRENT MIGRATION REJECT PROPOSED;
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [
+                'ALTER TYPE other::Test RENAME TO test::Test2'
+            ],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': 'CREATE TYPE other::Test3;',
+                }],
+                'confidence': 1.0,
+                'operation_id': 'CREATE TYPE other::Test3',
+                'prompt': (
+                    "did you create object type 'other::Test3'?"
+                ),
+            },
+        })
+
+        # Change our mind and use a rejected operation to rename the
+        # type after all. So, we should be done now.
+        await self.con.execute('''
+            ALTER TYPE test::Test RENAME TO other::Test3;
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [
+                'ALTER TYPE other::Test RENAME TO test::Test2',
+                'ALTER TYPE test::Test RENAME TO other::Test3',
+            ],
+            'complete': True,
+            'proposed': None,
+        })
+
+    async def test_edgeql_ddl_describe_migration_json_10(self):
+        # Create and drop things to end up with an empty schema.
+        await self.migrate('''
+            type Type0;
+        ''')
+
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type Type1;
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': "ALTER TYPE test::Type0 RENAME TO test::Type1;"
+                }],
+                'confidence': 1.0,
+                'operation_id': "ALTER TYPE test::Type0",
+                'prompt': (
+                    "did you rename object type 'test::Type0' to "
+                    "'test::Type1'?"
+                ),
+            },
+        })
+
+        # Instead of the suggestion do a couple of different, but
+        # equivalent commands.
+        await self.con.execute('''
+            ALTER TYPE test::Type0 RENAME TO test::TypeXX;
+            ALTER TYPE test::TypeXX RENAME TO test::Type1;
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [
+                'ALTER TYPE test::Type0 RENAME TO test::TypeXX',
+                'ALTER TYPE test::TypeXX RENAME TO test::Type1',
+            ],
+            'complete': True,
+            'proposed': None,
+        })
+
+    @test.xfail('''
+        Abstract annotation doesn't offer renaming.
+    ''')
+    async def test_edgeql_ddl_describe_migration_json_11(self):
+        # Migration that renames an annotation.
+        await self.migrate('''
+            abstract annotation my_anno0;
+        ''')
+
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    abstract annotation my_anno1;
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': (
+                        'ALTER ABSTRACT ANNOTATION test::my_anno0 '
+                        'RENAME TO test::my_anno1;'
+                    )
+                }],
+                'confidence': 1.0,
+            },
+        })
+
+    @test.xfail('''
+        Abstract constraint renaming fails.
+    ''')
+    async def test_edgeql_ddl_describe_migration_json_12(self):
+        # Migration that renames a constraint.
+        await self.migrate('''
+            abstract constraint my_oneof(one_of: array<anytype>) {
+                using (contains(one_of, __subject__));
+            };
+        ''')
+
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    abstract constraint my_one_of(one_of: array<anytype>) {
+                        using (contains(one_of, __subject__));
+                    };
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': (
+                        'ALTER ABSTRACT CONSTRAINT test::my_oneof '
+                        'RENAME TO test::my_one_of;'
+                    )
+                }],
+                'confidence': 1.0,
+            },
+        })
+
+    @test.xfail('''
+        Function rename DESCRIBE fails with:
+
+        InvalidReferenceError: function 'default::foo' does not exist
+    ''')
+    async def test_edgeql_ddl_describe_migration_json_13(self):
+        # Migration that renames a function (currently we expect a
+        # drop/create instead of renaming).
+        await self.migrate('''
+            function foo() -> str using (SELECT <str>random());
+        ''')
+
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    function bar() -> str using (SELECT <str>random());
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                # TODO: add actual validation for statements
+                'confidence': 1.0,
+            },
+        })
