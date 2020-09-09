@@ -55,7 +55,7 @@ The following queries are exactly equivalent:
     FILTER example::User.name LIKE 'Alice%';
 
 
-It is also possible to define aliases modules in the ``WITH`` block.
+It is also possible to define aliased modules in the ``WITH`` block. 
 Consider the following query that needs to compare objects
 corresponding to concepts defined in two different modules.
 
@@ -162,8 +162,8 @@ refer to an otherwise related set as if it were unrelated:
         coworkers := (SELECT DETACHED User FILTER .name = 'Bob')
     };
 
-Rather than having to define ``U := User`` in the ``WITH`` block only
-so that it could be used in the body of the ``UPDATE`` the ``DETACHED
-User`` expression can be used. The goal is to indicate that the
+Here you can use the ``DETACHED User`` expression, rather than having to 
+define ``U := User`` in the ``WITH`` block just to allow it to be used 
+in the body of the ``UPDATE``. The goal is to indicate that the
 ``User`` in the ``UPDATE`` body is not in any way related to the
 ``User`` that's being updated.
