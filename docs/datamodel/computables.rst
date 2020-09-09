@@ -10,7 +10,7 @@ may be declared as *computable*.
 The values of computable properties and links are not persisted in the
 database and are computed using the specified expression every time they
 are referenced in a query.  The type of the property or link is determined
-from the expression.  Other than that computables behave exactly like their
+from the expression.  Other than that, computables behave exactly like their
 non-computable counterparts.
 
 Links and properties have a *source* and one or more *targets*.  The
