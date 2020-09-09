@@ -15,7 +15,7 @@ The *subject* of an index is either the object or the abstract link on
 which the index is defined. It can be referred to in the index
 expression as ``__subject__``.
 
-The simplest form of index is an index, which references one
+The simplest form of an index is one which references one
 or more properties directly:
 
 .. code-block:: sdl
