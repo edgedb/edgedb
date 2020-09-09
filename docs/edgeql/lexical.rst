@@ -254,7 +254,8 @@ content with *dollar-quotes* in an unambiguous manner:
 More specifically, a delimiter:
 
 * Must start with an ASCII letter or underscore
-* Has following characters that can be digits 0-9, underscores or ASCII letters
+* Has following characters that can be digits 0-9, underscores or 
+  ASCII letters
 
 .. _ref_eql_lexical_bytes:
 
