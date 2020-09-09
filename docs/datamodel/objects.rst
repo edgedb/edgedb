@@ -11,8 +11,8 @@ an object type is called an *object*.  All data in EdgeDB is represented by
 objects and by links between objects.
 
 Every object has a globally unique *identity* represented by a ``UUID``
-value.  Object's identity is assigned on object's creation and never
-changes.  Referring to object's ``id`` property yields its identity as a
+value. An object's identity is assigned upon creation and never changes. 
+Referring to its id property yields its identity as a 
 :eql:type:`uuid` value.  Once set, the value of the ``id`` property
 cannot be changed or masked with a different :ref:`computable
 <ref_datamodel_computables>` expression.
