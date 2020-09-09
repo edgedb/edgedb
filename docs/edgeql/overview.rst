@@ -42,7 +42,7 @@ elements.  Strictly speaking, EdgeQL sets are *multisets*, as they do not
 require the elements to be unique.
 
 A set cannot contain elements of different base types.  Mixing objects and
-primitive types, as well as primitive types with different base type, is
+primitive types, as well as primitive types with a different base type, is
 not allowed.
 
 In SQL databases ``NULL`` is a special *value* denoting an absence of data.
@@ -203,7 +203,7 @@ A query is evaluated recursively using the following procedure:
    directly in the query (including the common path prefixes identified above).
    The set references and path prefixes in this list are called *input
    set references*,  and the sets they represent are called *input
-   sets*. Order this list such that an input references come before
+   sets*. Order this list such that any input references come before
    any other input set reference for which it is a prefix (sorting
    lexicographically works).
 
@@ -225,7 +225,7 @@ A query is evaluated recursively using the following procedure:
      The set produced becomes the new input tuple set and we continue
      down the list.
    - As a caveat to the above, if an input set appears exclusively as
-     an :ref:`ref_eql_fundamentals_optional` argument, produce
+     an :ref:`ref_eql_fundamentals_optional` argument, it produces
      pairs with a placeholder value ``Missing`` instead of an empty
      Cartesian product in the above
      set. (Mathematically, this corresponds to having ``f(x) =
