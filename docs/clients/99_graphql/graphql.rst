@@ -4,8 +4,8 @@
 Basics
 ======
 
-For the purposes of this section we will consider ``default`` module
-containing the following schema:
+For the purposes of this section we will consider the ``default`` 
+module containing the following schema:
 
 .. code-block:: sdl
 
@@ -58,8 +58,8 @@ Consider this example:
     +---------------------------------+---------------------------------+
 
 The top-level field of the GraphQL query must be a valid
-name of an object type or an expression alias of returning an object type.
-Nested fields must be valid links or properties.
+name of an object type or an expression alias of something returning an
+object type. Nested fields must be valid links or properties.
 
 There are some specific conventions as to how *arguments* in GraphQL
 queries are used to allow filtering, ordering, and paginating data.
@@ -72,9 +72,8 @@ Filtering
 
 Filtering the retrieved data is done by specifying a ``filter``
 argument. The ``filter`` argument is customized to each specific type
-based on the available fields. In case of the sample schema, here's
-what the specification for the available filter arguments for querying
-``Book``:
+based on the available fields. In case of the sample schema, here are 
+the specifications for available filter arguments for querying ``Book``:
 
 .. code-block:: graphql-schema
 
@@ -225,7 +224,7 @@ Ordering
 Ordering the retrieved data is done by specifying an ``order``
 argument. The ``order`` argument is customized to each specific type
 based on the available fields, much like the ``filter``. In case of
-the sample schema, here's what the specification for the available
+the sample schema, here are the specifications for the available 
 filter arguments:
 
 .. code-block:: graphql-schema
@@ -294,7 +293,7 @@ Paginating
 Paginating the retrieved data is done by providing one or more of the
 following arguments: ``first``, ``last``, ``before``, and ``after``.
 The pagination works in a similar way to Relay Connections. In case of
-the sample schema, here's what the specification for the available
+the sample schema, here are the specifications for the available 
 filter arguments:
 
 .. code-block:: graphql-schema
