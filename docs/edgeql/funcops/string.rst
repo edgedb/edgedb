@@ -452,7 +452,7 @@ String
 
     Given an input *string* and a regular expression :ref:`pattern
     <string_regexp>` replace matching substrings with the replacement
-    string *sub*. Optional :ref:`flag <string_regexp_flags>` argument
+    string *sub*. Optional :ref:`flag <string_regexp_flags>` arguments
     can be used to specify additional regular expression flags. Return
     the string resulting from substring replacement.
 
@@ -551,7 +551,7 @@ String
         {'-123.45'}
 
     When converting :eql:type:`json`, this function can take
-    ``'pretty'`` as the optional *fmt* argument to produce
+    ``'pretty'`` as the optional *fmt* argument to produce a
     pretty-formatted JSON string.
 
     See also :eql:func:`to_json`.
@@ -589,8 +589,8 @@ Regular Expressions
 
 EdgeDB supports Regular expressions (REs), as defined in POSIX 1003.2.
 They come in two forms: BRE (basic RE) and ERE (extended RE). In
-addition to that EdgeDB supports certain common extensions to the
-POSIX standard commonly known as ARE (advanced RE). More details about
+addition, EdgeDB supports certain common extensions to the POSIX
+standard commonly known as ARE (advanced RE). More details about
 BRE, ERE, and ARE support can be found in `PostgreSQL documentation`_.
 
 
@@ -857,9 +857,9 @@ Number formatting options
 | 0          | digit position (will not be dropped, even if        |
 |            | insignificant)                                      |
 +------------+-----------------------------------------------------+
-| .          | period)  decimal point                              |
+| .          | (period)  decimal point                              |
 +------------+-----------------------------------------------------+
-| ,          | comma)   group (thousands) separator                |
+| ,          | (comma)   group (thousands) separator                |
 +------------+-----------------------------------------------------+
 | PR         | negative value in angle brackets                    |
 +------------+-----------------------------------------------------+
