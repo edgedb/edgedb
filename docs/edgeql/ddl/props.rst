@@ -375,7 +375,7 @@ from its containing object type or link.  All properties that inherit from this
 property are also removed.
 
 :eql:synopsis:`DROP ABSTRACT PROPERTY` removes the specified abstract
-property item the schema.
+property item from the schema.
 
 Example
 -------
