@@ -6,8 +6,8 @@ Introspection
 
 GraphQL introspection can be used to explore the exposed EdgeDB types
 and expresssion aliases. Note that there are certain types like
-:eql:type:`tuple` that cannot be expressed in terms of GraphQL type
-system (a ``tuple`` can be like a heterogeneous "List").
+:eql:type:`tuple` that cannot be expressed in terms of the GraphQL 
+type system (a ``tuple`` can be like a heterogeneous "List").
 
 Consider the following GraphQL introspection query:
 
