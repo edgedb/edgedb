@@ -293,9 +293,9 @@ Numerics
 
     :index: parse int16
 
-    Create a :eql:type:`int16` value.
+    Create an :eql:type:`int16` value.
 
-    Parse a :eql:type:`int16` from the input *s* and optional format
+    Parse an :eql:type:`int16` from the input *s* and optional format
     specification *fmt*.
 
     For more details on formatting see :ref:`here
@@ -309,9 +309,9 @@ Numerics
 
     :index: parse int32
 
-    Create a :eql:type:`int32` value.
+    Create an :eql:type:`int32` value.
 
-    Parse a :eql:type:`int32` from the input *s* and optional format
+    Parse an :eql:type:`int32` from the input *s* and optional format
     specification *fmt*.
 
     For more details on formatting see :ref:`here
@@ -325,9 +325,9 @@ Numerics
 
     :index: parse int64
 
-    Create a :eql:type:`int64` value.
+    Create an :eql:type:`int64` value.
 
-    Parse a :eql:type:`int64` from the input *s* and optional format
+    Parse an :eql:type:`int64` from the input *s* and optional format
     specification *fmt*.
 
     For more details on formatting see :ref:`here
