@@ -488,7 +488,7 @@ _server_options = [
         '--bootstrap-script', type=PathPath(), metavar="PATH",
         help='run the script when initializing the database. '
              'Script run by default user within default database. '
-             'May be used with or without `--bootstrap`.'),
+             'May be used with or without `--bootstrap-only`.'),
     click.option(
         '--devmode/--no-devmode',
         help='enable or disable the development mode',
