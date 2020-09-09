@@ -483,7 +483,7 @@ _server_options = [
         '--bootstrap-command', metavar="QUERIES",
         help='run the commands when initializing the database. '
              'Queries are executed by default user within default '
-             'database. May be used with or without `--bootstrap`.'),
+             'database. May be used with or without `--bootstrap-only`.'),
     click.option(
         '--bootstrap-script', type=PathPath(), metavar="PATH",
         help='run the script when initializing the database. '
