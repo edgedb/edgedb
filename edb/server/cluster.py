@@ -204,13 +204,13 @@ class Cluster:
             env = None
 
         init = subprocess.run(
-            self._edgedb_cmd + ['--bootstrap'],
+            self._edgedb_cmd + ['--bootstrap-only'],
             stdout=sys.stdout, stderr=sys.stderr,
             env=env)
 
         if init.returncode != 0:
             raise ClusterError(
-                f'edgedb-server --bootstrap failed with '
+                f'edgedb-server --bootstrap-only failed with '
                 f'exit code {init.returncode}')
 
     async def _edgedb_template_exists(self, conn):
