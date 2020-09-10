@@ -159,6 +159,16 @@ cdef class EdgeConnection:
             return
         self.dbview.on_remote_ddl(dbver)
 
+    def on_remote_config_change(self):
+        if not self.dbview:
+            return
+        self.write_log(
+            EdgeSeverity.EDGE_SEVERITY_DEBUG,
+            errors.LogMessage.get_code(),
+            'received configuration reload request',
+        )
+        self.dbview.on_remote_config_change()
+
     cdef get_backend(self):
         if self._con_status is EDGECON_BAD:
             # `self.sync()` is called from `recover_from_error`;
@@ -794,10 +804,16 @@ cdef class EdgeConnection:
                     await self.recover_current_tx_info()
                 raise
             else:
-                if self.dbview.on_success(query_unit):
-                    await self.get_backend().pgcon.signal_ddl(
-                        self.dbview.dbver
-                    )
+                side_effects = self.dbview.on_success(query_unit)
+                if side_effects & dbview.SideEffects.SchemaChanges:
+                    await self.get_backend().pgcon.signal_sysevent(
+                        'schema-changes', dbver=self.dbview.dbver.hex())
+                if side_effects & dbview.SideEffects.DatabaseConfigChanges:
+                    await self.get_backend().pgcon.signal_sysevent(
+                        'database-config-changes', dbname=self.dbview.dbname)
+                if side_effects & dbview.SideEffects.SystemConfigChanges:
+                    await self.get_backend().pgcon.signal_sysevent(
+                        'system-config-changes')
                 if query_unit.new_types:
                     new_type_ids |= query_unit.new_types
 
@@ -1167,10 +1183,16 @@ cdef class EdgeConnection:
                     await self.recover_current_tx_info()
                 raise
             else:
-                if self.dbview.on_success(query_unit):
-                    await self.get_backend().pgcon.signal_ddl(
-                        self.dbview.dbver
-                    )
+                side_effects = self.dbview.on_success(query_unit)
+                if side_effects & dbview.SideEffects.SchemaChanges:
+                    await self.get_backend().pgcon.signal_sysevent(
+                        'schema-changes', dbver=self.dbview.dbver.hex())
+                if side_effects & dbview.SideEffects.DatabaseConfigChanges:
+                    await self.get_backend().pgcon.signal_sysevent(
+                        'database-config-changes', dbname=self.dbview.dbname)
+                if side_effects & dbview.SideEffects.SystemConfigChanges:
+                    await self.get_backend().pgcon.signal_sysevent(
+                        'system-config-changes')
 
             self.write(self.make_command_complete_msg(query_unit))
 

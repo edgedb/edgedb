@@ -63,6 +63,23 @@ class Context:
         self.db = conn
 
 
+class DBConfigTable(dbops.Table):
+    def __init__(self) -> None:
+        super().__init__(name=('edgedb', '_db_config'))
+
+        self.add_columns([
+            dbops.Column(name='name', type='text'),
+            dbops.Column(name='value', type='jsonb'),
+        ])
+
+        self.add_constraint(
+            dbops.UniqueConstraint(
+                table_name=('edgedb', '_db_config'),
+                columns=['name'],
+            ),
+        )
+
+
 class ExpressionType(dbops.CompositeType):
     def __init__(self) -> None:
         super().__init__(name=('edgedb', 'expression_t'))
@@ -92,6 +109,117 @@ class BigintDomain(dbops.Domain):
                 ),
             ),
         ),
+
+
+class AlterCurrentDatabaseSetString(dbops.Function):
+    """Alter a PostgreSQL configuration parameter of the current database."""
+    text = '''
+    BEGIN
+        EXECUTE 'ALTER DATABASE ' || quote_ident(current_database())
+        || ' SET ' || quote_ident(parameter) || ' = '
+        || coalesce(quote_literal(value), 'DEFAULT');
+        RETURN value;
+    END;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_alter_current_database_set'),
+            args=[('parameter', ('text',)), ('value', ('text',))],
+            returns=('text',),
+            volatility='volatile',
+            language='plpgsql',
+            text=self.text,
+        )
+
+
+class AlterCurrentDatabaseSetStringArray(dbops.Function):
+    """Alter a PostgreSQL configuration parameter of the current database."""
+    text = '''
+    BEGIN
+        EXECUTE 'ALTER DATABASE ' || quote_ident(current_database())
+        || ' SET ' || quote_ident(parameter) || ' = '
+        || coalesce(
+            (SELECT
+                array_to_string(array_agg(quote_literal(q.v)), ',')
+             FROM
+                unnest(value) AS q(v)
+            ),
+            'DEFAULT'
+        );
+        RETURN value;
+    END;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_alter_current_database_set'),
+            args=[
+                ('parameter', ('text',)),
+                ('value', ('text[]',)),
+            ],
+            returns=('text[]',),
+            volatility='volatile',
+            language='plpgsql',
+            text=self.text,
+        )
+
+
+class AlterCurrentDatabaseSetNonArray(dbops.Function):
+    """Alter a PostgreSQL configuration parameter of the current database."""
+    text = '''
+    BEGIN
+        EXECUTE 'ALTER DATABASE ' || quote_ident(current_database())
+        || ' SET ' || quote_ident(parameter) || ' = '
+        || coalesce(value::text, 'DEFAULT');
+        RETURN value;
+    END;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_alter_current_database_set'),
+            args=[
+                ('parameter', ('text',)),
+                ('value', ('anynonarray',)),
+            ],
+            returns=('anynonarray',),
+            volatility='volatile',
+            language='plpgsql',
+            text=self.text,
+        )
+
+
+class AlterCurrentDatabaseSetArray(dbops.Function):
+    """Alter a PostgreSQL configuration parameter of the current database."""
+    text = '''
+    BEGIN
+        EXECUTE 'ALTER DATABASE ' || quote_ident(current_database())
+        || ' SET ' || quote_ident(parameter) || ' = '
+        || coalesce(
+            (SELECT
+                array_to_string(array_agg(q.v::text), ',')
+             FROM
+                unnest(value) AS q(v)
+            ),
+            'DEFAULT'
+        );
+        RETURN value;
+    END;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_alter_current_database_set'),
+            args=[
+                ('parameter', ('text',)),
+                ('value', ('anyarray',)),
+            ],
+            returns=('anyarray',),
+            volatility='volatile',
+            language='plpgsql',
+            text=self.text,
+        )
 
 
 class StrToBigint(dbops.Function):
@@ -1183,7 +1311,8 @@ class ArraySliceFunction(dbops.Function):
                   ('stop', ('bigint',))],
             returns=('anyarray',),
             volatility='immutable',
-            text=self.text)
+            text=self.text,
+        )
 
 
 class StringIndexWithBoundsFunction(dbops.Function):
@@ -2088,108 +2217,177 @@ class SysConfigFunction(dbops.Function):
     # and therefore cannot be used in a view.
 
     text = f'''
-        BEGIN
-        RETURN QUERY EXECUTE $$
-            WITH
-                config_spec AS
-                    (SELECT
-                        s.key AS name,
-                        s.value->'default' AS default,
-                        (s.value->>'internal')::bool AS internal,
-                        (s.value->>'system')::bool AS system,
-                        (s.value->>'typeid')::uuid AS typeid,
-                        (s.value->>'typemod') AS typemod,
-                        (s.value->>'backend_setting') AS backend_setting
-                    FROM
-                        jsonb_each(edgedbinstdata.__syscache_configspec()) AS s
-                    ),
+    BEGIN
+    RETURN QUERY EXECUTE $$
 
-                config_defaults AS
-                    (SELECT
-                        s.name AS name,
-                        s.default AS value,
-                        'default' AS source,
-                        0 AS priority
-                    FROM
-                        config_spec s
-                    ),
+    WITH
 
-                config_sys AS
-                    (SELECT
-                        s.key AS name,
-                        s.value AS value,
-                        'system override' AS source,
-                        10 AS priority
-                    FROM
-                        jsonb_each(
-                            shobj_metadata(
-                               (SELECT oid FROM pg_database
-                                WHERE
-                                    datname = {ql(defines.EDGEDB_TEMPLATE_DB)}
-                               ),
-                               'pg_database'
-                            ) -> 'sysconfig'
-                        ) s
-                    ),
+    config_spec AS (
+        SELECT
+            s.key AS name,
+            s.value->'default' AS default,
+            (s.value->>'internal')::bool AS internal,
+            (s.value->>'system')::bool AS system,
+            (s.value->>'typeid')::uuid AS typeid,
+            (s.value->>'typemod') AS typemod,
+            (s.value->>'backend_setting') AS backend_setting
+        FROM
+            jsonb_each(edgedbinstdata.__syscache_configspec()) AS s
+    ),
 
-                config_sess AS
-                    (SELECT
-                        s.name AS name,
-                        s.value::jsonb AS value,
-                        'session' AS source,
-                        20 AS priority
-                    FROM
-                        _edgecon_state s
-                    WHERE
-                        s.type = 'C'
-                    ),
+    config_defaults AS (
+        SELECT
+            s.name AS name,
+            s.default AS value,
+            'default' AS source,
+            0 AS priority
+        FROM
+            config_spec s
+    ),
 
-                config_backend AS
-                    (SELECT
-                        spec.name,
-                        to_jsonb(CASE WHEN u.v[1] IS NOT NULL
-                         THEN (setting::int * (u.v[1])::int)::text || u.v[2]
-                         ELSE setting || COALESCE(unit, '')
-                         END
-                        ) AS value,
-                        'backend' AS source,
-                        30 AS priority
-                     FROM
-                        pg_settings,
-                        LATERAL
-                        (SELECT
-                            regexp_match(pg_settings.unit, '(\\d+)(\\w+)') AS v
-                        ) AS u,
-                        LATERAL
-                        (SELECT config_spec.name
-                         FROM config_spec
-                         WHERE pg_settings.name = config_spec.backend_setting
-                        ) AS spec
-                    )
+    config_sys AS (
+        SELECT
+            s.key AS name,
+            s.value AS value,
+            'system override' AS source,
+            10 AS priority
+        FROM
+            jsonb_each(
+                shobj_metadata(
+                    (SELECT oid FROM pg_database
+                    WHERE datname = {ql(defines.EDGEDB_TEMPLATE_DB)}),
+                    'pg_database'
+                ) -> 'sysconfig'
+            ) s
+    ),
 
+    config_db AS (
+        SELECT
+            s.name AS name,
+            s.value AS value,
+            'database' AS source,
+            15 AS priority
+        FROM
+            edgedb._db_config s
+    ),
+
+    config_sess AS (
+        SELECT
+            s.name AS name,
+            s.value::jsonb AS value,
+            'session' AS source,
+            20 AS priority
+        FROM
+            _edgecon_state s
+        WHERE
+            s.type = 'C'
+    ),
+
+    config_backend AS (
+        WITH
+        pg_db_setting AS (
             SELECT
-                q.name,
-                q.value,
-                q.source
+                nameval.name,
+                COALESCE(val.v[1], nameval.value) AS value,
+                val.v[2] AS unit
             FROM
                 (SELECT
-                    u.name,
-                    u.value,
-                    u.source,
-                    row_number() OVER (
-                        PARTITION BY u.name ORDER BY u.priority DESC) AS n
+                    setconfig
                 FROM
-                    (
-                        SELECT * FROM config_defaults UNION ALL
-                        SELECT * FROM config_sys UNION ALL
-                        SELECT * FROM config_sess UNION ALL
-                        SELECT * FROM config_backend
-                    ) AS u
-                ) AS q
-            WHERE
-                q.n = 1;
-        $$;
-        END;
+                    pg_db_role_setting
+                WHERE
+                    setdatabase = (
+                        SELECT oid
+                        FROM pg_database
+                        WHERE datname = current_database()
+                    )
+                    AND setrole = 0
+                ) AS cfg_array,
+                LATERAL unnest(cfg_array.setconfig) AS cfg_set(s),
+                LATERAL (
+                    SELECT
+                        split_part(cfg_set.s, '=', 1) AS name,
+                        split_part(cfg_set.s, '=', 2) AS value
+                ) AS nameval,
+                LATERAL (
+                    SELECT regexp_match(nameval.value, '(\\d+)(\\w+)') AS v
+                ) AS val
+        )
+
+        SELECT
+            spec.name,
+            to_jsonb(
+                CASE WHEN u.v[1] IS NOT NULL
+                THEN (setting::int * (u.v[1])::int)::text || u.v[2]
+                ELSE setting || COALESCE(settings.unit, '')
+                END
+            ) AS value,
+            source AS source,
+            30 AS priority
+        FROM
+            (
+                SELECT
+                    pg_settings.name,
+                    COALESCE(
+                        pg_db_setting.value,
+                        pg_settings.setting) AS setting,
+                    (CASE WHEN pg_db_setting.value IS NOT NULL
+                     THEN pg_db_setting.unit ELSE pg_settings.unit
+                     END) AS unit,
+                    pg_settings.source
+                FROM
+                    pg_settings
+                    LEFT JOIN pg_db_setting ON (
+                        pg_settings.name = pg_db_setting.name
+                        AND pg_settings.source IN (
+                            'default',
+                            'environment variable',
+                            'configuration file',
+                            'command line',
+                            'global',
+                            'database'
+                        )
+                    )
+            ) AS settings,
+
+            LATERAL (
+                SELECT regexp_match(settings.unit, '(\\d+)(\\w+)') AS v
+            ) AS u,
+
+            LATERAL (
+                SELECT
+                    config_spec.name
+                FROM
+                    config_spec
+                WHERE
+                    settings.name = config_spec.backend_setting
+            ) AS spec
+        )
+
+    SELECT
+        q.name,
+        q.value,
+        q.source
+    FROM
+        (SELECT
+            u.name,
+            u.value,
+            u.source,
+            row_number() OVER (
+                PARTITION BY u.name ORDER BY u.priority DESC) AS n
+        FROM
+            (
+                SELECT * FROM config_defaults UNION ALL
+                SELECT * FROM config_sys UNION ALL
+                SELECT * FROM config_db UNION ALL
+                SELECT * FROM config_sess UNION ALL
+                SELECT * FROM config_backend
+            ) AS u
+        ) AS q
+    WHERE
+        q.n = 1;
+    $$;
+    END;
     '''
 
     def __init__(self) -> None:
@@ -2314,9 +2512,11 @@ async def bootstrap(conn):
         dbops.CreateSchema(name='edgedb'),
         dbops.CreateSchema(name='edgedbss'),
         dbops.CreateCompositeType(ExpressionType()),
-    ])
-
-    commands.add_commands([
+        dbops.CreateTable(DBConfigTable()),
+        dbops.CreateFunction(AlterCurrentDatabaseSetString()),
+        dbops.CreateFunction(AlterCurrentDatabaseSetStringArray()),
+        dbops.CreateFunction(AlterCurrentDatabaseSetNonArray()),
+        dbops.CreateFunction(AlterCurrentDatabaseSetArray()),
         dbops.CreateFunction(GetObjectMetadata()),
         dbops.CreateFunction(GetSharedObjectMetadata()),
         dbops.CreateFunction(RaiseExceptionFunction()),

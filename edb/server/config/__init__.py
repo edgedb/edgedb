@@ -20,7 +20,9 @@
 from __future__ import annotations
 from typing import *
 
-from .ops import OpLevel, OpCode, Operation, lookup
+from edb.edgeql.qltypes import ConfigScope
+
+from .ops import OpCode, Operation, lookup
 from .ops import spec_to_json, to_json, from_json
 from .ops import value_from_json
 from .spec import Spec, Setting, load_spec_from_schema, generate_config_query
@@ -33,7 +35,7 @@ __all__ = (
     'Spec', 'Setting',
     'spec_to_json', 'to_json', 'from_json',
     'value_from_json',
-    'OpLevel', 'OpCode', 'Operation',
+    'ConfigScope', 'OpCode', 'Operation',
     'ConfigType',
     'load_spec_from_schema',
     'generate_config_query',

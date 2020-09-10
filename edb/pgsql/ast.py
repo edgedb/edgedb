@@ -822,6 +822,13 @@ class Set(ImmutableBaseExpr):
     value: BaseExpr
 
 
+class ConfigureDatabase(ImmutableBase):
+
+    database_name: str
+    parameter_name: str
+    value: BaseExpr
+
+
 class IteratorCTE(ImmutableBase):
     path_id: irast.PathId
     cte: CommonTableExpr

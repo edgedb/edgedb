@@ -392,7 +392,7 @@ def evaluate_config_set(
 
     return config.Operation(
         opcode=config.OpCode.CONFIG_SET,
-        level=config.OpLevel.SYSTEM if ir.system else config.OpLevel.SESSION,
+        scope=ir.scope,
         setting_name=ir.name,
         value=value,
     )
@@ -410,7 +410,7 @@ def evaluate_config_reset(
 
     return config.Operation(
         opcode=config.OpCode.CONFIG_RESET,
-        level=config.OpLevel.SYSTEM if ir.system else config.OpLevel.SESSION,
+        scope=ir.scope,
         setting_name=ir.name,
         value=None,
     )

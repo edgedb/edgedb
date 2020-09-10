@@ -1050,7 +1050,7 @@ class _Optional(Expr):
 class ConfigOp(Expr):
     __abstract_node__ = True
     name: ObjectRef
-    system: bool
+    scope: qltypes.ConfigScope
     backend_setting: str
 
 

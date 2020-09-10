@@ -63,10 +63,8 @@ from edb.schema import schema as s_schema
 from edb.schema import types as s_types
 from edb.schema import utils as s_utils
 
-from edb.pgsql import ast as pg_ast
 from edb.pgsql import delta as pg_delta
 from edb.pgsql import dbops as pg_dbops
-from edb.pgsql import codegen as pg_codegen
 from edb.pgsql import common as pg_common
 from edb.pgsql import types as pg_types
 
@@ -1285,10 +1283,12 @@ class Compiler(BaseCompiler):
         modaliases = ctx.state.current_tx().get_modaliases()
         session_config = ctx.state.current_tx().get_session_config()
 
-        if ql.system and not current_tx.is_implicit():
+        if (
+            ql.scope is qltypes.ConfigScope.SYSTEM
+            and not current_tx.is_implicit()
+        ):
             raise errors.QueryError(
-                'CONFIGURE SYSTEM cannot be executed in a '
-                'transaction block')
+                'CONFIGURE SYSTEM cannot be executed in a transaction block')
 
         ir = qlcompiler.compile_ast_to_ir(
             ql,
@@ -1301,46 +1301,25 @@ class Compiler(BaseCompiler):
         is_backend_setting = bool(getattr(ir, 'backend_setting', None))
         requires_restart = bool(getattr(ir, 'requires_restart', False))
 
-        if is_backend_setting:
-            if isinstance(ql, qlast.ConfigReset):
-                val = None
-            else:
-                # Postgres is fine with all setting types to be passed
-                # as strings.
-                value = ireval.evaluate_to_python_val(ir.expr, schema=schema)
-                val = pg_ast.StringConstant(val=str(value))
+        sql_text, _ = pg_compiler.compile_ir_to_sql(
+            ir,
+            pretty=debug.flags.edgeql_compile,
+        )
 
-            if ir.system:
-                sql_ast = pg_ast.AlterSystem(
-                    name=ir.backend_setting,
-                    value=val,
-                )
-            else:
-                sql_ast = pg_ast.Set(
-                    name=ir.backend_setting,
-                    value=val,
-                )
+        sql = (sql_text.encode(),)
 
-            sql_text = pg_codegen.generate_source(sql_ast) + ';'
-
-            sql = (sql_text.encode(),)
-
-        else:
-            sql_text, _ = pg_compiler.compile_ir_to_sql(
-                ir,
-                pretty=debug.flags.edgeql_compile,
-                output_format=pg_compiler.OutputFormat.JSONB)
-
-            sql = (sql_text.encode(),)
-
-        if not ql.system:
+        if ql.scope is qltypes.ConfigScope.SESSION:
             config_op = ireval.evaluate_to_config_op(ir, schema=schema)
 
             session_config = config_op.apply(
                 config.get_settings(),
                 session_config)
             ctx.state.current_tx().update_session_config(session_config)
-        else:
+
+        elif ql.scope is qltypes.ConfigScope.DATABASE:
+            config_op = ireval.evaluate_to_config_op(ir, schema=schema)
+
+        elif ql.scope is qltypes.ConfigScope.SYSTEM:
             try:
                 config_op = ireval.evaluate_to_config_op(ir, schema=schema)
             except ireval.UnsupportedExpressionError:
@@ -1348,10 +1327,13 @@ class Compiler(BaseCompiler):
                 # op will be produced by the compiler as json.
                 config_op = None
 
+        else:
+            raise AssertionError(f'unexpected configuration scope: {ql.scope}')
+
         return dbstate.SessionStateQuery(
             sql=sql,
             is_backend_setting=is_backend_setting,
-            is_system_setting=ql.system,
+            config_scope=ql.scope,
             requires_restart=requires_restart,
             config_op=config_op,
         )
@@ -1541,7 +1523,7 @@ class Compiler(BaseCompiler):
             elif isinstance(comp, dbstate.SessionStateQuery):
                 unit.sql += comp.sql
 
-                if comp.is_system_setting:
+                if comp.config_scope is qltypes.ConfigScope.SYSTEM:
                     if (not ctx.state.current_tx().is_implicit() or
                             statements_len > 1):
                         raise errors.QueryError(
@@ -1549,6 +1531,8 @@ class Compiler(BaseCompiler):
                             'transaction block')
 
                     unit.system_config = True
+                elif comp.config_scope is qltypes.ConfigScope.DATABASE:
+                    unit.database_config = True
 
                 if comp.is_backend_setting:
                     unit.backend_config = True
@@ -1603,8 +1587,12 @@ class Compiler(BaseCompiler):
         return units
 
     async def _ctx_new_con_state(
-        self, *, dbver: bytes, io_format: enums.IoFormat, expect_one: bool,
-        modaliases,
+        self,
+        *,
+        dbver: bytes,
+        io_format: enums.IoFormat,
+        expect_one: bool,
+        modaliases: Mapping[Optional[str], str],
         session_config: Optional[immutables.Map],
         stmt_mode: Optional[enums.CompileStatementMode],
         capability: enums.Capability,

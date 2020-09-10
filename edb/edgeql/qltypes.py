@@ -192,3 +192,9 @@ class LinkTargetDeleteAction(s_enum.StrEnum):
             return 'ALLOW'
         else:
             raise ValueError(f'unsupported enum value {self!r}')
+
+
+class ConfigScope(s_enum.StrEnum):
+    SYSTEM = 'SYSTEM'
+    DATABASE = 'DATABASE'
+    SESSION = 'SESSION'

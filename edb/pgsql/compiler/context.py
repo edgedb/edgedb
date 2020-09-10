@@ -23,6 +23,7 @@ from __future__ import annotations
 from typing import *
 
 import collections
+import contextlib
 import itertools
 import enum
 import uuid
@@ -351,3 +352,18 @@ class Environment:
         self.explicit_top_cast = explicit_top_cast
         self.query_params = query_params
         self.type_rewrites = type_rewrites
+
+
+# XXX: this context hack is necessary until pathctx is converted
+#      to use context levels instead of using env directly.
+@contextlib.contextmanager
+def output_format(
+    ctx: CompilerContextLevel,
+    output_format: OutputFormat,
+) -> Generator[None, None, None]:
+    original_output_format = ctx.env.output_format
+    ctx.env.output_format = output_format
+    try:
+        yield
+    finally:
+        ctx.env.output_format = original_output_format

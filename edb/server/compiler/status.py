@@ -156,10 +156,7 @@ def _sess_reset_alias(ql):
 
 @get_status.register(qlast.ConfigOp)
 def _sess_set_config(ql):
-    if ql.system:
-        return b'CONFIGURE SYSTEM'
-    else:
-        return b'CONFIGURE SESSION'
+    return f'CONFIGURE {ql.scope}'.encode('ascii')
 
 
 @get_status.register(qlast.DescribeStmt)

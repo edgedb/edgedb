@@ -1628,16 +1628,16 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.visit(node.default)
 
     def visit_ConfigSet(self, node: qlast.ConfigSet) -> None:
-        self.write('CONFIGURE')
-        self.write(' SYSTEM' if node.system else ' SESSION')
+        self.write('CONFIGURE ')
+        self.write(node.scope)
         self.write(' SET ')
         self.visit(node.name)
         self.write(' := ')
         self.visit(node.expr)
 
     def visit_ConfigInsert(self, node: qlast.ConfigInsert) -> None:
-        self.write('CONFIGURE')
-        self.write(' SYSTEM' if node.system else ' SESSION')
+        self.write('CONFIGURE ')
+        self.write(node.scope)
         self.write(' INSERT ')
         self.visit(node.name)
         self.indentation += 1
@@ -1645,8 +1645,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.indentation -= 1
 
     def visit_ConfigReset(self, node: qlast.ConfigReset) -> None:
-        self.write('CONFIGURE')
-        self.write(' SYSTEM' if node.system else ' SESSION')
+        self.write('CONFIGURE ')
+        self.write(node.scope)
         self.write(' RESET ')
         self.visit(node.name)
         self._visit_filter(node)

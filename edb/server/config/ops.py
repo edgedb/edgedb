@@ -40,12 +40,6 @@ if TYPE_CHECKING:
     Mapping_T = TypeVar("Mapping_T", bound=Mapping[str, str])
 
 
-class OpLevel(enum.StrEnum):
-
-    SESSION = 'SESSION'
-    SYSTEM = 'SYSTEM'
-
-
 class OpCode(enum.StrEnum):
 
     CONFIG_ADD = 'ADD'
@@ -57,7 +51,7 @@ class OpCode(enum.StrEnum):
 class Operation(NamedTuple):
 
     opcode: OpCode
-    level: OpLevel
+    scope: qltypes.ConfigScope
     setting_name: str
     value: Union[str, int, bool, None]
 
@@ -175,8 +169,13 @@ class Operation(NamedTuple):
 
     @classmethod
     def from_json(cls, json_value: str) -> Operation:
-        op_str, lev_str, name, value = json.loads(json_value)
-        return Operation(OpCode(op_str), OpLevel(lev_str), name, value)
+        op_str, scope_str, name, value = json.loads(json_value)
+        return Operation(
+            opcode=OpCode(op_str),
+            scope=qltypes.ConfigScope(scope_str),
+            setting_name=name,
+            value=value,
+        )
 
 
 def spec_to_json(spec: spec.Spec):

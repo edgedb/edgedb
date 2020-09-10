@@ -137,7 +137,7 @@ class TestServerConfigUtils(unittest.TestCase):
 
         op = ops.Operation(
             ops.OpCode.CONFIG_ADD,
-            ops.OpLevel.SYSTEM,
+            config.ConfigScope.SYSTEM,
             'ports',
             make_port_value(database='f1')
         )
@@ -145,7 +145,7 @@ class TestServerConfigUtils(unittest.TestCase):
 
         op = ops.Operation(
             ops.OpCode.CONFIG_ADD,
-            ops.OpLevel.SYSTEM,
+            config.ConfigScope.SYSTEM,
             'ports',
             make_port_value(database='f2')
         )
@@ -164,7 +164,7 @@ class TestServerConfigUtils(unittest.TestCase):
 
         op = ops.Operation(
             ops.OpCode.CONFIG_REM,
-            ops.OpLevel.SYSTEM,
+            config.ConfigScope.SYSTEM,
             'ports',
             make_port_value(database='f1')
         )
@@ -178,7 +178,7 @@ class TestServerConfigUtils(unittest.TestCase):
 
         op = ops.Operation(
             ops.OpCode.CONFIG_REM,
-            ops.OpLevel.SYSTEM,
+            config.ConfigScope.SYSTEM,
             'ports',
             make_port_value(database='f1')
         )
@@ -190,7 +190,7 @@ class TestServerConfigUtils(unittest.TestCase):
 
         op = ops.Operation(
             ops.OpCode.CONFIG_ADD,
-            ops.OpLevel.SYSTEM,
+            config.ConfigScope.SYSTEM,
             'ports',
             make_port_value(zzzzzzz='zzzzz')
         )
@@ -200,7 +200,7 @@ class TestServerConfigUtils(unittest.TestCase):
 
         op = ops.Operation(
             ops.OpCode.CONFIG_ADD,
-            ops.OpLevel.SYSTEM,
+            config.ConfigScope.SYSTEM,
             'ports',
             make_port_value(concurrency='a')
         )
@@ -210,7 +210,7 @@ class TestServerConfigUtils(unittest.TestCase):
 
         op = ops.Operation(
             ops.OpCode.CONFIG_ADD,
-            ops.OpLevel.SYSTEM,
+            config.ConfigScope.SYSTEM,
             'por',
             make_port_value(concurrency='a')
         )
@@ -220,7 +220,7 @@ class TestServerConfigUtils(unittest.TestCase):
 
         op = ops.Operation(
             ops.OpCode.CONFIG_ADD,
-            ops.OpLevel.SYSTEM,
+            config.ConfigScope.SYSTEM,
             'ports',
             make_port_value(address=["aaa", 123])
         )
@@ -230,7 +230,7 @@ class TestServerConfigUtils(unittest.TestCase):
 
         op = ops.Operation(
             ops.OpCode.CONFIG_ADD,
-            ops.OpLevel.SYSTEM,
+            config.ConfigScope.SYSTEM,
             'ports',
             make_port_value(address="aaa")
         )
@@ -253,7 +253,7 @@ class TestServerConfigUtils(unittest.TestCase):
 
         op = ops.Operation(
             ops.OpCode.CONFIG_SET,
-            ops.OpLevel.SESSION,
+            config.ConfigScope.SESSION,
             'int',
             11
         )
@@ -262,7 +262,7 @@ class TestServerConfigUtils(unittest.TestCase):
 
         op = ops.Operation(
             ops.OpCode.CONFIG_SET,
-            ops.OpLevel.SESSION,
+            config.ConfigScope.SESSION,
             'int',
             '42'
         )
@@ -272,7 +272,7 @@ class TestServerConfigUtils(unittest.TestCase):
 
         op = ops.Operation(
             ops.OpCode.CONFIG_SET,
-            ops.OpLevel.SESSION,
+            config.ConfigScope.SESSION,
             'int',
             42
         )
@@ -280,7 +280,7 @@ class TestServerConfigUtils(unittest.TestCase):
 
         op = ops.Operation(
             ops.OpCode.CONFIG_SET,
-            ops.OpLevel.SESSION,
+            config.ConfigScope.SESSION,
             'ints',
             {42}
         )
@@ -288,7 +288,7 @@ class TestServerConfigUtils(unittest.TestCase):
 
         op = ops.Operation(
             ops.OpCode.CONFIG_SET,
-            ops.OpLevel.SESSION,
+            config.ConfigScope.SESSION,
             'ints',
             {42, 43}
         )
@@ -356,6 +356,14 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
                 'CONFIGURE SESSION INSERT is not supported'):
             await self.con.query('''
                 CONFIGURE SESSION INSERT SessionConfig { name := 'foo' };
+            ''')
+
+        with self.assertRaisesRegex(
+                edgedb.UnsupportedFeatureError,
+                'CONFIGURE DATABASE INSERT is not supported'):
+            await self.con.query('''
+                CONFIGURE CURRENT DATABASE
+                INSERT SessionConfig { name := 'foo' };
             ''')
 
         with self.assertRaisesRegex(
@@ -659,6 +667,10 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
             )
 
             await self.con.execute('''
+                CONFIGURE CURRENT DATABASE SET effective_cache_size := '3GB';
+            ''')
+
+            await self.con.execute('''
                 CONFIGURE SYSTEM SET effective_cache_size := '2GB';
             ''')
 
@@ -680,12 +692,29 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
                 SELECT cfg::Config.effective_cache_size
                 ''',
                 [
+                    '3GB'
+                ],
+            )
+
+            await self.con.execute('''
+                CONFIGURE CURRENT DATABASE RESET effective_cache_size;
+            ''')
+
+            await self.assert_query_result(
+                '''
+                SELECT cfg::Config.effective_cache_size
+                ''',
+                [
                     '2097152kB'
                 ],
             )
         finally:
             await self.con.execute('''
                 CONFIGURE SESSION RESET effective_cache_size;
+            ''')
+
+            await self.con.execute('''
+                CONFIGURE CURRENT DATABASE RESET effective_cache_size;
             ''')
 
             await self.con.execute('''
@@ -799,6 +828,35 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
             await self.con.execute('''
                 CONFIGURE SYSTEM RESET multiprop;
             ''')
+
+    async def test_server_proto_configure_msg(self):
+        msgs = []
+
+        def on_log(con, msg):
+            msgs.append(msg)
+
+        conn2 = await self.connect(database=self.get_database_name())
+
+        try:
+            conn2.add_log_listener(on_log)
+
+            await self.con.execute('''
+                CONFIGURE SYSTEM SET __internal_testvalue := 1;
+            ''')
+
+            await conn2.execute('SELECT 1')
+        finally:
+            await conn2.aclose()
+            await self.con.execute('''
+                CONFIGURE SYSTEM RESET __internal_testvalue;
+            ''')
+
+        for msg in msgs:
+            if (msg.get_severity_name() == 'DEBUG' and
+                    'received configuration reload request' in str(msg)):
+                break
+        else:
+            self.fail('a notice message was not delivered')
 
     async def test_server_version(self):
         srv_ver = await self.con.query_one(r"""

@@ -37,54 +37,122 @@ from . import output
 
 @dispatch.compile.register
 def compile_ConfigSet(
-        op: irast.ConfigSet, *,
-        ctx: context.CompilerContextLevel) -> pgast.Query:
+    op: irast.ConfigSet,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> pgast.BaseExpr:
 
     val: pgast.BaseExpr
 
     with ctx.new() as subctx:
-        if isinstance(op.expr, irast.EmptySet):
-            # Special handling for empty sets, because we want a
-            # singleton representation of the value and not an empty rel
-            # in this context.
-            if op.cardinality is qltypes.SchemaCardinality.One:
-                val = pgast.NullConstant()
-            else:
-                val = pgast.TypeCast(
-                    arg=pgast.StringConstant(val='[]'),
-                    type_name=pgast.TypeName(
-                        name=('jsonb',),
-                    ),
-                )
+        if op.backend_setting:
+            output_format = context.OutputFormat.NATIVE
         else:
-            val = dispatch.compile(op.expr, ctx=subctx)
-            assert isinstance(val, pgast.SelectStmt), "expected ast.SelectStmt"
+            output_format = context.OutputFormat.JSONB
 
-            pathctx.get_path_serialized_output(
-                val, op.expr.path_id, env=ctx.env)
-            if op.cardinality is qltypes.SchemaCardinality.Many:
-                val = output.aggregate_json_output(val, op.expr, env=ctx.env)
+        with context.output_format(ctx, output_format):
+            if isinstance(op.expr, irast.EmptySet):
+                # Special handling for empty sets, because we want a
+                # singleton representation of the value and not an empty rel
+                # in this context.
+                if op.cardinality is qltypes.SchemaCardinality.One:
+                    val = pgast.NullConstant()
+                elif subctx.env.output_format is context.OutputFormat.JSONB:
+                    val = pgast.TypeCast(
+                        arg=pgast.StringConstant(val='[]'),
+                        type_name=pgast.TypeName(
+                            name=('jsonb',),
+                        ),
+                    )
+                else:
+                    val = pgast.TypeCast(
+                        arg=pgast.ArrayExpr(),
+                        type_name=pgast.TypeName(
+                            name=('text[]',),
+                        ),
+                    )
+            else:
+                val = dispatch.compile(op.expr, ctx=subctx)
+                assert isinstance(val, pgast.SelectStmt), "expected SelectStmt"
 
-    result_row = pgast.RowExpr(
-        args=[
-            pgast.StringConstant(val='SET'),
-            pgast.StringConstant(val='SYSTEM' if op.system else 'SESSION'),
-            pgast.StringConstant(val=op.name),
-            val,
-        ]
-    )
+                pathctx.get_path_serialized_output(
+                    val, op.expr.path_id, env=ctx.env)
 
-    result = pgast.FuncCall(
-        name=('jsonb_build_array',),
-        args=result_row.args,
-        null_safe=True,
-        ser_safe=True,
-    )
+                if op.cardinality is qltypes.SchemaCardinality.Many:
+                    val = output.aggregate_json_output(
+                        val, op.expr, env=ctx.env)
 
-    stmt: pgast.Query
+    result: pgast.BaseExpr
 
-    if not op.system:
-        stmt = pgast.InsertStmt(
+    if op.scope is qltypes.ConfigScope.SYSTEM and op.backend_setting:
+        assert isinstance(val, pgast.SelectStmt) and len(val.target_list) == 1
+        valval = val.target_list[0].val
+        if isinstance(valval, pgast.TypeCast):
+            valval = valval.arg
+        if not isinstance(valval, pgast.BaseConstant):
+            raise AssertionError('value is not a constant in ConfigSet')
+        result = pgast.AlterSystem(
+            name=op.backend_setting,
+            value=valval,
+        )
+
+    elif op.scope is qltypes.ConfigScope.DATABASE and op.backend_setting:
+        fcall = pgast.FuncCall(
+            name=('edgedb', '_alter_current_database_set'),
+            args=[pgast.StringConstant(val=op.backend_setting), val],
+        )
+
+        result = output.wrap_script_stmt(
+            pgast.SelectStmt(target_list=[pgast.ResTarget(val=fcall)]),
+            suppress_all_output=True,
+            env=ctx.env,
+        )
+
+    elif op.scope is qltypes.ConfigScope.SESSION and op.backend_setting:
+        fcall = pgast.FuncCall(
+            name=('pg_catalog', 'set_config'),
+            args=[
+                pgast.StringConstant(val=op.backend_setting),
+                pgast.TypeCast(
+                    arg=val,
+                    type_name=pgast.TypeName(name=('text',)),
+                ),
+                pgast.BooleanConstant(val='false'),
+            ],
+        )
+
+        result = output.wrap_script_stmt(
+            pgast.SelectStmt(target_list=[pgast.ResTarget(val=fcall)]),
+            suppress_all_output=True,
+            env=ctx.env,
+        )
+
+    elif op.scope is qltypes.ConfigScope.SYSTEM:
+        result_row = pgast.RowExpr(
+            args=[
+                pgast.StringConstant(val='SET'),
+                pgast.StringConstant(val=str(op.scope)),
+                pgast.StringConstant(val=op.name),
+                val,
+            ]
+        )
+
+        result = pgast.FuncCall(
+            name=('jsonb_build_array',),
+            args=result_row.args,
+            null_safe=True,
+            ser_safe=True,
+        )
+
+        result = pgast.SelectStmt(
+            target_list=[
+                pgast.ResTarget(
+                    val=result,
+                ),
+            ],
+        )
+    elif op.scope is qltypes.ConfigScope.SESSION:
+        result = pgast.InsertStmt(
             relation=pgast.RelRangeVar(
                 relation=pgast.Relation(
                     name='_edgecon_state',
@@ -130,7 +198,146 @@ def compile_ConfigSet(
                 ],
             ),
         )
+    elif op.scope is qltypes.ConfigScope.DATABASE:
+        result = pgast.InsertStmt(
+            relation=pgast.RelRangeVar(
+                relation=pgast.Relation(
+                    name='_db_config',
+                    schemaname='edgedb',
+                ),
+            ),
+            select_stmt=pgast.SelectStmt(
+                values=[
+                    pgast.ImplicitRowExpr(
+                        args=[
+                            pgast.StringConstant(
+                                val=op.name,
+                            ),
+                            val,
+                        ]
+                    )
+                ]
+            ),
+            cols=[
+                pgast.ColumnRef(name=['name']),
+                pgast.ColumnRef(name=['value']),
+            ],
+            on_conflict=pgast.OnConflictClause(
+                action='update',
+                infer=pgast.InferClause(
+                    index_elems=[
+                        pgast.ColumnRef(name=['name']),
+                    ],
+                ),
+                target_list=[
+                    pgast.MultiAssignRef(
+                        columns=[pgast.ColumnRef(name=['value'])],
+                        source=pgast.RowExpr(
+                            args=[
+                                val,
+                            ],
+                        ),
+                    ),
+                ],
+            ),
+        )
     else:
+        raise AssertionError(f'unexpected configuration scope: {op.scope}')
+
+    return result
+
+
+@dispatch.compile.register
+def compile_ConfigReset(
+    op: irast.ConfigReset,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> pgast.BaseExpr:
+
+    stmt: pgast.BaseExpr
+
+    if op.scope is qltypes.ConfigScope.SYSTEM and op.backend_setting:
+        stmt = pgast.AlterSystem(
+            name=op.backend_setting,
+            value=None,
+        )
+
+    elif op.scope is qltypes.ConfigScope.DATABASE and op.backend_setting:
+        fcall = pgast.FuncCall(
+            name=('edgedb', '_alter_current_database_set'),
+            args=[
+                pgast.StringConstant(val=op.backend_setting),
+                pgast.NullConstant(),
+            ],
+        )
+
+        stmt = output.wrap_script_stmt(
+            pgast.SelectStmt(target_list=[pgast.ResTarget(val=fcall)]),
+            suppress_all_output=True,
+            env=ctx.env,
+        )
+
+    elif op.scope is qltypes.ConfigScope.SESSION and op.backend_setting:
+        fcall = pgast.FuncCall(
+            name=('pg_catalog', 'set_config'),
+            args=[
+                pgast.StringConstant(val=op.backend_setting),
+                pgast.NullConstant(),
+                pgast.BooleanConstant(val='false'),
+            ],
+        )
+
+        stmt = output.wrap_script_stmt(
+            pgast.SelectStmt(target_list=[pgast.ResTarget(val=fcall)]),
+            suppress_all_output=True,
+            env=ctx.env,
+        )
+
+    elif op.scope is qltypes.ConfigScope.SYSTEM:
+
+        if op.selector is None:
+            # Scalar reset
+            result_row = pgast.RowExpr(
+                args=[
+                    pgast.StringConstant(val='RESET'),
+                    pgast.StringConstant(val=str(op.scope)),
+                    pgast.StringConstant(val=op.name),
+                    pgast.NullConstant(),
+                ]
+            )
+
+            rvar = None
+        else:
+            with context.output_format(ctx, context.OutputFormat.JSONB):
+                selector = dispatch.compile(op.selector, ctx=ctx)
+
+            assert isinstance(selector, pgast.SelectStmt), \
+                "expected ast.SelectStmt"
+            target = selector.target_list[0]
+            if not target.name:
+                target = selector.target_list[0] = pgast.ResTarget(
+                    name=ctx.env.aliases.get('res'),
+                    val=target.val,
+                )
+
+            rvar = relctx.rvar_for_rel(selector, ctx=ctx)
+
+            result_row = pgast.RowExpr(
+                args=[
+                    pgast.StringConstant(val='REM'),
+                    pgast.StringConstant(val=str(op.scope)),
+                    pgast.StringConstant(val=op.name),
+                    astutils.get_column(rvar, target.name),
+                ]
+            )
+
+        result = pgast.FuncCall(
+            name=('jsonb_build_array',),
+            args=result_row.args,
+            null_safe=True,
+            ser_safe=True,
+        )
+
         stmt = pgast.SelectStmt(
             target_list=[
                 pgast.ResTarget(
@@ -139,58 +346,26 @@ def compile_ConfigSet(
             ],
         )
 
-    return stmt
+        if rvar is not None:
+            stmt.from_clause = [rvar]
 
+    elif op.scope is qltypes.ConfigScope.DATABASE:
+        stmt = pgast.DeleteStmt(
+            relation=pgast.RelRangeVar(
+                relation=pgast.Relation(
+                    name='_db_config',
+                    schemaname='edgedb',
+                ),
+            ),
 
-@dispatch.compile.register
-def compile_ConfigReset(
-        op: irast.ConfigReset, *,
-        ctx: context.CompilerContextLevel) -> pgast.Query:
-
-    if op.selector is None:
-        # Scalar reset
-        result_row = pgast.RowExpr(
-            args=[
-                pgast.StringConstant(val='RESET'),
-                pgast.StringConstant(val='SYSTEM' if op.system else 'SESSION'),
-                pgast.StringConstant(val=op.name),
-                pgast.NullConstant(),
-            ]
+            where_clause=astutils.new_binop(
+                lexpr=pgast.ColumnRef(name=['name']),
+                rexpr=pgast.StringConstant(val=op.name),
+                op='=',
+            ),
         )
 
-        rvar = None
-    else:
-        selector = dispatch.compile(op.selector, ctx=ctx)
-        assert isinstance(selector, pgast.SelectStmt), \
-            "expected ast.SelectStmt"
-        target = selector.target_list[0]
-        if not target.name:
-            target = selector.target_list[0] = pgast.ResTarget(
-                name=ctx.env.aliases.get('res'),
-                val=target.val,
-            )
-
-        rvar = relctx.rvar_for_rel(selector, ctx=ctx)
-
-        result_row = pgast.RowExpr(
-            args=[
-                pgast.StringConstant(val='REM'),
-                pgast.StringConstant(val='SYSTEM' if op.system else 'SESSION'),
-                pgast.StringConstant(val=op.name),
-                astutils.get_column(rvar, target.name),
-            ]
-        )
-
-    result = pgast.FuncCall(
-        name=('jsonb_build_array',),
-        args=result_row.args,
-        null_safe=True,
-        ser_safe=True,
-    )
-
-    stmt: pgast.Query
-
-    if not op.system:
+    elif op.scope is qltypes.ConfigScope.SESSION:
         stmt = pgast.DeleteStmt(
             relation=pgast.RelRangeVar(
                 relation=pgast.Relation(
@@ -212,17 +387,9 @@ def compile_ConfigReset(
                 op='AND',
             )
         )
-    else:
-        stmt = pgast.SelectStmt(
-            target_list=[
-                pgast.ResTarget(
-                    val=result,
-                ),
-            ],
-        )
 
-        if rvar is not None:
-            stmt.from_clause = [rvar]
+    else:
+        raise AssertionError(f'unexpected configuration scope: {op.scope}')
 
     return stmt
 
@@ -233,13 +400,14 @@ def compile_ConfigInsert(
         ctx: context.CompilerContextLevel) -> pgast.Base:
 
     with ctx.new() as subctx:
-        subctx.expr_exposed = True
-        rewritten = _rewrite_config_insert(stmt.expr, ctx=subctx)
-        dispatch.compile(rewritten, ctx=subctx)
-        clauses.fini_stmt(ctx.rel, ctx=subctx, parent_ctx=ctx)
+        with context.output_format(ctx, context.OutputFormat.JSONB):
+            subctx.expr_exposed = True
+            rewritten = _rewrite_config_insert(stmt.expr, ctx=subctx)
+            dispatch.compile(rewritten, ctx=subctx)
+            clauses.fini_stmt(ctx.rel, ctx=subctx, parent_ctx=ctx)
 
-    return pathctx.get_path_serialized_output(
-        ctx.rel, stmt.expr.path_id, env=ctx.env)
+            return pathctx.get_path_serialized_output(
+                ctx.rel, stmt.expr.path_id, env=ctx.env)
 
 
 def _rewrite_config_insert(
@@ -284,7 +452,7 @@ def top_output_as_config_op(
 
     assert isinstance(ir_set.expr, irast.ConfigCommand)
 
-    if ir_set.expr.system:
+    if ir_set.expr.scope is qltypes.ConfigScope.SYSTEM:
         alias = env.aliases.get('cfg')
         subrvar = pgast.RangeSubselect(
             subquery=stmt,
@@ -304,8 +472,7 @@ def top_output_as_config_op(
         result_row = pgast.RowExpr(
             args=[
                 pgast.StringConstant(val='ADD'),
-                pgast.StringConstant(
-                    val='SYSTEM' if ir_set.expr.system else 'SESSION'),
+                pgast.StringConstant(val=str(ir_set.expr.scope)),
                 pgast.StringConstant(val=ir_set.expr.name),
                 pgast.ColumnRef(name=[stmt_res.name]),
             ]
@@ -331,4 +498,4 @@ def top_output_as_config_op(
 
     else:
         raise errors.InternalServerError(
-            'CONFIGURE SESSION INSERT is not supported')
+            f'CONFIGURE {ir_set.expr.scope} INSERT is not supported')

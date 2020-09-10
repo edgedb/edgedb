@@ -93,7 +93,7 @@ def _build_init_con_script() -> bytes:
             ('', {pg_ql(defines.DEFAULT_MODULE_ALIAS)}, 'A'),
             ('server_version', {pg_ql(buildmeta.get_version_json())}, 'R');
 
-        LISTEN __edgedb_ddl__;
+        LISTEN __edgedb_sysevent__;
     ''').encode('utf-8')
 
 
@@ -217,9 +217,16 @@ cdef class PGProto:
             self.msg_waiter.set_exception(ConnectionAbortedError())
             self.msg_waiter = None
 
-    async def signal_ddl(self, dbver):
+    async def signal_sysevent(self, event, **kwargs):
+        event = json.dumps({
+            'event': event,
+            'args': kwargs,
+        })
         query = f"""
-            SELECT pg_notify('__edgedb_ddl__', {pg_ql(dbver.hex())})
+            SELECT pg_notify(
+                '__edgedb_sysevent__',
+                {pg_ql(event)}
+            )
         """.encode()
         await self.simple_query(query, True)
 
@@ -1089,12 +1096,29 @@ cdef class PGProto:
             payload = self.buffer.read_null_str().decode()
             self.buffer.finish_message()
 
-            if channel == '__edgedb_ddl__':
-                dbver = bytes.fromhex(payload)
-                if self.edgecon_ref is not None:
-                    edgecon = self.edgecon_ref()
-                    if edgecon is not None:
-                        edgecon.on_remote_ddl(dbver)
+            if channel == '__edgedb_sysevent__':
+                event_data = json.loads(payload)
+                event = event_data.get('event')
+                event_payload = event_data.get('args')
+                if event == 'schema-changes':
+                    dbver = bytes.fromhex(event_payload['dbver'])
+                    if self.edgecon_ref is not None:
+                        edgecon = self.edgecon_ref()
+                        if edgecon is not None:
+                            edgecon.on_remote_ddl(dbver)
+                elif event == 'database-config-changes':
+                    dbname = event_payload['dbname']
+                    if self.edgecon_ref is not None and dbname == self.dbname:
+                        edgecon = self.edgecon_ref()
+                        if edgecon is not None:
+                            edgecon.on_remote_config_change()
+                elif event == 'system-config-changes':
+                    if self.edgecon_ref is not None:
+                        edgecon = self.edgecon_ref()
+                        if edgecon is not None:
+                            edgecon.on_remote_config_change()
+                else:
+                    raise AssertionError(f'unexpected system event: {event!r}')
 
             return True
 

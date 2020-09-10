@@ -31,7 +31,7 @@ from edb.server.compiler import dbstate
 from edb.pgsql import dbops
 
 
-__all__ = ('DatabaseIndex', 'DatabaseConnectionView')
+__all__ = ('DatabaseIndex', 'DatabaseConnectionView', 'SideEffects')
 
 
 cdef class Database:
@@ -103,14 +103,20 @@ cdef class DatabaseConnectionView:
         self._in_tx = False
         self._in_tx_config = None
         self._in_tx_with_ddl = False
+        self._in_tx_with_sysconfig = False
+        self._in_tx_with_dbconfig = False
         self._in_tx_with_set = False
         self._tx_error = False
         self._invalidate_local_cache()
 
     cdef on_remote_ddl(self, bytes new_dbver):
-        """Called when a DDL operation was applied at another server."""
+        """Called when a DDL operation was performed by another client."""
         if new_dbver != self._db._dbver:
             self._db._signal_ddl(new_dbver)
+
+    cdef on_remote_config_change(self):
+        """Called when a CONFIGURE opration was performed by anoterh client."""
+        pass
 
     cdef rollback_tx_to_savepoint(self, spid, modaliases, config):
         self._tx_error = False
@@ -219,6 +225,10 @@ cdef class DatabaseConnectionView:
         if self._in_tx:
             if query_unit.has_ddl:
                 self._in_tx_with_ddl = True
+            if query_unit.system_config:
+                self._in_tx_with_sysconfig = True
+            if query_unit.database_config:
+                self._in_tx_with_dbconfig = True
             if query_unit.has_set:
                 self._in_tx_with_set = True
 
@@ -226,16 +236,21 @@ cdef class DatabaseConnectionView:
         self.tx_error()
 
     cdef on_success(self, query_unit):
-        signal_ddl = False
+        side_effects = 0
 
         if query_unit.tx_savepoint_rollback:
             # Need to invalidate the cache in case there were
             # SET ALIAS or CONFIGURE or DDL commands.
             self._invalidate_local_cache()
 
-        if not self._in_tx and query_unit.has_ddl:
-            self._db._signal_ddl(None)
-            signal_ddl = True
+        if not self._in_tx:
+            if query_unit.has_ddl:
+                self._db._signal_ddl(None)
+                side_effects |= SideEffects.SchemaChanges
+            if query_unit.system_config:
+                side_effects |= SideEffects.SystemConfigChanges
+            if query_unit.database_config:
+                side_effects |= SideEffects.DatabaseConfigChanges
 
         if query_unit.modaliases is not None:
             self._modaliases = query_unit.modaliases
@@ -249,7 +264,11 @@ cdef class DatabaseConnectionView:
             self._config = self._in_tx_config
             if self._in_tx_with_ddl:
                 self._db._signal_ddl(None)
-                signal_ddl = True
+                side_effects |= SideEffects.SchemaChanges
+            if self._in_tx_with_sysconfig:
+                side_effects |= SideEffects.SystemConfigChanges
+            if self._in_tx_with_dbconfig:
+                side_effects |= SideEffects.DatabaseConfigChanges
             self._reset_tx_state()
 
         elif query_unit.tx_rollback:
@@ -259,11 +278,11 @@ cdef class DatabaseConnectionView:
             # is executed outside of a tx.
             self._reset_tx_state()
 
-        return signal_ddl
+        return side_effects
 
     async def apply_config_ops(self, conn, ops):
         for op in ops:
-            if op.level is config.OpLevel.SYSTEM:
+            if op.scope is config.ConfigScope.SYSTEM:
                 await self._db._index.apply_system_config_op(conn, op)
             else:
                 self.set_session_config(

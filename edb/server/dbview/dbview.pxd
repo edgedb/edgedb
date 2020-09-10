@@ -17,6 +17,13 @@
 #
 
 
+cpdef enum SideEffects:
+
+    SchemaChanges = 1 << 0
+    DatabaseConfigChanges = 1 << 1
+    SystemConfigChanges = 1 << 2
+
+
 cdef class DatabaseIndex:
     cdef:
         dict _dbs
@@ -58,6 +65,8 @@ cdef class DatabaseConnectionView:
         object _in_tx_config
         bint _in_tx
         bint _in_tx_with_ddl
+        bint _in_tx_with_sysconfig
+        bint _in_tx_with_dbconfig
         bint _in_tx_with_set
         bint _tx_error
 
@@ -65,6 +74,7 @@ cdef class DatabaseConnectionView:
     cdef _reset_tx_state(self)
 
     cdef on_remote_ddl(self, bytes new_dbver)
+    cdef on_remote_config_change(self)
 
     cdef rollback_tx_to_savepoint(self, spid, modaliases, config)
     cdef recover_aliases_and_config(self, modaliases, config)

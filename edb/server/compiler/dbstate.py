@@ -29,6 +29,7 @@ import immutables
 from edb import errors
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import qltypes
 
 from edb.schema import delta as s_delta
 from edb.schema import migrations as s_migrations
@@ -97,7 +98,7 @@ class SimpleQuery(BaseQuery):
 @dataclasses.dataclass(frozen=True)
 class SessionStateQuery(BaseQuery):
 
-    is_system_setting: bool = False
+    config_scope: Optional[qltypes.ConfigScope] = None
     is_backend_setting: bool = False
     requires_restart: bool = False
     config_op: Optional[config.Operation] = None
@@ -209,6 +210,9 @@ class QueryUnit:
 
     # Set only when this unit contains a CONFIGURE SYSTEM command.
     system_config: bool = False
+    # Set only when this unit contains a CONFIGURE DATABASE command.
+    database_config: bool = False
+    # Whether any configuration change requires a server restart
     config_requires_restart: bool = False
     # Set only when this unit contains a CONFIGURE command which
     # alters a backend configuration setting.

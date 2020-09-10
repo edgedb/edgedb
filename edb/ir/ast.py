@@ -772,7 +772,7 @@ class SessionStateCmd(Command):
 class ConfigCommand(Command):
     __abstract_node__ = True
     name: str
-    system: bool
+    scope: qltypes.ConfigScope
     cardinality: qltypes.SchemaCardinality
     requires_restart: bool
     backend_setting: str

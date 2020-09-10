@@ -117,8 +117,10 @@ def compile_ir_to_sql(
         debug.header('SQL Tree')
         debug.dump(qtree)
 
-    assert isinstance(qtree, pgast.Query), "expected instance of ast.Query"
-    argmap = qtree.argnames
+    if isinstance(qtree, pgast.Query):
+        argmap = qtree.argnames
+    else:
+        argmap = {}
 
     # Generate query text
     codegen = _run_codegen(qtree, pretty=pretty)

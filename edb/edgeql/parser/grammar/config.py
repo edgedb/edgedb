@@ -19,19 +19,23 @@
 from __future__ import annotations
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import qltypes
 
 from .expressions import Nonterm
 from .tokens import *  # NOQA
 from .expressions import *  # NOQA
 
 
-class ConfigTarget(Nonterm):
+class ConfigScope(Nonterm):
 
     def reduce_SESSION(self, *kids):
-        self.val = False
+        self.val = qltypes.ConfigScope.SESSION
+
+    def reduce_CURRENT_DATABASE(self, *kids):
+        self.val = qltypes.ConfigScope.DATABASE
 
     def reduce_SYSTEM(self, *kids):
-        self.val = True
+        self.val = qltypes.ConfigScope.SYSTEM
 
 
 class ConfigOp(Nonterm):
@@ -57,6 +61,6 @@ class ConfigOp(Nonterm):
 
 class ConfigStmt(Nonterm):
 
-    def reduce_CONFIGURE_ConfigTarget_ConfigOp(self, *kids):
+    def reduce_CONFIGURE_ConfigScope_ConfigOp(self, *kids):
         self.val = kids[2].val
-        self.val.system = kids[1].val
+        self.val.scope = kids[1].val

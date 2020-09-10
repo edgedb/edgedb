@@ -621,8 +621,8 @@ def aggregate_json_output(
 
 def wrap_script_stmt(
     stmt: pgast.SelectStmt,
-    ir_set: irast.Set,
     *,
+    suppress_all_output: bool = False,
     env: context.Environment,
 ) -> pgast.SelectStmt:
 
@@ -650,13 +650,34 @@ def wrap_script_stmt(
         target_list=[
             pgast.ResTarget(
                 val=count_val,
-            )
+                name=stmt_res.name,
+            ),
         ],
 
         from_clause=[
-            subrvar
+            subrvar,
         ]
     )
+
+    if suppress_all_output:
+        subrvar = pgast.RangeSubselect(
+            subquery=result,
+            alias=pgast.Alias(
+                aliasname=env.aliases.get('q')
+            )
+        )
+
+        result = pgast.SelectStmt(
+            target_list=[],
+            from_clause=[
+                subrvar,
+            ],
+            where_clause=pgast.NullTest(
+                arg=pgast.ColumnRef(
+                    name=[subrvar.alias.aliasname, stmt_res.name],
+                ),
+            ),
+        )
 
     result.ctes = stmt.ctes
     result.argnames = stmt.argnames
@@ -698,7 +719,7 @@ def top_output_as_value(
         return stmt
 
     elif env.output_format is context.OutputFormat.SCRIPT:
-        return wrap_script_stmt(stmt, ir_set, env=env)
+        return wrap_script_stmt(stmt, env=env)
 
     else:
         # JSON_ELEMENTS and BINARY don't require any wrapping

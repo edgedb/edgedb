@@ -63,7 +63,7 @@ RUNTIME_DEPS = [
     'edgedb>=0.9.0a1',
 ]
 
-CYTHON_DEPENDENCY = 'Cython==0.29.14'
+CYTHON_DEPENDENCY = 'Cython==0.29.21'
 
 DOCS_DEPS = [
     'Sphinx~=2.3.1',
