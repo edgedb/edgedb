@@ -385,22 +385,6 @@ jobs:
         PKG_PLATFORM_VERSION: "stretch"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    - uses: actions/checkout@v2
-      with:
-        repository: edgedb/edgedb-docker
-        ref: master
-        path: dockerfile
-    
-
-    - name: Publish Docker Image
-      uses: elgohr/Publish-Docker-Github-Action@2.6
-      with:
-        name: edgedb/edgedb:nightly
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
-        snapshot: true
-        workdir: dockerfile
-        buildargs: version=${{ steps.describe.outputs.version-slot }},subdist=.nightly
     
 
   publish-debian-buster:
@@ -436,11 +420,21 @@ jobs:
         PKG_PLATFORM_VERSION: "buster"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
+    
     - uses: actions/checkout@v2
       with:
         repository: edgedb/edgedb-docker
         ref: master
         path: dockerfile
+    - name: Publish Docker Image
+      uses: elgohr/Publish-Docker-Github-Action@2.6
+      with:
+        name: edgedb/edgedb:nightly
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+        snapshot: true
+        workdir: dockerfile
+        buildargs: version=${{ steps.describe.outputs.version-slot }},subdist=.nightly
     
 
   publish-ubuntu-xenial:
@@ -476,11 +470,6 @@ jobs:
         PKG_PLATFORM_VERSION: "xenial"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    - uses: actions/checkout@v2
-      with:
-        repository: edgedb/edgedb-docker
-        ref: master
-        path: dockerfile
     
 
   publish-ubuntu-bionic:
@@ -516,11 +505,6 @@ jobs:
         PKG_PLATFORM_VERSION: "bionic"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    - uses: actions/checkout@v2
-      with:
-        repository: edgedb/edgedb-docker
-        ref: master
-        path: dockerfile
     
 
   publish-ubuntu-focal:
@@ -556,11 +540,6 @@ jobs:
         PKG_PLATFORM_VERSION: "focal"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    - uses: actions/checkout@v2
-      with:
-        repository: edgedb/edgedb-docker
-        ref: master
-        path: dockerfile
     
 
   publish-centos-7:
@@ -596,11 +575,6 @@ jobs:
         PKG_PLATFORM_VERSION: "7"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    - uses: actions/checkout@v2
-      with:
-        repository: edgedb/edgedb-docker
-        ref: master
-        path: dockerfile
     
 
   publish-centos-8:
@@ -636,11 +610,6 @@ jobs:
         PKG_PLATFORM_VERSION: "8"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    - uses: actions/checkout@v2
-      with:
-        repository: edgedb/edgedb-docker
-        ref: master
-        path: dockerfile
     
 
 
