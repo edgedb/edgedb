@@ -229,9 +229,10 @@ In the command phase, the server can be in one of the three main states:
 Whenever a server switches to the *idle* state, it sends a
 :ref:`ref_protocol_msg_ready_for_command` message.
 
-Whenever a server encounters an error, it sends an :ref:`ref_protocol_msg_error`
-message.  If an error occurred during a *granular command flow*, the server
-switches into the *error* state, otherwise it switches into *idle* directly.
+Whenever a server encounters an error, it sends an 
+:ref:`ref_protocol_msg_error` message.  If an error occurred 
+during a *granular command flow*, the server switches into 
+the *error* state, otherwise it switches into *idle* directly.
 
 To switch a server from the *error* state into the *idle* state, a
 :ref:`ref_protocol_msg_sync` message must be sent by the client.
