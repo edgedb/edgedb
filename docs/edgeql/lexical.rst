@@ -27,7 +27,7 @@ alphanumeric with underscores and cannot start with a digit. The
 quoted identifiers start and end with a *backtick*
 ```quoted.identifier``` and can contain any characters inside with a
 few exceptions. They must not start with an ampersand (``@``) or
-contain double-colon (``::``). If there's a need to include a backtick
+contain a double colon (``::``). If there's a need to include a backtick
 character as part of the identifier name a double-backtick sequence
 (``````) should be used: ```quoted``identifier``` will result in the
 actual identifier being ``quoted`identifier``.
@@ -41,7 +41,7 @@ actual identifier being ``quoted`identifier``.
     qident_first: <any character except "@">
     qident_rest: <any character>
 
-Quoted identifiers usually needed to represent module names that
+Quoted identifiers are usually needed to represent module names that
 contain a dot (``.``) or to distinguish *names* from *reserved keywords*
 (for instance to allow referring to a link named "order" as ```order```).
 
@@ -116,7 +116,7 @@ A number of scalar types have literal constant expressions.
 Strings
 ^^^^^^^
 
-Production rules for :eql:type:`str` literal:
+Production rules for :eql:type:`str` literals:
 
 .. productionlist:: edgeql
     string: `str` | `raw_str`
@@ -132,7 +132,7 @@ Production rules for :eql:type:`str` literal:
     unicode: <any printable unicode character not preceded by "\">
     str_escapes: <see below for details>
 
-The inclusion of "high ASCII" character in the :token:`q_char` in
+The inclusion of "high ASCII" character in :token:`q_char` in
 practice reflects the ability to use some of the letters with
 diacritics like ``ò`` or ``ü`` in the dollar-quote delimiter.
 
@@ -205,7 +205,7 @@ Here's some examples of regular strings using escape sequences
 
 .. _ref_eql_lexical_raw:
 
-Raw strings don't have any specially interpreted symbols, they contain
+Raw strings don't have any specially interpreted symbols; they contain
 all the symbols between the quotes exactly as typed.
 
 .. code-block:: edgeql-repl
@@ -251,17 +251,18 @@ content with *dollar-quotes* in an unambiguous manner:
     db> SELECT $a$hello$$world$$$a$;
     {'hello$$world$$'}
 
-More specifically delimiter:
+More specifically, a delimiter:
 
 * Must start with an ASCII letter or underscore
-* Following characters can be digits 0-9, underscore or ASCII letters
+* Has following characters that can be digits 0-9, underscores or 
+  ASCII letters
 
 .. _ref_eql_lexical_bytes:
 
 Bytes
 ^^^^^
 
-Production rules for :eql:type:`bytes` literal:
+Production rules for :eql:type:`bytes` literals:
 
 .. productionlist:: edgeql
     bytes: "b'" `bytes_content`* "'" | 'b"' `bytes_content`* '"'
@@ -301,8 +302,8 @@ Integers
 
 There are two kinds of integer constants: limited size
 (:eql:type:`int64`) and unlimited size (:eql:type:`bigint`). Unlimited
-size integers :eql:type:`bigint` literal is similar to a regular
-integer literal with an ``n`` suffix. The production rules are as
+size integer :eql:type:`bigint` literals are similar to a regular
+integer literals with an ``n`` suffix. The production rules are as
 follows:
 
 .. productionlist:: edgeql
@@ -312,8 +313,8 @@ follows:
     digit: "0"..."9"
 
 By default all integer literals are interpreted as :eql:type:`int64`,
-an explicit cast can be used to convert them to :eql:type:`int16` or
-:eql:type:`int32`:
+while an explicit cast can be used to convert them to :eql:type:`int16`
+or :eql:type:`int32`:
 
 .. code-block:: edgeql-repl
 
@@ -360,7 +361,7 @@ lexical structure as :eql:type:`float64`, but with an ``n`` suffix:
     digit: "0"..."9"
 
 By default all float literals are interpreted as :eql:type:`float64`,
-an explicit cast can be used to convert them to :eql:type:`float32`:
+while an explicit cast can be used to convert them to :eql:type:`float32`:
 
 .. code-block:: edgeql-repl
 

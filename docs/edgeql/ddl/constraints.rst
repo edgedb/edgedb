@@ -175,9 +175,8 @@ CONSTRAINT`` block:
     Remove constraint :eql:synopsis:`<annotation-name>`.
     See :eql:stmt:`DROP ANNOTATION <DROP ANNOTATION>` for details.
 
-All the subcommands allowed in the ``CREATE ABSTRACT CONSTRAINT``
-block are also valid subcommands for ``ALTER ABSTRACT CONSTRAINT``
-block.
+All the subcommands allowed in a ``CREATE ABSTRACT CONSTRAINT`` block
+are also valid subcommands for an ``ALTER ABSTRACT CONSTRAINT`` block.
 
 
 Example

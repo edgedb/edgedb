@@ -83,8 +83,8 @@ The server and the client *MUST* not fragment messages. I.e the complete
 message must be sent before starting a new message. It's advised that whole
 message should be buffered before initiating a network call (but this
 requirement is neither observable nor enforceable at the other side). It's
-also common to buffer the whole message on receiver before starting to process
-it.
+also common to buffer the whole message on the receiver side before starting 
+to process it.
 
 Errors
 ======
@@ -126,32 +126,32 @@ connection phase, and the command phase.  The connection phase is responsible
 for negotiating the protocol and connection parameters, including
 authentication.  The command phase is the regular operation phase where the
 server is processing queries sent by the client.  In the command phase
-there are two possible command flows: the script flow and the granular flow.
+there are two possible command flows: script flow and granular flow.
 
 
 Connection Phase
 ----------------
 
 To begin a session, a client opens a connection to the server, and sends
-the :ref:`ref_protocol_msg_client_handshake`.  Server responds in one of
-the three ways:
+the :ref:`ref_protocol_msg_client_handshake`.  The server responds in one 
+of three ways:
 
 1. One of the authentication messages (see :ref:`below <ref_authentication>`);
 2. :ref:`ref_protocol_msg_server_handshake` followed by one of the
    authentication messages;
-3. :ref:`ref_protocol_msg_error` which indicates invalid client handshake
+3. :ref:`ref_protocol_msg_error` which indicates an invalid client handshake
    message.
 
 :ref:`ref_protocol_msg_server_handshake` is only sent if the requested
-connection parameters cannot be fully satisfied, the server responds to
+connection parameters cannot be fully satisfied; the server responds to
 offer the protocol parameters it is willing to support. Client may proceed
 by noting lower protocol version and/or absent extensions. Client *MUST* close
 the connection if protocol version is unsupported. Server *MUST* send subset
 of the extensions received in :ref:`ref_protocol_msg_client_handshake` (i.e.
 it never adds extra ones).
 
-While it's not required by the protocol specification itself, current EdgeDB
-server requires setting the following params in
+While it's not required by the protocol specification itself, EdgeDB server 
+currently requires setting the following params in
 :ref:`ref_protocol_msg_client_handshake`:
 
 * ``user`` -- username for authentication
@@ -175,7 +175,7 @@ The following messages are sent by the server in the authentication cycle:
 
 :ref:`ref_protocol_msg_auth_sasl`
     The client must now initiate a SASL negotiation, using one of the
-    SASL mechanisms listed in the message.  The client will send a
+    SASL mechanisms listed in the message.  The client will send an
     :ref:`ref_protocol_msg_auth_sasl_initial_response` with the name of the
     selected mechanism, and the first part of the SASL data stream in
     response to this.  If further messages are needed, the server will
@@ -185,7 +185,7 @@ The following messages are sent by the server in the authentication cycle:
     This message contains challenge data from the previous step of SASL
     negotiation (:ref:`ref_protocol_msg_auth_sasl`, or a previous
     :ref:`ref_protocol_msg_auth_sasl_continue`).  The client must respond
-    with a :ref:`ref_protocol_msg_auth_sasl_response` message.
+    with an :ref:`ref_protocol_msg_auth_sasl_response` message.
 
 :ref:`ref_protocol_msg_auth_sasl_final`
     SASL authentication has completed with additional mechanism-specific
@@ -229,9 +229,10 @@ In the command phase, the server can be in one of the three main states:
 Whenever a server switches to the *idle* state, it sends a
 :ref:`ref_protocol_msg_ready_for_command` message.
 
-Whenever a server encounters an error, it sends a :ref:`ref_protocol_msg_error`
-message.  If an error occurred during a *granular command flow*, the server
-switches into the *error* state, otherwise it switches into *idle* directly.
+Whenever a server encounters an error, it sends an 
+:ref:`ref_protocol_msg_error` message.  If an error occurred 
+during a *granular command flow*, the server switches into 
+the *error* state, otherwise it switches into *idle* directly.
 
 To switch a server from the *error* state into the *idle* state, a
 :ref:`ref_protocol_msg_sync` message must be sent by the client.
@@ -241,7 +242,7 @@ Script Flow
 -----------
 
 In a script command flow the client follows the server's
-:ref:`ref_protocol_msg_ready_for_command` message with a
+:ref:`ref_protocol_msg_ready_for_command` message with an
 :ref:`ref_protocol_msg_execute_script` message.  The message includes one
 or more EdgeQL commands as a text string.  The server then sends
 a :ref:`ref_protocol_msg_command_complete` message if the command (or commands)
@@ -263,7 +264,7 @@ The ``CommandComplete`` corresponds to the *last* command in the script.
 Granular Flow
 -------------
 
-The *granular flow* is designed to execute EdgeQL commands one-by-one
+*Granular flow* is designed to execute EdgeQL commands one-by-one
 with a series of messages.  This flow should be used whenever data
 needs to be returned from a command, or arguments passed to a command.
 
@@ -354,8 +355,8 @@ any time. In case of error, :ref:`ref_protocol_msg_sync` must be sent and all
 subsequent messages ignored until :ref:`ref_protocol_msg_ready_for_command` is
 received.
 
-Other than for error case, restore protocol doesn't require
-:ref:`ref_protocol_msg_sync` message.
+Restore protocol doesn't require a :ref:`ref_protocol_msg_sync` message except
+for error cases.
 
 
 Termination

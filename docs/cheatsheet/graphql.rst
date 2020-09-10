@@ -71,7 +71,7 @@ Select movies with Keanu Reeves:
 
 
 Select a movie by title and year with top 3 most recent reviews (this
-uses the :ref:`MovieAlias <ref_cheatsheet_aliases>` in order to access
+uses :ref:`MovieAlias <ref_cheatsheet_aliases>` in order to access
 reviews):
 
 .. code-block:: graphql
@@ -103,7 +103,7 @@ reviews):
         }
     }
 
-Use the :ref:`MovieAlias <ref_cheatsheet_aliases>` in order to find
+Use :ref:`MovieAlias <ref_cheatsheet_aliases>` in order to find
 movies that have no reviews:
 
 .. code-block:: graphql

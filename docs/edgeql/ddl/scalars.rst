@@ -142,7 +142,7 @@ The following subcommands are allowed in the ``ALTER SCALAR TYPE`` block:
     See :eql:stmt:`ALTER ANNOTATION <ALTER ANNOTATION>` for details.
 
 :eql:synopsis:`DROP ANNOTATION <annotation-name>`
-    Remove scalar type's :eql:synopsis:`<annotation-name>` to
+    Remove scalar type's :eql:synopsis:`<annotation-name>` from
     :eql:synopsis:`<value>`.
     See :eql:stmt:`DROP ANNOTATION <DROP ANNOTATION>` for details.
 

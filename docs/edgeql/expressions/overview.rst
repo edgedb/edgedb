@@ -59,7 +59,7 @@ section for more details.
 Set References
 --------------
 
-A set reference is an *name* (a simple identifier or a qualified schema name)
+A set reference is a *name* (a simple identifier or a qualified schema name)
 that represents a set of values.  It can be the name of an object type or
 an *expression alias* (defined in a statement :ref:`WITH block <ref_eql_with>`
 or in the schema via an :ref:`alias declaration <ref_eql_sdl_aliases>`).
@@ -81,7 +81,7 @@ Paths
 
 A *path expression* (or simply a *path*) represents a set of values that are
 reachable when traversing a given sequence of links or properties from some
-source set.  For example, here is s a path that represents the names of all
+source set.  For example, here is a path that represents the names of all
 friends of all ``User`` objects in the database.
 
 .. code-block:: edgeql
@@ -281,8 +281,8 @@ EdgeQL also supports *named tuples*:
     db> SELECT (height := 180, weight := 82).1;
     {82}
 
-Tuples can be nested in arrays, returned from functions, be
-a valid object property type.
+Tuples can be nested in arrays, returned from functions, or 
+be a valid object property type.
 
 See the :ref:`tuple expression reference <ref_eql_expr_tuple_ctor>`
 for more information on tuple constructors and accessing tuple elements.

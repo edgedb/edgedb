@@ -6,7 +6,7 @@ Expression Aliases
 
 An *alias* is a named set of values produced by an expression.
 
-Aliases can be referred to like regular type in other expressions.
+Aliases can be referred to like regular types in other expressions.
 Aliases over queries that return objects essentially define a dynamic
 *subtype* of the original object type, which may have additional
 properties and links as may be specified by a *shape* in the alias

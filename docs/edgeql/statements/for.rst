@@ -44,7 +44,7 @@ FOR
     Here, :eql:synopsis:`<output-expr>`
     is an arbitrary expression that is evaluated for
     every element in a set produced by evaluating the ``FOR`` clause.
-    The results of the evaluation are appended into the result set.
+    The results of the evaluation are appended to the result set.
 
 
 .. _ref_eql_forstatement:
@@ -86,9 +86,9 @@ singleton in all of the expressions used by the ``UNION OF`` and later
 clauses of ``FOR``.
 
 Another variation this usage of ``FOR`` is a bulk ``UPDATE``. There
-are cases when a bulk update lots of external data, that cannot be
-derived from the objects being updated. That is a good use-case when a
-``FOR`` statement is appropriate.
+are cases when a bulk update involves a lot of external data that 
+cannot be derived from the objects being updated. That is a good 
+use-case when a ``FOR`` statement is appropriate.
 
 .. code-block:: edgeql
 

@@ -16,19 +16,19 @@ Every property is declared to have a specific
 :ref:`collection type <ref_datamodel_collection_types>` based on a scalar.
 
 There are two kinds of property item declarations: *abstract properties*,
-and *concrete properties*.  Abstract properties are defined on module level
-and are not tied to any particular object type or link.  Typically this is
-done to set some :ref:`annotations <ref_datamodel_annotations>`, or define
-:ref:`constraints <ref_datamodel_constraints>`.  Concrete properties
-are defined on specific object types.
+and *concrete properties*.  Abstract properties are defined on the module 
+level and are not tied to any particular object type or link.  Typically 
+this is done to set some :ref:`annotations <ref_datamodel_annotations>`, 
+or define :ref:`constraints <ref_datamodel_constraints>`.  Concrete 
+properties are defined on specific object types.
 
-Similarly to :ref:`links <ref_datamodel_links>` properties have a
+Similar to :ref:`links <ref_datamodel_links>`, properties have a
 *source* (the object on which they are defined) and one or more
 *targets* (the values that property can have). The number of targets
-as specified by keywords :ref:`required <ref_eql_ddl_props_syntax>`,
+is specified by the keywords :ref:`required <ref_eql_ddl_props_syntax>`,
 :ref:`single <ref_eql_ddl_props_syntax>`, and :ref:`multi
 <ref_eql_ddl_props_syntax>`.  It is also possible to restrict how many
-source objects can link to the same target via
+source objects can link to the same target via the
 :eql:constraint:`exclusive` constraint.  For the purpose of figuring
 out the number of property targets, a :ref:`collection type
 <ref_datamodel_collection_types>` target by itself is considered a

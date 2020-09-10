@@ -154,7 +154,7 @@ Set
         <left_expr> IF <condition> ELSE <right_expr>
 
     If :eql:synopsis:`<condition>` is ``true``, then the value of the
-    ``IF..ELSE`` expression is the value of :eql:synopsis:`<left_expr>`,
+    ``IF..ELSE`` expression is the value of :eql:synopsis:`<left_expr>`;
     if :eql:synopsis:`<condition>` is ``false``, the result is the value of
     :eql:synopsis:`<right_expr>`.
 
@@ -185,7 +185,7 @@ Set
 
     Evaluate to ``A`` for non-empty ``A``, otherwise evaluate to ``B``.
 
-    A typical use case of coalescing operator is to provide default
+    A typical use case of the coalescing operator is to provide default
     values for optional properties.
 
     .. code-block:: edgeql
@@ -226,7 +226,7 @@ Set
 
     The type intersection operator removes all elements from the input set
     that aren't of the specified type. Additionally, since it
-    guarantees the type of the result set all the links and properties
+    guarantees the type of the result set, all the links and properties
     associated with the specified type can now be used on the
     resulting expression. This is especially useful in combination
     with :ref:`backward links <ref_eql_expr_paths>`.

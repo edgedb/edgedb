@@ -175,7 +175,7 @@ object type, which contains all the friends from the same town:
     };
 
 Define a new abstract link ``orderable``, and then a concrete link
-``interests`` that extends is, inheriting the ``weight`` property:
+``interests`` that extends it, inheriting the ``weight`` property:
 
 .. code-block:: edgeql
 

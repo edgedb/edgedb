@@ -37,7 +37,7 @@ we should connect to it:
     tutorial>
 
 Now we need to set up the schema. Let's set up a basic schema for a
-movies database. It will have 2 types of objects: movies and people
+movie database. It will have 2 types of objects: movies and people
 who directed and acted in them.
 
 For the next step, there are two ways of setting this up. Please pick

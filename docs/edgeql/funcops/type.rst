@@ -271,8 +271,8 @@ Types
         db> SELECT (Foo.bar / 2) IS TYPEOF Foo.bar;
         {false}
 
-    To determine what is the actual resulting type of an expression we
-    can use :eql:op:`INTROSPECT`:
+    To determine the actual resulting type of an expression we can
+    use :eql:op:`INTROSPECT`:
 
     .. code-block:: edgeql-repl
 
@@ -312,7 +312,7 @@ Types
     <ref_eql_introspection>` corresponding to type provided as
     operand. It works well in combination with :eql:op:`TYPEOF`.
 
-    Currently, ``INTROSPECT`` operator only supports :ref:`scalar
+    Currently, the ``INTROSPECT`` operator only supports :ref:`scalar
     types <ref_datamodel_scalar_types>` and :ref:`object types
     <ref_datamodel_object_types>`, but **not** the :ref:`collection
     types <ref_datamodel_collection_types>` as a valid operand.

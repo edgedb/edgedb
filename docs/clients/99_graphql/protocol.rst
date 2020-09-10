@@ -15,7 +15,7 @@ protocol. Both GET and POST methods use the following fields:
   correspond to the variable names and values. It is required if the
   GraphQL query has variables, otherwise it is optional.
 
-The protocol implementations conforms to the official GraphQL
+The protocol implementations conform to the official GraphQL
 `HTTP protocol <https://graphql.org/learn/serving-over-http/>`_.
 
 The protocol supports HTTP Keep-Alive.

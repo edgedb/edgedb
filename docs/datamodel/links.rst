@@ -11,7 +11,7 @@ types <ref_datamodel_object_types>`.  Link instances relate one
 *object* to one or more different objects.
 
 There are two kinds of link item declarations: *abstract links*, and
-*concrete links*.  Abstract links are defined on module level and are
+*concrete links*.  Abstract links are defined on the module level and are
 not tied to any particular object type. Typically this is done to set
 some :ref:`annotations <ref_datamodel_annotations>`, define
 :ref:`link properties <ref_datamodel_props>`, or setup :ref:`constraints
@@ -19,10 +19,10 @@ some :ref:`annotations <ref_datamodel_annotations>`, define
 types.
 
 Links are directional and have a *source* and one or more *targets*.
-The number of targets as specified by keywords :ref:`required
+The number of targets is specified by the keywords :ref:`required
 <ref_eql_ddl_links_syntax>`, :ref:`single <ref_eql_ddl_links_syntax>`,
 and :ref:`multi <ref_eql_ddl_links_syntax>`.  It is also possible to
-restrict how many source objects can link to the same target via
+restrict how many source objects can link to the same target via the
 :eql:constraint:`exclusive` constraint.
 
 Links also have a policy of handling link target *deletion*. There are

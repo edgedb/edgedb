@@ -102,7 +102,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
 .. eql:type:: cal::local_date
 
-    A type representing date without time zone.
+    A type representing a date without a time zone.
 
     :eql:op:`Casting <CAST>` is a simple way to obtain a
     :eql:type:`cal::local_date` value in an expression:
@@ -124,7 +124,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
 .. eql:type:: cal::local_time
 
-    A type representing time without time zone.
+    A type representing time without a time zone.
 
     :eql:op:`Casting <CAST>` is a simple way to obtain a
     :eql:type:`cal::local_time` value in an expression:

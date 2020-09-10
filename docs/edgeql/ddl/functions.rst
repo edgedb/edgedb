@@ -134,7 +134,7 @@ Parameters
     * :eql:synopsis:`<language>` is the name of the language that
       the function is implemented in.  Currently can only be ``edgeql``.
 
-    * :eql:synopsis:`<functionbody>` isa  string constant defining
+    * :eql:synopsis:`<functionbody>` is a string constant defining
       the function.  It is often helpful to use
       :ref:`dollar quoting <ref_eql_lexical_dollar_quoting>`
       to write the function definition string.

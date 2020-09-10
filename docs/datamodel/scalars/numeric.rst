@@ -71,7 +71,7 @@ from :eql:type:`str` and :eql:type:`json`.
     A variable precision, inexact number.
 
     Minimal guaranteed precision is at least 15 decimal digits. The
-    approximate range of a ``float32`` is ``-1.7e+308`` to ``+1.7e+308``.
+    approximate range of a ``float64`` is ``-1.7e+308`` to ``+1.7e+308``.
 
 
 ----------
@@ -103,7 +103,7 @@ from :eql:type:`str` and :eql:type:`json`.
         db> SELECT 42n IS bigint;
         {true}
 
-    Note that is a float literal followed by 'n' produces a
+    Note that a float literal followed by ‘n’ produces a
     :eql:type:`decimal`:
 
     .. code-block:: edgeql-repl
@@ -136,7 +136,7 @@ from :eql:type:`str` and :eql:type:`json`.
 
     Any number of arbitrary precision.
 
-    The EdgeDB philosophy is that using decimal type should be an
+    The EdgeDB philosophy is that using a decimal type should be an
     explicit opt-in, but once used, the values should not be
     accidentally cast into a numeric type with less precision.
 

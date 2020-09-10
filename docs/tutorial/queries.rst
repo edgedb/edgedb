@@ -5,7 +5,7 @@
 
 After the database and schema are set up, we can add some actual data.
 For example, let's add "Blade Runner 2049" to the database. It's possible to
-add movie, director and actors data all at once:
+add movie, director and actor data all at once:
 
 .. code-block:: edgeql-repl
 
@@ -160,7 +160,7 @@ there in the ``actors`` by using a :ref:`computable
     }
 
 Let's add some more information about "Dune". For example, we can add
-some of the actors members, like Jason Momoa, Zendaya and Oscar Isaac:
+some of the actors, like Jason Momoa, Zendaya and Oscar Isaac:
 
 .. code-block:: edgeql-repl
 

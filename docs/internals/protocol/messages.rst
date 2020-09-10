@@ -164,7 +164,7 @@ RestoreReady
 
 Sent by: server.
 
-Initial :ref:`ref_protocol_msg_restore` message accepted, ready do receive
+Initial :ref:`ref_protocol_msg_restore` message accepted, ready to receive
 data. See :ref:`ref_protocol_restore_flow`.
 
 Format:
@@ -483,7 +483,7 @@ Format:
 
 .. eql:struct:: edb.testbase.protocol.ProtocolExtension
 
-The ``ClientHandshake`` message is the first message sent by the client.
+The ``ClientHandshake`` message is the first message sent by the client
 upon connecting to the server.  It is the first phase of protocol negotiation,
 where the client sends the requested protocol version and extensions.
 Currently, the only defined ``major_ver`` is ``1``, and ``minor_ver`` is ``0``.
@@ -506,7 +506,7 @@ Format:
 
 
 The ``ServerHandshake`` message is a direct response to the
-:ref:`ref_protocol_msg_client_handshake` message and is sent by the server.
+:ref:`ref_protocol_msg_client_handshake` message and is sent by the server
 in the case where the server does not support the protocol version or
 protocol extensions requested by the client.  It contains the maximum
 protocol version supported by the server, considering the version requested
@@ -554,11 +554,11 @@ by the server.
     (`RFC 7677 <https://tools.ietf.org/html/rfc7677>`_).
 
 The client must select an appropriate authentication method from the list
-returned by the server and send a
+returned by the server and send an
 :ref:`ref_protocol_msg_auth_sasl_initial_response`.
 One or more server-challenge and client-response message follow.  Each
 server-challenge is sent in an :ref:`ref_protocol_msg_auth_sasl_continue`,
-followed by a response from client in a
+followed by a response from the client in an
 :ref:`ref_protocol_msg_auth_sasl_response` message.  The particulars of the
 messages are mechanism specific.  Finally, when the authentication
 exchange is completed successfully, the server sends an
