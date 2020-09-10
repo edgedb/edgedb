@@ -110,6 +110,8 @@ class ScopeTreeNode:
         cp.factoring_fence = self.factoring_fence
         cp.namespaces = set(self.namespaces)
         cp.unique_id = self.unique_id
+        cp.factoring_allowlist = set(self.factoring_allowlist)
+        cp.protect_parent = self.protect_parent
         cp._set_parent(parent)
 
         for child in self.children:
@@ -816,6 +818,17 @@ class ScopeTreeNode:
     def copy(self) -> ScopeTreeNode:
         """Return a complete copy of this subtree."""
         return self._copy(parent=None)
+
+    def copy_all(self) -> Tuple[ScopeTreeNode, ScopeTreeNode]:
+        """Make a copy the entire tree and return the copy of this node."""
+        if self.unique_id is None:
+            self.unique_id = -1
+        new = self.root.copy()
+        me = new.find_by_unique_id(self.unique_id)
+        assert me
+        if self.unique_id == -1:
+            self.unique_id = None
+        return new, me
 
     def pformat(self) -> str:
         if self.children:

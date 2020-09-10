@@ -578,6 +578,8 @@ class ContextLevel(compiler.ContextLevel):
                 prevlevel.pending_stmt_full_path_id_namespace
             self.banned_paths = prevlevel.banned_paths
             self.view_map = prevlevel.view_map
+            if prevlevel.path_scope is None:
+                prevlevel.path_scope = self.env.path_scope
             self.path_scope = prevlevel.path_scope
             self.path_scope_map = prevlevel.path_scope_map
             self.scope_id_ctr = prevlevel.scope_id_ctr
@@ -656,32 +658,21 @@ class ContextLevel(compiler.ContextLevel):
 
             if mode in {ContextSwitchMode.NEWFENCE_TEMP,
                         ContextSwitchMode.NEWSCOPE_TEMP}:
-                if prevlevel.path_scope is None:
-                    prevlevel.path_scope = self.env.path_scope
-
-                self.path_scope = prevlevel.path_scope.copy()
+                # Make a copy of the entire tree and set path_scope to
+                # be the copy of the current node. Stash the root in
+                # an attribute to keep it from being freed, since
+                # scope tree parent pointers are weak pointers.
+                self._stash, self.path_scope = self.path_scope.copy_all()
                 self.in_temp_scope = True
                 self.tentative_work = list(prevlevel.tentative_work)
 
             if mode in {ContextSwitchMode.NEWFENCE,
                         ContextSwitchMode.NEWFENCE_TEMP}:
-                if prevlevel.path_scope is None:
-                    prevlevel.path_scope = self.env.path_scope
-
-                self.path_scope = prevlevel.path_scope.attach_fence()
+                self.path_scope = self.path_scope.attach_fence()
 
             if mode in {ContextSwitchMode.NEWSCOPE,
                         ContextSwitchMode.NEWSCOPE_TEMP}:
-                if prevlevel.path_scope is None:
-                    prevlevel.path_scope = self.env.path_scope
-
-                self.path_scope = prevlevel.path_scope.attach_branch()
-
-    def on_pop(self, prevlevel: Optional[ContextLevel]) -> None:
-        if (prevlevel is not None
-                and self.mode in {ContextSwitchMode.NEWFENCE_TEMP,
-                                  ContextSwitchMode.NEWSCOPE_TEMP}):
-            prevlevel.path_scope.remove_subtree(self.path_scope)
+                self.path_scope = self.path_scope.attach_branch()
 
     def subquery(self) -> compiler.CompilerContextManager[ContextLevel]:
         return self.new(ContextSwitchMode.SUBQUERY)
