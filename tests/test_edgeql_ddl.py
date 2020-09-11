@@ -6616,9 +6616,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             },
         })
 
-    @test.xfail('''
-        Rejecting an empty proposal should be a legal NOP.
-    ''')
     async def test_edgeql_ddl_describe_migration_json_03(self):
         await self.con.execute('''
             START MIGRATION TO {
@@ -6642,9 +6639,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ALTER CURRENT MIGRATION REJECT PROPOSED;
         ''')
 
-    @test.xfail('''
-        Rejecting an empty proposal should be a legal NOP.
-    ''')
     async def test_edgeql_ddl_describe_migration_json_04(self):
         await self.con.execute('''
             START MIGRATION TO {
@@ -6841,12 +6835,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             },
         })
 
-    @test.xfail('''
-        The migration needs to create a new module, but the module
-        command is not handled by the DESCRIBE.
-    ''')
     async def test_edgeql_ddl_describe_migration_json_08(self):
-        # Migration that creates a new empty module.
+        # Migration that creates a new module.
         await self.con.execute('''
             START MIGRATION TO {
                 module new_module {
@@ -6860,7 +6850,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             'complete': False,
             'proposed': {
                 'statements': [{
-                    'text': 'CREATE MODULE new_module;'
+                    'text': 'CREATE MODULE new_module IF NOT EXISTS;'
                 }],
                 'confidence': 1.0,
             },
