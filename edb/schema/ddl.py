@@ -25,6 +25,7 @@ from typing import *  # noqa
 from edb import edgeql
 from edb.edgeql import ast as qlast
 from edb.edgeql import declarative as s_decl
+from edb.server import defines
 
 from . import delta as sd
 from . import expr as s_expr
@@ -134,6 +135,10 @@ def delta_schemas(
 
     schema_a_filters = list(schema_a_filters)
     schema_b_filters = list(schema_b_filters)
+    context = so.ComparisonContext(
+        generate_prompts=generate_prompts,
+        guidance=guidance,
+    )
 
     if schema_a is None:
         if include_std_diff:
@@ -205,19 +210,24 @@ def delta_schemas(
 
     if include_module_diff:
         for added_module in added_modules:
-            create = s_mod.CreateModule(
-                classname=added_module,
-                if_not_exists=True,
-            )
-            create.set_attribute_value('name', added_module)
-            create.set_attribute_value('builtin', False)
-            result.add(create)
+            if (
+                guidance is None
+                or (
+                    (s_mod.Module, added_module)
+                    not in guidance.banned_creations
+                )
+            ):
+                mod = schema_b.get_global(s_mod.Module, added_module, None)
+                assert mod is not None
+                create = mod.as_create_delta(
+                    schema=schema_b,
+                    context=context,
+                )
+                create.if_not_exists = True
+
+                result.add(create)
 
     objects = sd.DeltaRoot(canonical=True)
-    context = so.ComparisonContext(
-        generate_prompts=generate_prompts,
-        guidance=guidance,
-    )
 
     schemaclasses = [
         schemacls
@@ -301,7 +311,21 @@ def delta_schemas(
 
     if include_module_diff:
         for dropped_module in dropped_modules:
-            result.add(s_mod.DeleteModule(classname=dropped_module))
+            if (
+                guidance is None
+                or (
+                    (s_mod.Module, dropped_module)
+                    not in guidance.banned_deletions
+                )
+            ):
+                mod = schema_a.get_global(s_mod.Module, dropped_module, None)
+                assert mod is not None
+                dropped = mod.as_delete_delta(
+                    schema=schema_a,
+                    context=context,
+                )
+
+                result.add(dropped)
 
     return result
 
@@ -335,7 +359,7 @@ def apply_sdl(
     # group declarations by module
     documents: Dict[str, List[qlast.DDL]] = defaultdict(list)
     # initialize the "default" module
-    documents['default'] = []
+    documents[defines.DEFAULT_MODULE_ALIAS] = []
     for decl in sdl_document.declarations:
         # declarations are either in a module block or fully-qualified
         if isinstance(decl, qlast.ModuleDeclaration):

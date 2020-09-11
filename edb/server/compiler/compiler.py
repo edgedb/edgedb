@@ -959,42 +959,47 @@ class Compiler(BaseCompiler):
                 generate_prompts=True,
                 guidance=mstate.guidance,
             )
-            top_command = next(iter(diff.get_subcommands()))
 
-            if (orig_cmdclass := top_command.get_annotation('orig_cmdclass')):
-                top_cmdclass = orig_cmdclass
+            try:
+                top_command = next(iter(diff.get_subcommands()))
+            except StopIteration:
+                new_guidance = mstate.guidance
             else:
-                top_cmdclass = type(top_command)
+                if (orig_cmdclass :=
+                        top_command.get_annotation('orig_cmdclass')):
+                    top_cmdclass = orig_cmdclass
+                else:
+                    top_cmdclass = type(top_command)
 
-            if issubclass(top_cmdclass, s_delta.AlterObject):
-                new_guidance = mstate.guidance._replace(
-                    banned_alters=mstate.guidance.banned_alters | {(
-                        top_command.get_schema_metaclass(),
-                        (
+                if issubclass(top_cmdclass, s_delta.AlterObject):
+                    new_guidance = mstate.guidance._replace(
+                        banned_alters=mstate.guidance.banned_alters | {(
+                            top_command.get_schema_metaclass(),
+                            (
+                                top_command.classname,
+                                top_command.get_annotation('new_name'),
+                            ),
+                        )}
+                    )
+                elif issubclass(top_cmdclass, s_delta.CreateObject):
+                    new_guidance = mstate.guidance._replace(
+                        banned_creations=mstate.guidance.banned_creations | {(
+                            top_command.get_schema_metaclass(),
                             top_command.classname,
-                            top_command.get_annotation('new_name'),
-                        ),
-                    )}
-                )
-            elif issubclass(top_cmdclass, s_delta.CreateObject):
-                new_guidance = mstate.guidance._replace(
-                    banned_creations=mstate.guidance.banned_creations | {(
-                        top_command.get_schema_metaclass(),
-                        top_command.classname,
-                    )}
-                )
-            elif issubclass(top_cmdclass, s_delta.DeleteObject):
-                new_guidance = mstate.guidance._replace(
-                    banned_deletions=mstate.guidance.banned_deletions | {(
-                        top_command.get_schema_metaclass(),
-                        top_command.classname,
-                    )}
-                )
-            else:
-                raise AssertionError(
-                    f'unexpected top-level command in '
-                    f'delta diff: {top_cmdclass!r}',
-                )
+                        )}
+                    )
+                elif issubclass(top_cmdclass, s_delta.DeleteObject):
+                    new_guidance = mstate.guidance._replace(
+                        banned_deletions=mstate.guidance.banned_deletions | {(
+                            top_command.get_schema_metaclass(),
+                            top_command.classname,
+                        )}
+                    )
+                else:
+                    raise AssertionError(
+                        f'unexpected top-level command in '
+                        f'delta diff: {top_cmdclass!r}',
+                    )
 
             mstate = mstate._replace(guidance=new_guidance)
             current_tx.update_migration_state(mstate)
