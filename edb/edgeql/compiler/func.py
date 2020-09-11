@@ -639,15 +639,16 @@ def process_path_log(arg_ctx: Optional[context.ContextLevel],
         # while compiling an argument and find and adjust the
         # optionality of any factored out nodes after the fact.
         for path_id in arg_ctx.path_log:
-            assert arg_scope is not None
-            # If the node is still here, nothing to do
-            desc = arg_scope.find_descendant(path_id)
-            if desc:
-                continue
-            visible = arg_scope.find_visible(path_id)
-            if visible:
-                if visible.optional_count:
-                    visible.optional_count -= 1
+            for prefix in path_id.iter_prefixes(include_ptr=True):
+                assert arg_scope is not None
+                # If the node is still here, nothing to do
+                desc = arg_scope.find_descendant(prefix)
+                if desc:
+                    continue
+                visible = arg_scope.find_visible(prefix)
+                if visible:
+                    if visible.optional_count:
+                        visible.optional_count -= 1
         arg_ctx.path_log = []
 
 

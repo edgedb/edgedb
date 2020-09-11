@@ -1380,6 +1380,29 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             [[False, 0]],
         )
 
+    async def test_edgeql_coalesce_set_of_12(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT (
+                    Publication ?= Publication,
+                    (Publication.title++Publication.title
+                       ?= Publication.title) ?=
+                    (Publication ?!= Publication)
+                )
+            ''',
+            [[True, False]]
+        )
+
+    async def test_edgeql_coalesce_set_of_13(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT (Publication ?= Publication, Publication)
+            ''',
+            [],
+        )
+
     async def test_edgeql_coalesce_set_of_nonempty_01(self):
         await self.con.execute(
             '''INSERT test::Publication { title := "1" }''')
