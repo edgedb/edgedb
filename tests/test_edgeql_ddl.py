@@ -6725,7 +6725,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             'confirmed': [
                 'CREATE TYPE test::Type1 {\n'
                 '    CREATE OPTIONAL SINGLE PROPERTY field1 -> std::str;\n'
-                '}'
+                '};'
             ],
             'complete': True,
             'proposed': None,
@@ -6792,7 +6792,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         await self.assert_describe_migration({
             'parent': 'm1xh653zionj2aehqbh7x6km5lo3b2mjaftxdkvqoh3wluc3iv6k2a',
-            'confirmed': ['ALTER TYPE test::Test RENAME TO test::Test3'],
+            'confirmed': ['ALTER TYPE test::Test RENAME TO test::Test3;'],
             'complete': False,
             'proposed': {
                 'statements': [{
@@ -6872,7 +6872,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         await self.assert_describe_migration({
             'confirmed': [
-                'CREATE MODULE new_module',
+                'CREATE MODULE new_module;',
             ],
             'complete': False,
             'proposed': {
@@ -6957,7 +6957,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         await self.assert_describe_migration({
             'confirmed': [
-                'ALTER TYPE other::Test RENAME TO test::Test2'
+                'ALTER TYPE other::Test RENAME TO test::Test2;'
             ],
             'complete': False,
             'proposed': {
@@ -6979,7 +6979,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         await self.assert_describe_migration({
             'confirmed': [
-                'ALTER TYPE other::Test RENAME TO test::Test2'
+                'ALTER TYPE other::Test RENAME TO test::Test2;'
             ],
             'complete': False,
             'proposed': {
@@ -7002,8 +7002,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         await self.assert_describe_migration({
             'confirmed': [
-                'ALTER TYPE other::Test RENAME TO test::Test2',
-                'ALTER TYPE test::Test RENAME TO other::Test3',
+                'ALTER TYPE other::Test RENAME TO test::Test2;',
+                'ALTER TYPE test::Test RENAME TO other::Test3;',
             ],
             'complete': True,
             'proposed': None,
@@ -7048,8 +7048,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         await self.assert_describe_migration({
             'confirmed': [
-                'ALTER TYPE test::Type0 RENAME TO test::TypeXX',
-                'ALTER TYPE test::TypeXX RENAME TO test::Type1',
+                'ALTER TYPE test::Type0 RENAME TO test::TypeXX;',
+                'ALTER TYPE test::TypeXX RENAME TO test::Type1;',
             ],
             'complete': True,
             'proposed': None,
