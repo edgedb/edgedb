@@ -879,7 +879,10 @@ class Compiler(BaseCompiler):
                 confirmed = []
                 for stmt in mstate.current_ddl:
                     confirmed.append(
-                        qlcodegen.generate_source(stmt, pretty=True),
+                        # Add a terminating semicolon to match
+                        # "proposed", which is created by
+                        # s_ddl.statements_from_delta.
+                        qlcodegen.generate_source(stmt, pretty=True) + ';',
                     )
 
                 guided_diff = s_ddl.delta_schemas(
