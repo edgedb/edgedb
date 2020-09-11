@@ -646,10 +646,8 @@ def process_path_log(arg_ctx: Optional[context.ContextLevel],
                 continue
             visible = arg_scope.find_visible(path_id)
             if visible:
-                if visible.was_optional:
-                    visible.was_optional -= 1
-                    if visible.was_optional == 0:
-                        visible.optional = True
+                if visible.optional_count:
+                    visible.optional_count -= 1
         arg_ctx.path_log = []
 
 
