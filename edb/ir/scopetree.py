@@ -237,7 +237,7 @@ class ScopeTreeNode:
         Tuple[
             ScopeTreeNode,
             AbstractSet[pathid.AnyNamespace],
-            FenceInfo,
+            FenceInfo
         ]
     ]:
         """An iterator of node's descendants and namespaces.
@@ -444,7 +444,7 @@ class ScopeTreeNode:
         for descendant in node.path_descendants:
             path_id = descendant.path_id.strip_namespace(dns)
             visible, visible_finfo = self.find_visible_ex(path_id)
-            desc_optional = descendant.is_optional_upto(node)
+            desc_optional = descendant.is_optional_upto(node.parent)
             if visible is not None:
                 if visible_finfo is not None and visible_finfo.factoring_fence:
                     # This node is already present in the surrounding
@@ -492,22 +492,21 @@ class ScopeTreeNode:
                 unnest_fence = False
                 parent_fence = None
                 if existing is None:
-                    existing, unnest_fence, optional = (
-                        self.find_unfenced(path_id))
+                    existing, unnest_fence = self.find_unfenced(path_id)
                     if existing is not None:
                         parent_fence = existing.parent_fence
                     existing_fenced = False
                 else:
-                    optional = existing.is_optional_upto(self)
                     existing_fenced = (
                         existing.parent_fence is not self.fence)
                     parent_fence = self.fence
 
                 if existing is not None and parent_fence is not None:
-                    if existing.optional or optional:
+                    if existing.is_optional_upto(parent_fence):
                         existing.mark_as_optional()
                     if desc_optional:
                         descendant.mark_as_optional()
+
                     if parent_fence.find_child(path_id) is None:
                         assert existing.path_id is not None
 
@@ -572,7 +571,6 @@ class ScopeTreeNode:
     ) -> None:
         node.remove()
 
-        # how about the other way???
         if (
             self.optional_count is not None
             and not node.optional
@@ -583,13 +581,13 @@ class ScopeTreeNode:
 
         if node.path_id is not None:
             subtree = ScopeTreeNode(fenced=True)
+            subtree.optional_count = node.optional_count
             for child in tuple(node.children):
                 subtree.attach_child(child)
         else:
             subtree = node
 
-        # XXX: yeah I am not sure about this was_fenced thing.
-        self.attach_subtree(subtree, was_fenced=self_fenced or self.optional)
+        self.attach_subtree(subtree, was_fenced=self_fenced)
 
     def remove_subtree(self, node: ScopeTreeNode) -> None:
         """Remove the given subtree from this node."""
@@ -830,7 +828,7 @@ class ScopeTreeNode:
 
         return None, frozenset(), None
 
-    def is_optional_upto(self, ancestor: ScopeTreeNode) -> bool:
+    def is_optional_upto(self, ancestor: Optional[ScopeTreeNode]) -> bool:
         nobe: Optional[ScopeTreeNode] = self
         while nobe and nobe is not ancestor:
             if nobe.optional_count is not None:
@@ -839,7 +837,7 @@ class ScopeTreeNode:
         return False
 
     def find_unfenced(self, path_id: pathid.PathId) \
-            -> Tuple[Optional[ScopeTreeNode], bool, bool]:
+            -> Tuple[Optional[ScopeTreeNode], bool]:
         """Find the unfenced node with the given *path_id*."""
         namespaces: Set[str] = set()
         unnest_fence_seen = False
@@ -849,15 +847,12 @@ class ScopeTreeNode:
                 if (descendant.path_id is not None
                         and _paths_equal(descendant.path_id,
                                          path_id, namespaces)):
-                    return (
-                        descendant, unnest_fence_seen,
-                        descendant.is_optional_upto(node)
-                    )
+                    return descendant, unnest_fence_seen
 
             namespaces |= ans
             unnest_fence_seen = unnest_fence_seen or node.unnest_fence
 
-        return None, unnest_fence_seen, False
+        return None, unnest_fence_seen
 
     def find_by_unique_id(self, unique_id: int) -> Optional[ScopeTreeNode]:
         for node in self.descendants:
