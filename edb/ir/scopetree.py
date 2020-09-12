@@ -63,8 +63,13 @@ class ScopeTreeNode:
     factoring_allowlist: Set[pathid.PathId]
     """A list of prefixes that are always allowed to be factored."""
 
-    optional: bool
-    """Whether this node represents an optional path."""
+    optional_count: Optional[int]
+    """Whether this node represents an optional path.
+
+    If None, the node is not an optional path. If 0, it is.
+    If positive, the node *was* an optional path but has had non-optional
+    nodes merged into it, but could become optional again.
+    """
 
     children: Set[ScopeTreeNode]
     """A set of child nodes."""
@@ -84,6 +89,7 @@ class ScopeTreeNode:
         path_id: Optional[pathid.PathId]=None,
         fenced: bool=False,
         unique_id: Optional[int]=None,
+        optional: bool=False,
     ) -> None:
         self.unique_id = unique_id
         self.path_id = path_id
@@ -92,7 +98,7 @@ class ScopeTreeNode:
         self.unnest_fence = False
         self.factoring_fence = False
         self.factoring_allowlist = set()
-        self.optional = False
+        self.optional_count = 0 if optional else None
         self.children = set()
         self.namespaces = set()
         self._parent: Optional[weakref.ReferenceType[ScopeTreeNode]] = None
@@ -105,7 +111,7 @@ class ScopeTreeNode:
         cp = self.__class__(
             path_id=self.path_id,
             fenced=self.fenced)
-        cp.optional = self.optional
+        cp.optional_count = self.optional_count
         cp.unnest_fence = self.unnest_fence
         cp.factoring_fence = self.factoring_fence
         cp.namespaces = set(self.namespaces)
@@ -125,10 +131,14 @@ class ScopeTreeNode:
 
     def _name(self, debug: bool) -> str:
         if self.path_id is None:
-            return f'FENCE' if self.fenced else f'BRANCH'
+            name = f'FENCE' if self.fenced else f'BRANCH'
         else:
-            pid = self.path_id.pformat_internal(debug=debug)
-            return f'{pid}{" [OPT]" if self.optional else ""}'
+            name = self.path_id.pformat_internal(debug=debug)
+        ocount = self.optional_count
+        return (
+            f'{name}{" [OPT]" if self.optional else ""}'
+            f'{" ["+str(ocount)+"]" if ocount else ""}'
+        )
 
     def debugname(self, fuller: bool=False) -> str:
         parts = [f'{self._name(debug=fuller)}']
@@ -142,6 +152,10 @@ class ScopeTreeNode:
             parts.append('no-factor')
         parts.append(f'0x{id(self):0x}')
         return ' '.join(parts)
+
+    @property
+    def optional(self) -> bool:
+        return self.optional_count == 0
 
     @property
     def fence_info(self) -> FenceInfo:
@@ -344,6 +358,7 @@ class ScopeTreeNode:
         self,
         path_id: pathid.PathId,
         *,
+        optional: bool=False,
         context: Optional[pctx.ParserContext],
         fence_points: FrozenSet[pathid.PathId] = frozenset(),
     ) -> List[ScopeTreeNode]:
@@ -358,7 +373,8 @@ class ScopeTreeNode:
                 is_lprop = True
                 continue
 
-            new_child = ScopeTreeNode(path_id=prefix)
+            new_child = ScopeTreeNode(path_id=prefix,
+                                      optional=optional and parent is subtree)
             parent.attach_child(new_child)
 
             # If the path is a link property, or a tuple
@@ -406,6 +422,7 @@ class ScopeTreeNode:
         return fences
 
     def attach_subtree(self, node: ScopeTreeNode,
+                       was_fenced: bool=False,
                        context: Optional[pctx.ParserContext]=None) -> None:
         """Attach a subtree to this node.
 
@@ -427,6 +444,7 @@ class ScopeTreeNode:
         for descendant in node.path_descendants:
             path_id = descendant.path_id.strip_namespace(dns)
             visible, visible_finfo = self.find_visible_ex(path_id)
+            desc_optional = descendant.is_optional_upto(node.parent)
             if visible is not None:
                 if visible_finfo is not None and visible_finfo.factoring_fence:
                     # This node is already present in the surrounding
@@ -440,10 +458,15 @@ class ScopeTreeNode:
                     )
 
                 # This path is already present in the tree, discard,
-                # but keep its OPTIONAL status, if any.
+                # but merge its OPTIONAL status, if any.
+                desc_fenced = descendant.fence is not node.fence or was_fenced
                 descendant.remove()
-                if descendant.optional:
-                    visible.optional = True
+                keep_optional = desc_optional or desc_fenced
+                if (
+                    visible.optional_count is not None
+                    and not keep_optional
+                ):
+                    visible.optional_count += 1
 
             elif descendant.parent_fence is node:
                 # Unfenced path.
@@ -472,10 +495,18 @@ class ScopeTreeNode:
                     existing, unnest_fence = self.find_unfenced(path_id)
                     if existing is not None:
                         parent_fence = existing.parent_fence
+                    existing_fenced = False
                 else:
+                    existing_fenced = (
+                        existing.parent_fence is not self.fence)
                     parent_fence = self.fence
 
                 if existing is not None and parent_fence is not None:
+                    if existing.is_optional_upto(parent_fence):
+                        existing.mark_as_optional()
+                    if desc_optional:
+                        descendant.mark_as_optional()
+
                     if parent_fence.find_child(path_id) is None:
                         assert existing.path_id is not None
 
@@ -521,7 +552,8 @@ class ScopeTreeNode:
                         parent_fence.attach_child(existing)
 
                     # Discard the node from the subtree being attached.
-                    existing.fuse_subtree(descendant)
+                    existing.fuse_subtree(descendant,
+                                          self_fenced=existing_fenced)
 
         for child in tuple(node.children):
             # Attach whatever is remaining in the subtree.
@@ -535,19 +567,27 @@ class ScopeTreeNode:
     def fuse_subtree(
         self,
         node: ScopeTreeNode,
+        self_fenced: bool=False,
     ) -> None:
         node.remove()
 
+        if (
+            self.optional_count is not None
+            and not node.optional
+        ):
+            self.optional_count += 1
+        if node.optional and self_fenced:
+            self.mark_as_optional()
+
         if node.path_id is not None:
-            if node.optional:
-                self.optional = True
             subtree = ScopeTreeNode(fenced=True)
+            subtree.optional_count = node.optional_count
             for child in tuple(node.children):
                 subtree.attach_child(child)
         else:
             subtree = node
 
-        self.attach_subtree(subtree)
+        self.attach_subtree(subtree, was_fenced=self_fenced)
 
     def remove_subtree(self, node: ScopeTreeNode) -> None:
         """Remove the given subtree from this node."""
@@ -569,11 +609,9 @@ class ScopeTreeNode:
         for node in matching:
             node.remove()
 
-    def mark_as_optional(self, path_id: pathid.PathId) -> None:
-        """Indicate that *path_id* is used as an OPTIONAL argument."""
-        node = self.find_visible(path_id)
-        if node is not None:
-            node.optional = True
+    def mark_as_optional(self) -> None:
+        """Indicate that this scope is used as an OPTIONAL argument."""
+        self.optional_count = 0
 
     def is_optional(self, path_id: pathid.PathId) -> bool:
         node = self.find_visible(path_id)
@@ -628,7 +666,7 @@ class ScopeTreeNode:
         if parent is None:
             raise ValueError('cannot unfence the root node')
 
-        subtree = ScopeTreeNode()
+        subtree = ScopeTreeNode(optional=self.optional)
 
         for child in list(self.children):
             subtree.attach_child(child)
@@ -789,6 +827,14 @@ class ScopeTreeNode:
                 return descendant, dns, finfo
 
         return None, frozenset(), None
+
+    def is_optional_upto(self, ancestor: Optional[ScopeTreeNode]) -> bool:
+        node: Optional[ScopeTreeNode] = self
+        while node and node is not ancestor:
+            if node.optional_count is not None:
+                return True
+            node = node.parent
+        return False
 
     def find_unfenced(self, path_id: pathid.PathId) \
             -> Tuple[Optional[ScopeTreeNode], bool]:

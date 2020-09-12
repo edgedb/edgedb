@@ -20,6 +20,7 @@
 import os.path
 
 from edb.testbase import server as tb
+from edb.tools import test
 
 
 class TestEdgeQLCoalesce(tb.QueryTestCase):
@@ -1273,4 +1274,160 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
                 SELECT test::optfunc('a', <str>{}) ?? 'N/A';
             ''',
             ['a'],
+        )
+
+    async def test_edgeql_coalesce_set_of_01(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT <str>Publication.id ?? <str>count(Publication)
+            ''',
+            ['0'],
+        )
+
+    async def test_edgeql_coalesce_set_of_02(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Publication.title ?? <str>count(Publication)
+            ''',
+            ['0'],
+        )
+
+    async def test_edgeql_coalesce_set_of_03(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT <str>Publication.id ?= <str>count(Publication)
+            ''',
+            [False],
+        )
+
+    async def test_edgeql_coalesce_set_of_04(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Publication.title ?= <str>count(Publication)
+            ''',
+            [False],
+        )
+
+    async def test_edgeql_coalesce_set_of_05(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT (Publication.title ?? <str>count(Publication))
+                       ?? Publication.title
+            ''',
+            ['0'],
+        )
+
+    async def test_edgeql_coalesce_set_of_06(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT (Publication.title ?= <str>count(Publication),
+                        Publication)
+            ''',
+            [],
+        )
+
+    async def test_edgeql_coalesce_set_of_07(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT (Publication.title ?= '0',
+                        (Publication.title ?? <str>count(Publication)));
+            ''',
+            [[False, '0']],
+        )
+
+    async def test_edgeql_coalesce_set_of_08(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT ("1" if Publication.title ?= "foo" else "2") ++
+                       (Publication.title ?? <str>count(Publication))
+            ''',
+            ['20'],
+        )
+
+    async def test_edgeql_coalesce_set_of_09(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT (Publication.title ?= "Foo", Publication.title ?= "bar")
+            ''',
+            [[False, False]],
+        )
+
+    async def test_edgeql_coalesce_set_of_10(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT (Publication.title++Publication.title ?= "Foo",
+                        Publication.title ?= "bar")
+            ''',
+            [[False, False]],
+        )
+
+    async def test_edgeql_coalesce_set_of_11(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT (Publication.title ?= "", count(Publication))
+            ''',
+            [[False, 0]],
+        )
+
+    async def test_edgeql_coalesce_set_of_12(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT (
+                    Publication ?= Publication,
+                    (Publication.title++Publication.title
+                       ?= Publication.title) ?=
+                    (Publication ?!= Publication)
+                )
+            ''',
+            [[True, False]]
+        )
+
+    async def test_edgeql_coalesce_set_of_13(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT (Publication ?= Publication, Publication)
+            ''',
+            [],
+        )
+
+    async def test_edgeql_coalesce_set_of_nonempty_01(self):
+        await self.con.execute(
+            '''INSERT test::Publication { title := "1" }''')
+        await self.con.execute(
+            '''INSERT test::Publication { title := "asdf" }''')
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Publication.title ?= <str>count(Publication)
+            ''',
+            [True, False],
+        )
+
+    @test.xfail('''
+        This test produces a bogus NULL object, when it should
+        return an empty set.
+
+        I think it is a issue in relgen.
+    ''')
+    async def test_edgeql_coalesce_self_01(self):
+        # This is busted!
+        await self.assert_query_result(
+            r'''
+                SELECT test::Publication ?? test::Publication
+            ''',
+            [],
         )

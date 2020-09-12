@@ -84,13 +84,18 @@ def get_expression_path_id(
 def register_set_in_scope(
         ir_set: irast.Set, *,
         path_scope: irast.ScopeTreeNode=None,
+        optional: bool=False,
         fence_points: FrozenSet[irast.PathId]=frozenset(),
         ctx: context.ContextLevel) -> List[irast.ScopeTreeNode]:
     if path_scope is None:
         path_scope = ctx.path_scope
 
+    if ctx.path_log is not None:
+        ctx.path_log.append(ir_set.path_id)
+
     return path_scope.attach_path(
         ir_set.path_id,
+        optional=optional,
         fence_points=fence_points,
         context=ir_set.context,
     )
@@ -126,12 +131,6 @@ def get_set_scope(
                 f':{ir_set.path_scope_id} in {ir_set!r}'
             )
         return scope
-
-
-def mark_path_as_optional(
-        path_id: irast.PathId, *,
-        ctx: context.ContextLevel) -> None:
-    ctx.path_scope.mark_as_optional(path_id)
 
 
 def extend_path_id(

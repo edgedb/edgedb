@@ -59,8 +59,7 @@ def compile__Optional(
         dispatch.compile(expr.expr, ctx=ctx),
         ctx=ctx)
 
-    pathctx.register_set_in_scope(result, ctx=ctx)
-    pathctx.mark_path_as_optional(result.path_id, ctx=ctx)
+    pathctx.register_set_in_scope(result, optional=True, ctx=ctx)
 
     return result
 

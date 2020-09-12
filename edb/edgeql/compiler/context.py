@@ -497,6 +497,9 @@ class ContextLevel(compiler.ContextLevel):
     """A set of schema objects for which the shadowing rewrite should be
        disabled."""
 
+    path_log: Optional[List[irast.PathId]]
+    """An optional list of path ids added to the scope tree in this context."""
+
     def __init__(
         self,
         prevlevel: Optional[ContextLevel],
@@ -558,6 +561,7 @@ class ContextLevel(compiler.ContextLevel):
             self.in_temp_scope = False
             self.tentative_work = []
             self.disable_shadowing = set()
+            self.path_log = None
 
         else:
             self.env = prevlevel.env
@@ -605,6 +609,7 @@ class ContextLevel(compiler.ContextLevel):
             self.in_temp_scope = prevlevel.in_temp_scope
             self.tentative_work = prevlevel.tentative_work
             self.disable_shadowing = prevlevel.disable_shadowing
+            self.path_log = prevlevel.path_log
 
             if mode == ContextSwitchMode.SUBQUERY:
                 self.anchors = prevlevel.anchors.copy()
