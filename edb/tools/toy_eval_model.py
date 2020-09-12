@@ -49,14 +49,15 @@ import functools
 T = TypeVar('T')
 
 
+# This is just documentation I guess.
 SCHEMA = '''
 type Note {
     required single property name -> str;
     optional single property note -> str;
 }
-type Noob {
-    required single property name -> str; // exclusive
-    optional multi property multi_prop -> str; // exclusive
+type Person {
+    required single property name -> str;
+    optional multi property multi_prop -> str;
     multi link notes -> Note;
     optional single property tag -> str;
 '''
@@ -86,7 +87,7 @@ BASIS = {
 
 # ############# Data model
 
-NoobT = "Noob"
+PersonT = "Person"
 NoteT = "Note"
 
 Data = Any
@@ -106,13 +107,13 @@ def bslink(n: int) -> Data:
 
 
 DB1 = mk_db([
-    # Noob
-    {"id": bsid(0x10), "__type__": NoobT,
+    # Person
+    {"id": bsid(0x10), "__type__": PersonT,
      "name": "Phil Emarg", "notes": [bslink(0x20), bslink(0x21)]},
-    {"id": bsid(0x11), "__type__": NoobT,
+    {"id": bsid(0x11), "__type__": PersonT,
      "name": "Madeline Hatch", "notes": [bslink(0x21)]},
-    {"id": bsid(0x12), "__type__": NoobT,
-     "name": "Emmanuel Villip", "notes": [bslink(0x21)]},
+    {"id": bsid(0x12), "__type__": PersonT,
+     "name": "Emmanuel Villip"},
     # Note
     {"id": bsid(0x20), "__type__": NoteT, "name": "boxing"},
     {"id": bsid(0x21), "__type__": NoteT, "name": "unboxing", "note": "lolol"},
@@ -201,7 +202,7 @@ def _eval(
 @_eval.register(qlast.SelectQuery)
 def eval_Select(node: qlast.SelectQuery, ctx: EvalContext) -> List[Data]:
     # TODO subqueries
-    return eval(node.result, ctx)
+    return subquery(node.result, ctx)
 
 
 @_eval.register(qlast.BinOp)
@@ -297,23 +298,17 @@ def eval_path(path: IPath, ctx: EvalContext) -> List[Data]:
     return out
 
 
-@dataclass
-class PrepContext:
-    db: DB
-
-
 def build_input_tuples(
         qil: List[IPath], always_optional: Dict[IPath, bool],
-        ctx: PrepContext) -> List[Tuple[Data, ...]]:
-    data: List[Tuple[Data, ...]] = [()]
+        ctx: EvalContext) -> List[Tuple[Data, ...]]:
+    data: List[Tuple[Data, ...]] = [ctx.input_tuple]
     for i, in_path in enumerate(qil):
         new_data: List[Tuple[Data, ...]] = []
-        new_qil = qil[:i]
+        new_qil = ctx.query_input_list + qil[:i]
         for row in data:
             eval_ctx = EvalContext(
                 query_input_list=new_qil, input_tuple=row, db=ctx.db)
             out = eval_path(in_path, eval_ctx)
-            # TODO: OPTIONAL/SET OF
             for val in out:
                 new_data.append(row + (val,))
             if not out and always_optional[in_path]:
@@ -328,7 +323,6 @@ def build_input_tuples(
 class PathFinder(NodeVisitor):
     def __init__(self) -> None:
         super().__init__()
-        self.query_depth = 0
         self.in_optional = False
         self.paths: List[Tuple[qlast.Path, bool]] = []
 
@@ -339,11 +333,7 @@ class PathFinder(NodeVisitor):
     def visit_SelectQuery(self, query: qlast.SelectQuery) -> None:
         # TODO: there are lots of implicit subqueries (clauses)
         # and we need to care about them
-        if self.query_depth:
-            return
-        self.query_depth += 1
-        self.generic_visit(query)
-        self.query_depth -= 1
+        return
 
     def visit_func_or_op(self, op: str, args: List[qlast.Expr]) -> None:
         # Totally ignoring that polymorpic whatever is needed
@@ -407,12 +397,11 @@ def find_common_prefixes(refs: List[IPath]) -> Set[IPath]:
     return prefixes
 
 
-def make_query_input_list(refs: List[IPath]) -> List[IPath]:
-    refs = dedup(refs)
+def make_query_input_list(refs: List[IPath], old: List[IPath]) -> List[IPath]:
     # XXX: assuming everything is simple
     qil: Set[IPath] = {(x[0],) for x in refs}
     qil.update(find_common_prefixes(refs))
-    return sorted(qil)
+    return sorted(x for x in qil if x not in old)
 
 
 def simplify_path(path: qlast.Path) -> IPath:
@@ -436,9 +425,7 @@ def parse(querystr: str) -> qlast.Statement:
     return statements[0]
 
 
-def go(q: qlast.Expr) -> None:
-    debug.dump(q)
-
+def subquery(q: qlast.Expr, ctx: EvalContext) -> List[Data]:
     paths_opt = [(simplify_path(p), optional)
                  for p, optional in find_paths(q)]
     always_optional = defaultdict(bool)
@@ -449,34 +436,44 @@ def go(q: qlast.Expr) -> None:
 
     paths = [path for path, _ in paths_opt]
 
-    qil = make_query_input_list(paths)
+    qil = make_query_input_list(paths, ctx.query_input_list)
 
-    db = DB1
-    pctx = PrepContext(db=db)  # no
-    in_tuples = build_input_tuples(qil, always_optional, pctx)
+    in_tuples = build_input_tuples(qil, always_optional, ctx)
 
     # Actually eval it
     out = []
+    new_qil = ctx.query_input_list + qil
     for row in in_tuples:
-        eval_ctx = EvalContext(query_input_list=qil, input_tuple=row, db=db)
-        out.extend(eval(q, eval_ctx))
+        subctx = EvalContext(
+            query_input_list=new_qil, input_tuple=row, db=ctx.db)
+        out.extend(eval(q, subctx))
 
+    return out
+
+
+def go(q: qlast.Expr) -> None:
+    ctx = EvalContext(query_input_list=[], input_tuple=(), db=DB1)
+    out = subquery(q, ctx)
     debug.dump(out)
 
 
 QUERY = '''
-SELECT Noob.name ++ "-" ++ Noob.notes.name
+SELECT Person.name ++ "-" ++ Person.notes.name
 '''
 QUERY1 = '''
-SELECT (Noob.name, Noob.name)
+SELECT (Person.name, Person.name)
 '''
 QUERY2 = '''
 SELECT (Note.note ?= "lolol", Note)
 '''
-
+QUERY3 = '''
+SELECT (Person.name, (SELECT Note.name), (SELECT Note.name));
+'''
 
 def main() -> None:
-    go(parse(QUERY2))
+    q = parse(QUERY3)
+    debug.dump(q)
+    go(q)
 
 
 if __name__ == '__main__':
