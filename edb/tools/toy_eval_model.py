@@ -3,20 +3,37 @@
 """Toy evaluator model for an edgeql subset.
 
 The idea here is to be able to test queries against a simple semantics
-driven evaluator model.
+driven evaluator model. The core of this is basically a transcription
+of the "EdgeQL - Overview" section of the docs.
 
 This version does not have any understanding of schemas and has the
 function signatures and behaviors of a bunch of basic functions
 hardcoded in.
 
-The data model is a super simple in-memory one, though it shouldn't be
-too hard to populate it from a real DB or vice versa to do testing.
+The data model is a super simple in-memory one hardcoded into this
+file, though it shouldn't be too hard to populate it from a real DB or
+vice versa to do testing.
 
-It is a goal that this can be scaled up to be pointed at different
-corners of the language. It is a non-goal that it can be scaled up to
-be a full evaluator model.
+It is a goal that this can usefully be pointed at different corners of
+the language for testing. It is a non-goal that it can be scaled up to
+be a full evaluator model; if it can serve as the basis of one, great,
+but I'm not worrying about that yet. If we have to start from scratch,
+also fine, because this one is pretty simple so not much will be lost
+in throwing it away.
 
 Also a non-goal: performance.
+
+Right now we support some really basic queries:
+ * SELECT with no clauses and no shapes
+ * A smattering of basic functions, including OPTIONAL and SET OF ones
+ * Tuples, int and str literals, set literals, str and int casts
+ * Properties, forward links
+
+There is no type or error checking.
+
+Run this with -i as an argument for a bad REPL that can be noodled
+around in. I've tested out a bunch of queries playing around but this
+hasn't gotten any particular rigorous testing against the real DB.
 
 """
 
