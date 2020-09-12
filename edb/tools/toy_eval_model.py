@@ -37,9 +37,6 @@ hasn't gotten any particular rigorous testing against the real DB.
 
 """
 
-# XXX: We miscompute queries like:
-# SELECT (Note.name, count(Note));
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -466,30 +463,34 @@ class PathFinder(NodeVisitor):
     def __init__(self) -> None:
         super().__init__()
         self.in_optional = False
-        self.paths: List[Tuple[qlast.Path, bool]] = []
+        self.in_subquery = False
+        self.paths: List[Tuple[qlast.Path, bool, bool]] = []
 
     def visit_Path(self, path: qlast.Path) -> None:
-        self.paths.append((path, self.in_optional))
+        self.paths.append((path, self.in_optional, self.in_subquery))
         self.generic_visit(path)
 
     def visit_SelectQuery(self, query: qlast.SelectQuery) -> None:
         # TODO: there are lots of implicit subqueries (clauses)
         # and we need to care about them
-        return
+        old = self.in_subquery
+        self.in_subquery = True
+        self.generic_visit(query)
+        self.in_subquery = old
 
     def visit_func_or_op(self, op: str, args: List[qlast.Expr]) -> None:
         # Totally ignoring that polymorpic whatever is needed
         arg_specs = BASIS.get(op)
-        old = self.in_optional
+        old = self.in_optional, self.in_subquery
         for i, arg in enumerate(args):
             if arg_specs:
                 # SET OF is a subquery so we skip it
                 if arg_specs[i] == SET_OF:
-                    continue
+                    self.in_subquery = True
                 elif arg_specs[i] == OPTIONAL:
                     self.in_optional = True
             self.visit(arg)
-            self.in_optional = old
+            self.in_optional, self.in_subquery = old
 
     def visit_BinOp(self, query: qlast.BinOp) -> None:
         self.visit_func_or_op(query.op, [query.left, query.right])
@@ -505,7 +506,7 @@ class PathFinder(NodeVisitor):
             'IF', [query.if_expr, query.condition, query.else_expr])
 
 
-def find_paths(e: qlast.Expr) -> List[Tuple[qlast.Path, bool]]:
+def find_paths(e: qlast.Expr) -> List[Tuple[qlast.Path, bool, bool]]:
     pf = PathFinder()
     pf.visit(e)
     return pf.paths
@@ -529,11 +530,15 @@ def dedup(old: List[T]) -> List[T]:
     return new
 
 
-def find_common_prefixes(refs: List[IPath]) -> Set[IPath]:
+def find_common_prefixes(
+        direct_refs: List[IPath], subquery_refs: List[IPath]) -> Set[IPath]:
     prefixes = set()
-    for i, x in enumerate(refs):
+    for i, x in enumerate(direct_refs):
         added = False
-        for y in refs[i:]:
+        # We start from only the refs directly in the query, but we
+        # look for common prefixes with anything in subqueries also.
+        # XXX: The docs are wrong and don't suggest this.
+        for y in direct_refs[i:] + subquery_refs:
             pfx = longest_common_prefix(x, y)
             if pfx:
                 prefixes.add(pfx)
@@ -543,10 +548,12 @@ def find_common_prefixes(refs: List[IPath]) -> Set[IPath]:
     return prefixes
 
 
-def make_query_input_list(refs: List[IPath], old: List[IPath]) -> List[IPath]:
+def make_query_input_list(
+        direct_refs: List[IPath], subquery_refs: List[IPath],
+        old: List[IPath]) -> List[IPath]:
     # XXX: assuming everything is simple
-    refs = [x for x in refs if isinstance(x[0], IORef)]
-    qil = find_common_prefixes(refs)
+    direct_refs = [x for x in direct_refs if isinstance(x[0], IORef)]
+    qil = find_common_prefixes(direct_refs, subquery_refs)
     return sorted(x for x in qil if x not in old)
 
 
@@ -562,7 +569,6 @@ def simplify_path(path: qlast.Path) -> IPath:
         elif isinstance(step, qlast.TypeIntersection):
             spath.append(ITypeIntersection(
                 step.type.maintype.name))  # type: ignore
-
         else:
             assert not spath
             spath.append(IExpr(step))
@@ -577,18 +583,32 @@ def parse(querystr: str) -> qlast.Statement:
     return statements[0]
 
 
-def subquery(q: qlast.Expr, ctx: EvalContext) -> List[Data]:
-    paths_opt = [(simplify_path(p), optional)
-                 for p, optional in find_paths(q)]
+def analyze_paths(q: qlast.Expr) -> Tuple[
+        List[IPath], List[IPath], Dict[IPath, bool]]:
+    paths_opt = [(simplify_path(p), optional, subq)
+                 for p, optional, subq in find_paths(q)]
     always_optional = defaultdict(lambda: True)
-    for path, optional in paths_opt:
-        if not optional:
-            for i in range(1, len(path) + 1):
-                always_optional[path[:i]] = False
 
-    paths = [path for path, _ in paths_opt]
+    direct_paths = []
+    subquery_paths = []
+    for path, optional, subquery in paths_opt:
+        if subquery:
+            subquery_paths.append(path)
+        else:
+            direct_paths.append(path)
+            # Mark all path prefixes as not being optional
+            if not optional:
+                for i in range(1, len(path) + 1):
+                    always_optional[path[:i]] = False
 
-    qil = make_query_input_list(paths, ctx.query_input_list)
+    return direct_paths, subquery_paths, always_optional
+
+
+def subquery(q: qlast.Expr, ctx: EvalContext) -> List[Data]:
+    direct_paths, subquery_paths, always_optional = analyze_paths(q)
+
+    qil = make_query_input_list(
+        direct_paths, subquery_paths, ctx.query_input_list)
 
     in_tuples = build_input_tuples(qil, always_optional, ctx)
 
