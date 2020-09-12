@@ -457,6 +457,19 @@ def go(q: qlast.Expr) -> None:
     debug.dump(out)
 
 
+def repl() -> None:
+    # for now just use rlwrap since I don't want to fiddle with
+    # history or anything
+    while True:
+        print("> ", end="", flush=True)
+        s = ""
+        while ';' not in s:
+            s += sys.stdin.readline()
+            if not s:
+                return
+        go(parse(s))
+
+
 QUERY = '''
 SELECT Person.name ++ "-" ++ Person.notes.name
 '''
@@ -471,6 +484,9 @@ SELECT (Person.name, (SELECT Note.name), (SELECT Note.name));
 '''
 
 def main() -> None:
+    if sys.argv[1:] == ['-i']:
+        return repl()
+
     q = parse(QUERY3)
     debug.dump(q)
     go(q)
