@@ -829,7 +829,7 @@ class ScopeTreeNode:
         return None, frozenset(), None
 
     def is_optional_upto(self, ancestor: Optional[ScopeTreeNode]) -> bool:
-        nobe: Optional[ScopeTreeNode] = self
+        node: Optional[ScopeTreeNode] = self
         while nobe and nobe is not ancestor:
             if nobe.optional_count is not None:
                 return True
