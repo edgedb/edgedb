@@ -85,6 +85,11 @@ def mk_obj(x: uuid.UUID) -> Data:
     return {"id": x}
 
 
+def is_obj(x: Data) -> bool:
+    # ehhhhh
+    return isinstance(x, dict) and x.keys() == {"id"}
+
+
 def bslink(n: int) -> Data:
     return mk_obj(bsid(n))
 
@@ -357,6 +362,9 @@ def eval_path(path: IPath, ctx: EvalContext) -> List[Data]:
     assert isinstance(ptr, IPtr)
     for obj in base:
         out.extend(eval_ptr(obj, ptr, ctx))
+    # We need to deduplicate links.
+    if out and is_obj(out[0]):
+        out = dedup(out)
 
     return out
 
@@ -434,7 +442,7 @@ def find_paths(e: qlast.Expr) -> List[Tuple[qlast.Path, bool]]:
 
 def longest_common_prefix(p1: IPath, p2: IPath) -> IPath:
     common = []
-    for a, b in zip(p1[:-1], p2[:-1]):
+    for a, b in zip(p1, p2):
         if a == b:
             common.append(a)
         else:
@@ -453,17 +461,20 @@ def dedup(old: List[T]) -> List[T]:
 def find_common_prefixes(refs: List[IPath]) -> Set[IPath]:
     prefixes = set()
     for i, x in enumerate(refs):
+        added = False
         for y in refs[i:]:
             pfx = longest_common_prefix(x, y)
             if pfx:
                 prefixes.add(pfx)
+                added = True
+        if not added:
+            prefixes.add(x)
     return prefixes
 
 
 def make_query_input_list(refs: List[IPath], old: List[IPath]) -> List[IPath]:
     # XXX: assuming everything is simple
-    qil: Set[IPath] = {(x[0],) for x in refs}
-    qil.update(find_common_prefixes(refs))
+    qil = find_common_prefixes(refs)
     return sorted(x for x in qil if x not in old)
 
 
