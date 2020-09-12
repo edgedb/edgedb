@@ -37,6 +37,9 @@ hasn't gotten any particular rigorous testing against the real DB.
 
 """
 
+# XXX: We miscompute queries like:
+# SELECT (Note.name, count(Note));
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -146,8 +149,16 @@ BASIS = {
 
 
 # #############
+class IExpr(NamedTuple):
+    expr: qlast.Expr
+
+
 class IORef(NamedTuple):
     name: str
+
+
+class ITypeIntersection(NamedTuple):
+    typ: str
 
 
 class IPtr(NamedTuple):
@@ -155,7 +166,7 @@ class IPtr(NamedTuple):
     direction: Optional[str]
 
 
-IPathElement = Union[IORef, IPtr]
+IPathElement = Union[IExpr, IORef, IPtr]
 IPath = Tuple[IPathElement, ...]
 
 # ############### Evaluation???
@@ -217,6 +228,16 @@ def union(x: List[Data], y: List[Data]) -> List[Data]:
     return x + y
 
 
+def IF(x: List[Data], bs: List[Data], y: List[Data]) -> List[Data]:
+    out = []
+    for b in bs:
+        if b:
+            out.extend(x)
+        else:
+            out.extend(y)
+    return out
+
+
 _BASIS_IMPLS: Any = {
     '+': lift(operator.add),
     '++': lift(operator.add),
@@ -233,6 +254,7 @@ _BASIS_IMPLS: Any = {
     '??': coalesce,
     'EXISTS': exists,
     'UNION': union,
+    'IF': IF,
 }
 BASIS_IMPLS: Dict[str, LiftedFunc] = _BASIS_IMPLS
 
@@ -279,7 +301,7 @@ def eval_func_or_op(op: str, args: List[qlast.Expr],
 
 @_eval.register(qlast.BinOp)
 def eval_BinOp(node: qlast.BinOp, ctx: EvalContext) -> List[Data]:
-    return eval_func_or_op(node.op, [node.left, node.right], ctx)
+    return eval_func_or_op(node.op.upper(), [node.left, node.right], ctx)
 
 
 @_eval.register(qlast.FunctionCall)
@@ -289,9 +311,9 @@ def eval_Call(node: qlast.FunctionCall, ctx: EvalContext) -> List[Data]:
 
 
 @_eval.register(qlast.IfElse)
-def visit_IfElse(self, query: qlast.IfElse, ctx: EvalContext) -> List[Data]:
-    return self.visit_func_or_op(
-        'IF', [query.if_expr, query.condition, query.else_expr])
+def visit_IfElse(query: qlast.IfElse, ctx: EvalContext) -> List[Data]:
+    return eval_func_or_op(
+        'IF', [query.if_expr, query.condition, query.else_expr], ctx)
 
 
 @_eval.register(qlast.StringConstant)
@@ -345,13 +367,38 @@ def eval(node: qlast.Base, ctx: EvalContext) -> List[Data]:
 # Query setup
 
 
-def eval_ptr(base: Data, ptr: IPtr, ctx: EvalContext) -> List[Data]:
-    assert ptr.direction == '>'
-    obj = ctx.db[base["id"]]
-    out = obj.get(ptr.ptr, [])
+def get_links(obj: Data, key: str) -> List[Data]:
+    out = obj.get(key, [])
     if not isinstance(out, list):
         out = [out]
     return out
+
+
+def eval_fwd_ptr(base: Data, ptr: IPtr, ctx: EvalContext) -> List[Data]:
+    obj = ctx.db[base["id"]]
+    return get_links(obj, ptr.ptr)
+
+
+def eval_bwd_ptr(base: Data, ptr: IPtr, ctx: EvalContext) -> List[Data]:
+    # XXX: This is slow even by the standards of this terribly slow model
+    return [
+        mk_obj(obj["id"])
+        for obj in ctx.db.values()
+        if base in get_links(obj, ptr.ptr)
+    ]
+
+
+def eval_ptr(base: Data, ptr: IPtr, ctx: EvalContext) -> List[Data]:
+    return (
+        eval_fwd_ptr(base, ptr, ctx) if ptr.direction == '>'
+        else eval_bwd_ptr(base, ptr, ctx))
+
+
+def eval_intersect(
+        base: Data, ptr: ITypeIntersection, ctx: EvalContext) -> List[Data]:
+    # TODO: we want actual types but for now we just match directly
+    typ = ctx.db[base["id"]]["__type__"]
+    return [base] if typ == ptr.typ else []
 
 
 # This should only get called during input tuple building
@@ -370,15 +417,22 @@ def eval_path(path: IPath, ctx: EvalContext) -> List[Data]:
         return [obj] if obj else []
 
     if len(path) == 1:
-        assert(isinstance(path[0], IORef))
-        return eval_objref(path[0].name, ctx)
+        if isinstance(path[0], IORef):
+            return eval_objref(path[0].name, ctx)
+        elif isinstance(path[0], IExpr):
+            return eval(path[0].expr, ctx)
+        else:
+            raise AssertionError(f"Bogus path base: {path[0]}")
 
     base = eval_path(path[:-1], ctx)
     out = []
     ptr = path[-1]
-    assert isinstance(ptr, IPtr)
+    assert isinstance(ptr, (IPtr, ITypeIntersection))
     for obj in base:
-        out.extend(eval_ptr(obj, ptr, ctx))
+        if isinstance(ptr, IPtr):
+            out.extend(eval_ptr(obj, ptr, ctx))
+        else:
+            out.extend(eval_intersect(obj, ptr, ctx))
     # We need to deduplicate links.
     if out and is_obj(out[0]):
         out = dedup(out)
@@ -491,6 +545,7 @@ def find_common_prefixes(refs: List[IPath]) -> Set[IPath]:
 
 def make_query_input_list(refs: List[IPath], old: List[IPath]) -> List[IPath]:
     # XXX: assuming everything is simple
+    refs = [x for x in refs if isinstance(x[0], IORef)]
     qil = find_common_prefixes(refs)
     return sorted(x for x in qil if x not in old)
 
@@ -500,11 +555,17 @@ def simplify_path(path: qlast.Path) -> IPath:
     assert not path.partial
     for step in path.steps:
         if isinstance(step, qlast.ObjectRef):
+            assert not spath
             spath.append(IORef(step.name))
         elif isinstance(step, qlast.Ptr):
             spath.append(IPtr(step.ptr.name, step.direction))
+        elif isinstance(step, qlast.TypeIntersection):
+            spath.append(ITypeIntersection(
+                step.type.maintype.name))  # type: ignore
+
         else:
-            raise AssertionError(f'{type(step)} not supported yet')
+            assert not spath
+            spath.append(IExpr(step))
 
     return tuple(spath)
 
@@ -543,6 +604,7 @@ def subquery(q: qlast.Expr, ctx: EvalContext) -> List[Data]:
 
 
 def go(q: qlast.Expr, db: DB=DB1) -> None:
+    # debug.dump(q)
     ctx = EvalContext(
         query_input_list=[],
         input_tuple=(),
