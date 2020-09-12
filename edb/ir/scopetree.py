@@ -830,10 +830,10 @@ class ScopeTreeNode:
 
     def is_optional_upto(self, ancestor: Optional[ScopeTreeNode]) -> bool:
         node: Optional[ScopeTreeNode] = self
-        while nobe and nobe is not ancestor:
-            if nobe.optional_count is not None:
+        while node and node is not ancestor:
+            if node.optional_count is not None:
                 return True
-            nobe = nobe.parent
+            node = node.parent
         return False
 
     def find_unfenced(self, path_id: pathid.PathId) \
