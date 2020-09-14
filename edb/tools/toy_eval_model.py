@@ -139,6 +139,7 @@ BASIS = {
     'NOT IN': [SINGLETON, SET_OF],
     '??': [OPTIONAL, SET_OF],
     'EXISTS': [SET_OF],
+    'DISTINCT': [SET_OF],
     'IF': [SET_OF, SINGLETON, SET_OF],
     'UNION': [SET_OF, SET_OF],
     '?=': [OPTIONAL, OPTIONAL],
@@ -222,6 +223,10 @@ def exists(x: List[Data]) -> List[Data]:
     return [bool(x)]
 
 
+def distinct(x: List[Data]) -> List[Data]:
+    return dedup(x)
+
+
 def union(x: List[Data], y: List[Data]) -> List[Data]:
     return x + y
 
@@ -251,6 +256,7 @@ _BASIS_IMPLS: Any = {
     'NOT IN': not_contains,
     '??': coalesce,
     'EXISTS': exists,
+    'DISTINCT': distinct,
     'UNION': union,
     'IF': IF,
 }
@@ -300,6 +306,11 @@ def eval_func_or_op(op: str, args: List[qlast.Expr],
 @_eval.register(qlast.BinOp)
 def eval_BinOp(node: qlast.BinOp, ctx: EvalContext) -> List[Data]:
     return eval_func_or_op(node.op.upper(), [node.left, node.right], ctx)
+
+
+@_eval.register(qlast.UnaryOp)
+def eval_UnaryOp(node: qlast.UnaryOp, ctx: EvalContext) -> List[Data]:
+    return eval_func_or_op(node.op.upper(), [node.operand], ctx)
 
 
 @_eval.register(qlast.FunctionCall)
