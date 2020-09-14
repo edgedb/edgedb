@@ -61,6 +61,7 @@ import uuid
 import itertools
 import operator
 import functools
+import traceback
 
 
 T = TypeVar('T')
@@ -635,8 +636,8 @@ def go(q: qlast.Expr, db: DB=DB1) -> None:
 
 
 def repl() -> None:
-    # for now just use rlwrap since I don't want to fiddle with
-    # history or anything
+    # for now users should just invoke this script with rlwrap since I
+    # don't want to fiddle with history or anything
     while True:
         print("> ", end="", flush=True)
         s = ""
@@ -644,7 +645,10 @@ def repl() -> None:
             s += sys.stdin.readline()
             if not s:
                 return
-        go(parse(s))
+        try:
+            go(parse(s))
+        except Exception:
+            traceback.print_exception(*sys.exc_info())
 
 
 QUERY = '''
