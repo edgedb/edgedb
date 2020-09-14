@@ -2570,3 +2570,32 @@ class TestUpdate(tb.QueryTestCase):
                 },
             ]
         )
+
+    async def test_edgeql_update_all_01(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                'UPDATE statement requires a FILTER clause'):
+            await self.con.execute(r'''
+                UPDATE test::UpdateTest
+                SET { comment := '' }
+            ''')
+
+    async def test_edgeql_update_all_02(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                'UPDATE statement requires a FILTER clause'):
+            await self.con.execute(r'''
+                WITH X := test::UpdateTest
+                UPDATE X SET { comment := '' }
+            ''')
+
+    async def test_edgeql_update_all_03(self):
+        await self.con.execute(r'''
+            FOR X IN {test::UpdateTest}
+            UNION (UPDATE X SET { comment := '' })
+        ''')
+
+        await self.assert_query_result(
+            r'''SELECT DISTINCT test::UpdateTest.comment''',
+            [''],
+        )

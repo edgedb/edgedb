@@ -491,3 +491,32 @@ class TestDelete(tb.QueryTestCase):
                         (DELETE DeleteTest)
                     );
             ''')
+
+    async def test_edgeql_delete_all_01(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                'DELETE statement requires a FILTER clause'):
+            await self.con.execute(r'''
+                DELETE test::DeleteTest
+            ''')
+
+    async def test_edgeql_delete_all_02(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                'DELETE statement requires a FILTER clause'):
+            await self.con.execute(r'''
+                WITH X := test::DeleteTest
+                DELETE X
+            ''')
+
+    async def test_edgeql_delete_all_03(self):
+        # We want to allow it for FOR ... UNION
+        await self.con.execute(r'''
+            FOR X IN {test::DeleteTest}
+            UNION (DELETE X)
+        ''')
+
+        await self.assert_query_result(
+            r'''SELECT test::DeleteTest''',
+            [],
+        )

@@ -659,12 +659,16 @@ class GraphQLTranslator:
             if delete_mode:
                 # this should be a DELETE operation, so we'll rearrange the
                 # components of the SelectQuery
+
+                # edgeql doesn't allow unconditional DELETE
+                where = filterable.where or qlast.BooleanConstant(value="true")
+
                 filterable.aliases = [
                     qlast.AliasedExpr(
                         alias=alias,
                         expr=qlast.DeleteQuery(
                             subject=filterable.result.expr,
-                            where=filterable.where,
+                            where=where,
                         )
                     )
                 ]
@@ -675,12 +679,16 @@ class GraphQLTranslator:
                 update_shape = self._visit_update_arguments(node.arguments)
                 # this should be an UPDATE operation, so we'll rearrange the
                 # components of the SelectQuery and add data operations
+
+                # edgeql doesn't allow unconditional UPDATE
+                where = filterable.where or qlast.BooleanConstant(value="true")
+
                 filterable.aliases = [
                     qlast.AliasedExpr(
                         alias=alias,
                         expr=qlast.UpdateQuery(
                             subject=filterable.result.expr,
-                            where=filterable.where,
+                            where=where,
                             shape=update_shape,
                         )
                     )
