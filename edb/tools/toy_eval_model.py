@@ -27,7 +27,7 @@ Right now we support some really basic queries:
  * SELECT with no clauses and no shapes
  * A smattering of basic functions, including OPTIONAL and SET OF ones
  * Tuples, int and str literals, set literals, str and int casts
- * Properties, forward links
+ * Properties, links, type intersections
 
 There is no type or error checking.
 
@@ -338,11 +338,22 @@ def eval_Set(
 @_eval.register(qlast.Tuple)
 def eval_Tuple(
         node: qlast.Tuple, ctx: EvalContext) -> List[Data]:
-    # XXX: only unnamed ones
     args = [eval(arg, ctx) for arg in node.elements]
 
     def get(*va):
         return va
+
+    return lift(get)(*args)
+
+
+@_eval.register(qlast.NamedTuple)
+def eval_NamedTuple(
+        node: qlast.NamedTuple, ctx: EvalContext) -> List[Data]:
+    names = [elem.name.name for elem in node.elements]
+    args = [eval(arg.val, ctx) for arg in node.elements]
+
+    def get(*va):
+        return dict(zip(names, va))
 
     return lift(get)(*args)
 
@@ -373,8 +384,13 @@ def get_links(obj: Data, key: str) -> List[Data]:
 
 
 def eval_fwd_ptr(base: Data, ptr: IPtr, ctx: EvalContext) -> List[Data]:
-    obj = ctx.db[base["id"]]
-    return get_links(obj, ptr.ptr)
+    if isinstance(base, tuple):
+        return [base[int(ptr.ptr)]]
+    elif is_obj(base):
+        obj = ctx.db[base["id"]]
+        return get_links(obj, ptr.ptr)
+    else:
+        return [base[ptr.ptr]]
 
 
 def eval_bwd_ptr(base: Data, ptr: IPtr, ctx: EvalContext) -> List[Data]:
@@ -432,7 +448,7 @@ def eval_path(path: IPath, ctx: EvalContext) -> List[Data]:
         else:
             out.extend(eval_intersect(obj, ptr, ctx))
     # We need to deduplicate links.
-    if out and is_obj(out[0]):
+    if is_obj(base) and out and is_obj(out[0]):
         out = dedup(out)
 
     return out
@@ -552,7 +568,6 @@ def find_common_prefixes(
 def make_query_input_list(
         direct_refs: List[IPath], subquery_refs: List[IPath],
         old: List[IPath]) -> List[IPath]:
-    # XXX: assuming everything is simple
     direct_refs = [x for x in direct_refs if isinstance(x[0], IORef)]
     qil = find_common_prefixes(direct_refs, subquery_refs)
     return sorted(x for x in qil if x not in old)
