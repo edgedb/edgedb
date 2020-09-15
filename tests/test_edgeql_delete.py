@@ -52,7 +52,7 @@ class TestDelete(tb.QueryTestCase):
     async def test_edgeql_delete_simple_01(self):
         # ensure a clean slate, not part of functionality testing
         await self.con.execute(r"""
-            DELETE test::DeleteTest;
+            DELETE test::DeleteTest FILTER TRUE;
         """)
 
         await self.con.execute(r"""
@@ -69,7 +69,7 @@ class TestDelete(tb.QueryTestCase):
         )
 
         await self.con.execute(r"""
-            DELETE test::DeleteTest;
+            DELETE test::DeleteTest FILTER true;
         """)
 
         await self.assert_query_result(
@@ -205,7 +205,7 @@ class TestDelete(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH D := (DELETE test::DeleteTest)
+                WITH D := (DELETE test::DeleteTest FILTER true)
                 SELECT count(D);
             """,
             [3],
@@ -236,7 +236,7 @@ class TestDelete(tb.QueryTestCase):
             r"""
                 WITH
                     MODULE test,
-                    D := (DELETE DeleteTest)
+                    D := (DELETE DeleteTest FILTER true)
                 SELECT DeleteTest2 {
                     name,
                     foo := 'bar'
@@ -251,7 +251,7 @@ class TestDelete(tb.QueryTestCase):
         deleted = await self.con.query(
             r"""
                 WITH MODULE test
-                DELETE DeleteTest2;
+                DELETE DeleteTest2 FILTER true;
             """,
         )
 
@@ -280,7 +280,7 @@ class TestDelete(tb.QueryTestCase):
                     MODULE test,
                     # make sure that aliased deletion works as an expression
                     #
-                    Q := (DELETE DeleteTest)
+                    Q := (DELETE DeleteTest FILTER true)
                 SELECT DeleteTest2 {
                     name,
                     count := count(Q),
@@ -295,7 +295,7 @@ class TestDelete(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 WITH MODULE test
-                SELECT (DELETE DeleteTest2) {name};
+                SELECT (DELETE DeleteTest2 FILTER true) {name};
             """,
             [{
                 'name': 'dt2.1',
@@ -323,7 +323,7 @@ class TestDelete(tb.QueryTestCase):
             r"""
                 WITH
                     MODULE test,
-                    D := (DELETE DeleteTest)
+                    D := (DELETE DeleteTest FILTER true)
                 # the returning clause is actually trying to simulate
                 # returning "stats" of deleted objects
                 #
@@ -341,7 +341,7 @@ class TestDelete(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 WITH MODULE test
-                SELECT (DELETE DeleteTest2) {name};
+                SELECT (DELETE DeleteTest2 FILTER true) {name};
             """,
             [{
                 'name': 'dt2.1',

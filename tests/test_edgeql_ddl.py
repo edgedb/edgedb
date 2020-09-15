@@ -5889,7 +5889,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 t := T
             };
             ALTER TYPE B ALTER LINK t CREATE ANNOTATION title := 'overloaded';
-            UPDATE B SET { t := T };
+            UPDATE B FILTER true SET { t := T };
         """)
 
         await self.assert_query_result(

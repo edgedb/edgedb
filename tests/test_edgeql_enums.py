@@ -123,6 +123,7 @@ class TestEdgeQLEnuma(tb.QueryTestCase):
             r'''
                 WITH MODULE test
                 UPDATE Foo
+                FILTER true
                 SET {
                     color := 'GREEN'
                 };
@@ -172,6 +173,7 @@ class TestEdgeQLEnuma(tb.QueryTestCase):
             r'''
                 WITH MODULE test
                 UPDATE Bar
+                FILTER true
                 SET {
                     color := 'GREEN'
                 };

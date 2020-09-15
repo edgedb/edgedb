@@ -129,6 +129,7 @@ class TestEdgeQLVolatilityInference(tb.BaseEdgeQLCompilerTest):
             MODULE test
         UPDATE
             Card
+        FILTER true
         SET {
                 name := 'foo',
         }
@@ -142,6 +143,7 @@ class TestEdgeQLVolatilityInference(tb.BaseEdgeQLCompilerTest):
             MODULE test
         DELETE
             Card
+        FILTER true
 % OK %
         VOLATILE
         """

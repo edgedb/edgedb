@@ -2271,6 +2271,7 @@ class TestExpressions(tb.QueryTestCase):
             await self.con.execute(r"""
                 WITH MODULE test
                 UPDATE Issue.related_to
+                FILTER true
                 SET {
                     related_to := Issue
                 };

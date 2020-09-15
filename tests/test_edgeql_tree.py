@@ -32,7 +32,7 @@ class TestTree(tb.QueryTestCase):
 
     async def test_edgeql_tree_delete_01(self):
         await self.con.execute(r"""
-            DELETE test::Tree;
+            DELETE test::Tree FILTER true;
         """)
         await self.assert_query_result(
             r"""
@@ -589,6 +589,7 @@ class TestTree(tb.QueryTestCase):
             r"""
                 WITH MODULE test
                 UPDATE Tree
+                FILTER true
                 SET {
                     val := array_join(
                         [.val, 'c'] ++ array_agg((
@@ -656,6 +657,7 @@ class TestTree(tb.QueryTestCase):
             r"""
                 WITH MODULE test
                 UPDATE Eert
+                FILTER true
                 SET {
                     val := array_join(
                         [.val, 'c'] ++ array_agg((
@@ -723,6 +725,7 @@ class TestTree(tb.QueryTestCase):
             r"""
                 WITH MODULE test
                 UPDATE Tree
+                FILTER true
                 SET {
                     val := .val ++ '_p' ++ (('_' ++ .parent.val) ?? '')
                 };
@@ -757,6 +760,7 @@ class TestTree(tb.QueryTestCase):
             r"""
                 WITH MODULE test
                 UPDATE Eert
+                FILTER true
                 SET {
                     val := .val ++ '_p' ++ (('_' ++ .parent.val) ?? '')
                 };
@@ -802,6 +806,7 @@ class TestTree(tb.QueryTestCase):
                     # update its first child node ('000')
                     TC := (
                         UPDATE (SELECT T00.children
+                        FILTER true
                         ORDER BY .val
                         LIMIT 1)
                         SET {parent := T00.parent}

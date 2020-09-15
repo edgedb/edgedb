@@ -190,7 +190,7 @@ SET {
 
 INSERT X {name := 'x0'};
 INSERT Y {name := 'y0', x := (SELECT X LIMIT 1)};
-UPDATE X SET {y := (SELECT Y LIMIT 1)};
+UPDATE X FILTER true SET {y := (SELECT Y LIMIT 1)};
 
 INSERT Z {
     ck := (SELECT C FILTER .val = 'F00'),
@@ -212,6 +212,7 @@ INSERT DefB {other := (SELECT test::TestB LIMIT 1)};
 INSERT test::TestC {c := 'TestC'};
 INSERT DefC {other := (SELECT test::TestC LIMIT 1)};
 UPDATE test::TestC
+FILTER true
 SET {clink := (SELECT DefC LIMIT 1)};
 
 # on delete

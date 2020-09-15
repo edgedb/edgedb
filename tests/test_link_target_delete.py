@@ -218,7 +218,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                 };
 
                 # no source, so the deletion should not be a problem
-                DELETE Target1;
+                DELETE Target1 FILTER true;
             """)
 
             success = True
@@ -244,8 +244,8 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                     )
                 };
 
-                DELETE Source1;
-                DELETE Target1;
+                DELETE Source1 FILTER true;
+                DELETE Target1 FILTER true;
             """)
 
             success = True
@@ -274,8 +274,8 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                     )
                 };
 
-                DELETE Source1;
-                DELETE Target1;
+                DELETE Source1 FILTER true;
+                DELETE Target1 FILTER true;
             """)
             success = True
 
@@ -362,7 +362,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                     )
                 };
 
-                DELETE Named;
+                DELETE Named FILTER true;
             """)
 
             success = True

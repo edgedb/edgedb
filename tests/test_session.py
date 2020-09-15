@@ -209,6 +209,7 @@ class TestSession(tb.QueryTestCase):
 
             await self.con.execute(r"""
                 UPDATE Flag
+                FILTER true
                 SET {
                     value := NOT sys::sleep(0)
                 };

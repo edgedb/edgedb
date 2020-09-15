@@ -1328,9 +1328,9 @@ class TestIntrospection(tb.QueryTestCase):
         )
 
         await self.con.execute(r"""
-            DELETE test::Priority;
-            DELETE test::Status;
-            DELETE test::User;
+            DELETE test::Priority FILTER true;
+            DELETE test::Status FILTER true;
+            DELETE test::User FILTER true;
         """)
 
     async def test_edgeql_introspection_database_01(self):

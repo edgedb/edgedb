@@ -172,6 +172,7 @@ class TestUpdate(tb.QueryTestCase):
             r"""
                 WITH MODULE test
                 UPDATE UpdateTest
+                FILTER true
                 SET {
                     comment := UpdateTest.comment ++ "!",
                     status := (SELECT Status FILTER Status.name = 'Closed')
@@ -251,6 +252,7 @@ class TestUpdate(tb.QueryTestCase):
                 WITH MODULE test
                 SELECT (
                     UPDATE UpdateTest
+                    FILTER true
                     SET {
                         comment := UpdateTest.comment ++ "!",
                         status := (SELECT Status FILTER Status.name = 'Closed')
@@ -321,6 +323,7 @@ class TestUpdate(tb.QueryTestCase):
                     MODULE test,
                     Q := (
                         UPDATE UpdateTest
+                        FILTER true
                         SET {
                             comment := UpdateTest.comment ++ "!",
                             status := (SELECT
@@ -1615,6 +1618,7 @@ class TestUpdate(tb.QueryTestCase):
                 # just clear all the comments
                 WITH MODULE test
                 UPDATE UpdateTest
+                FILTER true
                 SET {
                     comment := {}
                 };
@@ -1638,6 +1642,7 @@ class TestUpdate(tb.QueryTestCase):
                 # just clear all the comments
                 WITH MODULE test
                 UPDATE UpdateTest
+                FILTER true
                 SET {
                     comment := <int64>{}
                 };
@@ -1651,6 +1656,7 @@ class TestUpdate(tb.QueryTestCase):
                 # just clear all the comments
                 WITH MODULE test
                 UPDATE UpdateTest
+                FILTER true
                 SET {
                     name := {}
                 };
@@ -1662,6 +1668,7 @@ class TestUpdate(tb.QueryTestCase):
                 # just clear all the statuses
                 WITH MODULE test
                 UPDATE UpdateTest
+                FILTER true
                 SET {
                     status := {}
                 };
@@ -1686,6 +1693,7 @@ class TestUpdate(tb.QueryTestCase):
                 # just clear all the statuses
                 WITH MODULE test
                 UPDATE UpdateTest
+                FILTER true
                 SET {
                     status := <Object>{}
                 };
@@ -1699,6 +1707,7 @@ class TestUpdate(tb.QueryTestCase):
                 SET MODULE test;
 
                 UPDATE UpdateTest
+                FILTER true
                 SET {
                     status := Status
                 };
@@ -1877,7 +1886,7 @@ class TestUpdate(tb.QueryTestCase):
                 SELECT
                     (SELECT UpdateTest)
                     ??
-                    (UPDATE UpdateTest SET { name := 'no way' });
+                    (UPDATE UpdateTest FILTER true SET { name := 'no way' });
             ''')
 
     async def test_edgeql_update_in_conditional_bad_02(self):
@@ -1892,7 +1901,8 @@ class TestUpdate(tb.QueryTestCase):
                     ELSE (
                         (SELECT UpdateTest)
                         UNION
-                        (UPDATE UpdateTest SET { name := 'no way' })
+                        (UPDATE UpdateTest FILTER true
+                         SET { name := 'no way' })
                     );
             ''')
 
@@ -1904,7 +1914,7 @@ class TestUpdate(tb.QueryTestCase):
                 WITH MODULE test
                 SELECT (
                     Status,
-                    (UPDATE UpdateTest SET {
+                    (UPDATE UpdateTest FILTER true SET {
                         status := Status
                     })
                 );
@@ -1917,7 +1927,7 @@ class TestUpdate(tb.QueryTestCase):
             await self.con.execute(r'''
                 WITH MODULE test
                 SELECT (
-                    (UPDATE UpdateTest SET {
+                    (UPDATE UpdateTest FILTER true SET {
                         status := Status
                     }),
                     Status,
@@ -1932,7 +1942,7 @@ class TestUpdate(tb.QueryTestCase):
                 WITH MODULE test
                 SELECT (
                     UpdateTest,
-                    (UPDATE UpdateTest SET {name := 'update bad'}),
+                    (UPDATE UpdateTest FILTER true SET {name := 'update bad'}),
                 )
             ''')
 

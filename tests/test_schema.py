@@ -1394,7 +1394,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 required property bar -> str {
                     # if bar is not specified, grab it from Bar and
                     # delete the object
-                    default := (DELETE Bar LIMIT 1).data
+                    default := (DELETE Bar FILTER true LIMIT 1).data
                 }
             };
         '''
