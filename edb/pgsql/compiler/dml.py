@@ -377,7 +377,7 @@ def fini_dml_stmt(
         assert len(parts.dml_ctes) == 1
         cte = next(iter(parts.dml_ctes.values()))[0]
         relctx.add_type_rel_overlay(
-            ir_stmt.subject.typeref, 'unIon', cte,
+            ir_stmt.subject.typeref, 'union', cte,
             dml_stmts=dml_stack, path_id=ir_stmt.subject.path_id, ctx=ctx)
     elif isinstance(ir_stmt, irast.DeleteStmt):
         relctx.add_type_rel_overlay(
