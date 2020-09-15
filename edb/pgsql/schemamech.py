@@ -34,6 +34,7 @@ from edb.edgeql.compiler import astutils as ql_astutils
 
 from edb.schema import scalars as s_scalars
 from edb.schema import utils as s_utils
+from edb.schema import types as s_types
 
 from edb.common import ast
 
@@ -227,11 +228,16 @@ class ConstraintMech:
             cls, subject, constraint, schema):
         assert constraint.get_subject(schema) is not None
 
+        path_prefix_anchor = (
+            qlast.Subject().name if isinstance(subject, s_types.Type)
+            else None
+        )
         ir = qlcompiler.compile_ast_to_ir(
             constraint.get_finalexpr(schema).qlast,
             schema,
             options=qlcompiler.CompilerOptions(
                 anchors={qlast.Subject().name: subject},
+                path_prefix_anchor=path_prefix_anchor,
             ),
         )
 

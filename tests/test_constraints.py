@@ -1223,3 +1223,24 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
                     INSERT Transaction {
                         credit := (nest := (amount := 1, currency := "usd")) };
                 """)
+
+    async def test_constraints_partial_path(self):
+        async with self._run_and_rollback():
+            await self.con.execute('''\
+                CREATE TYPE Vector {
+                    CREATE PROPERTY x -> float64;
+                    CREATE PROPERTY y -> float64;
+                    CREATE CONSTRAINT expression ON (
+                        .x^2 + .y^2 < 25
+                    );
+                };
+            ''')
+
+            await self.con.execute(r"""
+                INSERT Vector { x := 3, y := 3 };
+            """)
+
+            with self.assertRaises(edgedb.ConstraintViolationError):
+                await self.con.execute(r"""
+                    INSERT Vector { x := 4, y := 4 };
+                """)
