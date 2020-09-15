@@ -404,12 +404,17 @@ class ConstraintCommand(
 
             elif field.name in {'subjectexpr', 'finalexpr'}:
                 anchors = {'__subject__': referrer_ctx.op.scls}
+                path_prefix_anchor = (
+                    '__subject__'
+                    if isinstance(referrer_ctx.op.scls, s_types.Type) else None
+                )
                 return s_expr.Expression.compiled(
                     value,
                     schema=schema,
                     options=qlcompiler.CompilerOptions(
                         modaliases=context.modaliases,
                         anchors=anchors,
+                        path_prefix_anchor=path_prefix_anchor,
                         allow_generic_type_output=True,
                         schema_object_context=self.get_schema_metaclass(),
                     ),
@@ -826,11 +831,17 @@ class CreateConstraint(
             expr_context = None
 
         assert subject is not None
+        path_prefix_anchor = (
+            qlast.Subject().name if isinstance(subject, s_types.Type)
+            else None
+        )
+
         final_expr = s_expr.Expression.compiled(
             s_expr.Expression.from_ast(expr_ql, schema, {}),
             schema=schema,
             options=qlcompiler.CompilerOptions(
                 anchors={qlast.Subject().name: subject},
+                path_prefix_anchor=path_prefix_anchor,
             ),
         )
 
@@ -853,6 +864,7 @@ class CreateConstraint(
                 schema=schema,
                 options=qlcompiler.CompilerOptions(
                     anchors={qlast.Subject().name: subject},
+                    path_prefix_anchor=path_prefix_anchor,
                     singletons=frozenset({subject_obj}),
                 ),
             )
