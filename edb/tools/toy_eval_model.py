@@ -54,7 +54,7 @@ from edb.common.ast import NodeVisitor
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes as ft
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from collections import defaultdict
 
 import uuid
@@ -273,6 +273,7 @@ BASIS_IMPLS: Dict[str, LiftedFunc] = _BASIS_IMPLS
 class EvalContext:
     query_input_list: List[IPath]
     input_tuple: Tuple[Data, ...]
+    aliases: Dict[str, List[Data]]
     db: DB
 
 #
@@ -299,8 +300,7 @@ def eval_filter(
     # XXX: prefix
     new = []
     for row in out:
-        subctx = EvalContext(
-            query_input_list=qil, input_tuple=row, db=ctx.db)
+        subctx = replace(ctx, query_input_list=qil, input_tuple=row)
 
         if any(subquery(where, ctx=subctx)):
             new.append(row)
@@ -327,8 +327,7 @@ def eval_orderby(
         # Decorate
         new = []
         for row in out:
-            subctx = EvalContext(
-                query_input_list=qil, input_tuple=row, db=ctx.db)
+            subctx = replace(ctx, query_input_list=qil, input_tuple=row)
             vals = subquery(sort.path, ctx=subctx)
             assert len(vals) <= 1
             # We wrap the result in a tuple with an emptiness tag at the start
@@ -365,7 +364,11 @@ def eval_limit(limit: Optional[qlast.Expr], out: List[Row],
 
 @_eval.register(qlast.SelectQuery)
 def eval_Select(node: qlast.SelectQuery, ctx: EvalContext) -> List[Data]:
-    assert not node.aliases, "WITH not supported yet"
+    if node.aliases:
+        ctx = replace(ctx, aliases=ctx.aliases.copy())
+        for alias in node.aliases:
+            assert isinstance(alias, qlast.AliasedExpr)
+            ctx.aliases[alias.alias] = subquery(alias.expr, ctx=ctx)
 
     # XXX: I believe this is right, but:
     # WHERE and ORDER BY are treated as subqueries of the result query,
@@ -381,6 +384,19 @@ def eval_Select(node: qlast.SelectQuery, ctx: EvalContext) -> List[Data]:
     out = eval_limit(node.limit, out, ctx=ctx)
 
     return [row[-1] for row in out]
+
+
+@_eval.register(qlast.ForQuery)
+def eval_For(node: qlast.ForQuery, ctx: EvalContext) -> List[Data]:
+    iter_vals = subquery(node.iterator, ctx=ctx)
+    qil = ctx.query_input_list + [(IORef(node.iterator_alias),)]
+    out = []
+    for val in iter_vals:
+        subctx = replace(ctx, query_input_list=qil,
+                         input_tuple=ctx.input_tuple + (val,))
+        out.extend(subquery(node.result, ctx=subctx))
+
+    return out
 
 
 def eval_func_or_op(op: str, args: List[qlast.Expr],
@@ -524,6 +540,9 @@ def eval_intersect(
 
 # This should only get called during input tuple building
 def eval_objref(name: str, ctx: EvalContext) -> List[Data]:
+    if name in ctx.aliases:
+        return ctx.aliases[name]
+
     return [
         mk_obj(obj["id"]) for obj in ctx.db.values()
         if obj["__type__"] == name
@@ -569,9 +588,8 @@ def build_input_tuples(
         new_data: List[Tuple[Data, ...]] = []
         new_qil = ctx.query_input_list + qil[:i]
         for row in data:
-            eval_ctx = EvalContext(
-                query_input_list=new_qil, input_tuple=row, db=ctx.db)
-            out = eval_path(in_path, eval_ctx)
+            subctx = replace(ctx, query_input_list=new_qil, input_tuple=row)
+            out = eval_path(in_path, subctx)
             for val in out:
                 new_data.append(row + (val,))
             if not out and always_optional[in_path]:
@@ -597,6 +615,12 @@ class PathFinder(NodeVisitor):
     def visit_SelectQuery(self, query: qlast.SelectQuery) -> None:
         # TODO: there are lots of implicit subqueries (clauses)
         # and we need to care about them
+        old = self.in_subquery
+        self.in_subquery = True
+        self.generic_visit(query)
+        self.in_subquery = old
+
+    def visit_ForQuery(self, query: qlast.ForQuery) -> None:
         old = self.in_subquery
         self.in_subquery = True
         self.generic_visit(query)
@@ -756,8 +780,7 @@ def subquery_full(
     out = []
     new_qil = ctx.query_input_list + qil
     for row in in_tuples:
-        subctx = EvalContext(
-            query_input_list=new_qil, input_tuple=row, db=ctx.db)
+        subctx = replace(ctx, query_input_list=new_qil, input_tuple=row)
         for val in eval(q, subctx):
             out.append(row + (val,))
 
@@ -769,17 +792,17 @@ def subquery(q: qlast.Expr, *, ctx: EvalContext) -> List[Data]:
 
 
 def go(q: qlast.Expr, db: DB=DB1) -> None:
-    # debug.dump(q)
     ctx = EvalContext(
         query_input_list=[],
         input_tuple=(),
+        aliases={},
         db=db,
     )
     out = subquery(q, ctx=ctx)
     debug.dump(out)
 
 
-def repl() -> None:
+def repl(print_asts: bool=False) -> None:
     # for now users should just invoke this script with rlwrap since I
     # don't want to fiddle with history or anything
     while True:
@@ -790,7 +813,10 @@ def repl() -> None:
             if not s:
                 return
         try:
-            go(parse(s))
+            q = parse(s)
+            if print_asts:
+                debug.dump(q)
+            go(q)
         except Exception:
             traceback.print_exception(*sys.exc_info())
 
@@ -810,8 +836,8 @@ SELECT (Person.name, (SELECT Note.name), (SELECT Note.name));
 
 
 def main() -> None:
-    if sys.argv[1:] == ['-i']:
-        return repl()
+    if sys.argv[1:2] == ['-i']:
+        return repl(sys.argv[2:3] == ['-d'])
 
     q = parse(QUERY3)
     debug.dump(q)
