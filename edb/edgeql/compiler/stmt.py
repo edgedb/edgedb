@@ -132,6 +132,7 @@ def compile_ForQuery(
 
             iterator_view = stmtctx.declare_view(
                 iterator, qlstmt.iterator_alias,
+                temporary=False,
                 path_id_namespace=path_id_ns, ctx=scopectx)
 
             iterator_stmt = setgen.new_set_from_set(
