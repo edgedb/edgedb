@@ -56,6 +56,10 @@ type Person {
     };
 }
 
+type PersonWrapper {
+    required single link person -> Person;
+}
+
 type DefaultTest1 {
     property num -> int64 {
         default := 42;

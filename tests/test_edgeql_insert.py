@@ -2227,6 +2227,25 @@ class TestInsert(tb.QueryTestCase):
              {"name": "Phil Emarg", "tag": None}]
         )
 
+    async def test_edgeql_insert_unless_conflict_08(self):
+        query = r'''
+            WITH MODULE test
+            SELECT (
+                INSERT PersonWrapper {
+                    person := (
+                        INSERT Person { name := "foo" }
+                        UNLESS CONFLICT ON .name ELSE (SELECT Person)
+                    )
+                }
+            ) {id, person};
+        '''
+
+        res1 = await self.con.query_one(query)
+        res2 = await self.con.query_one(query)
+
+        self.assertNotEqual(res1.id, res2.id)
+        self.assertEqual(res1.person, res2.person)
+
     async def test_edgeql_insert_dependent_01(self):
         query = r'''
             WITH MODULE test

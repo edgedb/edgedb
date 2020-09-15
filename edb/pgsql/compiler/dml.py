@@ -372,8 +372,12 @@ def fini_dml_stmt(
     # referencing this class yields the expected results.
     dml_stack = get_dml_stmt_stack(ir_stmt, ctx=ctx)
     if isinstance(ir_stmt, irast.InsertStmt):
+        # The union CTE might have a SELECT from an ELSE clause, which
+        # we don't actually want to include.
+        assert len(parts.dml_ctes) == 1
+        cte = next(iter(parts.dml_ctes.values()))[0]
         relctx.add_type_rel_overlay(
-            ir_stmt.subject.typeref, 'union', union_cte,
+            ir_stmt.subject.typeref, 'unIon', cte,
             dml_stmts=dml_stack, path_id=ir_stmt.subject.path_id, ctx=ctx)
     elif isinstance(ir_stmt, irast.DeleteStmt):
         relctx.add_type_rel_overlay(
