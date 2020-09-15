@@ -92,6 +92,7 @@ PersonT = "Person"
 NoteT = "Note"
 
 Data = Any
+Row = Tuple[Data, ...]
 DB = Dict[uuid.UUID, Dict[str, Data]]
 
 
@@ -123,6 +124,7 @@ DB1 = mk_db([
     # Note
     {"id": bsid(0x20), "__type__": NoteT, "name": "boxing"},
     {"id": bsid(0x21), "__type__": NoteT, "name": "unboxing", "note": "lolol"},
+    {"id": bsid(0x22), "__type__": NoteT, "name": "dynamic", "note": "blarg"},
 ])
 
 
@@ -148,6 +150,10 @@ BASIS = {
 
 
 # #############
+class IPartial(NamedTuple):
+    pass
+
+
 class IExpr(NamedTuple):
     expr: qlast.Expr
 
@@ -165,7 +171,7 @@ class IPtr(NamedTuple):
     direction: Optional[str]
 
 
-IPathElement = Union[IExpr, IORef, IPtr]
+IPathElement = Union[IPartial, IExpr, IORef, ITypeIntersection, IPtr]
 IPath = Tuple[IPathElement, ...]
 
 # ############### Evaluation???
@@ -281,10 +287,100 @@ def _eval(
         f'no EdgeQL eval handler for {node.__class__}')
 
 
+def eval_filter(
+    where: Optional[qlast.Expr],
+    qil: List[IPath],
+    out: List[Row],
+    ctx: EvalContext
+) -> List[Row]:
+    if not where:
+        return out
+
+    # XXX: prefix
+    new = []
+    for row in out:
+        subctx = EvalContext(
+            query_input_list=qil, input_tuple=row, db=ctx.db)
+
+        if any(subquery(where, ctx=subctx)):
+            new.append(row)
+    return new
+
+
+def eval_orderby(
+    orderby: List[qlast.SortExpr],
+    qil: List[IPath],
+    out: List[Row],
+    ctx: EvalContext
+) -> List[Row]:
+    # Go through the sort specifiers in reverse order, which takes
+    # advantage of sort being stable to do the right thing. (We can't
+    # just build one composite key because they might have different
+    # sort orders, so we'd have to use cmp_to_key if we wanted to do
+    # it in one go...)
+    for sort in reversed(orderby):
+        nones_bigger = (
+            (sort.direction == 'ASC' and sort.nones_order == 'last')
+            or (sort.direction == 'DESC' and sort.nones_order == 'first')
+        )
+
+        # Decorate
+        new = []
+        for row in out:
+            subctx = EvalContext(
+                query_input_list=qil, input_tuple=row, db=ctx.db)
+            vals = subquery(sort.path, ctx=subctx)
+            assert len(vals) <= 1
+            # We wrap the result in a tuple with an emptiness tag at the start
+            # to handle sorting empty values
+            val = (not nones_bigger, vals[0]) if vals else (nones_bigger,)
+            new.append((row, (val,)))
+
+        # Sort
+        new.sort(key=lambda x: x[1], reverse=sort.direction == 'DESC')
+
+        # Undecorate
+        out = [row for row, _ in new]
+
+    return out
+
+
+def eval_offset(offset: Optional[qlast.Expr], out: List[Row],
+                ctx: EvalContext) -> List[Row]:
+    if offset:
+        res = subquery(offset, ctx=ctx)
+        assert len(res) == 1
+        out = out[int(res[0]):]
+    return out
+
+
+def eval_limit(limit: Optional[qlast.Expr], out: List[Row],
+               ctx: EvalContext) -> List[Row]:
+    if limit:
+        res = subquery(limit, ctx=ctx)
+        assert len(res) == 1
+        out = out[:int(res[0])]
+    return out
+
+
 @_eval.register(qlast.SelectQuery)
 def eval_Select(node: qlast.SelectQuery, ctx: EvalContext) -> List[Data]:
-    # TODO like all the complicated stuff
-    return subquery(node.result, ctx)
+    assert not node.aliases, "WITH not supported yet"
+
+    # XXX: I believe this is right, but:
+    # WHERE and ORDER BY are treated as subqueries of the result query,
+    # and LIMIT and OFFSET are not.
+    orderby = node.orderby or []
+    subqs = [node.where] + [x.path for x in orderby]
+    new_qil, out = subquery_full(node.result, extra_subqs=subqs, ctx=ctx)
+    new_qil += [(IPartial(),)]
+
+    out = eval_filter(node.where, new_qil, out, ctx=ctx)
+    out = eval_orderby(orderby, new_qil, out, ctx=ctx)
+    out = eval_offset(node.offset, out, ctx=ctx)
+    out = eval_limit(node.limit, out, ctx=ctx)
+
+    return [row[-1] for row in out]
 
 
 def eval_func_or_op(op: str, args: List[qlast.Expr],
@@ -295,9 +391,9 @@ def eval_func_or_op(op: str, args: List[qlast.Expr],
     for i, arg in enumerate(args):
         if arg_specs and arg_specs[i] == SET_OF:
             # SET OF is a subquery so we skip it
-            results.append(subquery(arg, ctx))
+            results.append(subquery(arg, ctx=ctx))
         else:
-            results.append(eval(arg, ctx))
+            results.append(eval(arg, ctx=ctx))
 
     f = BASIS_IMPLS[op]
     return f(*results)
@@ -534,9 +630,14 @@ class PathFinder(NodeVisitor):
             'IF', [query.if_expr, query.condition, query.else_expr])
 
 
-def find_paths(e: qlast.Expr) -> List[Tuple[qlast.Path, bool, bool]]:
+def find_paths(
+    e: qlast.Expr,
+    extra_subqs: Iterable[Optional[qlast.Base]] = (),
+) -> List[Tuple[qlast.Path, bool, bool]]:
     pf = PathFinder()
     pf.visit(e)
+    pf.in_subquery = True
+    pf.visit(extra_subqs)
     return pf.paths
 
 
@@ -586,7 +687,11 @@ def make_query_input_list(
 
 def simplify_path(path: qlast.Path) -> IPath:
     spath: List[IPathElement] = []
-    assert not path.partial
+    # XXX: I think there might be issues with IPartial and common
+    # prefixes, since it can have different meanings in different
+    # places.
+    if path.partial:
+        spath.append(IPartial())
     for step in path.steps:
         if isinstance(step, qlast.ObjectRef):
             assert not spath
@@ -610,10 +715,12 @@ def parse(querystr: str) -> qlast.Statement:
     return statements[0]
 
 
-def analyze_paths(q: qlast.Expr) -> Tuple[
-        List[IPath], List[IPath], Dict[IPath, bool]]:
+def analyze_paths(
+    q: qlast.Expr,
+    extra_subqs: Iterable[Optional[qlast.Base]],
+) -> Tuple[List[IPath], List[IPath], Dict[IPath, bool]]:
     paths_opt = [(simplify_path(p), optional, subq)
-                 for p, optional, subq in find_paths(q)]
+                 for p, optional, subq in find_paths(q, extra_subqs)]
     always_optional = defaultdict(lambda: True)
 
     direct_paths = []
@@ -631,8 +738,14 @@ def analyze_paths(q: qlast.Expr) -> Tuple[
     return direct_paths, subquery_paths, always_optional
 
 
-def subquery(q: qlast.Expr, ctx: EvalContext) -> List[Data]:
-    direct_paths, subquery_paths, always_optional = analyze_paths(q)
+def subquery_full(
+    q: qlast.Expr,
+    *,
+    extra_subqs: Iterable[Optional[qlast.Base]] = (),
+    ctx: EvalContext
+) -> Tuple[List[IPath], List[Row]]:
+    direct_paths, subquery_paths, always_optional = analyze_paths(
+        q, extra_subqs)
 
     qil = make_query_input_list(
         direct_paths, subquery_paths, ctx.query_input_list)
@@ -645,9 +758,14 @@ def subquery(q: qlast.Expr, ctx: EvalContext) -> List[Data]:
     for row in in_tuples:
         subctx = EvalContext(
             query_input_list=new_qil, input_tuple=row, db=ctx.db)
-        out.extend(eval(q, subctx))
+        for val in eval(q, subctx):
+            out.append(row + (val,))
 
-    return out
+    return new_qil, out
+
+
+def subquery(q: qlast.Expr, *, ctx: EvalContext) -> List[Data]:
+    return [row[-1] for row in subquery_full(q, ctx=ctx)[1]]
 
 
 def go(q: qlast.Expr, db: DB=DB1) -> None:
@@ -657,7 +775,7 @@ def go(q: qlast.Expr, db: DB=DB1) -> None:
         input_tuple=(),
         db=db,
     )
-    out = subquery(q, ctx)
+    out = subquery(q, ctx=ctx)
     debug.dump(out)
 
 
