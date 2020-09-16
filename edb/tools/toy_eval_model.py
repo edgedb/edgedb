@@ -24,16 +24,18 @@ in throwing it away.
 Also a non-goal: performance.
 
 Right now we support some really basic queries:
- * SELECT with no clauses and no shapes
+ * SELECT with no shapes
+ * WITH, FOR
  * A smattering of basic functions, including OPTIONAL and SET OF ones
- * Tuples, int and str literals, set literals, str and int casts
+ * Tuples, int, bool, float str literals, set literals, str and int casts
  * Properties, links, type intersections
 
 There is no type or error checking.
 
 Run this as a script for a bad REPL that can be noodled around
-in. I've tested out a bunch of queries playing around but this hasn't
-gotten any particular rigorous testing against the real DB.
+in. I've tested out a bunch of queries playing around and have a small
+test suite but this hasn't gotten any particular rigorous testing
+against the real DB.
 
 """
 
@@ -168,9 +170,7 @@ class IPtr(NamedTuple):
 IPathElement = Union[IPartial, IExpr, IORef, ITypeIntersection, IPtr]
 IPath = Tuple[IPathElement, ...]
 
-# ############### Evaluation???
-
-# Basic functions
+# Implementation of built in functions and operators
 
 
 class LiftedFunc(Protocol):
@@ -179,6 +179,9 @@ class LiftedFunc(Protocol):
 
 
 def lift(f: Callable[..., Union[Data, List[Data]]]) -> LiftedFunc:
+    """Lifts a function operating on base data to operator on sets.
+
+    The result is the usual cartesian product."""
     def inner(*args: List[Data]) -> List[Data]:
         out = []
         for args1 in itertools.product(*args):
@@ -307,14 +310,14 @@ BASIS_IMPLS: Dict[Tuple[str, str], LiftedFunc] = {
 }
 
 
+# ############### The actual evaluator
+
 @dataclass
 class EvalContext:
     query_input_list: List[IPath]
     input_tuple: Tuple[Data, ...]
     aliases: Dict[str, List[Data]]
     db: DB
-
-#
 
 
 @functools.singledispatch
@@ -447,7 +450,7 @@ def eval_func_or_op(op: str, args: List[qlast.Expr], typ: str,
     results = []
     for i, arg in enumerate(args):
         if arg_specs and arg_specs[i] == SET_OF:
-            # SET OF is a subquery so we skip it
+            # SET OF is a subquery
             results.append(subquery(arg, ctx=ctx))
         else:
             results.append(eval(arg, ctx=ctx))
