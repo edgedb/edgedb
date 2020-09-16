@@ -57,6 +57,7 @@ from edb.edgeql import qltypes as ft
 from dataclasses import dataclass, replace
 from collections import defaultdict
 
+import random
 import uuid
 import itertools
 import operator
@@ -124,6 +125,12 @@ SET_OF, OPTIONAL, SINGLETON = (
 # We just list things with weird behavior
 BASIS = {
     'count': [SET_OF],
+    'sum': [SET_OF],
+    'min': [SET_OF],
+    'max': [SET_OF],
+    'all': [SET_OF],
+    'any': [SET_OF],
+    'enumerate': [SET_OF],
     'IN': [SINGLETON, SET_OF],
     'NOT IN': [SINGLETON, SET_OF],
     '??': [OPTIONAL, SET_OF],
@@ -172,7 +179,7 @@ class LiftedFunc(Protocol):
 
 
 def lift(f: Callable[..., Union[Data, List[Data]]]) -> LiftedFunc:
-    def inner(*args: Data) -> List[Data]:
+    def inner(*args: List[Data]) -> List[Data]:
         out = []
         for args1 in itertools.product(*args):
             val = f(*args1)
@@ -181,6 +188,12 @@ def lift(f: Callable[..., Union[Data, List[Data]]]) -> LiftedFunc:
             else:
                 out.append(val)
         return out
+    return inner
+
+
+def lift_set_of(f: Callable[..., Union[Data]]) -> LiftedFunc:
+    def inner(*args: List[Data]) -> List[Data]:
+        return [f(*args)]
     return inner
 
 
@@ -196,10 +209,6 @@ def opt_ne(x: List[Data], y: List[Data]) -> List[Data]:
     return lift(operator.ne)(x, y)
 
 
-def count(x: List[Data]) -> List[Data]:
-    return [len(x)]
-
-
 def contains(es: List[Data], s: List[Data]) -> List[Data]:
     return [e in s for e in es]
 
@@ -212,10 +221,6 @@ def coalesce(x: List[Data], y: List[Data]) -> List[Data]:
     return x or y
 
 
-def exists(x: List[Data]) -> List[Data]:
-    return [bool(x)]
-
-
 def distinct(x: List[Data]) -> List[Data]:
     return dedup(x)
 
@@ -224,7 +229,11 @@ def union(x: List[Data], y: List[Data]) -> List[Data]:
     return x + y
 
 
-def IF(x: List[Data], bs: List[Data], y: List[Data]) -> List[Data]:
+def enumerate_(x: List[Data]) -> List[Data]:
+    return list(enumerate(x))
+
+
+def if_(x: List[Data], bs: List[Data], y: List[Data]) -> List[Data]:
     out = []
     for b in bs:
         if b:
@@ -234,26 +243,68 @@ def IF(x: List[Data], bs: List[Data], y: List[Data]) -> List[Data]:
     return out
 
 
-_BASIS_IMPLS: Any = {
+_BASIS_BINOP_IMPLS: Any = {
     '+': lift(operator.add),
+    '-': lift(operator.sub),
+    '*': lift(operator.mul),
+    '/': lift(operator.truediv),
+    '//': lift(operator.floordiv),
+    '%': lift(operator.mod),
     '++': lift(operator.add),
     '=': lift(operator.eq),
     '!=': lift(operator.ne),
-    'str': lift(str),
-    'int32': lift(int),
-    'int64': lift(int),
+    '<': lift(operator.lt),
+    '<=': lift(operator.le),
+    '>': lift(operator.gt),
+    '>=': lift(operator.ge),
+    '^': lift(operator.pow),
+    'OR': lift(operator.or_),
+    'AND': lift(operator.and_),
     '?=': opt_eq,
     '?!=': opt_ne,
-    'count': count,
     'IN': contains,
     'NOT IN': not_contains,
     '??': coalesce,
-    'EXISTS': exists,
-    'DISTINCT': distinct,
     'UNION': union,
-    'IF': IF,
+    # ... not really a binop
+    'IF': if_,
 }
-BASIS_IMPLS: Dict[str, LiftedFunc] = _BASIS_IMPLS
+_BASIS_UNOP_IMPLS: Any = {
+    '-': lift(operator.neg),
+    '+': lift(operator.pos),
+    'NOT': lift(operator.not_),
+    'EXISTS': lift_set_of(bool),
+    'DISTINCT': distinct,
+}
+_BASIS_CAST_IMPLS: Any = {
+    'str': lift(str),
+    'int32': lift(int),
+    'int64': lift(int),
+}
+_BASIS_FUNC_IMPLS: Any = {
+    'enumerate': enumerate_,
+    'count': lift_set_of(len),
+    'sum': lift_set_of(sum),
+    'min': lift_set_of(min),
+    'max': lift_set_of(max),
+    'all': lift_set_of(all),
+    'any': lift_set_of(any),
+    'len': lift(len),
+    'random': lift(random.random),
+    'contains': lift(operator.contains),
+    'round': lift(round),
+}
+
+BASIS_IMPLS: Dict[Tuple[str, str], LiftedFunc] = {
+    (typ, key): impl
+    for typ, impls in [
+        ('binop', _BASIS_BINOP_IMPLS),
+        ('unop', _BASIS_UNOP_IMPLS),
+        ('cast', _BASIS_CAST_IMPLS),
+        ('func', _BASIS_FUNC_IMPLS),
+    ]
+    for key, impl in impls.items()
+}
 
 
 @dataclass
@@ -389,7 +440,7 @@ def eval_For(node: qlast.ForQuery, ctx: EvalContext) -> List[Data]:
     return out
 
 
-def eval_func_or_op(op: str, args: List[qlast.Expr],
+def eval_func_or_op(op: str, args: List[qlast.Expr], typ: str,
                     ctx: EvalContext) -> List[Data]:
     arg_specs = BASIS.get(op)
 
@@ -401,30 +452,32 @@ def eval_func_or_op(op: str, args: List[qlast.Expr],
         else:
             results.append(eval(arg, ctx=ctx))
 
-    f = BASIS_IMPLS[op]
+    f = BASIS_IMPLS[typ, op]
     return f(*results)
 
 
 @_eval.register(qlast.BinOp)
 def eval_BinOp(node: qlast.BinOp, ctx: EvalContext) -> List[Data]:
-    return eval_func_or_op(node.op.upper(), [node.left, node.right], ctx)
+    return eval_func_or_op(
+        node.op.upper(), [node.left, node.right], 'binop', ctx)
 
 
 @_eval.register(qlast.UnaryOp)
 def eval_UnaryOp(node: qlast.UnaryOp, ctx: EvalContext) -> List[Data]:
-    return eval_func_or_op(node.op.upper(), [node.operand], ctx)
+    return eval_func_or_op(
+        node.op.upper(), [node.operand], 'unop', ctx)
 
 
 @_eval.register(qlast.FunctionCall)
 def eval_Call(node: qlast.FunctionCall, ctx: EvalContext) -> List[Data]:
     assert isinstance(node.func, str)
-    return eval_func_or_op(node.func, node.args, ctx)
+    return eval_func_or_op(node.func, node.args, 'func', ctx)
 
 
 @_eval.register(qlast.IfElse)
 def visit_IfElse(query: qlast.IfElse, ctx: EvalContext) -> List[Data]:
     return eval_func_or_op(
-        'IF', [query.if_expr, query.condition, query.else_expr], ctx)
+        'IF', [query.if_expr, query.condition, query.else_expr], 'binop', ctx)
 
 
 @_eval.register(qlast.StringConstant)
@@ -436,7 +489,19 @@ def eval_StringConstant(
 @_eval.register(qlast.IntegerConstant)
 def eval_IntegerConstant(
         node: qlast.IntegerConstant, ctx: EvalContext) -> List[Data]:
-    return [int(node.value)]
+    return [int(node.value) * (-1 if node.is_negative else 1)]
+
+
+@_eval.register(qlast.BooleanConstant)
+def eval_BooleanConstant(
+        node: qlast.BooleanConstant, ctx: EvalContext) -> List[Data]:
+    return [node.value == 'true']
+
+
+@_eval.register(qlast.FloatConstant)
+def eval_FloatConstant(
+        node: qlast.FloatConstant, ctx: EvalContext) -> List[Data]:
+    return [float(node.value) * (-1 if node.is_negative else 1)]
 
 
 @_eval.register(qlast.Set)
@@ -474,7 +539,7 @@ def eval_NamedTuple(
 @_eval.register(qlast.TypeCast)
 def eval_TypeCast(node: qlast.TypeCast, ctx: EvalContext) -> List[Data]:
     typ = node.type.maintype.name  # type: ignore  # our types are hinky.
-    f = BASIS_IMPLS[typ]
+    f = BASIS_IMPLS['cast', typ]
     return f(eval(node.expr, ctx))
 
 
@@ -544,7 +609,7 @@ def eval_path(path: IPath, ctx: EvalContext) -> List[Data]:
     if path in ctx.query_input_list:
         i = ctx.query_input_list.index(path)
         obj = ctx.input_tuple[i]
-        return [obj] if obj else []
+        return [obj] if obj is not None else []
 
     if len(path) == 1:
         if isinstance(path[0], IORef):
