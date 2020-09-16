@@ -709,7 +709,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                             "(test::User).>deck[IS test::Card]",
                             "FENCE": {
                                 "(test::User).>deck[IS test::Card]\
-    .>name[IS std::str]"
+.>name[IS std::str]"
                             }
                         }
                     }
