@@ -70,20 +70,6 @@ import traceback
 T = TypeVar('T')
 
 
-# This is just documentation I guess.
-SCHEMA = '''
-type Note {
-    required single property name -> str;
-    optional single property note -> str;
-}
-type Person {
-    required single property name -> str;
-    optional multi property multi_prop -> str;
-    multi link notes -> Note;
-    optional single property tag -> str;
-'''
-
-
 def bsid(n: int) -> uuid.UUID:
     return uuid.UUID(f'ffffffff-ffff-ffff-ffff-{n:012x}')
 
@@ -897,6 +883,20 @@ def repl(db: DB, print_asts: bool=False) -> None:
 
 # Our toy DB
 # Make this UUIDs?
+# This is just documentation I guess.
+SCHEMA = '''
+type Note {
+    required single property name -> str;
+    optional single property note -> str;
+}
+type Person {
+    required single property name -> str;
+    optional multi property multi_prop -> str;
+    multi link notes -> Note;
+    optional single property tag -> str;
+'''
+
+
 PersonT = "Person"
 NoteT = "Note"
 DB1 = mk_db([
