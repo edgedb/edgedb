@@ -631,7 +631,10 @@ class PathFinder(NodeVisitor):
             self.in_optional, self.in_subquery = old
 
     def visit_BinOp(self, query: qlast.BinOp) -> None:
-        self.visit_func_or_op(query.op, [query.left, query.right])
+        self.visit_func_or_op(query.op.upper(), [query.left, query.right])
+
+    def visit_UnaryOp(self, query: qlast.UnaryOp) -> None:
+        self.visit_func_or_op(query.op.upper(), [query.operand])
 
     def visit_FunctionCall(self, query: qlast.FunctionCall) -> None:
         assert not query.kwargs
