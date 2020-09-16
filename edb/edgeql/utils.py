@@ -121,3 +121,17 @@ def inline_anchors(
 
     inliner = AnchorInliner(anchors)
     inliner.visit(ql_expr)
+
+
+def contains_dml(ql_expr: qlast.Base) -> bool:
+    """Check whether a expression contains any DML in a subtree."""
+    # If this ends up being a perf problem, we can use a visitor
+    # directly and cache.
+    dml_types = (qlast.InsertQuery, qlast.UpdateQuery, qlast.DeleteQuery)
+    if isinstance(ql_expr, dml_types):
+        return True
+
+    res = ast.find_children(ql_expr, lambda x: isinstance(x, dml_types),
+                            terminate_early=True)
+
+    return bool(res)

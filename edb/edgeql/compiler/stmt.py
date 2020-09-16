@@ -44,6 +44,7 @@ from edb.schema import pseudo as s_pseudo
 from edb.schema import types as s_types
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import utils as qlutils
 from edb.edgeql import qltypes
 
 from . import astutils
@@ -167,7 +168,18 @@ def compile_ForQuery(
         sctx.iterator_path_ids |= {stmt.iterator_stmt.path_id}
         node = ictx.path_scope.find_descendant(iterator_stmt.path_id)
         if node is not None:
-            node.attach_subtree(view_scope_info.path_scope)
+            # If the body contains DML, then we need to prohibit
+            # correlation between the iterator and the enclosing
+            # query, since the correlation imposes compilation issues
+            # we aren't willing to tackle.
+            # Do this by sticking the iterator subtree onto a branch
+            # with a factoring fence.
+            if qlutils.contains_dml(qlstmt.result):
+                node = node.attach_branch().attach_branch()
+                node.parent.factoring_fence = True
+
+            node.attach_subtree(view_scope_info.path_scope,
+                                context=iterator.context)
 
         # Compile the body
         stmt.result = compile_result_clause(
