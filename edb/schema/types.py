@@ -1830,15 +1830,18 @@ def generate_array_type_id(
 
 def get_union_type_id(
     schema: s_schema.Schema,
-    components: typing.Iterable[Union[Type, TypeShell]], *,
-    module: typing.Optional[str]=None,
+    components: typing.Iterable[Union[Type, TypeShell]],
+    *,
+    opaque: bool = False,
+    module: typing.Optional[str] = None,
 ) -> typing.Tuple[uuid.UUID, s_name.Name]:
 
     component_ids = sorted(str(t.get_id(schema)) for t in components)
-    name = s_name.Name(
-        name=f"({' | '.join(component_ids)})",
-        module=module or '__derived__',
-    )
+    if opaque:
+        name = f"(opaque: {' | '.join(component_ids)})"
+    else:
+        name = f"({' | '.join(component_ids)})"
+    name = s_name.Name(name=name, module=module or '__derived__')
 
     return generate_type_id(name), name
 

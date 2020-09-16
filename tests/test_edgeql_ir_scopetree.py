@@ -36,9 +36,14 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'cards.esdl')
 
-    UUID_RE = re.compile(
-        r'[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}'
-        r'-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}'
+    UNION_NAME_RE = re.compile(
+        r'''
+            (?:opaque:\s)?
+            ([0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}
+                           -[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12})
+            (\s \| \s \1)*
+        ''',
+        re.X,
     )
 
     def run_test(self, *, source, spec, expected):
@@ -55,7 +60,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
         scope_tree = next(iter(root.children))
 
-        path_scope = self.UUID_RE.sub(
+        path_scope = self.UNION_NAME_RE.sub(
             '@SID@',
             textwrap.indent(scope_tree.pformat(), '    '),
         )

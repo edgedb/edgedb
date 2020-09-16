@@ -263,6 +263,7 @@ def get_or_create_union_type(
     type_id, name = s_types.get_union_type_id(
         schema,
         components,
+        opaque=opaque,
         module=module,
     )
 
