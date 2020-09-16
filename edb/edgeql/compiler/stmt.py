@@ -113,67 +113,63 @@ def compile_ForQuery(
         stmt = irast.SelectStmt()
         init_stmt(stmt, qlstmt, ctx=sctx, parent_ctx=ctx)
 
-        with sctx.newscope(fenced=True) as scopectx:
-            iterator_ctx = None
-            if (ctx.expr_exposed and ctx.iterator_ctx is not None
-                    and ctx.iterator_ctx is not sctx):
-                iterator_ctx = ctx.iterator_ctx
+        # As an optimization, if the iterator is a singleton set, use
+        # the element directly.
+        iterator = qlstmt.iterator
+        if isinstance(iterator, qlast.Set) and len(iterator.elements) == 1:
+            iterator = iterator.elements[0]
 
-            if iterator_ctx is not None:
-                iterator_scope_parent = iterator_ctx.path_scope
-                path_id_ns = iterator_ctx.path_id_namespace
-            else:
-                iterator_scope_parent = sctx.path_scope
-                path_id_ns = sctx.path_id_namespace
+        # Compile the iterator
+        iterator_ctx = None
+        if (ctx.expr_exposed and ctx.iterator_ctx is not None
+                and ctx.iterator_ctx is not sctx):
+            iterator_ctx = ctx.iterator_ctx
 
-            iterator = qlstmt.iterator
-            if isinstance(iterator, qlast.Set) and len(iterator.elements) == 1:
-                iterator = iterator.elements[0]
+        ictx = iterator_ctx or sctx
 
-            iterator_view = stmtctx.declare_view(
-                iterator, qlstmt.iterator_alias,
-                path_id_namespace=path_id_ns, ctx=scopectx)
+        iterator_view = stmtctx.declare_view(
+            iterator, qlstmt.iterator_alias,
+            path_id_namespace=ictx.path_id_namespace,
+            ctx=ictx)
 
-            iterator_stmt = setgen.new_set_from_set(
-                iterator_view, preserve_scope_ns=True, ctx=scopectx)
+        iterator_stmt = setgen.new_set_from_set(
+            iterator_view, preserve_scope_ns=True, ctx=sctx)
+        stmt.iterator_stmt = iterator_stmt
 
-            iterator_type = setgen.get_set_type(iterator_stmt, ctx=ctx)
-            anytype = iterator_type.find_any(ctx.env.schema)
-            if anytype is not None:
-                raise errors.QueryError(
-                    'FOR statement has iterator of indeterminate type',
-                    context=ctx.env.type_origins.get(anytype),
-                )
+        iterator_type = setgen.get_set_type(iterator_stmt, ctx=ctx)
+        anytype = iterator_type.find_any(ctx.env.schema)
+        if anytype is not None:
+            raise errors.QueryError(
+                'FOR statement has iterator of indeterminate type',
+                context=ctx.env.type_origins.get(anytype),
+            )
 
-            if iterator_ctx is not None and iterator_ctx.stmt is not None:
-                iterator_ctx.stmt.hoisted_iterators.append(iterator_stmt)
+        if iterator_ctx is not None and iterator_ctx.stmt is not None:
+            iterator_ctx.stmt.hoisted_iterators.append(iterator_stmt)
 
-            stmt.iterator_stmt = iterator_stmt
-
-            view_scope_info = scopectx.path_scope_map[iterator_view]
-            iterator_scope = view_scope_info.path_scope
-
-            for cb in view_scope_info.tentative_work:
-                stmtctx.at_stmt_fini(cb, ctx=ctx)
-
-            view_scope_info.tentative_work[:] = []
+        view_scope_info = sctx.path_scope_map[iterator_view]
+        for cb in view_scope_info.tentative_work:
+            stmtctx.at_stmt_fini(cb, ctx=ctx)
+        view_scope_info.tentative_work[:] = []
 
         pathctx.register_set_in_scope(
             iterator_stmt,
-            path_scope=iterator_scope_parent,
+            path_scope=ictx.path_scope,
             ctx=sctx,
         )
+
         # Iterator symbol is, by construction, outside of the scope
         # of the UNION argument, but is perfectly legal to be referenced
         # inside a factoring fence that is an immediate child of this
         # scope.
-        iterator_scope_parent.factoring_allowlist.add(
+        ictx.path_scope.factoring_allowlist.add(
             stmt.iterator_stmt.path_id)
         sctx.iterator_path_ids |= {stmt.iterator_stmt.path_id}
-        node = iterator_scope_parent.find_descendant(iterator_stmt.path_id)
+        node = ictx.path_scope.find_descendant(iterator_stmt.path_id)
         if node is not None:
-            node.attach_subtree(iterator_scope)
+            node.attach_subtree(view_scope_info.path_scope)
 
+        # Compile the body
         stmt.result = compile_result_clause(
             qlstmt.result,
             view_scls=ctx.view_scls,
@@ -183,6 +179,7 @@ def compile_ForQuery(
             forward_rptr=True,
             ctx=sctx)
 
+        # Inject an implicit limit if appropriate
         if ((ctx.expr_exposed or sctx.stmt is ctx.toplevel_stmt)
                 and ctx.implicit_limit):
             stmt.limit = setgen.ensure_set(
