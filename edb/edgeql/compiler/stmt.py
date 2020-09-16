@@ -175,8 +175,9 @@ def compile_ForQuery(
             # Do this by sticking the iterator subtree onto a branch
             # with a factoring fence.
             if qlutils.contains_dml(qlstmt.result):
-                node = node.attach_branch().attach_branch()
-                node.parent.factoring_fence = True
+                node = node.attach_branch()
+                node.factoring_fence = True
+                node = node.attach_branch()
 
             node.attach_subtree(view_scope_info.path_scope,
                                 context=iterator.context)
