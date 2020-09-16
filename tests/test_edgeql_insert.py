@@ -1224,6 +1224,21 @@ class TestInsert(tb.QueryTestCase):
                         Person);
             """)
 
+    async def test_edgeql_insert_for_bad_04(self):
+        with self.assertRaisesRegex(
+            edgedb.errors.QueryError,
+            "cannot reference correlated set",
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                SELECT (Person,
+                        (FOR x in {Person} UNION (
+                             SELECT (
+                                 20,
+                                 (FOR y in {"hello", "world"} UNION (
+                                  INSERT Note {name := y ++ x.name}))))));
+            """)
+
     async def test_edgeql_insert_default_01(self):
         await self.con.execute(r'''
             # create 10 DefaultTest3 objects, each object is defined
