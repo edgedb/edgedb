@@ -561,7 +561,7 @@ def eval_path(path: IPath, ctx: EvalContext) -> List[Data]:
         else:
             out.extend(eval_intersect(obj, ptr, ctx))
     # We need to deduplicate links.
-    if isinstance(base, Obj) and out and isinstance(out[0], Obj):
+    if base and isinstance(base[0], Obj) and out and isinstance(out[0], Obj):
         out = dedup(out)
 
     return out
