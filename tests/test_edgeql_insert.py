@@ -1188,6 +1188,57 @@ class TestInsert(tb.QueryTestCase):
             ],
         )
 
+    async def test_edgeql_insert_for_bad_01(self):
+        with self.assertRaisesRegex(
+            edgedb.errors.QueryError,
+            "cannot reference correlated set",
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                SELECT (Person,
+                        (FOR x in {Person} UNION (
+                             INSERT Note {name := x.name})));
+            """)
+
+    async def test_edgeql_insert_for_bad_02(self):
+        with self.assertRaisesRegex(
+            edgedb.errors.QueryError,
+            "cannot reference correlated set",
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                SELECT (Person,
+                        (FOR x in {Person} UNION (
+                             SELECT (INSERT Note {name := x.name}))));
+            """)
+
+    async def test_edgeql_insert_for_bad_03(self):
+        with self.assertRaisesRegex(
+            edgedb.errors.QueryError,
+            "cannot reference correlated set",
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                SELECT ((FOR x in {Person} UNION (
+                             INSERT Note {name := x.name})),
+                        Person);
+            """)
+
+    async def test_edgeql_insert_for_bad_04(self):
+        with self.assertRaisesRegex(
+            edgedb.errors.QueryError,
+            "cannot reference correlated set",
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                SELECT (Person,
+                        (FOR x in {Person} UNION (
+                             SELECT (
+                                 20,
+                                 (FOR y in {"hello", "world"} UNION (
+                                  INSERT Note {name := y ++ x.name}))))));
+            """)
+
     async def test_edgeql_insert_default_01(self):
         await self.con.execute(r'''
             # create 10 DefaultTest3 objects, each object is defined
