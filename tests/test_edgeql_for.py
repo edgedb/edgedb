@@ -432,6 +432,16 @@ class TestEdgeQLFor(tb.QueryTestCase):
             [2],
         )
 
+        await self.assert_query_result(
+            r'''
+                SELECT count((
+                    WITH X := {1, 2}
+                    SELECT ((FOR x in {X} UNION (SELECT x)), X)
+               ));
+            ''',
+            [2],
+        )
+
     async def test_edgeql_for_empty_01(self):
         with self.assertRaisesRegex(
             edgedb.errors.QueryError,

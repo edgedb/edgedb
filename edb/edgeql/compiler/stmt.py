@@ -132,7 +132,7 @@ def compile_ForQuery(
 
             iterator_view = stmtctx.declare_view(
                 iterator, qlstmt.iterator_alias,
-                temporary=False,
+                new_namespace=False,
                 path_id_namespace=path_id_ns, ctx=scopectx)
 
             iterator_stmt = setgen.new_set_from_set(
@@ -175,14 +175,15 @@ def compile_ForQuery(
         if node is not None:
             node.attach_subtree(iterator_scope)
 
-        stmt.result = compile_result_clause(
-            qlstmt.result,
-            view_scls=ctx.view_scls,
-            view_rptr=ctx.view_rptr,
-            result_alias=qlstmt.result_alias,
-            view_name=ctx.toplevel_result_view_name,
-            forward_rptr=True,
-            ctx=sctx)
+        with sctx.newscope(fenced=True) as bodyctx:
+            stmt.result = compile_result_clause(
+                qlstmt.result,
+                view_scls=ctx.view_scls,
+                view_rptr=ctx.view_rptr,
+                result_alias=qlstmt.result_alias,
+                view_name=ctx.toplevel_result_view_name,
+                forward_rptr=True,
+                ctx=bodyctx)
 
         if ((ctx.expr_exposed or sctx.stmt is ctx.toplevel_stmt)
                 and ctx.implicit_limit):
