@@ -31,9 +31,9 @@ Right now we support some really basic queries:
 
 There is no type or error checking.
 
-Run this with -i as an argument for a bad REPL that can be noodled
-around in. I've tested out a bunch of queries playing around but this
-hasn't gotten any particular rigorous testing against the real DB.
+Run this as a script for a bad REPL that can be noodled around
+in. I've tested out a bunch of queries playing around but this hasn't
+gotten any particular rigorous testing against the real DB.
 
 """
 
@@ -87,10 +87,6 @@ def bsid(n: int) -> uuid.UUID:
 
 # ############# Data model
 
-# Make this UUIDs?
-PersonT = "Person"
-NoteT = "Note"
-
 Data = Any
 Row = Tuple[Data, ...]
 DB = Dict[uuid.UUID, Dict[str, Data]]
@@ -117,21 +113,6 @@ def mk_db(data: Iterable[Dict[str, Data]]) -> DB:
 
 def bslink(n: int) -> Data:
     return Obj(bsid(n))
-
-
-DB1 = mk_db([
-    # Person
-    {"id": bsid(0x10), "__type__": PersonT,
-     "name": "Phil Emarg", "notes": [bslink(0x20), bslink(0x21)]},
-    {"id": bsid(0x11), "__type__": PersonT,
-     "name": "Madeline Hatch", "notes": [bslink(0x21)]},
-    {"id": bsid(0x12), "__type__": PersonT,
-     "name": "Emmanuel Villip"},
-    # Note
-    {"id": bsid(0x20), "__type__": NoteT, "name": "boxing"},
-    {"id": bsid(0x21), "__type__": NoteT, "name": "unboxing", "note": "lolol"},
-    {"id": bsid(0x22), "__type__": NoteT, "name": "dynamic", "note": "blarg"},
-])
 
 
 # # Toy basis stuff
@@ -810,7 +791,7 @@ def clean_data(x: Data) -> Data:
         return x
 
 
-def go(q: qlast.Expr, db: DB=DB1) -> Data:
+def go(q: qlast.Expr, db: DB) -> Data:
     ctx = EvalContext(
         query_input_list=[],
         input_tuple=(),
@@ -821,7 +802,7 @@ def go(q: qlast.Expr, db: DB=DB1) -> Data:
     return clean_data(out)
 
 
-def repl(print_asts: bool=False) -> None:
+def repl(db: DB, print_asts: bool=False) -> None:
     # for now users should just invoke this script with rlwrap since I
     # don't want to fiddle with history or anything
     while True:
@@ -835,32 +816,39 @@ def repl(print_asts: bool=False) -> None:
             q = parse(s)
             if print_asts:
                 debug.dump(q)
-            debug.dump(go(q))
+            debug.dump(go(q, db))
         except Exception:
             traceback.print_exception(*sys.exc_info())
 
 
-QUERY = '''
-SELECT Person.name ++ "-" ++ Person.notes.name
-'''
-QUERY1 = '''
-SELECT (Person.name, Person.name)
-'''
-QUERY2 = '''
-SELECT (Note.note ?= "lolol", Note)
-'''
-QUERY3 = '''
-SELECT (Person.name, (SELECT Note.name), (SELECT Note.name));
-'''
+# Our toy DB
+# Make this UUIDs?
+PersonT = "Person"
+NoteT = "Note"
+DB1 = mk_db([
+    # Person
+    {"id": bsid(0x10), "__type__": PersonT,
+     "name": "Phil Emarg", "notes": [bslink(0x20), bslink(0x21)]},
+    {"id": bsid(0x11), "__type__": PersonT,
+     "name": "Madeline Hatch", "notes": [bslink(0x21)]},
+    {"id": bsid(0x12), "__type__": PersonT,
+     "name": "Emmanuel Villip"},
+    # Note
+    {"id": bsid(0x20), "__type__": NoteT, "name": "boxing"},
+    {"id": bsid(0x21), "__type__": NoteT, "name": "unboxing", "note": "lolol"},
+    {"id": bsid(0x22), "__type__": NoteT, "name": "dynamic", "note": "blarg"},
+])
 
 
 def main() -> None:
-    if sys.argv[1:2] == ['-i']:
-        return repl(sys.argv[2:3] == ['-d'])
+    db = DB1
 
-    q = parse(QUERY3)
-    debug.dump(q)
-    debug.dump(go(q))
+    if sys.argv[1:2] == ['-c']:
+        for arg in sys.argv[2:]:
+            q = parse(arg)
+            debug.dump(go(q, db))
+    else:
+        return repl(db, sys.argv[1:2] == ['-d'])
 
 
 if __name__ == '__main__':
