@@ -96,21 +96,27 @@ Row = Tuple[Data, ...]
 DB = Dict[uuid.UUID, Dict[str, Data]]
 
 
+class Obj:
+    def __init__(self, id: uuid.UUID,
+                 shape: Optional[Dict[str, Data]]=None) -> None:
+        self.id = id
+        if shape is None:
+            shape = {"id": id}
+        self.shape = shape
+
+    def __eq__(self, other: Any) -> bool:
+        return isinstance(other, Obj) and other.id == self.id
+
+    def __repr__(self) -> str:
+        return f'Obj{self.shape!r}'
+
+
 def mk_db(data: Iterable[Dict[str, Data]]) -> DB:
     return {x["id"]: x for x in data}
 
 
-def mk_obj(x: uuid.UUID) -> Data:
-    return {"id": x}
-
-
-def is_obj(x: Data) -> bool:
-    # ehhhhh
-    return isinstance(x, dict) and x.keys() == {"id"}
-
-
 def bslink(n: int) -> Data:
-    return mk_obj(bsid(n))
+    return Obj(bsid(n))
 
 
 DB1 = mk_db([
@@ -509,8 +515,8 @@ def get_links(obj: Data, key: str) -> List[Data]:
 def eval_fwd_ptr(base: Data, ptr: IPtr, ctx: EvalContext) -> List[Data]:
     if isinstance(base, tuple):
         return [base[int(ptr.ptr)]]
-    elif is_obj(base):
-        obj = ctx.db[base["id"]]
+    elif isinstance(base, Obj):
+        obj = ctx.db[base.id]
         return get_links(obj, ptr.ptr)
     else:
         return [base[ptr.ptr]]
@@ -519,7 +525,7 @@ def eval_fwd_ptr(base: Data, ptr: IPtr, ctx: EvalContext) -> List[Data]:
 def eval_bwd_ptr(base: Data, ptr: IPtr, ctx: EvalContext) -> List[Data]:
     # XXX: This is slow even by the standards of this terribly slow model
     return [
-        mk_obj(obj["id"])
+        Obj(obj["id"])
         for obj in ctx.db.values()
         if base in get_links(obj, ptr.ptr)
     ]
@@ -544,7 +550,7 @@ def eval_objref(name: str, ctx: EvalContext) -> List[Data]:
         return ctx.aliases[name]
 
     return [
-        mk_obj(obj["id"]) for obj in ctx.db.values()
+        Obj(obj["id"]) for obj in ctx.db.values()
         if obj["__type__"] == name
     ]
 
@@ -574,7 +580,7 @@ def eval_path(path: IPath, ctx: EvalContext) -> List[Data]:
         else:
             out.extend(eval_intersect(obj, ptr, ctx))
     # We need to deduplicate links.
-    if is_obj(base) and out and is_obj(out[0]):
+    if isinstance(base, Obj) and out and isinstance(out[0], Obj):
         out = dedup(out)
 
     return out
@@ -791,7 +797,20 @@ def subquery(q: qlast.Expr, *, ctx: EvalContext) -> List[Data]:
     return [row[-1] for row in subquery_full(q, ctx=ctx)[1]]
 
 
-def go(q: qlast.Expr, db: DB=DB1) -> None:
+def clean_data(x: Data) -> Data:
+    if isinstance(x, Obj):
+        return clean_data(x.shape)
+    elif isinstance(x, dict):
+        return {k: clean_data(v) for k, v in x.items()}
+    elif isinstance(x, tuple):
+        return tuple(clean_data(v) for v in x)
+    elif isinstance(x, list):
+        return [clean_data(v) for v in x]
+    else:
+        return x
+
+
+def go(q: qlast.Expr, db: DB=DB1) -> Data:
     ctx = EvalContext(
         query_input_list=[],
         input_tuple=(),
@@ -799,7 +818,7 @@ def go(q: qlast.Expr, db: DB=DB1) -> None:
         db=db,
     )
     out = subquery(q, ctx=ctx)
-    debug.dump(out)
+    return clean_data(out)
 
 
 def repl(print_asts: bool=False) -> None:
@@ -816,7 +835,7 @@ def repl(print_asts: bool=False) -> None:
             q = parse(s)
             if print_asts:
                 debug.dump(q)
-            go(q)
+            debug.dump(go(q))
         except Exception:
             traceback.print_exception(*sys.exc_info())
 
@@ -841,7 +860,7 @@ def main() -> None:
 
     q = parse(QUERY3)
     debug.dump(q)
-    go(q)
+    debug.dump(go(q))
 
 
 if __name__ == '__main__':
