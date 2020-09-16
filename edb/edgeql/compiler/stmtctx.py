@@ -371,7 +371,6 @@ def declare_view(
     expr: qlast.Expr,
     alias: str,
     *,
-    new_namespace: bool=True,
     fully_detached: bool=False,
     must_be_used: bool=False,
     path_id_namespace: Optional[FrozenSet[str]]=None,
@@ -388,10 +387,9 @@ def declare_view(
             cached_view_set = ctx.expr_view_cache.get((expr, alias))
             # Detach the view namespace and record the prefix
             # in the parent statement's fence node.
-            if new_namespace:
-                view_path_id_ns = irast.WeakNamespace(ctx.aliases.get('ns'))
-                subctx.path_id_namespace |= {view_path_id_ns}
-                ctx.path_scope.add_namespaces({view_path_id_ns})
+            view_path_id_ns = irast.WeakNamespace(ctx.aliases.get('ns'))
+            subctx.path_id_namespace |= {view_path_id_ns}
+            ctx.path_scope.add_namespaces({view_path_id_ns})
         else:
             cached_view_set = None
 
