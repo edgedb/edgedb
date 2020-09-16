@@ -489,7 +489,7 @@ class AlterLink(
     LinkCommand,
     referencing.AlterReferencedInheritingObject[Link],
 ):
-    astnode = [qlast.AlterLink, qlast.AlterConcreteLink]
+    astnode = [qlast.AlterConcreteLink, qlast.AlterLink]
     referenced_astnode = qlast.AlterConcreteLink
 
     @classmethod
@@ -556,7 +556,7 @@ class DeleteLink(
     LinkCommand,
     referencing.DeleteReferencedInheritingObject[Link],
 ):
-    astnode = [qlast.DropLink, qlast.DropConcreteLink]
+    astnode = [qlast.DropConcreteLink, qlast.DropLink]
     referenced_astnode = qlast.DropConcreteLink
 
     def _canonicalize(
