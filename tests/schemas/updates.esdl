@@ -67,6 +67,8 @@ type UpdateTest {
 
 type UpdateTestSubType extending UpdateTest;
 
+type UpdateTestSubSubType extending UpdateTestSubType;
+
 type CollectionTest {
     required property name -> str;
     property some_tuple -> tuple<str, int64>;

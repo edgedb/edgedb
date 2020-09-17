@@ -338,12 +338,16 @@ class Pointer(referencing.ReferencedInheritingObject,
     def is_scalar(self) -> bool:
         return False
 
-    def material_type(self, schema: s_schema.Schema) -> Pointer:
+    def material_type(
+        self,
+        schema: s_schema.Schema,
+    ) -> Tuple[s_schema.Schema, Pointer]:
         non_derived_parent = self.get_nearest_non_derived_parent(schema)
-        if non_derived_parent.generic(schema):
-            return self
+        source = non_derived_parent.get_source(schema)
+        if source is None:
+            return schema, self
         else:
-            return non_derived_parent
+            return schema, non_derived_parent
 
     def get_near_endpoint(
         self,
@@ -776,8 +780,11 @@ class PseudoPointer(s_abc.Pointer):
     def scalar(self) -> bool:
         raise NotImplementedError
 
-    def material_type(self, schema: s_schema.Schema) -> PseudoPointer:
-        return self
+    def material_type(
+        self,
+        schema: s_schema.Schema,
+    ) -> Tuple[s_schema.Schema, PseudoPointer]:
+        return schema, self
 
     def is_pure_computable(self, schema: s_schema.Schema) -> bool:
         return False

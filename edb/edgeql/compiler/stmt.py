@@ -1137,7 +1137,12 @@ def compile_query_subject(
 
     if compile_views:
         rptr = view_rptr.rptr if view_rptr is not None else None
-        viewgen.compile_view_shapes(expr, rptr=rptr, ctx=ctx)
+        if is_update:
+            with ctx.new() as subctx:
+                subctx.compiling_update_shape = True
+                viewgen.compile_view_shapes(expr, rptr=rptr, ctx=subctx)
+        else:
+            viewgen.compile_view_shapes(expr, rptr=rptr, ctx=ctx)
 
     if (shape is not None or view_scls is not None) and len(expr.path_id) == 1:
         ctx.class_view_overrides[expr.path_id.target.id] = expr_stype

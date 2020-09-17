@@ -484,6 +484,9 @@ class ContextLevel(compiler.ContextLevel):
     defining_view: Optional[s_types.Type]
     """Whether a view is currently being defined (as opposed to be compiled)"""
 
+    compiling_update_shape: bool
+    """Whether an UPDATE shape is currently being compiled."""
+
     in_conditional: Optional[parsing.ParserContext]
     """Whether currently in a conditional branch."""
 
@@ -557,6 +560,7 @@ class ContextLevel(compiler.ContextLevel):
             self.special_computables_in_mutation_shape = frozenset()
             self.empty_result_type_hint = None
             self.defining_view = None
+            self.compiling_update_shape = False
             self.in_conditional = None
             self.in_temp_scope = False
             self.tentative_work = []
@@ -605,6 +609,7 @@ class ContextLevel(compiler.ContextLevel):
                 prevlevel.special_computables_in_mutation_shape
             self.empty_result_type_hint = prevlevel.empty_result_type_hint
             self.defining_view = prevlevel.defining_view
+            self.compiling_update_shape = prevlevel.compiling_update_shape
             self.in_conditional = prevlevel.in_conditional
             self.in_temp_scope = prevlevel.in_temp_scope
             self.tentative_work = prevlevel.tentative_work

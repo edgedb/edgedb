@@ -636,7 +636,6 @@ def extend_path(
     direction: PtrDir = PtrDir.Outbound,
     *,
     ignore_computable: bool = False,
-    hoist_iterators: bool = False,
     unnest_fence: bool = False,
     same_computable_scope: bool = False,
     ctx: context.ContextLevel,
@@ -657,13 +656,11 @@ def extend_path(
 
         src_path_id = source_set.path_id
 
-    expr_type = get_set_type(source_set, ctx=ctx).get_expr_type(ctx.env.schema)
     path_id = pathctx.extend_path_id(
         src_path_id,
         ptrcls=ptrcls,
         direction=direction,
         ns=ctx.path_id_namespace,
-        include_descendants_in_ptrref=expr_type is s_types.ExprType.Update,
         ctx=ctx,
     )
 
@@ -684,7 +681,6 @@ def extend_path(
         target_set = computable_ptr_set(
             ptr,
             unnest_fence=unnest_fence,
-            hoist_iterators=hoist_iterators,
             same_computable_scope=same_computable_scope,
             ctx=ctx,
         )
@@ -777,6 +773,20 @@ def type_intersection_set(
             if component_endpoint.issubclass(ctx.env.schema, stype):
                 assert isinstance(component, irast.PointerRef)
                 rptr_specialization.append(component)
+            elif stype.issubclass(ctx.env.schema, component_endpoint):
+                assert isinstance(stype, s_objtypes.ObjectType)
+                narrow_ptr = stype.getptr(
+                    ctx.env.schema, component.shortname.name)
+                assert narrow_ptr is not None
+                rptr_specialization.append(
+                    irtyputils.ptrref_from_ptrcls(
+                        schema=ctx.env.schema,
+                        ptrcls=narrow_ptr,
+                        direction=rptr.direction,
+                        cache=ctx.env.ptr_ref_cache,
+                        typeref_cache=ctx.env.type_ref_cache,
+                    ),
+                )
 
     ptrcls = irast.TypeIntersectionLink(
         arg_type,
@@ -944,7 +954,6 @@ def computable_ptr_set(
     rptr: irast.Pointer,
     *,
     unnest_fence: bool=False,
-    hoist_iterators: bool=False,
     same_computable_scope: bool=False,
     ctx: context.ContextLevel,
 ) -> irast.Set:
@@ -1062,7 +1071,8 @@ def computable_ptr_set(
         source_path_id,
         ptrcls=ptrcls,
         ns=ctx.path_id_namespace,
-        ctx=ctx)
+        ctx=ctx,
+    )
 
     result_stype = ptrcls.get_target(ctx.env.schema)
     with newctx() as subctx:

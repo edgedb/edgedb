@@ -358,7 +358,7 @@ def get_pointer_storage_info(
     if pointer.get_computable(schema):
         material_ptrcls = None
     else:
-        material_ptrcls = pointer.material_type(schema)
+        schema, material_ptrcls = pointer.material_type(schema)
     if material_ptrcls is not None:
         pointer = material_ptrcls
     return _PointerStorageInfo(

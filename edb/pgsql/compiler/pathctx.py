@@ -295,6 +295,14 @@ def get_path_var(
 
     drilldown_path_id = map_path_id(path_id, rel.view_path_id_map)
 
+    if isinstance(ptrref, irast.PointerRef) and rel_rvar.typeref is not None:
+        actual_ptrref = irtyputils.maybe_find_actual_ptrref(
+            rel_rvar.typeref, ptrref)
+
+        if actual_ptrref is not None:
+            ptr_info = pg_types.get_ptrref_storage_info(
+                actual_ptrref, resolve_type=False, link_bias=False)
+
     outvar = get_path_output(
         source_rel, drilldown_path_id, ptr_info=ptr_info,
         aspect=aspect, env=env)
@@ -494,8 +502,26 @@ def get_rvar_path_var(
     if (path_id, aspect) in rvar.query.path_outputs:
         outvar = rvar.query.path_outputs[path_id, aspect]
     elif is_relation_rvar(rvar):
-        outvar = _get_rel_path_output(rvar.query, path_id, aspect=aspect,
-                                      env=env)
+        if (
+            (rptr := path_id.rptr()) is not None
+            and rvar.typeref is not None
+            and rvar.query.path_id != path_id
+            and (not rvar.query.path_id.is_type_intersection_path()
+                 or rvar.query.path_id.src_path() != path_id)
+        ):
+            actual_rptr = irtyputils.find_actual_ptrref(
+                rvar.typeref,
+                rptr,
+            )
+            if actual_rptr is not None:
+                ptr_si = pg_types.get_ptrref_storage_info(actual_rptr)
+            else:
+                ptr_si = None
+        else:
+            ptr_si = None
+
+        outvar = _get_rel_path_output(
+            rvar.query, path_id, ptr_info=ptr_si, aspect=aspect, env=env)
     else:
         # Range is another query.
         outvar = get_path_output(rvar.query, path_id, aspect=aspect, env=env)
@@ -506,7 +532,7 @@ def get_rvar_path_var(
 def put_rvar_path_output(
         rvar: pgast.PathRangeVar, path_id: irast.PathId, aspect: str,
         var: pgast.OutputVar, *, env: context.Environment) -> None:
-    rvar.query.path_outputs[path_id, aspect] = var
+    _put_path_output_var(rvar.query, path_id, aspect, var, env=env)
 
 
 def get_rvar_path_identity_var(

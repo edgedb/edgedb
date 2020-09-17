@@ -201,8 +201,19 @@ class BasePointerRef(ImmutableBase):
             return self.out_source
 
     @property
+    def dir_source(self) -> TypeRef:
+        if self.direction is s_pointers.PointerDirection.Outbound:
+            return self.out_source
+        else:
+            return self.out_target
+
+    @property
     def required(self) -> bool:
         return self.out_cardinality.to_schema_value()[0]
+
+    @property
+    def is_inbound(self) -> bool:
+        return self.direction is self.direction.Inbound
 
 
 class PointerRef(BasePointerRef):

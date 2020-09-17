@@ -2476,3 +2476,87 @@ class TestUpdate(tb.QueryTestCase):
                 },
             ]
         )
+
+    async def test_edgeql_update_inheritance_02(self):
+        await self.con.execute('''
+            WITH MODULE test
+            INSERT UpdateTest {
+                name := 'update-test-inh-supertype-1',
+                related := (
+                    SELECT (DETACHED UpdateTest)
+                    FILTER .name = 'update-test1'
+                )
+            };
+
+            WITH MODULE test
+            INSERT UpdateTestSubType {
+                name := 'update-test-inh-subtype-1',
+                related := (
+                    SELECT (DETACHED UpdateTest)
+                    FILTER .name = 'update-test1'
+                )
+            };
+
+            WITH MODULE test
+            INSERT UpdateTestSubSubType {
+                name := 'update-test-inh-subtype-1',
+                related := (
+                    SELECT (DETACHED UpdateTest)
+                    FILTER .name = 'update-test1'
+                )
+            };
+        ''')
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                UPDATE UpdateTest
+                FILTER .name = 'update-test-inh-subtype-1'
+                SET {
+                    comment := 'updated',
+                    related := (
+                        SELECT (DETACHED UpdateTest)
+                        FILTER .name = 'update-test2'
+                    ),
+                };
+            """,
+            [{}, {}],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest {
+                    name,
+                    comment,
+                    related: {
+                        name
+                    }
+                }
+                FILTER .name LIKE 'update-test-inh-%'
+                ORDER BY .name
+            """,
+            [
+                {
+                    'name': 'update-test-inh-subtype-1',
+                    'comment': 'updated',
+                    'related': [{
+                        'name': 'update-test2'
+                    }]
+                },
+                {
+                    'name': 'update-test-inh-subtype-1',
+                    'comment': 'updated',
+                    'related': [{
+                        'name': 'update-test2'
+                    }]
+                },
+                {
+                    'name': 'update-test-inh-supertype-1',
+                    'comment': None,
+                    'related': [{
+                        'name': 'update-test1'
+                    }]
+                },
+            ]
+        )

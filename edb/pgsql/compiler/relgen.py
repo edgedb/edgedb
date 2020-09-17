@@ -765,9 +765,9 @@ def process_set_as_path(
             # we have an opportunity to opmimize the target join by
             # directly replacing the target type.
             with ctx.new() as subctx:
-                subctx.join_target_type_filter = (
-                    subctx.join_target_type_filter.copy())
-                subctx.join_target_type_filter[ir_source] = ir_set.typeref
+                subctx.intersection_narrowing = (
+                    subctx.intersection_narrowing.copy())
+                subctx.intersection_narrowing[ir_source] = ir_set
                 source_rvar = get_set_rvar(ir_source, ctx=subctx)
 
             stmt.view_path_id_map[ir_set.path_id] = ir_source.path_id
@@ -794,11 +794,12 @@ def process_set_as_path(
             else:
                 target_typeref = ptrref.out_target
 
-            poly_rvar = relctx.new_root_rvar(
-                ir_set,
-                typeref=target_typeref,
+            poly_rvar = relctx.range_for_typeref(
+                target_typeref,
+                path_id=ir_set.path_id,
                 ctx=ctx,
             )
+
             prefix_path_id = ir_set.path_id.src_path()
             assert prefix_path_id is not None, 'expected a path'
             pathctx.put_rvar_path_bond(poly_rvar, prefix_path_id)
@@ -958,9 +959,7 @@ def process_set_as_path(
 
         # Target set range.
         if irtyputils.is_object(ir_set.typeref):
-            typeref = ctx.join_target_type_filter.get(ir_set, ir_set.typeref)
-            target_rvar = relctx.new_root_rvar(
-                ir_set, typeref=typeref, ctx=ctx)
+            target_rvar = relctx.new_root_rvar(ir_set, ctx=ctx)
 
             main_rvar = SetRVar(
                 target_rvar,

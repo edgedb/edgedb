@@ -21,8 +21,9 @@
 
 
 from __future__ import annotations
-
 from typing import *
+
+import uuid
 
 from edb import errors
 
@@ -321,58 +322,65 @@ def new_empty_rvar(
     return rvar
 
 
-def new_root_rvar(
-        ir_set: irast.Set, *,
-        typeref: Optional[irast.TypeRef]=None,
-        as_intersection_el: bool=False,
-        ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
+def new_primitive_rvar(
+    ir_set: irast.Set,
+    *,
+    path_id: irast.PathId,
+    ctx: context.CompilerContextLevel,
+) -> pgast.PathRangeVar:
     if not ir_set.path_id.is_objtype_path():
         raise ValueError('cannot create root rvar for non-object path')
-    if typeref is None:
-        typeref = ir_set.typeref
 
-    if typeref.intersection:
-        wrapper = pgast.SelectStmt()
-        component_rvars = []
-        for component in typeref.intersection:
-            component_rvar = new_root_rvar(
-                ir_set,
-                typeref=component,
-                as_intersection_el=True,
-                ctx=ctx,
-            )
-            component_rvars.append(component_rvar)
-            include_rvar(wrapper, component_rvar, ir_set.path_id, ctx=ctx)
-
-        int_rvar = pgast.IntersectionRangeVar(component_rvars=component_rvars)
-        for aspect in ('source', 'value'):
-            pathctx.put_path_rvar(
-                wrapper, ir_set.path_id, int_rvar, aspect=aspect, env=ctx.env
-            )
-
-        result_rvar = rvar_for_rel(wrapper, ctx=ctx)
-        pathctx.put_rvar_path_bond(result_rvar, ir_set.path_id)
-
-        return result_rvar
-
+    typeref = ir_set.typeref
     dml_source = irutils.get_nearest_dml_stmt(ir_set)
     set_rvar = range_for_typeref(
-        typeref, ir_set.path_id, dml_source=dml_source, ctx=ctx)
-    pathctx.put_rvar_path_bond(set_rvar, ir_set.path_id)
+        typeref, path_id, dml_source=dml_source, ctx=ctx)
+    pathctx.put_rvar_path_bond(set_rvar, path_id)
 
-    if ir_set.rptr and ir_set.rptr.is_inbound:
-        ptrref = ir_set.rptr.ptrref
+    if ir_set.rptr is not None:
+        ptr_ref_map: Dict[uuid.UUID, irast.BasePointerRef] = {}
+        p: irast.BasePointerRef
+
+        rptrref = ir_set.rptr.ptrref
+        if isinstance(rptrref, irast.TypeIntersectionPointerRef):
+            if rptrref.rptr_specialization:
+                for p in rptrref.rptr_specialization:
+                    ptr_ref_map[p.dir_target.id] = p
+
+            src_set = ir_set.rptr.source
+            if src_set.rptr is not None:
+                src_rptrref = src_set.rptr.ptrref
+                if src_rptrref.union_components:
+                    for p in src_rptrref.union_components:
+                        ptr_ref_map[p.dir_target.id] = p
+                else:
+                    ptr_ref_map[src_rptrref.dir_target.id] = src_rptrref
+                rptrref = src_rptrref
+            else:
+                ptr_ref_map[rptrref.dir_target.id] = rptrref
+        else:
+            if rptrref.union_components:
+                for p in rptrref.union_components:
+                    ptr_ref_map[p.dir_target.id] = p
+            else:
+                ptr_ref_map[rptrref.dir_target.id] = rptrref
+
+        if (
+            set_rvar.typeref is not None
+            and (narrow_rptrref := ptr_ref_map.get(set_rvar.typeref.id))
+        ):
+            rptrref = narrow_rptrref
+
         ptr_info = pg_types.get_ptrref_storage_info(
-            ptrref, resolve_type=False, link_bias=False)
+            rptrref, resolve_type=False, link_bias=False)
 
-        if (ptr_info.table_type == 'ObjectType'
-                and (not as_intersection_el or typeref == ptrref.dir_target)):
+        if ptr_info.table_type == 'ObjectType' and rptrref.is_inbound:
             # Inline link
-            prefix_path_id = ir_set.path_id.src_path()
+            prefix_path_id = path_id.src_path()
             assert prefix_path_id is not None, 'expected a path'
             rref = pgast.ColumnRef(
                 name=[ptr_info.column_name],
-                nullable=not ptrref.required)
+                nullable=not rptrref.required)
             pathctx.put_rvar_path_bond(set_rvar, prefix_path_id)
             pathctx.put_rvar_path_output(
                 set_rvar, prefix_path_id,
@@ -380,18 +388,75 @@ def new_root_rvar(
 
             if astutils.is_set_op_query(set_rvar.query):
                 assert isinstance(set_rvar.query, pgast.SelectStmt)
+
+                def _pull_col(comp_qry: pgast.Query) -> None:
+                    rvar = pathctx.get_path_rvar(
+                        comp_qry, path_id, aspect='source', env=ctx.env)
+                    typeref = rvar.typeref
+                    assert typeref is not None
+                    comp_ptrref = ptr_ref_map[typeref.id]
+                    comp_pi = pg_types.get_ptrref_storage_info(
+                        comp_ptrref, resolve_type=False, link_bias=False)
+
+                    comp_qry.target_list.append(
+                        pgast.ResTarget(
+                            val=pgast.ColumnRef(name=[comp_pi.column_name]),
+                            name=ptr_info.column_name,
+                        )
+                    )
+
                 astutils.for_each_query_in_set(
                     set_rvar.query,
-                    lambda qry:
-                        qry.target_list.append(
+                    _pull_col,
+                )
+            elif isinstance(set_rvar, pgast.RangeSubselect):
+                rvar_path_var = pathctx.maybe_get_path_rvar(
+                    set_rvar.query,
+                    path_id=path_id,
+                    aspect='identity',
+                    env=ctx.env,
+                )
+
+                if isinstance(rvar_path_var, pgast.IntersectionRangeVar):
+                    for comp_rvar in rvar_path_var.component_rvars:
+                        if comp_rvar.typeref is None:
+                            continue
+                        comp_ptrref = ptr_ref_map.get(comp_rvar.typeref.id)
+                        if comp_ptrref is None:
+                            continue
+                        comp_pi = pg_types.get_ptrref_storage_info(
+                            comp_ptrref, resolve_type=False)
+
+                        set_rvar.query.target_list.append(
                             pgast.ResTarget(
-                                val=rref,
+                                val=pgast.ColumnRef(
+                                    name=[
+                                        comp_rvar.alias.aliasname,
+                                        comp_pi.column_name,
+                                    ]
+                                ),
                                 name=ptr_info.column_name,
                             )
                         )
-                )
 
     return set_rvar
+
+
+def new_root_rvar(
+    ir_set: irast.Set,
+    *,
+    path_id: Optional[irast.PathId] = None,
+    ctx: context.CompilerContextLevel,
+) -> pgast.PathRangeVar:
+
+    if path_id is None:
+        path_id = ir_set.path_id
+
+    narrowing = ctx.intersection_narrowing.get(ir_set)
+    if narrowing is not None:
+        return new_primitive_rvar(narrowing, path_id=path_id, ctx=ctx)
+    else:
+        return new_primitive_rvar(ir_set, path_id=path_id, ctx=ctx)
 
 
 def new_pointer_rvar(
@@ -509,8 +574,7 @@ def semi_join(
     rptr = ir_set.rptr
 
     # Target set range.
-    typeref = ctx.join_target_type_filter.get(ir_set, ir_set.typeref)
-    set_rvar = new_root_rvar(ir_set, typeref=typeref, ctx=ctx)
+    set_rvar = new_root_rvar(ir_set, ctx=ctx)
 
     ptrref = rptr.ptrref
     ptr_info = pg_types.get_ptrref_storage_info(
@@ -858,6 +922,30 @@ def range_for_typeref(
             set_ops.append(('union', qry))
 
         rvar = range_from_queryset(set_ops, typeref.name_hint, ctx=ctx)
+
+    elif typeref.intersection:
+        wrapper = pgast.SelectStmt()
+        component_rvars = []
+        for component in typeref.intersection:
+            component_rvar = range_for_typeref(
+                component,
+                path_id=path_id,
+                for_mutation=for_mutation,
+                dml_source=dml_source,
+                ctx=ctx,
+            )
+            pathctx.put_rvar_path_bond(component_rvar, path_id)
+            component_rvars.append(component_rvar)
+            include_rvar(wrapper, component_rvar, path_id, ctx=ctx)
+
+        int_rvar = pgast.IntersectionRangeVar(component_rvars=component_rvars)
+        for aspect in ('source', 'value'):
+            pathctx.put_path_rvar(
+                wrapper, path_id, int_rvar, aspect=aspect, env=ctx.env
+            )
+
+        pathctx.put_path_bond(wrapper, path_id)
+        rvar = rvar_for_rel(wrapper, ctx=ctx)
 
     else:
         rvar = range_for_material_objtype(

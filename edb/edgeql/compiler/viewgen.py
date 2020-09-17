@@ -1197,7 +1197,6 @@ def _compile_view_shapes_in_set(
                 ptr,
                 unnest_fence=True,
                 same_computable_scope=True,
-                hoist_iterators=True,
                 ctx=ctx,
             )
 

@@ -126,9 +126,9 @@ class CompilerContextLevel(compiler.ContextLevel):
     #: optionality scaffolding.
     force_optional: Set[irast.PathId]
 
-    #: ir.TypeRef used to narrow the joined relation representing
-    #: the mapping key.
-    join_target_type_filter: Dict[irast.Set, irast.TypeRef]
+    #: Specifies that references to a specific Set must be narrowed
+    #: by only selecting instances of type specified by the mapping value.
+    intersection_narrowing: Dict[irast.Set, irast.Set]
 
     #: Which SQL query holds the SQL scope for the given PathId
     path_scope: ChainMap[irast.PathId, pgast.SelectStmt]
@@ -198,7 +198,7 @@ class CompilerContextLevel(compiler.ContextLevel):
 
             self.disable_semi_join = set()
             self.force_optional = set()
-            self.join_target_type_filter = {}
+            self.intersection_narrowing = {}
 
             self.path_scope = collections.ChainMap()
             self.scope_tree = scope_tree
@@ -227,7 +227,7 @@ class CompilerContextLevel(compiler.ContextLevel):
 
             self.disable_semi_join = prevlevel.disable_semi_join.copy()
             self.force_optional = prevlevel.force_optional.copy()
-            self.join_target_type_filter = prevlevel.join_target_type_filter
+            self.intersection_narrowing = prevlevel.intersection_narrowing
 
             self.path_scope = prevlevel.path_scope
             self.scope_tree = prevlevel.scope_tree

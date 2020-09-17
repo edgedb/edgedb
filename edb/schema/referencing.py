@@ -967,6 +967,9 @@ class CreateReferencedInheritingObject(
 
                     self.set_attribute_value('bases', bases)
 
+                if referrer.get_is_derived(schema):
+                    self.set_attribute_value('is_derived', True)
+
         schema = super()._create_begin(schema, context)
 
         if referrer_ctx is not None and not context.canonical:

@@ -35,8 +35,6 @@ from __future__ import annotations
 import collections
 from typing import *
 
-from edb import errors
-
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
@@ -116,11 +114,9 @@ def init_dml_stmt(
                     component = component.material_type
 
                 typerefs.append(component)
-                if component.descendants:
-                    typerefs.extend(component.descendants)
+                typerefs.extend(irtyputils.get_typeref_descendants(component))
 
-        if top_typeref.descendants:
-            typerefs.extend(top_typeref.descendants)
+        typerefs.extend(irtyputils.get_typeref_descendants(top_typeref))
 
     dml_map = {}
 
@@ -778,9 +774,11 @@ def process_update_body(
 
         for shape_el, shape_op in ir_stmt.subject.shape:
             ptrref = shape_el.rptr.ptrref
+            assert isinstance(ptrref, irast.PointerRef)
+            actual_ptrref = irtyputils.find_actual_ptrref(typeref, ptrref)
             updvalue = shape_el.expr
             ptr_info = pg_types.get_ptrref_storage_info(
-                ptrref, resolve_type=True, link_bias=False)
+                actual_ptrref, resolve_type=True, link_bias=False)
 
             if ptr_info.table_type == 'ObjectType' and updvalue is not None:
                 with subctx.newscope() as scopectx:
@@ -838,7 +836,7 @@ def process_update_body(
             props_only = is_props_only_update(shape_el, ctx=subctx)
 
             ptr_info = pg_types.get_ptrref_storage_info(
-                ptrref, resolve_type=False, link_bias=True)
+                actual_ptrref, resolve_type=False, link_bias=True)
 
             if ptr_info and ptr_info.table_type == 'link':
                 external_updates.append((shape_el, shape_op, props_only))
@@ -937,20 +935,7 @@ def process_link_update(
     # The links in the dml class shape have been derived,
     # but we must use the correct specialized link class for the
     # base material type.
-    if ptrref.material_ptr is not None:
-        mptrref = ptrref.material_ptr
-    else:
-        mptrref = ptrref
-
-    if mptrref.out_source.id != source_typeref.id:
-        for descendant in mptrref.descendants:
-            if descendant.out_source.id == source_typeref.id:
-                mptrref = descendant
-                break
-        else:
-            raise errors.InternalServerError(
-                'missing PointerRef descriptor for source typeref')
-
+    mptrref = irtyputils.find_actual_ptrref(source_typeref, ptrref)
     assert isinstance(mptrref, irast.PointerRef)
 
     target_rvar = relctx.range_for_ptrref(
@@ -958,9 +943,6 @@ def process_link_update(
     assert isinstance(target_rvar, pgast.RelRangeVar)
     assert isinstance(target_rvar.relation, pgast.Relation)
     target_alias = target_rvar.alias.aliasname
-
-    target_tab_name = (target_rvar.relation.schemaname,
-                       target_rvar.relation.name)
 
     dml_cte_rvar = pgast.RelRangeVar(
         relation=dml_cte,
@@ -983,11 +965,10 @@ def process_link_update(
     data_cte, specified_cols = process_link_values(
         ir_stmt=ir_stmt,
         ir_expr=ir_set,
-        target_tab=target_tab_name,
         col_data=col_data,
         dml_rvar=dml_cte_rvar,
         sources=[],
-        props_only=props_only,
+        source_typeref=source_typeref,
         target_is_scalar=target_is_scalar,
         dml_cte=dml_cte,
         iterator=iterator,
@@ -1285,11 +1266,10 @@ def process_link_values(
     *,
     ir_stmt: irast.MutatingStmt,
     ir_expr: irast.Set,
-    target_tab: Tuple[str, ...],
     col_data: Mapping[str, pgast.BaseExpr],
     dml_rvar: pgast.PathRangeVar,
     sources: Iterable[pgast.BaseRangeVar],
-    props_only: bool,
+    source_typeref: irast.TypeRef,
     target_is_scalar: bool,
     dml_cte: pgast.CommonTableExpr,
     iterator: Optional[pgast.IteratorCTE],
@@ -1299,16 +1279,12 @@ def process_link_values(
 
     :param ir_expr:
         IR of the INSERT/UPDATE body element.
-    :param target_tab:
-        The link table being updated.
     :param col_data:
         Expressions used to populate well-known columns of the link
         table such as `source` and `__type__`.
     :param sources:
         A list of relations which must be joined into the data query
         to resolve expressions in *col_data*.
-    :param props_only:
-        Whether this link update only touches link properties.
     :param target_is_scalar:
         Whether the link target is an ScalarType.
     :param iterator:
@@ -1407,12 +1383,13 @@ def process_link_values(
         for element in shape_tuple.elements:
             if not element.path_id.is_linkprop_path():
                 continue
-            rptr_name = element.path_id.rptr_name()
-            assert rptr_name is not None
-            colname = rptr_name.name
             val = pathctx.get_rvar_path_value_var(
                 input_rvar, element.path_id, env=ctx.env)
-            source_data.setdefault(colname, val)
+            rptr = element.path_id.rptr()
+            assert isinstance(rptr, irast.PointerRef)
+            actual_rptr = irtyputils.find_actual_ptrref(source_typeref, rptr)
+            ptr_info = pg_types.get_ptrref_storage_info(actual_rptr)
+            source_data.setdefault(ptr_info.column_name, val)
     else:
         if target_is_scalar:
             target_ref = pathctx.get_rvar_path_value_var(
