@@ -1265,6 +1265,12 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
+                SELECT test::optfunc('foo', <str>{}) ?? 'N/A';
+            ''',
+            ['N/A'],
+        )
+        await self.assert_query_result(
+            r'''
                 SELECT test::optfunc('foo', 'b') ?? 'N/A';
             ''',
             ['b'],
