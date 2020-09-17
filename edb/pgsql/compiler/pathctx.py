@@ -772,6 +772,19 @@ def _get_rel_path_output(
     return result
 
 
+def find_path_output(
+        rel: pgast.BaseRelation, path_id: irast.PathId, ref: pgast.BaseExpr, *,
+        env: context.Environment) -> Optional[pgast.OutputVar]:
+    if isinstance(ref, pgast.TupleVarBase):
+        return None
+
+    for key, other_ref in rel.path_namespace.items():
+        if _same_expr(other_ref, ref) and key in rel.path_outputs:
+            return rel.path_outputs.get(key)
+    else:
+        return None
+
+
 def get_path_output(
         rel: pgast.BaseRelation, path_id: irast.PathId, *,
         aspect: str, allow_nullable: bool=True,
@@ -824,6 +837,14 @@ def _get_path_output(
         ref = pgast.ColumnRef(name=[alias])
     else:
         ref = get_path_var(rel, path_id, aspect=aspect, env=env)
+
+    # As an optimization, look to see if the same expression is being
+    # output on a different asepct. This can save us needing to do the
+    # work twice in the query.
+    other_output = find_path_output(rel, path_id, ref, env=env)
+    if other_output is not None:
+        _put_path_output_var(rel, path_id, aspect, other_output, env=env)
+        return other_output
 
     if isinstance(ref, pgast.TupleVarBase):
         elements = []
