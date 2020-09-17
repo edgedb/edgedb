@@ -206,6 +206,33 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             [11],
         )
 
+        await self.assert_query_result(
+            r'''SELECT test::call5(<int32>{});''',
+            [],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT test::call5(<int32>{}, b := <int32>{});''',
+            [],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT test::call5(<int32>{}, b := 50);''',
+            [],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT test::call5(1, b := <int32>{});''',
+            [-99],
+        )
+
+        await self.assert_query_result(
+            r'''
+            WITH X := (SELECT _:={1,2,3} FILTER _ < 0)
+            SELECT test::call5(1, b := X);''',
+            [-99],
+        )
+
     async def test_edgeql_calls_06(self):
         await self.con.execute('''
             CREATE FUNCTION test::call6(
