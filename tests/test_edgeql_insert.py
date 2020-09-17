@@ -1156,7 +1156,7 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             """SELECT test::Person {
-                name, notes: {name} ORDER BY .name DESC} ORDER BY .name DESC""",
+               name, notes: {name} ORDER BY .name DESC} ORDER BY .name DESC""",
             [
                 {"name": "Phil Emarg",
                  "notes": [{"name": "Phil Emarg?"},
@@ -1182,7 +1182,7 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             """SELECT test::Person {
-                name, notes: {name} ORDER BY .name DESC} ORDER BY .name DESC""",
+               name, notes: {name} ORDER BY .name DESC} ORDER BY .name DESC""",
             [
                 {"name": "Phil Emarg",
                  "notes": [{"name": "Phil Emarg?"},
