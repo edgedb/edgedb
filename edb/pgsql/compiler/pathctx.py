@@ -171,9 +171,13 @@ def get_path_var(
     var: Optional[pgast.BaseExpr]
 
     if astutils.is_set_op_query(rel):
+        # We disable the find_path_output optimizaiton when doing
+        # UNIONs to avoid situations where they have different numbers
+        # of columns.
         cb = functools.partial(
             get_path_output_or_null,
             env=env,
+            no_find_output=True,
             path_id=path_id,
             aspect=aspect)
 
@@ -788,6 +792,7 @@ def find_path_output(
 def get_path_output(
         rel: pgast.BaseRelation, path_id: irast.PathId, *,
         aspect: str, allow_nullable: bool=True,
+        no_find_output: bool=False,
         ptr_info: Optional[pg_types.PointerStorageInfo]=None,
         env: context.Environment) -> pgast.OutputVar:
 
@@ -795,6 +800,7 @@ def get_path_output(
         path_id = map_path_id(path_id, rel.view_path_id_map)
 
     return _get_path_output(rel, path_id=path_id, aspect=aspect,
+                            no_find_output=no_find_output,
                             ptr_info=ptr_info, allow_nullable=allow_nullable,
                             env=env)
 
@@ -802,6 +808,7 @@ def get_path_output(
 def _get_path_output(
         rel: pgast.BaseRelation, path_id: irast.PathId, *,
         aspect: str, allow_nullable: bool=True,
+        no_find_output: bool=False,
         ptr_info: Optional[pg_types.PointerStorageInfo]=None,
         env: context.Environment) -> pgast.OutputVar:
 
@@ -842,7 +849,7 @@ def _get_path_output(
     # output on a different asepct. This can save us needing to do the
     # work twice in the query.
     other_output = find_path_output(rel, path_id, ref, env=env)
-    if other_output is not None:
+    if other_output is not None and not no_find_output:
         _put_path_output_var(rel, path_id, aspect, other_output, env=env)
         return other_output
 
@@ -925,11 +932,13 @@ def _get_path_output(
 def maybe_get_path_output(
         rel: pgast.BaseRelation, path_id: irast.PathId, *,
         aspect: str, allow_nullable: bool=True,
+        no_find_output: bool=False,
         ptr_info: Optional[pg_types.PointerStorageInfo]=None,
         env: context.Environment) -> Optional[pgast.OutputVar]:
     try:
         return get_path_output(rel, path_id=path_id, aspect=aspect,
                                allow_nullable=allow_nullable,
+                               no_find_output=no_find_output,
                                ptr_info=ptr_info, env=env)
     except LookupError:
         return None
@@ -988,18 +997,22 @@ def get_path_serialized_output(
 
 def get_path_output_or_null(
         rel: pgast.Query, path_id: irast.PathId, *,
+        no_find_output: bool=False,
         aspect: str, env: context.Environment) -> \
         Tuple[pgast.OutputVar, bool]:
 
     path_id = map_path_id(path_id, rel.view_path_id_map)
 
-    ref = maybe_get_path_output(rel, path_id, aspect=aspect, env=env)
+    ref = maybe_get_path_output(rel, path_id, no_find_output=no_find_output,
+                                aspect=aspect, env=env)
     if ref is not None:
         return ref, False
 
     alt_aspect = get_less_specific_aspect(path_id, aspect)
     if alt_aspect is not None:
-        ref = maybe_get_path_output(rel, path_id, aspect=alt_aspect, env=env)
+        ref = maybe_get_path_output(rel, path_id,
+                                    no_find_output=no_find_output,
+                                    aspect=alt_aspect, env=env)
         if ref is not None:
             _put_path_output_var(rel, path_id, aspect, ref, env=env)
             return ref, False
