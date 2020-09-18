@@ -118,6 +118,7 @@ BASIS = {
     'max': [SET_OF],
     'all': [SET_OF],
     'any': [SET_OF],
+    'array_agg': [SET_OF],
     'enumerate': [SET_OF],
     'IN': [SINGLETON, SET_OF],
     'NOT IN': [SINGLETON, SET_OF],
@@ -172,10 +173,7 @@ def lift(f: Callable[..., Union[Data, List[Data]]]) -> LiftedFunc:
         out = []
         for args1 in itertools.product(*args):
             val = f(*args1)
-            if isinstance(val, list):
-                out.extend(val)
-            else:
-                out.append(val)
+            out.append(val)
         return out
     return inner
 
@@ -220,6 +218,14 @@ def union(x: List[Data], y: List[Data]) -> List[Data]:
 
 def enumerate_(x: List[Data]) -> List[Data]:
     return list(enumerate(x))
+
+
+def array_agg(x: List[Data]) -> List[Data]:
+    return [x]
+
+
+def array_unpack(x: List[Data]) -> List[Data]:
+    return [y for array in x for y in array]
 
 
 def if_(x: List[Data], bs: List[Data], y: List[Data]) -> List[Data]:
@@ -279,6 +285,8 @@ _BASIS_FUNC_IMPLS: Any = {
     'all': lift_set_of(all),
     'any': lift_set_of(any),
     'len': lift(len),
+    'array_agg': array_agg,
+    'array_unpack': array_unpack,
     'random': lift(random.random),
     'contains': lift(operator.contains),
     'round': lift(round),
@@ -469,6 +477,21 @@ def visit_IfElse(query: qlast.IfElse, ctx: EvalContext) -> List[Data]:
         'IF', [query.if_expr, query.condition, query.else_expr], 'binop', ctx)
 
 
+@_eval.register(qlast.Indirection)
+def eval_Indirection(
+        node: qlast.Indirection, ctx: EvalContext) -> List[Data]:
+    base = eval(node.arg, ctx)
+    for index in node.indirection:
+        index_out = (
+            lift(slice)(eval(index.start, ctx) if index.start else [None],
+                        eval(index.stop, ctx) if index.stop else [None])
+            if isinstance(index, qlast.Slice)
+            else eval(index.index, ctx)
+        )
+        base = lift(operator.getitem)(base, index_out)
+    return base
+
+
 @_eval.register(qlast.StringConstant)
 def eval_StringConstant(
         node: qlast.StringConstant, ctx: EvalContext) -> List[Data]:
@@ -506,11 +529,14 @@ def eval_Set(
 def eval_Tuple(
         node: qlast.Tuple, ctx: EvalContext) -> List[Data]:
     args = [eval(arg, ctx) for arg in node.elements]
+    return lift(lambda *va: va)(*args)
 
-    def get(*va):
-        return va
 
-    return lift(get)(*args)
+@_eval.register(qlast.Array)
+def eval_Array(
+        node: qlast.Array, ctx: EvalContext) -> List[Data]:
+    args = [eval(arg, ctx) for arg in node.elements]
+    return lift(lambda *va: list(va))(*args)
 
 
 @_eval.register(qlast.NamedTuple)
@@ -518,11 +544,7 @@ def eval_NamedTuple(
         node: qlast.NamedTuple, ctx: EvalContext) -> List[Data]:
     names = [elem.name.name for elem in node.elements]
     args = [eval(arg.val, ctx) for arg in node.elements]
-
-    def get(*va):
-        return dict(zip(names, va))
-
-    return lift(get)(*args)
+    return lift(lambda *va: dict(zip(names, va)))(*args)
 
 
 @_eval.register(qlast.TypeCast)
