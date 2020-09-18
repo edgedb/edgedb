@@ -27,6 +27,7 @@ import textwrap
 
 from collections import defaultdict
 from edb import errors
+from edb.common import context as pctx
 
 from edb.ir import ast as irast
 from edb.ir import typeutils
@@ -825,7 +826,8 @@ def compile_Shape(
     if not isinstance(expr_stype, s_objtypes.ObjectType):
         raise errors.QueryError(
             f'shapes cannot be applied to '
-            f'{expr_stype.get_verbosename(ctx.env.schema)}'
+            f'{expr_stype.get_verbosename(ctx.env.schema)}',
+            context=shape.context,
         )
     view_type = viewgen.process_view(
         stype=expr_stype, path_id=expr.path_id,
@@ -1038,7 +1040,8 @@ def compile_result_clause(
             result_alias=result_alias,
             view_scls=view_scls,
             compile_views=ctx.stmt is ctx.toplevel_stmt,
-            ctx=sctx)
+            ctx=sctx,
+            parser_context=result.context)
 
         ctx.partial_path_prefix = ir_result
 
@@ -1056,6 +1059,7 @@ def compile_query_subject(
         is_insert: bool=False,
         is_update: bool=False,
         is_delete: bool=False,
+        parser_context: Optional[pctx.ParserContext]=None,
         ctx: context.ContextLevel) -> irast.Set:
 
     expr_stype = setgen.get_set_type(expr, ctx=ctx)
@@ -1110,7 +1114,8 @@ def compile_query_subject(
         if not isinstance(expr_stype, s_objtypes.ObjectType):
             raise errors.QueryError(
                 f'shapes cannot be applied to '
-                f'{expr_stype.get_verbosename(ctx.env.schema)}'
+                f'{expr_stype.get_verbosename(ctx.env.schema)}',
+                context=parser_context,
             )
 
         view_scls = viewgen.process_view(
