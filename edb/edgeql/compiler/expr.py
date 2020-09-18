@@ -144,17 +144,16 @@ def compile_Set(
             # a set literal is just sugar for a UNION
             op = 'UNION'
 
+            # Turn it into a tree of UNIONs so we only blow up the nesting
+            # depth logarithmically.
+            # TODO: Introduce an N-ary operation that handles the whole thing?
+            mid = len(elements) // 2
+            ls, rs = elements[:mid], elements[mid:]
             bigunion = qlast.BinOp(
-                left=elements[0],
-                right=elements[1],
+                left=qlast.Set(elements=ls) if len(ls) > 1 else ls[0],
+                right=qlast.Set(elements=rs) if len(rs) > 1 else rs[0],
                 op=op
             )
-            for el in elements[2:]:
-                bigunion = qlast.BinOp(
-                    left=bigunion,
-                    right=el,
-                    op=op
-                )
             return dispatch.compile(bigunion, ctx=ctx)
     else:
         return setgen.new_empty_set(
