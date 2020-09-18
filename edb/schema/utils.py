@@ -50,7 +50,7 @@ def ast_objref_to_object_shell(
     nqname = node.name
     module = node.module
     if module is not None:
-        lname = sn.Name(module=module, name=nqname)
+        lname: str = sn.Name(module=module, name=nqname)
     else:
         lname = nqname
     obj = schema.get(lname, module_aliases=modaliases, default=None)
@@ -91,7 +91,7 @@ def ast_objref_to_type_shell(
     nqname = node.name
     module = node.module
     if module is not None:
-        lname = sn.Name(module=module, name=nqname)
+        lname: str = sn.Name(module=module, name=nqname)
     else:
         lname = nqname
     obj = schema.get(lname, module_aliases=modaliases, default=None)

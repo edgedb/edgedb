@@ -2361,6 +2361,7 @@ class AlterObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
                     ]
 
                     pos_node = astcmd.position
+                    pos: Optional[Union[str, Tuple[str, so.ObjectShell]]]
                     if pos_node is not None:
                         if pos_node.ref is not None:
                             ref = so.ObjectShell(
@@ -2725,7 +2726,7 @@ class AlterObjectProperty(Command):
             if isinstance(astnode.value, qlast.Tuple):
                 new_value = tuple(
                     qlcompiler.evaluate_ast_to_python_val(
-                        el.val, schema=schema)
+                        el, schema=schema)
                     for el in astnode.value.elements
                 )
 

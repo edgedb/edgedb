@@ -633,8 +633,9 @@ def trace_ShapeElement(node: qlast.ShapeElement, *,
     for element in node.elements:
         trace(element, ctx=ctx)
     trace(node.where, ctx=ctx)
-    for sortexpr in node.orderby:
-        trace(sortexpr, ctx=ctx)
+    if node.orderby:
+        for sortexpr in node.orderby:
+            trace(sortexpr, ctx=ctx)
     trace(node.offset, ctx=ctx)
     trace(node.limit, ctx=ctx)
     trace(node.compexpr, ctx=ctx)
