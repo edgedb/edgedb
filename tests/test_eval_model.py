@@ -225,3 +225,27 @@ class TestModelSmokeTests(unittest.TestCase):
             ''',
             [(1, 2), (1, 3), (2, 2), (2, 3)]
         )
+
+    def test_edgeql_array_01(self):
+        self.assert_test_query(
+            r'''
+            WITH X := [0,1,2,3,4,5,6,7,8,9] SELECT X[{1,2}:{5,6}];
+            ''',
+            [[1, 2, 3, 4], [1, 2, 3, 4, 5], [2, 3, 4], [2, 3, 4, 5]],
+        )
+
+    def test_edgeql_array_02(self):
+        self.assert_test_query(
+            r'''
+            SELECT array_unpack({[1,2,3],[3,4,5]});
+            ''',
+            [1, 2, 3, 3, 4, 5]
+        )
+
+    def test_edgeql_array_03(self):
+        self.assert_test_query(
+            r'''
+            SELECT array_agg(Person.name ORDER BY Person.name);
+            ''',
+            [['Emmanuel Villip', 'Madeline Hatch', 'Phil Emarg']]
+        )
