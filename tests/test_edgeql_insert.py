@@ -1063,7 +1063,8 @@ class TestInsert(tb.QueryTestCase):
                     (a,(INSERT Note {name:=a}))
                 )
             ''',
-            [["foo", {}], ["bar", {}]],
+            [["bar", {}], ["foo", {}]],
+            sort=True,
         )
 
         await self.assert_query_result(
@@ -1083,7 +1084,8 @@ class TestInsert(tb.QueryTestCase):
                     SELECT (INSERT Note {name:=a}) {name}
                 )
             ''',
-            [{"name": "foo"}, {"name": "bar"}],
+            [{"name": "bar"}, {"name": "foo"}],
+            sort=lambda x: x['name']
         )
 
         await self.assert_query_result(
@@ -1112,6 +1114,7 @@ class TestInsert(tb.QueryTestCase):
                 ["b", "c", "bc"],
                 ["b", "d", "bd"],
             ],
+            sort=True
         )
 
         await self.assert_query_result(
@@ -1133,7 +1136,7 @@ class TestInsert(tb.QueryTestCase):
         """)
 
         await self.assert_query_result(
-            "SELECT test::Person { name, notes: {name} }",
+            "SELECT test::Person { name, notes: {name} } ORDER BY .name DESC",
             [{"name": "Phil Emarg!",
               "notes": [{"name": "Phil Emarg"}]},
              {"name": "Madeline Hatch!",
@@ -1152,7 +1155,8 @@ class TestInsert(tb.QueryTestCase):
         """)
 
         await self.assert_query_result(
-            "SELECT test::Person { name, notes: {name} }",
+            """SELECT test::Person {
+               name, notes: {name} ORDER BY .name DESC} ORDER BY .name DESC""",
             [
                 {"name": "Phil Emarg",
                  "notes": [{"name": "Phil Emarg?"},
@@ -1177,7 +1181,8 @@ class TestInsert(tb.QueryTestCase):
         """)
 
         await self.assert_query_result(
-            "SELECT test::Person { name, notes: {name} }",
+            """SELECT test::Person {
+               name, notes: {name} ORDER BY .name DESC} ORDER BY .name DESC""",
             [
                 {"name": "Phil Emarg",
                  "notes": [{"name": "Phil Emarg?"},
@@ -2179,9 +2184,9 @@ class TestInsert(tb.QueryTestCase):
         )
 
         await self.assert_query_result(
-            "SELECT test::Person {name, tag}",
-            [{"name": "Phil Emarg", "tag": None},
-             {"name": "Emmanuel Villip", "tag": None}]
+            "SELECT test::Person {name, tag} ORDER BY .name",
+            [{"name": "Emmanuel Villip", "tag": None},
+             {"name": "Phil Emarg", "tag": None}],
         )
 
         await self.assert_query_result(
@@ -2191,9 +2196,10 @@ class TestInsert(tb.QueryTestCase):
 
         # Only the correct record should be updated
         await self.assert_query_result(
-            "SELECT test::Person {name, tag}",
-            [{"name": "Phil Emarg", "tag": None},
-             {"name": "Emmanuel Villip", "tag": "redo"}]
+            "SELECT test::Person {name, tag} ORDER BY .name",
+            [{"name": "Emmanuel Villip", "tag": "redo"},
+             {"name": "Phil Emarg", "tag": None}],
+            sort=lambda x: x['name']
         )
 
     async def test_edgeql_insert_unless_conflict_06(self):
@@ -2209,22 +2215,22 @@ class TestInsert(tb.QueryTestCase):
                     INSERT Person {name := noob} UNLESS CONFLICT
                     ON .name ELSE (UPDATE Person SET { tag := "redo" })
                 )
-            ) {name, tag};
+            ) {name, tag} ORDER BY .name;
         '''
 
         await self.assert_query_result(
             query,
             [{"name": "Emmanuel Villip", "tag": None},
-             {"name": "Madeline Hatch", "tag": "redo"}],
+             {"name": "Madeline Hatch", "tag": "redo"}]
         )
 
         await self.assert_query_result(
-            "SELECT test::Person {name, tag}",
+            "SELECT test::Person {name, tag} ORDER BY .name",
             [
-                {"name": "Phil Emarg", "tag": None},
                 {"name": "Emmanuel Villip", "tag": None},
                 {"name": "Madeline Hatch", "tag": "redo"},
-            ]
+                {"name": "Phil Emarg", "tag": None},
+            ],
         )
 
         await self.assert_query_result(
@@ -2234,12 +2240,12 @@ class TestInsert(tb.QueryTestCase):
         )
 
         await self.assert_query_result(
-            "SELECT test::Person {name, tag}",
+            "SELECT test::Person {name, tag} ORDER BY .name",
             [
-                {"name": "Phil Emarg", "tag": None},
                 {"name": "Emmanuel Villip", "tag": "redo"},
                 {"name": "Madeline Hatch", "tag": "redo"},
-            ]
+                {"name": "Phil Emarg", "tag": None},
+            ],
         )
 
     async def test_edgeql_insert_unless_conflict_07(self):
@@ -2273,9 +2279,9 @@ class TestInsert(tb.QueryTestCase):
 
         # Only the correct record should be updated
         await self.assert_query_result(
-            "SELECT test::Person {name, tag}",
+            "SELECT test::Person {name, tag} ORDER BY .name",
             [{"name": "Nemo", "tag": "redo"},
-             {"name": "Phil Emarg", "tag": None}]
+             {"name": "Phil Emarg", "tag": None}],
         )
 
     async def test_edgeql_insert_unless_conflict_08(self):
@@ -2334,9 +2340,9 @@ class TestInsert(tb.QueryTestCase):
         """)
 
         await self.assert_query_result(
-            "SELECT test::Person { name, notes: {name} }",
-            [{"name": "Phil Emarg", "notes": [{"name": "tag"}]},
-             {"name": "Madeline Hatch", "notes": [{"name": "tag"}]}],
+            "SELECT test::Person { name, notes: {name} } ORDER BY .name",
+            [{"name": "Madeline Hatch", "notes": [{"name": "tag"}]},
+             {"name": "Phil Emarg", "notes": [{"name": "tag"}]}]
         )
 
         # Make sure the notes are distinct
@@ -2357,12 +2363,11 @@ class TestInsert(tb.QueryTestCase):
         """)
 
         await self.assert_query_result(
-            "SELECT test::Person { name, notes: {name} }",
-            [{"name": "Phil Emarg",
+            "SELECT test::Person { name, notes: {name} } ORDER BY .name",
+            [{"name": "Madeline Hatch",
               "notes": [{"name": "hello"}, {"name": "world"}]},
-             {"name": "Madeline Hatch",
-              "notes": [{"name": "hello"}, {"name": "world"}]},
-             ]
+             {"name": "Phil Emarg",
+              "notes": [{"name": "hello"}, {"name": "world"}]}],
         )
 
         # Make sure the notes are distinct
@@ -2380,7 +2385,7 @@ class TestInsert(tb.QueryTestCase):
                     notes := (FOR note in {"hello", "world"}
                               UNION (INSERT Note { name := note }))
                 } UNLESS CONFLICT
-            ) { name, notes: {name} };
+            ) { name, notes: {name} ORDER BY .name};
         '''
 
         # Execute twice and then make sure that there weren't any
@@ -2420,7 +2425,7 @@ class TestInsert(tb.QueryTestCase):
         """)
 
         await self.assert_query_result(
-            "SELECT test::Person { name, notes: {name} }",
+            "SELECT test::Person { name, notes: {name} } ORDER BY .name DESC",
             [{"name": "Phil Emarg", "notes": [{"name": "tag"}]},
              {"name": "Madeline Hatch", "notes": [{"name": "tag"}]}],
         )
@@ -2453,11 +2458,11 @@ class TestInsert(tb.QueryTestCase):
         """)
 
         await self.assert_query_result(
-            "SELECT test::Person { name, notes: {name} }",
+            "SELECT test::Person { name, notes: {name} } ORDER BY .name DESC",
             [{"name": "Phil Emarg",
               "notes": [{"name": "hello"}, {"name": "world"}]},
              {"name": "Madeline Hatch",
-              "notes": [{"name": "hello"}, {"name": "world"}]}]
+              "notes": [{"name": "hello"}, {"name": "world"}]}],
         )
 
         # Make sure the notes are distinct
@@ -2631,11 +2636,11 @@ class TestInsert(tb.QueryTestCase):
         await self.con.execute(query)
 
         await self.assert_query_result(
-            "SELECT test::Person { name, notes: {name} }",
+            "SELECT test::Person { name, notes: {name} } ORDER BY .name DESC",
             [{"name": "foo",
               "notes": [{"name": "foo!"}]},
              {"name": "bar",
-              "notes": []}]
+              "notes": []}],
         )
 
         await self.con.execute(r"""INSERT test::Note { name := "bar" };""")
@@ -2643,11 +2648,11 @@ class TestInsert(tb.QueryTestCase):
         await self.con.execute(query)
 
         await self.assert_query_result(
-            "SELECT test::Person { name, notes: {name} }",
-            [{"name": "foo",
-              "notes": [{"name": "foo!"}]},
-             {"name": "bar",
-              "notes": []}]
+            "SELECT test::Person { name, notes: {name} } ORDER BY .name",
+            [{"name": "bar",
+              "notes": []},
+             {"name": "foo",
+              "notes": [{"name": "foo!"}]}],
         )
 
         await self.assert_query_result(
