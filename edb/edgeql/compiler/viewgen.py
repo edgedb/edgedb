@@ -34,6 +34,7 @@ from edb.ir import typeutils as irtyputils
 from edb.schema import links as s_links
 from edb.schema import name as sn
 from edb.schema import objtypes as s_objtypes
+from edb.schema import objects as s_objects
 from edb.schema import pointers as s_pointers
 from edb.schema import types as s_types
 
@@ -157,7 +158,7 @@ def _process_view(
         derived_name=view_name,
         ctx=ctx,
     )
-    assert isinstance(view_scls, s_objtypes.ObjectType)
+    assert isinstance(view_scls, s_objtypes.ObjectType), view_scls
     is_mutation = is_insert or is_update
     is_defining_shape = ctx.expr_exposed or is_mutation
 
@@ -359,7 +360,7 @@ def _normalize_view_ptr_expr(
     # class, which is equivalent to Expr[IS Type].
     plen = len(steps)
     ptrsource: s_sources.Source = view_scls
-    qlexpr = None
+    qlexpr: Optional[qlast.Expr] = None
     target_typexpr = None
     source: qlast.Base
     base_ptrcls_is_alias = False
@@ -412,13 +413,15 @@ def _normalize_view_ptr_expr(
     assert isinstance(lexpr, qlast.Ptr)
     ptrname = lexpr.ptr.name
 
-    compexpr = shape_el.compexpr
+    compexpr: Optional[qlast.Expr] = shape_el.compexpr
     if compexpr is None and is_insert and shape_el.elements:
         # Short shape form in INSERT, e.g
         #     INSERT Foo { bar: Spam { name := 'name' }}
         # is prohibited.
         raise errors.EdgeQLSyntaxError(
             "unexpected ':'", context=steps[-1].context)
+
+    ptrcls: Optional[s_pointers.Pointer]
 
     if compexpr is None:
         ptrcls = setgen.resolve_ptr(ptrsource, ptrname, ctx=ctx)
@@ -460,6 +463,7 @@ def _normalize_view_ptr_expr(
                 ])
 
             qlexpr = astutils.ensure_qlstmt(qlexpr)
+            assert isinstance(qlexpr, qlast.SelectQuery)
             qlexpr.where = shape_el.where
             qlexpr.orderby = shape_el.orderby
 
@@ -479,18 +483,21 @@ def _normalize_view_ptr_expr(
                 )
 
         if target_typexpr is not None:
+            assert isinstance(target_typexpr, qlast.TypeName)
             intersector_type = schemactx.get_schema_type(
                 target_typexpr.maintype, ctx=ctx)
 
             int_result = schemactx.apply_intersection(
-                ptrcls.get_target(ctx.env.schema),
+                ptrcls.get_target(ctx.env.schema),  # type: ignore
                 intersector_type,
                 ctx=ctx,
             )
 
             ptr_target = int_result.stype
         else:
-            ptr_target = ptrcls.get_target(ctx.env.schema)
+            _ptr_target = ptrcls.get_target(ctx.env.schema)
+            assert _ptr_target
+            ptr_target = _ptr_target
 
         if base_ptrcls in ctx.pending_cardinality:
             # We do not know the parent's pointer cardinality yet.
@@ -526,6 +533,13 @@ def _normalize_view_ptr_expr(
 
             ctx.path_scope.attach_path(sub_path_id,
                                        context=shape_el.context)
+
+            if not isinstance(ptr_target, s_objtypes.ObjectType):
+                raise errors.QueryError(
+                    f'shapes cannot be applied to '
+                    f'{ptr_target.get_verbosename(ctx.env.schema)}',
+                    context=shape_el.context,
+                )
 
             if is_update:
                 for subel in shape_el.elements or []:
@@ -765,7 +779,8 @@ def _normalize_view_ptr_expr(
             derived_name_quals=[src_scls.get_name(ctx.env.schema)],
             ctx=ctx)
 
-        existing = ctx.env.schema.get(derived_name, None)
+        existing: Optional[s_objects.Object] = (
+            ctx.env.schema.get(derived_name, None))
         if existing is not None:
             assert isinstance(existing, s_pointers.Pointer)
             existing_target = existing.get_target(ctx.env.schema)
@@ -889,7 +904,7 @@ def _normalize_view_ptr_expr(
                     f'{ptrcls.get_verbosename(ctx.env.schema)}: '
                     f'it is defined as {base_cardinality.as_ptr_qual()!r} '
                     f'in the base {base_src_name}',
-                    context=compexpr.context,
+                    context=compexpr and compexpr.context,
                 )
             # The required flag may be inherited from the base
             specified_required = shape_el.required or base_required
@@ -925,7 +940,7 @@ def _normalize_view_ptr_expr(
         raise errors.QueryError(
             f'cannot update {ptrcls.get_verbosename(ctx.env.schema)}: '
             f'it is declared as read-only',
-            context=compexpr.context,
+            context=compexpr and compexpr.context,
         )
 
     return ptrcls

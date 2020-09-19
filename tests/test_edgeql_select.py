@@ -6023,3 +6023,15 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         """)
 
         assert len(res) == 100
+
+    async def test_edgeql_select_shape_on_scalar(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            "shapes cannot be applied to scalar type 'std::str'",
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                SELECT User {
+                    todo: { name: {bogus} }
+                }
+            """)
