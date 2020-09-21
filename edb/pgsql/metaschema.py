@@ -1874,26 +1874,27 @@ class ConfigObjectAsDDLFunction(dbops.Function):
             if isinstance(ptype, s_objtypes.ObjectType):
                 items.append(
                     f"'  { qlquote.quote_ident(pn) } := (INSERT ' ++ "
-                    f" cfg::{ name }.{ qlquote.quote_ident(pn) }.__type__.name"
+                    f" item.{ qlquote.quote_ident(pn) }.__type__.name"
                     f" ++ '),\\n'"
                 )
             elif mult:
                 items.append(
                     f"cfg::_name_value_array('  ', ',\\n', { ql(pn) },"
-                    f" array_agg(cfg::{ name }.{ qlquote.quote_ident(pn) }))"
+                    f" array_agg(item.{ qlquote.quote_ident(pn) }))"
                 )
             else:
                 items.append(
                     f"cfg::_name_value('  ', ',\\n', { ql(pn) },"
-                    f" cfg::{ name }.{ qlquote.quote_ident(pn) },"
+                    f" item.{ qlquote.quote_ident(pn) },"
                     f" <{ ptype.get_name(schema) }>{{}})"
                 )
 
         script = (
             f"SELECT array_join(array_agg(("
+            f"FOR item in {{ cfg::{ name } }} UNION ("
             f"SELECT 'CONFIGURE SYSTEM INSERT {name} {{\\n'"
             f" ++ {' ++ '.join(items)} ++ '}};\n'"
-            f")), '')"
+            f"))), '')"
         )
         _, text = edbbootstrap.compile_bootstrap_script(
             compiler, schema, script,
