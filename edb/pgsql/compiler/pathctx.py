@@ -1003,16 +1003,19 @@ def get_path_output_or_null(
 
     path_id = map_path_id(path_id, rel.view_path_id_map)
 
-    ref = maybe_get_path_output(rel, path_id, disable_output_fusion=disable_output_fusion,
-                                aspect=aspect, env=env)
+    ref = maybe_get_path_output(
+        rel, path_id,
+        disable_output_fusion=disable_output_fusion,
+        aspect=aspect, env=env)
     if ref is not None:
         return ref, False
 
     alt_aspect = get_less_specific_aspect(path_id, aspect)
     if alt_aspect is not None:
-        ref = maybe_get_path_output(rel, path_id,
-                                    disable_output_fusion=disable_output_fusion,
-                                    aspect=alt_aspect, env=env)
+        ref = maybe_get_path_output(
+            rel, path_id,
+            disable_output_fusion=disable_output_fusion,
+            aspect=alt_aspect, env=env)
         if ref is not None:
             _put_path_output_var(rel, path_id, aspect, ref, env=env)
             return ref, False
