@@ -128,8 +128,18 @@ def compile_ForQuery(
 
         ictx = iterator_ctx or sctx
 
+        contains_dml = qlutils.contains_dml(qlstmt.result)
+        # If the body contains DML, then we need to prohibit
+        # correlation between the iterator and the enclosing
+        # query, since the correlation imposes compilation issues
+        # we aren't willing to tackle.
+        if contains_dml:
+            ictx.path_scope.factoring_allowlist.update(
+                ctx.iterator_path_ids)
         iterator_view = stmtctx.declare_view(
             iterator, qlstmt.iterator_alias,
+            factoring_fence=contains_dml,
+            temporary=False,
             path_id_namespace=ictx.path_id_namespace,
             ctx=ictx)
 
@@ -168,13 +178,12 @@ def compile_ForQuery(
         sctx.iterator_path_ids |= {stmt.iterator_stmt.path_id}
         node = ictx.path_scope.find_descendant(iterator_stmt.path_id)
         if node is not None:
-            # If the body contains DML, then we need to prohibit
-            # correlation between the iterator and the enclosing
-            # query, since the correlation imposes compilation issues
-            # we aren't willing to tackle.
+            # See above about why we need a factoring fence.
+            # We need to do this again when we move the branch so
+            # as to preserve the fencing.
             # Do this by sticking the iterator subtree onto a branch
             # with a factoring fence.
-            if qlutils.contains_dml(qlstmt.result):
+            if contains_dml:
                 node = node.attach_branch()
                 node.factoring_fence = True
                 node = node.attach_branch()

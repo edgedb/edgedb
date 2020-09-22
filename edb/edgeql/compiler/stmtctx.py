@@ -371,6 +371,8 @@ def declare_view(
     expr: qlast.Expr,
     alias: str,
     *,
+    temporary: bool=True,
+    factoring_fence: bool=False,
     fully_detached: bool=False,
     must_be_used: bool=False,
     path_id_namespace: Optional[FrozenSet[str]]=None,
@@ -379,7 +381,8 @@ def declare_view(
 
     pinned_pid_ns = path_id_namespace
 
-    with ctx.newscope(temporary=True, fenced=True) as subctx:
+    with ctx.newscope(temporary=temporary, fenced=True) as subctx:
+        subctx.path_scope.factoring_fence = factoring_fence
         if path_id_namespace is not None:
             subctx.path_id_namespace = path_id_namespace
 
