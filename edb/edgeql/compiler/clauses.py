@@ -40,7 +40,7 @@ from . import stmtctx
 
 def compile_where_clause(
         ir_stmt: irast.FilteredStmt,
-        where: qlast.Base, *,
+        where: Optional[qlast.Base], *,
         ctx: context.ContextLevel) -> None:
 
     if where is None:
@@ -59,7 +59,7 @@ def compile_where_clause(
 
 
 def compile_orderby_clause(
-        sortexprs: Iterable[qlast.SortExpr], *,
+        sortexprs: Optional[Iterable[qlast.SortExpr]], *,
         ctx: context.ContextLevel) -> List[irast.SortExpr]:
 
     result: List[irast.SortExpr] = []
@@ -124,9 +124,11 @@ def compile_orderby_clause(
 
 
 def compile_limit_offset_clause(
-        expr: qlast.Base, *,
+        expr: Optional[qlast.Base], *,
         ctx: context.ContextLevel) -> Optional[irast.Set]:
-    if expr is not None:
+    if expr is None:
+        ir_set = None
+    else:
         with ctx.newscope(fenced=True) as subctx:
             ir_expr = dispatch.compile(expr, ctx=subctx)
             int_t = ctx.env.get_track_schema_type('std::int64')
@@ -134,7 +136,5 @@ def compile_limit_offset_clause(
                 ir_expr, force_reassign=True, typehint=int_t, ctx=subctx)
             ir_set.context = expr.context
             stmtctx.enforce_singleton(ir_set, ctx=subctx)
-    else:
-        ir_set = None
 
     return ir_set

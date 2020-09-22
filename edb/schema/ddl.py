@@ -365,6 +365,7 @@ def apply_sdl(
         if isinstance(decl, qlast.ModuleDeclaration):
             documents[decl.name.name].extend(decl.declarations)
         else:
+            assert decl.name.module is not None
             documents[decl.name.module].append(decl)
 
     ddl_stmts = s_decl.sdl_to_ddl(current_schema, documents)
