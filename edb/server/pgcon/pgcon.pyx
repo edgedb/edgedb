@@ -368,11 +368,12 @@ cdef class PGProto:
                     if store_stmt:
                         self.prep_stmts[stmt_name] = dbver
 
-                elif mtype in {b'C', b'n', b'2', b'I'}:
+                elif mtype in {b'C', b'n', b'2', b'I', b'3'}:
                     # CommandComplete
                     # NoData
                     # BindComplete
                     # EmptyQueryResponse
+                    # CloseComplete
                     self.buffer.discard_message()
 
                 elif mtype == b'Z':
