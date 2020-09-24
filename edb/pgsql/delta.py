@@ -2141,77 +2141,6 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
                 comment=pointer.get_shortname(schema))
         ]
 
-    def rename_pointer(self, pointer, schema, context, old_name, new_name):
-        if context:
-            # before proceeding with renaming, make sure that this is
-            # not a computable
-            pointer = self.get_object(schema, context)
-            source = pointer.get_source(schema)
-            if source is not None:
-                is_computable = source.get_is_derived(schema)
-
-                # potentially this is a link property, so source may
-                # be a link
-                if isinstance(source, s_links.Link):
-                    source = source.get_source(schema)
-
-                if source is not None:
-                    is_computable = (
-                        is_computable
-                        or source.is_view(schema)
-                        or source.is_compound_type(schema)
-                    )
-            else:
-                is_computable = None
-
-            old_name = sn.shortname_from_fullname(old_name)
-            new_name = sn.shortname_from_fullname(new_name)
-
-            if not is_computable:
-                host = self.get_host(schema, context)
-
-                if host and old_name != new_name:
-                    if (new_name == 'std::source' and
-                            not host.scls.generic(schema)):
-                        pass
-                    else:
-                        old_col_name = common.edgedb_name_to_pg_name(
-                            old_name.name)
-                        new_col_name = common.edgedb_name_to_pg_name(
-                            new_name.name)
-
-                        ptr_stor_info = types.get_pointer_storage_info(
-                            pointer, schema=schema)
-
-                        is_a_column = ((
-                            ptr_stor_info.table_type == 'ObjectType' and
-                            isinstance(host.scls, s_objtypes.ObjectType)) or (
-                                ptr_stor_info.table_type == 'link' and
-                                isinstance(host.scls, s_links.Link)))
-
-                        if is_a_column:
-                            table_name = common.get_backend_name(
-                                schema, host.scls, catenate=False)
-                            cond = [
-                                dbops.ColumnExists(
-                                    table_name=table_name,
-                                    column_name=old_col_name)
-                            ]
-                            neg_cond = [
-                                dbops.ColumnIsInherited(
-                                    table_name=table_name,
-                                    column_name=old_col_name)
-                            ]
-                            rename = dbops.AlterTableRenameColumn(
-                                table_name, old_col_name, new_col_name,
-                                conditions=cond, neg_conditions=neg_cond)
-                            self.pgops.add(rename)
-
-                            tabcol = dbops.TableColumn(
-                                table_name=table_name, column=dbops.Column(
-                                    name=new_col_name, type='str'))
-                            self.pgops.add(dbops.Comment(tabcol, new_name))
-
     def create_table(self, ptr, schema, context, conditional=False):
         c = self._create_table(ptr, schema, context, conditional=conditional)
         self.pgops.add(c)
@@ -2588,9 +2517,6 @@ class RenameLink(LinkMetaCommand, adapts=s_links.RenameLink):
         schema = super()._rename_begin(schema, context)
         scls = self.scls
 
-        self.rename_pointer(
-            scls, schema, context, self.classname, self.new_name)
-
         self.attach_alter_table(context)
 
         if scls.generic(schema):
@@ -2942,14 +2868,6 @@ class RenameProperty(
 
         return schema
 
-    def _rename_begin(self, schema, context):
-        schema = super()._rename_begin(schema, context)
-
-        self.rename_pointer(
-            self.scls, schema, context, self.classname, self.new_name)
-
-        return schema
-
 
 class RebaseProperty(
         PropertyMetaCommand, adapts=s_props.RebaseProperty):
@@ -3068,7 +2986,10 @@ class DeleteProperty(
             alter_table = source_op.get_alter_table(
                 schema, context, force_new=True)
             ptr_stor_info = types.get_pointer_storage_info(
-                prop, schema=orig_schema)
+                prop,
+                schema=orig_schema,
+                link_bias=prop.is_link_property(orig_schema),
+            )
 
             col = dbops.AlterTableDropColumn(
                 dbops.Column(name=ptr_stor_info.column_name,
@@ -3111,8 +3032,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
             ''').format(
                 src=common.quote_ident('source'),
                 tgt=common.quote_ident('target'),
-                table=common.get_backend_name(
-                    schema, link),
+                table=common.get_backend_name(schema, link),
             ))
 
         return '(' + '\nUNION ALL\n    '.join(selects) + ') as q'
@@ -3120,6 +3040,8 @@ class UpdateEndpointDeleteActions(MetaCommand):
     def _get_inline_link_table_union(self, schema, links) -> str:
         selects = []
         for link in links:
+            link_psi = types.get_pointer_storage_info(link, schema=schema)
+            link_col = link_psi.column_name
             selects.append(textwrap.dedent('''\
                 (SELECT
                     {id}::uuid AS ptr_item_id,
@@ -3129,7 +3051,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
             ''').format(
                 id=ql(str(link.id)),
                 src=common.quote_ident('id'),
-                tgt=common.quote_ident(link.get_shortname(schema).name),
+                tgt=common.quote_ident(link_col),
                 table=common.get_backend_name(
                     schema,
                     link.get_source(schema),
@@ -3370,21 +3292,20 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
             elif action == s_links.LinkTargetDeleteAction.ALLOW:
                 for link in links:
+                    link_psi = types.get_pointer_storage_info(
+                        link, schema=schema)
+                    link_col = link_psi.column_name
                     source_table = common.get_backend_name(
                         schema, link.get_source(schema))
 
-                    text = textwrap.dedent('''\
+                    text = textwrap.dedent(f'''\
                         UPDATE
                             {source_table}
                         SET
-                            {endpoint} = NULL
+                            {qi(link_col)} = NULL
                         WHERE
-                            {endpoint} = OLD.{id};
-                    ''').format(
-                        source_table=source_table,
-                        endpoint=qi(link.get_shortname(schema).name),
-                        id='id'
-                    )
+                            {qi(link_col)} = OLD.id;
+                    ''')
 
                     chunks.append(text)
 

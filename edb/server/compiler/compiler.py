@@ -2073,16 +2073,25 @@ class Compiler(BaseCompiler):
 
             if isinstance(obj, s_props.Property):
                 assert isinstance(desc, sertypes.NamedTupleDesc)
-                desc_cols = list(desc.fields.keys())
-                if set(desc_cols) != {'source', 'target', 'ptr_item_id'}:
+                desc_ptrs = list(desc.fields.keys())
+                if set(desc_ptrs) != {'source', 'target', 'ptr_item_id'}:
                     raise RuntimeError(
                         'Property table dump data has extra fields')
+                cols = {
+                    'source': 'source',
+                    'target': 'target',
+                    'ptr_item_id': 'ptr_item_id',
+                }
 
             elif isinstance(obj, s_links.Link):
                 assert isinstance(desc, sertypes.NamedTupleDesc)
-                desc_cols = list(desc.fields.keys())
+                desc_ptrs = list(desc.fields.keys())
+                cols = {
+                    'source': 'source',
+                    'target': 'target',
+                    'ptr_item_id': 'ptr_item_id',
+                }
 
-                cols = ['source', 'target', 'ptr_item_id']
                 for ptr in obj.get_pointers(schema).objects(schema):
                     if ptr.is_endpoint_pointer(schema):
                         continue
@@ -2093,17 +2102,18 @@ class Compiler(BaseCompiler):
                         link_bias=True,
                     )
 
-                    cols.append(stor_info.column_name)
+                    ptr_name = ptr.get_shortname(schema).name
+                    cols[ptr_name] = stor_info.column_name
 
-                if set(desc_cols) != set(cols):
+                if set(desc_ptrs) != set(cols):
                     raise RuntimeError(
                         'Link table dump data has extra fields')
 
             elif isinstance(obj, s_objtypes.ObjectType):
                 assert isinstance(desc, sertypes.ShapeDesc)
-                desc_cols = list(desc.fields.keys())
+                desc_ptrs = list(desc.fields.keys())
 
-                cols = []
+                cols = {}
                 for ptr in obj.get_pointers(schema).objects(schema):
                     if ptr.is_endpoint_pointer(schema):
                         continue
@@ -2115,9 +2125,10 @@ class Compiler(BaseCompiler):
                     )
 
                     if stor_info.table_type == 'ObjectType':
-                        cols.append(stor_info.column_name)
+                        ptr_name = ptr.get_shortname(schema).name
+                        cols[ptr_name] = stor_info.column_name
 
-                if set(desc_cols) != set(cols):
+                if set(desc_ptrs) != set(cols):
                     raise RuntimeError(
                         'Object table dump data has extra fields')
 
@@ -2130,9 +2141,11 @@ class Compiler(BaseCompiler):
             table_name = pg_common.get_backend_name(
                 schema, obj, catenate=True)
 
+            col_list = (pg_common.quote_ident(cols[pn]) for pn in desc_ptrs)
+
             stmt = (
                 f'COPY {table_name} '
-                f'({", ".join(pg_common.quote_ident(c) for c in desc_cols)}) '
+                f'({", ".join(col_list)})'
                 f'FROM STDIN WITH BINARY'
             ).encode()
 

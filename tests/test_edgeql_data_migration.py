@@ -1772,11 +1772,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-    @test.xfail('''
-        edgedb.errors.InternalServerError: column Base~2.foo does not exist
-
-        The migration succeeds, but the propertry 'foo' can't be selected.
-    ''')
     async def test_edgeql_migration_34(self):
         # this is the reverse of test_edgeql_migration_11
         await self.con.execute("""

@@ -137,7 +137,7 @@ class ConstraintMech:
         return ref_tables
 
     @classmethod
-    def _edgeql_ref_to_pg_constr(cls, subject, tree, schema, link_bias):
+    def _edgeql_ref_to_pg_constr(cls, subject, origin_subject, tree, schema):
         sql_tree = compiler.compile_ir_to_sql_tree(
             tree, singleton_mode=True)
 
@@ -173,10 +173,12 @@ class ConstraintMech:
         if isinstance(subject, s_scalars.ScalarType):
             # Domain constraint, replace <scalar_name> with VALUE
 
-            subject_pg_name = common.edgedb_name_to_pg_name(str(subject.id))
+            subj_pgname = common.edgedb_name_to_pg_name(str(subject.id))
+            orgsubj_pgname = common.edgedb_name_to_pg_name(
+                str(origin_subject.id))
 
             for ref in refs:
-                if ref.name != [subject_pg_name]:
+                if ref.name != [subj_pgname] and ref.name != [orgsubj_pgname]:
                     raise ValueError(
                         f'unexpected node reference in '
                         f'ScalarType constraint: {".".join(ref.name)}'
@@ -228,10 +230,17 @@ class ConstraintMech:
             cls, subject, constraint, schema):
         assert constraint.get_subject(schema) is not None
 
+        constraint_origin = cls._get_constraint_origin(schema, constraint)
+        if constraint_origin != constraint:
+            origin_subject = constraint_origin.get_subject(schema)
+        else:
+            origin_subject = subject
+
         path_prefix_anchor = (
             qlast.Subject().name if isinstance(subject, s_types.Type)
             else None
         )
+
         ir = qlcompiler.compile_ast_to_ir(
             constraint.get_finalexpr(schema).qlast,
             schema,
@@ -248,23 +257,20 @@ class ConstraintMech:
             raise ValueError(
                 'backend: multi-table constraints are not currently supported')
         elif ref_tables:
-            subject_db_name, refs = next(iter(ref_tables.items()))
-            link_bias = refs[0][3].table_type == 'link'
+            subject_db_name, _ = next(iter(ref_tables.items()))
         else:
             subject_db_name = common.get_backend_name(
                 schema, subject, catenate=False)
-            link_bias = False
 
         exclusive_expr_refs = cls._get_exclusive_refs(ir)
 
         pg_constr_data = {
             'subject_db_name': subject_db_name,
-            'expressions': []
+            'expressions': [],
+            'origin_expressions': [],
         }
 
-        constraint_origin = cls._get_constraint_origin(schema, constraint)
         if constraint_origin != constraint:
-            origin_subject = constraint_origin.get_subject(schema)
             origin_ir = qlcompiler.compile_ast_to_ir(
                 constraint_origin.get_finalexpr(schema).qlast,
                 schema,
@@ -287,24 +293,33 @@ class ConstraintMech:
                     schema, origin_subject, catenate=False,
                 )
 
+            origin_exclusive_expr_refs = cls._get_exclusive_refs(origin_ir)
             pg_constr_data['origin_subject_db_name'] = origin_subject_db_name
         else:
+            origin_exclusive_expr_refs = None
             pg_constr_data['origin_subject_db_name'] = subject_db_name
-
-        exprs = pg_constr_data['expressions']
 
         if exclusive_expr_refs:
             for ref in exclusive_expr_refs:
                 exprdata = cls._edgeql_ref_to_pg_constr(
-                    subject, ref, schema, link_bias)
-                exprs.append(exprdata)
+                    subject, origin_subject, ref, schema)
+                pg_constr_data['expressions'].append(exprdata)
+
+            if origin_exclusive_expr_refs:
+                for ref in origin_exclusive_expr_refs:
+                    exprdata = cls._edgeql_ref_to_pg_constr(
+                        subject, origin_subject, ref, schema)
+                    pg_constr_data['origin_expressions'].append(exprdata)
+            else:
+                pg_constr_data['origin_expressions'] = (
+                    pg_constr_data['expressions'])
 
             pg_constr_data['scope'] = 'relation'
             pg_constr_data['type'] = 'unique'
         else:
             exprdata = cls._edgeql_ref_to_pg_constr(
-                subject, ir, schema, link_bias)
-            exprs.append(exprdata)
+                subject, origin_subject, ir, schema)
+            pg_constr_data['expressions'].append(exprdata)
 
             pg_constr_data['scope'] = 'row'
             pg_constr_data['type'] = 'check'
@@ -393,12 +408,14 @@ class SchemaTableConstraint:
         table_name = pg_c['subject_db_name']
         origin_table_name = pg_c['origin_subject_db_name']
         expressions = pg_c['expressions']
+        origin_expressions = pg_c['origin_expressions']
 
         constr = deltadbops.SchemaConstraintTableConstraint(
             table_name,
             origin_table_name=origin_table_name,
             constraint=constr._constraint,
             exprdata=expressions,
+            origin_exprdata=origin_expressions,
             scope=pg_c['scope'],
             type=pg_c['type'],
             schema=constr._schema,

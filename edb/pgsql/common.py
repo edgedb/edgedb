@@ -35,6 +35,7 @@ from edb.schema import modules as s_mod
 from edb.schema import name as s_name
 from edb.schema import objtypes as s_objtypes
 from edb.schema import operators as s_opers
+from edb.schema import pointers as s_pointers
 from edb.schema import scalars as s_scalars
 from edb.schema import types as s_types
 
@@ -371,9 +372,13 @@ def get_backend_name(schema, obj, catenate=True, *, aspect=None):
 
 def get_object_from_backend_name(schema, metaclass, name, *, aspect=None):
 
-    if metaclass is s_objtypes.ObjectType:
+    if issubclass(metaclass, s_objtypes.ObjectType):
         table_name = name[1]
         obj_id = uuidgen.UUID(table_name)
+        return schema.get_by_id(obj_id)
+
+    elif issubclass(metaclass, s_pointers.Pointer):
+        obj_id = uuidgen.UUID(name)
         return schema.get_by_id(obj_id)
 
     else:

@@ -674,7 +674,7 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
 
 async def _execute_ddl(conn, sql_text):
     try:
-        if debug.flags.delta_execute:
+        if debug.flags.bootstrap:
             debug.header('Delta Script')
             debug.dump_code(sql_text, lexer='sql')
 

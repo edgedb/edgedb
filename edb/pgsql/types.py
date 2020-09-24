@@ -239,7 +239,11 @@ class _PointerStorageInfo:
     def _source_table_info(cls, schema, pointer):
         table = common.get_backend_name(
             schema, pointer.get_source(schema), catenate=False)
-        col_name = pointer.get_shortname(schema).name
+        ptr_name = pointer.get_shortname(schema).name
+        if ptr_name.startswith('__') or ptr_name == 'id':
+            col_name = ptr_name
+        else:
+            col_name = str(pointer.id)
         table_type = 'ObjectType'
 
         return table, table_type, col_name
@@ -308,7 +312,10 @@ class _PointerStorageInfo:
             table = common.get_backend_name(
                 schema, source, catenate=False)
             table_type = 'link'
-            col_name = pointer.get_shortname(schema).name
+            if pointer.get_shortname(schema).name == 'source':
+                col_name = 'source'
+            else:
+                col_name = str(pointer.id)
         else:
             if isinstance(source, s_scalars.ScalarType):
                 # This is a pseudo-link on an scalar (__type__)
@@ -412,7 +419,10 @@ def get_ptrref_storage_info(
     elif is_lprop:
         table = common.get_pointer_backend_name(source.id, source.module_id)
         table_type = 'link'
-        col_name = ptrref.shortname.name
+        if ptrref.shortname.name == 'source':
+            col_name = 'source'
+        else:
+            col_name = str(ptrref.id)
     else:
         if irtyputils.is_scalar(source):
             # This is a pseudo-link on an scalar (__type__)
@@ -423,7 +433,11 @@ def get_ptrref_storage_info(
         elif _storable_in_source(ptrref) and not link_bias:
             table = common.get_objtype_backend_name(
                 source.id, source.module_id)
-            col_name = ptrref.shortname.name
+            ptrname = ptrref.shortname.name
+            if ptrname.startswith('__') or ptrname == 'id':
+                col_name = ptrname
+            else:
+                col_name = str(ptrref.id)
             table_type = 'ObjectType'
 
         elif _storable_in_pointer(ptrref):

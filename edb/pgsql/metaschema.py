@@ -1979,8 +1979,10 @@ class DescribeRolesAsDDLFunction(dbops.Function):
     def __init__(self, compiler, schema) -> None:
         role_obj = schema.get("sys::Role")
         roles = inhviewname(schema, role_obj)
-        member_of = role_obj.get_pointers(schema).get(schema, 'member_of')
+        member_of = role_obj.getptr(schema, 'member_of')
         members = inhviewname(schema, member_of)
+        name_col = ptr_col_name(schema, role_obj, 'name')
+        pass_col = ptr_col_name(schema, role_obj, 'password')
         qi_superuser = qlquote.quote_ident(defines.EDGEDB_SUPERUSER)
         text = f"""
             WITH RECURSIVE
@@ -2004,21 +2006,27 @@ class DescribeRolesAsDDLFunction(dbops.Function):
             )
             SELECT
             coalesce(string_agg(
-                CASE WHEN role.name = { ql(defines.EDGEDB_SUPERUSER) } THEN
+                CASE WHEN
+                    role.{qi(name_col)} = { ql(defines.EDGEDB_SUPERUSER) } THEN
                     NULLIF(concat(
                         'ALTER ROLE { qi_superuser } {{',
                         NULLIF((SELECT
-                            concat(' EXTENDING ',
-                                string_agg(edgedb.quote_ident(parent.name),
-                                           ', '), ';')
+                            concat(
+                                ' EXTENDING ',
+                                string_agg(
+                                    edgedb.quote_ident(parent.{qi(name_col)}),
+                                    ', '
+                                ),
+                                ';'
+                            )
                             FROM {q(*members)} member
                                 INNER JOIN {q(*roles)} parent
                                 ON parent.id = member.target
                             WHERE member.source = role.id
                         ), ' EXTENDING ;'),
-                        CASE WHEN role.password IS NOT NULL THEN
+                        CASE WHEN role.{qi(pass_col)} IS NOT NULL THEN
                             concat(' SET password_hash := ',
-                                   quote_literal(role.password),
+                                   quote_literal(role.{qi(pass_col)}),
                                    ';')
                         ELSE '' END,
                         '}};'
@@ -2026,19 +2034,22 @@ class DescribeRolesAsDDLFunction(dbops.Function):
                 ELSE
                     concat(
                         'CREATE SUPERUSER ROLE ',
-                        edgedb.quote_ident(role.name),
+                        edgedb.quote_ident(role.{qi(name_col)}),
                         NULLIF((SELECT
                             concat(' EXTENDING ',
-                                string_agg(edgedb.quote_ident(parent.name),
-                                           ', '))
+                                string_agg(
+                                    edgedb.quote_ident(parent.{qi(name_col)}),
+                                    ', '
+                                )
+                            )
                             FROM {q(*members)} member
                                 INNER JOIN {q(*roles)} parent
                                 ON parent.id = member.target
                             WHERE member.source = role.id
                         ), ' EXTENDING '),
-                        CASE WHEN role.password IS NOT NULL THEN
+                        CASE WHEN role.{qi(pass_col)} IS NOT NULL THEN
                             concat(' {{ SET password_hash := ',
-                                   quote_literal(role.password),
+                                   quote_literal(role.{qi(pass_col)}),
                                    '}};')
                         ELSE ';' END
                     )
@@ -2410,17 +2421,28 @@ def inhviewname(schema, obj):
     )
 
 
+def ptr_col_name(schema, obj, propname: str) -> str:
+    prop = obj.getptr(schema, propname)
+    psi = types.get_pointer_storage_info(prop, schema=schema)
+    return psi.column_name
+
+
 def _generate_database_views(schema):
     Database = schema.get('sys::Database')
+    annos = Database.getptr(schema, 'annotations')
+    int_annos = Database.getptr(schema, 'annotations__internal')
 
     view_query = f'''
         SELECT
-            ((d.description)->>'id')::uuid              AS id,
-            datname                                     AS name,
-            datname                                     AS name__internal,
-            ((d.description)->>'builtin')::bool         AS builtin,
+            ((d.description)->>'id')::uuid
+                AS {qi(ptr_col_name(schema, Database, 'id'))},
             (SELECT id FROM edgedb."_SchemaObjectType"
-                 WHERE name = 'sys::Database')          AS __type__
+                 WHERE name = 'sys::Database')
+                AS {qi(ptr_col_name(schema, Database, '__type__'))},
+            datname AS {qi(ptr_col_name(schema, Database, 'name'))},
+            datname AS {qi(ptr_col_name(schema, Database, 'name__internal'))},
+            ((d.description)->>'builtin')::bool
+                AS {qi(ptr_col_name(schema, Database, 'builtin'))}
         FROM
             pg_database dat
             CROSS JOIN LATERAL (
@@ -2434,10 +2456,14 @@ def _generate_database_views(schema):
 
     annos_link_query = f'''
         SELECT
-            ((d.description)->>'id')::uuid              AS source,
-            (annotations->>'id')::uuid                  AS target,
-            (annotations->>'value')::text               AS value,
-            (annotations->>'is_owned')::bool            AS is_owned
+            ((d.description)->>'id')::uuid
+                AS {qi(ptr_col_name(schema, annos, 'source'))},
+            (annotations->>'id')::uuid
+                AS {qi(ptr_col_name(schema, annos, 'target'))},
+            (annotations->>'value')::text
+                AS {qi(ptr_col_name(schema, annos, 'value'))},
+            (annotations->>'is_owned')::bool
+                AS {qi(ptr_col_name(schema, annos, 'is_owned'))}
         FROM
             pg_database dat
             CROSS JOIN LATERAL (
@@ -2453,10 +2479,12 @@ def _generate_database_views(schema):
 
     int_annos_link_query = f'''
         SELECT
-            ((d.description)->>'id')::uuid              AS source,
-            (annotations->>'id')::uuid                  AS target,
-            (annotations->>'value')::text               AS value,
-            (annotations->>'is_owned')::bool            AS is_owned
+            ((d.description)->>'id')::uuid
+                AS {qi(ptr_col_name(schema, int_annos, 'source'))},
+            (annotations->>'id')::uuid
+                AS {qi(ptr_col_name(schema, int_annos, 'target'))},
+            (annotations->>'is_owned')::bool
+                AS {qi(ptr_col_name(schema, int_annos, 'is_owned'))}
         FROM
             pg_database dat
             CROSS JOIN LATERAL (
@@ -2474,8 +2502,8 @@ def _generate_database_views(schema):
 
     objects = {
         Database: view_query,
-        Database.getptr(schema, 'annotations'): annos_link_query,
-        Database.getptr(schema, 'annotations__internal'): int_annos_link_query,
+        annos: annos_link_query,
+        int_annos: int_annos_link_query,
     }
 
     views = []
@@ -2490,6 +2518,11 @@ def _generate_database_views(schema):
 
 def _generate_role_views(schema, *, superuser_role):
     Role = schema.get('sys::Role')
+    member_of = Role.getptr(schema, 'member_of')
+    bases = Role.getptr(schema, 'bases')
+    ancestors = Role.getptr(schema, 'ancestors')
+    annos = Role.getptr(schema, 'annotations')
+    int_annos = Role.getptr(schema, 'annotations__internal')
 
     if superuser_role:
         # If the cluster is exposing an explicit superuser role,
@@ -2511,18 +2544,29 @@ def _generate_role_views(schema, *, superuser_role):
 
     view_query = f'''
         SELECT
-            ((d.description)->>'id')::uuid              AS id,
+            ((d.description)->>'id')::uuid
+                AS {qi(ptr_col_name(schema, Role, 'id'))},
             (SELECT id FROM edgedb."_SchemaObjectType"
-                 WHERE name = 'sys::Role')              AS __type__,
-            a.rolname                                   AS name,
-            a.rolname                                   AS name__internal,
-            {is_superuser}                              AS is_superuser,
-            False                                       AS is_abstract,
-            False                                       AS is_final,
-            False                                       AS is_derived,
-            ARRAY[]::text[]                             AS inherited_fields,
-            ((d.description)->>'builtin')::bool         AS builtin,
-            (d.description)->>'password_hash'           AS password
+                 WHERE name = 'sys::Role')
+                AS {qi(ptr_col_name(schema, Role, '__type__'))},
+            a.rolname
+                AS {qi(ptr_col_name(schema, Role, 'name'))},
+            a.rolname
+                AS {qi(ptr_col_name(schema, Role, 'name__internal'))},
+            {is_superuser}
+                AS {qi(ptr_col_name(schema, Role, 'is_superuser'))},
+            False
+                AS {qi(ptr_col_name(schema, Role, 'is_abstract'))},
+            False
+                AS {qi(ptr_col_name(schema, Role, 'is_final'))},
+            False
+                AS {qi(ptr_col_name(schema, Role, 'is_derived'))},
+            ARRAY[]::text[]
+                AS {qi(ptr_col_name(schema, Role, 'inherited_fields'))},
+            ((d.description)->>'builtin')::bool
+                AS {qi(ptr_col_name(schema, Role, 'builtin'))},
+            (d.description)->>'password_hash'
+                AS {qi(ptr_col_name(schema, Role, 'password'))}
         FROM
             pg_catalog.pg_roles AS a
             CROSS JOIN LATERAL (
@@ -2536,10 +2580,56 @@ def _generate_role_views(schema, *, superuser_role):
 
     member_of_link_query = f'''
         SELECT
-            ((d.description)->>'id')::uuid              AS source,
-            ((md.description)->>'id')::uuid             AS target,
+            ((d.description)->>'id')::uuid
+                AS {qi(ptr_col_name(schema, member_of, 'source'))},
+            ((md.description)->>'id')::uuid
+                AS {qi(ptr_col_name(schema, member_of, 'target'))}
+        FROM
+            pg_catalog.pg_roles AS a
+            CROSS JOIN LATERAL (
+                SELECT
+                    edgedb.shobj_metadata(a.oid, 'pg_authid')
+                        AS description
+            ) AS d
+            INNER JOIN pg_auth_members m ON m.member = a.oid
+            CROSS JOIN LATERAL (
+                SELECT
+                    edgedb.shobj_metadata(m.roleid, 'pg_authid')
+                        AS description
+            ) AS md
+    '''
+
+    bases_link_query = f'''
+        SELECT
+            ((d.description)->>'id')::uuid
+                AS {qi(ptr_col_name(schema, bases, 'source'))},
+            ((md.description)->>'id')::uuid
+                AS {qi(ptr_col_name(schema, bases, 'target'))},
             row_number() OVER (PARTITION BY a.oid ORDER BY m.roleid)
-                                                        AS index
+                AS {qi(ptr_col_name(schema, bases, 'index'))}
+        FROM
+            pg_catalog.pg_roles AS a
+            CROSS JOIN LATERAL (
+                SELECT
+                    edgedb.shobj_metadata(a.oid, 'pg_authid')
+                        AS description
+            ) AS d
+            INNER JOIN pg_auth_members m ON m.member = a.oid
+            CROSS JOIN LATERAL (
+                SELECT
+                    edgedb.shobj_metadata(m.roleid, 'pg_authid')
+                        AS description
+            ) AS md
+    '''
+
+    ancestors_link_query = f'''
+        SELECT
+            ((d.description)->>'id')::uuid
+                AS {qi(ptr_col_name(schema, ancestors, 'source'))},
+            ((md.description)->>'id')::uuid
+                AS {qi(ptr_col_name(schema, ancestors, 'target'))},
+            row_number() OVER (PARTITION BY a.oid ORDER BY m.roleid)
+                AS {qi(ptr_col_name(schema, ancestors, 'index'))}
         FROM
             pg_catalog.pg_roles AS a
             CROSS JOIN LATERAL (
@@ -2557,10 +2647,14 @@ def _generate_role_views(schema, *, superuser_role):
 
     annos_link_query = f'''
         SELECT
-            ((d.description)->>'id')::uuid              AS source,
-            (annotations->>'id')::uuid                  AS target,
-            (annotations->>'value')::text               AS value,
-            (annotations->>'is_owned')::bool            AS is_owned
+            ((d.description)->>'id')::uuid
+                AS {qi(ptr_col_name(schema, annos, 'source'))},
+            (annotations->>'id')::uuid
+                AS {qi(ptr_col_name(schema, annos, 'target'))},
+            (annotations->>'value')::text
+                AS {qi(ptr_col_name(schema, annos, 'value'))},
+            (annotations->>'is_owned')::bool
+                AS {qi(ptr_col_name(schema, annos, 'is_owned'))}
         FROM
             pg_catalog.pg_roles AS a
             CROSS JOIN LATERAL (
@@ -2578,10 +2672,12 @@ def _generate_role_views(schema, *, superuser_role):
 
     int_annos_link_query = f'''
         SELECT
-            ((d.description)->>'id')::uuid              AS source,
-            (annotations->>'id')::uuid                  AS target,
-            (annotations->>'value')::text               AS value,
-            (annotations->>'is_owned')::bool            AS is_owned
+            ((d.description)->>'id')::uuid
+                AS {qi(ptr_col_name(schema, int_annos, 'source'))},
+            (annotations->>'id')::uuid
+                AS {qi(ptr_col_name(schema, int_annos, 'target'))},
+            (annotations->>'is_owned')::bool
+                AS {qi(ptr_col_name(schema, int_annos, 'is_owned'))}
         FROM
             pg_catalog.pg_roles AS a
             CROSS JOIN LATERAL (
@@ -2599,11 +2695,11 @@ def _generate_role_views(schema, *, superuser_role):
 
     objects = {
         Role: view_query,
-        Role.getptr(schema, 'member_of'): member_of_link_query,
-        Role.getptr(schema, 'bases'): member_of_link_query,
-        Role.getptr(schema, 'ancestors'): member_of_link_query,
-        Role.getptr(schema, 'annotations'): annos_link_query,
-        Role.getptr(schema, 'annotations__internal'): int_annos_link_query,
+        member_of: member_of_link_query,
+        bases: bases_link_query,
+        ancestors: ancestors_link_query,
+        annos: annos_link_query,
+        int_annos: int_annos_link_query,
     }
 
     views = []
@@ -2661,9 +2757,21 @@ async def generate_support_views(cluster, conn, schema):
             aspect='inhview',
             catenate=False,
         )
+
+        targets = []
+
+        for ptr in schema_obj.get_pointers(schema).objects(schema):
+            psi = types.get_pointer_storage_info(ptr, schema=schema)
+            if psi.table_type == 'ObjectType':
+                ptr_name = ptr.get_shortname(schema).name
+                col_name = psi.column_name
+                if col_name != ptr_name:
+                    targets.append(f'{qi(col_name)} AS {qi(ptr_name)}')
+                targets.append(f'{qi(col_name)} AS {qi(col_name)}')
+
         alias_view = dbops.View(
             name=('edgedb', f'_Schema{schema_obj.get_name(schema).name}'),
-            query=(f'SELECT * FROM {q(*bn)}')
+            query=(f'SELECT {", ".join(targets)} FROM {q(*bn)}')
         )
         commands.add_command(dbops.CreateView(alias_view, or_replace=True))
 
@@ -2923,6 +3031,8 @@ def _generate_config_type_view(schema, stype, *, path, rptr, _memo=None):
         pp_multi = (
             pp.get_cardinality(schema) is qltypes.SchemaCardinality.MANY
         )
+        pp_psi = types.get_pointer_storage_info(pp, schema=schema)
+        pp_col = pp_psi.column_name
 
         if pp_type.is_object_type():
             if pp_multi:
@@ -2939,7 +3049,7 @@ def _generate_config_type_view(schema, stype, *, path, rptr, _memo=None):
             else:
                 extract_col = (
                     f'{pp_cast(f"{sval}->{ql(pp_name)}")}'
-                    f' AS {qi(pp_name)}')
+                    f' AS {qi(pp_col)}')
 
                 target_cols.append(extract_col)
 
@@ -2981,6 +3091,8 @@ def _generate_config_type_view(schema, stype, *, path, rptr, _memo=None):
     for link in single_links:
         link_name = link.get_shortname(schema).name
         link_type = link.get_target(schema)
+        link_psi = types.get_pointer_storage_info(link, schema=schema)
+        link_col = link_psi.column_name
 
         if rptr is not None:
             target_path = path + [(rptr, exclusive_props)]
@@ -3012,7 +3124,7 @@ def _generate_config_type_view(schema, stype, *, path, rptr, _memo=None):
             target_key_components = key_components + [f'k{link_name}.key']
 
         target_key = _build_key_expr(target_key_components)
-        target_cols.append(f'({target_key}) AS {qi(link_name)}')
+        target_cols.append(f'({target_key}) AS {qi(link_col)}')
 
         views.extend(target_views)
 

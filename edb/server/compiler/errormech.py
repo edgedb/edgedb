@@ -18,17 +18,18 @@
 
 
 from __future__ import annotations
+from typing import *
 
 import enum
 import json
 import re
-from typing import *
 
 from edb import errors
 from edb.common import uuidgen
 
 from edb.schema import name as sn
 from edb.schema import objtypes as s_objtypes
+from edb.schema import pointers as s_pointers
 
 from edb.pgsql import common
 from edb.pgsql import types
@@ -347,7 +348,9 @@ def interpret_backend_error(schema, fields):
             source_name = source.get_displayname(schema)
 
             if err_details.column_name:
-                pointer_name = err_details.column_name
+                pointer = common.get_object_from_backend_name(
+                    schema, s_pointers.Pointer, err_details.column_name)
+                pointer_name = pointer.get_shortname(schema).name
 
         if pointer_name is not None:
             pname = f'{source_name}.{pointer_name}'
@@ -387,10 +390,13 @@ def interpret_backend_error(schema, fields):
             source = common.get_object_from_backend_name(
                 schema, s_objtypes.ObjectType, tabname)
             source_name = source.get_displayname(schema)
-            pname = f'{source_name}.{err_details.column_name}'
+            pointer = common.get_object_from_backend_name(
+                schema, s_pointers.Pointer, err_details.column_name)
+            pointer_name = pointer.get_shortname(schema).name
 
             return errors.ConstraintViolationError(
-                f'Existing {pname} values violate the new constraint')
+                f'Existing {source_name}.{pointer_name} '
+                f'values violate the new constraint')
         elif error_type == 'scalar':
             domain_name = match.group(1)
             stype_name = types.base_type_name_map_r.get(domain_name)
