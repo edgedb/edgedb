@@ -1716,6 +1716,19 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 ''',
             )
 
+    async def test_edgeql_select_nested_redefined_link(self):
+        await self.assert_query_result(
+            '''
+                WITH MODULE test
+                SELECT (SELECT (SELECT Issue { watchers: {name} }).watchers);
+            ''',
+            [
+                {'name': 'Elvis'},
+                {'name': 'Yury'},
+            ],
+            sort=lambda x: x['name'],
+        )
+
     async def test_edgeql_select_tvariant_01(self):
         await self.assert_query_result(
             r'''
