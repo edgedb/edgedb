@@ -1,8 +1,8 @@
 name: Build Test and Publish a Release
 
 on:
-  repository_dispatch:
-    types: ["release"]
+  workflow_dispatch:
+    inputs: {}
 
 jobs:
 
@@ -12,15 +12,15 @@ jobs:
     steps:
     - name: Determine package version
       shell: bash
-      env:
-        BRANCH: "${{ github.event.client_payload.branch }}"
-      run: echo ::set-output name=version::${BRANCH#releases/}
+      run: |
+        echo ::set-output name=branch::${GITHUB_REF#refs/heads/}
+        echo ::set-output name=version::${GITHUB_REF#refs/heads/releases/}
       id: whichver
 
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-stretch@master
       env:
-        SRC_REF: "${{ github.event.client_payload.branch }}"
+        SRC_REF: "${{ steps.whichver.outputs.branch }}"
         PKG_VERSION: "${{ steps.whichver.outputs.version }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "debian"
@@ -38,15 +38,15 @@ jobs:
     steps:
     - name: Determine package version
       shell: bash
-      env:
-        BRANCH: "${{ github.event.client_payload.branch }}"
-      run: echo ::set-output name=version::${BRANCH#releases/}
+      run: |
+        echo ::set-output name=branch::${GITHUB_REF#refs/heads/}
+        echo ::set-output name=version::${GITHUB_REF#refs/heads/releases/}
       id: whichver
 
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-buster@master
       env:
-        SRC_REF: "${{ github.event.client_payload.branch }}"
+        SRC_REF: "${{ steps.whichver.outputs.branch }}"
         PKG_VERSION: "${{ steps.whichver.outputs.version }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "debian"
@@ -64,15 +64,15 @@ jobs:
     steps:
     - name: Determine package version
       shell: bash
-      env:
-        BRANCH: "${{ github.event.client_payload.branch }}"
-      run: echo ::set-output name=version::${BRANCH#releases/}
+      run: |
+        echo ::set-output name=branch::${GITHUB_REF#refs/heads/}
+        echo ::set-output name=version::${GITHUB_REF#refs/heads/releases/}
       id: whichver
 
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-xenial@master
       env:
-        SRC_REF: "${{ github.event.client_payload.branch }}"
+        SRC_REF: "${{ steps.whichver.outputs.branch }}"
         PKG_VERSION: "${{ steps.whichver.outputs.version }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "ubuntu"
@@ -90,15 +90,15 @@ jobs:
     steps:
     - name: Determine package version
       shell: bash
-      env:
-        BRANCH: "${{ github.event.client_payload.branch }}"
-      run: echo ::set-output name=version::${BRANCH#releases/}
+      run: |
+        echo ::set-output name=branch::${GITHUB_REF#refs/heads/}
+        echo ::set-output name=version::${GITHUB_REF#refs/heads/releases/}
       id: whichver
 
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-bionic@master
       env:
-        SRC_REF: "${{ github.event.client_payload.branch }}"
+        SRC_REF: "${{ steps.whichver.outputs.branch }}"
         PKG_VERSION: "${{ steps.whichver.outputs.version }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "ubuntu"
@@ -116,15 +116,15 @@ jobs:
     steps:
     - name: Determine package version
       shell: bash
-      env:
-        BRANCH: "${{ github.event.client_payload.branch }}"
-      run: echo ::set-output name=version::${BRANCH#releases/}
+      run: |
+        echo ::set-output name=branch::${GITHUB_REF#refs/heads/}
+        echo ::set-output name=version::${GITHUB_REF#refs/heads/releases/}
       id: whichver
 
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-focal@master
       env:
-        SRC_REF: "${{ github.event.client_payload.branch }}"
+        SRC_REF: "${{ steps.whichver.outputs.branch }}"
         PKG_VERSION: "${{ steps.whichver.outputs.version }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "ubuntu"
@@ -142,15 +142,15 @@ jobs:
     steps:
     - name: Determine package version
       shell: bash
-      env:
-        BRANCH: "${{ github.event.client_payload.branch }}"
-      run: echo ::set-output name=version::${BRANCH#releases/}
+      run: |
+        echo ::set-output name=branch::${GITHUB_REF#refs/heads/}
+        echo ::set-output name=version::${GITHUB_REF#refs/heads/releases/}
       id: whichver
 
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/centos-7@master
       env:
-        SRC_REF: "${{ github.event.client_payload.branch }}"
+        SRC_REF: "${{ steps.whichver.outputs.branch }}"
         PKG_VERSION: "${{ steps.whichver.outputs.version }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "centos"
@@ -168,15 +168,15 @@ jobs:
     steps:
     - name: Determine package version
       shell: bash
-      env:
-        BRANCH: "${{ github.event.client_payload.branch }}"
-      run: echo ::set-output name=version::${BRANCH#releases/}
+      run: |
+        echo ::set-output name=branch::${GITHUB_REF#refs/heads/}
+        echo ::set-output name=version::${GITHUB_REF#refs/heads/releases/}
       id: whichver
 
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/centos-8@master
       env:
-        SRC_REF: "${{ github.event.client_payload.branch }}"
+        SRC_REF: "${{ steps.whichver.outputs.branch }}"
         PKG_VERSION: "${{ steps.whichver.outputs.version }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "centos"
@@ -195,9 +195,9 @@ jobs:
     steps:
     - name: Determine package version
       shell: bash
-      env:
-        BRANCH: "${{ github.event.client_payload.branch }}"
-      run: echo ::set-output name=version::${BRANCH#releases/}
+      run: |
+        echo ::set-output name=branch::${GITHUB_REF#refs/heads/}
+        echo ::set-output name=version::${GITHUB_REF#refs/heads/releases/}
       id: whichver
 
     - uses: actions/checkout@v2
@@ -244,7 +244,7 @@ jobs:
 
     - name: Build
       env:
-        SRC_REF: "${{ github.event.client_payload.branch }}"
+        SRC_REF: "${{ steps.whichver.outputs.branch }}"
         PKG_VERSION: "${{ steps.whichver.outputs.version }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "macos"
