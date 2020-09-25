@@ -1037,15 +1037,17 @@ def process_set_as_subquery(
             ctx.rel.view_path_id_map[outer_id] = inner_id
 
         if ir_source is not None:
-            if is_scalar_path and newctx.volatility_ref is None:
+            if is_scalar_path and not newctx.volatility_ref:
                 # This is a computable pointer.  In order to ensure that
                 # the volatile functions in the pointer expression are called
                 # the necessary number of times, we must inject a
                 # "volatility reference" into function expressions.
                 # The volatility_ref is the identity of the pointer source.
-                newctx.volatility_ref = relctx.maybe_get_path_var(
-                    stmt, path_id=ir_source.path_id, aspect='identity',
-                    ctx=ctx)
+                path_id = ir_source.path_id
+                newctx.volatility_ref += (
+                    lambda: relctx.maybe_get_path_var(
+                        stmt, path_id=path_id, aspect='identity',
+                        ctx=ctx),)
             elif not is_scalar_path and not source_is_visible:
                 path_scope = relctx.get_scope(ir_set, ctx=newctx)
                 if (path_scope is None or
@@ -1954,18 +1956,19 @@ def _compile_func_epilogue(
     expr = ir_set.expr
     assert isinstance(expr, irast.FunctionCall)
 
-    if (ctx.volatility_ref is not None and
-            ctx.volatility_ref is not context.NO_VOLATILITY and
-            expr.volatility is qltypes.Volatility.Volatile):
-        # Apply the volatility reference.
-        # See the comment in process_set_as_subquery().
-        func_rel.where_clause = astutils.extend_binop(
-            func_rel.where_clause,
-            pgast.NullTest(
-                arg=ctx.volatility_ref,
-                negated=True,
+    if expr.volatility is qltypes.Volatility.Volatile:
+        for ref in ctx.volatility_ref:
+            if isinstance(ref, context.NoVolatilitySentinel):
+                continue
+            # Apply the volatility reference.
+            # See the comment in process_set_as_subquery().
+            func_rel.where_clause = astutils.extend_binop(
+                func_rel.where_clause,
+                pgast.NullTest(
+                    arg=ref(),
+                    negated=True,
+                )
             )
-        )
 
     pathctx.put_path_var_if_not_exists(
         func_rel, ir_set.path_id, set_expr, aspect='value', env=ctx.env)

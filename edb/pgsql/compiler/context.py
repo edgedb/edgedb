@@ -112,7 +112,9 @@ class CompilerContextLevel(compiler.ContextLevel):
     expr_exposed: Optional[bool]
 
     #: Expression to use to force SQL expression volatility in this context
-    volatility_ref: Optional[Union[pgast.BaseExpr, NoVolatilitySentinel]]
+    #: (Delayed with a lambda to avoid inserting it when not used.)
+    volatility_ref: Tuple[Union[Callable[[], pgast.BaseExpr],
+                                NoVolatilitySentinel], ...]
 
     group_by_rels: Dict[
         Tuple[irast.PathId, irast.PathId],
@@ -193,7 +195,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.pending_query = None
 
             self.expr_exposed = None
-            self.volatility_ref = None
+            self.volatility_ref = ()
             self.group_by_rels = {}
 
             self.disable_semi_join = set()

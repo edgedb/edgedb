@@ -439,10 +439,13 @@ def get_dml_range(
             range_stmt, target_ir_set.path_id, env=subctx.env)
 
         if ir_qual_expr is not None:
-            range_stmt.where_clause = astutils.extend_binop(
-                range_stmt.where_clause,
-                clauses.compile_filter_clause(
-                    ir_qual_expr, ir_qual_card, ctx=subctx))
+            with subctx.new() as wctx:
+                clauses.setup_iterator_volatility(target_ir_set,
+                                                  is_cte=True, ctx=wctx)
+                range_stmt.where_clause = astutils.extend_binop(
+                    range_stmt.where_clause,
+                    clauses.compile_filter_clause(
+                        ir_qual_expr, ir_qual_card, ctx=wctx))
 
         range_cte = pgast.CommonTableExpr(
             query=range_stmt,
@@ -477,11 +480,8 @@ def compile_iterator_ctes(
 
             # Correlate with enclosing iterators
             merge_iterator(last_iterator, ictx.rel, ctx=ictx)
-            if last_iterator is not None:
-                ictx.volatility_ref = pathctx.get_path_identity_var(
-                    ictx.rel,
-                    last_iterator.path_id,
-                    env=ictx.env)
+            clauses.setup_iterator_volatility(last_iterator, is_cte=True,
+                                              ctx=ictx)
 
             clauses.compile_iterator_expr(ictx.rel, iterator_set, ctx=ictx)
             ictx.rel.path_id = iterator_set.path_id
@@ -676,6 +676,8 @@ def compile_insert_else_body(
             ictx.path_scope[subject_id] = ictx.rel
 
             merge_iterator(ctx.enclosing_cte_iterator, ictx.rel, ctx=ictx)
+            clauses.setup_iterator_volatility(ctx.enclosing_cte_iterator,
+                                              is_cte=True, ctx=ictx)
 
             pathctx.put_path_bond(ictx.rel, subject_id)
             dispatch.compile(else_select, ctx=ictx)
@@ -698,6 +700,7 @@ def compile_insert_else_body(
             ictx.enclosing_cte_iterator = pgast.IteratorCTE(
                 path_id=else_select.path_id, cte=else_select_cte,
                 parent=ictx.enclosing_cte_iterator)
+            ictx.volatility_ref = ()
             dispatch.compile(else_branch, ctx=ictx)
             ictx.rel.view_path_id_map[subject_id] = else_branch.path_id
 
@@ -724,13 +727,14 @@ def compile_insert_shape_element(
             insvalctx.force_optional.add(shape_el.path_id)
 
         if iterator_id is not None:
-            insvalctx.volatility_ref = iterator_id
+            id = iterator_id
+            insvalctx.volatility_ref = (lambda: id,)
         else:
             # Single inserts have no need for forced
             # computable volatility, and, furthermore,
             # we do not have a valid identity reference
             # anyway.
-            insvalctx.volatility_ref = context.NO_VOLATILITY
+            insvalctx.volatility_ref = (context.NO_VOLATILITY,)
 
         dispatch.visit(shape_el, ctx=insvalctx)
 
@@ -1308,8 +1312,10 @@ def process_link_values(
         with subrelctx.newscope() as sctx, sctx.subrel() as input_rel_ctx:
             input_rel = input_rel_ctx.rel
             input_rel_ctx.expr_exposed = False
-            input_rel_ctx.volatility_ref = pathctx.get_path_identity_var(
-                row_query, ir_stmt.subject.path_id, env=input_rel_ctx.env)
+            input_rel_ctx.volatility_ref = (
+                lambda: pathctx.get_path_identity_var(
+                    row_query, ir_stmt.subject.path_id,
+                    env=input_rel_ctx.env),)
             dispatch.visit(ir_expr, ctx=input_rel_ctx)
 
             if (

@@ -890,10 +890,12 @@ def _get_path_output(
                 # first for tuple serialized var disambiguation.
                 element = _get_path_output(
                     rel, el_path_id, aspect=aspect,
+                    disable_output_fusion=disable_output_fusion,
                     allow_nullable=False, env=env)
             except LookupError:
                 element = get_path_output(
                     rel, el_path_id, aspect=aspect,
+                    disable_output_fusion=disable_output_fusion,
                     allow_nullable=False, env=env)
 
             elements.append(pgast.TupleElementBase(

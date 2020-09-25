@@ -50,6 +50,7 @@ def compile_SelectStmt(
         query = ctx.stmt
 
         iterators = irutils.get_iterator_sets(stmt)
+        last_iterator: Optional[irast.Set] = None
         if iterators and irutils.contains_dml(stmt):
             # If we have iterators and we contain nested DML
             # statements, we need to hoist the iterators into CTEs and
@@ -59,13 +60,15 @@ def compile_SelectStmt(
             dml.merge_iterator(iterator, ctx.rel, ctx=ctx)
 
             ctx.enclosing_cte_iterator = iterator
+            last_iterator = iterators[-1]
 
         else:
-            iterator = None
             for iterator_set in iterators:
                 # Process FOR clause.
-                iterator_rvar = clauses.compile_iterator_expr(
-                    query, iterator_set, ctx=ctx)
+                with ctx.new() as ictx:
+                    clauses.setup_iterator_volatility(last_iterator, ctx=ictx)
+                    iterator_rvar = clauses.compile_iterator_expr(
+                        query, iterator_set, ctx=ictx)
                 for aspect in {'identity', 'value'}:
                     pathctx.put_path_rvar(
                         query,
@@ -74,16 +77,29 @@ def compile_SelectStmt(
                         aspect=aspect,
                         env=ctx.env,
                     )
+                last_iterator = iterator_set
 
-        # Process the result expression;
-        outvar = clauses.compile_output(stmt.result, ctx=ctx)
+        # Process the result expression.
+        with ctx.new() as ictx:
+            clauses.setup_iterator_volatility(last_iterator, ctx=ictx)
+            outvar = clauses.compile_output(stmt.result, ctx=ictx)
 
-        # The FILTER clause.
-        if stmt.where is not None:
-            query.where_clause = astutils.extend_binop(
-                query.where_clause,
-                clauses.compile_filter_clause(
-                    stmt.where, stmt.where_card, ctx=ctx))
+        with ctx.new() as ictx:
+            # FILTER and ORDER BY need to have the base result as a
+            # volatility ref.
+            clauses.setup_iterator_volatility(stmt.result, ctx=ictx)
+
+            # The FILTER clause.
+            if stmt.where is not None:
+                query.where_clause = astutils.extend_binop(
+                    query.where_clause,
+                    clauses.compile_filter_clause(
+                        stmt.where, stmt.where_card, ctx=ctx))
+
+            # The ORDER BY clause
+            with ctx.new() as ictx:
+                query.sort_clause = clauses.compile_orderby_clause(
+                    stmt.orderby, ctx=ictx)
 
         if outvar.nullable and query is ctx.toplevel_stmt:
             # A nullable var has bubbled up to the top,
@@ -98,10 +114,6 @@ def compile_SelectStmt(
                 query.where_clause,
                 pgast.NullTest(arg=valvar, negated=True)
             )
-
-        # The ORDER BY clause
-        query.sort_clause = clauses.compile_orderby_clause(
-            stmt.orderby, ctx=ctx)
 
         # The OFFSET clause
         query.limit_offset = clauses.compile_limit_offset_clause(
