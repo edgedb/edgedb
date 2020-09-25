@@ -233,9 +233,9 @@ class TypeSerializer:
                 links.append(not ptr.is_property(self.schema))
 
             t_rptr = t.get_rptr(self.schema)
-            if t_rptr is not None:
+            if t_rptr is not None and (rptr_ptrs := view_shapes.get(t_rptr)):
                 # There are link properties in the mix
-                for ptr in view_shapes[t_rptr]:
+                for ptr in rptr_ptrs:
                     if ptr.singular(self.schema):
                         subtype_id = self._describe_type(
                             ptr.get_target(self.schema), view_shapes,
