@@ -468,7 +468,7 @@ def trace_Path(
                             # Invalid pointer reference, bail.
                             return None
                         else:
-                            ptr_source = ptr.source
+                            ptr_source = ptr.get_source(ctx.schema)
 
                         if ptr_source is not None:
                             source_name = ptr_source.get_name(ctx.schema)
