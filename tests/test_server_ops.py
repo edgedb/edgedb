@@ -51,13 +51,19 @@ class TestServerOps(tb.TestCase):
             data = json.loads(dataline)
             return data
 
+        bootstrap_command = (
+            r'CONFIGURE SYSTEM INSERT Auth '
+            r'{ priority := 0, method := (INSERT Trust) }'
+        )
+
         cmd = [
             sys.executable, '-m', 'edb.server.main',
             '--port', 'auto',
             '--testmode',
             '--temp-dir',
             '--auto-shutdown',
-            '--echo-runtime-info'
+            '--echo-runtime-info',
+            f'--bootstrap-command={bootstrap_command}',
         ]
 
         # Note: for debug comment "stderr=subprocess.PIPE".
@@ -70,19 +76,18 @@ class TestServerOps(tb.TestCase):
         try:
             data = await asyncio.wait_for(
                 read_runtime_info(proc.stdout),
-                timeout=1000)
+                timeout=240,
+            )
 
             runstate_dir = data['runstate_dir']
             port = data['port']
 
             self.assertTrue(os.path.exists(runstate_dir))
 
-            con1 = await edgedb.async_connect(
-                host=runstate_dir, port=port, admin=True)
+            con1 = await edgedb.async_connect(host=runstate_dir, port=port)
             self.assertEqual(await con1.query_one('SELECT 1'), 1)
 
-            con2 = await edgedb.async_connect(
-                host=runstate_dir, port=port, admin=True)
+            con2 = await edgedb.async_connect(host=runstate_dir, port=port)
             self.assertEqual(await con2.query_one('SELECT 1'), 1)
 
             await con1.aclose()
@@ -95,8 +100,7 @@ class TestServerOps(tb.TestCase):
                 # the cluster was started with an "--auto-shutdown"
                 # option, we expect this connection to be rejected
                 # and the cluster to be shutdown soon.
-                await edgedb.async_connect(
-                    host=runstate_dir, port=port, admin=True)
+                await edgedb.async_connect(host=runstate_dir, port=port)
 
             i = 600 * 5  # Give it up to 5 minutes to cleanup.
             while i > 0:
@@ -112,3 +116,40 @@ class TestServerOps(tb.TestCase):
             if proc.returncode is None:
                 proc.terminate()
                 await proc.wait()
+
+    async def test_server_ops_bootstrap_script(self):
+        # Test that "edgedb-server" works as expected with the
+        # following arguments:
+        #
+        # * "--bootstrap-only"
+        # * "--bootstrap-command"
+
+        cmd = [
+            sys.executable, '-m', 'edb.server.main',
+            '--port', 'auto',
+            '--testmode',
+            '--temp-dir',
+            '--bootstrap-command=SELECT 1',
+            '--bootstrap-only',
+        ]
+
+        # Note: for debug comment "stderr=subprocess.PIPE".
+        proc: asyncio.Process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stderr=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+        )
+
+        try:
+            _, stderr = await asyncio.wait_for(
+                proc.communicate(), timeout=240)
+        except asyncio.TimeoutError:
+            if proc.returncode is None:
+                proc.terminate()
+            raise
+        else:
+            self.assertTrue(
+                proc.returncode == 0,
+                f'server exited with code {proc.returncode}:\n'
+                f'STDERR: {stderr.decode()}',
+            )

@@ -203,14 +203,14 @@ cdef class EdgeConnection:
             self._backend = None
         self.timer.log_all_stats()
 
-    cdef close(self):
-        self.flush()
+    async def close(self):
         self._con_status = EDGECON_BAD
         if self._transport is not None:
+            self.flush()
             self._transport.close()
             self._transport = None
         if self._backend is not None:
-            self.loop.create_task(self._backend.close())
+            await self._backend.close()
             self._backend = None
         self.timer.log_all_stats()
 
@@ -274,16 +274,7 @@ cdef class EdgeConnection:
                 f'accept connections'
             )
 
-        dbv = self.port.new_view(
-            dbname=database, user=user,
-            query_cache=self.query_cache_enabled)
-        assert type(dbv) is dbview.DatabaseConnectionView
-        self.dbview = <dbview.DatabaseConnectionView>dbv
-
-        self._backend = await self.port.new_backend(
-            dbname=database, dbver=self.dbview.dbver)
-        self._backend.pgcon.set_edgecon(self)
-        self._con_status = EDGECON_STARTED
+        await self._start_connection(database, user)
 
         # The user has already been authenticated by other means
         # (such as the ability to write to a protected socket).
@@ -389,6 +380,41 @@ cdef class EdgeConnection:
             self.flush()
 
         return params
+
+    @classmethod
+    async def run_script(
+        cls,
+        server,
+        database: str,
+        user: str,
+        script: str,
+    ) -> None:
+        conn = cls(server)
+        await conn._start_connection(database, user)
+        try:
+            await conn._simple_query(script.encode('utf-8'))
+        except pgerror.BackendError as e:
+            exc = await conn._interpret_backend_error(e)
+            if isinstance(exc, errors.EdgeDBError):
+                raise exc from None
+            else:
+                raise exc
+        finally:
+            await conn.close()
+
+    async def _start_connection(self, database: str, user: str) -> None:
+        dbv = self.port.new_view(
+            dbname=database,
+            user=user,
+            query_cache=self.query_cache_enabled,
+        )
+        assert type(dbv) is dbview.DatabaseConnectionView
+        self.dbview = <dbview.DatabaseConnectionView>dbv
+
+        self._backend = await self.port.new_backend(
+            dbname=database, dbver=self.dbview.dbver)
+        self._backend.pgcon.set_edgecon(self)
+        self._con_status = EDGECON_STARTED
 
     async def _get_role_record(self, user):
         conn = self.get_backend().pgcon
@@ -706,7 +732,6 @@ cdef class EdgeConnection:
         if self.debug:
             self.debug_print('SIMPLE QUERY', eql)
 
-        stmt_mode = 'all'
         if self.dbview.in_tx_error():
             stmt_mode, query_unit = await self._recover_script_error(eql)
             if stmt_mode == 'done':
@@ -718,6 +743,16 @@ cdef class EdgeConnection:
                 self.flush()
                 return
 
+        query_unit = await self._simple_query(eql)
+
+        packet = WriteBuffer.new()
+        packet.write_buffer(self.make_command_complete_msg(query_unit))
+        packet.write_buffer(self.pgcon_last_sync_status())
+        self.write(packet)
+        self.flush()
+
+    async def _simple_query(self, eql: bytes):
+        stmt_mode = 'all'
         with self.timer.timed("Query tokenization"):
             eql_tokens = tokenize(eql)
         with self.timer.timed("Query compilation"):
@@ -774,11 +809,7 @@ cdef class EdgeConnection:
             # we want to update type IDs in the linked compiler.
             await self._update_type_ids(new_type_ids)
 
-        packet = WriteBuffer.new()
-        packet.write_buffer(self.make_command_complete_msg(query_unit))
-        packet.write_buffer(self.pgcon_last_sync_status())
-        self.write(packet)
-        self.flush()
+        return query_unit
 
     async def _parse(
         self,
@@ -1327,7 +1358,7 @@ cdef class EdgeConnection:
                 # reporting the exception.
 
                 await self.write_error(ex)
-                self.close()
+                await self.close()
 
                 if not isinstance(ex, (errors.ProtocolError,
                                        errors.AuthenticationError)):
@@ -1491,19 +1522,7 @@ cdef class EdgeConnection:
         exc_code = None
 
         if isinstance(exc, pgerror.BackendError):
-            try:
-                static_exc = errormech.static_interpret_backend_error(
-                    exc.fields)
-
-                # only use the backend if schema is required
-                if static_exc is errormech.SchemaRequired:
-                    exc = await self._interpret_backend_error(exc)
-                else:
-                    exc = static_exc
-
-            except Exception as ex:
-                exc = RuntimeError(
-                    'unhandled error while calling interpret_backend_error()')
+            exc = await self._interpret_backend_error(exc)
 
         fields = {}
         if (isinstance(exc, errors.EdgeDBError) and
@@ -1549,16 +1568,30 @@ cdef class EdgeConnection:
         self.write(buf)
 
     async def _interpret_backend_error(self, exc):
-        if self.dbview.in_tx():
-            return await self.get_backend().compiler.call(
-                'interpret_backend_error_in_tx',
-                self.dbview.txid,
+        try:
+            static_exc = errormech.static_interpret_backend_error(
                 exc.fields)
-        else:
-            return await self.get_backend().compiler.call(
-                'interpret_backend_error',
-                self.dbview.dbver,
-                exc.fields)
+
+            # only use the backend if schema is required
+            if static_exc is errormech.SchemaRequired:
+                if self.dbview.in_tx():
+                    exc = await self.get_backend().compiler.call(
+                        'interpret_backend_error_in_tx',
+                        self.dbview.txid,
+                        exc.fields)
+                else:
+                    exc = await self.get_backend().compiler.call(
+                        'interpret_backend_error',
+                        self.dbview.dbver,
+                        exc.fields)
+            else:
+                exc = static_exc
+
+        except Exception as ex:
+            exc = RuntimeError(
+                'unhandled error while calling interpret_backend_error()')
+
+        return exc
 
     cdef write_log(self, EdgeSeverity severity, uint32_t code, str message):
         cdef:

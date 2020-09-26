@@ -45,18 +45,33 @@ from . import dbview
 logger = logging.getLogger('edb.server')
 
 
+class StartupScript(NamedTuple):
+
+    text: str
+    database: str
+    user: str
+
+
 class Server:
 
     _ports: List[baseport.Port]
     _sys_conf_ports: Mapping[config.ConfigType, baseport.Port]
 
-    def __init__(self, *, loop, cluster, runstate_dir,
-                 internal_runstate_dir,
-                 max_backend_connections,
-                 nethost, netport,
-                 auto_shutdown: bool=False,
-                 echo_runtime_info: bool = False,
-                 max_protocol: Tuple[int, int]):
+    def __init__(
+        self,
+        *,
+        loop,
+        cluster,
+        runstate_dir,
+        internal_runstate_dir,
+        max_backend_connections,
+        nethost,
+        netport,
+        auto_shutdown: bool=False,
+        echo_runtime_info: bool = False,
+        max_protocol: Tuple[int, int],
+        startup_script: Optional[StartupScript] = None,
+    ):
 
         self._loop = loop
 
@@ -87,6 +102,8 @@ class Server:
 
         self._echo_runtime_info = echo_runtime_info
 
+        self._startup_script = startup_script
+
     async def init(self):
         self._dbindex = await dbview.DatabaseIndex.init(self)
         self._populate_sys_auth()
@@ -105,6 +122,7 @@ class Server:
             netport=self._mgmt_port_no,
             auto_shutdown=self._auto_shutdown,
             max_protocol=self._mgmt_protocol_max,
+            startup_script=self._startup_script,
         )
 
     def _populate_sys_auth(self):
@@ -279,6 +297,15 @@ class Server:
         port = self._new_port(portcls, **kwargs)
         self._ports.append(port)
         return port
+
+    async def run_startup_script_and_exit(self):
+        """Run the script specified in *startup_script* and exit immediately"""
+        if self._startup_script is None:
+            raise AssertionError('startup script is not defined')
+
+        ql_parser.preload()
+        await self._mgmt_port.run_startup_script_and_exit()
+        return
 
     async def start(self):
         # Make sure that EdgeQL parser is preloaded; edgecon might use

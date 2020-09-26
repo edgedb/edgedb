@@ -190,6 +190,23 @@ def _run_server(cluster, args: ServerConfig,
     # actually were run.
     from . import server
 
+    if args.bootstrap_script:
+        with open(args.bootstrap_script) as f:
+            bootstrap_script_text = f.read()
+    elif args.bootstrap_command:
+        bootstrap_script_text = args.bootstrap_command
+    else:
+        bootstrap_script_text = None
+
+    if bootstrap_script_text is not None:
+        bootstrap_script = server.StartupScript(
+            text=bootstrap_script_text,
+            database=args.default_database,
+            user=args.default_database_user,
+        )
+    else:
+        bootstrap_script = None
+
     ss = server.Server(
         loop=loop,
         cluster=cluster,
@@ -201,29 +218,33 @@ def _run_server(cluster, args: ServerConfig,
         auto_shutdown=args.auto_shutdown,
         echo_runtime_info=args.echo_runtime_info,
         max_protocol=args.max_protocol,
+        startup_script=bootstrap_script,
     )
 
     loop.run_until_complete(ss.init())
 
-    try:
-        loop.run_until_complete(ss.start())
-    except Exception:
-        loop.run_until_complete(ss.stop())
-        raise
-
-    loop.add_signal_handler(signal.SIGTERM, terminate_server, ss, loop)
-
-    # Notify systemd that we've started up.
-    _sd_notify('READY=1')
-
-    try:
-        loop.run_forever()
-    finally:
+    if args.bootstrap_only:
+        loop.run_until_complete(ss.run_startup_script_and_exit())
+    else:
         try:
-            logger.info('Shutting down.')
+            loop.run_until_complete(ss.start())
+        except Exception:
             loop.run_until_complete(ss.stop())
+            raise
+
+        loop.add_signal_handler(signal.SIGTERM, terminate_server, ss, loop)
+
+        # Notify systemd that we've started up.
+        _sd_notify('READY=1')
+
+        try:
+            loop.run_forever()
         finally:
-            _sd_notify('STOPPING=1')
+            try:
+                logger.info('Shutting down.')
+                loop.run_until_complete(ss.stop())
+            finally:
+                _sd_notify('STOPPING=1')
 
 
 def run_server(args: ServerConfig):
@@ -299,7 +320,11 @@ def run_server(args: ServerConfig):
                 cluster.stop()
                 cluster.start(port=cluster_port)
 
-            if not args.bootstrap_only:
+            if (
+                not args.bootstrap_only
+                or args.bootstrap_script
+                or args.bootstrap_command
+            ):
                 if args.data_dir:
                     cluster.set_connection_params(
                         pgconnparams.ConnectionParameters(
@@ -566,8 +591,6 @@ def server_main(*, insecure=False, bootstrap, **kwargs):
         kwargs['bootstrap_only'] = True
 
     if kwargs['temp_dir']:
-        if kwargs['bootstrap_only']:
-            abort('--temp-data-dir is incompatible with --bootstrap-only')
         if kwargs['data_dir']:
             abort('--temp-data-dir is incompatible with --data-dir/-D')
         if kwargs['runstate_dir']:

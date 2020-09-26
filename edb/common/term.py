@@ -57,8 +57,11 @@ def max_colors():
 
     if _COLORS is None:
         import curses
-        curses.setupterm()
-        _COLORS = curses.tigetnum('colors')
+        try:
+            curses.setupterm()
+            _COLORS = curses.tigetnum('colors')
+        except OSError:
+            _COLORS = 1
 
     return _COLORS
 

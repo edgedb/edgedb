@@ -1102,46 +1102,6 @@ async def _bootstrap(
         cluster=cluster,
     )
 
-    if args['bootstrap_command'] or args['bootstrap_script']:
-        logger.info(f'Executing custom initialization')
-        init_conn = await cluster.connect(database=args['default_database'])
-        await _execute(
-            init_conn,
-            f"SET ROLE {args['default_database_user']};",
-        )
-        compiler = edbcompiler.Compiler({})
-        await compiler.ensure_initialized(init_conn)
-        schema = await compiler.introspect(init_conn)
-        try:
-            if args['bootstrap_command']:
-                try:
-                    schema, sql = compile_bootstrap_script(
-                        compiler,
-                        schema,
-                        args['bootstrap_command'],
-                    )
-                    await _execute(init_conn, sql)
-                except Exception as e:
-                    raise RuntimeError(
-                        "Error executing --bootstrap-command"
-                    ) from e
-            if args['bootstrap_script']:
-                try:
-                    with open(args['bootstrap_script']) as f:
-                        queries = f.read()
-                    schema, sql = compile_bootstrap_script(
-                        compiler,
-                        schema,
-                        queries,
-                    )
-                    await _execute(init_conn, sql)
-                except Exception as e:
-                    raise RuntimeError(
-                        "Error executing --bootstrap-script"
-                    ) from e
-        finally:
-            await init_conn.close()
-
 
 async def ensure_bootstrapped(
     cluster: pgcluster.BaseCluster,

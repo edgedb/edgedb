@@ -106,7 +106,6 @@ cdef class EdgeConnection:
     cdef write(self, WriteBuffer buf)
     cdef flush(self)
     cdef abort(self)
-    cdef close(self)
 
     cdef fallthrough(self)
 

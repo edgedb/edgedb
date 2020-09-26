@@ -230,10 +230,10 @@ class Cluster:
                     conn = await edgedb.async_connect(
                         host=str(self._runstate_dir),
                         port=self._effective_port,
-                        admin=True,
                         database=edgedb_defines.EDGEDB_SUPERUSER_DB,
                         user=edgedb_defines.EDGEDB_SUPERUSER,
-                        timeout=left)
+                        timeout=left,
+                    )
                 except (OSError, asyncio.TimeoutError,
                         edgedb.ClientConnectionError):
                     left -= (time.monotonic() - started)
@@ -244,6 +244,8 @@ class Cluster:
                     raise ClusterError(
                         f'could not connect to edgedb-server '
                         f'within {timeout} seconds')
+                except edgedb.AuthenticationError:
+                    return
                 else:
                     await conn.aclose()
                     return

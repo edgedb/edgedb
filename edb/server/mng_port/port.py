@@ -61,8 +61,16 @@ class ManagementPort(baseport.Port):
 
     _servers: List[asyncio.AbstractServer]
 
-    def __init__(self, nethost: str, netport: int, auto_shutdown: bool,
-                 max_protocol: Tuple[int, int], **kwargs):
+    def __init__(
+        self,
+        *,
+        nethost: str,
+        netport: int,
+        auto_shutdown: bool,
+        max_protocol: Tuple[int, int],
+        startup_script=None,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
 
         self._nethost = nethost
@@ -77,6 +85,7 @@ class ManagementPort(baseport.Port):
         self._auto_shutdown = auto_shutdown
         self._accepting = False
         self._max_protocol = max_protocol
+        self._startup_script = startup_script
 
     def new_view(self, *, dbname, user, query_cache):
         return self._dbindex.new_view(
@@ -124,8 +133,30 @@ class ManagementPort(baseport.Port):
             self._accepting = False
             raise SystemExit
 
+    async def run_startup_script_and_exit(self):
+        """Run the script specified in *startup_script* and exit immediately"""
+        await super().start()
+
+        try:
+            await edgecon.EdgeConnection.run_script(
+                server=self,
+                database=self._startup_script.database,
+                user=self._startup_script.user,
+                script=self._startup_script.text,
+            )
+        finally:
+            await super().stop()
+
     async def start(self):
         await super().start()
+
+        if self._startup_script is not None:
+            await edgecon.EdgeConnection.run_script(
+                server=self,
+                database=self._startup_script.database,
+                user=self._startup_script.user,
+                script=self._startup_script.text,
+            )
 
         nethost = await self._fix_localhost(self._nethost, self._netport)
 

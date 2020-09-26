@@ -1987,7 +1987,6 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
                             user=conargs.get('user'),
                             password=conargs.get('password'),
                             database=self.get_database_name(),
-                            admin=True,
                         )
                     except (ConnectionError, edgedb.ClientConnectionError):
                         if attempt >= 100:
