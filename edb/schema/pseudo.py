@@ -60,7 +60,7 @@ class PseudoType(so.InheritingObject, s_types.Type):
         return True
 
     def is_polymorphic(self, schema: s_schema.Schema) -> bool:
-        return True
+        return self.get_name(schema) != 'never'
 
     def material_type(
         self,
@@ -77,20 +77,25 @@ class PseudoType(so.InheritingObject, s_types.Type):
     def is_anytuple(self, schema: s_schema.Schema) -> bool:
         return self.get_name(schema) == 'anytuple'
 
+    def is_never(self, schema: s_schema.Schema) -> bool:
+        return self.get_name(schema) == 'never'
+
     def implicitly_castable_to(
         self,
         other: s_types.Type,
         schema: s_schema.Schema
     ) -> bool:
-        return self == other
+        return True if self.get_name(schema) == 'never' else self == other
 
     def find_common_implicitly_castable_type(
         self,
         other: s_types.Type,
         schema: s_schema.Schema,
-    ) -> Tuple[s_schema.Schema, Optional[PseudoType]]:
+    ) -> Tuple[s_schema.Schema, Optional[s_types.Type]]:
         if self == other:
             return schema, self
+        elif self.is_never(schema):
+            return schema, other
         else:
             return schema, None
 
@@ -99,7 +104,7 @@ class PseudoType(so.InheritingObject, s_types.Type):
         other: s_types.Type,
         schema: s_schema.Schema
     ) -> int:
-        if self == other:
+        if self == other or self.is_never(schema):
             return 0
         else:
             return s_types.MAX_TYPE_DISTANCE

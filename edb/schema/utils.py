@@ -223,6 +223,10 @@ def ast_to_type_shell(
         from . import pseudo as s_pseudo
         return s_pseudo.PseudoTypeShell(name='anytuple')
 
+    elif isinstance(node.maintype, qlast.Never):
+        from . import pseudo as s_pseudo
+        return s_pseudo.PseudoTypeShell(name='never')
+
     assert isinstance(node.maintype, qlast.ObjectRef)
 
     return ast_objref_to_type_shell(

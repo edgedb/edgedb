@@ -110,6 +110,8 @@
 0x_05_03_00_01   TransactionSerializationError
 0x_05_03_00_02   TransactionDeadlockError
 
+0x_05_04_00_00   RuntimeUserError
+
 
 ####
 

@@ -175,6 +175,11 @@ def type_to_typeref(
             id=t.id,
             name_hint=typename or t.get_name(schema),
         )
+    elif t.is_never(schema):
+        result = irast.NeverRef(
+            id=t.id,
+            name_hint=typename or t.get_name(schema),
+        )
     elif not isinstance(t, s_types.Collection):
         assert isinstance(t, s_types.InheritingType)
         union_of = t.get_union_of(schema)

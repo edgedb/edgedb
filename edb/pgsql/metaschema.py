@@ -338,6 +338,35 @@ class RaiseExceptionFunction(dbops.Function):
             text=self.text)
 
 
+class RaiseEdgeDBExceptionFunction(dbops.Function):
+    text = '''
+    BEGIN
+        RAISE EXCEPTION '@@%@@ %', "code", "msg";
+        RETURN rtype;
+    END;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_raise_edgedb_exception'),
+            args=[
+                ('msg', ('text',)),
+                ('code', ('int8',)),
+                ('rtype', ('anyelement',))
+            ],
+            returns=('anyelement',),
+            # NOTE: The main reason why we don't want this function to be
+            # immutable is that immutable functions can be
+            # pre-evaluated by the query planner once if they have
+            # constant arguments. This means that using this function
+            # as the second argument in a COALESCE will raise an
+            # exception regardless of whether the first argument is
+            # NULL or not.
+            volatility='stable',
+            language='plpgsql',
+            text=self.text)
+
+
 class RaiseSpecificExceptionFunction(dbops.Function):
     text = '''
     BEGIN
@@ -2310,6 +2339,7 @@ async def bootstrap(conn):
         dbops.CreateFunction(GetObjectMetadata()),
         dbops.CreateFunction(GetSharedObjectMetadata()),
         dbops.CreateFunction(RaiseExceptionFunction()),
+        dbops.CreateFunction(RaiseEdgeDBExceptionFunction()),
         dbops.CreateFunction(RaiseSpecificExceptionFunction()),
         dbops.CreateFunction(RaiseSpecificExceptionFunctionArray()),
         dbops.CreateFunction(RaiseExceptionOnNullFunction()),

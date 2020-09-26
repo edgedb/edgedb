@@ -64,6 +64,8 @@ class PGErrorCode(enum.Enum):
 
     ObjectInUse = '55006'
 
+    RaiseError = 'P0001'
+
 
 class SchemaRequired:
     '''A sentinel used to signal that a particular error requires a schema.'''
@@ -118,6 +120,8 @@ pgtype_re = re.compile(
     '|'.join(fr'\b{key}\b' for key in types.base_type_name_map_r))
 enum_re = re.compile(
     r'(?P<p>enum) (?P<v>"edgedb_([\w-]+)"."(?P<id>[\w-]+)_domain")')
+user_error_re = re.compile(
+    r'^@@(?P<code>\d+)@@\s(?P<msg>.*)$')
 
 
 def translate_pgtype(schema, msg):
@@ -158,7 +162,7 @@ def get_error_details(fields):
             try:
                 errcls = type(errors.EdgeDBError).get_error_class_from_code(
                     errcode)
-            except LookupError:
+            except KeyError:
                 pass
             else:
                 return ErrorDetails(
@@ -325,6 +329,20 @@ def static_interpret_backend_error(fields):
 
     elif err_details.code == PGErrorCode.ObjectInUse:
         return errors.ExecutionError(err_details.message)
+
+    elif (err_details.code == PGErrorCode.RaiseError and
+            (match := user_error_re.match(err_details.message))):
+        code = int(match.group('code'))
+        msg = match.group('msg')
+        try:
+            errcls = type(errors.EdgeDBError).get_error_class_from_code(code)
+        except KeyError:
+            return errors.InternalServerError(
+                f'invalid EdgeDB error code {code:#x}; '
+                f'original exception: {msg}'
+            )
+        else:
+            return errcls(msg)
 
     return errors.InternalServerError(err_details.message)
 

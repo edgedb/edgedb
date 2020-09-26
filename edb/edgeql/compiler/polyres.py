@@ -150,6 +150,10 @@ def try_bind_call_args(
     ) -> int:
         nonlocal resolved_poly_base_type
 
+        if arg_type.is_never(schema):
+            # "never" is assignable to every type.
+            return 0
+
         if in_polymorphic_func:
             # Compiling a body of a polymorphic function.
 

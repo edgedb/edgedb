@@ -165,6 +165,10 @@ class AnyTupleRef(TypeRef):
     pass
 
 
+class NeverRef(TypeRef):
+    pass
+
+
 class BasePointerRef(ImmutableBase):
     __abstract_node__ = True
 

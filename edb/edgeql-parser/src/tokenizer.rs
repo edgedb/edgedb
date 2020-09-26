@@ -885,6 +885,7 @@ pub fn is_keyword(s: &str) -> bool {
         | "lock"
         | "match"
         | "move"
+        | "never"
         | "notify"
         | "prepare"
         | "partition"

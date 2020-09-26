@@ -226,6 +226,25 @@ def compile_TypeCast(
             )
         )
 
+    elif expr.sql_expr and isinstance(expr.from_type, irast.NeverRef):
+        pg_type = pg_types.pg_type_from_ir_typeref(expr.to_type)
+
+        res = pgast.TypeCast(
+            arg=pgast.CaseExpr(
+                args=[
+                    pgast.CaseWhen(
+                        expr=pgast.NullTest(
+                            arg=pg_expr,
+                            negated=False
+                        ),
+                        result=pgast.NullConstant()
+                    )
+                ],
+                defresult=pgast.NullConstant()
+            ),
+            type_name=pgast.TypeName(name=pg_type)
+        )
+
     elif expr.sql_function or expr.sql_expr:
         # Cast implemented as a function.
 

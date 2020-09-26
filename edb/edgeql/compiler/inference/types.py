@@ -282,6 +282,14 @@ def __infer_anytupleref(
 
 
 @_infer_type.register
+def __infer_neverref(
+    ir: irast.NeverRef,
+    env: context.Environment,
+) -> s_types.Type:
+    return s_pseudo.PseudoType.get(env.schema, 'never')
+
+
+@_infer_type.register
 def __infer_typeref(
     ir: irast.TypeRef,
     env: context.Environment,

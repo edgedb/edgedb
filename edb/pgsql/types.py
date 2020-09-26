@@ -171,6 +171,9 @@ def pg_type_from_object(
     elif obj.is_type() and obj.is_any(schema):
         return ('anyelement',)
 
+    elif obj.is_type() and obj.is_never(schema):
+        return ('void',)
+
     else:
         raise ValueError(f'could not determine PG type for {obj!r}')
 

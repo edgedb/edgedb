@@ -672,6 +672,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_AnyTuple(self, node: qlast.AnyTuple) -> None:
         self.write('anytuple')
 
+    def visit_Never(self, node: qlast.AnyType) -> None:
+        self.write('never')
+
     def visit_TypeCast(self, node: qlast.TypeCast) -> None:
         self.write('<')
         self.visit(node.type)

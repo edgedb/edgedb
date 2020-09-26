@@ -336,6 +336,8 @@ def main(*, base_class, message_base_class,
         f'\n\n\n'
         f'# flake8: noqa'
         f'\n\n\n'
+        f'from __future__ import annotations'
+        f'\n\n'
         f'{code}'
         f'\n'
     )

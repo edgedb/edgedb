@@ -226,6 +226,9 @@ class Type(
     def is_enum(self, schema: s_schema.Schema) -> bool:
         return False
 
+    def is_never(self, schema: s_schema.Schema) -> bool:
+        return False
+
     def test_polymorphic(self, schema: s_schema.Schema, poly: Type) -> bool:
         """Check if this type can be matched by a polymorphic type.
 
@@ -318,7 +321,7 @@ class Type(
         self: TypeT,
         other: Type,
         schema: s_schema.Schema,
-    ) -> typing.Tuple[s_schema.Schema, Optional[TypeT]]:
+    ) -> typing.Tuple[s_schema.Schema, Optional[Type]]:
         return schema, None
 
     def explicitly_castable_to(

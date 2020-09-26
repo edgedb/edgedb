@@ -163,6 +163,7 @@ pub const CURRENT_RESERVED_KEYWORDS: &[&str] = &[
     "like",
     "limit",
     "module",
+    "never",
     "not",
     "offset",
     "optional",

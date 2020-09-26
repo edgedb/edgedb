@@ -388,6 +388,27 @@ std::find(haystack: array<anytype>, needle: anytype,
     $$;
 };
 
+# std::throw
+# ----------
+
+CREATE FUNCTION
+std::throw(message: std::str) -> never
+{
+    CREATE ANNOTATION std::description :=
+        'Throws a RuntimeUserError with the passed message.';
+
+    # See comment in metaschama.py/RaiseExceptionFunction
+    SET volatility := 'STABLE';
+
+    USING SQL $$
+    SELECT edgedb._raise_edgedb_exception(
+        "message",
+        x'05040000'::int8, -- RuntimeUserError
+        NULL::int4
+    )
+    LIMIT 1
+    $$;
+};
 
 # Generic comparison operators
 # ----------------------------

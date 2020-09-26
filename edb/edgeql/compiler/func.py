@@ -761,21 +761,38 @@ def finalize_args(
             assert isinstance(paramtype, s_types.Array)
             paramtype = list(paramtype.get_subtypes(ctx.env.schema))[0]
 
-        # Check if we need to cast the argument value before passing
-        # it to the callable.
-        compatible = schemactx.is_type_compatible(
-            paramtype,
-            barg.valtype,
-            ctx=ctx,
-        )
+        if barg.valtype.is_never(ctx.env.schema):
+            arg = setgen.ensure_set(
+                irast.TypeCast(
+                    expr=arg,
+                    from_type=typegen.type_to_typeref(
+                        barg.valtype, env=ctx.env),
+                    to_type=typegen.type_to_typeref(
+                        barg.param_type, env=ctx.env),
+                    cardinalimod=None,
+                    cast_name=None,
+                    sql_function=None,
+                    sql_cast=None,
+                    sql_expr=True,
+                ),
+                ctx=ctx
+            )
+        else:
+            # Check if we need to cast the argument value before passing
+            # it to the callable.
+            compatible = schemactx.is_type_compatible(
+                paramtype,
+                barg.valtype,
+                ctx=ctx,
+            )
 
-        if not compatible:
-            # The callable form was chosen via an implicit cast,
-            # cast the arguments so that the backend has no
-            # wiggle room to apply its own (potentially different)
-            # casting.
-            arg = casts.compile_cast(
-                arg, paramtype, srcctx=None, ctx=ctx)
+            if not compatible:
+                # The callable form was chosen via an implicit cast,
+                # cast the arguments so that the backend has no
+                # wiggle room to apply its own (potentially different)
+                # casting.
+                arg = casts.compile_cast(
+                    arg, paramtype, srcctx=None, ctx=ctx)
 
         call_arg = irast.CallArg(expr=arg, cardinality=None)
         stmtctx.get_expr_cardinality_later(
