@@ -22,6 +22,7 @@ from typing import *
 
 import json
 import logging
+import pathlib
 
 from edb import errors
 
