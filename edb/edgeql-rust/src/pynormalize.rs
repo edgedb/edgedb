@@ -8,7 +8,7 @@ use cpython::exc::AssertionError;
 use bytes::{BytesMut, Bytes, BufMut};
 use edgeql_parser::position::Pos;
 use edgedb_protocol::codec;
-use edgedb_protocol::value::{BigInt, Decimal};
+use edgedb_protocol::model::{BigInt, Decimal};
 
 use crate::errors::TokenizerError;
 use crate::normalize::{Error, Value, Variable, normalize as _normalize};
