@@ -32,11 +32,11 @@ checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
 
 [[package]]
 name = "bigdecimal"
-version = "0.1.2"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1374191e2dd25f9ae02e3aa95041ed5d747fc77b3c102b49fe2dd9a8117a6244"
+checksum = "cc403c26e6b03005522e6e8053384c4e881dfe5b2bf041c0c2c49be33d64a539"
 dependencies = [
- "num-bigint",
+ "num-bigint 0.3.0",
  "num-integer",
  "num-traits",
 ]
@@ -91,12 +91,13 @@ dependencies = [
 
 [[package]]
 name = "cpython"
-version = "0.4.1"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bfaf3847ab963e40c4f6dd8d6be279bdf74007ae2413786a0dcbb28c52139a95"
+checksum = "0473cc11511ce00b9405a2f96adf71fe3078a7c4543330de44c14081d57c6d59"
 dependencies = [
  "libc",
  "num-traits",
+ "paste",
  "python3-sys",
 ]
 
@@ -128,7 +129,7 @@ version = "0.3.0"
 source = "git+https://github.com/edgedb/graphql-parser#49f0e0144fac00750db6c448b7050d054e609701"
 dependencies = [
  "combine 3.8.1",
- "num-bigint",
+ "num-bigint 0.2.6",
  "num-traits",
  "thiserror",
 ]
@@ -136,11 +137,11 @@ dependencies = [
 [[package]]
 name = "edgedb-protocol"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb-rust#32dd51bdc11976d08fc79a078439b4af823c374e"
+source = "git+https://github.com/edgedb/edgedb-rust#001766aaa4201c33b2d0a156d2492704b9d69ab6"
 dependencies = [
  "bigdecimal",
  "bytes",
- "num-bigint",
+ "num-bigint 0.3.0",
  "num-traits",
  "snafu",
  "uuid",
@@ -167,7 +168,7 @@ dependencies = [
  "cpython",
  "edgedb-protocol",
  "edgeql-parser",
- "num-bigint",
+ "num-bigint 0.3.0",
 ]
 
 [[package]]
@@ -183,7 +184,7 @@ dependencies = [
  "combine 3.8.1",
  "cpython",
  "edb-graphql-parser",
- "num-bigint",
+ "num-bigint 0.3.0",
  "num-traits",
  "pretty_assertions",
  "thiserror",
@@ -234,6 +235,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "num-bigint"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7f3fc75e3697059fb1bc465e3d8cca6cf92f56854f201158b3f9c77d5a3cfa0"
+dependencies = [
+ "autocfg",
+ "num-integer",
+ "num-traits",
+]
+
+[[package]]
 name = "num-integer"
 version = "0.1.43"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -262,6 +274,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "paste"
+version = "0.1.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "45ca20c77d80be666aef2b45486da86238fabe33e38306bd3118fe4af33fa880"
+dependencies = [
+ "paste-impl",
+ "proc-macro-hack",
+]
+
+[[package]]
+name = "paste-impl"
+version = "0.1.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d95a7db200b97ef370c8e6de0088252f7e0dfff7d047a28528e47456c0fc98b6"
+dependencies = [
+ "proc-macro-hack",
+]
+
+[[package]]
 name = "pin-project-lite"
 version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -280,6 +311,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "proc-macro-hack"
+version = "0.5.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "99c605b9a0adc77b7211c6b1f722dcb613d68d66859a44f3d485a6da332b0598"
+
+[[package]]
 name = "proc-macro2"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -290,9 +327,9 @@ dependencies = [
 
 [[package]]
 name = "python3-sys"
-version = "0.4.1"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90af11779515a1e530af60782d273b59ac79d33b0e253c071a728563957c76d4"
+checksum = "cf23dd54ae7b15c36ae352ec00f82503d6aa04c9fb951e0738c63f41047dd09a"
 dependencies = [
  "libc",
  "regex",
