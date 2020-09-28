@@ -6,14 +6,14 @@ authors = ["MagicStack Inc. <hello@magic.io>"]
 edition = "2018"
 
 [dependencies]
-combine = "3.2.0"
+combine = "3.8"
 thiserror = "1.0.11"
-num-bigint = "0.2.6"
+num-bigint = "0.3.0"
 num-traits = "0.2.11"
 edb-graphql-parser = { git="https://github.com/edgedb/graphql-parser" }
 
 [dependencies.cpython]
-version = "0.4.1"
+version = "0.5.1"
 features = ["extension-module"]
 
 [dev-dependencies]
