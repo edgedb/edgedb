@@ -21,7 +21,7 @@ CREATE MODULE sys;
 
 
 CREATE SCALAR TYPE sys::TransactionIsolation
-    EXTENDING enum<'REPEATABLE READ', 'SERIALIZABLE'>;
+    EXTENDING enum<RepeatableRead, Serializable>;
 
 
 CREATE ABSTRACT TYPE sys::SystemObject EXTENDING schema::AnnotationSubject;

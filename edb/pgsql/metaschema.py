@@ -2230,7 +2230,17 @@ class SysVersionFunction(dbops.Function):
 class SysGetTransactionIsolation(dbops.Function):
     "Get transaction isolation value as text compatible with EdgeDB's enum."
     text = r'''
-        SELECT upper(setting)
+        SELECT
+            CASE setting
+                WHEN 'repeatable read' THEN 'RepeatableRead'
+                WHEN 'serializable' THEN 'Serializable'
+                ELSE (
+                    SELECT edgedb._raise_exception(
+                        'unknown transaction isolation level "' ||
+                            setting || '"',
+                        NULL::text)
+                )
+            END
         FROM pg_settings
         WHERE name = 'transaction_isolation'
     '''
