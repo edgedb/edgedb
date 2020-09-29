@@ -91,7 +91,7 @@ Create a new enumerated type:
 .. code-block:: edgeql
 
     CREATE SCALAR TYPE Color
-        EXTENDING enum<'black', 'white', 'red'>;
+        EXTENDING enum<Black, White, Red>;
 
 
 ALTER SCALAR TYPE
