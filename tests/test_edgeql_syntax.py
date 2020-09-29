@@ -1966,7 +1966,6 @@ aa';
 
     def test_edgeql_syntax_cast_07(self):
         """
-        SELECT <tuple<>>$1;
         SELECT <tuple<Foo, int, str>>$1;
         SELECT <std::tuple<obj: Foo, count: int, name: str>>$1;
         """
@@ -1991,6 +1990,14 @@ aa';
 
         SELECT <tuple<Foo, int, str>>$1;
         SELECT <std::tuple<obj: Foo, count: int, name: str>>$1;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "must have at least one argument",
+                  line=2, col=22)
+    def test_edgeql_syntax_cast_10(self):
+        """
+        SELECT <tuple<>>$1;
         """
 
     def test_edgeql_syntax_with_01(self):
@@ -3066,6 +3073,27 @@ aa';
     def test_edgeql_syntax_ddl_scalar_03(self):
         """
         CREATE SCALAR TYPE myenum EXTENDING enum<'foo', 'bar'>;
+        """
+
+    def test_edgeql_syntax_ddl_scalar_04(self):
+        """
+        CREATE SCALAR TYPE myenum EXTENDING enum<foo, bar>;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "mixing string type literals and type names",
+                  line=2, col=50)
+    def test_edgeql_syntax_ddl_scalar_05(self):
+        """
+        CREATE SCALAR TYPE myenum EXTENDING enum<'foo', bar>;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "mixing named and unnamed subtype",
+                  line=2, col=50)
+    def test_edgeql_syntax_ddl_scalar_06(self):
+        """
+        CREATE SCALAR TYPE myenum EXTENDING enum<baz: int64, bar>;
         """
 
     def test_edgeql_syntax_ddl_annotation_01(self):

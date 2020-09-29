@@ -1323,7 +1323,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 }
             }
 
-            scalar type unit extending enum<'ml', 'g', 'oz'>;
+            scalar type unit extending enum<ml, g, oz>;
 
             type Recipe extending Named {
                 multi link ingredients -> Ingredient {

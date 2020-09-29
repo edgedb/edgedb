@@ -1634,21 +1634,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_bad_05(self):
         with self.assertRaisesRegex(
                 edgedb.EdgeQLSyntaxError,
-                r'mixing named and unnamed tuple declaration is not '
+                r'mixing named and unnamed subtype declarations is not '
                 r'supported'):
             await self.con.execute(r"""
                 CREATE TYPE test::Foo {
                     CREATE PROPERTY bar -> tuple<int64, foo:int64>;
-                };
-            """)
-
-    async def test_edgeql_ddl_bad_06(self):
-        with self.assertRaisesRegex(
-                edgedb.SchemaError,
-                r'unexpected number of subtypes, expecting 1'):
-            await self.con.execute(r"""
-                CREATE TYPE test::Foo {
-                    CREATE PROPERTY bar -> array<>;
                 };
             """)
 
