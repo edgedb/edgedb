@@ -1492,7 +1492,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write('SET OWNED' if node.owned else 'DROP OWNED')
 
     def visit_OnTargetDelete(self, node: qlast.OnTargetDelete) -> None:
-        self._write_keywords('ON TARGET DELETE ', node.cascade)
+        self._write_keywords('ON TARGET DELETE ', node.cascade.to_edgeql())
 
     def visit_CreateObjectType(self, node: qlast.CreateObjectType) -> None:
         keywords = []

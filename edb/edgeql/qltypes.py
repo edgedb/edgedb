@@ -166,6 +166,18 @@ class SchemaObjectClass(s_enum.StrEnum):
 
 class LinkTargetDeleteAction(s_enum.StrEnum):
     RESTRICT = 'RESTRICT'
-    DELETE_SOURCE = 'DELETE SOURCE'
+    DELETE_SOURCE = 'DELETE_SOURCE'
     ALLOW = 'ALLOW'
-    DEFERRED_RESTRICT = 'DEFERRED RESTRICT'
+    DEFERRED_RESTRICT = 'DEFERRED_RESTRICT'
+
+    def to_edgeql(self) -> str:
+        if self is LinkTargetDeleteAction.DELETE_SOURCE:
+            return 'DELETE SOURCE'
+        elif self is LinkTargetDeleteAction.DEFERRED_RESTRICT:
+            return 'DEFERRED RESTRICT'
+        elif self is LinkTargetDeleteAction.RESTRICT:
+            return 'RESTRICT'
+        elif self is LinkTargetDeleteAction.ALLOW:
+            return 'ALLOW'
+        else:
+            raise ValueError(f'unsupported enum value {self!r}')
