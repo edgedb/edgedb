@@ -148,7 +148,7 @@ the :eql:func:`sys::get_version` function:
                     Object {
                         name: 'stage',
                         type: Object {
-                            name: 'sys::version_stage'
+                            name: 'sys::VersionStage'
                         }
                     },
                     Object {

@@ -127,8 +127,8 @@ sys::advisory_unlock_all() -> std::bool
 };
 
 
-CREATE SCALAR TYPE sys::version_stage
-    EXTENDING enum<'dev', 'alpha', 'beta', 'rc', 'final'>;
+CREATE SCALAR TYPE sys::VersionStage
+    EXTENDING enum<dev, alpha, beta, rc, final>;
 
 
 # An intermediate function is needed because we can't
@@ -159,7 +159,7 @@ sys::__version_internal() -> tuple<major: std::int64,
 CREATE FUNCTION
 sys::get_version() -> tuple<major: std::int64,
                             minor: std::int64,
-                            stage: sys::version_stage,
+                            stage: sys::VersionStage,
                             stage_no: std::int64,
                             local: array<std::str>>
 {
@@ -169,7 +169,7 @@ sys::get_version() -> tuple<major: std::int64,
     USING (
         SELECT <tuple<major: std::int64,
                     minor: std::int64,
-                    stage: sys::version_stage,
+                    stage: sys::VersionStage,
                     stage_no: std::int64,
                     local: array<std::str>>>sys::__version_internal()
     );
@@ -188,7 +188,7 @@ sys::get_version_as_str() -> std::str
             <str>v.major
             ++ '.' ++ <str>v.minor
             ++ (('-' ++ <str>v.stage ++ '.' ++ <str>v.stage_no)
-                IF v.stage != <sys::version_stage>'final' ELSE '')
+                IF v.stage != <sys::VersionStage>'final' ELSE '')
             ++ (('+' ++ std::array_join(v.local, '.')) IF len(v.local) > 0
                 ELSE '')
     );

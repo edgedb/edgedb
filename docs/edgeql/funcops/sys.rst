@@ -105,7 +105,7 @@ System
 
 .. eql:function:: sys::get_version() -> tuple<major: int64, \
                                               minor: int64, \
-                                              stage: sys::version_stage, \
+                                              stage: sys::VersionStage, \
                                               stage_no: int64, \
                                               local: array<str>>
 
@@ -121,7 +121,7 @@ System
     .. code-block:: edgeql-repl
 
         db> SELECT sys::get_version();
-        {(major := 1, minor := 0, stage := <sys::version_stage>'alpha',
+        {(major := 1, minor := 0, stage := <sys::VersionStage>'alpha',
           stage_no := 1, local := [])}
 
 
