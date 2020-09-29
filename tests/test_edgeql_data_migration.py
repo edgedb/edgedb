@@ -57,8 +57,10 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
     async def fast_forward_describe_migration(self):
         '''Repeatedly get the next step from DESCRIBE and execute it.
 
-        The point of this as opposed to just using "POPULATE MIGRATION;
-        COMMIT MIGRATION;" is that we want to make sure that
+        The point of this as opposed to just using "POPULATE
+        MIGRATION; COMMIT MIGRATION;" is that we want to make sure
+        that the generated DDL is valid and in case it's not, narrow
+        down which step is causing issues.
         '''
 
         try:
@@ -576,12 +578,11 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         )
 
     async def test_edgeql_migration_describe_type_01(self):
+        # Migration that renames a type.
         await self.con.execute('''
             START MIGRATION TO {
-                module default {
-                    type Type1 {
-                        property field1 -> str;
-                    };
+                module test {
+                    type Type1;
                 };
             };
         ''')
@@ -593,19 +594,194 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             'proposed': {
                 'statements': [{
                     'text': (
-                        'CREATE TYPE default::Type1 {\n'
-                        '    CREATE OPTIONAL SINGLE PROPERTY field1'
-                        ' -> std::str;\n'
-                        '};'
+                        'CREATE TYPE test::Type1;'
                     )
                 }],
                 'confidence': 1.0,
-                'operation_id': 'CREATE TYPE default::Type1',
-                'prompt': "did you create object type 'default::Type1'?",
+                'operation_id': 'CREATE TYPE test::Type1',
+                'prompt': "did you create object type 'test::Type1'?",
+            },
+        })
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
+
+        res = await self.con.query(r'''INSERT test::Type1;''')
+
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type Type01;
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'parent': 'm1jywblj6c7z25ouifcicpxniu37jdpyunf62q4th7isdafcqu67gq',
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': (
+                        'ALTER TYPE test::Type1 RENAME TO test::Type01;'
+                    )
+                }],
+                'confidence': 1.0,
+                'operation_id': 'ALTER TYPE test::Type1',
+                'prompt': (
+                    "did you rename object type 'test::Type1' to "
+                    "'test::Type01'?"
+                ),
+            },
+        })
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
+
+        await self.assert_query_result('''
+            SELECT test::Type01;
+        ''', [{'id': res[0].id}])
+
+    async def test_edgeql_migration_describe_type_02(self):
+        # Migration that creates a type.
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type Type02;
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'parent': 'm1a2l6lbzimqokzygdzbkyjrhbmjh3iljg7i2m6r2ias2z2de4x4cq',
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': (
+                        'CREATE TYPE test::Type02;'
+                    )
+                }],
+                'confidence': 1.0,
+                'operation_id': 'CREATE TYPE test::Type02',
+                'prompt': "did you create object type 'test::Type02'?",
+            },
+        })
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
+
+        await self.con.query(r'''INSERT test::Type02;''')
+
+        # Migration that drops a type.
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'parent': 'm1fcvk56n44i62qwjnw5nqgafnbpulfhhaeb6kxqhh4c6lc4elwysa',
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': (
+                        'DROP TYPE test::Type02;'
+                    )
+                }],
+                'confidence': 1.0,
+                'operation_id': 'DROP TYPE test::Type02',
+                'prompt': (
+                    "did you drop object type 'test::Type02'?"
+                ),
+            },
+        })
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
+
+        await self.assert_query_result('''
+            WITH MODULE schema
+            SELECT ObjectType
+            FILTER .name = 'test::Type02';
+        ''', [])
+
+        # Make sure that type dropped cleanly by re-creating and
+        # using the type again.
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type Type02;
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'parent': 'm1yee6qj63nps27cjnrcudwiupusdqkzrwistpvfbqf2fstcmwauwa',
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': (
+                        'CREATE TYPE test::Type02;'
+                    )
+                }],
+                'confidence': 1.0,
+                'operation_id': 'CREATE TYPE test::Type02',
+                'prompt': "did you create object type 'test::Type02'?",
+            },
+        })
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
+
+        await self.assert_query_result('''
+            INSERT test::Type02;
+        ''', [{'id': uuid.UUID}])
+
+    async def test_edgeql_migration_describe_type_03(self):
+        await self.migrate('''
+            type Type0;
+        ''')
+
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type Type1;
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': "ALTER TYPE test::Type0 RENAME TO test::Type1;"
+                }],
+                'confidence': 1.0,
+                'operation_id': "ALTER TYPE test::Type0",
+                'prompt': (
+                    "did you rename object type 'test::Type0' to "
+                    "'test::Type1'?"
+                ),
             },
         })
 
-    async def test_edgeql_migration_describe_type_02(self):
+        # Instead of the suggestion do a couple of different, but
+        # equivalent commands.
+        await self.con.execute('''
+            ALTER TYPE test::Type0 RENAME TO test::TypeXX;
+            ALTER TYPE test::TypeXX RENAME TO test::Type1;
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [
+                'ALTER TYPE test::Type0 RENAME TO test::TypeXX;',
+                'ALTER TYPE test::TypeXX RENAME TO test::Type1;',
+            ],
+            'complete': True,
+            'proposed': None,
+        })
+
+    async def test_edgeql_migration_describe_type_04(self):
         self.maxDiff = None
         await self.migrate('''
             type Test;
@@ -676,17 +852,12 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             },
         })
 
-    async def test_edgeql_migration_describe_type_03(self):
-        # Create and drop things to end up with an empty schema.
-        await self.con.execute('''
-            CREATE TYPE test::Type0;
-            DROP TYPE test::Type0;
-        ''')
-
+    async def test_edgeql_migration_describe_property_01(self):
+        # Migration that renames a property.
         await self.con.execute('''
             START MIGRATION TO {
                 module test {
-                    type Type1 {
+                    type Type01 {
                         property field1 -> str;
                     };
                 };
@@ -694,67 +865,858 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         ''')
 
         await self.assert_describe_migration({
+            'parent': 'm1a2l6lbzimqokzygdzbkyjrhbmjh3iljg7i2m6r2ias2z2de4x4cq',
             'confirmed': [],
             'complete': False,
             'proposed': {
                 'statements': [{
                     'text': (
-                        'CREATE TYPE test::Type1 {\n'
+                        'CREATE TYPE test::Type01 {\n'
                         '    CREATE OPTIONAL SINGLE PROPERTY field1'
                         ' -> std::str;\n'
                         '};'
                     )
                 }],
                 'confidence': 1.0,
-                'operation_id': 'CREATE TYPE test::Type1',
-                'prompt': "did you create object type 'test::Type1'?",
+                'operation_id': 'CREATE TYPE test::Type01',
+                'prompt': "did you create object type 'test::Type01'?",
             },
         })
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
 
-    async def test_edgeql_migration_describe_type_04(self):
-        await self.migrate('''
-            type Type0;
+        await self.con.execute('''
+            INSERT test::Type01 {
+                field1 := 'prop_test'
+            };
         ''')
 
         await self.con.execute('''
             START MIGRATION TO {
                 module test {
-                    type Type1;
+                    type Type01 {
+                        property field01 -> str;
+                    };
                 };
             };
         ''')
 
         await self.assert_describe_migration({
+            'parent': 'm1qbv2f3km5xs5teyya5yog6areb33lnsqvs5prmyumtehnmpdfy3q',
             'confirmed': [],
             'complete': False,
             'proposed': {
                 'statements': [{
-                    'text': "ALTER TYPE test::Type0 RENAME TO test::Type1;"
+                    'text': (
+                        'ALTER TYPE test::Type01 {\n'
+                        '    ALTER PROPERTY field1 {\n'
+                        '        RENAME TO field01;\n'
+                        '    };\n'
+                        '};'
+                    )
                 }],
                 'confidence': 1.0,
-                'operation_id': "ALTER TYPE test::Type0",
+                'operation_id': 'ALTER TYPE test::Type01',
                 'prompt': (
-                    "did you rename object type 'test::Type0' to "
-                    "'test::Type1'?"
+                    "did you alter object type 'test::Type01'?"
                 ),
             },
         })
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
 
-        # Instead of the suggestion do a couple of different, but
-        # equivalent commands.
+        await self.assert_query_result('''
+            SELECT test::Type01 {
+                field01
+            };
+        ''', [{'field01': 'prop_test'}])
+
+    async def test_edgeql_migration_describe_property_02(self):
+        # Migration that creates a type with property.
         await self.con.execute('''
-            ALTER TYPE test::Type0 RENAME TO test::TypeXX;
-            ALTER TYPE test::TypeXX RENAME TO test::Type1;
+            START MIGRATION TO {
+                module test {
+                    type Type02 {
+                        property field02 -> str;
+                    };
+                };
+            };
         ''')
 
         await self.assert_describe_migration({
-            'confirmed': [
-                'ALTER TYPE test::Type0 RENAME TO test::TypeXX;',
-                'ALTER TYPE test::TypeXX RENAME TO test::Type1;',
-            ],
-            'complete': True,
-            'proposed': None,
+            'parent': 'm1a2l6lbzimqokzygdzbkyjrhbmjh3iljg7i2m6r2ias2z2de4x4cq',
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': (
+                        'CREATE TYPE test::Type02 {\n'
+                        '    CREATE OPTIONAL SINGLE PROPERTY field02'
+                        ' -> std::str;\n'
+                        '};'
+                    )
+                }],
+                'confidence': 1.0,
+                'operation_id': 'CREATE TYPE test::Type02',
+                'prompt': "did you create object type 'test::Type02'?",
+            },
         })
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
+
+        res = await self.con.query('''
+            INSERT test::Type02 {
+                field02 := 'prop_test'
+            };
+        ''')
+
+        # Migration that drops a property.
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type Type02;
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'parent': 'm1plg55ylmquxeeurgqtp7uuaupb463z4htxw3rregmzx42zs5lxea',
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': (
+                        'ALTER TYPE test::Type02 {\n'
+                        '    DROP PROPERTY field02;\n'
+                        '};'
+                    )
+                }],
+                'confidence': 1.0,
+                'operation_id': 'ALTER TYPE test::Type02',
+                'prompt': (
+                    "did you alter object type 'test::Type02'?"
+                ),
+            },
+        })
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
+
+        await self.assert_query_result('''
+            SELECT test::Type02 {
+                id
+            };
+        ''', [{
+            'id': res[0].id
+        }])
+
+        # Make sure that property dropped cleanly by re-creating and
+        # using the property again.
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type Type02 {
+                        property field02 -> str;
+                    };
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'parent': 'm1dsogsjmchh4kivd633z6jjivjlve4hmqofr2obt3rq5koakemc5a',
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': (
+                        'ALTER TYPE test::Type02 {\n'
+                        '    CREATE OPTIONAL SINGLE PROPERTY field02'
+                        ' -> std::str;\n'
+                        '};'
+                    )
+                }],
+                'confidence': 1.0,
+                'operation_id': 'ALTER TYPE test::Type02',
+                'prompt': (
+                    "did you alter object type 'test::Type02'?"
+                ),
+            },
+        })
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
+
+        await self.assert_query_result('''
+            SELECT test::Type02 {
+                id,
+                field02,
+            };
+        ''', [{
+            'id': res[0].id,
+            'field02': None,
+        }])
+
+    @test.xfail('''
+        In the final migration DESCRIBE generates "RENAME TO foo01;" twice
+    ''')
+    async def test_edgeql_migration_describe_link_01(self):
+        # Migration that renames a link.
+        await self.con.execute(r'''
+            START MIGRATION TO {
+                module test {
+                    type Foo;
+                    type Type01 {
+                        link foo1 -> Foo;
+                    };
+                };
+            };
+
+            # just initialize Foo, since we're interested in the other type
+            CREATE TYPE test::Foo;
+        ''')
+
+        await self.assert_describe_migration({
+            'parent': 'm1a2l6lbzimqokzygdzbkyjrhbmjh3iljg7i2m6r2ias2z2de4x4cq',
+            'confirmed': ['CREATE TYPE test::Foo;'],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': (
+                        'CREATE TYPE test::Type01 {\n'
+                        '    CREATE OPTIONAL SINGLE LINK foo1'
+                        ' -> test::Foo;\n'
+                        '};'
+                    )
+                }],
+                'confidence': 1.0,
+                'operation_id': 'CREATE TYPE test::Type01',
+                'prompt': "did you create object type 'test::Type01'?",
+            },
+        })
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
+
+        res = await self.con.query('''
+            WITH MODULE test
+            INSERT Type01 {
+                foo1 := (INSERT Foo)
+            };
+        ''')
+
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type Foo;
+                    type Type01 {
+                        link foo01 -> Foo;
+                    };
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'parent': 'm1wmfeopwqccjy35fuf73j6g6sgrqnmes53gjpizw5tyehwiij6yhq',
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': (
+                        'ALTER TYPE test::Type01 {\n'
+                        '    ALTER LINK foo1 {\n'
+                        '        RENAME TO foo01;\n'
+                        '    };\n'
+                        '};'
+                    )
+                }],
+                'confidence': 1.0,
+                'operation_id': 'ALTER TYPE test::Type01',
+                'prompt': (
+                    "did you alter object type 'test::Type01'?"
+                ),
+            },
+        })
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
+
+        await self.assert_query_result('''
+            SELECT test::Type01 {
+                foo01: {
+                    id
+                }
+            };
+        ''', [{'foo01': {'id': res[0].foo1.id}}])
+
+    async def test_edgeql_migration_describe_link_02(self):
+        # Migration that creates a type with link.
+        await self.con.execute(r'''
+            START MIGRATION TO {
+                module test {
+                    type Foo;
+                    type Type02 {
+                        link foo02 -> Foo;
+                    };
+                };
+            };
+
+            # just initialize Foo, since we're interested in the other type
+            CREATE TYPE test::Foo;
+        ''')
+
+        await self.assert_describe_migration({
+            'parent': 'm1a2l6lbzimqokzygdzbkyjrhbmjh3iljg7i2m6r2ias2z2de4x4cq',
+            'confirmed': ['CREATE TYPE test::Foo;'],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': (
+                        'CREATE TYPE test::Type02 {\n'
+                        '    CREATE OPTIONAL SINGLE LINK foo02'
+                        ' -> test::Foo;\n'
+                        '};'
+                    )
+                }],
+                'confidence': 1.0,
+                'operation_id': 'CREATE TYPE test::Type02',
+                'prompt': "did you create object type 'test::Type02'?",
+            },
+        })
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
+
+        res = await self.con.query('''
+            WITH MODULE test
+            SELECT (
+                INSERT Type02 {
+                    foo02 := (INSERT Foo)
+                }
+            ) {
+                foo02
+            }
+        ''')
+
+        # Migration that drops a link.
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type Foo;
+                    type Type02;
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'parent': 'm1tul34c3bsnuzypwqo4cgpryguamjffvqme3c66id7nxasbsjyhda',
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': (
+                        'ALTER TYPE test::Type02 {\n'
+                        '    DROP LINK foo02;\n'
+                        '};'
+                    )
+                }],
+                'confidence': 1.0,
+                'operation_id': 'ALTER TYPE test::Type02',
+                'prompt': (
+                    "did you alter object type 'test::Type02'?"
+                ),
+            },
+        })
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
+
+        await self.assert_query_result('''
+            SELECT test::Type02 {
+                id
+            };
+        ''', [{
+            'id': res[0].id
+        }])
+        await self.assert_query_result('''
+            SELECT test::Foo {
+                id
+            };
+        ''', [{
+            'id': res[0].foo02.id
+        }])
+
+        # Make sure that link dropped cleanly by re-creating and
+        # using the link again.
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type Foo;
+                    type Type02 {
+                        link foo02 -> Foo;
+                    };
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'parent': 'm1zo2zt4im2gkkavxn6hzs432k5fvkdz42tswbphejihqe2yul47la',
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': (
+                        'ALTER TYPE test::Type02 {\n'
+                        '    CREATE OPTIONAL SINGLE LINK foo02'
+                        ' -> test::Foo;\n'
+                        '};'
+                    )
+                }],
+                'confidence': 1.0,
+                'operation_id': 'ALTER TYPE test::Type02',
+                'prompt': (
+                    "did you alter object type 'test::Type02'?"
+                ),
+            },
+        })
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
+
+        await self.assert_query_result('''
+            SELECT test::Type02 {
+                id,
+                foo02: {
+                    id
+                },
+            };
+        ''', [{
+            'id': res[0].id,
+            'foo02': None,
+        }])
+
+    @test.xfail('''
+        In the final migration DESCRIBE generates "RENAME TO foo01;" twice.
+
+        Also, if the double RENAME validation is skipped, the
+        following error appears in the final (DROP) migration:
+
+        dgedb.errors.InternalServerError: cannot drop table
+        "edgedb_193fe3f0-fcad-11ea-9d53-39dd03c0a79a".
+        "1b16e5a3-fcad-11ea-a559-4f0a062303a6"
+        because other objects depend on it
+    ''')
+    async def test_edgeql_migration_describe_link_03(self):
+        # Migration that renames a link.
+        await self.con.execute(r'''
+            START MIGRATION TO {
+                module test {
+                    abstract link foo3;
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'parent': 'm1a2l6lbzimqokzygdzbkyjrhbmjh3iljg7i2m6r2ias2z2de4x4cq',
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': (
+                        'CREATE ABSTRACT LINK test::foo3;'
+                    )
+                }],
+                'confidence': 1.0,
+                'operation_id': 'CREATE LINK test::foo3',
+                'prompt': "did you create abstract link 'test::foo3'?",
+            },
+        })
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
+
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    abstract link foo03;
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'parent': 'm1okv4ltfh3dphmqfmmx5bjusyzsnvc7sgjtb6vdo26mjf6rtmdqxq',
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': (
+                        'ALTER ABSTRACT LINK test::foo3 {\n'
+                        '    RENAME TO test::foo03;\n'
+                        '};'
+                    )
+                }],
+                'confidence': 1.0,
+                'operation_id': 'ALTER LINK test::foo3',
+                'prompt': (
+                    "did you rename abstract link 'test::foo3' to "
+                    "'test::foo03'?"
+                ),
+            },
+        })
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
+
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'parent': 'm1wk3m67nkkglmcbx32wvjh75n4pqbqtz5bs2rwdgcoefiwveqpfcq',
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': (
+                        'DROP ABSTRACT LINK test::foo03;'
+                    )
+                }],
+                'confidence': 1.0,
+                'operation_id': 'DROP LINK test::foo03',
+                'prompt': (
+                    "did you drop abstract link 'test::foo03'?"
+                ),
+            },
+        })
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
+
+    async def test_edgeql_migration_describe_scalar_01(self):
+        # Migration that renames a type.
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    scalar type ScalarType1 extending int64;
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'parent': 'm1a2l6lbzimqokzygdzbkyjrhbmjh3iljg7i2m6r2ias2z2de4x4cq',
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': (
+                        'CREATE SCALAR TYPE test::ScalarType1'
+                        ' EXTENDING std::int64;'
+                    )
+                }],
+                'confidence': 1.0,
+                'operation_id': 'CREATE SCALAR TYPE test::ScalarType1',
+                'prompt': "did you create scalar type 'test::ScalarType1'?",
+            },
+        })
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
+
+        await self.assert_query_result('''
+            SELECT <test::ScalarType1>'1' + 2;
+        ''', [3])
+
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    scalar type ScalarType01 extending int64;
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'parent': 'm1svrt2rvolv2f3fgtpgj2qikec4o4v6a5le5u6jfpyrzfhybr2ipa',
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': (
+                        'ALTER SCALAR TYPE test::ScalarType1'
+                        ' RENAME TO test::ScalarType01;'
+                    )
+                }],
+                'confidence': 1.0,
+                'operation_id': 'ALTER SCALAR TYPE test::ScalarType1',
+                'prompt': (
+                    "did you rename scalar type 'test::ScalarType1' to "
+                    "'test::ScalarType01'?"
+                ),
+            },
+        })
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
+
+        await self.assert_query_result('''
+            SELECT <test::ScalarType01>'2' + 1;
+        ''', [3])
+
+    async def test_edgeql_migration_describe_scalar_02(self):
+        # Migration that creates a type.
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    scalar type ScalarType02 extending str;
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'parent': 'm1a2l6lbzimqokzygdzbkyjrhbmjh3iljg7i2m6r2ias2z2de4x4cq',
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': (
+                        'CREATE SCALAR TYPE test::ScalarType02'
+                        ' EXTENDING std::str;'
+                    )
+                }],
+                'confidence': 1.0,
+                'operation_id': 'CREATE SCALAR TYPE test::ScalarType02',
+                'prompt': "did you create scalar type 'test::ScalarType02'?",
+            },
+        })
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
+
+        await self.assert_query_result('''
+            SELECT <test::ScalarType02>1 ++ '2';
+        ''', ['12'])
+
+        # Migration that drops a type.
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'parent': 'm1azidpr7ai7z2u4rcfx2awxdxy5ouenhvmb2otxew4penhxnruvuq',
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': (
+                        'DROP SCALAR TYPE test::ScalarType02;'
+                    )
+                }],
+                'confidence': 1.0,
+                'operation_id': 'DROP SCALAR TYPE test::ScalarType02',
+                'prompt': (
+                    "did you drop scalar type 'test::ScalarType02'?"
+                ),
+            },
+        })
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
+
+        await self.assert_query_result('''
+            WITH MODULE schema
+            SELECT ScalarType
+            FILTER .name = 'test::ScalarType02';
+        ''', [])
+
+        # Make sure that type dropped cleanly by re-creating and
+        # using the type again.
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    scalar type ScalarType02 extending str;
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'parent': 'm13agjryb2lawnugaty4gkqzjvxvrbod3olf3abupck7x2777yntta',
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': (
+                        'CREATE SCALAR TYPE test::ScalarType02'
+                        ' EXTENDING std::str;'
+                    )
+                }],
+                'confidence': 1.0,
+                'operation_id': 'CREATE SCALAR TYPE test::ScalarType02',
+                'prompt': "did you create scalar type 'test::ScalarType02'?",
+            },
+        })
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
+
+        await self.assert_query_result('''
+            SELECT <test::ScalarType02>2 ++ '1';
+        ''', ['21'])
+
+    async def test_edgeql_migration_describe_enum_01(self):
+        # Migration that renames an enum.
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    scalar type EnumType1 extending enum<'foo', 'bar'>;
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'parent': 'm1a2l6lbzimqokzygdzbkyjrhbmjh3iljg7i2m6r2ias2z2de4x4cq',
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': (
+                        "CREATE FINAL SCALAR TYPE test::EnumType1"
+                        " EXTENDING enum<'foo', 'bar'>;"
+                    )
+                }],
+                'confidence': 1.0,
+                'operation_id': 'CREATE SCALAR TYPE test::EnumType1',
+                'prompt': "did you create enumerated type 'test::EnumType1'?",
+            },
+        })
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
+
+        await self.assert_query_result('''
+            SELECT <test::EnumType1>'bar';
+        ''', ['bar'])
+
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    scalar type EnumType01 extending enum<'foo', 'bar'>;
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'parent': 'm1qsbeur2e7ukand66p23g55nva3wb3yg6z2u2vpqnbfx76aakbd6a',
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': (
+                        'ALTER SCALAR TYPE test::EnumType1'
+                        ' RENAME TO test::EnumType01;'
+                    )
+                }],
+                'confidence': 1.0,
+                'operation_id': 'ALTER SCALAR TYPE test::EnumType1',
+                'prompt': (
+                    "did you rename enumerated type 'test::EnumType1' to "
+                    "'test::EnumType01'?"
+                ),
+            },
+        })
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
+
+        await self.assert_query_result('''
+            SELECT <test::EnumType01>'foo';
+        ''', ['foo'])
+
+    async def test_edgeql_migration_describe_enum_02(self):
+        # Migration that creates an enum.
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    scalar type EnumType02 extending enum<'foo', 'bar'>;
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'parent': 'm1a2l6lbzimqokzygdzbkyjrhbmjh3iljg7i2m6r2ias2z2de4x4cq',
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': (
+                        "CREATE FINAL SCALAR TYPE test::EnumType02"
+                        " EXTENDING enum<'foo', 'bar'>;"
+                    )
+                }],
+                'confidence': 1.0,
+                'operation_id': 'CREATE SCALAR TYPE test::EnumType02',
+                'prompt': "did you create enumerated type 'test::EnumType02'?",
+            },
+        })
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
+
+        await self.assert_query_result('''
+            SELECT <test::EnumType02>'bar';
+        ''', ['bar'])
+
+        # Migration that drops an enum.
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'parent': 'm1kd6e3a3bnjol6c2kne77s5kpdghd3hs6cupzwtein5zmbj6npfva',
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': (
+                        'DROP SCALAR TYPE test::EnumType02;'
+                    )
+                }],
+                'confidence': 1.0,
+                'operation_id': 'DROP SCALAR TYPE test::EnumType02',
+                'prompt': (
+                    "did you drop enumerated type 'test::EnumType02'?"
+                ),
+            },
+        })
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
+
+        await self.assert_query_result('''
+            WITH MODULE schema
+            SELECT ScalarType
+            FILTER .name = 'test::EnumType02';
+        ''', [])
+
+        # Make sure that enum dropped cleanly by re-creating and
+        # using the enum again.
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    scalar type EnumType02 extending enum<'foo', 'bar'>;
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'parent': 'm1p3r7e7pc6jtuljbeq4uqj53gjdbx23y2r3sk2soiut7bxeseikaq',
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': (
+                        "CREATE FINAL SCALAR TYPE test::EnumType02"
+                        " EXTENDING enum<'foo', 'bar'>;"
+                    )
+                }],
+                'confidence': 1.0,
+                'operation_id': 'CREATE SCALAR TYPE test::EnumType02',
+                'prompt': "did you create enumerated type 'test::EnumType02'?",
+            },
+        })
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
+
+        await self.assert_query_result('''
+            SELECT <test::EnumType02>'foo';
+        ''', ['foo'])
 
     @test.xfail('''
         Abstract annotation doesn't offer renaming.
@@ -916,7 +1878,9 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         )
 
     @test.xfail('''
-        Abstract constraint renaming fails.
+        edgedb.errors.InternalServerError: <class
+        'edb.schema.functions.Parameter'> has no edgeql class string
+        assigned
     ''')
     async def test_edgeql_migration_describe_constraint_01(self):
         # Migration that renames a constraint.
@@ -3376,13 +4340,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }]
         )
 
-    @test.xfail('''
-        Error while processing 'ALTER LINK Ordered {
-            DROP PROPERTY index;
-        };'
-
-        The error occurs at the second "migrate".
-    ''')
     async def test_edgeql_migration_eq_43(self):
         await self.migrate(r"""
             abstract link Ordered {
@@ -5139,11 +6096,10 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         Fails on the last migration that attempts to rename the
         property being indexed.
 
-        This is an example of a general problem that any renaming
-        needs to be done in such a way so that the existing
-        expressions are still valid.
-
-        See test_schema_migrations_equivalence_index_01 first.
+        edgedb.errors.InternalServerError: cannot determine backend
+        name for <edb.schema.indexes.Index
+        UUID('38a6b615-0224-11eb-b246-672ac1280943') at
+        0x7ff2a317d3d0>
     ''')
     async def test_edgeql_migration_eq_index_01(self):
         await self.con.execute("""
@@ -5601,12 +6557,11 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         )
 
     @test.xfail('''
-        edgedb.errors.InternalServerError: cannot cast type record to
-        "a1862b57-10bb-5a9a-949d-9642013c8bab_t"
+        edgedb.errors.InternalServerError: column
+        "62ff8c71-0222-11eb-8eb0-3d08691ea43c" cannot be cast
+        automatically to type "ad341a65-1334-a65a-41c8-1ad54002b4bd_t"
 
-        The error occurs on INSERT.
-
-        See `test_edgeql_insert_collection_01` for a minimal test.
+        The error occurs on attempting to update the type.
     ''')
     async def test_edgeql_migration_eq_collections_07(self):
         await self.con.execute("""
@@ -5621,7 +6576,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self.con.execute(r"""
             INSERT Base {
-                foo := ('test', 7)
+                foo := ('test', <int32>7)
             }
         """)
 
@@ -5650,12 +6605,11 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         )
 
     @test.xfail('''
-        edgedb.errors.InternalServerError: cannot cast type record to
-        "eda91ff0-a332-5c78-8bc3-281d7944c887_t"
+        edgedb.errors.InternalServerError: column
+        "640f155d-0222-11eb-94a7-4362f11ee8b5" cannot be cast
+        automatically to type "a1862b57-10bb-1a9a-149d-9642013c8bab_t"
 
-        The error occurs on INSERT.
-
-        See `test_edgeql_insert_collection_01` for a minimal test.
+        The error occurs on attempting to update the type.
     ''')
     async def test_edgeql_migration_eq_collections_08(self):
         await self.migrate(r"""
@@ -5689,12 +6643,11 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         )
 
     @test.xfail('''
-        edgedb.errors.InternalServerError: cannot cast type record to
-        "a1862b57-10bb-5a9a-949d-9642013c8bab_t"
+        edgedb.errors.InternalServerError: column
+        "651f90a6-0222-11eb-86e3-2332f60fd3ca" cannot be cast
+        automatically to type "25fa38ac-b716-0c90-f7c7-76448eee8c87_t"
 
-        The error occurs on INSERT.
-
-        See `test_edgeql_insert_collection_01` for a minimal test.
+        The error occurs on attempting to update the type.
     ''')
     async def test_edgeql_migration_eq_collections_09(self):
         await self.migrate(r"""
