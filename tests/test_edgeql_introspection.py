@@ -733,7 +733,7 @@ class TestIntrospection(tb.QueryTestCase):
                             {"name": "minor",
                              "type": {"name": "std::int64"}},
                             {"name": "stage",
-                             "type": {"name": "sys::version_stage"}},
+                             "type": {"name": "sys::VersionStage"}},
                             {"name": "stage_no",
                              "type": {"name": "std::int64"}},
                             {"name": "local",
