@@ -1371,19 +1371,48 @@ class SimpleTypeNameList(ListNonterm, element=SimpleTypeName,
 
 
 class CollectionTypeName(Nonterm):
+
+    def validate_subtype_list(self, lst):
+        has_nonstrval = has_strval = has_items = False
+        for el in lst.val:
+            if isinstance(el, qlast.TypeExprLiteral):
+                has_strval = True
+            elif isinstance(el, qlast.TypeName):
+                if el.name:
+                    has_items = True
+                else:
+                    has_nonstrval = True
+
+        if (has_nonstrval or has_items) and has_strval:
+            # Prohibit cases like `tuple<a: int64, 'aaaa'>` and
+            # `enum<bbbb, 'aaaa'>`
+            raise EdgeQLSyntaxError(
+                "mixing string type literals and type names is not supported",
+                context=lst.context)
+
+        if has_items and has_nonstrval:
+            # Prohibit cases like `tuple<a: int64, int32>`
+            raise EdgeQLSyntaxError(
+                "mixing named and unnamed subtype declarations "
+                "is not supported",
+                context=lst.context)
+
     def reduce_NodeName_LANGBRACKET_RANGBRACKET(self, *kids):
-        self.val = qlast.TypeName(
-            maintype=kids[0].val,
-            subtypes=[],
+        # Constructs like `enum<>` or `array<>` aren't legal.
+        raise EdgeQLSyntaxError(
+            'parametrized type must have at least one argument',
+            context=kids[1].context,
         )
 
     def reduce_NodeName_LANGBRACKET_SubtypeList_RANGBRACKET(self, *kids):
+        self.validate_subtype_list(kids[2])
         self.val = qlast.TypeName(
             maintype=kids[0].val,
             subtypes=kids[2].val,
         )
 
     def reduce_NodeName_LANGBRACKET_SubtypeList_COMMA_RANGBRACKET(self, *kids):
+        self.validate_subtype_list(kids[2])
         self.val = qlast.TypeName(
             maintype=kids[0].val,
             subtypes=kids[2].val,
@@ -1456,6 +1485,7 @@ class Subtype(Nonterm):
         self.val.name = kids[0].val
 
     def reduce_BaseStringConstant(self, *kids):
+        # TODO: Raise a DeprecationWarning once we have facility for that.
         self.val = qlast.TypeExprLiteral(
             val=kids[0].val,
         )

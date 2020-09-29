@@ -1556,7 +1556,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute('''
             START MIGRATION TO {
                 module test {
-                    scalar type EnumType1 extending enum<'foo', 'bar'>;
+                    scalar type EnumType1 extending enum<foo, bar>;
                 };
             };
         ''')
@@ -1569,7 +1569,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 'statements': [{
                     'text': (
                         "CREATE FINAL SCALAR TYPE test::EnumType1"
-                        " EXTENDING enum<'foo', 'bar'>;"
+                        " EXTENDING enum<foo, bar>;"
                     )
                 }],
                 'confidence': 1.0,
@@ -1587,13 +1587,13 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute('''
             START MIGRATION TO {
                 module test {
-                    scalar type EnumType01 extending enum<'foo', 'bar'>;
+                    scalar type EnumType01 extending enum<foo, bar>;
                 };
             };
         ''')
 
         await self.assert_describe_migration({
-            'parent': 'm1qsbeur2e7ukand66p23g55nva3wb3yg6z2u2vpqnbfx76aakbd6a',
+            'parent': 'm1e7h52ims4j4ijfbdfrvm453vgldwsok6f7oiosyhvcmjvrjgefqq',
             'confirmed': [],
             'complete': False,
             'proposed': {
@@ -1623,7 +1623,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute('''
             START MIGRATION TO {
                 module test {
-                    scalar type EnumType02 extending enum<'foo', 'bar'>;
+                    scalar type EnumType02 extending enum<foo, bar>;
                 };
             };
         ''')
@@ -1636,7 +1636,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 'statements': [{
                     'text': (
                         "CREATE FINAL SCALAR TYPE test::EnumType02"
-                        " EXTENDING enum<'foo', 'bar'>;"
+                        " EXTENDING enum<foo, bar>;"
                     )
                 }],
                 'confidence': 1.0,
@@ -1660,7 +1660,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         ''')
 
         await self.assert_describe_migration({
-            'parent': 'm1kd6e3a3bnjol6c2kne77s5kpdghd3hs6cupzwtein5zmbj6npfva',
+            'parent': 'm16yh2sfnw2of6eikwc3u4odjeie2cvz54qe3e4jk7o3tvc3q5xzjq',
             'confirmed': [],
             'complete': False,
             'proposed': {
@@ -1690,20 +1690,20 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute('''
             START MIGRATION TO {
                 module test {
-                    scalar type EnumType02 extending enum<'foo', 'bar'>;
+                    scalar type EnumType02 extending enum<foo, bar>;
                 };
             };
         ''')
 
         await self.assert_describe_migration({
-            'parent': 'm1p3r7e7pc6jtuljbeq4uqj53gjdbx23y2r3sk2soiut7bxeseikaq',
+            'parent': 'm1pbb5jssdc652jn74enr3cnvynydww476glgodzyufbru6hcqsmsq',
             'confirmed': [],
             'complete': False,
             'proposed': {
                 'statements': [{
                     'text': (
                         "CREATE FINAL SCALAR TYPE test::EnumType02"
-                        " EXTENDING enum<'foo', 'bar'>;"
+                        " EXTENDING enum<foo, bar>;"
                     )
                 }],
                 'confidence': 1.0,

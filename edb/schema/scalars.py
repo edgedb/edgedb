@@ -325,9 +325,7 @@ class CreateScalarType(
                     qlast.TypeName(
                         maintype=qlast.ObjectRef(name='enum'),
                         subtypes=[
-                            qlast.TypeExprLiteral(
-                                val=qlast.StringConstant.from_python(v)
-                            )
+                            qlast.TypeName(maintype=qlast.ObjectRef(name=v))
                             for v in enum_values
                         ]
                     )
@@ -360,32 +358,6 @@ class RebaseScalarType(
         if enum_values:
             raise errors.UnsupportedFeatureError(
                 f'altering enum composition is not supported')
-
-            if self.removed_bases and not self.added_bases:
-                raise errors.SchemaError(
-                    f'cannot DROP EXTENDING enum')
-
-            all_bases = []
-
-            for bases, pos in self.added_bases:
-                if pos:
-                    raise errors.SchemaError(
-                        f'cannot add another enum as supertype '
-                        f'use EXTENDING without position qualification')
-
-                all_bases.extend(bases)
-
-            if len(all_bases) > 1:
-                raise errors.SchemaError(
-                    f'cannot set more than one enum as supertype ')
-
-            new_base = all_bases[0]
-            new_values = new_base.elements
-
-            schema = self._validate_enum_change(
-                scls, enum_values, new_values, schema, context)
-
-            return schema
         else:
             return super().apply(schema, context)
 
