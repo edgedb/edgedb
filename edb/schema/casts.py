@@ -185,16 +185,16 @@ class Cast(
         qlast.Language, default=None, compcoef=0.4, coerce=True)
 
     from_function = so.SchemaField(
-        str, default=None, compcoef=0.4, introspectable=False)
+        str, default=None, compcoef=0.4)
 
     from_expr = so.SchemaField(
-        bool, default=False, compcoef=0.4, introspectable=False)
+        bool, default=False, compcoef=0.4)
 
     from_cast = so.SchemaField(
-        bool, default=False, compcoef=0.4, introspectable=False)
+        bool, default=False, compcoef=0.4)
 
     code = so.SchemaField(
-        str, default=None, compcoef=0.4, introspectable=False)
+        str, default=None, compcoef=0.4)
 
 
 class CastCommandContext(sd.ObjectCommandContext[Cast],

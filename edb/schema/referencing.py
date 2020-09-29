@@ -271,7 +271,6 @@ class ReferencedInheritingObject(
         bool,
         default=False,
         compcoef=None,
-        introspectable=False,
         inheritable=False,
         ephemeral=True,
     )

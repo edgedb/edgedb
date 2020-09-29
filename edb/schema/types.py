@@ -105,7 +105,7 @@ class Type(
     # The OID by which the backend refers to the type.
     backend_id = so.SchemaField(
         int,
-        default=None, inheritable=False, introspectable=False)
+        default=None, inheritable=False)
 
     def is_blocking_ref(
         self, schema: s_schema.Schema, reference: so.Object

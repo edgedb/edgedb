@@ -965,19 +965,19 @@ class Function(CallableObject, VolatilitySubject, s_abc.Function,
         qlast.Language, default=None, compcoef=0.4, coerce=True)
 
     from_function = so.SchemaField(
-        str, default=None, compcoef=0.4, introspectable=False)
+        str, default=None, compcoef=0.4)
 
     from_expr = so.SchemaField(
-        bool, default=False, compcoef=0.4, introspectable=False)
+        bool, default=False, compcoef=0.4)
 
     force_return_cast = so.SchemaField(
-        bool, default=False, compcoef=0.9, introspectable=False)
+        bool, default=False, compcoef=0.9)
 
     sql_func_has_out_params = so.SchemaField(
-        bool, default=False, compcoef=0.9, introspectable=False)
+        bool, default=False, compcoef=0.9)
 
     error_on_null_result = so.SchemaField(
-        str, default=None, compcoef=0.9, introspectable=False)
+        str, default=None, compcoef=0.9)
 
     initial_value = so.SchemaField(
         expr.Expression, default=None, compcoef=0.4, coerce=True)
@@ -986,7 +986,7 @@ class Function(CallableObject, VolatilitySubject, s_abc.Function,
         bool, default=False, compcoef=0.4, coerce=True, allow_ddl_set=True)
 
     has_dml = so.SchemaField(
-        bool, default=False, allow_ddl_set=True, introspectable=False)
+        bool, default=False, allow_ddl_set=True)
 
     def has_inlined_defaults(self, schema: s_schema.Schema) -> bool:
         # This can be relaxed to just `language is EdgeQL` when we

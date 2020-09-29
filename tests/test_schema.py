@@ -4241,7 +4241,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 volatility := 'IMMUTABLE';
                 annotation std::description := 'Return the array made from all
                     of the input set elements.';
-                using sql;
+                using sql function 'array_agg';
             };
             """,
 
@@ -5263,7 +5263,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             #     volatility := 'IMMUTABLE';
             #     annotation std::description := 'Generalized boolean `AND`
                       applied to the set of *values*.';
-            #     using sql
+            #     using sql function 'bool_and'
             # ;};
             """,
 

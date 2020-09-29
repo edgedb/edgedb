@@ -70,7 +70,7 @@ class ObjectType(
     is_opaque_union = so.SchemaField(
         bool,
         default=False,
-        introspectable=False)
+    )
 
     @classmethod
     def get_schema_class_displayname(cls) -> str:

@@ -47,19 +47,19 @@ class Operator(s_func.CallableObject, s_func.VolatilitySubject,
 
     from_operator = so.SchemaField(
         checked.CheckedList[str], coerce=True,
-        default=None, compcoef=0.4, introspectable=False)
+        default=None, compcoef=0.4)
 
     from_function = so.SchemaField(
-        str, default=None, compcoef=0.4, introspectable=False)
+        str, default=None, compcoef=0.4)
 
     from_expr = so.SchemaField(
-        bool, default=False, compcoef=0.4, introspectable=False)
+        bool, default=False, compcoef=0.4)
 
     force_return_cast = so.SchemaField(
-        bool, default=False, compcoef=0.9, introspectable=False)
+        bool, default=False, compcoef=0.9)
 
     code = so.SchemaField(
-        str, default=None, compcoef=0.4, introspectable=False)
+        str, default=None, compcoef=0.4)
 
     # If this is a derivative operator, *derivative_of* would
     # contain the name of the origin operator.
@@ -75,7 +75,7 @@ class Operator(s_func.CallableObject, s_func.VolatilitySubject,
         sn.Name, coerce=True, default=None, compcoef=0.99)
 
     recursive = so.SchemaField(
-        bool, default=False, compcoef=0.4, introspectable=False)
+        bool, default=False, compcoef=0.4)
 
     def get_display_signature(self, schema: s_schema.Schema) -> str:
         params = [

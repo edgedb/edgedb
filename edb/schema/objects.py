@@ -201,7 +201,7 @@ class Field(struct.ProtoField, Generic[T]):
 
     __slots__ = ('name', 'type', 'coerce',
                  'compcoef', 'inheritable', 'simpledelta',
-                 'merge_fn', 'ephemeral', 'introspectable',
+                 'merge_fn', 'ephemeral',
                  'allow_ddl_set', 'ddl_identity',
                  'weak_ref', 'reflection_method')
 
@@ -226,8 +226,6 @@ class Field(struct.ProtoField, Generic[T]):
     #: If true, the value of the field is not persisted in the
     #: database.
     ephemeral: bool
-    #: If true, the field value can be introspected.
-    introspectable: bool
     #: Whether the field can be set directly using the `SET`
     #: command in DDL.
     allow_ddl_set: bool
@@ -262,7 +260,6 @@ class Field(struct.ProtoField, Generic[T]):
         simpledelta: bool = True,
         merge_fn: MergeFunction = default_field_merge,
         ephemeral: bool = False,
-        introspectable: bool = True,
         weak_ref: bool = False,
         allow_ddl_set: bool = False,
         ddl_identity: bool = False,
@@ -285,7 +282,6 @@ class Field(struct.ProtoField, Generic[T]):
         self.compcoef = compcoef
         self.inheritable = inheritable
         self.simpledelta = simpledelta
-        self.introspectable = introspectable
         self.weak_ref = weak_ref
         self.reflection_method = reflection_method
         self.reflection_proxy = reflection_proxy
@@ -752,7 +748,6 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         default=None,
         compcoef=None,
         inheritable=False,
-        introspectable=False,
         hashable=False,
         ephemeral=True,
     )
@@ -775,8 +770,9 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
     # it has been derived from, specifically in path ids.
     path_id_name = SchemaField(
         sn.Name,
-        inheritable=False, ephemeral=True,
-        introspectable=False, default=None)
+        inheritable=False,
+        ephemeral=True,
+        default=None)
 
     _fields: Dict[str, SchemaField[Any]]
 
@@ -1341,11 +1337,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         delta.set_attribute_value('id', id_value)
 
         ff = cls.get_fields(sorted=True).items()
-        fields = {
-            fn: f for fn, f in ff
-            if f.simpledelta and not f.ephemeral and f.introspectable
-        }
-
+        fields = {fn: f for fn, f in ff if f.simpledelta and not f.ephemeral}
         for fn, f in fields.items():
             value = self.get_explicit_field_value(schema, fn, None)
             if value is not None:
@@ -1400,11 +1392,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             delta.set_annotation('orig_cmdclass', type(delta))
 
         ff = cls.get_fields(sorted=True).items()
-        fields = {
-            fn: f for fn, f in ff
-            if f.simpledelta and not f.ephemeral and f.introspectable
-        }
-
+        fields = {fn: f for fn, f in ff if f.simpledelta and not f.ephemeral}
         for fn, f in fields.items():
             oldattr_v = self.get_explicit_field_value(self_schema, fn, None)
             newattr_v = other.get_explicit_field_value(other_schema, fn, None)
@@ -1499,11 +1487,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         context.deletions[type(self), delta.classname] = delta
 
         ff = cls.get_fields(sorted=True).items()
-        fields = {
-            fn: f for fn, f in ff
-            if f.simpledelta and not f.ephemeral and f.introspectable
-        }
-
+        fields = {fn: f for fn, f in ff if f.simpledelta and not f.ephemeral}
         for fn, f in fields.items():
             value = self.get_explicit_field_value(schema, fn, None)
             if value is not None:
