@@ -79,7 +79,7 @@ consider the following:
 
 .. code-block:: sdl
 
-    scalar type Color extending enum<'red', 'green', 'blue'>;
+    scalar type Color extending enum<Red, Green, Blue>;
 
 Introspection of the enum scalar ``Color``:
 
@@ -102,7 +102,7 @@ Introspection of the enum scalar ``Color``:
         Object {
             name: 'default::Color',
             default: {},
-            enum_values: ['red', 'green', 'blue'],
+            enum_values: ['Red', 'Green', 'Blue'],
             is_abstract: {},
             is_final: true,
             bases: {Object { name: 'std::anyenum' }},
