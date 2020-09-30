@@ -162,6 +162,7 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
         cmd = cls(classname=name)
         cmd.set_attribute_value('script', ddl_text)
         cmd.set_attribute_value('builtin', False)
+        cmd.set_attribute_value('internal', False)
         if parent is not None:
             cmd.set_attribute_value('parents', [parent])
 

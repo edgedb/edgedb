@@ -431,6 +431,7 @@ def apply_ddl_script_ex(
     schema: s_schema.Schema,
     modaliases: Optional[Mapping[Optional[str], str]] = None,
     stdmode: bool = False,
+    internal_schema_mode: bool = False,
     testmode: bool = False,
 ) -> Tuple[s_schema.Schema, sd.DeltaRoot]:
 
@@ -445,6 +446,7 @@ def apply_ddl_script_ex(
             schema=schema,
             modaliases=modaliases,
             stdmode=stdmode,
+            internal_schema_mode=internal_schema_mode,
             testmode=testmode,
         )
 
@@ -483,6 +485,7 @@ def _delta_from_ddl(
     schema: s_schema.Schema,
     modaliases: Mapping[Optional[str], str],
     stdmode: bool=False,
+    internal_schema_mode: bool=False,
     testmode: bool=False,
     schema_object_ids: Optional[
         Mapping[Tuple[str, Optional[str]], uuid.UUID]
@@ -494,6 +497,7 @@ def _delta_from_ddl(
         modaliases=modaliases,
         schema=schema,
         stdmode=stdmode,
+        internal_schema_mode=internal_schema_mode,
         testmode=testmode,
         schema_object_ids=schema_object_ids,
         compat_ver=compat_ver,

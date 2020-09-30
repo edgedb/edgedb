@@ -96,6 +96,7 @@ def _run_ddl(
         ddl_text,
         schema=schema,
         stdmode=True,
+        internal_schema_mode=True,
     )
 
     delta.update(cmd.get_subcommands())

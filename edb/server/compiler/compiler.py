@@ -109,6 +109,8 @@ class CompileContext:
     first_extracted_var: Optional[int] = None
     backend_instance_params: BackendInstanceParams = BackendInstanceParams()
     compat_ver: Optional[verutils.Version] = None
+    bootstrap_mode: bool = False
+    internal_schema_mode: bool = False
 
 
 EMPTY_MAP = immutables.Map()
@@ -149,14 +151,12 @@ def new_compiler(
     std_schema: s_schema.Schema,
     reflection_schema: s_schema.Schema,
     schema_class_layout: Dict[Type[s_obj.Object], s_refl.SchemaTypeLayout],
-    bootstrap_mode: bool = False,
 ) -> Compiler:
     """Create and return an ad-hoc compiler instance."""
 
     compiler = Compiler(None)
     compiler._std_schema = std_schema
     compiler._refl_schema = reflection_schema
-    compiler._bootstrap_mode = bootstrap_mode
     compiler._schema_class_layout = schema_class_layout
 
     return compiler
@@ -171,6 +171,8 @@ def new_compiler_context(
     json_parameters: bool = False,
     schema_reflection_mode: bool = False,
     output_format: enums.IoFormat = enums.IoFormat.BINARY,
+    bootstrap_mode: bool = False,
+    internal_schema_mode: bool = False,
 ) -> CompileContext:
     """Create and return an ad-hoc compiler context."""
 
@@ -189,6 +191,8 @@ def new_compiler_context(
         expected_cardinality_one=expected_cardinality_one,
         json_parameters=json_parameters,
         schema_reflection_mode=schema_reflection_mode,
+        bootstrap_mode=bootstrap_mode,
+        internal_schema_mode=internal_schema_mode,
         stmt_mode=(
             enums.CompileStatementMode.SINGLE
             if single_statement else enums.CompileStatementMode.ALL
@@ -375,7 +379,6 @@ class Compiler(BaseCompiler):
         )
 
         self._current_db_state = None
-        self._bootstrap_mode = False
 
     def _in_testmode(self, ctx: CompileContext):
         current_tx = ctx.state.current_tx()
@@ -390,7 +393,8 @@ class Compiler(BaseCompiler):
     def _new_delta_context(self, ctx: CompileContext):
         context = s_delta.CommandContext()
         context.testmode = self._in_testmode(ctx)
-        context.stdmode = self._bootstrap_mode
+        context.stdmode = ctx.bootstrap_mode
+        context.internal_schema_mode = ctx.internal_schema_mode
         context.schema_object_ids = ctx.schema_object_ids
         context.compat_ver = ctx.compat_ver
         context.backend_superuser_role = (
@@ -442,9 +446,6 @@ class Compiler(BaseCompiler):
         ctx: CompileContext,
         delta: s_delta.Command,
         block: pg_dbops.SQLBlock,
-        *,
-        is_internal_reflection: bool = False,
-        stdmode: bool = False,
     ):
 
         current_tx = ctx.state.current_tx()
@@ -458,8 +459,8 @@ class Compiler(BaseCompiler):
             schema=schema,
             context=s_delta.CommandContext(),
             blocks=meta_blocks,
-            is_internal_reflection=is_internal_reflection,
-            stdmode=stdmode,
+            internal_schema_mode=ctx.internal_schema_mode,
+            stdmode=ctx.bootstrap_mode,
         )
 
         cache = current_tx.get_cached_reflection()
@@ -1145,7 +1146,7 @@ class Compiler(BaseCompiler):
             tx = ctx.state.current_tx()
             sp_id = tx.declare_savepoint(ql.name)
 
-            if not self._bootstrap_mode:
+            if not ctx.bootstrap_mode:
                 pgname = pg_common.quote_ident(ql.name)
                 sql = (
                     f'''
@@ -1223,21 +1224,21 @@ class Compiler(BaseCompiler):
 
             aliases = aliases.set(ql.alias, ql.module)
 
-            if not self._bootstrap_mode:
+            if not ctx.bootstrap_mode:
                 sql = alias_tpl(ql.alias, ql.module)
                 sqlbuf.append(sql)
 
         elif isinstance(ql, qlast.SessionResetModule):
             aliases = aliases.set(None, defines.DEFAULT_MODULE_ALIAS)
 
-            if not self._bootstrap_mode:
+            if not ctx.bootstrap_mode:
                 sql = alias_tpl('', defines.DEFAULT_MODULE_ALIAS)
                 sqlbuf.append(sql)
 
         elif isinstance(ql, qlast.SessionResetAllAliases):
             aliases = DEFAULT_MODULE_ALIASES_MAP
 
-            if not self._bootstrap_mode:
+            if not ctx.bootstrap_mode:
                 sqlbuf.append(
                     b"DELETE FROM _edgecon_state s WHERE s.type = 'A';")
                 sqlbuf.append(
@@ -1246,7 +1247,7 @@ class Compiler(BaseCompiler):
         elif isinstance(ql, qlast.SessionResetAliasDecl):
             aliases = aliases.delete(ql.alias)
 
-            if not self._bootstrap_mode:
+            if not ctx.bootstrap_mode:
                 sql = f'''
                     DELETE FROM _edgecon_state s
                     WHERE s.name = {pg_ql(ql.alias)} AND s.type = 'A';

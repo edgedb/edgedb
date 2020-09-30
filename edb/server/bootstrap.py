@@ -387,8 +387,6 @@ async def _make_stdlib(testmode: bool, global_ids) -> StdlibBits:
     refldelta, classlayout, introparts = s_refl.generate_structure(schema)
     reflschema, reflplan = _process_delta(refldelta, schema)
 
-    std_plans.append(refldelta)
-
     assert current_block is not None
     reflplan.generate(current_block)
     subblock = current_block.add_block()
@@ -397,19 +395,31 @@ async def _make_stdlib(testmode: bool, global_ids) -> StdlibBits:
         std_schema=schema,
         reflection_schema=reflschema,
         schema_class_layout=classlayout,
-        bootstrap_mode=True,
     )
 
-    compilerctx = edbcompiler.new_compiler_context(reflschema)
+    compilerctx = edbcompiler.new_compiler_context(
+        reflschema,
+        bootstrap_mode=True,
+    )
 
     for std_plan in std_plans:
         compiler._compile_schema_storage_in_delta(
             ctx=compilerctx,
             delta=std_plan,
             block=subblock,
-            is_internal_reflection=std_plan is refldelta,
-            stdmode=True,
         )
+
+    compilerctx = edbcompiler.new_compiler_context(
+        reflschema,
+        bootstrap_mode=True,
+        internal_schema_mode=True,
+    )
+
+    compiler._compile_schema_storage_in_delta(
+        ctx=compilerctx,
+        delta=refldelta,
+        block=subblock,
+    )
 
     sqltext = current_block.to_string()
 
@@ -476,6 +486,10 @@ async def _amend_stdlib(
         std_schema=schema,
         reflection_schema=reflschema,
         schema_class_layout=stdlib.classlayout,
+    )
+
+    compilerctx = edbcompiler.new_compiler_context(
+        schema,
         bootstrap_mode=True,
     )
 
@@ -486,7 +500,6 @@ async def _amend_stdlib(
             ctx=compilerctx,
             delta=plan,
             block=topblock,
-            stdmode=True,
         )
 
     sqltext = topblock.to_string()
@@ -564,7 +577,6 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
             std_schema=stdlib.stdschema,
             reflection_schema=stdlib.reflschema,
             schema_class_layout=stdlib.classlayout,
-            bootstrap_mode=True,
         )
         _, sql = compile_bootstrap_script(
             compiler,
@@ -601,7 +613,6 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
         std_schema=stdlib.stdschema,
         reflection_schema=stdlib.reflschema,
         schema_class_layout=stdlib.classlayout,
-        bootstrap_mode=True,
     )
     _, sql = compile_bootstrap_script(
         compiler,
@@ -663,7 +674,6 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
         std_schema=schema,
         reflection_schema=stdlib.reflschema,
         schema_class_layout=stdlib.classlayout,
-        bootstrap_mode=True,
     )
 
     await metaschema.generate_more_support_functions(

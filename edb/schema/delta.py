@@ -839,6 +839,7 @@ class CommandContext:
         declarative: bool = False,
         stdmode: bool = False,
         testmode: bool = False,
+        internal_schema_mode: bool = False,
         disable_dep_verification: bool = False,
         descriptive_mode: bool = False,
         schema_object_ids: Optional[
@@ -855,6 +856,7 @@ class CommandContext:
         self._modaliases = modaliases if modaliases is not None else {}
         self._localnames = localnames
         self.stdmode = stdmode
+        self.internal_schema_mode = internal_schema_mode
         self.testmode = testmode
         self.descriptive_mode = descriptive_mode
         self.disable_dep_verification = disable_dep_verification
@@ -2002,6 +2004,7 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
     ) -> s_schema.Schema:
         schema = super().canonicalize_attributes(schema, context)
         self.set_attribute_value('builtin', context.stdmode)
+        self.set_attribute_value('internal', context.internal_schema_mode)
         return schema
 
     def _get_ast(

@@ -2449,6 +2449,8 @@ def _generate_database_views(schema):
             (SELECT id FROM edgedb."_SchemaObjectType"
                  WHERE name = 'sys::Database')
                 AS {qi(ptr_col_name(schema, Database, '__type__'))},
+            (datname = {ql(defines.EDGEDB_TEMPLATE_DB)})
+                AS {qi(ptr_col_name(schema, Database, 'internal'))},
             datname AS {qi(ptr_col_name(schema, Database, 'name'))},
             datname AS {qi(ptr_col_name(schema, Database, 'name__internal'))},
             ((d.description)->>'builtin')::bool
@@ -2575,6 +2577,8 @@ def _generate_role_views(schema, *, superuser_role):
                 AS {qi(ptr_col_name(schema, Role, 'inherited_fields'))},
             ((d.description)->>'builtin')::bool
                 AS {qi(ptr_col_name(schema, Role, 'builtin'))},
+            False
+                AS {qi(ptr_col_name(schema, Role, 'internal'))},
             (d.description)->>'password_hash'
                 AS {qi(ptr_col_name(schema, Role, 'password'))}
         FROM

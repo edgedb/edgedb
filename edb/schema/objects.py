@@ -391,6 +391,8 @@ class SchemaField(Field[Type_T]):
     default: Any
     #: Whether the field participates in object hash.
     hashable: bool
+    #: Whether it's possible to set the field in DDL.
+    allow_ddl_set: bool
 
     def __init__(
         self,
@@ -740,6 +742,12 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         inheritable=False,
         simpledelta=False,
         allow_ddl_set=True,
+    )
+
+    internal = SchemaField(
+        bool,
+        default=False,
+        inheritable=True,
     )
 
     # Schema source context for this object

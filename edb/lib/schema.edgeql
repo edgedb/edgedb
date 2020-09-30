@@ -44,7 +44,7 @@ CREATE SCALAR TYPE schema::TypeModifier
 # Base type for all schema entities.
 CREATE ABSTRACT TYPE schema::Object EXTENDING std::BaseObject {
     CREATE REQUIRED PROPERTY name -> std::str;
-    CREATE REQUIRED PROPERTY is_internal -> std::bool {
+    CREATE REQUIRED PROPERTY internal -> std::bool {
         SET default := false;
     };
     CREATE REQUIRED PROPERTY builtin -> std::bool {
