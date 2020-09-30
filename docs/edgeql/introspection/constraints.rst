@@ -92,7 +92,7 @@ Introspection of the scalar ``maxex_100`` with focus on the constraint:
                             @value: '100'
                         }
                     },
-                    return_typemod: 'SINGLETON',
+                    return_typemod: 'SingletonType',
                     return_type: Object { name: 'std::bool' }
                     errmessage: '{__subject__} must be less ...',
                 }

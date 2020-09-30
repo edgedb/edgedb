@@ -98,15 +98,15 @@ Introspection of the built-in :eql:func:`count`:
             annotations: {},
             params: {
                 Object {
-                    kind: 'POSITIONAL',
+                    kind: 'PositionalParam',
                     name: 's',
                     num: 0,
-                    typemod: 'SET OF',
+                    typemod: 'SetOfType',
                     type: Object { name: 'anytype' },
                     default: {}
                 }
             },
-            return_typemod: 'SINGLETON',
+            return_typemod: 'SingletonType',
             return_type: Object { name: 'std::int64' }
         }
     }

@@ -102,23 +102,23 @@ Introspection of the :eql:op:`AND` operator:
             annotations: {},
             params: {
                 Object {
-                    kind: 'POSITIONAL',
+                    kind: 'PositionalParam',
                     name: 'a',
                     num: 0,
-                    typemod: 'SINGLETON',
+                    typemod: 'SingletonType',
                     type: Object { name: 'std::bool' },
                     default: {}
                 },
                 Object {
-                    kind: 'POSITIONAL',
+                    kind: 'PositionalParam',
                     name: 'b',
                     num: 1,
-                    typemod: 'SINGLETON',
+                    typemod: 'SingletonType',
                     type: Object { name: 'std::bool' },
                     default: {}
                 }
             },
-            return_typemod: 'SINGLETON',
+            return_typemod: 'SingletonType',
             return_type: Object { name: 'std::bool' }
         }
     }

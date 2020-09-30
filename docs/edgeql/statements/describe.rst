@@ -222,19 +222,19 @@ So within the ``default`` module the user-defined function ``len``
     # The following builtins are masked by the above:
 
     # function std::len(bytes: std::bytes) ->  std::int64 {
-    #     volatility := \'IMMUTABLE\';
+    #     volatility := \'Immutable\';
     #     using sql $$
     #     SELECT length("bytes")::bigint
     #     $$
     # ;};
     # function std::len(str: std::str) ->  std::int64 {
-    #     volatility := \'IMMUTABLE\';
+    #     volatility := \'Immutable\';
     #     using sql $$
     #     SELECT char_length("str")::bigint
     #     $$
     # ;};
     # function std::len(array: array<anytype>) ->  std::int64 {
-    #     volatility := \'IMMUTABLE\';
+    #     volatility := \'Immutable\';
     #     using sql $$
     #     SELECT cardinality("array")::bigint
     #     $$
