@@ -2710,7 +2710,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'params': [
                 {
                     'num': 0,
-                    'kind': 'VARIADIC',
+                    'kind': 'VariadicParam',
                     'type': {
                         'name': 'array<anytype>'
                     }
@@ -2777,28 +2777,28 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     {
                         'num': 0,
                         'name': 'sep',
-                        'kind': 'POSITIONAL',
+                        'kind': 'PositionalParam',
                         'type': {
                             'name': 'std::str',
                             'element_type': None
                         },
-                        'typemod': 'OPTIONAL'
+                        'typemod': 'OptionalType'
                     },
                     {
                         'num': 1,
                         'name': 's',
-                        'kind': 'VARIADIC',
+                        'kind': 'VariadicParam',
                         'type': {
                             'name': 'array<std::str>',
                             'element_type': {'name': 'std::str'}
                         },
-                        'typemod': 'SINGLETON'
+                        'typemod': 'SingletonType'
                     }
                 ],
                 'return_type': {
                     'name': 'std::str'
                 },
-                'return_typemod': 'SINGLETON'
+                'return_typemod': 'SingletonType'
             }]
         )
 

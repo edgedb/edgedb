@@ -2652,17 +2652,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                         'type': {
                             'name': 'std::int64'
                         },
-                        'typemod': 'SINGLETON'
+                        'typemod': 'SingletonType'
                     },
                     {
                         'name': 'right',
                         'type': {
                             'name': 'std::int64'
                         },
-                        'typemod': 'SINGLETON'}
+                        'typemod': 'SingletonType'}
                 ],
                 'operator_kind': 'Infix',
-                'return_typemod': 'SINGLETON'
+                'return_typemod': 'SingletonType'
             }]
         )
 

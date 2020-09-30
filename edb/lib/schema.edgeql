@@ -34,6 +34,13 @@ CREATE SCALAR TYPE schema::OperatorKind
 CREATE SCALAR TYPE schema::Volatility
     EXTENDING enum<Immutable, Stable, Volatile>;
 
+CREATE SCALAR TYPE schema::ParameterKind
+    EXTENDING enum<VariadicParam, NamedOnlyParam, PositionalParam>;
+
+CREATE SCALAR TYPE schema::TypeModifier
+    EXTENDING enum<SetOfType, OptionalType, SingletonType>;
+
+
 # Base type for all schema entities.
 CREATE ABSTRACT TYPE schema::Object EXTENDING std::BaseObject {
     CREATE REQUIRED PROPERTY name -> std::str;
@@ -140,8 +147,8 @@ EXTENDING schema::SubclassableObject {
 
 CREATE TYPE schema::Parameter EXTENDING schema::Object {
     CREATE REQUIRED LINK type -> schema::Type;
-    CREATE REQUIRED PROPERTY typemod -> std::str;
-    CREATE REQUIRED PROPERTY kind -> std::str;
+    CREATE REQUIRED PROPERTY typemod -> schema::TypeModifier;
+    CREATE REQUIRED PROPERTY kind -> schema::ParameterKind;
     CREATE REQUIRED PROPERTY num -> std::int64;
     CREATE PROPERTY default -> std::str;
 };
@@ -155,7 +162,7 @@ CREATE ABSTRACT TYPE schema::CallableObject
     };
 
     CREATE LINK return_type -> schema::Type;
-    CREATE PROPERTY return_typemod -> std::str;
+    CREATE PROPERTY return_typemod -> schema::TypeModifier;
 };
 
 
