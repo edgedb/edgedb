@@ -851,12 +851,12 @@ class PointerCommandOrFragment(
                 srcctx = self.get_attribute_source_context('target')
                 self.set_attribute_value(
                     'target',
-                    target.as_shell(schema),
+                    target,
                     source_context=srcctx,
                 )
-            else:
-                schema = s_types.materialize_type_in_attribute(
-                    schema, context, self, 'target')
+
+            schema = s_types.materialize_type_in_attribute(
+                schema, context, self, 'target')
 
         return schema
 
@@ -865,7 +865,7 @@ class PointerCommandOrFragment(
         expr: qlast.Base,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-    ) -> Tuple[s_schema.Schema, s_types.Type, Optional[PointerLike]]:
+    ) -> Tuple[s_schema.Schema, s_types.TypeShell, Optional[PointerLike]]:
         from edb.ir import ast as irast
         from edb.ir import typeutils as irtyputils
         from edb.schema import objtypes as s_objtypes
@@ -874,6 +874,7 @@ class PointerCommandOrFragment(
         parent_ctx = self.get_referrer_context(context)
         assert parent_ctx is not None
         source_name = parent_ctx.op.classname
+        assert isinstance(source_name, sn.Name)
 
         source = schema.get(source_name, type=s_objtypes.ObjectType)
 
@@ -893,6 +894,14 @@ class PointerCommandOrFragment(
         assert isinstance(expression.irast, irast.Statement)
         base = None
         target = expression.irast.stype
+        target_shell = target.as_shell(expression.irast.schema)
+        if (
+            isinstance(target_shell, s_types.UnionTypeShell)
+            and target_shell.opaque
+        ):
+            target = schema.get('std::BaseObject', type=s_types.Type)
+            target_shell = target.as_shell(schema)
+
         result_expr = expression.irast.expr
 
         # Process a computable pointer which potentially could be an
@@ -970,7 +979,7 @@ class PointerCommandOrFragment(
 
         self.set_attribute_value('computable', True)
 
-        return schema, target, base
+        return schema, target_shell, base
 
     def _deparse_name(
         self,

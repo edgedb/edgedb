@@ -1072,9 +1072,11 @@ def computable_ptr_set(
     )
 
     result_stype = ptrcls.get_target(ctx.env.schema)
+    base_object = ctx.env.schema.get('std::BaseObject', type=s_types.Type)
     with newctx() as subctx:
         subctx.disable_shadowing.add(ptrcls)
-        subctx.view_scls = result_stype
+        if result_stype != base_object:
+            subctx.view_scls = result_stype
         subctx.view_rptr = context.ViewRPtr(
             source_scls, ptrcls=ptrcls, rptr=rptr)  # type: ignore
         subctx.anchors[qlast.Source().name] = source_set

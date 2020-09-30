@@ -281,6 +281,8 @@ def get_or_create_union_type(
                 id=type_id,
                 union_of=so.ObjectSet.create(schema, components),
                 is_opaque_union=opaque,
+                is_abstract=True,
+                is_final=True,
             ),
         )
 
@@ -322,6 +324,8 @@ def get_or_create_intersection_type(
             attrs=dict(
                 id=type_id,
                 intersection_of=so.ObjectSet.create(schema, components),
+                is_abstract=True,
+                is_final=True,
             ),
         )
 

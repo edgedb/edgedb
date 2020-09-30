@@ -6552,3 +6552,54 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 'name': 'default::Type1',
             }]
         )
+
+    async def test_edgeql_ddl_naked_backlink_in_computable(self):
+        await self.con.execute('''
+            SET MODULE test;
+            CREATE TYPE User {
+                CREATE PROPERTY name -> str {
+                    CREATE CONSTRAINT exclusive;
+                };
+            };
+            CREATE TYPE Post {
+                CREATE LINK author -> User;
+            };
+            CREATE TYPE Video {
+                CREATE LINK author -> User;
+            };
+            ALTER TYPE User {
+                CREATE MULTI LINK authored := .<author;
+            };
+            INSERT User { name := 'Lars' };
+            INSERT Post { author := (SELECT User FILTER .name = 'Lars') };
+            INSERT Video { author := (SELECT User FILTER .name = 'Lars') };
+        ''')
+
+        await self.assert_query_result(
+            '''
+            WITH
+                User := (SELECT schema::ObjectType FILTER .name = 'test::User')
+            SELECT
+                User.pointers {
+                    target: {
+                        name
+                    }
+                }
+            FILTER
+                .name = 'authored'
+            ''',
+            [{
+                'target': {
+                    'name': 'std::BaseObject',
+                }
+            }]
+        )
+
+        await self.assert_query_result(
+            '''
+            WITH MODULE test
+            SELECT _ := User.authored.__type__.name
+            ORDER BY _
+            ''',
+            ['test::Post', 'test::Video']
+        )

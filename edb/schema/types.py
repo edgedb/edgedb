@@ -382,6 +382,7 @@ class Type(
                     o.as_shell(schema) for o in union_of.objects(schema)
                 ],
                 module=name.module,
+                opaque=self.get_is_opaque_union(schema),
             )
         elif intersection_of := self.get_intersection_of(schema):
             assert isinstance(self, so.QualifiedObject)
@@ -521,9 +522,20 @@ class TypeExprShell(TypeShell):
 
 class UnionTypeShell(TypeExprShell):
 
+    def __init__(
+        self,
+        components: Iterable[TypeShell],
+        module: str,
+        opaque: bool = False,
+    ) -> None:
+        self.components = tuple(components)
+        self.module = module
+        self.opaque = opaque
+
     def resolve(self, schema: s_schema.Schema) -> Type:
         components = self.resolve_components(schema)
-        type_id, _ = get_union_type_id(schema, components, module=self.module)
+        type_id, _ = get_union_type_id(
+            schema, components, opaque=self.opaque, module=self.module)
         return schema.get_by_id(type_id, type=Type)
 
     def get_name(
@@ -533,6 +545,7 @@ class UnionTypeShell(TypeExprShell):
         _, name = get_union_type_id(
             schema,
             self.components,
+            opaque=self.opaque,
             module=self.module,
         )
         return name
@@ -548,6 +561,7 @@ class UnionTypeShell(TypeExprShell):
         type_id, name = get_union_type_id(
             schema,
             self.components,
+            opaque=self.opaque,
             module=self.module,
         )
 
@@ -555,7 +569,13 @@ class UnionTypeShell(TypeExprShell):
         cmd.set_attribute_value('id', type_id)
         cmd.set_attribute_value('name', name)
         cmd.set_attribute_value('components', tuple(self.components))
+        cmd.set_attribute_value('is_opaque_union', self.opaque)
         return cmd
+
+    def __repr__(self) -> str:
+        dn = 'UnionType'
+        comps = ' | '.join(repr(c) for c in self.components)
+        return f'<{type(self).__name__} {dn}({comps}) at 0x{id(self):x}>'
 
 
 class CompoundTypeCommandContext(sd.ObjectCommandContext[InheritingType]):
@@ -586,6 +606,7 @@ class CreateUnionType(sd.CreateObject[InheritingType], CompoundTypeCommand):
             new_schema, union_type = utils.get_union_type(
                 schema,
                 components,
+                opaque=self.get_attribute_value('is_opaque_union') or False,
                 module=self.classname.module,
             )
 
@@ -1877,6 +1898,7 @@ def ensure_schema_type_expr_type(
         type_id, type_name = get_union_type_id(
             schema,
             components,
+            opaque=type_shell.opaque,
             module=module,
         )
     elif isinstance(type_shell, IntersectionTypeShell):
@@ -1917,6 +1939,16 @@ class TypeCommand(sd.ObjectCommand[TypeT]):
         parent_node: Optional[qlast.DDLOperation] = None,
     ) -> Optional[qlast.DDLOperation]:
         if self.get_attribute_value('expr'):
+            return None
+        elif (
+            (union_of := self.get_attribute_value('union_of')) is not None
+            and union_of.items
+        ):
+            return None
+        elif (
+            (int_of := self.get_attribute_value('intersection_of')) is not None
+            and int_of.items
+        ):
             return None
         else:
             return super().get_ast(schema, context, parent_node=parent_node)
