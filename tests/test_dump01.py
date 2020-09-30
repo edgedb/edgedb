@@ -25,7 +25,7 @@ import edgedb
 from edb.testbase import server as tb
 
 
-class TestDump01_CLI(tb.QueryTestCase, tb.CLITestCaseMixin):
+class TestDump01(tb.QueryTestCase, tb.CLITestCaseMixin):
 
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'dump01_test.esdl')
@@ -37,6 +37,7 @@ class TestDump01_CLI(tb.QueryTestCase, tb.CLITestCaseMixin):
 
     ISOLATED_METHODS = False
     SERIALIZED = True
+    STABLE_DUMP = True
 
     async def test_dump01_dump_restore(self):
         assert type(self).__name__.startswith('Test')
@@ -65,13 +66,14 @@ class TestDump01_CLI(tb.QueryTestCase, tb.CLITestCaseMixin):
             await self.con.execute(f'DROP DATABASE {dbname}_restored')
 
     async def test_dump01_restore_compatibility(self):
-        dumpsdir = os.path.join(os.path.dirname(__file__), 'dumps', 'dump01')
-        for entry in os.scandir(dumpsdir):
-            if not entry.is_file():
+        current_dir = os.path.dirname(__file__)
+        dumps_dir = os.path.join(current_dir, 'dumps', 'dump01')
+        for entry in os.scandir(dumps_dir):
+            if not entry.is_file() or not entry.name.endswith(".dump"):
                 continue
 
-            dbname = f'{type(self).__name__}_{entry.name}'
-            dumpfn = os.path.join(dumpsdir, entry.name)
+            dbname = type(self).__name__ + "_" + entry.name[:-len(".dump")]
+            dumpfn = os.path.join(dumps_dir, entry.name)
             await self.con.execute(f'CREATE DATABASE `{dbname}`')
             try:
                 self.run_cli('-d', dbname, 'restore', dumpfn)

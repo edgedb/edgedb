@@ -52,6 +52,11 @@ from edb.common import taskgroup
 from edb.testbase import serutils
 
 
+if TYPE_CHECKING:
+    DatabaseName = str
+    SetupScript = str
+
+
 def get_test_cases(tests):
     result = collections.OrderedDict()
 
@@ -577,24 +582,29 @@ class OldCLITestCaseMixin:
 
 class CLITestCaseMixin:
 
-    def run_cli(self, *args, input: Optional[str]=None):
+    def run_cli(self, *args, input: Optional[str] = None) -> None:
         conn_args = self.get_connect_args()
+        self.run_cli_on_connection(conn_args, *args, input=input)
 
-        cmd_args = (
+    @classmethod
+    def run_cli_on_connection(
+        cls, conn_args: Dict[str, Any], *args, input: Optional[str] = None
+    ) -> None:
+        cmd_args = [
             '--host', conn_args['host'],
             '--port', str(conn_args['port']),
-            '--user', conn_args['user'],
-        ) + args
-
-        if conn_args['password']:
-            cmd_args = ('--password-from-stdin',) + cmd_args
+        ]
+        if conn_args.get('user'):
+            cmd_args += ['--user', conn_args['user']]
+        if conn_args.get('password'):
+            cmd_args += ['--password-from-stdin']
             if input is not None:
                 input = f"{conn_args['password']}\n{input}"
             else:
                 input = f"{conn_args['password']}\n"
-
+        cmd_args += args
         subprocess.run(
-            ('edgedb',) + cmd_args,
+            ['edgedb'] + cmd_args,
             input=input.encode() if input else None,
             check=True,
             capture_output=True,
@@ -879,8 +889,10 @@ class QueryTestCase(BaseQueryTestCase):
     BASE_TEST_CLASS = True
 
 
-def get_test_cases_setup(cases):
-    result = []
+def get_test_cases_setup(
+    cases: Iterable[unittest.TestCase]
+) -> List[Tuple[unittest.TestCase, DatabaseName, SetupScript]]:
+    result: List[Tuple[unittest.TestCase, DatabaseName, SetupScript]] = []
 
     for case in cases:
         if not hasattr(case, 'get_setup_script'):

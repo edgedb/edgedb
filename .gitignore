@@ -24,6 +24,7 @@ __pycache__/
 docs/_build
 /AUTHORS
 /ChangeLog
+tests/dumps/**/*_dev*.dump
 
 /.coverage*
 /htmlcov
