@@ -600,7 +600,7 @@ class GraphQLTranslator:
                 # preserve the original cardinality of the computable,
                 # which is basically one of the top-level query
                 # fields, all of which are returning lists
-                cardinality=qltypes.SchemaCardinality.MANY,
+                cardinality=qltypes.SchemaCardinality.Many,
             )
 
         # INSERT mutations have different arguments from queries

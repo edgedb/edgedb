@@ -447,26 +447,26 @@ class PtrQuals(Nonterm):
         self.val = PtrQualsSpec(required=True)
 
     def reduce_SINGLE(self, *kids):
-        self.val = PtrQualsSpec(cardinality=qltypes.SchemaCardinality.ONE)
+        self.val = PtrQualsSpec(cardinality=qltypes.SchemaCardinality.One)
 
     def reduce_MULTI(self, *kids):
-        self.val = PtrQualsSpec(cardinality=qltypes.SchemaCardinality.MANY)
+        self.val = PtrQualsSpec(cardinality=qltypes.SchemaCardinality.Many)
 
     def reduce_OPTIONAL_SINGLE(self, *kids):
         self.val = PtrQualsSpec(
-            required=False, cardinality=qltypes.SchemaCardinality.ONE)
+            required=False, cardinality=qltypes.SchemaCardinality.One)
 
     def reduce_OPTIONAL_MULTI(self, *kids):
         self.val = PtrQualsSpec(
-            required=False, cardinality=qltypes.SchemaCardinality.MANY)
+            required=False, cardinality=qltypes.SchemaCardinality.Many)
 
     def reduce_REQUIRED_SINGLE(self, *kids):
         self.val = PtrQualsSpec(
-            required=True, cardinality=qltypes.SchemaCardinality.ONE)
+            required=True, cardinality=qltypes.SchemaCardinality.One)
 
     def reduce_REQUIRED_MULTI(self, *kids):
         self.val = PtrQualsSpec(
-            required=True, cardinality=qltypes.SchemaCardinality.MANY)
+            required=True, cardinality=qltypes.SchemaCardinality.Many)
 
 
 class OptPtrQuals(Nonterm):
@@ -505,7 +505,7 @@ class ComputableShapePointer(Nonterm):
     def reduce_MULTI_SimpleShapePointer_ASSIGN_Expr(self, *kids):
         self.val = kids[1].val
         self.val.compexpr = kids[3].val
-        self.val.cardinality = qltypes.SchemaCardinality.MANY
+        self.val.cardinality = qltypes.SchemaCardinality.Many
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
             context=kids[2].context,
@@ -514,7 +514,7 @@ class ComputableShapePointer(Nonterm):
     def reduce_SINGLE_SimpleShapePointer_ASSIGN_Expr(self, *kids):
         self.val = kids[1].val
         self.val.compexpr = kids[3].val
-        self.val.cardinality = qltypes.SchemaCardinality.ONE
+        self.val.cardinality = qltypes.SchemaCardinality.One
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
             context=kids[2].context,
@@ -524,7 +524,7 @@ class ComputableShapePointer(Nonterm):
         self.val = kids[2].val
         self.val.compexpr = kids[4].val
         self.val.required = False
-        self.val.cardinality = qltypes.SchemaCardinality.MANY
+        self.val.cardinality = qltypes.SchemaCardinality.Many
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
             context=kids[3].context,
@@ -534,7 +534,7 @@ class ComputableShapePointer(Nonterm):
         self.val = kids[2].val
         self.val.compexpr = kids[4].val
         self.val.required = False
-        self.val.cardinality = qltypes.SchemaCardinality.ONE
+        self.val.cardinality = qltypes.SchemaCardinality.One
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
             context=kids[3].context,
@@ -544,7 +544,7 @@ class ComputableShapePointer(Nonterm):
         self.val = kids[2].val
         self.val.compexpr = kids[4].val
         self.val.required = True
-        self.val.cardinality = qltypes.SchemaCardinality.MANY
+        self.val.cardinality = qltypes.SchemaCardinality.Many
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
             context=kids[3].context,
@@ -554,7 +554,7 @@ class ComputableShapePointer(Nonterm):
         self.val = kids[2].val
         self.val.compexpr = kids[4].val
         self.val.required = True
-        self.val.cardinality = qltypes.SchemaCardinality.ONE
+        self.val.cardinality = qltypes.SchemaCardinality.One
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
             context=kids[3].context,

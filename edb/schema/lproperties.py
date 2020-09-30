@@ -239,7 +239,7 @@ class PropertyCommand(pointers.PointerCommand,
                     context=self.source_context,
                 )
             if (self.get_attribute_value('cardinality')
-                    is qltypes.SchemaCardinality.MANY):
+                    is qltypes.SchemaCardinality.Many):
                 raise errors.InvalidPropertyDefinitionError(
                     "multi properties aren't supported for links",
                     context=self.source_context,

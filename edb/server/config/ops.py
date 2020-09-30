@@ -195,9 +195,9 @@ def spec_to_json(spec: spec.Spec):
             raise RuntimeError(
                 f'cannot serialize type for config setting {setting.name}')
 
-        typemod = qltypes.TypeModifier.SINGLETON
+        typemod = qltypes.TypeModifier.SingletonType
         if setting.set_of:
-            typemod = qltypes.TypeModifier.SET_OF
+            typemod = qltypes.TypeModifier.SetOfType
 
         dct[setting.name] = {
             'default': value_to_json_value(setting, setting.default),

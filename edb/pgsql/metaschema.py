@@ -1870,7 +1870,7 @@ class ConfigObjectAsDDLFunction(dbops.Function):
             if p.get_annotation(schema, 'cfg::internal') == 'true':
                 continue
             ptype = p.get_target(schema)
-            mult = p.get_cardinality(schema) is qltypes.SchemaCardinality.MANY
+            mult = p.get_cardinality(schema) is qltypes.SchemaCardinality.Many
             if isinstance(ptype, s_objtypes.ObjectType):
                 items.append(
                     f"'  { qlquote.quote_ident(pn) } := (INSERT ' ++ "
@@ -1919,7 +1919,7 @@ class DescribeSystemConfigAsDDLFunction(dbops.Function):
             if pn in ('id', '__type__'):
                 continue
             ptype = p.get_target(schema)
-            mult = p.get_cardinality(schema) is qltypes.SchemaCardinality.MANY
+            mult = p.get_cardinality(schema) is qltypes.SchemaCardinality.Many
             if isinstance(ptype, s_objtypes.ObjectType):
                 if pn not in {'sessobj', 'sysobj'}:
                     items.append(f"cfg::_config_insert_all_{pn}()")
@@ -2908,7 +2908,7 @@ def _build_key_expr(key_components):
 def _build_data_source(schema, rptr, source_idx, *, alias=None):
 
     rptr_name = rptr.get_shortname(schema).name
-    rptr_multi = rptr.get_cardinality(schema) is qltypes.SchemaCardinality.MANY
+    rptr_multi = rptr.get_cardinality(schema) is qltypes.SchemaCardinality.Many
 
     if alias is None:
         alias = f'q{source_idx + 1}'
@@ -2956,7 +2956,7 @@ def _generate_config_type_view(schema, stype, *, path, rptr, _memo=None):
                 FROM edgedb._read_sys_config() cfg) AS q0''')
         else:
             rptr_multi = (
-                rptr.get_cardinality(schema) is qltypes.SchemaCardinality.MANY)
+                rptr.get_cardinality(schema) is qltypes.SchemaCardinality.Many)
 
             rptr_name = rptr.get_shortname(schema).name
 
@@ -2982,7 +2982,7 @@ def _generate_config_type_view(schema, stype, *, path, rptr, _memo=None):
 
         for i, (l, exc_props) in enumerate(path):
             l_multi = (l.get_cardinality(schema) is
-                       qltypes.SchemaCardinality.MANY)
+                       qltypes.SchemaCardinality.Many)
             l_name = l.get_shortname(schema).name
 
             if i == 0:
@@ -3039,7 +3039,7 @@ def _generate_config_type_view(schema, stype, *, path, rptr, _memo=None):
 
         pp_type = pp.get_target(schema)
         pp_multi = (
-            pp.get_cardinality(schema) is qltypes.SchemaCardinality.MANY
+            pp.get_cardinality(schema) is qltypes.SchemaCardinality.Many
         )
         pp_psi = types.get_pointer_storage_info(pp, schema=schema)
         pp_col = pp_psi.column_name

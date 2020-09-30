@@ -728,9 +728,9 @@ class EQLFunctionDirective(BaseEQLDirective):
         signode += s_nodes.desc_name(fullname, fullname)
 
         ret_repr = ql_gen.EdgeQLSourceGenerator.to_source(astnode.returning)
-        if astnode.returning_typemod is qltypes.TypeModifier.SET_OF:
+        if astnode.returning_typemod is qltypes.TypeModifier.SetOfType:
             ret_repr = f'SET OF {ret_repr}'
-        elif astnode.returning_typemod is qltypes.TypeModifier.OPTIONAL:
+        elif astnode.returning_typemod is qltypes.TypeModifier.OptionalType:
             ret_repr = f'OPTIONAL {ret_repr}'
         signode += s_nodes.desc_returns(ret_repr, ret_repr)
 

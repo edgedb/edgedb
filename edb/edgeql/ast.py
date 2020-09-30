@@ -368,7 +368,7 @@ class TypeOp(TypeExpr):
 class FuncParam(Base):
     name: str
     type: TypeExpr
-    typemod: qltypes.TypeModifier = qltypes.TypeModifier.SINGLETON
+    typemod: qltypes.TypeModifier = qltypes.TypeModifier.SingletonType
     kind: qltypes.ParameterKind
     default: typing.Optional[Expr]
 
@@ -969,7 +969,8 @@ class CreateFunction(CreateObject, CallableObject):
     returning: TypeExpr
     code: FunctionCode
     nativecode: typing.Optional[Expr]
-    returning_typemod: qltypes.TypeModifier = qltypes.TypeModifier.SINGLETON
+    returning_typemod: qltypes.TypeModifier = \
+        qltypes.TypeModifier.SingletonType
 
 
 class AlterFunction(AlterObject, CallableObject):
@@ -996,7 +997,8 @@ class OperatorCommand(CallableObject):
 
 class CreateOperator(CreateObject, OperatorCommand):
     returning: TypeExpr
-    returning_typemod: qltypes.TypeModifier = qltypes.TypeModifier.SINGLETON
+    returning_typemod: qltypes.TypeModifier = \
+        qltypes.TypeModifier.SingletonType
     code: OperatorCode
 
 

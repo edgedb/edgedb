@@ -696,7 +696,7 @@ def finalize_args(
         if param is None:
             # defaults bitmask
             args.append(irast.CallArg(expr=arg))
-            typemods.append(ft.TypeModifier.SINGLETON)
+            typemods.append(ft.TypeModifier.SingletonType)
             continue
 
         if actual_typemods:
@@ -709,14 +709,14 @@ def finalize_args(
         orig_arg = arg
         arg_ctx = arg_ctxs.get(orig_arg)
         arg_scope = pathctx.get_set_scope(arg, ctx=ctx)
-        if param_mod is not ft.TypeModifier.SET_OF:
+        if param_mod is not ft.TypeModifier.SetOfType:
             param_shortname = param.get_parameter_name(ctx.env.schema)
 
             # Arg was wrapped for scope fencing purposes,
             # but that fence has been removed above, so unwrap it.
             arg = irutils.unwrap_set(arg)
 
-            if (param_mod is ft.TypeModifier.OPTIONAL or
+            if (param_mod is ft.TypeModifier.OptionalType or
                     param_shortname in bound_call.null_args):
 
                 process_path_log(arg_ctx, arg_scope)
@@ -755,7 +755,7 @@ def finalize_args(
 
         paramtype = barg.param_type
         param_kind = param.get_kind(ctx.env.schema)
-        if param_kind is ft.ParameterKind.VARIADIC:
+        if param_kind is ft.ParameterKind.VariadicParam:
             # For variadic params, paramtype would be array<T>,
             # and we need T to cast the arguments.
             assert isinstance(paramtype, s_types.Array)

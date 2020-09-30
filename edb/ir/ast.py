@@ -259,7 +259,7 @@ class TupleIndirectionLink(s_pointers.PseudoPointer):
         self,
         schema: s_schema.Schema
     ) -> qltypes.SchemaCardinality:
-        return qltypes.SchemaCardinality.ONE
+        return qltypes.SchemaCardinality.One
 
     def singular(
         self,
@@ -354,7 +354,7 @@ class TypeIntersectionLink(s_pointers.PseudoPointer):
     ) -> bool:
         if direction is s_pointers.PointerDirection.Outbound:
             return (self.get_cardinality(schema) is
-                    qltypes.SchemaCardinality.ONE)
+                    qltypes.SchemaCardinality.One)
         else:
             return True
 

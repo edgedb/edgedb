@@ -210,7 +210,7 @@ _123456789_123456789_123456789 -> str
         obj = schema.get('test::Object')
         self.assertEqual(
             obj.getptr(schema, 'foo_plus_bar').get_cardinality(schema),
-            qltypes.SchemaCardinality.ONE)
+            qltypes.SchemaCardinality.One)
 
     def test_schema_computable_cardinality_inference_02(self):
         schema = self.load_schema("""
@@ -225,7 +225,7 @@ _123456789_123456789_123456789 -> str
         obj = schema.get('test::Object')
         self.assertEqual(
             obj.getptr(schema, 'foo_plus_bar').get_cardinality(schema),
-            qltypes.SchemaCardinality.MANY)
+            qltypes.SchemaCardinality.Many)
 
     @tb.must_fail(errors.SchemaDefinitionError,
                   "possibly more than one element returned by an expression "

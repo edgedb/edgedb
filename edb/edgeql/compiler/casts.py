@@ -301,8 +301,8 @@ class CastCallableWrapper(s_func.CallableLike):
             num=0,
             name='val',
             type=self._cast.get_from_type(schema).as_shell(schema),
-            typemod=ft.TypeModifier.SINGLETON,
-            kind=ft.ParameterKind.POSITIONAL,
+            typemod=ft.TypeModifier.SingletonType,
+            kind=ft.ParameterKind.PositionalParam,
             default=None,
         )
 
@@ -310,8 +310,8 @@ class CastCallableWrapper(s_func.CallableLike):
             num=0,
             name='_',
             type=self._cast.get_to_type(schema).as_shell(schema),
-            typemod=ft.TypeModifier.SINGLETON,
-            kind=ft.ParameterKind.POSITIONAL,
+            typemod=ft.TypeModifier.SingletonType,
+            kind=ft.ParameterKind.PositionalParam,
             default=None,
         )
 
@@ -321,7 +321,7 @@ class CastCallableWrapper(s_func.CallableLike):
         return self._cast.get_to_type(schema)
 
     def get_return_typemod(self, schema: s_schema.Schema) -> ft.TypeModifier:
-        return ft.TypeModifier.SINGLETON
+        return ft.TypeModifier.SingletonType
 
     def get_verbosename(self, schema: s_schema.Schema) -> str:
         return self._cast.get_verbosename(schema)

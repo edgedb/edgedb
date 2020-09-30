@@ -84,13 +84,13 @@ class Operator(s_func.CallableObject, s_func.VolatilitySubject,
         ]
         name = self.get_shortname(schema).name
         kind = self.get_operator_kind(schema)
-        if kind is ft.OperatorKind.INFIX:
+        if kind is ft.OperatorKind.Infix:
             return f'{params[0]} {name} {params[1]}'
-        elif kind is ft.OperatorKind.POSTFIX:
+        elif kind is ft.OperatorKind.Postfix:
             return f'{params[0]} {name}'
-        elif kind is ft.OperatorKind.PREFIX:
+        elif kind is ft.OperatorKind.Prefix:
             return f'{name} {params[1]}'
-        elif kind is ft.OperatorKind.TERNARY:
+        elif kind is ft.OperatorKind.Ternary:
             return f'{name} ({", ".join(params)})'
         else:
             raise ValueError('unexpected operator kind')
