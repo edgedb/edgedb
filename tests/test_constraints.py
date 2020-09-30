@@ -695,11 +695,11 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
                     "params": [
                         {
                             "num": 1,
-                            "kind": 'POSITIONAL',
+                            "kind": 'PositionalParam',
                             "name": 'max',
                             "type": {"name": 'std::int64'},
                             "@value": '3',
-                            "typemod": 'SINGLETON'
+                            "typemod": 'SingletonType'
                         }
                     ],
                 },
@@ -731,10 +731,10 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
                     "params": [
                         {
                             "num": 1,
-                            "kind": 'POSITIONAL',
+                            "kind": 'PositionalParam',
                             "name": 'max',
                             "type": {"name": 'std::int64'},
-                            "typemod": 'SINGLETON'
+                            "typemod": 'SingletonType'
                         }
                     ],
                 },

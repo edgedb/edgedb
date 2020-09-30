@@ -489,14 +489,14 @@ class TestIntrospection(tb.QueryTestCase):
                 'params': [
                     {
                         'num': 0,
-                        'kind': 'POSITIONAL',
+                        'kind': 'PositionalParam',
                         'type': {
                             'type': 'schema::PseudoType',
                         }
                     },
                     {
                         'num': 1,
-                        'kind': 'VARIADIC',
+                        'kind': 'VariadicParam',
                         'type': {
                             'type': 'schema::Array',
                             'element_type': {
@@ -583,7 +583,7 @@ class TestIntrospection(tb.QueryTestCase):
                                         '@value': '10000'
                                     }
                                 ],
-                                'return_typemod': 'SINGLETON',
+                                'return_typemod': 'SingletonType',
                                 'return_type': {'name': 'std::bool'},
                                 'errmessage':
                                     '{__subject__} must be no longer than '
@@ -600,7 +600,7 @@ class TestIntrospection(tb.QueryTestCase):
                                 'annotations': {},
                                 'subject': {'name': 'id'},
                                 'params': {},
-                                'return_typemod': 'SINGLETON',
+                                'return_typemod': 'SingletonType',
                                 'return_type': {'name': 'std::bool'},
                                 'errmessage':
                                     '{__subject__} violates exclusivity '
@@ -653,7 +653,7 @@ class TestIntrospection(tb.QueryTestCase):
                                 '@value': "['v1','v2']"
                             }
                         ],
-                        'return_typemod': 'SINGLETON',
+                        'return_typemod': 'SingletonType',
                         'return_type': {'name': 'std::bool'},
                         'errmessage':
                             "{__subject__} must be one of: {vals}."
@@ -702,15 +702,15 @@ class TestIntrospection(tb.QueryTestCase):
                     ],
                     "params": [
                         {
-                            "kind": "POSITIONAL",
+                            "kind": "PositionalParam",
                             "name": "s",
                             "num": 0,
-                            "typemod": "SET OF",
+                            "typemod": "SetOfType",
                             "type": {"name": "anytype"},
                             "default": None
                         }
                     ],
-                    "return_typemod": "SINGLETON",
+                    "return_typemod": "SingletonType",
                     "return_type": {
                         "name": "std::int64",
                         "element_types": [],
@@ -725,7 +725,7 @@ class TestIntrospection(tb.QueryTestCase):
                         }
                     ],
                     "params": [],
-                    "return_typemod": "SINGLETON",
+                    "return_typemod": "SingletonType",
                     "return_type": {
                         "element_types": [
                             {"name": "major",

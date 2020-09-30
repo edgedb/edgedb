@@ -37,7 +37,7 @@ class EdgeQLEnum(s_enum.StrEnum):
         raise NotImplementedError
 
 
-class ParameterKind(s_enum.StrEnum):
+class ParameterKind(EdgeQLEnum):
     VARIADIC = 'VARIADIC'
     NAMED_ONLY = 'NAMED ONLY'
     POSITIONAL = 'POSITIONAL'
@@ -50,8 +50,29 @@ class ParameterKind(s_enum.StrEnum):
         else:
             return ''
 
+    def to_edgeql_enum(self) -> str:
+        if self is ParameterKind.VARIADIC:
+            return 'VariadicParam'
+        elif self is ParameterKind.NAMED_ONLY:
+            return 'NamedOnlyParam'
+        elif self is ParameterKind.POSITIONAL:
+            return 'PositionalParam'
+        else:
+            raise ValueError(f'unsupported enum value {self!r}')
 
-class TypeModifier(s_enum.StrEnum):
+    @classmethod
+    def from_edgeql_enum(cls, input: str) -> ParameterKind:
+        if input == 'VariadicParam':
+            return ParameterKind.VARIADIC
+        elif input == 'NamedOnlyParam':
+            return ParameterKind.NAMED_ONLY
+        elif input == 'PositionalParam':
+            return ParameterKind.POSITIONAL
+        else:
+            raise ValueError(f'unsupported enum value {input!r}')
+
+
+class TypeModifier(EdgeQLEnum):
     SET_OF = 'SET OF'
     OPTIONAL = 'OPTIONAL'
     SINGLETON = 'SINGLETON'
@@ -63,6 +84,27 @@ class TypeModifier(s_enum.StrEnum):
             return 'OPTIONAL'
         else:
             return ''
+
+    def to_edgeql_enum(self) -> str:
+        if self is TypeModifier.SET_OF:
+            return 'SetOfType'
+        elif self is TypeModifier.OPTIONAL:
+            return 'OptionalType'
+        elif self is TypeModifier.SINGLETON:
+            return 'SingletonType'
+        else:
+            raise ValueError(f'unsupported enum value {self!r}')
+
+    @classmethod
+    def from_edgeql_enum(cls, input: str) -> TypeModifier:
+        if input == 'SetOfType':
+            return TypeModifier.SET_OF
+        elif input == 'OptionalType':
+            return TypeModifier.OPTIONAL
+        elif input == 'SingletonType':
+            return TypeModifier.SINGLETON
+        else:
+            raise ValueError(f'unsupported enum value {input!r}')
 
 
 class OperatorKind(EdgeQLEnum):
