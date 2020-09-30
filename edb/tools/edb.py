@@ -61,4 +61,5 @@ from . import gen_meta_grammars  # noqa
 from . import inittestdb  # noqa
 from . import test  # noqa
 from . import wipe  # noqa
+from . import gen_test_dumps  # noqa
 from .profiling import cli  # noqa
