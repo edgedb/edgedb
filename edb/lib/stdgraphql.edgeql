@@ -34,6 +34,7 @@ ALTER TYPE stdgraphql::Mutation {
 
 CREATE FUNCTION stdgraphql::short_name(name: str) -> str {
     SET volatility := 'IMMUTABLE';
+    SET internal := true;
     USING (
         SELECT (
             name[5:] IF name LIKE 'std::%' ELSE

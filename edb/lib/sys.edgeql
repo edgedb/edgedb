@@ -142,6 +142,7 @@ sys::__version_internal() -> tuple<major: std::int64,
 {
     # This function reads from a table.
     SET volatility := 'STABLE';
+    SET internal := true;
     USING SQL $$
     SELECT
         (v ->> 'major')::int8,
@@ -222,5 +223,6 @@ sys::_describe_roles_as_ddl() -> str
 {
     # The results won't change within a single statement.
     SET volatility := 'STABLE';
+    SET internal := true;
     USING SQL FUNCTION 'edgedb._describe_roles_as_ddl';
 };

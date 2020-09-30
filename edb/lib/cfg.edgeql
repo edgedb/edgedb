@@ -144,6 +144,7 @@ cfg::get_config_json() -> std::json
 CREATE FUNCTION
 cfg::_quote(text: std::str) -> std::str
 {
+    SET internal := true;
     USING SQL $$
         SELECT replace(quote_literal(text), '''''', '\\''')
     $$
@@ -158,6 +159,7 @@ cfg::_name_value(
     default: OPTIONAL std::int16
 ) -> std::str
 {
+    SET internal := true;
     USING (
         SELECT '' IF EXISTS default AND default = value
             ELSE prefix ++ name ++ ' := ' ++ <str>value ?? '{}' ++ suffix
@@ -173,6 +175,7 @@ cfg::_name_value(
     default: OPTIONAL std::int32
 ) -> std::str
 {
+    SET internal := true;
     USING (
         SELECT '' IF EXISTS default AND default = value
             ELSE prefix ++ name ++ ' := ' ++ <str>value ?? '{}' ++ suffix
@@ -188,6 +191,7 @@ cfg::_name_value(
     default: OPTIONAL std::int64
 ) -> std::str
 {
+    SET internal := true;
     USING (
         SELECT '' IF EXISTS default AND default = value
             ELSE prefix ++ name ++ ' := ' ++ <str>value ?? '{}' ++ suffix
@@ -203,6 +207,7 @@ cfg::_name_value(
     default: OPTIONAL std::bool
 ) -> std::str
 {
+    SET internal := true;
     USING (
         SELECT '' IF EXISTS default AND default = value
             ELSE prefix ++ name ++ ' := ' ++ <str>value ?? '{}' ++ suffix
@@ -218,6 +223,7 @@ cfg::_name_value(
     default: OPTIONAL std::str
 ) -> std::str
 {
+    SET internal := true;
     USING (
         SELECT '' IF EXISTS default AND default = value
             ELSE prefix ++
@@ -234,6 +240,7 @@ cfg::_name_value_array(
     value: array<std::str>
 ) -> std::str
 {
+    SET internal := true;
     USING SQL $$
         SELECT
             CASE WHEN array_length(value, 1) > 0 THEN
@@ -250,6 +257,7 @@ cfg::_describe_system_config_as_ddl() -> str
 {
     # The results won't change within a single statement.
     SET volatility := 'STABLE';
+    SET internal := true;
     USING SQL FUNCTION 'edgedb._describe_system_config_as_ddl';
 };
 
@@ -258,6 +266,7 @@ cfg::_config_insert_all_ports() -> str
 {
     # The results won't change within a single statement.
     SET volatility := 'STABLE';
+    SET internal := true;
     USING SQL FUNCTION 'edgedb._config_insert_all_ports';
 };
 
@@ -266,5 +275,6 @@ cfg::_config_insert_all_auth() -> str
 {
     # The results won't change within a single statement.
     SET volatility := 'STABLE';
+    SET internal := true;
     USING SQL FUNCTION 'edgedb._config_insert_all_auth';
 };

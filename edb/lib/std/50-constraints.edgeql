@@ -25,6 +25,7 @@ std::_is_exclusive(s: SET OF anytype) -> std::bool
 {
     SET volatility := 'IMMUTABLE';
     SET initial_value := True;
+    SET internal := true;
     USING SQL EXPRESSION;
 };
 
