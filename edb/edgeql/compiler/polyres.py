@@ -64,13 +64,13 @@ class BoundCall(NamedTuple):
     has_empty_variadic: bool
 
 
-_VARIADIC = ft.ParameterKind.VARIADIC
-_NAMED_ONLY = ft.ParameterKind.NAMED_ONLY
-_POSITIONAL = ft.ParameterKind.POSITIONAL
+_VARIADIC = ft.ParameterKind.VariadicParam
+_NAMED_ONLY = ft.ParameterKind.NamedOnlyParam
+_POSITIONAL = ft.ParameterKind.PositionalParam
 
-_SET_OF = ft.TypeModifier.SET_OF
-_OPTIONAL = ft.TypeModifier.OPTIONAL
-_SINGLETON = ft.TypeModifier.SINGLETON
+_SET_OF = ft.TypeModifier.SetOfType
+_OPTIONAL = ft.TypeModifier.OptionalType
+_SINGLETON = ft.TypeModifier.SingletonType
 
 
 def find_callable(

@@ -197,7 +197,7 @@ def _build_object_mutation_shape(
         lprop_target = lprop_fields.get(n)
         if lprop_target is not None:
             target, ftype = lprop_target
-            cardinality = qltypes.SchemaCardinality.ONE
+            cardinality = qltypes.SchemaCardinality.One
             is_ordered = False
             reflection_proxy = None
         elif lprops_only:
@@ -253,7 +253,7 @@ def _build_object_mutation_shape(
                             arg_expr = ''
                         else:
                             pkind = param.get_kind(schema)
-                            if pkind is qltypes.ParameterKind.VARIADIC:
+                            if pkind is qltypes.ParameterKind.VariadicParam:
                                 rest = [arg.origtext for arg in args[i - 1:]]
                                 arg_expr = f'[{",".join(rest)}]'
                             else:
@@ -272,7 +272,7 @@ def _build_object_mutation_shape(
                 variables[f'{var_n}__internal'] = json.dumps(None)
 
         elif isinstance(target, s_objtypes.ObjectType):
-            if cardinality is qltypes.SchemaCardinality.MANY:
+            if cardinality is qltypes.SchemaCardinality.Many:
                 if ftype is sr_struct.FieldType.OBJ_DICT:
                     target_expr, target_value = _reflect_object_dict_value(
                         schema=schema,
@@ -389,8 +389,6 @@ def _build_object_mutation_shape(
 
             if v is None or isinstance(v, numbers.Number):
                 target_value = v
-            elif isinstance(v, qltypes.EdgeQLEnum):
-                target_value = v.to_edgeql_enum()
             else:
                 target_value = str(v)
 

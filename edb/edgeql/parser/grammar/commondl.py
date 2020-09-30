@@ -165,13 +165,13 @@ class OptDefault(Nonterm):
 
 class OptParameterKind(Nonterm):
     def reduce_empty(self):
-        self.val = qltypes.ParameterKind.POSITIONAL
+        self.val = qltypes.ParameterKind.PositionalParam
 
     def reduce_VARIADIC(self, kid):
-        self.val = qltypes.ParameterKind.VARIADIC
+        self.val = qltypes.ParameterKind.VariadicParam
 
     def reduce_NAMEDONLY(self, *kids):
-        self.val = qltypes.ParameterKind.NAMED_ONLY
+        self.val = qltypes.ParameterKind.NamedOnlyParam
 
 
 class FuncDeclArgName(Nonterm):
@@ -233,7 +233,7 @@ class CreateFunctionArgs(Nonterm):
                     context=arg.context)
             names.add(arg.name)
 
-            if arg.kind is qltypes.ParameterKind.VARIADIC:
+            if arg.kind is qltypes.ParameterKind.VariadicParam:
                 if variadic_arg is not None:
                     raise EdgeQLSyntaxError(
                         'more than one variadic argument',
@@ -252,7 +252,7 @@ class CreateFunctionArgs(Nonterm):
                         f'cannot have a default value',
                         context=arg.context)
 
-            elif arg.kind is qltypes.ParameterKind.NAMED_ONLY:
+            elif arg.kind is qltypes.ParameterKind.NamedOnlyParam:
                 last_named_arg = arg
 
             else:
@@ -268,7 +268,7 @@ class CreateFunctionArgs(Nonterm):
                         f'follows VARIADIC argument `{variadic_arg.name}`',
                         context=arg.context)
 
-            if arg.kind is qltypes.ParameterKind.POSITIONAL:
+            if arg.kind is qltypes.ParameterKind.PositionalParam:
                 if arg.default is None:
                     if last_pos_default_arg is not None:
                         raise EdgeQLSyntaxError(
@@ -284,13 +284,13 @@ class CreateFunctionArgs(Nonterm):
 
 class OptTypeQualifier(Nonterm):
     def reduce_SET_OF(self, *kids):
-        self.val = qltypes.TypeModifier.SET_OF
+        self.val = qltypes.TypeModifier.SetOfType
 
     def reduce_OPTIONAL(self, *kids):
-        self.val = qltypes.TypeModifier.OPTIONAL
+        self.val = qltypes.TypeModifier.OptionalType
 
     def reduce_empty(self):
-        self.val = qltypes.TypeModifier.SINGLETON
+        self.val = qltypes.TypeModifier.SingletonType
 
 
 class FunctionType(Nonterm):
@@ -413,16 +413,16 @@ class ProcessFunctionBlockMixin:
 class OnTargetDeleteStmt(Nonterm):
     def reduce_ON_TARGET_DELETE_RESTRICT(self, *kids):
         self.val = qlast.OnTargetDelete(
-            cascade=qltypes.LinkTargetDeleteAction.RESTRICT)
+            cascade=qltypes.LinkTargetDeleteAction.Restrict)
 
     def reduce_ON_TARGET_DELETE_DELETE_SOURCE(self, *kids):
         self.val = qlast.OnTargetDelete(
-            cascade=qltypes.LinkTargetDeleteAction.DELETE_SOURCE)
+            cascade=qltypes.LinkTargetDeleteAction.DeleteSource)
 
     def reduce_ON_TARGET_DELETE_ALLOW(self, *kids):
         self.val = qlast.OnTargetDelete(
-            cascade=qltypes.LinkTargetDeleteAction.ALLOW)
+            cascade=qltypes.LinkTargetDeleteAction.Allow)
 
     def reduce_ON_TARGET_DELETE_DEFERRED_RESTRICT(self, *kids):
         self.val = qlast.OnTargetDelete(
-            cascade=qltypes.LinkTargetDeleteAction.DEFERRED_RESTRICT)
+            cascade=qltypes.LinkTargetDeleteAction.DeferredRestrict)

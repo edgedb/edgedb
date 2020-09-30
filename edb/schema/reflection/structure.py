@@ -722,7 +722,7 @@ def generate_structure(
                     SchemaFieldDesc(
                         fieldname=refdict.attr,
                         type=shadow_tgt,
-                        cardinality=qltypes.SchemaCardinality.MANY,
+                        cardinality=qltypes.SchemaCardinality.Many,
                         properties=prop_layout,
                         is_refdict=True,
                     )

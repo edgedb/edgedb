@@ -1032,13 +1032,13 @@ class SetCardinalityStmt(Nonterm):
     def reduce_SET_SINGLE(self, *kids):
         self.val = qlast.SetSpecialField(
             name='cardinality',
-            value=qltypes.SchemaCardinality.ONE,
+            value=qltypes.SchemaCardinality.One,
         )
 
     def reduce_SET_MULTI(self, *kids):
         self.val = qlast.SetSpecialField(
             name='cardinality',
-            value=qltypes.SchemaCardinality.MANY,
+            value=qltypes.SchemaCardinality.Many,
         )
 
 
@@ -1645,16 +1645,16 @@ class AlterFunctionStmt(Nonterm, commondl.ProcessFunctionBlockMixin):
 class OperatorKind(Nonterm):
 
     def reduce_INFIX(self, *kids):
-        self.val = kids[0].val
+        self.val = qltypes.OperatorKind.Infix
 
     def reduce_POSTFIX(self, *kids):
-        self.val = kids[0].val
+        self.val = qltypes.OperatorKind.Postfix
 
     def reduce_PREFIX(self, *kids):
-        self.val = kids[0].val
+        self.val = qltypes.OperatorKind.Prefix
 
     def reduce_TERNARY(self, *kids):
-        self.val = kids[0].val
+        self.val = qltypes.OperatorKind.Ternary
 
 
 class OperatorCode(Nonterm):
@@ -1739,7 +1739,7 @@ class CreateOperatorStmt(Nonterm):
             CreateOperatorCommandsBlock
         """
         self.val = qlast.CreateOperator(
-            kind=qltypes.OperatorKind(kids[1].val.upper()),
+            kind=kids[1].val,
             name=kids[3].val,
             params=kids[4].val,
             returning_typemod=kids[6].val,
@@ -1754,7 +1754,7 @@ class CreateOperatorStmt(Nonterm):
             OptCreateOperatorCommandsBlock
         """
         self.val = qlast.CreateOperator(
-            kind=qltypes.OperatorKind(kids[2].val.upper()),
+            kind=kids[2].val,
             name=kids[4].val,
             params=kids[5].val,
             returning_typemod=kids[7].val,
@@ -1858,7 +1858,7 @@ class AlterOperatorStmt(Nonterm):
            AlterOperatorCommandsBlock
         """
         self.val = qlast.AlterOperator(
-            kind=qltypes.OperatorKind(kids[1].val.upper()),
+            kind=kids[1].val,
             name=kids[3].val,
             params=kids[4].val,
             commands=kids[5].val
@@ -1875,7 +1875,7 @@ class DropOperatorStmt(Nonterm):
            DROP OperatorKind OPERATOR NodeName CreateFunctionArgs
         """
         self.val = qlast.DropOperator(
-            kind=qltypes.OperatorKind(kids[1].val.upper()),
+            kind=kids[1].val,
             name=kids[3].val,
             params=kids[4].val,
         )

@@ -140,7 +140,7 @@ def load_spec_from_schema(schema):
             for a, v in p.get_annotations(schema).items(schema)
         }
 
-        set_of = p.get_cardinality(schema) is qltypes.SchemaCardinality.MANY
+        set_of = p.get_cardinality(schema) is qltypes.SchemaCardinality.Many
 
         deflt = p.get_default(schema)
         if deflt is not None:

@@ -272,7 +272,7 @@ def _get_set_rvar(
                 rvars = process_set_as_func_enumerate(ir_set, stmt, ctx=ctx)
             else:
                 rvars = process_set_as_enumerate(ir_set, stmt, ctx=ctx)
-        elif any(pm is qltypes.TypeModifier.SET_OF
+        elif any(pm is qltypes.TypeModifier.SetOfType
                  for pm in ir_set.expr.params_typemods):
             # Call to an aggregate function.
             rvars = process_set_as_agg_expr(ir_set, stmt, ctx=ctx)
@@ -1956,7 +1956,7 @@ def _compile_func_epilogue(
 
     if (ctx.volatility_ref is not None and
             ctx.volatility_ref is not context.NO_VOLATILITY and
-            expr.volatility is qltypes.Volatility.VOLATILE):
+            expr.volatility is qltypes.Volatility.Volatile):
         # Apply the volatility reference.
         # See the comment in process_set_as_subquery().
         func_rel.where_clause = astutils.extend_binop(
@@ -1977,7 +1977,7 @@ def _compile_func_epilogue(
                         pull_namespace=False, aspects=aspects, ctx=ctx)
 
     if (ir_set.path_id.is_tuple_path()
-            and expr.typemod is qltypes.TypeModifier.SET_OF):
+            and expr.typemod is qltypes.TypeModifier.SetOfType):
         # Functions returning a set of tuples are compiled with an
         # explicit coldeflist, so the result is represented as a
         # TupleVar as opposed to an opaque record datum, so
@@ -2068,7 +2068,7 @@ def process_set_as_func_expr(
             name = common.get_function_backend_name(
                 expr.func_shortname, expr.func_module_id)
 
-        if expr.typemod is qltypes.TypeModifier.SET_OF:
+        if expr.typemod is qltypes.TypeModifier.SetOfType:
             set_expr = _process_set_func(
                 ir_set, func_name=name, args=args, ctx=newctx)
         else:

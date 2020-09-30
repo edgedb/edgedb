@@ -45,11 +45,11 @@ class TestLinkTargetDeleteSchema(tb.BaseSchemaLoadTest):
 
         self.assertEqual(
             obj.getptr(schema, 'foo').get_on_target_delete(schema),
-            s_links.LinkTargetDeleteAction.ALLOW)
+            s_links.LinkTargetDeleteAction.Allow)
 
         self.assertEqual(
             obj.getptr(schema, 'bar').get_on_target_delete(schema),
-            s_links.LinkTargetDeleteAction.RESTRICT)
+            s_links.LinkTargetDeleteAction.Restrict)
 
     def test_schema_on_target_delete_02(self):
         schema = self.load_schema("""
@@ -75,12 +75,12 @@ class TestLinkTargetDeleteSchema(tb.BaseSchemaLoadTest):
         obj2 = schema.get('test::Object2')
         self.assertEqual(
             obj2.getptr(schema, 'foo').get_on_target_delete(schema),
-            s_links.LinkTargetDeleteAction.ALLOW)
+            s_links.LinkTargetDeleteAction.Allow)
 
         obj3 = schema.get('test::Object3')
         self.assertEqual(
             obj3.getptr(schema, 'foo').get_on_target_delete(schema),
-            s_links.LinkTargetDeleteAction.RESTRICT)
+            s_links.LinkTargetDeleteAction.Restrict)
 
     @tb.must_fail(errors.SchemaError,
                   "cannot implicitly resolve the `on target delete` action "

@@ -46,7 +46,7 @@ def compile_ConfigSet(
             # Special handling for empty sets, because we want a
             # singleton representation of the value and not an empty rel
             # in this context.
-            if op.cardinality is qltypes.SchemaCardinality.ONE:
+            if op.cardinality is qltypes.SchemaCardinality.One:
                 val = pgast.NullConstant()
             else:
                 val = pgast.TypeCast(
@@ -61,7 +61,7 @@ def compile_ConfigSet(
 
             pathctx.get_path_serialized_output(
                 val, op.expr.path_id, env=ctx.env)
-            if op.cardinality is qltypes.SchemaCardinality.MANY:
+            if op.cardinality is qltypes.SchemaCardinality.Many:
                 val = output.aggregate_json_output(val, op.expr, env=ctx.env)
 
     result_row = pgast.RowExpr(

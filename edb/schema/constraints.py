@@ -583,8 +583,8 @@ class CreateConstraint(
             name='__subject__',
             default=None,
             type=s_pseudo.PseudoTypeShell(name='anytype'),
-            typemod=ft.TypeModifier.SINGLETON,
-            kind=ft.ParameterKind.POSITIONAL,
+            typemod=ft.TypeModifier.SingletonType,
+            kind=ft.ParameterKind.PositionalParam,
         ))
 
         return params
@@ -964,7 +964,7 @@ class CreateConstraint(
                 schema, context.modaliases, astnode)
 
             for param in params:
-                if param.get_kind(schema) is ft.ParameterKind.NAMED_ONLY:
+                if param.get_kind(schema) is ft.ParameterKind.NamedOnlyParam:
                     raise errors.InvalidConstraintDefinitionError(
                         'named only parameters are not allowed '
                         'in this context',
@@ -985,7 +985,7 @@ class CreateConstraint(
         if cmd.get_attribute_value('return_typemod') is None:
             cmd.set_attribute_value(
                 'return_typemod',
-                ft.TypeModifier.SINGLETON,
+                ft.TypeModifier.SingletonType,
             )
 
         assert isinstance(astnode, (qlast.CreateConstraint,

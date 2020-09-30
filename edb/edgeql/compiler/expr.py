@@ -228,7 +228,7 @@ def try_fold_binop(
                               ctx.env.schema.get('std::anyreal'))
 
         if (opcall.func_shortname in ('std::+', 'std::*') and
-                opcall.operator_kind is ft.OperatorKind.INFIX and
+                opcall.operator_kind is ft.OperatorKind.Infix and
                 all(setgen.get_set_type(a.expr, ctx=ctx).issubclass(
                     ctx.env.schema, anyreal)
                     for a in opcall.args)):
@@ -257,7 +257,7 @@ def try_fold_associative_binop(
     if (isinstance(my_const.expr, irast.BaseConstant) and
             isinstance(other_binop.expr, irast.OperatorCall) and
             other_binop.expr.func_shortname == op and
-            other_binop.expr.operator_kind is ft.OperatorKind.INFIX):
+            other_binop.expr.operator_kind is ft.OperatorKind.Infix):
 
         other_const = other_binop.expr.args[0].expr
         other_binop_node = other_binop.expr.args[1].expr

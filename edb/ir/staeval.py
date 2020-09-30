@@ -120,7 +120,7 @@ def evaluate_BaseConstant(
 
 op_table = {
     # Concatenation
-    ('INFIX', 'std::++'): lambda a, b: a + b,
+    ('Infix', 'std::++'): lambda a, b: a + b,
 }
 
 
@@ -325,7 +325,7 @@ def object_type_to_python_type(
         else:
             pytype = scalar_type_to_python_type(ptype, schema)
 
-        is_multi = p.get_cardinality(schema) is qltypes.SchemaCardinality.MANY
+        is_multi = p.get_cardinality(schema) is qltypes.SchemaCardinality.Many
         if is_multi:
             pytype = FrozenSet[pytype]  # type: ignore
 
@@ -384,7 +384,7 @@ def evaluate_config_set(
         schema: s_schema.Schema) -> Any:
 
     value = evaluate_to_python_val(ir.expr, schema)
-    if ir.cardinality is qltypes.SchemaCardinality.MANY:
+    if ir.cardinality is qltypes.SchemaCardinality.Many:
         if value is None:
             value = []
         elif not typeutils.is_container(value):

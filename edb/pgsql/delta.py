@@ -529,7 +529,7 @@ class FunctionCommand:
             name=self.get_pgname(func, schema),
             args=self.compile_args(func, schema),
             has_variadic=func_params.find_variadic(schema) is not None,
-            set_returning=func_return_typemod is ql_ft.TypeModifier.SET_OF,
+            set_returning=func_return_typemod is ql_ft.TypeModifier.SetOfType,
             volatility=func.get_volatility(schema),
             returns=self.get_pgtype(
                 func, func.get_return_type(schema), schema),
@@ -670,18 +670,18 @@ class OperatorCommand(FunctionCommand):
         oper_params = list(oper.get_params(schema).objects(schema))
         oper_kind = oper.get_operator_kind(schema)
 
-        if oper_kind is ql_ft.OperatorKind.INFIX:
+        if oper_kind is ql_ft.OperatorKind.Infix:
             left_type = types.pg_type_from_object(
                 schema, oper_params[0].get_type(schema))
 
             right_type = types.pg_type_from_object(
                 schema, oper_params[1].get_type(schema))
 
-        elif oper_kind is ql_ft.OperatorKind.PREFIX:
+        elif oper_kind is ql_ft.OperatorKind.Prefix:
             right_type = types.pg_type_from_object(
                 schema, oper_params[0].get_type(schema))
 
-        elif oper_kind is ql_ft.OperatorKind.POSTFIX:
+        elif oper_kind is ql_ft.OperatorKind.Postfix:
             left_type = types.pg_type_from_object(
                 schema, oper_params[0].get_type(schema))
 
@@ -761,12 +761,12 @@ class CreateOperator(OperatorCommand, CreateObject,
                 # Need a proxy function with casts
                 oper_kind = oper.get_operator_kind(schema)
 
-                if oper_kind is ql_ft.OperatorKind.INFIX:
+                if oper_kind is ql_ft.OperatorKind.Infix:
                     op = (f'$1::{from_args[0]} {pg_oper_name} '
                           f'$2::{from_args[1]}')
-                elif oper_kind is ql_ft.OperatorKind.POSTFIX:
+                elif oper_kind is ql_ft.OperatorKind.Postfix:
                     op = f'$1::{from_args[0]} {pg_oper_name}'
-                elif oper_kind is ql_ft.OperatorKind.PREFIX:
+                elif oper_kind is ql_ft.OperatorKind.Prefix:
                     op = f'{pg_oper_name} $1::{from_args[1]}'
                 else:
                     raise RuntimeError(
@@ -3126,11 +3126,11 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 links, lambda l: l.get_on_target_delete(schema))
             near_endpoint, far_endpoint = 'target', 'source'
         else:
-            groups = [(DA.ALLOW, links)]
+            groups = [(DA.Allow, links)]
             near_endpoint, far_endpoint = 'source', 'target'
 
         for action, links in groups:
-            if action is DA.RESTRICT or action is DA.DEFERRED_RESTRICT:
+            if action is DA.Restrict or action is DA.DeferredRestrict:
                 tables = self._get_link_table_union(schema, links)
 
                 text = textwrap.dedent('''\
@@ -3172,7 +3172,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
                 chunks.append(text)
 
-            elif action == s_links.LinkTargetDeleteAction.ALLOW:
+            elif action == s_links.LinkTargetDeleteAction.Allow:
                 for link in links:
                     link_table = common.get_backend_name(
                         schema, link)
@@ -3190,7 +3190,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
                     chunks.append(text)
 
-            elif action == s_links.LinkTargetDeleteAction.DELETE_SOURCE:
+            elif action == s_links.LinkTargetDeleteAction.DeleteSource:
                 sources = collections.defaultdict(list)
                 for link in links:
                     sources[link.get_source(schema)].append(link)
@@ -3248,7 +3248,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
         near_endpoint, far_endpoint = 'target', 'source'
 
         for action, links in groups:
-            if action is DA.RESTRICT or action is DA.DEFERRED_RESTRICT:
+            if action is DA.Restrict or action is DA.DeferredRestrict:
                 tables = self._get_inline_link_table_union(schema, links)
 
                 text = textwrap.dedent('''\
@@ -3290,7 +3290,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
                 chunks.append(text)
 
-            elif action == s_links.LinkTargetDeleteAction.ALLOW:
+            elif action == s_links.LinkTargetDeleteAction.Allow:
                 for link in links:
                     link_psi = types.get_pointer_storage_info(
                         link, schema=schema)
@@ -3309,7 +3309,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
                     chunks.append(text)
 
-            elif action == s_links.LinkTargetDeleteAction.DELETE_SOURCE:
+            elif action == s_links.LinkTargetDeleteAction.DeleteSource:
                 sources = collections.defaultdict(list)
                 for link in links:
                     sources[link.get_source(schema)].append(link)
@@ -3446,13 +3446,13 @@ class UpdateEndpointDeleteActions(MetaCommand):
                     link, schema=schema)
                 if ptr_stor_info.table_type != 'link':
                     if (link.get_on_target_delete(schema)
-                            is DA.DEFERRED_RESTRICT):
+                            is DA.DeferredRestrict):
                         deferred_inline_links.append(link)
                     else:
                         inline_links.append(link)
                 else:
                     if (link.get_on_target_delete(schema)
-                            is DA.DEFERRED_RESTRICT):
+                            is DA.DeferredRestrict):
                         deferred_links.append(link)
                     else:
                         links.append(link)

@@ -562,7 +562,7 @@ class Pointer(referencing.ReferencedInheritingObject,
         # Determine the cardinality of a given endpoint set.
         if direction == PointerDirection.Outbound:
             return (self.get_cardinality(schema) is
-                    qltypes.SchemaCardinality.ONE)
+                    qltypes.SchemaCardinality.One)
         else:
             return self.is_exclusive(schema)
 
@@ -950,8 +950,8 @@ class PointerCommandOrFragment(
             )
 
         if (
-            spec_card in {None, qltypes.SchemaCardinality.ONE} and
-            card is not qltypes.SchemaCardinality.ONE
+            spec_card in {None, qltypes.SchemaCardinality.One} and
+            card is not qltypes.SchemaCardinality.One
         ):
             srcctx = self.get_attribute_source_context('target')
             raise errors.SchemaDefinitionError(
@@ -1069,7 +1069,7 @@ class PointerCommand(
             default_required, default_cardinality = \
                 default_expr.irast.cardinality.to_schema_value()
 
-            if (ptr_cardinality is qltypes.SchemaCardinality.ONE
+            if (ptr_cardinality is qltypes.SchemaCardinality.One
                     and default_cardinality != ptr_cardinality):
                 raise errors.SchemaDefinitionError(
                     f'possibly more than one element returned by '
@@ -1210,7 +1210,7 @@ class PointerCommand(
             if not isinstance(target_ref, ComputableRef):
                 if self.get_attribute_value('cardinality') is None:
                     self.set_attribute_value(
-                        'cardinality', qltypes.SchemaCardinality.ONE)
+                        'cardinality', qltypes.SchemaCardinality.One)
 
                 if self.get_attribute_value('required') is None:
                     self.set_attribute_value(
@@ -1440,10 +1440,10 @@ def get_or_create_union_pointer(
     schema, target = utils.get_union_type(
         schema, targets, opaque=opaque, module=modname)
 
-    cardinality = qltypes.SchemaCardinality.ONE
+    cardinality = qltypes.SchemaCardinality.One
     for component in components:
-        if component.get_cardinality(schema) is qltypes.SchemaCardinality.MANY:
-            cardinality = qltypes.SchemaCardinality.MANY
+        if component.get_cardinality(schema) is qltypes.SchemaCardinality.Many:
+            cardinality = qltypes.SchemaCardinality.Many
             break
 
     metacls = type(components[0])
@@ -1500,10 +1500,10 @@ def get_or_create_intersection_pointer(
     schema, target = utils.get_intersection_type(
         schema, targets, module=modname)
 
-    cardinality = qltypes.SchemaCardinality.ONE
+    cardinality = qltypes.SchemaCardinality.One
     for component in components:
-        if component.get_cardinality(schema) is qltypes.SchemaCardinality.MANY:
-            cardinality = qltypes.SchemaCardinality.MANY
+        if component.get_cardinality(schema) is qltypes.SchemaCardinality.Many:
+            cardinality = qltypes.SchemaCardinality.Many
             break
 
     metacls = type(components[0])

@@ -608,7 +608,7 @@ def pend_pointer_cardinality_inference(
     else:
         sc = qltypes.Cardinality.from_schema_value(
             specified_required,
-            specified_card or qltypes.SchemaCardinality.ONE
+            specified_card or qltypes.SchemaCardinality.One
         )
 
     ctx.pending_cardinality[ptrcls] = context.PendingCardinality(

@@ -31,9 +31,9 @@ from edb.ir import ast as irast
 from .. import context
 
 
-IMMUTABLE = qltypes.Volatility.IMMUTABLE
-STABLE = qltypes.Volatility.STABLE
-VOLATILE = qltypes.Volatility.VOLATILE
+IMMUTABLE = qltypes.Volatility.Immutable
+STABLE = qltypes.Volatility.Stable
+VOLATILE = qltypes.Volatility.Volatile
 
 
 def _max_volatility(args: Iterable[qltypes.Volatility]) -> qltypes.Volatility:

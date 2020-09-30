@@ -462,7 +462,7 @@ def derive_dummy_ptr(
             derived_obj,
             target=derived_obj,
             attrs={
-                'cardinality': qltypes.SchemaCardinality.MANY,
+                'cardinality': qltypes.SchemaCardinality.Many,
             },
             name=derived_name,
             mark_derived=True,

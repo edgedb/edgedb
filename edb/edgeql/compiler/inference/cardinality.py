@@ -56,9 +56,9 @@ class CardinalityBound(int, enum.Enum):
 
     def as_schema_cardinality(self) -> qltypes.SchemaCardinality:
         if self is CB_MANY:
-            return qltypes.SchemaCardinality.MANY
+            return qltypes.SchemaCardinality.Many
         else:
-            return qltypes.SchemaCardinality.ONE
+            return qltypes.SchemaCardinality.One
 
     @classmethod
     def from_required(cls, required: bool) -> CardinalityBound:
@@ -69,7 +69,7 @@ class CardinalityBound(int, enum.Enum):
         cls,
         card: qltypes.SchemaCardinality
     ) -> CardinalityBound:
-        if card is qltypes.SchemaCardinality.MANY:
+        if card is qltypes.SchemaCardinality.Many:
             return CB_MANY
         else:
             return CB_ONE
@@ -393,14 +393,14 @@ def __infer_func_call(
     # the cardinality of the function call depends on the cardinality
     # of non-SET_OF arguments AND the cardinality of the function
     # return value
-    SET_OF = qltypes.TypeModifier.SET_OF
-    if ir.typemod is SET_OF:
+    SetOfType = qltypes.TypeModifier.SetOfType
+    if ir.typemod is SetOfType:
         return MANY
     else:
         args = []
         # process positional args
         for arg, typemod in zip(ir.args, ir.params_typemods):
-            if typemod is not SET_OF:
+            if typemod is not SetOfType:
                 args.append(arg.expr)
 
         if args:
@@ -411,7 +411,7 @@ def __infer_func_call(
                 env=env,
             )
         else:
-            if ir.typemod is qltypes.TypeModifier.OPTIONAL:
+            if ir.typemod is qltypes.TypeModifier.OptionalType:
                 return AT_MOST_ONE
             else:
                 return ONE
@@ -449,14 +449,16 @@ def __infer_oper_call(
         args: List[irast.Base] = []
         all_optional = False
 
-        if ir.typemod is qltypes.TypeModifier.SET_OF:
+        if ir.typemod is qltypes.TypeModifier.SetOfType:
             # this is DISTINCT and IF..ELSE
             args = [a.expr for a in ir.args]
         else:
             all_optional = True
             for arg, typemod in zip(ir.args, ir.params_typemods):
-                if typemod is not qltypes.TypeModifier.SET_OF:
-                    all_optional &= typemod is qltypes.TypeModifier.OPTIONAL
+                if typemod is not qltypes.TypeModifier.SetOfType:
+                    all_optional &= (
+                        typemod is qltypes.TypeModifier.OptionalType
+                    )
                     args.append(arg.expr)
 
         if args:

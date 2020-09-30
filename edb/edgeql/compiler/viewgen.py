@@ -440,7 +440,7 @@ def _normalize_view_ptr_expr(
         )
 
         base_cardinality = base_ptrcls.get_cardinality(ctx.env.schema)
-        base_is_singleton = base_cardinality is qltypes.SchemaCardinality.ONE
+        base_is_singleton = base_cardinality is qltypes.SchemaCardinality.One
 
         if (
             shape_el.where

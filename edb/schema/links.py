@@ -106,7 +106,7 @@ class Link(sources.Source, pointers.Pointer, s_abc.Link,
 
     on_target_delete = so.SchemaField(
         LinkTargetDeleteAction,
-        default=LinkTargetDeleteAction.RESTRICT,
+        default=LinkTargetDeleteAction.Restrict,
         coerce=True,
         compcoef=0.9,
         merge_fn=merge_actions)
@@ -392,7 +392,7 @@ class CreateLink(
         src_prop.set_attribute_value('is_final', True)
         src_prop.set_attribute_value('is_owned', True)
         src_prop.set_attribute_value('cardinality',
-                                     qltypes.SchemaCardinality.ONE)
+                                     qltypes.SchemaCardinality.One)
 
         cmd.prepend(src_prop)
 
@@ -425,7 +425,7 @@ class CreateLink(
         tgt_prop.set_attribute_value('is_final', True)
         tgt_prop.set_attribute_value('is_owned', True)
         tgt_prop.set_attribute_value('cardinality',
-                                     qltypes.SchemaCardinality.ONE)
+                                     qltypes.SchemaCardinality.One)
 
         cmd.prepend(tgt_prop)
 

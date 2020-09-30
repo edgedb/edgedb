@@ -57,13 +57,13 @@ def param_as_str(
     typemod = param.get_typemod(schema)
     default = param.get_default(schema)
 
-    if kind is not ft.ParameterKind.POSITIONAL:
+    if kind is not ft.ParameterKind.PositionalParam:
         ret.append(kind.to_edgeql())
         ret.append(' ')
 
     ret.append(f'{param.get_parameter_name(schema)}: ')
 
-    if typemod is not ft.TypeModifier.SINGLETON:
+    if typemod is not ft.TypeModifier.SingletonType:
         ret.append(typemod.to_edgeql())
         ret.append(' ')
 
@@ -93,9 +93,9 @@ def canonical_param_sort(
     for param in params:
         param_kind = param.get_kind(schema)
 
-        if param_kind is ft.ParameterKind.POSITIONAL:
+        if param_kind is ft.ParameterKind.PositionalParam:
             canonical_order.append(param)
-        elif param_kind is ft.ParameterKind.NAMED_ONLY:
+        elif param_kind is ft.ParameterKind.NamedOnlyParam:
             named.append(param)
         else:
             variadic = param
@@ -198,7 +198,7 @@ class ParameterDesc(ParameterLike):
 
         paramt_ast = astnode.type
 
-        if astnode.kind is ft.ParameterKind.VARIADIC:
+        if astnode.kind is ft.ParameterKind.VariadicParam:
             paramt_ast = qlast.TypeName(
                 maintype=qlast.ObjectRef(
                     name='array',
@@ -332,7 +332,7 @@ class Parameter(so.ObjectFragment, ParameterLike):
 
     typemod = so.SchemaField(
         ft.TypeModifier,
-        default=ft.TypeModifier.SINGLETON,
+        default=ft.TypeModifier.SingletonType,
         coerce=True, compcoef=0.4)
 
     kind = so.SchemaField(
@@ -543,20 +543,20 @@ class FuncParameterList(so.ObjectList[Parameter], ParameterLikeList):
     ) -> Mapping[str, Parameter]:
         named = {}
         for param in self.objects(schema):
-            if param.get_kind(schema) is ft.ParameterKind.NAMED_ONLY:
+            if param.get_kind(schema) is ft.ParameterKind.NamedOnlyParam:
                 named[param.get_parameter_name(schema)] = param
 
         return types.MappingProxyType(named)
 
     def find_variadic(self, schema: s_schema.Schema) -> Optional[Parameter]:
         for param in self.objects(schema):
-            if param.get_kind(schema) is ft.ParameterKind.VARIADIC:
+            if param.get_kind(schema) is ft.ParameterKind.VariadicParam:
                 return param
         return None
 
     def has_required_params(self, schema: s_schema.Schema) -> bool:
         return any(
-            param.get_kind(schema) is not ft.ParameterKind.VARIADIC
+            param.get_kind(schema) is not ft.ParameterKind.VariadicParam
             and param.get_default(schema) is None
             for param in self.objects(schema)
         )
@@ -577,7 +577,7 @@ class FuncParameterList(so.ObjectList[Parameter], ParameterLikeList):
 class VolatilitySubject(so.Object):
 
     volatility = so.SchemaField(
-        ft.Volatility, default=ft.Volatility.VOLATILE,
+        ft.Volatility, default=ft.Volatility.Volatile,
         compcoef=0.4, coerce=True, allow_ddl_set=True)
 
 
@@ -714,9 +714,9 @@ class CallableObject(
 
             quals.append(pt_id)
             pk = param.get_kind(schema)
-            if pk is ft.ParameterKind.NAMED_ONLY:
+            if pk is ft.ParameterKind.NamedOnlyParam:
                 quals.append(f'$NO-{param.get_name(schema)}-{pt_id}$')
-            elif pk is ft.ParameterKind.VARIADIC:
+            elif pk is ft.ParameterKind.VariadicParam:
                 quals.append(f'$V$')
 
         return tuple(quals)
@@ -1159,7 +1159,7 @@ class FunctionCommand(
 
         return_typemod = self._get_attribute_value(
             schema, context, 'return_typemod')
-        if (return_typemod is not ft.TypeModifier.SET_OF
+        if (return_typemod is not ft.TypeModifier.SetOfType
                 and ir.cardinality.is_multi()):
             raise errors.InvalidFunctionDefinitionError(
                 f'return cardinality mismatch in function declared to return '
@@ -1308,7 +1308,7 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                     context=self.source_context)
 
         if (language == qlast.Language.EdgeQL and
-                any(p.get_typemod(schema) is ft.TypeModifier.SET_OF
+                any(p.get_typemod(schema) is ft.TypeModifier.SetOfType
                     for p in params.objects(schema))):
             raise errors.UnsupportedFeatureError(
                 f'cannot create the `{signature}` function: '
@@ -1345,7 +1345,7 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                         f'{p_type.get_displayname(schema)} cannot '
                         f'have a non-empty default value',
                         context=self.source_context)
-            elif (p.get_typemod(schema) is ft.TypeModifier.OPTIONAL and
+            elif (p.get_typemod(schema) is ft.TypeModifier.OptionalType and
                     irutils.is_empty(ir_default.expr)):
                 check_default_type = False
 
@@ -1604,7 +1604,9 @@ def get_params_symtable(
 
     for pi, p in enumerate(params.get_in_canonical_order(schema)):
         p_shortname = p.get_parameter_name(schema)
-        p_is_optional = p.get_typemod(schema) is not ft.TypeModifier.SINGLETON
+        p_is_optional = (
+            p.get_typemod(schema) is not ft.TypeModifier.SingletonType
+        )
         anchors[p_shortname] = qlast.TypeCast(
             expr=qlast.Parameter(
                 name=p_shortname,

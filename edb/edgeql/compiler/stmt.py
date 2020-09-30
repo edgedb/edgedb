@@ -258,7 +258,7 @@ def compile_insert_unless_conflict(
         )
 
     ptr = ptr.get_nearest_non_derived_parent(schema)
-    if ptr.get_cardinality(schema) != qltypes.SchemaCardinality.ONE:
+    if ptr.get_cardinality(schema) != qltypes.SchemaCardinality.One:
         raise errors.QueryError(
             'ON CONFLICT property must be a SINGLE property',
             context=constraint_spec.context,

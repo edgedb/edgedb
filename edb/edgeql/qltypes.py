@@ -27,98 +27,39 @@ if TYPE_CHECKING:
     T = TypeVar("T", covariant=True)
 
 
-class EdgeQLEnum(s_enum.StrEnum):
-
-    def to_edgeql_enum(self) -> str:
-        raise NotImplementedError
-
-    @classmethod
-    def from_edgeql_enum(cls: T, input: str) -> T:
-        raise NotImplementedError
-
-
-class ParameterKind(EdgeQLEnum):
-    VARIADIC = 'VARIADIC'
-    NAMED_ONLY = 'NAMED ONLY'
-    POSITIONAL = 'POSITIONAL'
+class ParameterKind(s_enum.StrEnum):
+    VariadicParam = 'VariadicParam'
+    NamedOnlyParam = 'NamedOnlyParam'
+    PositionalParam = 'PositionalParam'
 
     def to_edgeql(self) -> str:
-        if self is ParameterKind.VARIADIC:
+        if self is ParameterKind.VariadicParam:
             return 'VARIADIC'
-        elif self is ParameterKind.NAMED_ONLY:
+        elif self is ParameterKind.NamedOnlyParam:
             return 'NAMED ONLY'
         else:
             return ''
 
-    def to_edgeql_enum(self) -> str:
-        if self is ParameterKind.VARIADIC:
-            return 'VariadicParam'
-        elif self is ParameterKind.NAMED_ONLY:
-            return 'NamedOnlyParam'
-        elif self is ParameterKind.POSITIONAL:
-            return 'PositionalParam'
-        else:
-            raise ValueError(f'unsupported enum value {self!r}')
 
-    @classmethod
-    def from_edgeql_enum(cls, input: str) -> ParameterKind:
-        if input == 'VariadicParam':
-            return ParameterKind.VARIADIC
-        elif input == 'NamedOnlyParam':
-            return ParameterKind.NAMED_ONLY
-        elif input == 'PositionalParam':
-            return ParameterKind.POSITIONAL
-        else:
-            raise ValueError(f'unsupported enum value {input!r}')
-
-
-class TypeModifier(EdgeQLEnum):
-    SET_OF = 'SET OF'
-    OPTIONAL = 'OPTIONAL'
-    SINGLETON = 'SINGLETON'
+class TypeModifier(s_enum.StrEnum):
+    SetOfType = 'SetOfType'
+    OptionalType = 'OptionalType'
+    SingletonType = 'SingletonType'
 
     def to_edgeql(self) -> str:
-        if self is TypeModifier.SET_OF:
+        if self is TypeModifier.SetOfType:
             return 'SET OF'
-        elif self is TypeModifier.OPTIONAL:
+        elif self is TypeModifier.OptionalType:
             return 'OPTIONAL'
         else:
             return ''
 
-    def to_edgeql_enum(self) -> str:
-        if self is TypeModifier.SET_OF:
-            return 'SetOfType'
-        elif self is TypeModifier.OPTIONAL:
-            return 'OptionalType'
-        elif self is TypeModifier.SINGLETON:
-            return 'SingletonType'
-        else:
-            raise ValueError(f'unsupported enum value {self!r}')
 
-    @classmethod
-    def from_edgeql_enum(cls, input: str) -> TypeModifier:
-        if input == 'SetOfType':
-            return TypeModifier.SET_OF
-        elif input == 'OptionalType':
-            return TypeModifier.OPTIONAL
-        elif input == 'SingletonType':
-            return TypeModifier.SINGLETON
-        else:
-            raise ValueError(f'unsupported enum value {input!r}')
-
-
-class OperatorKind(EdgeQLEnum):
-    INFIX = 'INFIX'
-    POSTFIX = 'POSTFIX'
-    PREFIX = 'PREFIX'
-    TERNARY = 'TERNARY'
-
-    def to_edgeql_enum(self) -> str:
-        return str(self).title()
-
-    @classmethod
-    def from_edgeql_enum(cls, input: str) -> OperatorKind:
-        return cls(input.upper())
+class OperatorKind(s_enum.StrEnum):
+    Infix = 'Infix'
+    Postfix = 'Postfix'
+    Prefix = 'Prefix'
+    Ternary = 'Ternary'
 
 
 class TransactionIsolationLevel(s_enum.StrEnum):
@@ -136,23 +77,16 @@ class TransactionDeferMode(s_enum.StrEnum):
     NOT_DEFERRABLE = 'NOT DEFERRABLE'
 
 
-class SchemaCardinality(EdgeQLEnum):
+class SchemaCardinality(s_enum.StrEnum):
     '''This enum is used to store cardinality in the schema.'''
-    ONE = 'ONE'
-    MANY = 'MANY'
+    One = 'One'
+    Many = 'Many'
 
     def as_ptr_qual(self) -> str:
-        if self is SchemaCardinality.ONE:
+        if self is SchemaCardinality.One:
             return 'single'
         else:
             return 'multi'
-
-    def to_edgeql_enum(self) -> str:
-        return str(self).title()
-
-    @classmethod
-    def from_edgeql_enum(cls, input: str) -> SchemaCardinality:
-        return cls(input.upper())
 
 
 class Cardinality(s_enum.StrEnum):
@@ -187,30 +121,29 @@ class Cardinality(s_enum.StrEnum):
 
 
 _CARD_TO_TUPLE = {
-    Cardinality.AT_MOST_ONE: (False, SchemaCardinality.ONE),
-    Cardinality.ONE: (True, SchemaCardinality.ONE),
-    Cardinality.MANY: (False, SchemaCardinality.MANY),
-    Cardinality.AT_LEAST_ONE: (True, SchemaCardinality.MANY),
+    Cardinality.AT_MOST_ONE: (False, SchemaCardinality.One),
+    Cardinality.ONE: (True, SchemaCardinality.One),
+    Cardinality.MANY: (False, SchemaCardinality.Many),
+    Cardinality.AT_LEAST_ONE: (True, SchemaCardinality.Many),
 }
 _TUPLE_TO_CARD = {
-    (False, SchemaCardinality.ONE): Cardinality.AT_MOST_ONE,
-    (True, SchemaCardinality.ONE): Cardinality.ONE,
-    (False, SchemaCardinality.MANY): Cardinality.MANY,
-    (True, SchemaCardinality.MANY): Cardinality.AT_LEAST_ONE,
+    (False, SchemaCardinality.One): Cardinality.AT_MOST_ONE,
+    (True, SchemaCardinality.One): Cardinality.ONE,
+    (False, SchemaCardinality.Many): Cardinality.MANY,
+    (True, SchemaCardinality.Many): Cardinality.AT_LEAST_ONE,
 }
 
 
-class Volatility(EdgeQLEnum, s_enum.StrCaseInsensitiveEnum):
-    IMMUTABLE = 'IMMUTABLE'
-    STABLE = 'STABLE'
-    VOLATILE = 'VOLATILE'
-
-    def to_edgeql_enum(self) -> str:
-        return str(self).title()
+class Volatility(s_enum.StrEnum):
+    Immutable = 'Immutable'
+    Stable = 'Stable'
+    Volatile = 'Volatile'
 
     @classmethod
-    def from_edgeql_enum(cls, input: str) -> Volatility:
-        return cls(input.upper())
+    def _missing_(cls, name):
+        # We want both `volatility := 'immutable'` in SDL and
+        # `SET volatility := 'IMMUTABLE`` in DDL to work.
+        return cls(name.title())
 
 
 class DescribeLanguage(s_enum.StrEnum):
@@ -241,45 +174,20 @@ class SchemaObjectClass(s_enum.StrEnum):
     TYPE = 'TYPE'
 
 
-class LinkTargetDeleteAction(EdgeQLEnum):
-    RESTRICT = 'RESTRICT'
-    DELETE_SOURCE = 'DELETE_SOURCE'
-    ALLOW = 'ALLOW'
-    DEFERRED_RESTRICT = 'DEFERRED_RESTRICT'
+class LinkTargetDeleteAction(s_enum.StrEnum):
+    Restrict = 'Restrict'
+    DeleteSource = 'DeleteSource'
+    Allow = 'Allow'
+    DeferredRestrict = 'DeferredRestrict'
 
     def to_edgeql(self) -> str:
-        if self is LinkTargetDeleteAction.DELETE_SOURCE:
+        if self is LinkTargetDeleteAction.DeleteSource:
             return 'DELETE SOURCE'
-        elif self is LinkTargetDeleteAction.DEFERRED_RESTRICT:
+        elif self is LinkTargetDeleteAction.DeferredRestrict:
             return 'DEFERRED RESTRICT'
-        elif self is LinkTargetDeleteAction.RESTRICT:
+        elif self is LinkTargetDeleteAction.Restrict:
             return 'RESTRICT'
-        elif self is LinkTargetDeleteAction.ALLOW:
+        elif self is LinkTargetDeleteAction.Allow:
             return 'ALLOW'
         else:
             raise ValueError(f'unsupported enum value {self!r}')
-
-    def to_edgeql_enum(self) -> str:
-        if self is LinkTargetDeleteAction.DELETE_SOURCE:
-            return 'DeleteSource'
-        elif self is LinkTargetDeleteAction.DEFERRED_RESTRICT:
-            return 'DeferredRestrict'
-        elif self is LinkTargetDeleteAction.RESTRICT:
-            return 'Restrict'
-        elif self is LinkTargetDeleteAction.ALLOW:
-            return 'Allow'
-        else:
-            raise ValueError(f'unsupported enum value {self!r}')
-
-    @classmethod
-    def from_edgeql_enum(cls, input: str) -> LinkTargetDeleteAction:
-        if input == 'DeleteSource':
-            return LinkTargetDeleteAction.DELETE_SOURCE
-        elif input == 'DeferredRestrict':
-            return LinkTargetDeleteAction.DEFERRED_RESTRICT
-        elif input == 'Restrict':
-            return LinkTargetDeleteAction.RESTRICT
-        elif input == 'Allow':
-            return LinkTargetDeleteAction.ALLOW
-        else:
-            raise ValueError(f'unsupported enum value {input!r}')

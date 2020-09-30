@@ -336,7 +336,7 @@ def compile_OperatorCall(
             ],
             defresult=dispatch.compile(else_expr, ctx=ctx))
 
-    if expr.typemod is ql_ft.TypeModifier.SET_OF:
+    if expr.typemod is ql_ft.TypeModifier.SetOfType:
         raise RuntimeError(
             f'set returning operator {expr.func_shortname!r} is not supported '
             f'in simple expressions')
@@ -352,11 +352,11 @@ def compile_operator(
     lexpr = rexpr = None
     result: Optional[pgast.BaseExpr] = None
 
-    if expr.operator_kind is ql_ft.OperatorKind.INFIX:
+    if expr.operator_kind is ql_ft.OperatorKind.Infix:
         lexpr, rexpr = args
-    elif expr.operator_kind is ql_ft.OperatorKind.PREFIX:
+    elif expr.operator_kind is ql_ft.OperatorKind.Prefix:
         rexpr = args[0]
-    elif expr.operator_kind is ql_ft.OperatorKind.POSTFIX:
+    elif expr.operator_kind is ql_ft.OperatorKind.Postfix:
         lexpr = args[0]
     else:
         raise RuntimeError(f'unexpected operator kind: {expr.operator_kind!r}')
@@ -541,7 +541,7 @@ def compile_FunctionCall(
         expr: irast.FunctionCall, *,
         ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
-    if expr.typemod is ql_ft.TypeModifier.SET_OF:
+    if expr.typemod is ql_ft.TypeModifier.SetOfType:
         raise RuntimeError(
             'set returning functions are not supported in simple expressions')
 
