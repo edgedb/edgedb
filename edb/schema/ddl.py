@@ -29,6 +29,7 @@ from edb.server import defines
 
 from . import delta as sd
 from . import expr as s_expr
+from . import functions as s_func
 from . import migrations as s_migr
 from . import modules as s_mod
 from . import objects as so
@@ -233,7 +234,8 @@ def delta_schemas(
         schemacls
         for schemacls in so.ObjectMeta.get_schema_metaclasses()
         if (
-            not issubclass(schemacls, (so.GlobalObject, s_mod.Module))
+            not issubclass(schemacls, (so.GlobalObject, s_mod.Module,
+                                       s_func.Parameter))
             and schemacls.get_ql_class() is not None
             and (
                 include_migrations

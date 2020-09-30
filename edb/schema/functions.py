@@ -319,7 +319,11 @@ class ParameterDesc(ParameterLike):
         return cmd
 
 
-class Parameter(so.ObjectFragment, ParameterLike):
+class Parameter(
+    so.ObjectFragment,
+    ParameterLike,
+    qlkind=ft.SchemaObjectClass.PARAMETER,
+):
 
     num = so.SchemaField(
         int, compcoef=0.4)
@@ -428,6 +432,17 @@ class ParameterCommand(
     context_class=ParameterCommandContext,
     referrer_context_class=CallableCommandContext
 ):
+
+    def get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
+        # ParameterCommand cannot have its own AST because it is a
+        # side-effect of a FunctionCommand.
+        return None
 
     def canonicalize_attributes(
         self,

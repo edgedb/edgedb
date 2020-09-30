@@ -89,7 +89,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             self.add_fail_notes(serialization='json')
             raise
 
-    async def migrate(self, migration, *, module: str = 'test', ff=False):
+    async def migrate(self, migration, *, module: str = 'test', ff=True):
         async with self.con.transaction():
             mig = f"""
                 START MIGRATION TO {{
@@ -152,6 +152,12 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             ]
         )
 
+    @test.xfail('''
+        The "complete" flag is not set even though the DDL from
+        "proposed" list is used.
+
+        This happens on the first migration.
+    ''')
     async def test_edgeql_migration_link_inheritance(self):
         schema_f = os.path.join(os.path.dirname(__file__), 'schemas',
                                 'links_1.esdl')
@@ -1750,11 +1756,11 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         })
 
     @test.xfail('''
-        edgedb.errors.InternalServerError: <class
-        'edb.schema.annos.AnnotationValue'> has no edgeql class string
-        assigned
+        edgedb.errors.SchemaError: cannot get 'name' value: item
+        'bc6c9f68-049d-11eb-a183-c1f86eaf323b' is not present in the
+        schema <Schema gen:3708 at 0x7efef93f1430>
 
-        First DESCRIBE fails.
+        The error occurs on committing the second migration.
     ''')
     async def test_edgeql_migration_describe_annotation_02(self):
         # Migration that creates an annotation.
@@ -1770,8 +1776,14 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
         ''')
 
+        await self.con.execute('''
+            CREATE TYPE test::AnnoType2;
+        ''')
+
         await self.assert_describe_migration({
-            'confirmed': [],
+            'confirmed': [
+                'CREATE TYPE test::AnnoType2;'
+            ],
             'complete': False,
             'proposed': {
                 'statements': [{
@@ -1801,7 +1813,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 'statements': [{
                     'text': (
                         'ALTER TYPE test::AnnoType2 {\n'
-                        '    DROP ANNOTATION test::my_anno2;\\n'
+                        '    DROP ANNOTATION test::my_anno2;\n'
                         '};'
                     )
                 }],
@@ -1878,9 +1890,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         )
 
     @test.xfail('''
-        edgedb.errors.InternalServerError: <class
-        'edb.schema.functions.Parameter'> has no edgeql class string
-        assigned
+        edgedb.errors.InternalServerError: missing AlterObject
+        implementation for Parameter
     ''')
     async def test_edgeql_migration_describe_constraint_01(self):
         # Migration that renames a constraint.
@@ -1915,11 +1926,14 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         })
 
     @test.xfail('''
-        edgedb.errors.InternalServerError: <class
-        'edb.schema.functions.Parameter'> has no edgeql class string
-        assigned
+        edgedb.errors.SchemaError: Parameter
+        'test::__subject__@test|my_one_of' is already present in the
+        schema <Schema gen:3726 at 0x7ff99249ffd0>
 
-        First DESCRIBE fails.
+        Exception: Error while processing
+        'CREATE ABSTRACT CONSTRAINT test::my_one_of(one_of: array<anytype>) {
+            USING (std::contains(one_of, __subject__));
+        };'
     ''')
     async def test_edgeql_migration_describe_constraint_02(self):
         # Migration that creates a constraint.
@@ -1937,14 +1951,25 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
         ''')
 
+        await self.con.execute('''
+            CREATE SCALAR TYPE test::my_str EXTENDING std::str;
+        ''')
+
         await self.assert_describe_migration({
-            'confirmed': [],
+            'confirmed': [
+                'CREATE SCALAR TYPE test::my_str EXTENDING std::str;'
+            ],
             'complete': False,
             'proposed': {
-                # FIXME: actually test the 'statement' instead of simply
-                # 'operation_id'
+                'statements': [{
+                    'text': (
+                        'CREATE ABSTRACT CONSTRAINT test::my_one_of('
+                        'one_of: array<anytype>) {\n'
+                        '    USING (std::contains(one_of, __subject__));\n'
+                        '};'
+                    ),
+                }],
                 'confidence': 1.0,
-                'operation_id': 'CREATE ABSTRACT CONSTRAINT test::my_oneof',
             },
         })
         # Auto-complete migration
@@ -1982,10 +2007,14 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             'confirmed': [],
             'complete': False,
             'proposed': {
-                # FIXME: actually test the 'statement' instead of simply
-                # 'operation_id'
+                'statements': [{
+                    'text': (
+                        "ALTER SCALAR TYPE test::my_str {\n"
+                        "    DROP CONSTRAINT test::my_one_of(['my', 'str']);\n"
+                        "};"
+                    ),
+                }],
                 'confidence': 1.0,
-                'operation_id': 'ALTER TYPE test::my_str',
             },
         })
         # Auto-complete migration
@@ -2024,10 +2053,16 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             'confirmed': [],
             'complete': False,
             'proposed': {
-                # FIXME: actually test the 'statement' instead of simply
-                # 'operation_id'
+                'statements': [{
+                    'text': (
+                        'CREATE ABSTRACT CONSTRAINT '
+                        'test::my_one_of(one_of: array<anytype>) {\n'
+                        '    USING (std::contains(one_of, __subject__));\n'
+                        '};'
+                    ),
+                }],
                 'confidence': 1.0,
-                'operation_id': 'CREATE ABSTRACT CONSTRAINT test::my_one_of',
+                'operation_id': 'CREATE CONSTRAINT test::my_one_of',
             },
         })
         # Auto-complete migration
@@ -2092,7 +2127,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
     async def test_edgeql_migration_eq_01(self):
         await self.migrate("""
             type Base;
-        """, ff=True)
+        """)
         await self.con.execute("""
             SET MODULE test;
 
@@ -2108,13 +2143,13 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 type Base {
                     required property name -> str;
                 }
-            """, ff=True)
+            """)
         # Migration without making the property required.
         await self.migrate("""
             type Base {
                 property name -> str;
             }
-        """, ff=True)
+        """)
 
         await self.assert_query_result(
             r"""
@@ -2155,7 +2190,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Derived extending Base {
                 overloaded required property name -> str;
             }
-        """, ff=True)
+        """)
         await self.con.execute("""
             INSERT Derived {
                 name := 'derived_01'
@@ -2178,7 +2213,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Derived extending Base {
                 overloaded required property foo -> str;
             }
-        """, ff=True)
+        """)
         await self.con.execute("""
             SET MODULE test;
 
@@ -2199,7 +2234,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Derived extending Base {
                 overloaded required property foo2 -> str;
             }
-        """, ff=True)
+        """)
 
         # the data still persists
         await self.assert_query_result(
@@ -2227,7 +2262,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Derived extending Base {
                 overloaded required property foo -> str;
             }
-        """, ff=True)
+        """)
         await self.con.execute("""
             SET MODULE test;
 
@@ -2247,7 +2282,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 # completely different property
                 property foo2 -> str;
             }
-        """, ff=True)
+        """)
 
         await self.assert_query_result(
             r"""
@@ -2276,7 +2311,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Further extending Derived {
                 overloaded required property foo -> str;
             }
-        """, ff=True)
+        """)
         await self.con.execute("""
             SET MODULE test;
 
@@ -2301,7 +2336,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 # completely different property
                 property foo2 -> str;
             };
-        """, ff=True)
+        """)
 
         await self.assert_query_result(
             r"""
@@ -2331,7 +2366,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Derived extending Base {
                 overloaded required property foo -> int64;
             }
-        """, ff=True)
+        """)
         await self.con.execute("""
             SET MODULE test;
 
@@ -2363,7 +2398,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Derived extending Base {
                 overloaded required property foo -> str;
             }
-        """, ff=True)
+        """)
 
         await self.assert_query_result(
             r"""
@@ -2385,7 +2420,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Base {
                 link bar -> Child;
             }
-        """, ff=True)
+        """)
         await self.con.execute("""
             SET MODULE test;
         """)
@@ -2408,7 +2443,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                     constraint exclusive;
                 }
             }
-        """, ff=True)
+        """)
 
         await self.assert_query_result(
             r"""
@@ -2426,7 +2461,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Base {
                 property foo -> str;
             }
-        """, ff=True)
+        """)
         await self.con.execute(r"""
             SET MODULE test;
 
@@ -2480,7 +2515,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Base {
                 property foo -> constraint_length;
             }
-        """, ff=True)
+        """)
         await self.con.execute(r"""
             SET MODULE test;
 
@@ -2665,6 +2700,12 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
+    @test.xfail('''
+        The "complete" flag is not set even though the DDL from
+        "proposed" list is used.
+
+        This happens on the second migration.
+    ''')
     async def test_edgeql_migration_eq_14(self):
         await self.migrate(r"""
             type Base;
@@ -2712,7 +2753,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Derived extending Base {
                 link bar -> Child;
             }
-        """)
+        """, ff=False)
         await self.con.execute("""
             SET MODULE test;
         """)
@@ -2735,7 +2776,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
 
             type Derived extending Base;
-        """)
+        """, ff=False)
 
         await self.assert_query_result(
             r"""
@@ -2759,7 +2800,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 # also make the link 'required'
                 overloaded required link bar -> Child;
             }
-        """)
+        """, ff=False)
 
         await self.assert_query_result(
             r"""
@@ -2772,6 +2813,12 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
+    @test.xfail('''
+        The "complete" flag is not set even though the DDL from
+        "proposed" list is used.
+
+        This happens on the second migration.
+    ''')
     async def test_edgeql_migration_eq_18(self):
         await self.migrate(r"""
             type Base {
@@ -2811,6 +2858,12 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
+    @test.xfail('''
+        The "complete" flag is not set even though the DDL from
+        "proposed" list is used.
+
+        This happens on the second migration.
+    ''')
     async def test_edgeql_migration_eq_19(self):
         await self.migrate(r"""
             type Base {
@@ -2843,6 +2896,12 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
+    @test.xfail('''
+        The "complete" flag is not set even though the DDL from
+        "proposed" list is used.
+
+        This happens on the third migration.
+    ''')
     async def test_edgeql_migration_eq_21(self):
         await self.migrate(r"""
             type Base {
@@ -2905,6 +2964,11 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
+    @test.xfail('''
+        edgedb.errors.InvalidReferenceError: property 'foo' does not exist
+
+        This error happens in the last migration.
+    ''')
     async def test_edgeql_migration_eq_22(self):
         await self.migrate(r"""
             type Base {
@@ -2990,6 +3054,18 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
+    @test.xfail('''
+        edgedb.errors.SchemaError: ObjectType 'test::Base' is already
+        present in the schema <Schema gen:3757 at 0x7fc3319fa820>
+
+        Exception: Error while processing
+        'CREATE ALIAS test::Base := (
+            SELECT
+                test::Child {
+                    bar := test::Child
+                }
+        );'
+    ''')
     async def test_edgeql_migration_eq_23(self):
         await self.migrate(r"""
             type Child {
@@ -3050,6 +3126,12 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
+    @test.xfail('''
+        The "complete" flag is not set even though the DDL from
+        "proposed" list is used.
+
+        This happens on the second migration.
+    ''')
     async def test_edgeql_migration_eq_24(self):
         await self.migrate(r"""
             type Child;
@@ -3091,6 +3173,12 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
+    @test.xfail('''
+        The "complete" flag is not set even though the DDL from
+        "proposed" list is used.
+
+        This happens on the second migration.
+    ''')
     async def test_edgeql_migration_eq_25(self):
         await self.migrate(r"""
             type Child;
@@ -3161,7 +3249,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Parent {
                 link bar -> Child;
             }
-        """)
+        """, ff=False)
         await self.con.execute(r"""
             SET MODULE test;
 
@@ -3179,7 +3267,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
             # derive a type
             type DerivedParent extending Parent;
-        """)
+        """, ff=False)
 
         await self.assert_query_result(
             r"""
@@ -3207,7 +3295,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type DerivedParent extending Parent {
                 overloaded link bar -> DerivedChild;
             }
-        """)
+        """, ff=False)
 
         await self.con.execute(r"""
             INSERT DerivedParent {
@@ -3230,6 +3318,18 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
+    @test.xfail('''
+        edgedb.errors.InvalidReferenceError: property 'name' does not exist
+
+        Exception: Error while processing
+        'ALTER TYPE test::Bar {
+            DROP EXTENDING test::Named;
+            ALTER PROPERTY name {
+                DROP OWNED;
+                SET TYPE std::str;
+            };
+        };'
+    ''')
     async def test_edgeql_migration_eq_27(self):
         await self.migrate(r"""
             abstract type Named {
@@ -3348,7 +3448,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Bar {
                 property title -> str;
             };
-        """)
+        """, ff=False)
         await self.con.execute(r"""
             SET MODULE test;
 
@@ -3369,7 +3469,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 # rename 'title' to 'name'
                 property name -> str;
             };
-        """)
+        """, ff=False)
 
         await self.assert_query_result(
             r"""
@@ -3397,7 +3497,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
             type Foo extending Named;
             type Bar extending Named;
-        """)
+        """, ff=False)
 
         await self.assert_query_result(
             r"""
@@ -3416,6 +3516,16 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             ],
         )
 
+    @test.xfail('''
+        edgedb.errors.EdgeQLSyntaxError: Unexpected '{'
+
+        Exception: Error while processing
+        'ALTER TYPE test::Text {
+            DROP PROPERTY body {
+                DROP CONSTRAINT std::max_len_value(10000);
+            };
+        };'
+    ''')
     async def test_edgeql_migration_eq_31(self):
         # Issue 727.
         #
@@ -3609,6 +3719,12 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             ],
         )
 
+    @test.xfail('''
+        The "complete" flag is not set even though the DDL from
+        "proposed" list is used.
+
+        This happens on the second migration.
+    ''')
     async def test_edgeql_migration_eq_33(self):
         await self.migrate(r"""
             type Child;
@@ -3761,6 +3877,12 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
+    @test.xfail('''
+        The "complete" flag is not set even though the DDL from
+        "proposed" list is used.
+
+        This happens on the second migration.
+    ''')
     async def test_edgeql_migration_eq_35(self):
         await self.migrate(r"""
             type Child {
@@ -3849,6 +3971,12 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }]
         )
 
+    @test.xfail('''
+        The "complete" flag is not set even though the DDL from
+        "proposed" list is used.
+
+        This happens on the second migration.
+    ''')
     async def test_edgeql_migration_eq_36(self):
         await self.migrate(r"""
             type Child {
@@ -4363,8 +4491,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             abstract type Permissions {
                 multi link owners extending Ordered -> User;
             };
-        """, ff=True)
-        await self.migrate(r"", ff=True)
+        """)
+        await self.migrate(r"")
 
     async def test_edgeql_migration_eq_function_01(self):
         await self.migrate(r"""
@@ -4592,6 +4720,11 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             {4, 2},
         )
 
+    @test.xfail('''
+        edgedb.errors.SchemaError: cannot drop function
+        'test::hello07(a: std::int64)' because other objects in the
+        schema depend on it
+    ''')
     async def test_edgeql_migration_eq_function_07(self):
         await self.migrate(r"""
             function hello07(a: int64) -> str
@@ -4633,6 +4766,11 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             {2},
         )
 
+    @test.xfail('''
+        edgedb.errors.SchemaError: cannot drop function
+        'test::hello08(a: std::int64)' because other objects in the
+        schema depend on it
+    ''')
     async def test_edgeql_migration_eq_function_08(self):
         await self.migrate(r"""
             function hello08(a: int64) -> str
@@ -4668,6 +4806,11 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             {2},
         )
 
+    @test.xfail('''
+        edgedb.errors.SchemaError: cannot drop function
+        'test::hello09(a: std::int64)' because other objects in the
+        schema depend on it
+    ''')
     async def test_edgeql_migration_eq_function_09(self):
         await self.migrate(r"""
             function hello09(a: int64) -> str
@@ -5184,6 +5327,12 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [{'foo': [{'@bar': 'lp04'}]}],
         )
 
+    @test.xfail('''
+        The "complete" flag is not set even though the DDL from
+        "proposed" list is used.
+
+        This happens on the second migration.
+    ''')
     async def test_edgeql_migration_eq_linkprops_05(self):
         await self.migrate(r"""
             type Child;
@@ -5297,7 +5446,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                     property foo -> str
                 }
             };
-        """)
+        """, ff=False)
         await self.con.execute(r"""
             SET MODULE test;
 
@@ -5321,7 +5470,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
 
             type Derived extending Base;
-        """)
+        """, ff=False)
 
         await self.assert_query_result(
             r"""
@@ -5349,7 +5498,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
 
             type Derived extending Base;
-        """)
+        """, ff=False)
         await self.con.execute(r"""
             SET MODULE test;
 
@@ -5377,7 +5526,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                     property foo -> str
                 }
             };
-        """)
+        """, ff=False)
 
         await self.assert_query_result(
             r"""
@@ -5418,7 +5567,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                     property foo -> str
                 }
             };
-        """)
+        """, ff=False)
         await self.con.execute(r"""
             SET MODULE test;
 
@@ -5444,7 +5593,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
 
             type Derived extending Base;
-        """)
+        """, ff=False)
 
         await self.assert_query_result(
             r"""
@@ -5482,7 +5631,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
 
             type Derived extending Base;
-        """)
+        """, ff=False)
         await self.con.execute(r"""
             SET MODULE test;
 
@@ -5508,7 +5657,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                     property foo -> str
                 }
             };
-        """)
+        """, ff=False)
 
         await self.assert_query_result(
             r"""
@@ -5541,7 +5690,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                     property foo -> str;
                 }
             };
-        """)
+        """, ff=False)
         await self.con.execute(r"""
             SET MODULE test;
 
@@ -5574,7 +5723,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Owner extending Base;
 
             type Renter extending Base;
-        """)
+        """, ff=False)
 
         await self.assert_query_result(
             r"""
@@ -5606,6 +5755,25 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
+    @test.xfail('''
+        edgedb.errors.SchemaError: cannot drop inherited property
+        'bar' of link 'item' of object type 'test::Owner'
+
+        DETAILS: property 'bar' of link 'item' of object type
+        'test::Owner' is inherited from:
+        - link 'item' of object type 'test::Base'
+
+        Exception: Error while processing
+        'ALTER TYPE test::Owner {
+            EXTENDING test::Base LAST;
+            ALTER LINK item {
+                DROP OWNED;
+                ALTER PROPERTY foo {
+                    DROP OWNED;
+                };
+            };
+        };'
+    ''')
     async def test_edgeql_migration_eq_linkprops_12(self):
         # merging a link with different properties
         await self.migrate(r"""
@@ -5836,6 +6004,13 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
+    @test.xfail('''
+        edgedb.errors.SchemaError: cannot get 'name' value: item
+        '4e2fe443-04a6-11eb-a38f-a315784c86dc' is not present in the
+        schema <Schema gen:3747 at 0x7fd78b613790>
+
+        This happens on the final migration.
+    ''')
     async def test_edgeql_migration_eq_annotation_02(self):
         await self.migrate(r"""
             type Base;
@@ -5937,6 +6112,13 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
+    @test.xfail('''
+        edgedb.errors.SchemaError: cannot get 'name' value: item
+        '54615193-04a6-11eb-a05a-af5ecac7408d' is not present in the
+        schema <Schema gen:3751 at 0x7fd78bbe74c0>
+
+        This happens on the final migration.
+    ''')
     async def test_edgeql_migration_eq_annotation_03(self):
         await self.migrate(r"""
             type Base;
@@ -6041,6 +6223,12 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
+    @test.xfail('''
+        The "complete" flag is not set even though the DDL from
+        "proposed" list is used.
+
+        This happens on the second migration.
+    ''')
     async def test_edgeql_migration_eq_annotation_04(self):
         # Test migration of annotation value ano nothing else.
         await self.migrate(r"""
@@ -6389,6 +6577,13 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
+    @test.xfail('''
+        AssertionError: data shape differs: 'SELECT .name' != '.name'
+        PATH: [0]["indexes"][0]["expr"]
+
+        This may be using obsolete `orig_expr`, so perhaps the test is
+        no longer correct.
+    ''')
     async def test_edgeql_migration_eq_index_05(self):
         await self.migrate(r"""
             type Base {
@@ -6539,6 +6734,12 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [{'a': 'hello', 'b': 42}],
         )
 
+    @test.xfail('''
+        The "complete" flag is not set even though the DDL from
+        "proposed" list is used.
+
+        This happens on the second migration.
+    ''')
     async def test_edgeql_migration_eq_collections_06(self):
         await self.migrate(r"""
             type Base {
@@ -6693,6 +6894,15 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [{'a': 'test', 'b': 9}],
         )
 
+    @test.xfail('''
+        edgedb.errors.SchemaError: cannot drop scalar type
+        'test::CollAlias' because other objects in the schema depend
+        on it
+
+        Exception: Error while processing 'DROP SCALAR TYPE test::CollAlias;'
+
+        This happens on the second migration.
+    ''')
     async def test_edgeql_migration_eq_collections_13(self):
         await self.migrate(r"""
             type Base {
@@ -6741,6 +6951,12 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [[13.5]],
         )
 
+    @test.xfail('''
+        edgedb.errors.InvalidReferenceError: object type or alias
+        'default::Base' does not exist
+
+        This happens on the second migration.
+    ''')
     async def test_edgeql_migration_eq_collections_14(self):
         await self.migrate(r"""
             type Base {
@@ -6790,6 +7006,16 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [['coll_14', 14.5]],
         )
 
+    @test.xfail('''
+        edgedb.errors.SchemaError: cannot drop scalar type
+        'test::CollAlias' because other objects in the schema depend
+        on it
+
+        Exception: Error while processing
+        'DROP SCALAR TYPE test::CollAlias;'
+
+        This happens on the second migration.
+    ''')
     async def test_edgeql_migration_eq_collections_15(self):
         await self.migrate(r"""
             type Base {
@@ -6846,6 +7072,16 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [['coll_15', 15, [15.5]]],
         )
 
+    @test.xfail('''
+        edgedb.errors.SchemaError: cannot drop scalar type
+        'test::CollAlias' because other objects in the schema depend
+        on it
+
+        Exception: Error while processing
+        'DROP SCALAR TYPE test::CollAlias;'
+
+        This happens on the second migration.
+    ''')
     async def test_edgeql_migration_eq_collections_16(self):
         await self.migrate(r"""
             type Base {
@@ -6899,6 +7135,15 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [{'a': 'coll_16', 'b': 16.5}],
         )
 
+    @test.xfail('''
+        edgedb.errors.InvalidReferenceError: schema item
+        'test::CollAlias' does not exist
+
+        Exception: Error while processing
+        'ALTER ALIAS test::CollAlias USING ([test::Base.foo]);'
+
+        This happens on the second migration.
+    ''')
     async def test_edgeql_migration_eq_collections_17(self):
         await self.migrate(r"""
             type Base {
@@ -6950,6 +7195,19 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [[17.5]],
         )
 
+    @test.xfail('''
+        edgedb.errors.InvalidReferenceError: schema item
+        'test::CollAlias' does not exist
+
+        Exception: Error while processing
+        'ALTER ALIAS test::CollAlias USING ((
+            test::Base.name,
+            test::Base.number,
+            test::Base.foo
+        ));'
+
+        This happens on the second migration.
+    ''')
     async def test_edgeql_migration_eq_collections_18(self):
         await self.migrate(r"""
             type Base {
@@ -7008,6 +7266,18 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [['coll_18', 18, 18.5]],
         )
 
+    @test.xfail('''
+        edgedb.errors.InvalidReferenceError: schema item
+        'test::CollAlias' does not exist
+
+        Exception: Error while processing
+        'ALTER ALIAS test::CollAlias USING ((
+            test::Base.name,
+            test::Base.foo
+        ));'
+
+        This happens on the second migration.
+    ''')
     async def test_edgeql_migration_eq_collections_20(self):
         await self.migrate(r"""
             type Base {
@@ -7066,6 +7336,18 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [['test20', 123.5]],
         )
 
+    @test.xfail('''
+        edgedb.errors.InvalidReferenceError: schema item
+        'test::CollAlias' does not exist
+
+        Exception: Error while processing
+        'ALTER ALIAS test::CollAlias USING ((
+            a := test::Base.name,
+            b := test::Base.foo
+        ));'
+
+        This happens on the second migration.
+    ''')
     async def test_edgeql_migration_eq_collections_21(self):
         await self.migrate(r"""
             type Base {

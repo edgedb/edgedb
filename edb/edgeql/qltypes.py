@@ -167,6 +167,7 @@ class SchemaObjectClass(s_enum.StrEnum):
     MIGRATION = 'MIGRATION'
     MODULE = 'MODULE'
     OPERATOR = 'OPERATOR'
+    PARAMETER = 'PARAMETER'
     PROPERTY = 'PROPERTY'
     ROLE = 'ROLE'
     SCALAR_TYPE = 'SCALAR TYPE'
