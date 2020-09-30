@@ -72,26 +72,26 @@ Describe a function:
 
     db> \d sum
     function std::sum(s: SET OF std::float64) ->  std::float64 {
-        volatility := 'IMMUTABLE';
+        volatility := 'Immutable';
         using sql
     ;};
     function std::sum(s: SET OF std::decimal) ->  std::decimal {
-        volatility := 'IMMUTABLE';
+        volatility := 'Immutable';
         using sql
     ;};
     function std::sum(s: SET OF std::float32) ->  std::float32 {
-        volatility := 'IMMUTABLE';
+        volatility := 'Immutable';
         using sql
     ;};
     function std::sum(s: SET OF std::bigint) ->  std::bigint {
-        volatility := 'IMMUTABLE';
+        volatility := 'Immutable';
         using sql
     ;};
     function std::sum(s: SET OF std::int64) ->  std::int64 {
-        volatility := 'IMMUTABLE';
+        volatility := 'Immutable';
         using sql
     ;};
     function std::sum(s: SET OF std::int32) ->  std::int64 {
-        volatility := 'IMMUTABLE';
+        volatility := 'Immutable';
         using sql
     ;};

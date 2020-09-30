@@ -164,7 +164,7 @@ class TestIntrospection(tb.QueryTestCase):
                 'is_abstract': False,
                 'pointers': [{
                     'name': 'todo',
-                    'cardinality': 'MANY',
+                    'cardinality': 'Many',
                 }]
             }]
         )
@@ -191,19 +191,19 @@ class TestIntrospection(tb.QueryTestCase):
                 'links': [{
                     'name': '__type__',
                     'target': {'name': 'schema::Type'},
-                    'cardinality': 'ONE',
+                    'cardinality': 'One',
                 }, {
                     'name': 'issue',
                     'target': {'name': 'test::Issue'},
-                    'cardinality': 'ONE',
+                    'cardinality': 'One',
                 }, {
                     'name': 'owner',
                     'target': {'name': 'test::User'},
-                    'cardinality': 'ONE',
+                    'cardinality': 'One',
                 }, {
                     'name': 'parent',
                     'target': {'name': 'test::Comment'},
-                    'cardinality': 'ONE',
+                    'cardinality': 'One',
                 }]
             }]
         )
@@ -219,7 +219,7 @@ class TestIntrospection(tb.QueryTestCase):
                 FILTER
                     ObjectType.name LIKE 'test::%'
                     AND
-                    ObjectType.links.cardinality = <Cardinality>'MANY'
+                    ObjectType.links.cardinality = <Cardinality>'Many'
                 ORDER BY ObjectType.name;
             """,
             [
@@ -247,7 +247,7 @@ class TestIntrospection(tb.QueryTestCase):
                 FILTER
                     `ObjectType`.name LIKE 'test::%'
                     AND
-                    ObjectType.links.cardinality = <Cardinality>'MANY'
+                    ObjectType.links.cardinality = <Cardinality>'Many'
                 ORDER BY `ObjectType`.name;
             """,
             [
@@ -785,15 +785,15 @@ class TestIntrospection(tb.QueryTestCase):
             [
                 {
                     'name': 'std::datetime_current',
-                    'volatility': 'VOLATILE'
+                    'volatility': 'Volatile'
                 },
                 {
                     'name': 'std::datetime_of_transaction',
-                    'volatility': 'STABLE'
+                    'volatility': 'Stable'
                 },
                 {
                     'name': 'std::re_match',
-                    'volatility': 'IMMUTABLE'
+                    'volatility': 'Immutable'
                 }
             ]
         )
@@ -834,7 +834,7 @@ class TestIntrospection(tb.QueryTestCase):
                             'type': {'name': 'std::duration'},
                         },
                     ],
-                    'volatility': 'STABLE'
+                    'volatility': 'Stable'
                 },
                 {
                     'name': 'std::+',
@@ -848,7 +848,7 @@ class TestIntrospection(tb.QueryTestCase):
                             'type': {'name': 'std::duration'},
                         },
                     ],
-                    'volatility': 'IMMUTABLE'
+                    'volatility': 'Immutable'
                 }
             ]
         )
@@ -872,12 +872,12 @@ class TestIntrospection(tb.QueryTestCase):
                 {
                     'from_type': {'name': 'std::datetime'},
                     'to_type': {'name': 'std::str'},
-                    'volatility': 'STABLE'
+                    'volatility': 'Stable'
                 },
                 {
                     'from_type': {'name': 'std::duration'},
                     'to_type': {'name': 'std::str'},
-                    'volatility': 'IMMUTABLE'
+                    'volatility': 'Immutable'
                 }
             ]
         )

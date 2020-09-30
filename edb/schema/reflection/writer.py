@@ -386,12 +386,13 @@ def _build_object_mutation_shape(
             if target.is_enum(schema):
                 target_expr = f'<str>{target_expr}'
             target_expr = f'<{target.get_name(schema)}>{target_expr}'
-            target_value = v
-            if (
-                target_value is not None
-                and not isinstance(target_value, numbers.Number)
-            ):
-                target_value = str(target_value)
+
+            if v is None or isinstance(v, numbers.Number):
+                target_value = v
+            elif isinstance(v, qltypes.EdgeQLEnum):
+                target_value = v.to_edgeql_enum()
+            else:
+                target_value = str(v)
 
         if lprop_target is not None:
             assignments.append(f'@{n} := {target_expr}')

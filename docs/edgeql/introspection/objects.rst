@@ -106,13 +106,13 @@ Introspection of ``User``:
             links: {
                 Object {
                     name: '__type__',
-                    cardinality: 'ONE',
+                    cardinality: 'One',
                     required: {},
                     target: Object { name: 'schema::Type' }
                 },
                 Object {
                     name: 'friends',
-                    cardinality: 'MANY',
+                    cardinality: 'Many',
                     required: false,
                     target: Object { name: 'default::User' }
                 }
@@ -120,19 +120,19 @@ Introspection of ``User``:
             properties: {
                 Object {
                     name: 'address',
-                    cardinality: 'ONE',
+                    cardinality: 'One',
                     required: false,
                     target: Object { name: 'std::str' }
                 },
                 Object {
                     name: 'id',
-                    cardinality: 'ONE',
+                    cardinality: 'One',
                     required: true,
                     target: Object { name: 'std::uuid' }
                 },
                 Object {
                     name: 'name',
-                    cardinality: 'ONE',
+                    cardinality: 'One',
                     required: true,
                     target: Object { name: 'std::str' }
                 }
