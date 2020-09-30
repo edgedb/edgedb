@@ -1264,7 +1264,11 @@ class CollectionExprAlias(so.QualifiedObject, Collection):
         return 'view'
 
 
-class ArrayExprAlias(CollectionExprAlias, Array):
+class ArrayExprAlias(
+    CollectionExprAlias,
+    Array,
+    qlkind=qltypes.SchemaObjectClass.ALIAS,
+):
     pass
 
 
@@ -1795,7 +1799,11 @@ class TupleTypeShell(CollectionTypeShell):
         return cmd
 
 
-class TupleExprAlias(CollectionExprAlias, Tuple):
+class TupleExprAlias(
+    CollectionExprAlias,
+    Tuple,
+    qlkind=qltypes.SchemaObjectClass.ALIAS,
+):
     pass
 
 
