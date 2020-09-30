@@ -17,6 +17,7 @@
 #
 
 from __future__ import annotations
+from edb.edgeql import qltypes
 from typing import *
 
 import collections
@@ -168,7 +169,10 @@ def parse_into(
                 else:
                     ftype = mcls.get_field(fn).type
                     if type(v) is not ftype:
-                        objdata[fn] = ftype(v)
+                        if issubclass(ftype, qltypes.EdgeQLEnum):
+                            objdata[fn] = ftype.from_edgeql_enum(v)
+                        else:
+                            objdata[fn] = ftype(v)
                     else:
                         objdata[fn] = v
 

@@ -23,16 +23,16 @@
 CREATE MODULE schema;
 
 CREATE SCALAR TYPE schema::Cardinality
-    EXTENDING enum<ONE, MANY>;
+    EXTENDING enum<One, Many>;
 
 CREATE SCALAR TYPE schema::TargetDeleteAction
-    EXTENDING enum<RESTRICT, DELETE_SOURCE, ALLOW, DEFERRED_RESTRICT>;
+    EXTENDING enum<Restrict, DeleteSource, Allow, DeferredRestrict>;
 
 CREATE SCALAR TYPE schema::OperatorKind
-    EXTENDING enum<INFIX, POSTFIX, PREFIX, TERNARY>;
+    EXTENDING enum<Infix, Postfix, Prefix, Ternary>;
 
 CREATE SCALAR TYPE schema::Volatility
-    EXTENDING enum<IMMUTABLE, STABLE, VOLATILE>;
+    EXTENDING enum<Immutable, Stable, Volatile>;
 
 # Base type for all schema entities.
 CREATE ABSTRACT TYPE schema::Object EXTENDING std::BaseObject {
@@ -163,7 +163,7 @@ CREATE ABSTRACT TYPE schema::VolatilitySubject EXTENDING schema::Object {
     CREATE PROPERTY volatility -> schema::Volatility {
         # NOTE: this default indicates the default value in the python
         # implementation, but is not itself a source of truth
-        SET default := 'VOLATILE';
+        SET default := 'Volatile';
     };
 };
 

@@ -467,7 +467,7 @@ class TestDump01_CLI(tb.QueryTestCase, tb.CLITestCaseMixin):
                             '@value': 'user_func(int64) -> str',
                         },
                     ],
-                    'vol': 'IMMUTABLE',
+                    'vol': 'Immutable',
                 },
             ]
         )

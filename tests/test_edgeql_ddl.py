@@ -194,12 +194,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             [{
                 'links': [{
                     'name': 'a',
-                    'cardinality': 'ONE',
+                    'cardinality': 'One',
                 }],
 
                 'properties': [{
                     'name': 'b',
-                    'cardinality': 'ONE',
+                    'cardinality': 'One',
                 }],
             }],
         )
@@ -249,12 +249,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             [{
                 'links': [{
                     'name': 'a',
-                    'cardinality': 'MANY',
+                    'cardinality': 'Many',
                 }],
 
                 'properties': [{
                     'name': 'b',
-                    'cardinality': 'MANY',
+                    'cardinality': 'Many',
                 }],
             }],
         )
@@ -306,12 +306,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             [{
                 'links': [{
                     'name': 'a',
-                    'cardinality': 'ONE',
+                    'cardinality': 'One',
                 }],
 
                 'properties': [{
                     'name': 'b',
-                    'cardinality': 'ONE',
+                    'cardinality': 'One',
                 }],
             }],
         )
@@ -2446,7 +2446,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 USING EdgeQL $$
                     SELECT a ++ 'aaa'
                 $$;
-                SET volatility := 'VOLATILE';
+                # volatility must be case insensitive
+                SET volatility := 'Volatile';
             };
 
             ALTER FUNCTION test::edgeql_func26(a: std::str) {
@@ -2454,7 +2455,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
 
             ALTER FUNCTION test::edgeql_func26(a: std::str) {
-                SET volatility := 'IMMUTABLE';
+                # volatility must be case insensitive
+                SET volatility := 'immutable';
             };
         """)
 
@@ -2490,7 +2492,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                             '@value': 'aaaa',
                         },
                     ],
-                    'vol': 'IMMUTABLE',
+                    'vol': 'Immutable',
                 },
             ]
         )
@@ -2659,7 +2661,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                         },
                         'typemod': 'SINGLETON'}
                 ],
-                'operator_kind': 'INFIX',
+                'operator_kind': 'Infix',
                 'return_typemod': 'SINGLETON'
             }]
         )
@@ -2738,11 +2740,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 [
                     {
                         'name': 'test::!',
-                        'operator_kind': 'POSTFIX',
+                        'operator_kind': 'Postfix',
                     },
                     {
                         'name': 'test::!',
-                        'operator_kind': 'PREFIX',
+                        'operator_kind': 'Prefix',
                     }
                 ]
             )

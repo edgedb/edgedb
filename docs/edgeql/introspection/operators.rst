@@ -98,7 +98,7 @@ Introspection of the :eql:op:`AND` operator:
     {
         Object {
             name: 'std::AND',
-            operator_kind: 'INFIX',
+            operator_kind: 'Infix',
             annotations: {},
             params: {
                 Object {

@@ -27,3 +27,11 @@ class StrEnum(str, enum.Enum):
 
     def __str__(self):
         return self._value_
+
+
+class StrCaseInsensitiveEnum(StrEnum):
+    """A case insensitive version of StrEnum."""
+
+    @classmethod
+    def _missing_(cls, name):
+        return cls(name.upper())
