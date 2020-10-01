@@ -734,7 +734,9 @@ def compile_insert_shape_element(
             # computable volatility, and, furthermore,
             # we do not have a valid identity reference
             # anyway.
-            insvalctx.volatility_ref = (context.NO_VOLATILITY,)
+            insvalctx.volatility_ref = ()
+
+        insvalctx.current_insert_path_id = ir_stmt.subject.path_id
 
         dispatch.visit(shape_el, ctx=insvalctx)
 

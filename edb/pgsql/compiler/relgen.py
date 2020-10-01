@@ -1037,12 +1037,19 @@ def process_set_as_subquery(
             ctx.rel.view_path_id_map[outer_id] = inner_id
 
         if ir_source is not None:
-            if is_scalar_path and not newctx.volatility_ref:
+            if (
+                is_scalar_path
+                and ir_source.path_id != ctx.current_insert_path_id
+            ):
                 # This is a computable pointer.  In order to ensure that
                 # the volatile functions in the pointer expression are called
                 # the necessary number of times, we must inject a
                 # "volatility reference" into function expressions.
                 # The volatility_ref is the identity of the pointer source.
+
+                # If the source is an insert that we are in the middle
+                # of doing, we don't have a volatility ref to add, so
+                # skip it based on the current_insert_path_id check.
                 path_id = ir_source.path_id
                 newctx.volatility_ref += (
                     lambda: relctx.maybe_get_path_var(

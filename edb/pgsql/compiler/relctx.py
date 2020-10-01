@@ -639,8 +639,6 @@ def apply_volatility_ref(
         stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> None:
     for ref in ctx.volatility_ref:
-        if isinstance(ref, context.NoVolatilitySentinel):
-            continue
         # Apply the volatility reference.
         # See the comment in process_set_as_subquery().
         stmt.where_clause = astutils.extend_binop(

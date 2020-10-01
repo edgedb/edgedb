@@ -63,11 +63,6 @@ class OutputFormat(enum.Enum):
     SCRIPT = enum.auto()
 
 
-class NoVolatilitySentinel:
-    pass
-
-
-NO_VOLATILITY = NoVolatilitySentinel()
 NO_STMT = pgast.SelectStmt()
 
 
@@ -113,8 +108,11 @@ class CompilerContextLevel(compiler.ContextLevel):
 
     #: Expression to use to force SQL expression volatility in this context
     #: (Delayed with a lambda to avoid inserting it when not used.)
-    volatility_ref: Tuple[Union[Callable[[], pgast.BaseExpr],
-                                NoVolatilitySentinel], ...]
+    volatility_ref: Tuple[Callable[[], pgast.BaseExpr], ...]
+
+    # Current path_id we are INSERTing, so that we can avoid creating
+    # a bogus volatility ref to it...
+    current_insert_path_id: Optional[irast.PathId]
 
     group_by_rels: Dict[
         Tuple[irast.PathId, irast.PathId],
@@ -196,6 +194,7 @@ class CompilerContextLevel(compiler.ContextLevel):
 
             self.expr_exposed = None
             self.volatility_ref = ()
+            self.current_insert_path_id = None
             self.group_by_rels = {}
 
             self.disable_semi_join = set()
@@ -225,6 +224,7 @@ class CompilerContextLevel(compiler.ContextLevel):
 
             self.expr_exposed = prevlevel.expr_exposed
             self.volatility_ref = prevlevel.volatility_ref
+            self.current_insert_path_id = prevlevel.current_insert_path_id
             self.group_by_rels = prevlevel.group_by_rels
 
             self.disable_semi_join = prevlevel.disable_semi_join.copy()
