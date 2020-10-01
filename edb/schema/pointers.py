@@ -888,6 +888,7 @@ class PointerCommandOrFragment(
                 path_prefix_anchor=qlast.Source().name,
                 singletons=frozenset([source]),
                 in_ddl_context_name=f'computable {ptr_name!r}',
+                apply_query_rewrites=not context.stdmode,
             ),
         )
 
@@ -1267,6 +1268,7 @@ class PointerCommand(
                     anchors=anchors,
                     path_prefix_anchor=path_prefix_anchor,
                     singletons=frozenset(singletons),
+                    apply_query_rewrites=not context.stdmode,
                 ),
             )
         else:

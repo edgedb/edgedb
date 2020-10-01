@@ -25,23 +25,23 @@ import collections
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
+from edb.edgeql import parser as qlparser
 
 from . import abc as s_abc
 from . import annos as s_anno
 from . import constraints
 from . import delta as sd
+from . import expr as s_expr
 from . import inheriting
 from . import links
 from . import lproperties
 from . import name as sn
 from . import objects as so
 from . import pointers
+from . import schema as s_schema
 from . import sources
 from . import types as s_types
 from . import utils
-
-if TYPE_CHECKING:
-    from . import schema as s_schema
 
 
 class ObjectType(
@@ -75,6 +75,24 @@ class ObjectType(
     @classmethod
     def get_schema_class_displayname(cls) -> str:
         return 'object type'
+
+    def get_access_policy_filters(
+        self,
+        schema: s_schema.Schema,
+    ) -> Optional[s_expr.ExpressionList]:
+        if (
+            self.get_name(schema).module == 'schema'
+            and self.issubclass(schema, schema.get('schema::Object'))
+        ):
+            return s_expr.ExpressionList([
+                s_expr.Expression.from_ast(
+                    qlparser.parse('NOT .internal'),
+                    schema=schema,
+                    modaliases={},
+                )
+            ])
+        else:
+            return None
 
     def is_object_type(self) -> bool:
         return True

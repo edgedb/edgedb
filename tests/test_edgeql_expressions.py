@@ -2694,17 +2694,14 @@ class TestExpressions(tb.QueryTestCase):
                     A := (
                         SELECT ObjectType
                         FILTER ObjectType.name ILIKE 'schema::a%'
-                               AND NOT .internal
                     ),
                     D := (
                         SELECT ObjectType
                         FILTER ObjectType.name ILIKE 'schema::d%'
-                               AND NOT .internal
                     ),
                     O := (
                         SELECT ObjectType
                         FILTER ObjectType.name ILIKE 'schema::o%'
-                               AND NOT .internal
                     )
                 SELECT _ := {A, D, O}.name
                 ORDER BY _;

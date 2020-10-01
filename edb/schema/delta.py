@@ -1364,6 +1364,7 @@ class ObjectCommand(
                                 anchors={qlast.Source().name: source},
                                 path_prefix_anchor=qlast.Source().name,
                                 singletons=frozenset([source]),
+                                apply_query_rewrites=not context.stdmode,
                             ),
                         )
 
@@ -2004,7 +2005,10 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
     ) -> s_schema.Schema:
         schema = super().canonicalize_attributes(schema, context)
         self.set_attribute_value('builtin', context.stdmode)
-        self.set_attribute_value('internal', context.internal_schema_mode)
+        if not self.has_attribute_value('builtin'):
+            self.set_attribute_value('builtin', context.stdmode)
+        if not self.has_attribute_value('internal'):
+            self.set_attribute_value('internal', context.internal_schema_mode)
         return schema
 
     def _get_ast(

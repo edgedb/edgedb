@@ -356,6 +356,9 @@ class ContextLevel(compiler.ContextLevel):
     view_sets: Dict[s_types.Type, irast.Set]
     """A dictionary of IR expressions for views declared in the query."""
 
+    type_rewrites: Dict[s_types.Type, irast.Set]
+    """Access policy rewrites for schema-level types."""
+
     aliased_views: ChainMap[str, Optional[s_types.Type]]
     """A dictionary of views aliased in a statement body."""
 
@@ -488,6 +491,7 @@ class ContextLevel(compiler.ContextLevel):
             self.source_map = {}
             self.view_nodes = {}
             self.view_sets = {}
+            self.type_rewrites = {}
             self.aliased_views = collections.ChainMap()
             self.must_use_views = {}
             self.expr_view_cache = {}
@@ -501,7 +505,7 @@ class ContextLevel(compiler.ContextLevel):
             self.pending_stmt_full_path_id_namespace = frozenset()
             self.banned_paths = set()
             self.view_map = collections.ChainMap()
-            self.path_scope = irast.new_scope_tree()
+            self.path_scope = env.path_scope
             self.path_scope_map = {}
             self.iterator_ctx = None
             self.iterator_path_ids = frozenset()
@@ -535,6 +539,7 @@ class ContextLevel(compiler.ContextLevel):
             self.source_map = prevlevel.source_map
             self.view_nodes = prevlevel.view_nodes
             self.view_sets = prevlevel.view_sets
+            self.type_rewrites = prevlevel.type_rewrites
             self.must_use_views = prevlevel.must_use_views
             self.expr_view_cache = prevlevel.expr_view_cache
             self.shape_type_cache = prevlevel.shape_type_cache

@@ -48,7 +48,13 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
     def run_test(self, *, source, spec, expected):
         qltree = qlparser.parse(source)
-        ir = compiler.compile_ast_to_ir(qltree, self.schema)
+        ir = compiler.compile_ast_to_ir(
+            qltree,
+            self.schema,
+            options=compiler.CompilerOptions(
+                apply_query_rewrites=False,
+            )
+        )
 
         root = ir.scope_tree
         if len(root.children) != 1:
@@ -280,9 +286,9 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
 % OK %
         "FENCE": {
-            "(__derived__::expr~67)",
+            "(__derived__::expr~3)",
             "FENCE": {
-                "(__derived__::expr~67).>foo[IS std::str]"
+                "(__derived__::expr~3).>foo[IS std::str]"
             },
             "FENCE": {
                 "(schema::Type)"

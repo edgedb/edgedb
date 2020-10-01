@@ -46,6 +46,9 @@ def fini_stmt(
         parent_ctx: context.CompilerContextLevel) -> None:
 
     if stmt is ctx.toplevel_stmt:
+        # Type rewrites go first.
+        stmt.ctes[:0] = list(ctx.type_ctes.values())
+
         stmt.argnames = argmap = ctx.argmap
 
         if not ctx.env.use_named_params:

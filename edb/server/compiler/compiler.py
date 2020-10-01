@@ -517,6 +517,7 @@ class Compiler(BaseCompiler):
                 schema_reflection_mode=True,
                 output_format=enums.IoFormat.JSON,
                 expected_cardinality_one=False,
+                bootstrap_mode=ctx.bootstrap_mode,
             )
 
             return self._compile_ql_script(newctx, eql)
@@ -602,7 +603,10 @@ class Compiler(BaseCompiler):
                 implicit_limit=ctx.implicit_limit,
                 session_mode=session_mode,
                 allow_writing_protected_pointers=ctx.schema_reflection_mode,
-                introspection_schema_rewrites=not ctx.schema_reflection_mode,
+                apply_query_rewrites=(
+                    not ctx.bootstrap_mode
+                    and not ctx.schema_reflection_mode
+                ),
             ),
         )
 

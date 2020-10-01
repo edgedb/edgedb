@@ -42,8 +42,8 @@ class GlobalCompilerOptions:
     #: Allow writing to protected pointers in INSERT.
     allow_writing_protected_pointers: bool = False
 
-    #: Whether to apply various introspection query rewrites.
-    introspection_schema_rewrites: bool = True
+    #: Whether to apply various query rewrites, including access policy.
+    apply_query_rewrites: bool = True
 
     #: Enables constant folding optimization (enabled by default).
     constant_folding: bool = True

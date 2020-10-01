@@ -464,6 +464,7 @@ class Statement(Command):
                                          PathId,
                                          typing.Optional[WeakNamespace]]]
     dml_exprs: typing.List[qlast.Base]
+    type_rewrites: typing.Dict[uuid.UUID, Set]
 
 
 class TypeIntrospection(ImmutableExpr):

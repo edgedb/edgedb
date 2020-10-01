@@ -223,6 +223,7 @@ def fini_expression(
             t for t in ctx.env.created_schema_objects
             if isinstance(t, s_types.Collection) and t != expr_type
         ),
+        type_rewrites={s.typeref.id: s for s in ctx.type_rewrites.values()},
     )
     return result
 

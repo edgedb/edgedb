@@ -746,7 +746,6 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
     internal = SchemaField(
         bool,
-        default=False,
         inheritable=True,
     )
 

@@ -255,7 +255,7 @@ def _process_view(
 
     elif (
         stype.get_name(ctx.env.schema).module == 'schema'
-        and ctx.env.options.introspection_schema_rewrites
+        and ctx.env.options.apply_query_rewrites
     ):
         explicit_ptrs = {
             ptrcls.get_shortname(ctx.env.schema).name

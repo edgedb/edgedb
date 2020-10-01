@@ -802,6 +802,15 @@ def process_set_as_path(
 
             prefix_path_id = ir_set.path_id.src_path()
             assert prefix_path_id is not None, 'expected a path'
+            pathctx.put_rvar_path_output(
+                rvar=poly_rvar,
+                path_id=prefix_path_id,
+                aspect='identity',
+                var=pathctx.get_rvar_path_identity_var(
+                    poly_rvar, ir_set.path_id, env=ctx.env,
+                ),
+                env=ctx.env,
+            )
             pathctx.put_rvar_path_bond(poly_rvar, prefix_path_id)
             relctx.include_rvar(stmt, poly_rvar, ir_set.path_id, ctx=ctx)
             int_rvar = pgast.IntersectionRangeVar(
@@ -811,12 +820,22 @@ def process_set_as_path(
                 ]
             )
 
-            stmt.view_path_id_map[ir_set.path_id] = ir_source.path_id
+            if isinstance(source_rvar.query, pgast.Query):
+                source_rvar.query.view_path_id_map[ir_set.path_id] = (
+                    ir_source.path_id)
 
             for aspect in ('source', 'value'):
                 pathctx.put_path_rvar(
                     stmt,
                     ir_source.path_id,
+                    source_rvar,
+                    aspect=aspect,
+                    env=ctx.env,
+                )
+
+                pathctx.put_path_rvar(
+                    stmt,
+                    ir_set.path_id,
                     int_rvar,
                     aspect=aspect,
                     env=ctx.env,
@@ -1660,8 +1679,8 @@ def process_set_as_type_introspection(
         ir_set.typeref, ir_set.path_id, ctx=ctx)
     pathctx.put_rvar_path_bond(type_rvar, ir_set.path_id)
     clsname = pgast.StringConstant(val=str(typeref.id))
-    nameref = astutils.get_column(type_rvar, 'id', nullable=False)
-
+    nameref = pathctx.get_rvar_path_identity_var(
+        type_rvar, ir_set.path_id, env=ctx.env)
     condition = astutils.new_binop(nameref, clsname, op='=')
     substmt = pgast.SelectStmt()
     relctx.include_rvar(substmt, type_rvar, ir_set.path_id, ctx=ctx)

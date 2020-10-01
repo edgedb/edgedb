@@ -417,6 +417,7 @@ class ConstraintCommand(
                         path_prefix_anchor=path_prefix_anchor,
                         allow_generic_type_output=True,
                         schema_object_context=self.get_schema_metaclass(),
+                        apply_query_rewrites=not context.stdmode,
                     ),
                 )
 
@@ -443,6 +444,7 @@ class ConstraintCommand(
                     func_params=params,
                     allow_generic_type_output=True,
                     schema_object_context=self.get_schema_metaclass(),
+                    apply_query_rewrites=not context.stdmode,
                 ),
             )
         else:
@@ -726,7 +728,8 @@ class CreateConstraint(
             shortname = sn.shortname_from_fullname(fullname)
             self._populate_concrete_constraint_attrs(
                 schema,
-                subject,
+                context,
+                subject_obj=subject,
                 name=shortname,
                 sourcectx=self.source_context,
                 **props)
@@ -738,6 +741,7 @@ class CreateConstraint(
     def _populate_concrete_constraint_attrs(
         self,
         schema: s_schema.Schema,
+        context: sd.CommandContext,
         subject_obj: Optional[so.Object],
         *,
         name: str,
@@ -842,6 +846,7 @@ class CreateConstraint(
             options=qlcompiler.CompilerOptions(
                 anchors={qlast.Subject().name: subject},
                 path_prefix_anchor=path_prefix_anchor,
+                apply_query_rewrites=not context.stdmode,
             ),
         )
 
@@ -866,6 +871,7 @@ class CreateConstraint(
                     anchors={qlast.Subject().name: subject},
                     path_prefix_anchor=path_prefix_anchor,
                     singletons=frozenset({subject_obj}),
+                    apply_query_rewrites=not context.stdmode,
                 ),
             )
             assert isinstance(final_subjectexpr.irast, ir_ast.Statement)

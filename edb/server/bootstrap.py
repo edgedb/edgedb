@@ -319,6 +319,7 @@ def compile_bootstrap_script(
         expected_cardinality_one=expected_cardinality_one,
         json_parameters=True,
         output_format=output_format,
+        bootstrap_mode=True,
     )
 
     return edbcompiler.compile_edgeql_script(compiler, ctx, eql)
@@ -583,7 +584,7 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
             stdlib.reflschema,
             '''
             UPDATE schema::ScalarType
-            FILTER .builtin AND NOT .is_abstract
+            FILTER .builtin AND NOT (.is_abstract ?? False)
             SET {
                 backend_id := sys::_get_pg_type_for_scalar_type(.id)
             }
@@ -621,7 +622,7 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
         SELECT schema::ScalarType {
             id,
             backend_id,
-        } FILTER .builtin AND NOT .is_abstract;
+        } FILTER .builtin AND NOT (.is_abstract ?? False);
         ''',
         expected_cardinality_one=False,
         single_statement=True,

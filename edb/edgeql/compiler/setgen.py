@@ -73,6 +73,34 @@ def new_set(
     Absolutely all ir.Set instances must be created using this
     constructor.
     """
+    if (
+        stype not in ctx.type_rewrites
+        and isinstance(stype, s_objtypes.ObjectType)
+        and ctx.env.options.apply_query_rewrites
+        and (filters := stype.get_access_policy_filters(ctx.env.schema))
+    ):
+        qry = qlast.SelectQuery(
+            result=qlast.Path(
+                steps=[s_utils.name_to_ast_ref(stype.get_name(ctx.env.schema))]
+            ),
+        )
+        for f in filters:
+            assert isinstance(f.qlast, qlast.Expr)
+            qry.where = astutils.extend_binop(qry.where, f.qlast)
+
+        with ctx.detached() as subctx:
+            subctx.expr_exposed = False
+            # This is a global rewrite operation that is done once
+            # per type, and so we don't really care if we're in a
+            # temporary scope or not.
+            subctx.path_scope = subctx.env.path_scope.root
+            subctx.in_temp_scope = False
+            # Put a placeholder to prevent recursion.
+            subctx.type_rewrites[stype] = irast.Set()
+            filtered_set = dispatch.compile(qry, ctx=subctx)
+            assert isinstance(filtered_set, irast.Set)
+            subctx.type_rewrites[stype] = filtered_set
+
     typeref = typegen.type_to_typeref(stype, env=ctx.env)
     ir_set = ircls(typeref=typeref, **kwargs)
     ctx.env.set_types[ir_set] = stype
@@ -699,7 +727,7 @@ def _is_computable_ptr(
     return (
         ptrcls.is_pure_computable(ctx.env.schema)
         or (
-            ctx.env.options.introspection_schema_rewrites
+            ctx.env.options.apply_query_rewrites
             and ptrcls not in ctx.disable_shadowing
             and bool(ptrcls.get_schema_reflection_default(ctx.env.schema))
         )
@@ -992,7 +1020,7 @@ def computable_ptr_set(
     except KeyError:
         comp_expr = ptrcls.get_expr(ctx.env.schema)
         schema_qlexpr: Optional[qlast.Expr] = None
-        if comp_expr is None and ctx.env.options.introspection_schema_rewrites:
+        if comp_expr is None and ctx.env.options.apply_query_rewrites:
             schema_deflt = ptrcls.get_schema_reflection_default(ctx.env.schema)
             if schema_deflt is not None:
                 assert isinstance(ptrcls, s_pointers.Pointer)

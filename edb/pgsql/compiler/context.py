@@ -25,6 +25,7 @@ from typing import *
 import collections
 import itertools
 import enum
+import uuid
 
 from edb.common import compiler
 
@@ -94,6 +95,12 @@ class CompilerContextLevel(compiler.ContextLevel):
 
     #: SQL query hierarchy
     rel_hierarchy: Dict[pgast.Query, pgast.Query]
+
+    #: CTEs representing schema types, when rewritten based on access policy
+    type_ctes: Dict[uuid.UUID, pgast.CommonTableExpr]
+
+    #: A set of type CTEs currently being generated
+    pending_type_ctes: Set[uuid.UUID]
 
     #: The logical parent of the current query in the
     #: query hierarchy
@@ -188,6 +195,8 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.stmt = NO_STMT
             self.rel = NO_STMT
             self.rel_hierarchy = {}
+            self.type_ctes = {}
+            self.pending_type_ctes = set()
             self.dml_stmts = {}
             self.parent_rel = None
             self.pending_query = None
@@ -218,6 +227,8 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.stmt = prevlevel.stmt
             self.rel = prevlevel.rel
             self.rel_hierarchy = prevlevel.rel_hierarchy
+            self.type_ctes = prevlevel.type_ctes
+            self.pending_type_ctes = prevlevel.pending_type_ctes
             self.dml_stmts = prevlevel.dml_stmts
             self.parent_rel = prevlevel.parent_rel
             self.pending_query = prevlevel.pending_query
@@ -273,6 +284,7 @@ class CompilerContextLevel(compiler.ContextLevel):
                 self.disable_semi_join = set()
                 self.force_optional = set()
                 self.intersection_narrowing = {}
+                self.pending_type_ctes = set(prevlevel.pending_type_ctes)
 
             elif mode == ContextSwitchMode.NEWSCOPE:
                 self.path_scope = prevlevel.path_scope.new_child()
@@ -315,6 +327,7 @@ class Environment:
     explicit_top_cast: Optional[irast.TypeRef]
     singleton_mode: bool
     query_params: List[irast.Param]
+    type_rewrites: Dict[uuid.UUID, irast.Set]
 
     def __init__(
         self,
@@ -326,6 +339,7 @@ class Environment:
         singleton_mode: bool,
         explicit_top_cast: Optional[irast.TypeRef],
         query_params: List[irast.Param],
+        type_rewrites: Dict[uuid.UUID, irast.Set],
     ) -> None:
         self.aliases = aliases.AliasGenerator()
         self.output_format = output_format
@@ -336,3 +350,4 @@ class Environment:
         self.singleton_mode = singleton_mode
         self.explicit_top_cast = explicit_top_cast
         self.query_params = query_params
+        self.type_rewrites = type_rewrites

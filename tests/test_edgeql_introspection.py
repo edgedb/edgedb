@@ -1228,12 +1228,10 @@ class TestIntrospection(tb.QueryTestCase):
                         name,
                         required,
                     }
-                    FILTER NOT .internal
                     ORDER BY .name
                 }
                 FILTER
                     .name IN {'schema::CallableObject', 'schema::Parameter'}
-                    AND NOT .internal
                 ORDER BY .name;
             ''',
             [

@@ -227,7 +227,7 @@ class ConstraintMech:
 
     @classmethod
     def schema_constraint_to_backend_constraint(
-            cls, subject, constraint, schema):
+            cls, subject, constraint, schema, context):
         assert constraint.get_subject(schema) is not None
 
         constraint_origin = cls._get_constraint_origin(schema, constraint)
@@ -247,6 +247,7 @@ class ConstraintMech:
             options=qlcompiler.CompilerOptions(
                 anchors={qlast.Subject().name: subject},
                 path_prefix_anchor=path_prefix_anchor,
+                apply_query_rewrites=not context.stdmode,
             ),
         )
 
@@ -276,6 +277,7 @@ class ConstraintMech:
                 schema,
                 options=qlcompiler.CompilerOptions(
                     anchors={qlast.Subject().name: origin_subject},
+                    apply_query_rewrites=not context.stdmode,
                 ),
             )
 

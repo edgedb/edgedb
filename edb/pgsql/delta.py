@@ -1060,7 +1060,7 @@ class CreateConstraint(
             schemac_to_backendc = \
                 schemamech.ConstraintMech.\
                 schema_constraint_to_backend_constraint
-            bconstr = schemac_to_backendc(subject, constraint, schema)
+            bconstr = schemac_to_backendc(subject, constraint, schema, context)
 
             op = dbops.CommandGroup(priority=1)
             op.add_command(bconstr.create_ops())
@@ -1113,12 +1113,13 @@ class AlterConstraint(
                 schemamech.ConstraintMech.\
                 schema_constraint_to_backend_constraint
 
-            bconstr = schemac_to_backendc(subject, constraint, schema)
+            bconstr = schemac_to_backendc(subject, constraint, schema, context)
 
             orig_bconstr = schemac_to_backendc(
                 constraint.get_subject(orig_schema),
                 constraint,
                 orig_schema,
+                context,
             )
 
             op = dbops.CommandGroup(priority=1)
@@ -1130,11 +1131,13 @@ class AlterConstraint(
                         child.get_subject(orig_schema),
                         child,
                         orig_schema,
+                        context,
                     )
                     cbconstr = schemac_to_backendc(
                         child.get_subject(schema),
                         child,
                         schema,
+                        context,
                     )
                     op.add_command(cbconstr.alter_ops(orig_cbconstr))
             elif not self.constraint_is_effective(schema, constraint):
@@ -1145,11 +1148,13 @@ class AlterConstraint(
                         child.get_subject(orig_schema),
                         child,
                         orig_schema,
+                        context,
                     )
                     cbconstr = schemac_to_backendc(
                         child.get_subject(schema),
                         child,
                         schema,
+                        context,
                     )
                     op.add_command(cbconstr.alter_ops(orig_cbconstr))
             else:
@@ -1177,7 +1182,8 @@ class DeleteConstraint(
                 schemac_to_backendc = \
                     schemamech.ConstraintMech.\
                     schema_constraint_to_backend_constraint
-                bconstr = schemac_to_backendc(subject, constraint, orig_schema)
+                bconstr = schemac_to_backendc(
+                    subject, constraint, orig_schema, context)
 
                 op = dbops.CommandGroup()
                 op.add_command(bconstr.delete_ops())
@@ -1202,68 +1208,6 @@ class ScalarTypeMetaCommand(AliasCapableObjectMetaCommand):
     def is_sequence(self, schema, scalar):
         seq = schema.get('std::sequence', default=None)
         return seq is not None and scalar.issubclass(schema, seq)
-
-    def alter_scalar_type(self, scalar, schema, new_type, intent):
-
-        users = []
-
-        for link in schema.get_objects(type=s_links.Link):
-            if (link.get_target(schema) and
-                    link.get_target(schema).get_name(schema) ==
-                    scalar.get_name(schema)):
-                users.append((link.get_source(schema), link))
-
-        domain_name = common.get_backend_name(
-            schema, scalar, catenate=False)
-
-        new_constraints = scalar.get_constraints(schema)
-        base = types.get_scalar_base(schema, scalar)
-
-        target_type = new_type
-
-        schemac_to_backendc = \
-            schemamech.ConstraintMech.\
-            schema_constraint_to_backend_constraint
-
-        if intent == 'alter':
-            new_name = domain_name[0], domain_name[1] + '_tmp'
-            self.pgops.add(dbops.RenameDomain(domain_name, new_name))
-            target_type = domain_name
-
-            domain = dbops.Domain(name=domain_name, base=new_type)
-            self.pgops.add(dbops.CreateDomain(domain=domain))
-
-            for constraint in new_constraints.objects(schema):
-                bconstr = schemac_to_backendc(scalar, constraint, schema)
-                op = dbops.CommandGroup(priority=1)
-                op.add_command(bconstr.create_ops())
-                self.pgops.add(op)
-
-            domain_name = new_name
-
-        elif intent == 'create':
-            domain = dbops.Domain(name=domain_name, base=base)
-            self.pgops.add(dbops.CreateDomain(domain=domain))
-
-        for _host_class, item_class in users:
-            ptr_stor_info = types.get_pointer_storage_info(
-                item_class, schema=schema)
-
-            alter_type = dbops.AlterTableAlterColumnType(
-                ptr_stor_info.column_name, target_type)
-            alter_table = dbops.AlterTable(ptr_stor_info.table_name)
-            alter_table.add_operation(alter_type)
-            self.pgops.add(alter_table)
-
-        for child_scalar in schema.get_objects(type=s_scalars.ScalarType):
-            bases = child_scalar.get_bases(schema).objects(schema)
-            scalar_name = scalar.get_name(schema)
-            if [b.get_name(schema) for b in bases] == [scalar_name]:
-                self.alter_scalar_type(
-                    child_scalar, schema, target_type, 'alter')
-
-        if intent == 'drop':
-            self.pgops.add(dbops.DropDomain(domain_name))
 
 
 class CreateScalarType(ScalarTypeMetaCommand,
@@ -1720,6 +1664,7 @@ class CreateIndex(IndexCommand, CreateObject, adapts=s_indexes.CreateIndex):
                     anchors={ql_ast.Subject().name: subject},
                     path_prefix_anchor=path_prefix_anchor,
                     singletons=singletons,
+                    apply_query_rewrites=not context.stdmode,
                 ),
             )
             ir = index_expr.irast

@@ -228,10 +228,15 @@ def get_path_var(
             assert _prefix_pid is not None
             src_path_id = _prefix_pid.src_path()
 
-    elif (is_type_intersection or
-            (ptr_info.table_type != 'ObjectType' and not is_inbound)):
+    elif (
+        ptr_info is not None
+        and ptr_info.table_type != 'ObjectType'
+        and not is_inbound
+    ):
         # Ref is in the mapping rvar.
         src_path_id = path_id.ptr_path()
+    elif is_type_intersection:
+        src_path_id = path_id
 
     rel_rvar = maybe_get_path_rvar(rel, path_id, aspect=aspect, env=env)
 
@@ -283,17 +288,21 @@ def get_path_var(
             f'{src_path_id} {src_aspect} in {rel}')
 
     if isinstance(rel_rvar, pgast.IntersectionRangeVar):
-        # Intersection rvars are basically JOINs of the relevant
-        # parts of the type intersection, and so we need to make
-        # sure we pick the correct component relation of that JOIN.
-        rel_rvar = _find_rvar_in_intersection(
-            path_id,
-            rel_rvar.component_rvars,
-        )
+        if (
+            (path_id.is_objtype_path() and src_path_id == path_id)
+            or (ptrref is not None and irtyputils.is_id_ptrref(ptrref))
+        ):
+            rel_rvar = rel_rvar.component_rvars[-1]
+        else:
+            # Intersection rvars are basically JOINs of the relevant
+            # parts of the type intersection, and so we need to make
+            # sure we pick the correct component relation of that JOIN.
+            rel_rvar = _find_rvar_in_intersection_by_typeref(
+                path_id,
+                rel_rvar.component_rvars,
+            )
 
     source_rel = rel_rvar.query
-
-    drilldown_path_id = map_path_id(path_id, rel.view_path_id_map)
 
     if isinstance(ptrref, irast.PointerRef) and rel_rvar.typeref is not None:
         actual_ptrref = irtyputils.maybe_find_actual_ptrref(
@@ -304,7 +313,7 @@ def get_path_var(
                 actual_ptrref, resolve_type=False, link_bias=False)
 
     outvar = get_path_output(
-        source_rel, drilldown_path_id, ptr_info=ptr_info,
+        source_rel, path_id, ptr_info=ptr_info,
         aspect=aspect, env=env)
 
     var = astutils.get_rvar_var(rel_rvar, outvar)
@@ -318,7 +327,7 @@ def get_path_var(
     return var
 
 
-def _find_rvar_in_intersection(
+def _find_rvar_in_intersection_by_typeref(
     path_id: irast.PathId,
     component_rvars: Sequence[pgast.PathRangeVar],
 ) -> pgast.PathRangeVar:
@@ -341,7 +350,9 @@ def _find_rvar_in_intersection(
             rel_rvar = component_rvar
             break
     else:
-        rel_rvar = component_rvars[0]
+        raise AssertionError(
+            f'no rvar in intersection matches path id {path_id}'
+        )
 
     return rel_rvar
 

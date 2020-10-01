@@ -40,6 +40,7 @@ from edb.pgsql import types as pg_types
 
 from . import astutils
 from . import context
+from . import dispatch
 from . import pathctx
 
 
@@ -791,33 +792,64 @@ def range_for_material_objtype(
     if typeref.material_type is not None:
         typeref = typeref.material_type
 
-    table_schema_name, table_name = common.get_objtype_backend_name(
-        typeref.id,
-        typeref.module_id,
-        aspect=(
-            'table' if for_mutation or not include_descendants else 'inhview'
-        ),
-        catenate=False,
-    )
+    relation: Union[pgast.Relation, pgast.CommonTableExpr]
 
-    if typeref.name_hint.module in {'cfg', 'sys'}:
-        # Redirect all queries to schema tables to edgedbss
-        table_schema_name = 'edgedbss'
+    if (
+        (rewrite := ctx.env.type_rewrites.get(typeref.id)) is not None
+        and typeref.id not in ctx.pending_type_ctes
+        and not for_mutation
+    ):
 
-    relation = pgast.Relation(
-        schemaname=table_schema_name,
-        name=table_name,
-        path_id=path_id,
-    )
+        if (type_cte := ctx.type_ctes.get(typeref.id)) is None:
+            with ctx.newrel() as sctx:
+                sctx.pending_type_ctes.add(typeref.id)
+                sctx.pending_query = sctx.rel
+                dispatch.visit(rewrite, ctx=sctx)
+                type_cte = pgast.CommonTableExpr(
+                    name=ctx.env.aliases.get('t'),
+                    query=sctx.rel,
+                    materialized=False,
+                )
+                ctx.type_ctes[typeref.id] = type_cte
 
-    rvar: pgast.PathRangeVar = pgast.RelRangeVar(
-        relation=relation,
-        typeref=typeref,
-        include_inherited=include_descendants,
-        alias=pgast.Alias(
-            aliasname=env.aliases.get(typeref.name_hint.name)
+        with ctx.subrel() as sctx:
+            cte_rvar = pgast.RelRangeVar(
+                relation=type_cte,
+                typeref=typeref,
+                alias=pgast.Alias(aliasname=env.aliases.get('t'))
+            )
+            sctx.rel.view_path_id_map[path_id] = rewrite.path_id
+            include_rvar(sctx.rel, cte_rvar, rewrite.path_id, ctx=sctx)
+            rvar = rvar_for_rel(sctx.rel, typeref=typeref, ctx=sctx)
+    else:
+        table_schema_name, table_name = common.get_objtype_backend_name(
+            typeref.id,
+            typeref.module_id,
+            aspect=(
+                'table' if for_mutation or not include_descendants else
+                'inhview'
+            ),
+            catenate=False,
         )
-    )
+
+        if typeref.name_hint.module in {'cfg', 'sys'}:
+            # Redirect all queries to schema tables to edgedbss
+            table_schema_name = 'edgedbss'
+
+        relation = pgast.Relation(
+            schemaname=table_schema_name,
+            name=table_name,
+            path_id=path_id,
+        )
+
+        rvar = pgast.RelRangeVar(
+            relation=relation,
+            typeref=typeref,
+            include_inherited=include_descendants,
+            alias=pgast.Alias(
+                aliasname=env.aliases.get(typeref.name_hint.name)
+            )
+        )
 
     overlays = get_type_rel_overlays(typeref, dml_source=dml_source, ctx=ctx)
     if overlays and include_overlays:

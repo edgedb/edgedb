@@ -92,6 +92,11 @@ class SQLSourceGenerator(codegen.SourceGenerator):
                 self.write('RECURSIVE ')
             self.write(common.quote_ident(cte.name))
             self.write(' AS ')
+            if cte.materialized is not None:
+                if cte.materialized:
+                    self.write('MATERIALIZED ')
+                else:
+                    self.write('NOT MATERIALIZED ')
             self.indentation += 1
             self.new_lines = 1
             self.write('(')

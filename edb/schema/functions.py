@@ -1072,6 +1072,7 @@ class FunctionCommand(
                 options=qlcompiler.CompilerOptions(
                     allow_generic_type_output=True,
                     schema_object_context=self.get_schema_metaclass(),
+                    apply_query_rewrites=not context.stdmode,
                 ),
             )
         elif field.name == 'nativecode':
@@ -1134,6 +1135,7 @@ class FunctionCommand(
                 # the body of a session_only function can contain calls to
                 # other session_only functions
                 session_mode=session_only,
+                apply_query_rewrites=not context.stdmode,
             ),
         )
 

@@ -356,6 +356,7 @@ class CreateIndex(
                     anchors={qlast.Subject().name: subject},
                     path_prefix_anchor=path_prefix_anchor,
                     singletons=frozenset(singletons),
+                    apply_query_rewrites=not context.stdmode,
                 ),
             )
 

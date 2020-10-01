@@ -301,6 +301,7 @@ class CreateAnnotationValue(
             'is_final',
             not anno.get_inheritable(schema),
         )
+        self.set_attribute_value('internal', True)
         return schema
 
     def _apply_field_ast(self,
