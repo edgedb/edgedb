@@ -120,6 +120,9 @@ def setup_iterator_volatility(
     path_id = iterator.path_id
     ref: Optional[pgast.BaseExpr] = None
 
+    # We use a callback scheme here to avoid inserting volatility ref
+    # columns unless there is actually a volatile operation that
+    # requires it.
     def get_ref() -> pgast.BaseExpr:
         nonlocal ref
         if ref is None:

@@ -1957,18 +1957,7 @@ def _compile_func_epilogue(
     assert isinstance(expr, irast.FunctionCall)
 
     if expr.volatility is qltypes.Volatility.Volatile:
-        for ref in ctx.volatility_ref:
-            if isinstance(ref, context.NoVolatilitySentinel):
-                continue
-            # Apply the volatility reference.
-            # See the comment in process_set_as_subquery().
-            func_rel.where_clause = astutils.extend_binop(
-                func_rel.where_clause,
-                pgast.NullTest(
-                    arg=ref(),
-                    negated=True,
-                )
-            )
+        relctx.apply_volatility_ref(func_rel, ctx=ctx)
 
     pathctx.put_path_var_if_not_exists(
         func_rel, ir_set.path_id, set_expr, aspect='value', env=ctx.env)
