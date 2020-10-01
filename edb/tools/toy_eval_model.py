@@ -397,7 +397,7 @@ def eval_limit(limit: Optional[qlast.Expr], out: List[Row],
     return out
 
 
-@_eval.register(qlast.SelectQuery)
+@_eval.register
 def eval_Select(node: qlast.SelectQuery, ctx: EvalContext) -> List[Data]:
     if node.aliases:
         ctx = replace(ctx, aliases=ctx.aliases.copy())
@@ -424,7 +424,7 @@ def eval_Select(node: qlast.SelectQuery, ctx: EvalContext) -> List[Data]:
     return [row[-1] for row in out]
 
 
-@_eval.register(qlast.ForQuery)
+@_eval.register
 def eval_For(node: qlast.ForQuery, ctx: EvalContext) -> List[Data]:
     iter_vals = subquery(node.iterator, ctx=ctx)
     qil = ctx.query_input_list + [(IORef(node.iterator_alias),)]
@@ -453,31 +453,31 @@ def eval_func_or_op(op: str, args: List[qlast.Expr], typ: str,
     return f(*results)
 
 
-@_eval.register(qlast.BinOp)
+@_eval.register
 def eval_BinOp(node: qlast.BinOp, ctx: EvalContext) -> List[Data]:
     return eval_func_or_op(
         node.op.upper(), [node.left, node.right], 'binop', ctx)
 
 
-@_eval.register(qlast.UnaryOp)
+@_eval.register
 def eval_UnaryOp(node: qlast.UnaryOp, ctx: EvalContext) -> List[Data]:
     return eval_func_or_op(
         node.op.upper(), [node.operand], 'unop', ctx)
 
 
-@_eval.register(qlast.FunctionCall)
+@_eval.register
 def eval_Call(node: qlast.FunctionCall, ctx: EvalContext) -> List[Data]:
     assert isinstance(node.func, str)
     return eval_func_or_op(node.func, node.args, 'func', ctx)
 
 
-@_eval.register(qlast.IfElse)
+@_eval.register
 def visit_IfElse(query: qlast.IfElse, ctx: EvalContext) -> List[Data]:
     return eval_func_or_op(
         'IF', [query.if_expr, query.condition, query.else_expr], 'binop', ctx)
 
 
-@_eval.register(qlast.Indirection)
+@_eval.register
 def eval_Indirection(
         node: qlast.Indirection, ctx: EvalContext) -> List[Data]:
     base = eval(node.arg, ctx)
@@ -492,31 +492,31 @@ def eval_Indirection(
     return base
 
 
-@_eval.register(qlast.StringConstant)
+@_eval.register
 def eval_StringConstant(
         node: qlast.StringConstant, ctx: EvalContext) -> List[Data]:
     return [node.value]
 
 
-@_eval.register(qlast.IntegerConstant)
+@_eval.register
 def eval_IntegerConstant(
         node: qlast.IntegerConstant, ctx: EvalContext) -> List[Data]:
     return [int(node.value) * (-1 if node.is_negative else 1)]
 
 
-@_eval.register(qlast.BooleanConstant)
+@_eval.register
 def eval_BooleanConstant(
         node: qlast.BooleanConstant, ctx: EvalContext) -> List[Data]:
     return [node.value == 'true']
 
 
-@_eval.register(qlast.FloatConstant)
+@_eval.register
 def eval_FloatConstant(
         node: qlast.FloatConstant, ctx: EvalContext) -> List[Data]:
     return [float(node.value) * (-1 if node.is_negative else 1)]
 
 
-@_eval.register(qlast.Set)
+@_eval.register
 def eval_Set(
         node: qlast.Set, ctx: EvalContext) -> List[Data]:
     out = []
@@ -525,21 +525,21 @@ def eval_Set(
     return out
 
 
-@_eval.register(qlast.Tuple)
+@_eval.register
 def eval_Tuple(
         node: qlast.Tuple, ctx: EvalContext) -> List[Data]:
     args = [eval(arg, ctx) for arg in node.elements]
     return lift(lambda *va: va)(*args)
 
 
-@_eval.register(qlast.Array)
+@_eval.register
 def eval_Array(
         node: qlast.Array, ctx: EvalContext) -> List[Data]:
     args = [eval(arg, ctx) for arg in node.elements]
     return lift(lambda *va: list(va))(*args)
 
 
-@_eval.register(qlast.NamedTuple)
+@_eval.register
 def eval_NamedTuple(
         node: qlast.NamedTuple, ctx: EvalContext) -> List[Data]:
     names = [elem.name.name for elem in node.elements]
@@ -547,14 +547,14 @@ def eval_NamedTuple(
     return lift(lambda *va: dict(zip(names, va)))(*args)
 
 
-@_eval.register(qlast.TypeCast)
+@_eval.register
 def eval_TypeCast(node: qlast.TypeCast, ctx: EvalContext) -> List[Data]:
     typ = node.type.maintype.name  # type: ignore  # our types are hinky.
     f = BASIS_IMPLS['cast', typ]
     return f(eval(node.expr, ctx))
 
 
-@_eval.register(qlast.Path)
+@_eval.register
 def eval_Path(node: qlast.Path, ctx: EvalContext) -> List[Data]:
     return eval_path(simplify_path(node), ctx)
 
