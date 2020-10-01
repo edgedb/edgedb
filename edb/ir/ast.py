@@ -168,6 +168,9 @@ class AnyTupleRef(TypeRef):
 class BasePointerRef(ImmutableBase):
     __abstract_node__ = True
 
+    # Hide descendants to reduce noise
+    __ast_hidden__ = {'descendants'}
+
     # cardinality fields need to be mutable for lazy cardinality inference.
     __ast_mutable_fields__ = frozenset(('dir_cardinality', 'out_cardinality'))
 
@@ -699,6 +702,9 @@ class TypeCast(ImmutableExpr):
 
 class Stmt(Expr):
     __abstract_node__ = True
+    # Hide parent_stmt to reduce debug spew and to hide it from find_children
+    __ast_hidden__ = {'parent_stmt'}
+
     name: str
     result: Set
     cardinality: qltypes.Cardinality
