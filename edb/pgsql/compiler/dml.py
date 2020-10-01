@@ -419,17 +419,9 @@ def get_dml_range(
     ir_qual_expr = ir_stmt.where
     ir_qual_card = ir_stmt.where_card
 
-    with ctx.newscope() as scopectx, scopectx.newrel() as subctx:
+    with ctx.newrel() as subctx:
         subctx.expr_exposed = False
         range_stmt = subctx.rel
-
-        # init_stmt() has associated all top-level paths with
-        # the main query, which is at the very bottom.
-        # Hoist that scope to the modification range statement
-        # instead.
-        for path_id, stmt in ctx.path_scope.items():
-            if stmt is ctx.rel or path_id == ir_stmt.subject.path_id:
-                scopectx.path_scope[path_id] = range_stmt
 
         merge_iterator(ctx.enclosing_cte_iterator, range_stmt, ctx=subctx)
 
@@ -475,7 +467,7 @@ def compile_iterator_ctes(
         if iterator_set.path_id in seen:
             continue
 
-        with ctx.newrel() as sctx, sctx.newscope() as ictx:
+        with ctx.newrel() as ictx:
             ictx.path_scope[iterator_set.path_id] = ictx.rel
 
             # Correlate with enclosing iterators
@@ -672,7 +664,7 @@ def compile_insert_else_body(
 
         subject_id = ir_stmt.subject.path_id
 
-        with ctx.newrel() as sctx, sctx.newscope() as ictx:
+        with ctx.newrel() as ictx:
             ictx.path_scope[subject_id] = ictx.rel
 
             merge_iterator(ctx.enclosing_cte_iterator, ictx.rel, ctx=ictx)
@@ -691,7 +683,7 @@ def compile_insert_else_body(
 
         else_select_rvar = relctx.rvar_for_rel(else_select_cte, ctx=ctx)
 
-        with ctx.newrel() as sctx, sctx.newscope() as ictx:
+        with ctx.newrel() as ictx:
             ictx.path_scope[subject_id] = ictx.rel
 
             relctx.include_rvar(ictx.rel, else_select_rvar,
@@ -1298,7 +1290,7 @@ def process_link_values(
         EdgeQL DML statement.
     """
     old_dml_count = len(ctx.dml_stmts)
-    with ctx.newscope() as newscope, newscope.newrel() as subrelctx:
+    with ctx.newrel() as subrelctx:
         subrelctx.enclosing_cte_iterator = pgast.IteratorCTE(
             path_id=ir_stmt.subject.path_id, cte=dml_cte,
             parent=iterator,

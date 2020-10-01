@@ -237,26 +237,44 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.ptr_rel_overlays = prevlevel.ptr_rel_overlays
             self.enclosing_cte_iterator = prevlevel.enclosing_cte_iterator
 
-            if mode in {ContextSwitchMode.SUBREL, ContextSwitchMode.NEWREL,
-                        ContextSwitchMode.SUBSTMT}:
-                if self.pending_query and mode == ContextSwitchMode.SUBSTMT:
+            if mode is ContextSwitchMode.SUBSTMT:
+                if self.pending_query is not None:
                     self.rel = self.pending_query
                 else:
                     self.rel = pgast.SelectStmt()
-                    if mode != ContextSwitchMode.NEWREL:
-                        if prevlevel.parent_rel is not None:
-                            parent_rel = prevlevel.parent_rel
-                        else:
-                            parent_rel = prevlevel.rel
-                        self.rel_hierarchy[self.rel] = parent_rel
+                    if prevlevel.parent_rel is not None:
+                        parent_rel = prevlevel.parent_rel
+                    else:
+                        parent_rel = prevlevel.rel
+                    self.rel_hierarchy[self.rel] = parent_rel
 
+                self.stmt = self.rel
                 self.pending_query = None
                 self.parent_rel = None
 
-            if mode == ContextSwitchMode.SUBSTMT:
-                self.stmt = self.rel
+            elif mode is ContextSwitchMode.SUBREL:
+                self.rel = pgast.SelectStmt()
+                if prevlevel.parent_rel is not None:
+                    parent_rel = prevlevel.parent_rel
+                else:
+                    parent_rel = prevlevel.rel
+                self.rel_hierarchy[self.rel] = parent_rel
+                self.pending_query = None
+                self.parent_rel = None
 
-            if mode == ContextSwitchMode.NEWSCOPE:
+            elif mode is ContextSwitchMode.NEWREL:
+                self.rel = pgast.SelectStmt()
+                self.pending_query = None
+                self.parent_rel = None
+                self.path_scope = collections.ChainMap()
+                self.rel_hierarchy = {}
+                self.scope_tree = prevlevel.scope_tree.root
+
+                self.disable_semi_join = set()
+                self.force_optional = set()
+                self.intersection_narrowing = {}
+
+            elif mode == ContextSwitchMode.NEWSCOPE:
                 self.path_scope = prevlevel.path_scope.new_child()
 
     def subrel(
