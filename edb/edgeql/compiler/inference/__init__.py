@@ -24,8 +24,9 @@ __all__ = (
     'infer_cardinality',
     'infer_type',
     'infer_volatility',
+    'CardCtx',
 )
 
-from .cardinality import infer_cardinality  # NOQA
+from .cardinality import infer_cardinality, CardCtx  # NOQA
 from .types import amend_empty_set_type, infer_type  # NOQA
 from .volatility import infer_volatility  # NOQA

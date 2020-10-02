@@ -166,11 +166,6 @@ class Environment:
     inferred_types: Dict[irast.Base, s_types.Type]
     """A dictionary of all expressions and their inferred schema types."""
 
-    inferred_cardinality: Dict[
-        Tuple[irast.Base, irast.ScopeTreeNode],
-        qltypes.Cardinality]
-    """A dictionary of all expressions and their inferred cardinality."""
-
     inferred_volatility: Dict[
         irast.Base,
         qltypes.Volatility]
@@ -231,7 +226,6 @@ class Environment:
         self.set_types = {}
         self.type_origins = {}
         self.inferred_types = {}
-        self.inferred_cardinality = {}
         self.inferred_volatility = {}
         self.view_shapes = collections.defaultdict(list)
         self.view_shapes_metadata = collections.defaultdict(
