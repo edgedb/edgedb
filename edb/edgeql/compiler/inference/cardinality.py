@@ -43,6 +43,8 @@ from edb.ir import utils as irutils
 from edb.ir import typeutils
 from edb.edgeql import ast as qlast
 
+from . import volatility
+
 from .. import context
 
 if TYPE_CHECKING:
@@ -194,16 +196,45 @@ def _coalesce_cardinality(
         return AT_MOST_ONE
 
 
+VOLATILE = qltypes.Volatility.Volatile
+
+
+def _check_volatility(
+    args: Sequence[irast.Base],
+    cards: Sequence[qltypes.Cardinality],
+    ctx: CardCtx,
+) -> None:
+    vols = [volatility.infer_volatility(a, env=ctx.env) for a in args]
+
+    # Check the rules on volatility correlation: volatile operations
+    # can't be cross producted with any potentially multi set. We
+    # check this by assuming that a voltile operation is AT_MOST_ONE
+    # and making sure that the resulting cartesian cardinality isn't
+    # multi.
+    for i, vol in enumerate(vols):
+        if vol == VOLATILE:
+            cards2 = list(cards)
+            cards2[i] = AT_MOST_ONE
+            if cartesian_cardinality(cards2).is_multi():
+                raise errors.QueryError(
+                    "can not take cross product of volatile operation",
+                    context=args[i].context
+                )
+
+
 def _common_cardinality(
-    args: Iterable[irast.Base],
+    args: Sequence[irast.Base],
     scope_tree: irast.ScopeTreeNode,
     ctx: CardCtx,
 ) -> qltypes.Cardinality:
-    return cartesian_cardinality(
+    cards = [
         infer_cardinality(
             a, scope_tree=scope_tree, ctx=ctx
         ) for a in args
-    )
+    ]
+    _check_volatility(args, cards, ctx=ctx)
+
+    return cartesian_cardinality(cards)
 
 
 @functools.singledispatch

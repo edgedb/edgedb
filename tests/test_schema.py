@@ -417,6 +417,7 @@ _123456789_123456789_123456789 -> str
         schema = self.run_ddl(schema, '''
             CREATE FUNCTION
             test::my_contains(arr: array<anytype>, val: anytype) -> bool {
+                SET volatility := 'STABLE';
                 USING (
                     SELECT contains(arr, val)
                 );

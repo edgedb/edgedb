@@ -251,7 +251,8 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             [3],
         )
 
-    async def test_edgeql_volatility_select_clause_01(self):
+    @test.xfail('we are a little too strict around WITH...')
+    async def test_edgeql_volatility_select_clause_01a(self):
         # Spurious failure probability: 1/100!
 
         # We need a nested SELECT because of bug #1816
@@ -261,6 +262,20 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 WITH X := enumerate((SELECT _gen_series(0,99)
                                      ORDER BY random()))
                 SELECT all(X.0 = X.1);
+            ''',
+            [False],
+        )
+
+    async def test_edgeql_volatility_select_clause_01(self):
+        # Spurious failure probability: 1/100!
+
+        # We need a nested SELECT because of bug #1816
+        # loses the ORDER BY otherwise
+        await self.assert_query_result(
+            r'''
+                WITH X := enumerate((SELECT _gen_series(0,99)
+                                     ORDER BY random()))
+                SELECT all((FOR x in {X} UNION (x.0 = x.1)))
             ''',
             [False],
         )
@@ -403,3 +418,82 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             ''',
             [True],
         )
+
+    async def test_edgeql_volatility_errors_01(self):
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.QueryError,
+                    "can not take cross product of volatile operation",
+                    _position=42):
+                await self.con.execute(
+                    r"""
+                    SELECT test::Obj.n + random()
+                    """
+                )
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.QueryError,
+                    "can not take cross product of volatile operation",
+                    _position=42):
+                await self.con.execute(
+                    r"""
+                    SELECT (test::Obj.n, random())
+                    """
+                )
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.QueryError,
+                    "can not take cross product of volatile operation"):
+                await self.con.execute(
+                    r"""
+                    SELECT ({1,2}, random())
+                    """
+                )
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.QueryError,
+                    "can not take cross product of volatile operation",
+                    _position=28):
+                await self.con.execute(
+                    r"""
+                    SELECT random() + test::Obj.n
+                    """
+                )
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.QueryError,
+                    "can not take cross product of volatile operation",
+                    _position=36):
+                await self.con.execute(
+                    r"""
+                    SELECT {1,2} + (FOR x in {1,2,3} UNION (x*random()))
+                    """
+                )
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.QueryError,
+                    "can not take cross product of volatile operation",
+                    _position=36):
+                await self.con.execute(
+                    r"""
+                    SELECT ({1,2}, (INSERT test::Obj { n := 100 }))
+                    """
+                )
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.QueryError,
+                    "can not take cross product of volatile operation",
+                    _position=64):
+                await self.con.execute(
+                    r"""
+                    SELECT ({1,2},
+                            (FOR i in {1,2,3} UNION (
+                                 INSERT test::Obj { n := i })))
+                    """
+                )
