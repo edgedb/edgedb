@@ -322,15 +322,6 @@ def _find_visible(
         else:
             path_id = ir.path_id
 
-        # This is a nasty hack, I think. If a path is an unfenced
-        # descendant, don't find a visible node above us. This fixes
-        # issues like in test_edgeql_scope_filter_01 where we mean to
-        # refer to our ought-to-be-namespaced child but instead find
-        # something else.
-        if ((nobe := scope_tree.find_descendant(path_id))
-                and nobe.fence == scope_tree.fence):
-            return None
-
         return parent_fence.find_visible(path_id)
     else:
         return None

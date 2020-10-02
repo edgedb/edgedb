@@ -105,20 +105,22 @@ def fini_expression(
     *,
     ctx: context.ContextLevel,
 ) -> irast.Command:
+
+    cardinality = qltypes.Cardinality.AT_MOST_ONE
+    if ctx.path_scope is not None:
+        # Simple expressions have no scope.
+        cardinality = inference.infer_cardinality(
+            ir, scope_tree=ctx.path_scope, env=ctx.env)
+
+    # Strip weak namespaces
     for ir_set in ctx.env.set_types:
         if ir_set.path_id.namespace:
             ir_set.path_id = ir_set.path_id.strip_weak_namespaces()
 
     if ctx.path_scope is not None:
-        # Simple expressions have no scope.
         for node in ctx.path_scope.path_descendants:
             if node.path_id.namespace:
                 node.path_id = node.path_id.strip_weak_namespaces()
-
-        cardinality = inference.infer_cardinality(
-            ir, scope_tree=ctx.path_scope, env=ctx.env)
-    else:
-        cardinality = qltypes.Cardinality.AT_MOST_ONE
 
     if isinstance(ir, irast.Command):
         if isinstance(ir, irast.ConfigCommand):
