@@ -2542,6 +2542,11 @@ class TestExpressions(tb.QueryTestCase):
         )
 
         await self.assert_query_result(
+            r'''SELECT {(1, 2), (3, 4.5)} FILTER true;''',
+            [[1, 2], [3, 4.5]],
+        )
+
+        await self.assert_query_result(
             r'''SELECT {(3, 4.5), (1, 2.0)};''',
             [[3, 4.5], [1, 2]],
         )

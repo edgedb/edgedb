@@ -2659,3 +2659,32 @@ class TestInsert(tb.QueryTestCase):
             "SELECT test::Note.name",
             ["foo!", "bar"]
         )
+
+    async def test_edgeql_insert_nested_volatile_01(self):
+        await self.con.execute('''
+            INSERT test::Subordinate {
+                name := 'subtest 1'
+            };
+
+            INSERT test::Subordinate {
+                name := 'subtest 2'
+            };
+
+            INSERT test::InsertTest {
+                name := 'insert nested',
+                l2 := 0,
+                subordinates := (
+                    SELECT test::Subordinate {
+                        @comment := <str>uuid_generate_v1mc()
+                    }
+                )
+            };
+        ''')
+
+        # Each object should get a distinct @comment
+        await self.assert_query_result(
+            r'''
+                SELECT count(DISTINCT test::InsertTest.subordinates@comment);
+            ''',
+            [2]
+        )

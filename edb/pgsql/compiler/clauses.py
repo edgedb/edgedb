@@ -77,6 +77,61 @@ def fini_stmt(
                 )
 
 
+def get_volatility_ref(
+        path_id: irast.PathId, *,
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
+    """Produce an appropriate volatility_ref from a path_id."""
+
+    ref: Optional[pgast.BaseExpr] = relctx.maybe_get_path_var(
+        ctx.rel, path_id, aspect='identity', ctx=ctx)
+    if not ref:
+        rvar = relctx.maybe_get_path_rvar(
+            ctx.rel, path_id, aspect='value', ctx=ctx)
+        if rvar and isinstance(rvar.query, pgast.ReturningQuery):
+            # If we are selecting from a nontrivial subquery, manually
+            # add a volatility ref based on row_number. We do it
+            # manually because the row number isn't /really/ the
+            # identity of the set.
+            name = ctx.env.aliases.get('key')
+            rvar.query.target_list.append(
+                pgast.ResTarget(
+                    name=name,
+                    val=pgast.FuncCall(name=('row_number',), args=[],
+                                       over=pgast.WindowDef())
+                )
+            )
+            ref = pgast.ColumnRef(name=[rvar.alias.aliasname, name])
+        else:
+            ref = relctx.get_path_var(
+                ctx.rel, path_id, aspect='value', ctx=ctx)
+
+    return ref
+
+
+def setup_iterator_volatility(
+        iterator: Optional[Union[irast.Set, pgast.IteratorCTE]], *,
+        is_cte: bool=False,
+        ctx: context.CompilerContextLevel) -> None:
+    if iterator is None:
+        return
+
+    old = () if is_cte else ctx.volatility_ref
+
+    path_id = iterator.path_id
+    ref: Optional[pgast.BaseExpr] = None
+
+    # We use a callback scheme here to avoid inserting volatility ref
+    # columns unless there is actually a volatile operation that
+    # requires it.
+    def get_ref() -> pgast.BaseExpr:
+        nonlocal ref
+        if ref is None:
+            ref = get_volatility_ref(path_id, ctx=ctx)
+        return ref
+
+    ctx.volatility_ref = old + (get_ref,)
+
+
 def compile_iterator_expr(
         query: pgast.SelectStmt, iterator_expr: irast.Set, *,
         ctx: context.CompilerContextLevel) \
@@ -87,6 +142,8 @@ def compile_iterator_expr(
     with ctx.new() as subctx:
         subctx.rel = query
 
+        already_existed = bool(relctx.maybe_get_path_rvar(
+            query, iterator_expr.path_id, aspect='value', ctx=ctx))
         dispatch.visit(iterator_expr, ctx=subctx)
         iterator_rvar = relctx.get_path_rvar(
             query, iterator_expr.path_id, aspect='value', ctx=ctx)
@@ -96,8 +153,12 @@ def compile_iterator_expr(
         # for path identity of the iterator expression.  This is
         # necessary to maintain correct correlation for the state
         # of iteration in DML statements.
-        relctx.ensure_bond_for_expr(
-            iterator_expr.expr.result, iterator_query, type='uuid', ctx=subctx)
+        # The already_existed check is to avoid adding in bogus volatility refs
+        # when we reprocess an iterator that was hoisted.
+        if not already_existed:
+            relctx.ensure_bond_for_expr(
+                iterator_expr.expr.result, iterator_query, type='uuid',
+                ctx=subctx)
 
     return iterator_rvar
 

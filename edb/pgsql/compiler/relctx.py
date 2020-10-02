@@ -635,6 +635,21 @@ def ensure_bond_for_expr(
     ensure_transient_identity_for_set(ir_set, stmt, type=type, ctx=ctx)
 
 
+def apply_volatility_ref(
+        stmt: pgast.SelectStmt, *,
+        ctx: context.CompilerContextLevel) -> None:
+    for ref in ctx.volatility_ref:
+        # Apply the volatility reference.
+        # See the comment in process_set_as_subquery().
+        stmt.where_clause = astutils.extend_binop(
+            stmt.where_clause,
+            pgast.NullTest(
+                arg=ref(),
+                negated=True,
+            )
+        )
+
+
 def ensure_transient_identity_for_set(
         ir_set: irast.Set, stmt: pgast.BaseRelation, *,
         ctx: context.CompilerContextLevel, type: str='int') -> None:
@@ -655,18 +670,8 @@ def ensure_transient_identity_for_set(
                                   id_expr, force=True, env=ctx.env)
     pathctx.put_path_bond(stmt, ir_set.path_id)
 
-    if (ctx.volatility_ref is not None and
-            ctx.volatility_ref is not context.NO_VOLATILITY and
-            isinstance(stmt, pgast.SelectStmt)):
-        # Apply the volatility reference.
-        # See the comment in process_set_as_subquery().
-        stmt.where_clause = astutils.extend_binop(
-            stmt.where_clause,
-            pgast.NullTest(
-                arg=ctx.volatility_ref,
-                negated=True,
-            )
-        )
+    if isinstance(stmt, pgast.SelectStmt):
+        apply_volatility_ref(stmt, ctx=ctx)
 
 
 def get_scope(
