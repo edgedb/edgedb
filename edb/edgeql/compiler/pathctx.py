@@ -34,7 +34,6 @@ from edb.schema import pointers as s_pointers
 from edb.schema import types as s_types
 
 from . import context
-from . import stmtctx
 
 
 def get_path_id(stype: s_types.Type, *,
@@ -153,7 +152,6 @@ def extend_path_id(
         cache=ctx.env.ptr_ref_cache,
         typeref_cache=ctx.env.type_ref_cache,
     )
-    stmtctx.ensure_ptrref_cardinality(ptrcls, ptrref, ctx=ctx)
 
     return path_id.extend(ptrref=ptrref, direction=direction,
                           ns=ns, schema=ctx.env.schema)

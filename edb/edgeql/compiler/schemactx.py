@@ -43,7 +43,6 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
 from . import context
-from . import stmtctx
 
 
 def get_schema_object(
@@ -208,10 +207,8 @@ def derive_view(
                 if computable_data is not None:
                     ctx.source_map[ptr] = computable_data
 
-                if src_ptr in ctx.pending_cardinality:
-                    ctx.pointer_derivation_map[src_ptr].append(ptr)
-                    stmtctx.pend_pointer_cardinality_inference(
-                        ptrcls=ptr, ctx=ctx)
+                if src_ptr in ctx.env.pointer_specified_info:
+                    ctx.env.pointer_derivation_map[src_ptr].append(ptr)
 
     else:
         raise TypeError("unsupported type in derive_view")

@@ -129,7 +129,7 @@ def _infer_type(
     ir: irast.Base,
     env: context.Environment,
 ) -> s_types.Type:
-    raise ValueError(f'infer_cardinality: cannot handle {ir!r}')
+    raise ValueError(f'infer_type: cannot handle {ir!r}')
 
 
 @_infer_type.register(type(None))

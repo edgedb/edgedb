@@ -429,7 +429,7 @@ class ScopeTreeNode:
         *node* is expected to be a balanced scope tree and may be modified
         by this function.
 
-        If *node* is not a path node (path_id is None), it is discared,
+        If *node* is not a path node (path_id is None), it is discarded,
         and it's descendants are attached directly.  The tree balance is
         maintained.
         """
@@ -603,7 +603,7 @@ class ScopeTreeNode:
 
         for node in self.descendants:
             if (node.path_id is not None
-                    and _paths_equal_to_shortest_ns(node.path_id, path_id)):
+                    and _paths_equal(node.path_id, path_id, set())):
                 matching.add(node)
 
         for node in matching:
@@ -936,24 +936,3 @@ def _paths_equal(path_id_1: pathid.PathId, path_id_2: pathid.PathId,
         path_id_2 = path_id_2.strip_namespace(namespaces)
 
     return path_id_1 == path_id_2
-
-
-def _paths_equal_to_shortest_ns(path_id_1: pathid.PathId,
-                                path_id_2: pathid.PathId) -> bool:
-    ns1: AbstractSet[str] = path_id_1.namespace or set()
-    ns2: AbstractSet[str] = path_id_2.namespace or set()
-
-    if not ns1 and not ns2:
-        return path_id_1 == path_id_2
-    else:
-        extra_in_1 = ns1 - ns2
-        extra_in_2 = ns2 - ns1
-
-        if extra_in_1 and extra_in_2:
-            # neither namespace is a proper subset of another
-            return False
-        else:
-            path_id_1 = path_id_1.replace_namespace(set())
-            path_id_2 = path_id_2.replace_namespace(set())
-
-            return path_id_1 == path_id_2
