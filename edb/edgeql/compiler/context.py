@@ -21,7 +21,6 @@
 
 from __future__ import annotations
 from typing import *
-from typing_extensions import Protocol  # type: ignore
 
 import collections
 import dataclasses
@@ -97,9 +96,6 @@ class StatementMetadata:
 class ScopeInfo:
     path_scope: irast.ScopeTreeNode
     pinned_path_id_ns: Optional[FrozenSet[str]] = None
-    tentative_work: List[CompletionWorkCallback] = (
-        dataclasses.field(default_factory=list)
-    )
 
 
 @dataclasses.dataclass
@@ -109,36 +105,6 @@ class ComputableInfo:
     context: ContextLevel
     path_id: irast.PathId
     path_id_ns: Optional[irast.WeakNamespace]
-    shape_op: qlast.ShapeOp
-
-
-class CompletionWorkCallback(Protocol):
-
-    def __call__(
-        self,
-        *,
-        ctx: ContextLevel,
-    ) -> None:
-        ...
-
-
-class PointerCardinalityCallback(Protocol):
-
-    def __call__(
-        self,
-        ptrcls: s_pointers.PointerLike,
-        *,
-        ctx: ContextLevel,
-    ) -> None:
-        ...
-
-
-class PendingCardinality(NamedTuple):
-
-    specified_cardinality: Optional[qltypes.Cardinality]
-    source_ctx: Optional[parsing.ParserContext]
-    callbacks: List[PointerCardinalityCallback]
-    is_mut_assignment: bool
     shape_op: qlast.ShapeOp
 
 
@@ -216,6 +182,19 @@ class Environment:
     ]
     """Object output or modification shapes."""
 
+    pointer_derivation_map: Dict[
+        s_pointers.Pointer,
+        List[s_pointers.Pointer],
+    ]
+    """A parent: children mapping of derived pointer classes."""
+
+    pointer_specified_info: Dict[
+        s_pointers.Pointer,
+        Tuple[Optional[qltypes.SchemaCardinality], bool,
+              Optional[parsing.ParserContext]],
+    ]
+    """Cardinality/source context for pointers with unclear cardinality."""
+
     view_shapes_metadata: Dict[s_types.Type, irast.ViewShapeMetadata]
 
     schema_refs: Set[s_obj.Object]
@@ -262,6 +241,8 @@ class Environment:
         self.ptr_ref_cache = PointerRefCache()
         self.type_ref_cache = {}
         self.dml_exprs = []
+        self.pointer_derivation_map = collections.defaultdict(list)
+        self.pointer_specified_info = {}
 
     @overload
     def get_track_schema_object(  # NoQA: F811
@@ -421,21 +402,6 @@ class ContextLevel(compiler.ContextLevel):
     view_map: ChainMap[irast.PathId, irast.Set]
     """Set translation map.  Used for views."""
 
-    completion_work: List[CompletionWorkCallback]
-    """A list of callbacks to execute when the whole query has been seen."""
-
-    pending_cardinality: Dict[
-        s_pointers.PointerLike,
-        PendingCardinality,
-    ]
-    """A set of derived pointers for which the cardinality is not yet known."""
-
-    pointer_derivation_map: Dict[
-        s_pointers.Pointer,
-        List[s_pointers.Pointer],
-    ]
-    """A parent: children mapping of derived pointer classes."""
-
     path_scope: irast.ScopeTreeNode
     """Path scope tree, with per-lexical-scope levels."""
 
@@ -493,9 +459,6 @@ class ContextLevel(compiler.ContextLevel):
     in_temp_scope: bool
     """Whether currently in a temporary scope."""
 
-    tentative_work: List[CompletionWorkCallback]
-    """Callbacks that rely on scope and scheduled tentatively."""
-
     disable_shadowing: Set[Union[s_obj.Object, s_pointers.PseudoPointer]]
     """A set of schema objects for which the shadowing rewrite should be
        disabled."""
@@ -521,9 +484,6 @@ class ContextLevel(compiler.ContextLevel):
             self.anchors = {}
             self.modaliases = {}
             self.stmt_metadata = {}
-            self.completion_work = []
-            self.pending_cardinality = {}
-            self.pointer_derivation_map = collections.defaultdict(list)
 
             self.source_map = {}
             self.view_nodes = {}
@@ -563,7 +523,6 @@ class ContextLevel(compiler.ContextLevel):
             self.compiling_update_shape = False
             self.in_conditional = None
             self.in_temp_scope = False
-            self.tentative_work = []
             self.disable_shadowing = set()
             self.path_log = None
 
@@ -572,9 +531,6 @@ class ContextLevel(compiler.ContextLevel):
             self.derived_target_module = prevlevel.derived_target_module
             self.aliases = prevlevel.aliases
             self.stmt_metadata = prevlevel.stmt_metadata
-            self.completion_work = prevlevel.completion_work
-            self.pending_cardinality = prevlevel.pending_cardinality
-            self.pointer_derivation_map = prevlevel.pointer_derivation_map
 
             self.source_map = prevlevel.source_map
             self.view_nodes = prevlevel.view_nodes
@@ -612,7 +568,6 @@ class ContextLevel(compiler.ContextLevel):
             self.compiling_update_shape = prevlevel.compiling_update_shape
             self.in_conditional = prevlevel.in_conditional
             self.in_temp_scope = prevlevel.in_temp_scope
-            self.tentative_work = prevlevel.tentative_work
             self.disable_shadowing = prevlevel.disable_shadowing
             self.path_log = prevlevel.path_log
 
@@ -680,7 +635,6 @@ class ContextLevel(compiler.ContextLevel):
                 # scope tree parent pointers are weak pointers.
                 self._stash, self.path_scope = self.path_scope.copy_all()
                 self.in_temp_scope = True
-                self.tentative_work = list(prevlevel.tentative_work)
 
             if mode in {ContextSwitchMode.NEWFENCE,
                         ContextSwitchMode.NEWFENCE_TEMP}:

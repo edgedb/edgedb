@@ -49,7 +49,6 @@ from . import inference
 from . import pathctx
 from . import schemactx
 from . import setgen
-from . import stmtctx
 from . import typegen
 
 if TYPE_CHECKING:
@@ -499,18 +498,13 @@ def _normalize_view_ptr_expr(
             assert _ptr_target
             ptr_target = _ptr_target
 
-        if base_ptrcls in ctx.pending_cardinality:
+        ptr_cardinality = base_ptrcls.get_cardinality(ctx.env.schema)
+        if ptr_cardinality is None:
             # We do not know the parent's pointer cardinality yet.
             ptr_cardinality = None
-            ctx.pointer_derivation_map[base_ptrcls].append(ptrcls)
-            stmtctx.pend_pointer_cardinality_inference(
-                ptrcls=ptrcls,
-                specified_required=shape_el.required,
-                specified_card=shape_el.cardinality,
-                source_ctx=shape_el.context,
-                ctx=ctx)
-        else:
-            ptr_cardinality = base_ptrcls.get_cardinality(ctx.env.schema)
+            ctx.env.pointer_derivation_map[base_ptrcls].append(ptrcls)
+            ctx.env.pointer_specified_info[ptrcls] = (
+                shape_el.cardinality, shape_el.required, shape_el.context)
 
         implicit_tid = has_implicit_tid(
             ptr_target,
@@ -878,7 +872,7 @@ def _normalize_view_ptr_expr(
             ctx.env.schema, 'cardinality', ptr_cardinality)
     else:
         if qlexpr is None and ptrcls is not base_ptrcls:
-            ctx.pointer_derivation_map[base_ptrcls].append(ptrcls)
+            ctx.env.pointer_derivation_map[base_ptrcls].append(ptrcls)
 
         base_cardinality = None
         base_required = False
@@ -909,15 +903,8 @@ def _normalize_view_ptr_expr(
             # The required flag may be inherited from the base
             specified_required = shape_el.required or base_required
 
-        stmtctx.pend_pointer_cardinality_inference(
-            ptrcls=ptrcls,
-            specified_required=specified_required,
-            specified_card=specified_cardinality,
-            is_mut_assignment=is_mutation,
-            shape_op=shape_el.operation.op,
-            source_ctx=shape_el.context,
-            ctx=ctx,
-        )
+        ctx.env.pointer_specified_info[ptrcls] = (
+            specified_cardinality, specified_required, shape_el.context)
 
         ctx.env.schema = ptrcls.set_field_value(
             ctx.env.schema, 'cardinality', None)
@@ -1192,11 +1179,16 @@ def _compile_view_shapes_in_set(
         stype = setgen.get_set_type(ir_set, ctx=ctx)
 
         for path_tip, ptr, shape_op in shape_ptrs:
+            srcctx = None
+            if ptr in ctx.env.pointer_specified_info:
+                _, _, srcctx = ctx.env.pointer_specified_info[ptr]
+
             element = setgen.extend_path(
                 path_tip,
                 ptr,
                 unnest_fence=True,
                 same_computable_scope=True,
+                srcctx=srcctx,
                 ctx=ctx,
             )
 

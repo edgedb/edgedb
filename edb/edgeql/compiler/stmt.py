@@ -150,9 +150,6 @@ def compile_ForQuery(
             iterator_ctx.stmt.hoisted_iterators.append(iterator_stmt)
 
         view_scope_info = sctx.path_scope_map[iterator_view]
-        for cb in view_scope_info.tentative_work:
-            stmtctx.at_stmt_fini(cb, ctx=ctx)
-        view_scope_info.tentative_work[:] = []
 
         pathctx.register_set_in_scope(
             iterator_stmt,

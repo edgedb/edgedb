@@ -107,6 +107,7 @@ def new_set_from_set(
         path_id: Optional[irast.PathId]=None,
         stype: Optional[s_types.Type]=None,
         rptr: Optional[irast.Pointer]=None,
+        context: Optional[parsing.ParserContext]=None,
         ctx: context.ContextLevel) -> irast.Set:
     """Create a new ir.Set from another ir.Set.
 
@@ -123,13 +124,15 @@ def new_set_from_set(
         stype = get_set_type(ir_set, ctx=ctx)
     if rptr is None:
         rptr = ir_set.rptr
+    if context is None:
+        context = ir_set.context
     return new_set(
         path_id=path_id,
         path_scope_id=ir_set.path_scope_id,
         stype=stype,
         expr=ir_set.expr,
         rptr=rptr,
-        context=ir_set.context,
+        context=context,
         ircls=type(ir_set),
         ctx=ctx,
     )
@@ -385,11 +388,6 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
 
                 extra_scopes[scope_set] = context.ScopeInfo(
                     path_scope=subctx.path_scope,
-                    tentative_work=[
-                        cb
-                        for cb in subctx.tentative_work
-                        if cb not in ctx.tentative_work
-                    ],
                 )
 
         for key_path_id in path_tip.path_id.iter_weak_namespace_prefixes():
@@ -454,11 +452,6 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
         fence.fenced = True
 
     for ir_set, scope_info in extra_scopes.items():
-        for cb in scope_info.tentative_work:
-            stmtctx.at_stmt_fini(cb, ctx=ctx)
-
-        scope_info.tentative_work[:] = []
-
         nodes = tuple(
             node for node in ctx.path_scope.find_descendants(ir_set.path_id)
         )
@@ -638,6 +631,7 @@ def extend_path(
     ignore_computable: bool = False,
     unnest_fence: bool = False,
     same_computable_scope: bool = False,
+    srcctx: Optional[parsing.ParserContext]=None,
     ctx: context.ContextLevel,
 ) -> irast.Set:
     """Return a Set node representing the new path tip."""
@@ -666,7 +660,8 @@ def extend_path(
 
     target = ptrcls.get_far_endpoint(ctx.env.schema, direction)
     assert isinstance(target, s_types.Type)
-    target_set = new_set(stype=target, path_id=path_id, ctx=ctx)
+    target_set = new_set(
+        stype=target, path_id=path_id, context=srcctx, ctx=ctx)
 
     ptr = irast.Pointer(
         source=source_set,
@@ -682,6 +677,7 @@ def extend_path(
             ptr,
             unnest_fence=unnest_fence,
             same_computable_scope=same_computable_scope,
+            srcctx=srcctx,
             ctx=ctx,
         )
 
@@ -955,6 +951,7 @@ def computable_ptr_set(
     *,
     unnest_fence: bool=False,
     same_computable_scope: bool=False,
+    srcctx: Optional[parsing.ParserContext]=None,
     ctx: context.ContextLevel,
 ) -> irast.Set:
     """Return ir.Set for a pointer defined as a computable."""
@@ -1078,9 +1075,8 @@ def computable_ptr_set(
     with newctx() as subctx:
         subctx.disable_shadowing.add(ptrcls)
         subctx.view_scls = result_stype
-        assert isinstance(source_scls, s_sources.Source)
         subctx.view_rptr = context.ViewRPtr(
-            source_scls, ptrcls=ptrcls, rptr=rptr)
+            source_scls, ptrcls=ptrcls, rptr=rptr)  # type: ignore
         subctx.anchors[qlast.Source().name] = source_set
         subctx.empty_result_type_hint = ptrcls.get_target(ctx.env.schema)
         subctx.partial_path_prefix = source_set
@@ -1094,34 +1090,9 @@ def computable_ptr_set(
         comp_ir_set = ensure_set(
             dispatch.compile(qlexpr, ctx=subctx), ctx=subctx)
 
-    comp_ir_set_copy = new_set_from_set(comp_ir_set, ctx=ctx)
-    pending_cardinality = ctx.pending_cardinality.get(ptrcls)
-    if pending_cardinality is not None:
-        stmtctx.get_pointer_cardinality_later(
-            ptrcls=ptrcls,
-            irexpr=comp_ir_set_copy,
-            specified_card=pending_cardinality.specified_cardinality,
-            is_mut_assignment=pending_cardinality.is_mut_assignment,
-            shape_op=pending_cardinality.shape_op,
-            source_ctx=pending_cardinality.source_ctx,
-            ctx=ctx,
-        )
-
-    if (
-        pending_cardinality is None
-        or pending_cardinality.shape_op is not qlast.ShapeOp.SUBTRACT
-    ):
-        # When doing subtraction in shapes, the cardinality of the
-        # expression being subtracted does not matter.
-        stmtctx.enforce_pointer_cardinality(
-            ptrcls,
-            comp_ir_set_copy,
-            singletons={source_path_id},
-            ctx=ctx,
-        )
-
     comp_ir_set = new_set_from_set(
-        comp_ir_set, path_id=result_path_id, rptr=rptr, ctx=ctx)
+        comp_ir_set, path_id=result_path_id, rptr=rptr, context=srcctx,
+        ctx=ctx)
 
     rptr.target = comp_ir_set
 

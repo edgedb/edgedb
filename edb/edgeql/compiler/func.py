@@ -49,7 +49,6 @@ from . import pathctx
 from . import polyres
 from . import schemactx
 from . import setgen
-from . import stmtctx
 from . import typegen
 
 if TYPE_CHECKING:
@@ -777,11 +776,7 @@ def finalize_args(
             arg = casts.compile_cast(
                 arg, paramtype, srcctx=None, ctx=ctx)
 
-        call_arg = irast.CallArg(expr=arg, cardinality=None)
-        stmtctx.get_expr_cardinality_later(
-            target=call_arg, field='cardinality', irexpr=arg, ctx=ctx)
-
-        args.append(call_arg)
+        args.append(irast.CallArg(expr=arg, cardinality=None))
 
         # If we have any logged paths left over and our enclosing
         # context is logging paths, propagate them up.
