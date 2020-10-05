@@ -114,7 +114,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
     Note that when casting from strings, the string should be in ISO
     8601 date format.
 
-    See functions :eql:func:`date_get`, :eql:func:`cal::to_local_date`,
+    See functions :eql:func:`cal::date_get`, :eql:func:`cal::to_local_date`,
     and :eql:func:`to_str` for more ways of working with
     :eql:type:`cal::local_date`.
 
@@ -137,7 +137,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
     Note that when casting from strings, the string should be in ISO
     8601 time format.
 
-    See functions :eql:func:`time_get`, :eql:func:`cal::to_local_time`,
+    See functions :eql:func:`cal::time_get`, :eql:func:`cal::to_local_time`,
     and :eql:func:`to_str` for more ways of working with
     :eql:type:`cal::local_time`.
 
