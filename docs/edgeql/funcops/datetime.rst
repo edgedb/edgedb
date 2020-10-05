@@ -41,11 +41,11 @@ Date and Time
     * - :eql:func:`datetime_get`
       - :eql:func-desc:`datetime_get`
 
-    * - :eql:func:`time_get`
-      - :eql:func-desc:`time_get`
+    * - :eql:func:`cal::time_get`
+      - :eql:func-desc:`cal::time_get`
 
-    * - :eql:func:`date_get`
-      - :eql:func-desc:`date_get`
+    * - :eql:func:`cal::date_get`
+      - :eql:func-desc:`cal::date_get`
 
     * - :eql:func:`datetime_truncate`
       - :eql:func-desc:`datetime_truncate`
@@ -83,7 +83,7 @@ Date and Time
         db> SELECT <duration>'1 hour' + <cal::local_time>'22:00';
         {<cal::local_time>'23:00:00'}
         db> SELECT <duration>'1 hour' + <duration>'2 hours';
-        {<duration>'3:00:00'}
+        {10800s}
 
 
 ----------
@@ -105,22 +105,22 @@ Date and Time
 
     .. code-block:: edgeql-repl
 
-        db> SELECT <datetime>'January 01 2019 UTC' -
-        ...   <duration>'1 day';
-        {<datetime>'2018-12-31T00:00:00+00:00'}
-        db> SELECT <datetime>'January 01 2019 UTC' -
-        ...   <datetime>'January 02 2019 UTC';
-        {<duration>'-1 day, 0:00:00'}
+        db> SELECT <datetime>'2019-01-01T01:02:03+00' -
+        ...   <duration>'24 hours';
+        {<datetime>'2018-12-31T01:02:03Z'}
+        db> SELECT <datetime>'2019-01-01T01:02:03+00' -
+        ...   <datetime>'2019-02-01T01:02:03+00';
+        {-2678400s}
         db> SELECT <duration>'1 hour' -
         ...   <duration>'2 hours';
-        {<duration>'-1 day, 23:00:00'}
+        {-3600s}
 
     It is an error to subtract a date/time object from a time interval:
 
     .. code-block:: edgeql-repl
 
         db> SELECT <duration>'1 day' -
-        ...   <datetime>'January 01 2019 UTC';
+        ...   <datetime>'2019-01-01T01:02:03+00';
         QueryError: operator '-' cannot be applied to operands ...
 
     It is also an error to subtract timezone-aware :eql:type:`std::datetime`
@@ -128,8 +128,8 @@ Date and Time
 
     .. code-block:: edgeql-repl
 
-        db> SELECT <datetime>'January 01 2019 UTC' -
-        ...   <cal::local_datetime>'January 02 2019';
+        db> SELECT <datetime>'2019-01-01T01:02:03+00' -
+        ...   <cal::local_datetime>'2019-02-01T01:02:03';
         QueryError: operator '-' cannot be applied to operands ...
 
 
@@ -142,7 +142,7 @@ Date and Time
     .. code-block:: edgeql-repl
 
         db> SELECT datetime_current();
-        {'2018-05-14T20:07:11.755827+00:00'}
+        {<datetime>'2018-05-14T20:07:11.755827Z'}
 
 
 ----------
@@ -232,7 +232,7 @@ Date and Time
 ----------
 
 
-.. eql:function:: std::time_get(dt: cal::local_time, el: str) -> float64
+.. eql:function:: cal::time_get(dt: cal::local_time, el: str) -> float64
 
     Extract a specific element of input time by name.
 
@@ -251,11 +251,11 @@ Date and Time
 
     .. code-block:: edgeql-repl
 
-        db> SELECT time_get(
+        db> SELECT cal::time_get(
         ...     <cal::local_time>'15:01:22.306916', 'minutes');
         {1}
 
-        db> SELECT time_get(
+        db> SELECT cal::time_get(
         ...     <cal::local_time>'15:01:22.306916', 'milliseconds');
         {22306.916}
 
@@ -263,7 +263,7 @@ Date and Time
 ----------
 
 
-.. eql:function:: std::date_get(dt: local_date, el: str) -> float64
+.. eql:function:: cal::date_get(dt: local_date, el: str) -> float64
 
     Extract a specific element of input date by name.
 
@@ -290,24 +290,20 @@ Date and Time
 
     .. code-block:: edgeql-repl
 
-        db> SELECT date_get(
-        ...     <cal::local_date>'2018-05-07T15:01:22.306916',
-        ...     'century');
+        db> SELECT cal::date_get(
+        ...     <cal::local_date>'2018-05-07', 'century');
         {21}
 
-        db> SELECT date_get(
-        ...     <cal::local_date>'2018-05-07T15:01:22.306916',
-        ...     'year');
+        db> SELECT cal::date_get(
+        ...     <cal::local_date>'2018-05-07', 'year');
         {2018}
 
-        db> SELECT date_get(
-        ...     <cal::local_date>'2018-05-07T15:01:22.306916',
-        ...     'month');
+        db> SELECT cal::date_get(
+        ...     <cal::local_date>'2018-05-07', 'month');
         {5}
 
-        db> SELECT date_get(
-        ...     <cal::local_date>'2018-05-07T15:01:22.306916',
-        ...     'doy');
+        db> SELECT cal::date_get(
+        ...     <cal::local_date>'2018-05-07', 'doy');
         {127}
 
 
@@ -337,19 +333,19 @@ Date and Time
 
         db> SELECT datetime_truncate(
         ...     <datetime>'2018-05-07T15:01:22.306916+00', 'years');
-        {'2018-01-01T00:00:00+00:00'}
+        {<datetime>'2018-01-01T00:00:00Z'}
 
         db> SELECT datetime_truncate(
         ...     <datetime>'2018-05-07T15:01:22.306916+00', 'quarters');
-        {'2018-04-01T00:00:00+00:00'}
+        {<datetime>'2018-04-01T00:00:00Z'}
 
         db> SELECT datetime_truncate(
         ...     <datetime>'2018-05-07T15:01:22.306916+00', 'days');
-        {'2018-05-07T00:00:00+00:00'}
+        {<datetime>'2018-05-07T00:00:00Z'}
 
         db> SELECT datetime_truncate(
         ...     <datetime>'2018-05-07T15:01:22.306916+00', 'hours');
-        {'2018-05-07T15:00:00+00:00'}
+        {<datetime>'2018-05-07T15:00:00Z'}
 
 
 ----------
@@ -370,11 +366,11 @@ Date and Time
 
         db> SELECT duration_truncate(
         ...     <duration>'15:01:22', 'hours');
-        {'15:00:00'}
+        {54000s}
 
         db> SELECT duration_truncate(
         ...     <duration>'15:01:22.306916', 'minutes');
-        {'15:01:00'}
+        {54060s}
 
 
 ----------
@@ -403,12 +399,12 @@ Date and Time
     .. code-block:: edgeql-repl
 
         db> SELECT to_datetime('2018-05-07T15:01:22.306916+00');
-        {<datetime>'2018-05-07T15:01:22.306916+00:00'}
+        {<datetime>'2018-05-07T15:01:22.306916Z'}
         db> SELECT to_datetime('2018-05-07T15:01:22+00');
-        {<datetime>'2018-05-07T15:01:22+00:00'}
+        {<datetime>'2018-05-07T15:01:22Z'}
         db> SELECT to_datetime('May 7th, 2018 15:01:22 +00',
-        ...                    'Mon DDth, YYYY HH24:MI:SS TZM');
-        {<datetime>'2018-05-07T15:01:22+00:00'}
+        ...                    'Mon DDth, YYYY HH24:MI:SS TZH');
+        {<datetime>'2018-05-07T15:01:22Z'}
 
     Alternatively, the :eql:type:`datetime` value can be constructed
     from a :eql:type:`cal::local_datetime` value:
@@ -416,8 +412,8 @@ Date and Time
     .. code-block:: edgeql-repl
 
         db> SELECT to_datetime(
-        ...   <cal::local_datetime>'January 1, 2019 12:00AM', 'HKT');
-        {<datetime>'2018-12-31T16:00:00+00:00'}
+        ...   <cal::local_datetime>'2019-01-01T01:02:03', 'HKT');
+        {<datetime>'2018-12-31T17:02:03Z'}
 
     Another way to construct a the :eql:type:`datetime` value
     is to specify it in terms of its component parts: *year*, *month*,
@@ -427,7 +423,7 @@ Date and Time
 
         db> SELECT to_datetime(
         ...     2018, 5, 7, 15, 1, 22.306916, 'UTC');
-        {<datetime>'2018-05-07T15:01:22.306916+00:00'}
+        {<datetime>'2018-05-07T15:01:22.306916000Z'}
 
     Finally, it is also possible to convert a Unix timestamp to a
     :eql:type:`datetime`
@@ -477,9 +473,9 @@ Date and Time
     .. code-block:: edgeql-repl
 
         db> SELECT cal::to_local_datetime(
-        ...   <datetime>'December 31, 2018 10:00PM GMT+8',
+        ...   <datetime>'2018-12-31T22:00:00+08',
         ...   'US/Central');
-        {<cal::local_datetime>'2019-01-01T00:00:00'}
+        {<cal::local_datetime>'2018-12-31T08:00:00'}
 
 
 ------------
@@ -505,11 +501,11 @@ Date and Time
 
     .. code-block:: edgeql-repl
 
-        db> SELECT to_local_date('2018-05-07');
+        db> SELECT cal::to_local_date('2018-05-07');
         {<cal::local_date>'2018-05-07'}
-        db> SELECT to_local_date('May 7th, 2018', 'Mon DDth, YYYY');
+        db> SELECT cal::to_local_date('May 7th, 2018', 'Mon DDth, YYYY');
         {<cal::local_date>'2018-05-07'}
-        db> SELECT to_local_date(2018, 5, 7);
+        db> SELECT cal::to_local_date(2018, 5, 7);
         {<cal::local_date>'2018-05-07'}
 
     A timezone-aware :eql:type:`datetime` type can be converted
@@ -517,8 +513,8 @@ Date and Time
 
     .. code-block:: edgeql-repl
 
-        db> SELECT to_local_date(
-        ...   <datetime>'December 31, 2018 10:00PM GMT+8',
+        db> SELECT cal::to_local_date(
+        ...   <datetime>'2018-12-31T22:00:00+08',
         ...   'US/Central');
         {<cal::local_date>'2019-01-01'}
 
@@ -560,9 +556,9 @@ Date and Time
     .. code-block:: edgeql-repl
 
         db> SELECT cal::to_local_time(
-        ...   <datetime>'December 31, 2018 10:00PM GMT+8',
+        ...   <datetime>'2018-12-31T22:00:00+08',
         ...   'US/Pacific');
-        {<cal::local_date>'22:00:00'}
+        {<cal::local_time>'06:00:00'}
 
 
 ------------
@@ -588,9 +584,9 @@ Date and Time
         db> SELECT to_duration(hours := 1,
         ...                    minutes := 20,
         ...                    seconds := 45);
-        {<duration>'1:20:45'}
+        {4845s}
         db> SELECT to_duration(seconds := 4845);
-        {<duration>'1:20:45'}
+        {4845s}
 
 
 .. eql:function:: std::duration_to_seconds(cur: duration) -> decimal
@@ -600,6 +596,6 @@ Date and Time
     .. code-block:: edgeql-repl
 
         db> SELECT duration_to_seconds(<duration>'1 hour');
-        {3600.0d}
-        db> SELECT duration_to_seconds(<duration>'10 second 100 millis');
-        {10.1d}
+        {3600.000000n}
+        db> SELECT duration_to_seconds(<duration>'10 second 123 ms');
+        {10.123000n}
