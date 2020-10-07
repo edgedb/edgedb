@@ -1,0 +1,76 @@
+===========
+1.0 Alpha 6
+===========
+
+This changelog summarizes new features and breaking changes in
+EdgeDB 1.0 alpha 6 "Wolf".
+
+
+EdgeQL
+======
+
+* Introduce new enum definition syntax (:eql:gh:`#1843`).
+
+  Instead of using strings, the enums are now defined using identifiers:
+
+  .. code-block:: edgeql
+
+    CREATE SCALAR TYPE schema::TypeModifier
+        EXTENDING enum<SetOfType, OptionalType, SingletonType>;
+
+* Rename built-in schema enums to use CamelCase names (:eql:gh:`#1843`).
+* Rename string handling functions to use ``start`` and ``end`` in
+  their name (:eql:gh:`#1752`):
+
+  - Deprecate :eql:func:`str_lpad` in favor of :eql:func:`str_pad_start`
+  - Deprecate :eql:func:`str_rpad` in favor of :eql:func:`str_pad_end`
+  - Deprecate :eql:func:`str_ltrim` in favor of :eql:func:`str_trim_start`
+  - Deprecate :eql:func:`str_rtrim` in favor of :eql:func:`str_trim_end`
+
+* Improve :ref:`UPDATE <ref_eql_statements_update>` functionality (
+  :eql:gh:`#1746`).
+* Forbid usage of DML in some special cases (:eql:gh:`#1726`).
+* Add tracking of DML inside function bodies (:eql:gh:`#1741`).
+* Allow functions with non-statement bodies (:eql:gh:`#1723`).
+* Allow the usage of :eql:op:`EXISTS` in constraints (:eql:gh:`#1750`).
+* Allow partial paths in object constraints (:eql:gh:`#1704`)
+* Allow trailing commas in collection types (:eql:gh:`#1749`).
+* Fix :eql:stmt:`INSERT ... UNLESS CONFLICT ... ELSE <INSERT>` when
+  combined with shape (:eql:gh:`#1743`).
+* Fix how :ref:`FOR <ref_eql_statements_for>` statement correlates
+  values (:eql:gh:`#1776`).
+* Fix handling of collections of newly created types in SDL (:eql:gh:`#1730`).
+* Fix handling of function definitions in SDL (:eql:gh:`#1649`).
+* Fix interactions of ``SET OF`` and ``OPTIONAL`` arguments (:eql:gh:`#1640`).
+* Implementation of more of the features of the new migration syntax
+  (`RFC 1000 <migrations_>`_).
+
+CLI
+===
+
+* Require instance name for most ``edgedb server`` commands.
+* Add version check to show a warning when tools should be updated
+  (`#158 <https://github.com/edgedb/edgedb-cli/pull/158>`_).
+* Add edgedb self-upgrade command (`#159
+  <https://github.com/edgedb/edgedb-cli/pull/159>`_).
+* Add support for installing server using Docker (``edgdb server
+  install --method=docker``)
+* Stop treating "edgedb" as special (:eql:gh:`#1729`)
+* Improve database initialization (:eql:gh:`#1755`).
+* Import setuptools before distutils in setup.py (:eql:gh:`#1734`).
+
+
+Bindings
+========
+
+* Switch UUID decoding from a rich object to a string (
+  `#72 <https://github.com/edgedb/edgedb-js/pull/72>`_).
+
+* Add ``EdgeDBDateTimeCodec`` for handling various datetime scalars
+  (`#68 <https://github.com/edgedb/edgedb-js/pull/68>`_).
+* Update the `edgedb-js <https://github.com/edgedb/edgedb-js>`_ driver
+  to 0.10.0-alpha.3.
+
+
+.. _migrations:
+    https://github.com/edgedb/rfcs/blob/master/text/1000-migrations.rst
