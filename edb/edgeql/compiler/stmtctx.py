@@ -110,7 +110,12 @@ def fini_expression(
     if ctx.path_scope is not None:
         # Simple expressions have no scope.
         cardinality = inference.infer_cardinality(
-            ir, scope_tree=ctx.path_scope, env=ctx.env)
+            ir,
+            scope_tree=ctx.path_scope,
+            ctx=inference.CardCtx(
+                env=ctx.env, inferred_cardinality={}, singletons=()
+            )
+        )
 
     # Strip weak namespaces
     for ir_set in ctx.env.set_types:
