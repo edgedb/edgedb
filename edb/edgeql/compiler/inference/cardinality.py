@@ -63,6 +63,8 @@ class CardCtx(NamedTuple):
         Tuple[irast.Base, irast.ScopeTreeNode],
         qltypes.Cardinality]
     singletons: Collection[irast.PathId]
+    bindings: Dict[irast.PathId, irast.ScopeTreeNode]
+    volatile_uses: Dict[irast.PathId, irast.ScopeTreeNode]
 
 
 class CardinalityBound(int, enum.Enum):
@@ -125,7 +127,12 @@ def _get_set_scope(
         scope_tree: irast.ScopeTreeNode) -> irast.ScopeTreeNode:
 
     if ir_set.path_scope_id:
-        new_scope = scope_tree.root.find_by_unique_id(ir_set.path_scope_id)
+        # Work-around the fact that unique ids are not actually
+        # unique, and search our local tree first.
+        new_scope = scope_tree.find_by_unique_id(ir_set.path_scope_id)
+        if new_scope is None:
+            new_scope = scope_tree.root.find_by_unique_id(
+                ir_set.path_scope_id)
         if new_scope is None:
             raise errors.InternalServerError(
                 f'dangling scope pointer to node with uid'
@@ -199,7 +206,33 @@ def _coalesce_cardinality(
 VOLATILE = qltypes.Volatility.Volatile
 
 
-def _check_volatility(
+def _check_binding_volatility(
+    ir: irast.Set,
+    scope_tree: irast.ScopeTreeNode,
+    ctx: CardCtx,
+) -> None:
+    # Check the binding volatility
+    if (
+        ir.is_binding
+        and ir.expr
+        and volatility.infer_volatility(ir.expr, env=ctx.env) == VOLATILE
+    ):
+        path_id = ir.path_id.strip_weak_namespaces()
+        bind_scope = ctx.bindings.get(path_id)
+        if bind_scope and scope_tree.parent_fence != bind_scope.fence:
+            if (
+                path_id in ctx.volatile_uses
+                and ctx.volatile_uses[path_id] != scope_tree
+            ):
+                raise errors.QueryError(
+                    "volatile aliased expressions may not "
+                    "be used in multiple subqueries",
+                    context=ir.context)
+            else:
+                ctx.volatile_uses[path_id] = scope_tree
+
+
+def _check_op_volatility(
     args: Sequence[irast.Base],
     cards: Sequence[qltypes.Cardinality],
     ctx: CardCtx,
@@ -232,7 +265,7 @@ def _common_cardinality(
             a, scope_tree=scope_tree, ctx=ctx
         ) for a in args
     ]
-    _check_volatility(args, cards, ctx=ctx)
+    _check_op_volatility(args, cards, ctx=ctx)
 
     return cartesian_cardinality(cards)
 
@@ -560,6 +593,8 @@ def _infer_set_inner(
         return ONE
     if (node := _find_visible(ir, scope_tree)) is not None:
         return AT_MOST_ONE if node.optional else ONE
+
+    _check_binding_volatility(ir, scope_tree=new_scope, ctx=ctx)
 
     if rptr is not None:
         if isinstance(rptrref, irast.TypeIntersectionPointerRef):
@@ -939,6 +974,10 @@ def __infer_select_stmt(
     ctx: CardCtx,
 ) -> qltypes.Cardinality:
 
+    bindings = ir.bindings + ([ir.iterator_stmt] if ir.iterator_stmt else [])
+    for x in bindings:
+        ctx.bindings[x.path_id] = scope_tree
+
     stmt_card = _infer_stmt_cardinality(ir, scope_tree=scope_tree, ctx=ctx)
 
     for part in [ir.limit, ir.offset] + [sort.expr for sort in ir.orderby]:
@@ -1107,6 +1146,16 @@ def infer_cardinality(
     ctx.inferred_cardinality[ir, scope_tree] = result
 
     return result
+
+
+def make_ctx(env: context.Environment) -> CardCtx:
+    return CardCtx(
+        env=env,
+        inferred_cardinality={},
+        singletons={},
+        bindings={},
+        volatile_uses={},
+    )
 
 
 def is_subset_cardinality(

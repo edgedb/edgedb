@@ -251,7 +251,6 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             [3],
         )
 
-    @test.xfail('we are a little too strict around WITH...')
     async def test_edgeql_volatility_select_clause_01a(self):
         # Spurious failure probability: 1/100!
 
@@ -349,15 +348,29 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             [True],
         )
 
-    @test.xfail('volatiles inside WITH get reevaluated')
     async def test_edgeql_volatility_with_01(self):
-        # We want *one* SELECT to be done for with WITH
-        await self.assert_query_result(
-            r'''
-                WITH X := random() SELECT sum(X) = sum(X);
-            ''',
-            [True],
-        )
+        # We would eventually like to compute this correctly instead
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.QueryError,
+                    "volatile aliased expressions may not be used "
+                    "in multiple subqueries"):
+                await self.con.execute(
+                    r'''
+                    WITH X := random() SELECT sum(X) = sum(X);
+                    ''',
+                )
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.QueryError,
+                    "volatile aliased expressions may not be used "
+                    "in multiple subqueries"):
+                await self.con.execute(
+                    r'''
+                    WITH X := random(), Y := X SELECT sum(Y) = sum(Y);
+                    ''',
+                )
 
     async def test_edgeql_volatility_update_clause_01(self):
         # Spurious failure probability: 1/2^99
@@ -380,7 +393,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 WITH MODULE test,
                      X := (UPDATE Obj FILTER random() > 0.5
                            SET { n := -1 })
-                SELECT count(X) != 0 AND count(X) != 100
+                SELECT count(X) NOT IN {0, 100}
             ''',
             [True],
         )
@@ -406,7 +419,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             r'''
                 WITH MODULE test,
                      X := (DELETE Obj FILTER random() > 0.5)
-                SELECT count(X) != 0 AND count(X) != 100
+                SELECT count(X) NOT IN {0, 100}
             ''',
             [True],
         )
