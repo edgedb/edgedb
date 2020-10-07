@@ -2075,6 +2075,20 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             },
         })
 
+    @test.xfail('''
+       ISE: relation "<blah>" does not exist
+    ''')
+    async def test_edgeql_migration_function_01(self):
+        await self.migrate('''
+            type Note {
+                required property name -> str;
+            }
+
+            function hello_note(x: Note) -> str {
+                USING (SELECT x.name)
+            }
+        ''')
+
     async def test_edgeql_migration_eq_01(self):
         await self.migrate("""
             type Base;
