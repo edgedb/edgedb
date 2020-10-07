@@ -251,6 +251,19 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             [3],
         )
 
+    async def test_edgeql_volatility_for_10(self):
+        # We would eventually like to compute this correctly instead
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.QueryError,
+                    "volatile aliased expressions may not be used "
+                    "inside FOR bodies"):
+                await self.con.execute(
+                    r'''
+                    WITH x := random() FOR y in {1,2,3} UNION (x);
+                    ''',
+                )
+
     async def test_edgeql_volatility_select_clause_01a(self):
         # Spurious failure probability: 1/100!
 

@@ -65,6 +65,7 @@ class CardCtx(NamedTuple):
     singletons: Collection[irast.PathId]
     bindings: Dict[irast.PathId, irast.ScopeTreeNode]
     volatile_uses: Dict[irast.PathId, irast.ScopeTreeNode]
+    in_for_body: bool
 
 
 class CardinalityBound(int, enum.Enum):
@@ -218,7 +219,17 @@ def _check_binding_volatility(
         and volatility.infer_volatility(ir.expr, env=ctx.env) == VOLATILE
     ):
         path_id = ir.path_id.strip_weak_namespaces()
-        bind_scope = ctx.bindings.get(path_id)
+        if path_id not in ctx.bindings:
+            return
+
+        bind_scope = ctx.bindings[path_id]
+
+        if ctx.in_for_body:
+            raise errors.QueryError(
+                "volatile aliased expressions may not "
+                "be used inside FOR bodies",
+                context=ir.context)
+
         if bind_scope and scope_tree.parent_fence != bind_scope.fence:
             if (
                 path_id in ctx.volatile_uses
@@ -957,12 +968,6 @@ def _infer_stmt_cardinality(
         result_card = _analyse_filter_clause(
             ir.result, result_card, ir.where, scope_tree, ctx)
 
-    if ir.iterator_stmt:
-        iter_card = infer_cardinality(
-            ir.iterator_stmt, scope_tree=scope_tree, ctx=ctx,
-        )
-        result_card = cartesian_cardinality((result_card, iter_card))
-
     return result_card
 
 
@@ -974,9 +979,14 @@ def __infer_select_stmt(
     ctx: CardCtx,
 ) -> qltypes.Cardinality:
 
-    bindings = ir.bindings + ([ir.iterator_stmt] if ir.iterator_stmt else [])
-    for x in bindings:
+    for x in ir.bindings:
         ctx.bindings[x.path_id] = scope_tree
+
+    if ir.iterator_stmt:
+        iter_card = infer_cardinality(
+            ir.iterator_stmt, scope_tree=scope_tree, ctx=ctx,
+        )
+        ctx = ctx._replace(in_for_body=True)
 
     stmt_card = _infer_stmt_cardinality(ir, scope_tree=scope_tree, ctx=ctx)
 
@@ -994,9 +1004,12 @@ def __infer_select_stmt(
             isinstance(ir.limit.expr, irast.IntegerConstant) and
             ir.limit.expr.value == '1'):
         # Explicit LIMIT 1 clause.
-        return AT_MOST_ONE
-    else:
-        return stmt_card
+        stmt_card = AT_MOST_ONE
+
+    if ir.iterator_stmt:
+        stmt_card = cartesian_cardinality((stmt_card, iter_card))
+
+    return stmt_card
 
 
 @_infer_cardinality.register
@@ -1155,6 +1168,7 @@ def make_ctx(env: context.Environment) -> CardCtx:
         singletons={},
         bindings={},
         volatile_uses={},
+        in_for_body=False,
     )
 
 
