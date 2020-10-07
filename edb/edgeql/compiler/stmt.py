@@ -908,7 +908,8 @@ def init_stmt(
 
     irstmt.parent_stmt = parent_ctx.stmt
 
-    process_with_block(qlstmt, ctx=ctx, parent_ctx=parent_ctx)
+    irstmt.bindings = process_with_block(
+        qlstmt, ctx=ctx, parent_ctx=parent_ctx)
 
 
 def fini_stmt(
@@ -965,7 +966,9 @@ def fini_stmt(
 
 def process_with_block(
         edgeql_tree: qlast.Statement, *,
-        ctx: context.ContextLevel, parent_ctx: context.ContextLevel) -> None:
+        ctx: context.ContextLevel,
+        parent_ctx: context.ContextLevel) -> List[irast.Set]:
+    results = []
     for with_entry in edgeql_tree.aliases:
         if isinstance(with_entry, qlast.ModuleAliasDecl):
             ctx.modaliases[with_entry.alias] = with_entry.module
@@ -973,15 +976,19 @@ def process_with_block(
         elif isinstance(with_entry, qlast.AliasedExpr):
             with ctx.new() as scopectx:
                 scopectx.expr_exposed = False
-                stmtctx.declare_view(
-                    with_entry.expr,
-                    with_entry.alias,
-                    must_be_used=True,
-                    ctx=scopectx)
+                results.append(
+                    stmtctx.declare_view(
+                        with_entry.expr,
+                        with_entry.alias,
+                        must_be_used=True,
+                        ctx=scopectx)
+                )
 
         else:
             raise RuntimeError(
                 f'unexpected expression in WITH block: {with_entry}')
+
+    return results
 
 
 def compile_result_clause(

@@ -136,6 +136,7 @@ def new_set_from_set(
         stype: Optional[s_types.Type]=None,
         rptr: Optional[irast.Pointer]=None,
         context: Optional[parsing.ParserContext]=None,
+        is_binding: Optional[bool]=None,
         ctx: context.ContextLevel) -> irast.Set:
     """Create a new ir.Set from another ir.Set.
 
@@ -154,6 +155,8 @@ def new_set_from_set(
         rptr = ir_set.rptr
     if context is None:
         context = ir_set.context
+    if is_binding is None:
+        is_binding = ir_set.is_binding
     return new_set(
         path_id=path_id,
         path_scope_id=ir_set.path_scope_id,
@@ -161,6 +164,7 @@ def new_set_from_set(
         expr=ir_set.expr,
         rptr=rptr,
         context=context,
+        is_binding=is_binding,
         ircls=type(ir_set),
         ctx=ctx,
     )
@@ -272,6 +276,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                         preserve_scope_ns=(
                             view_scope_info.pinned_path_id_ns is not None
                         ),
+                        is_binding=True,
                         ctx=ctx,
                     )
 

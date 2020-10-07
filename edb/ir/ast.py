@@ -419,6 +419,7 @@ class Set(Base):
     anchor: typing.Optional[str]
     show_as_anchor: typing.Optional[str]
     shape: typing.List[typing.Tuple[Set, qlast.ShapeOp]]
+    is_binding: bool
 
     def __repr__(self) -> str:
         return f'<ir.Set \'{self.path_id}\' at 0x{id(self):x}>'
@@ -714,6 +715,7 @@ class Stmt(Expr):
     parent_stmt: typing.Optional[Stmt]
     iterator_stmt: typing.Optional[Set]
     hoisted_iterators: typing.List[Set]
+    bindings: typing.List[Set]
 
 
 class FilteredStmt(Stmt):
