@@ -6603,3 +6603,28 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ''',
             ['test::Post', 'test::Video']
         )
+
+    async def test_edgeql_ddl_rename_w_func_ref_01(self):
+        await self.con.execute("""
+            WITH MODULE test
+            CREATE TYPE Note {
+                CREATE PROPERTY note -> str;
+            };
+
+            WITH MODULE test
+            CREATE FUNCTION hello_note(x: Note) ->  str {
+                USING (SELECT ('hello ' ++ x.note))
+            }
+        """)
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidReferenceError,
+                "has no link or property 'note'"):
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Note {
+                    ALTER PROPERTY note {
+                        RENAME TO remark;
+                    }
+                }
+            """)

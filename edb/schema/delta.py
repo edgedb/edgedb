@@ -1299,6 +1299,10 @@ class ObjectCommand(
 
                     # Copy own fields into the create command.
                     value = ref.get_explicit_field_value(schema, fn, None)
+                    if isinstance(value, s_expr.Expression):
+                        # Strip the "compiled" out of the expression
+                        value = s_expr.Expression(
+                            text=value.text, origtext=value.origtext)
                     cmd_drop.set_attribute_value(
                         fn, ref.get_dummy_body(schema))
                     cmd_create.set_attribute_value(fn, value)
