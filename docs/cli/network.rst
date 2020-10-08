@@ -11,8 +11,8 @@ there are two exceptions:
    date. :ref:`Details <ref_cli_edgedb_version_check>`
 2. The ``edgedb server`` family of commands and ``edgedb self-update``
    discover package versions and docker images and also invoke package
-   managers and the docker engine to do some work.
-   :ref:`Details <ref_cli_edgedb_net_server>`
+   managers and the docker engine to do :ref:`index updates and
+   related data. <ref_cli_edgedb_net_server>`
 
 
 .. _ref_cli_edgedb_version_check:
