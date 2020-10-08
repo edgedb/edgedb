@@ -12,3 +12,4 @@ CLI
     edgedb_dump
     edgedb_restore
     edgedb_connopts
+    network
