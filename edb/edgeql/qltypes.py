@@ -195,6 +195,13 @@ class LinkTargetDeleteAction(s_enum.StrEnum):
 
 
 class ConfigScope(s_enum.StrEnum):
+
     SYSTEM = 'SYSTEM'
     DATABASE = 'DATABASE'
     SESSION = 'SESSION'
+
+    def to_edgeql(self) -> str:
+        if self is ConfigScope.DATABASE:
+            return 'CURRENT DATABASE'
+        else:
+            return str(self)
