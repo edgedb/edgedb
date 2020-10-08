@@ -45,16 +45,22 @@ EdgeQL
 * Implementation of more of the features of the new migration syntax
   (`RFC 1000 <migrations_>`_).
 
-CLI
-===
+
+Command-Line Tools
+==================
 
 * Require instance name for most ``edgedb server`` commands.
 * Add version check to show a warning when tools should be updated
   (`#158 <https://github.com/edgedb/edgedb-cli/pull/158>`_).
 * Add edgedb self-upgrade command (`#159
   <https://github.com/edgedb/edgedb-cli/pull/159>`_).
-* Add support for installing server using Docker (``edgdb server
+* Add support for installing server using Docker (``edgedb server
   install --method=docker``)
+
+
+Server Command-Line
+===================
+
 * Stop treating "edgedb" as special (:eql:gh:`#1729`)
 * Improve database initialization (:eql:gh:`#1755`).
 * Import setuptools before distutils in setup.py (:eql:gh:`#1734`).
