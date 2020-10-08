@@ -28,7 +28,6 @@ import tempfile
 import unittest
 
 import click
-import setuptools_scm
 
 from edb.server import buildmeta
 from edb.server import cluster as edgedb_cluster
@@ -108,9 +107,7 @@ def die(msg):
     help="number of parallel processes to use",
 )
 def gen_test_dumps(*, jobs, tests_dir):
-    version = setuptools_scm.get_version(
-        version_scheme=buildmeta.scm_version_scheme
-    )
+    version = buildmeta.get_version()
     if not jobs:
         jobs = os.cpu_count()
 
