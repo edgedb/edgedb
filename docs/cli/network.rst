@@ -20,7 +20,7 @@ there are two exceptions:
 Version Check
 =============
 
-Version check checks current version of command-line tool by fetching
+Version check checks the current version of command-line tool by fetching
 ``https://packages.edgedb.com/.jsonindexes/*.json``.
 
 Here is how request looks like::
