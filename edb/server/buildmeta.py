@@ -270,11 +270,13 @@ def scm_version_scheme(version):
     )
     tag_list = proc.stdout.strip()
     if tag_list:
-        tags = tag_list.strip('\n')
+        tags = tag_list.split('\n')
     else:
         tags = []
 
     exact_tags = set(versions) & set(tags)
+    if exact_tags:
+        return exact_tags.pop()[1:]
 
     proc = subprocess.run(
         ['git', 'rev-list', '--count', 'HEAD'],
@@ -283,10 +285,6 @@ def scm_version_scheme(version):
         check=True,
     )
     commits_on_branch = proc.stdout.strip()
-
-    if exact_tags:
-        return exact_tags.pop()[1:]
-
     m = pep440_version_re.match(latest_version[1:])
     if not m:
         return f'{latest_version[1:]}.dev{commits_on_branch}'
