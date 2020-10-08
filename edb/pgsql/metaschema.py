@@ -37,6 +37,9 @@ from edb.schema import migrations  # NoQA
 from edb.schema import modules as s_mod
 from edb.schema import name as sn
 from edb.schema import objtypes as s_objtypes
+from edb.schema import scalars as s_scalars
+from edb.schema import schema as s_schema
+from edb.schema import types as s_types
 
 from edb.server import defines
 from edb.server import compiler as edbcompiler
@@ -1986,104 +1989,6 @@ class QuoteLiteralFunction(dbops.Function):
             text=self.text)
 
 
-class ConfigObjectAsDDLFunction(dbops.Function):
-    """Describe single configuration object as DDL"""
-
-    def __init__(self, compiler, schema, name: str, plural: str) -> None:
-
-        cfg = schema.get('cfg::' + name)
-        items = []
-        for pn, p in cfg.get_pointers(schema).items(schema):
-            if pn in ('id', '__type__'):
-                continue
-            if p.get_annotation(schema, 'cfg::internal') == 'true':
-                continue
-            ptype = p.get_target(schema)
-            mult = p.get_cardinality(schema) is qltypes.SchemaCardinality.Many
-            if isinstance(ptype, s_objtypes.ObjectType):
-                items.append(
-                    f"'  { qlquote.quote_ident(pn) } := (INSERT ' ++ "
-                    f" item.{ qlquote.quote_ident(pn) }.__type__.name"
-                    f" ++ '),\\n'"
-                )
-            elif mult:
-                items.append(
-                    f"cfg::_name_value_array('  ', ',\\n', { ql(pn) },"
-                    f" array_agg(item.{ qlquote.quote_ident(pn) }))"
-                )
-            else:
-                items.append(
-                    f"cfg::_name_value('  ', ',\\n', { ql(pn) },"
-                    f" item.{ qlquote.quote_ident(pn) },"
-                    f" <{ ptype.get_name(schema) }>{{}})"
-                )
-
-        script = (
-            f"SELECT array_join(array_agg(("
-            f"FOR item in {{ cfg::{ name } }} UNION ("
-            f"SELECT 'CONFIGURE SYSTEM INSERT {name} {{\\n'"
-            f" ++ {' ++ '.join(items)} ++ '}};\n'"
-            f"))), '')"
-        )
-        _, text = edbbootstrap.compile_bootstrap_script(
-            compiler, schema, script,
-            output_format=edbcompiler.IoFormat.BINARY)
-        super().__init__(
-            name=('edgedb', '_config_insert_all_' + plural),
-            args=[],
-            returns=('text'),
-            # Stable because it's raising exceptions.
-            volatility='stable',
-            text=text)
-
-
-class DescribeSystemConfigAsDDLFunction(dbops.Function):
-    """Describe server configuration as DDL"""
-
-    def __init__(self, compiler, schema) -> None:
-
-        cfg = schema.get('cfg::Config')
-        items = []
-        for pn, p in cfg.get_pointers(schema).items(schema):
-            if pn in ('id', '__type__'):
-                continue
-            ptype = p.get_target(schema)
-            mult = p.get_cardinality(schema) is qltypes.SchemaCardinality.Many
-            if isinstance(ptype, s_objtypes.ObjectType):
-                if pn not in {'sessobj', 'sysobj'}:
-                    items.append(f"cfg::_config_insert_all_{pn}()")
-            elif mult:
-                items.append(
-                    f" cfg::_name_value_array('CONFIGURE SYSTEM SET ', ';\n',"
-                    f" { ql(pn) },"
-                    f" array_agg(cfg::Config.{ qlquote.quote_ident(pn) }))"
-                )
-            else:
-                default = p.get_default(schema)
-                if default is not None:
-                    def_expr = default.text
-                else:
-                    def_expr = f"<{ ptype.get_name(schema) }>{{}}"
-                items.append(
-                    f" cfg::_name_value('CONFIGURE SYSTEM SET ', ';\\n', "
-                    f" { ql(pn) },"
-                    f" cfg::Config.{ qlquote.quote_ident(pn) },"
-                    f" { def_expr })"
-                )
-
-        script = f"SELECT {' ++ '.join(items)}"
-        _, text = edbbootstrap.compile_bootstrap_script(
-            compiler, schema, script,
-            output_format=edbcompiler.IoFormat.BINARY)
-        super().__init__(
-            name=('edgedb', '_describe_system_config_as_ddl'),
-            args=[],
-            returns=('text'),
-            # Stable because it's raising exceptions.
-            volatility='stable',
-            text=text)
-
-
 class QuoteIdentFunction(dbops.Function):
     """Quote ident function."""
     # TODO do not quote valid identifiers unless they are reserved
@@ -2211,6 +2116,28 @@ class SysConfigValueType(dbops.CompositeType):
         ])
 
 
+class SysConfigSourceType(dbops.Enum):
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_sys_config_source_t'),
+            values=[
+                'default',
+                'postgres default',
+                'postgres environment variable',
+                'postgres configuration file',
+                'postgres command line',
+                'postgres global',
+                'system override',
+                'database',
+                'postgres client',
+                'postgres override',
+                'postgres interactive',
+                'postgres test',
+                'session',
+            ]
+        )
+
+
 class SysConfigFunction(dbops.Function):
 
     # This is a function because "_edgecon_state" is a temporary table
@@ -2239,8 +2166,7 @@ class SysConfigFunction(dbops.Function):
         SELECT
             s.name AS name,
             s.default AS value,
-            'default' AS source,
-            0 AS priority
+            'default' AS source
         FROM
             config_spec s
     ),
@@ -2249,8 +2175,7 @@ class SysConfigFunction(dbops.Function):
         SELECT
             s.key AS name,
             s.value AS value,
-            'system override' AS source,
-            10 AS priority
+            'system override' AS source
         FROM
             jsonb_each(
                 shobj_metadata(
@@ -2265,8 +2190,7 @@ class SysConfigFunction(dbops.Function):
         SELECT
             s.name AS name,
             s.value AS value,
-            'database' AS source,
-            15 AS priority
+            'database' AS source
         FROM
             edgedb._db_config s
     ),
@@ -2275,79 +2199,117 @@ class SysConfigFunction(dbops.Function):
         SELECT
             s.name AS name,
             s.value::jsonb AS value,
-            'session' AS source,
-            20 AS priority
+            'session' AS source
         FROM
             _edgecon_state s
         WHERE
             s.type = 'C'
     ),
 
-    config_backend AS (
-        WITH
-        pg_db_setting AS (
-            SELECT
-                nameval.name,
-                COALESCE(val.v[1], nameval.value) AS value,
-                val.v[2] AS unit
+    pg_db_setting AS (
+        SELECT
+            nameval.name,
+            to_jsonb(nameval.value) AS value,
+            'database' AS source
+        FROM
+            (SELECT
+                setconfig
             FROM
-                (SELECT
-                    setconfig
+                pg_db_role_setting
+            WHERE
+                setdatabase = (
+                    SELECT oid
+                    FROM pg_database
+                    WHERE datname = current_database()
+                )
+                AND setrole = 0
+            ) AS cfg_array,
+            LATERAL unnest(cfg_array.setconfig) AS cfg_set(s),
+            LATERAL (
+                SELECT
+                    split_part(cfg_set.s, '=', 1) AS name,
+                    split_part(cfg_set.s, '=', 2) AS value
+            ) AS nameval,
+            LATERAL (
+                SELECT
+                    config_spec.name
                 FROM
-                    pg_db_role_setting
+                    config_spec
                 WHERE
-                    setdatabase = (
-                        SELECT oid
-                        FROM pg_database
-                        WHERE datname = current_database()
-                    )
-                    AND setrole = 0
-                ) AS cfg_array,
-                LATERAL unnest(cfg_array.setconfig) AS cfg_set(s),
-                LATERAL (
-                    SELECT
-                        split_part(cfg_set.s, '=', 1) AS name,
-                        split_part(cfg_set.s, '=', 2) AS value
-                ) AS nameval,
-                LATERAL (
-                    SELECT regexp_match(nameval.value, '(\\d+)(\\w+)') AS v
-                ) AS val
-        )
+                    nameval.name = config_spec.backend_setting
+            ) AS spec
+    ),
 
+    pg_conf_settings AS (
+        SELECT
+            spec.name,
+            to_jsonb(setting) AS value,
+            'postgres configuration file' AS source
+        FROM
+            pg_file_settings,
+            LATERAL (
+                SELECT
+                    config_spec.name
+                FROM
+                    config_spec
+                WHERE
+                    pg_file_settings.name = config_spec.backend_setting
+            ) AS spec
+        WHERE
+            sourcefile != ((
+                SELECT setting
+                FROM pg_settings WHERE name = 'data_directory'
+            ) || '/postgresql.auto.conf')
+            AND applied
+    ),
+
+    pg_auto_conf_settings AS (
+        SELECT
+            spec.name,
+            to_jsonb(setting) AS value,
+            'system override' AS source
+        FROM
+            pg_file_settings,
+            LATERAL (
+                SELECT
+                    config_spec.name
+                FROM
+                    config_spec
+                WHERE
+                    pg_file_settings.name = config_spec.backend_setting
+            ) AS spec
+        WHERE
+            sourcefile = ((
+                SELECT setting
+                FROM pg_settings WHERE name = 'data_directory'
+            ) || '/postgresql.auto.conf')
+            AND applied
+    ),
+
+    pg_config AS (
         SELECT
             spec.name,
             to_jsonb(
                 CASE WHEN u.v[1] IS NOT NULL
-                THEN (setting::int * (u.v[1])::int)::text || u.v[2]
-                ELSE setting || COALESCE(settings.unit, '')
+                THEN (settings.setting::int * (u.v[1])::int)::text || u.v[2]
+                ELSE settings.setting || COALESCE(settings.unit, '')
                 END
             ) AS value,
-            source AS source,
-            30 AS priority
+            source AS source
         FROM
             (
                 SELECT
-                    pg_settings.name,
-                    COALESCE(
-                        pg_db_setting.value,
-                        pg_settings.setting) AS setting,
-                    (CASE WHEN pg_db_setting.value IS NOT NULL
-                     THEN pg_db_setting.unit ELSE pg_settings.unit
-                     END) AS unit,
-                    pg_settings.source
+                    pg_settings.name AS name,
+                    pg_settings.unit AS unit,
+                    pg_settings.setting AS setting,
+                    (CASE
+                        WHEN pg_settings.source IN ('session', 'database') THEN
+                            pg_settings.source
+                        ELSE
+                            'postgres ' || pg_settings.source
+                    END) AS source
                 FROM
                     pg_settings
-                    LEFT JOIN pg_db_setting ON (
-                        pg_settings.name = pg_db_setting.name
-                        AND pg_settings.source IN (
-                            'default',
-                            'environment variable',
-                            'configuration file',
-                            'command line',
-                            'global',
-                            'database'
-                        )
-                    )
             ) AS settings,
 
             LATERAL (
@@ -2374,26 +2336,49 @@ class SysConfigFunction(dbops.Function):
             u.value,
             u.source,
             row_number() OVER (
-                PARTITION BY u.name ORDER BY u.priority DESC) AS n
+                PARTITION BY u.name
+                ORDER BY u.source::edgedb._sys_config_source_t DESC
+            ) AS n
         FROM
-            (
-                SELECT * FROM config_defaults UNION ALL
-                SELECT * FROM config_sys UNION ALL
-                SELECT * FROM config_db UNION ALL
-                SELECT * FROM config_sess UNION ALL
-                SELECT * FROM config_backend
+            (SELECT
+                *
+             FROM
+                (
+                    SELECT * FROM config_defaults UNION ALL
+                    SELECT * FROM config_sys UNION ALL
+                    SELECT * FROM config_db UNION ALL
+                    SELECT * FROM config_sess UNION ALL
+                    SELECT * FROM pg_db_setting UNION ALL
+                    SELECT * FROM pg_conf_settings UNION ALL
+                    SELECT * FROM pg_auto_conf_settings UNION ALL
+                    SELECT * FROM pg_config
+                ) AS q
+             WHERE
+                ($1 IS NULL OR q.source::edgedb._sys_config_source_t = any($1))
+                AND ($2 IS NULL OR q.source::edgedb._sys_config_source_t <= $2)
             ) AS u
         ) AS q
     WHERE
         q.n = 1;
-    $$;
+    $$ USING source_filter, max_source;
     END;
     '''
 
     def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_read_sys_config'),
-            args=[],
+            args=[
+                (
+                    'source_filter',
+                    ('edgedb', '_sys_config_source_t[]',),
+                    'NULL',
+                ),
+                (
+                    'max_source',
+                    ('edgedb', '_sys_config_source_t'),
+                    'NULL',
+                ),
+            ],
             returns=('edgedb', '_sys_config_val_t'),
             set_returning=True,
             language='plpgsql',
@@ -2571,6 +2556,7 @@ async def bootstrap(conn):
         dbops.CreateFunction(ToLocalDatetimeFunction()),
         dbops.CreateFunction(StrToBool()),
         dbops.CreateFunction(BytesIndexWithBoundsFunction()),
+        dbops.CreateEnum(SysConfigSourceType()),
         dbops.CreateCompositeType(SysConfigValueType()),
         dbops.CreateFunction(SysConfigFunction()),
         dbops.CreateFunction(SysVersionFunction()),
@@ -3008,7 +2994,24 @@ async def generate_support_views(cluster, conn, schema):
     commands.add_command(dbops.CreateView(alias_view, or_replace=True))
 
     conf = schema.get('cfg::Config')
-    cfg_views, _ = _generate_config_type_view(schema, conf, path=[], rptr=None)
+    cfg_views, _ = _generate_config_type_view(
+        schema, conf, scope=None, path=[], rptr=None)
+    commands.add_commands([
+        dbops.CreateView(dbops.View(name=tn, query=q), or_replace=True)
+        for tn, q in cfg_views
+    ])
+
+    conf = schema.get('cfg::SystemConfig')
+    cfg_views, _ = _generate_config_type_view(
+        schema, conf, scope=qltypes.ConfigScope.SYSTEM, path=[], rptr=None)
+    commands.add_commands([
+        dbops.CreateView(dbops.View(name=tn, query=q), or_replace=True)
+        for tn, q in cfg_views
+    ])
+
+    conf = schema.get('cfg::DatabaseConfig')
+    cfg_views, _ = _generate_config_type_view(
+        schema, conf, scope=qltypes.ConfigScope.DATABASE, path=[], rptr=None)
     commands.add_commands([
         dbops.CreateView(dbops.View(name=tn, query=q), or_replace=True)
         for tn, q in cfg_views
@@ -3042,23 +3045,299 @@ async def generate_support_functions(conn, schema):
     await _execute_block(conn, block)
 
 
-async def generate_more_support_functions(conn, compiler, schema):
+async def generate_more_support_functions(conn, compiler, schema, testmode):
     commands = dbops.CommandGroup()
 
+    _, text = edbbootstrap.compile_bootstrap_script(
+        compiler,
+        schema,
+        _describe_config(
+            schema, source='system override', testmode=testmode),
+        output_format=edbcompiler.IoFormat.BINARY,
+    )
+
+    DescribeSystemConfigAsDDLFunction = dbops.Function(
+        name=('edgedb', '_describe_system_config_as_ddl'),
+        args=[],
+        returns=('text'),
+        # Stable because it's raising exceptions.
+        volatility='stable',
+        text=text,
+    )
+
     commands.add_commands([
-        dbops.CreateFunction(
-            ConfigObjectAsDDLFunction(compiler, schema, 'Port', 'ports')),
-        dbops.CreateFunction(
-            ConfigObjectAsDDLFunction(compiler, schema, 'Auth', 'auth')),
-        dbops.CreateFunction(
-            DescribeSystemConfigAsDDLFunction(compiler, schema)),
-        dbops.CreateFunction(
-            DescribeRolesAsDDLFunction(compiler, schema)),
+        dbops.CreateFunction(DescribeSystemConfigAsDDLFunction),
+        dbops.CreateFunction(DescribeRolesAsDDLFunction(compiler, schema)),
     ])
 
     block = dbops.PLTopBlock()
     commands.generate(block)
     await _execute_block(conn, block)
+
+
+def _describe_config(
+    schema: s_schema.Schema,
+    source: str,
+    testmode: bool,
+) -> str:
+    """Generate an EdgeQL query to render config as DDL."""
+
+    if source == 'system override':
+        scope = qltypes.ConfigScope.SYSTEM
+        config_object_name = 'cfg::SystemConfig'
+    else:
+        raise AssertionError(f'unexpected configuration source: {source!r}')
+
+    cfg = schema.get(config_object_name)
+    items = []
+    for pn, p in cfg.get_pointers(schema).items(schema):
+        if pn in ('id', '__type__'):
+            continue
+
+        is_internal = p.get_annotation(schema, 'cfg::internal') == 'true'
+        if is_internal and not testmode:
+            continue
+
+        ptype = p.get_target(schema)
+        mult = p.get_cardinality(schema) is qltypes.SchemaCardinality.Many
+        if isinstance(ptype, s_objtypes.ObjectType):
+            item = textwrap.indent(
+                _render_config_object(
+                    schema=schema,
+                    valtype=ptype,
+                    value_expr=ptype.get_name(schema),
+                    scope=scope,
+                    join_term='',
+                    level=1,
+                ),
+                ' ' * 4,
+            )
+        else:
+            psource = f'{config_object_name}.{ qlquote.quote_ident(pn) }'
+            renderer = _render_config_set if mult else _render_config_scalar
+            item = textwrap.indent(
+                renderer(
+                    schema=schema,
+                    valtype=ptype,
+                    value_expr=psource,
+                    name=pn,
+                    scope=scope,
+                    level=1,
+                ),
+                ' ' * 4,
+            )
+
+        condition = f'EXISTS json_get(conf, {ql(pn)})'
+        if is_internal:
+            condition = f'({condition}) AND testmode'
+        items.append(f"(\n{item}\n    IF {condition} ELSE ''\n  )")
+
+    testmode = (
+        "<bool>json_get(cfg::get_config_json(),'__internal_testmode','value')"
+        " ?? false"
+    )
+    query = (
+        f"WITH\n  conf := cfg::get_config_json(sources := [{ql(source)}]),\n"
+        + (f"  testmode := {testmode}\n" if testmode else "")
+        + "SELECT\n  " + ' ++ '.join(items)
+    )
+    return query
+
+
+def _render_config_value(
+    *,
+    schema: s_schema.Schema,
+    valtype: s_types.Type,
+    value_expr: str,
+) -> str:
+    if valtype.issubclass(schema, schema.get('std::anyreal')):
+        val = f'<str>{value_expr}'
+    elif valtype.issubclass(schema, schema.get('std::bool')):
+        val = f'<str>{value_expr}'
+    elif valtype.issubclass(schema, schema.get('std::str')):
+        val = f'cfg::_quote({value_expr})'
+    else:
+        raise AssertionError(
+            f'unexpected configuration value type: '
+            f'{valtype.get_displayname(schema)}'
+        )
+
+    return val
+
+
+def _render_config_set(
+    *,
+    schema: s_schema.Schema,
+    valtype: s_types.Type,
+    value_expr: str,
+    scope: qltypes.ConfigScope,
+    name: str,
+    level: int,
+) -> str:
+    assert isinstance(valtype, s_scalars.ScalarType)
+    v = _render_config_value(
+        schema=schema, valtype=valtype, value_expr=value_expr)
+    if level == 1:
+        return (
+            f"'CONFIGURE {scope.to_edgeql()} "
+            f"SET { qlquote.quote_ident(name) } := {{' ++ "
+            f"array_join(array_agg({v}), ', ') ++ '}};'"
+        )
+    else:
+        indent = ' ' * (4 * (level - 1))
+        return (
+            f"'{indent}{ qlquote.quote_ident(name) } := {{' ++ "
+            f"array_join(array_agg({v}), ', ') ++ '}},'"
+        )
+
+
+def _render_config_scalar(
+    *,
+    schema: s_schema.Schema,
+    valtype: s_types.Type,
+    value_expr: str,
+    scope: qltypes.ConfigScope,
+    name: str,
+    level: int,
+) -> str:
+    assert isinstance(valtype, s_scalars.ScalarType)
+    v = _render_config_value(
+        schema=schema, valtype=valtype, value_expr=value_expr)
+    if level == 1:
+        return (
+            f"'CONFIGURE {scope.to_edgeql()} "
+            f"SET { qlquote.quote_ident(name) } := ' ++ {v} ++ ';'"
+        )
+    else:
+        indent = ' ' * (4 * (level - 1))
+        return f"'{indent}{ qlquote.quote_ident(name) } := ' ++ {v} ++ ','"
+
+
+def _render_config_object(
+    *,
+    schema: s_schema.Schema,
+    valtype: s_objtypes.ObjectType,
+    value_expr: str,
+    scope: qltypes.ConfigScope,
+    join_term: str,
+    level: int,
+) -> str:
+    # Generate a valid `CONFIGURE <SCOPE> INSERT ConfigObject`
+    # shape for a given configuration object type or
+    # `INSERT ConfigObject` for a nested configuration type.
+    sub_layouts = _describe_config_object(
+        schema=schema, valtype=valtype, level=level + 1, scope=scope)
+    sub_layouts_items = []
+    if level == 1:
+        decor = [f'CONFIGURE {scope.to_edgeql()} INSERT ', ';\\n']
+    else:
+        decor = ['(INSERT ', ')']
+
+    indent = ' ' * (4 * (level - 1))
+
+    for type_name, type_layout in sub_layouts.items():
+        if type_layout:
+            sub_layout_item = (
+                f"'{indent}{decor[0]}{type_name} {{\\n'\n++ "
+                + "\n++ ".join(type_layout)
+                + f" ++ '{indent}}}{decor[1]}'"
+            )
+        else:
+            sub_layout_item = (
+                f"'{indent}{decor[0]}{type_name}{decor[1]}'"
+            )
+
+        if len(sub_layouts) > 1:
+            if type_layout:
+                sub_layout_item = (
+                    f'(WITH item := item[IS {type_name}]'
+                    f' SELECT {sub_layout_item}) '
+                    f'IF item.__type__.name = {ql(type_name)}'
+                )
+            else:
+                sub_layout_item = (
+                    f'{sub_layout_item} '
+                    f'IF item.__type__.name = {ql(type_name)}'
+                )
+
+        sub_layouts_items.append(sub_layout_item)
+
+    if len(sub_layouts_items) > 1:
+        sli_render = '\nELSE '.join(sub_layouts_items) + "\nELSE ''"
+    else:
+        sli_render = sub_layouts_items[0]
+
+    return '\n'.join((
+        f"array_join(array_agg((",
+        f"  FOR item IN {{ {value_expr} }}",
+        f"  UNION (",
+        f"{textwrap.indent(sli_render, ' ' * 4)}",
+        f"  )",
+        f")), {ql(join_term)})",
+    ))
+
+
+def _describe_config_object(
+    *,
+    schema: s_schema.Schema,
+    valtype: s_objtypes.ObjectType,
+    level: int,
+    scope: qltypes.ConfigScope,
+) -> Dict[str, List[str]]:
+    cfg_types = [valtype]
+    cfg_types.extend(cfg_types[0].descendants(schema))
+    layouts = {}
+    for cfg in cfg_types:
+        items = []
+        for pn, p in cfg.get_pointers(schema).items(schema):
+            if (
+                pn in ('id', '__type__')
+                or p.get_annotation(schema, 'cfg::internal') == 'true'
+            ):
+                continue
+
+            ptype = p.get_target(schema)
+            mult = p.get_cardinality(schema) is qltypes.SchemaCardinality.Many
+            psource = f'item.{ qlquote.quote_ident(pn) }'
+
+            if isinstance(ptype, s_objtypes.ObjectType):
+                rval = textwrap.indent(
+                    _render_config_object(
+                        schema=schema,
+                        valtype=ptype,
+                        value_expr=psource,
+                        scope=scope,
+                        join_term=' UNION ',
+                        level=level + 1,
+                    ),
+                    ' ' * 2,
+                ).strip()
+                indent = ' ' * (4 * (level - 1))
+                item = (
+                    f"'{indent}{qlquote.quote_ident(pn)} "
+                    f":= (\\n'\n++ {rval} ++ '\\n{indent}),\\n'"
+                )
+                condition = None
+            else:
+                render = _render_config_set if mult else _render_config_scalar
+                item = render(
+                    schema=schema,
+                    valtype=ptype,
+                    value_expr=psource,
+                    scope=scope,
+                    name=pn,
+                    level=level,
+                )
+                condition = f'EXISTS {psource}'
+
+            if condition is not None:
+                item = f"({item} ++ '\\n' IF {condition} ELSE '')"
+
+            items.append(item)
+
+        layouts[cfg.get_name(schema)] = items
+
+    return layouts
 
 
 def _build_key_source(schema, exc_props, rptr, source_idx):
@@ -3135,9 +3414,27 @@ def _build_data_source(schema, rptr, source_idx, *, alias=None):
     return sourceN
 
 
-def _generate_config_type_view(schema, stype, *, path, rptr, _memo=None):
+def _generate_config_type_view(
+    schema: s_schema.Schema,
+    stype: s_objtypes.ObjectType,
+    *,
+    scope: Optional[qltypes.ConfigScope],
+    path,
+    rptr,
+    _memo=None,
+):
     exc = schema.get('std::exclusive')
     json_t = schema.get('std::json')
+
+    if scope is not None:
+        if scope is qltypes.ConfigScope.SYSTEM:
+            max_source = "'system override'"
+        elif scope is qltypes.ConfigScope.DATABASE:
+            max_source = "'database'"
+        else:
+            raise AssertionError(f'unexpected config scope: {scope!r}')
+    else:
+        max_source = 'NULL'
 
     if _memo is None:
         _memo = set()
@@ -3157,7 +3454,7 @@ def _generate_config_type_view(schema, stype, *, path, rptr, _memo=None):
         if rptr is None:
             source0 = textwrap.dedent(f'''\
                 (SELECT jsonb_object_agg(name, value) AS val
-                FROM edgedb._read_sys_config() cfg) AS q0''')
+                FROM edgedb._read_sys_config(NULL, {max_source}) cfg) AS q0''')
         else:
             rptr_multi = (
                 rptr.get_cardinality(schema) is qltypes.SchemaCardinality.Many)
@@ -3169,14 +3466,14 @@ def _generate_config_type_view(schema, stype, *, path, rptr, _memo=None):
                     (SELECT el.val
                      FROM
                         (SELECT (value::jsonb) AS val
-                        FROM edgedb._read_sys_config()
+                        FROM edgedb._read_sys_config(NULL, {max_source})
                         WHERE name = {ql(rptr_name)}) AS cfg,
                         LATERAL jsonb_array_elements(cfg.val) AS el(val)
                     ) AS q0''')
             else:
                 source0 = textwrap.dedent(f'''\
                     (SELECT (value::jsonb) AS val
-                    FROM edgedb._read_sys_config() cfg
+                    FROM edgedb._read_sys_config(NULL, {max_source}) cfg
                     WHERE name = {ql(rptr_name)}) AS q0''')
 
         sources.append(source0)
@@ -3195,14 +3492,14 @@ def _generate_config_type_view(schema, stype, *, path, rptr, _memo=None):
                         (SELECT el.val
                         FROM
                             (SELECT (value::jsonb) AS val
-                            FROM edgedb._read_sys_config()
+                            FROM edgedb._read_sys_config(NULL, {max_source})
                             WHERE name = {ql(l_name)}) AS cfg,
                             LATERAL jsonb_array_elements(cfg.val) AS el(val)
                         ) AS q{i}''')
                 else:
                     sourceN = textwrap.dedent(f'''\
                         (SELECT (value::jsonb) AS val
-                        FROM edgedb._read_sys_config() cfg
+                        FROM edgedb._read_sys_config(NULL, {max_source}) cfg
                         WHERE name = {ql(l_name)}) AS q{i}''')
             else:
                 sourceN = _build_data_source(schema, l, i - 1)
@@ -3314,13 +3611,23 @@ def _generate_config_type_view(schema, stype, *, path, rptr, _memo=None):
             target_path = path
 
         target_views, target_exc_props = _generate_config_type_view(
-            schema, link_type, path=target_path, rptr=link, _memo=_memo)
+            schema,
+            link_type,
+            scope=scope,
+            path=target_path,
+            rptr=link,
+            _memo=_memo,
+        )
 
         for descendant in link_type.descendants(schema):
             if descendant not in _memo:
                 desc_views, _ = _generate_config_type_view(
-                    schema, descendant, path=target_path,
-                    rptr=link, _memo=_memo,
+                    schema,
+                    descendant,
+                    scope=scope,
+                    path=target_path,
+                    rptr=link,
+                    _memo=_memo,
                 )
                 views.extend(desc_views)
 
@@ -3371,14 +3678,24 @@ def _generate_config_type_view(schema, stype, *, path, rptr, _memo=None):
             target_path = path
 
         target_views, target_exc_props = _generate_config_type_view(
-            schema, link_type, path=target_path, rptr=link, _memo=_memo)
+            schema,
+            link_type,
+            scope=scope,
+            path=target_path,
+            rptr=link,
+            _memo=_memo,
+        )
         views.extend(target_views)
 
         for descendant in link_type.descendants(schema):
             if descendant not in _memo:
                 desc_views, _ = _generate_config_type_view(
-                    schema, descendant, path=target_path,
-                    rptr=link, _memo=_memo,
+                    schema,
+                    descendant,
+                    scope=scope,
+                    path=target_path,
+                    rptr=link,
+                    _memo=_memo,
                 )
                 views.extend(desc_views)
 

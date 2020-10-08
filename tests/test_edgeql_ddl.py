@@ -4269,6 +4269,28 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             }]
         )
 
+    async def test_edgeql_ddl_describe_roles(self):
+        await self.con.execute("""
+            CREATE SUPERUSER ROLE base1;
+            CREATE SUPERUSER ROLE `base 2`;
+            CREATE SUPERUSER ROLE child1 EXTENDING base1;
+            CREATE SUPERUSER ROLE child2 EXTENDING `base 2`;
+            CREATE SUPERUSER ROLE child3 EXTENDING base1, child2 {
+                SET password := 'test'
+            };
+        """)
+        roles = next(iter(await self.con.query("DESCRIBE ROLES")))
+        base1 = roles.index('CREATE SUPERUSER ROLE `base1`;')
+        base2 = roles.index('CREATE SUPERUSER ROLE `base 2`;')
+        child1 = roles.index('CREATE SUPERUSER ROLE `child1`')
+        child2 = roles.index('CREATE SUPERUSER ROLE `child2`')
+        child3 = roles.index('CREATE SUPERUSER ROLE `child3`')
+        self.assertGreater(child1, base1, roles)
+        self.assertGreater(child2, base2, roles)
+        self.assertGreater(child3, child2, roles)
+        self.assertGreater(child3, base1, roles)
+        self.assertIn("SET password_hash := 'SCRAM-SHA-256$4096:", roles)
+
     async def test_edgeql_ddl_rename_01(self):
         await self.con.execute(r"""
             CREATE TYPE test::RenameObj01 {

@@ -48,14 +48,22 @@ class EnumExists(base.Condition):
         ''')
 
 
+class Enum(base.DBObject):
+
+    def __init__(self, name, values, *, metadata=None):
+        self.name = name
+        self.values = values
+        super().__init__(metadata=metadata)
+
+
 class CreateEnum(ddl.SchemaObjectOperation):
     def __init__(
-            self, name, values, *, conditions=None, neg_conditions=None,
+            self, enum, *, conditions=None, neg_conditions=None,
             priority=0):
         super().__init__(
-            name, conditions=conditions, neg_conditions=neg_conditions,
+            enum.name, conditions=conditions, neg_conditions=neg_conditions,
             priority=priority)
-        self.values = values
+        self.values = enum.values
 
     def code(self, block: base.PLBlock) -> str:
         vals = ', '.join(ql(v) for v in self.values)

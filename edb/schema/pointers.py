@@ -232,7 +232,7 @@ class Pointer(referencing.ReferencedInheritingObject,
               s_abc.Pointer):
 
     source = so.SchemaField(
-        so.Object,
+        so.InheritingObject,
         default=None, compcoef=None,
         inheritable=False)
 

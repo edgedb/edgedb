@@ -20,7 +20,7 @@
 # These definitions are picked up if the EdgeDB instance is bootstrapped
 # with --testmode.
 
-CREATE TYPE cfg::SessionConfig {
+CREATE TYPE cfg::TestSessionConfig {
     CREATE REQUIRED PROPERTY name -> std::str {
         CREATE CONSTRAINT std::exclusive;
     }
@@ -42,7 +42,7 @@ CREATE TYPE cfg::Subclass2 EXTENDING cfg::Base {
 };
 
 
-CREATE TYPE cfg::SystemConfig {
+CREATE TYPE cfg::TestSystemConfig {
     CREATE REQUIRED PROPERTY name -> std::str {
         CREATE CONSTRAINT std::exclusive;
     };
@@ -51,9 +51,13 @@ CREATE TYPE cfg::SystemConfig {
 };
 
 
-ALTER TYPE cfg::Config {
-    CREATE MULTI LINK sessobj -> cfg::SessionConfig;
-    CREATE MULTI LINK sysobj -> cfg::SystemConfig;
+ALTER TYPE cfg::AbstractConfig {
+    CREATE MULTI LINK sessobj -> cfg::TestSessionConfig {
+        CREATE ANNOTATION cfg::internal := 'true';
+    };
+    CREATE MULTI LINK sysobj -> cfg::TestSystemConfig {
+        CREATE ANNOTATION cfg::internal := 'true';
+    };
 
     CREATE PROPERTY __internal_testvalue -> std::int64 {
         CREATE ANNOTATION cfg::internal := 'true';

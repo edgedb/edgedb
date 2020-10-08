@@ -24,12 +24,9 @@ import dataclasses
 import json
 from typing import *
 
-from edb.edgeql import ast as qlast
-from edb.edgeql import codegen as qlcodegen
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
 from edb.ir import staeval
-from edb.schema import utils as s_utils
 
 from . import types
 
@@ -169,22 +166,3 @@ def load_spec_from_schema(schema):
         settings.append(setting)
 
     return Spec(*settings)
-
-
-def generate_config_query(schema) -> str:
-    cfg = schema.get('cfg::Config')
-
-    ref = qlast.ObjectRef(name='Config', module='cfg')
-    query = qlast.SelectQuery(
-        result=qlast.Shape(
-            expr=qlast.Path(
-                steps=[ref]
-            ),
-            elements=s_utils.get_config_type_shape(schema, cfg, path=[ref]),
-        ),
-        limit=qlast.IntegerConstant(
-            value='1',
-        ),
-    )
-
-    return qlcodegen.generate_source(query)

@@ -678,7 +678,7 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
     )
 
     await metaschema.generate_more_support_functions(
-        conn, compiler, stdlib.reflschema)
+        conn, compiler, stdlib.reflschema, testmode)
 
     return schema, stdlib.reflschema, compiler
 
@@ -764,15 +764,21 @@ async def _configure(
     *,
     insecure: bool = False,
 ) -> None:
+    config_spec = config.get_settings()
+
     scripts = []
 
     if cluster.is_managed() and not devmode.is_in_dev_mode():
         memory_kb = psutil.virtual_memory().total // 1024
-        settings: Mapping[str, str] = {
-            'shared_buffers': f'"{int(memory_kb * 0.2)}kB"',
-            'effective_cache_size': f'"{int(memory_kb * 0.5)}kB"',
-            'query_work_mem': f'"{6 * (2 ** 10)}kB"',
-        }
+        settings = config.from_dict(
+            config_spec,
+            {
+                'shared_buffers': f'"{int(memory_kb * 0.2)}kB"',
+                'effective_cache_size': f'"{int(memory_kb * 0.5)}kB"',
+                'query_work_mem': f'"{6 * (2 ** 10)}kB"',
+            },
+            source='dynamic default',
+        )
 
         for setting, value in settings.items():
             scripts.append(f'''
@@ -789,8 +795,6 @@ async def _configure(
             };
         ''')
 
-    config_spec = config.get_settings()
-
     for script in scripts:
         _, sql = compile_bootstrap_script(
             compiler,
@@ -806,10 +810,10 @@ async def _configure(
         config_op_data = await conn.fetchval(sql)
         if config_op_data is not None and isinstance(config_op_data, str):
             config_op = config.Operation.from_json(config_op_data)
-            storage: Mapping[str, str] = immutables.Map()
+            storage: Mapping[str, config.SettingValue] = immutables.Map()
             settings = config_op.apply(config_spec, storage)
 
-    config_json = config.to_json(config_spec, settings)
+    config_json = config.to_json(config_spec, settings, include_source=False)
     block = dbops.PLTopBlock()
     dbops.UpdateMetadata(
         dbops.Database(name=edbdef.EDGEDB_TEMPLATE_DB),
@@ -822,12 +826,10 @@ async def _configure(
 async def _compile_sys_queries(schema, compiler, cluster):
     queries = {}
 
-    cfg_query = config.generate_config_query(schema)
-
     schema, sql = compile_bootstrap_script(
         compiler,
         schema,
-        cfg_query,
+        'SELECT cfg::get_config_json()',
         expected_cardinality_one=True,
         single_statement=True,
     )

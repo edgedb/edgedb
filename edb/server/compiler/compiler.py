@@ -383,10 +383,10 @@ class Compiler(BaseCompiler):
         session_config = current_tx.get_session_config()
 
         return config.lookup(
-            config.get_settings(),
             '__internal_testmode',
             session_config,
-            allow_unrecognized=True)
+            allow_unrecognized=True,
+        )
 
     def _new_delta_context(self, ctx: CompileContext):
         context = s_delta.CommandContext()
@@ -580,10 +580,10 @@ class Compiler(BaseCompiler):
         )
 
         disable_constant_folding = config.lookup(
-            config.get_settings(),
             '__internal_no_const_folding',
             session_config,
-            allow_unrecognized=True)
+            allow_unrecognized=True,
+        )
 
         # the capability to execute transaction or session control
         # commands indicates that session mode is available

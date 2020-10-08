@@ -1252,7 +1252,7 @@ class CreateScalarType(ScalarTypeMetaCommand,
             new_enum_name = common.get_backend_name(
                 schema, scalar, catenate=False)
             self.pgops.add(dbops.CreateEnum(
-                name=new_enum_name, values=enum_values))
+                dbops.Enum(name=new_enum_name, values=enum_values)))
             base = q(*new_enum_name)
 
         else:

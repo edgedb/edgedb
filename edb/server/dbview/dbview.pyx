@@ -362,7 +362,12 @@ cdef class DatabaseIndex:
         return db
 
     async def _save_system_overrides(self, conn):
-        data = config.to_json(config.get_settings(), self._sys_config)
+        data = config.to_json(
+            config.get_settings(),
+            self._sys_config,
+            setting_filter=lambda v: v.source == 'system override',
+            include_source=False,
+        )
         block = dbops.PLTopBlock()
         dbops.UpdateMetadata(
             dbops.Database(name=defines.EDGEDB_TEMPLATE_DB),

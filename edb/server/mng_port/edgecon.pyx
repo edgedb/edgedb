@@ -638,7 +638,7 @@ cdef class EdgeConnection:
                 if stype == b'C':
                     setting = config.get_settings()[sname]
                     pyval = config.value_from_json(setting, svalue)
-                    conf = conf.set(sname, pyval)
+                    conf = config.set_value(conf, sname, pyval, 'session')
                 elif stype == b'A':
                     if not sname:
                         sname = None

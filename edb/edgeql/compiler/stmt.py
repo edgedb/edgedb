@@ -593,7 +593,7 @@ def compile_DescribeStmt(
         stmt = irast.SelectStmt()
         init_stmt(stmt, ql, ctx=ictx, parent_ctx=ctx)
 
-        if ql.object == qlast.DescribeGlobal.Schema:
+        if ql.object is qlast.DescribeGlobal.Schema:
             if ql.language is qltypes.DescribeLanguage.DDL:
                 # DESCRIBE SCHEMA
                 text = s_ddl.ddl_text_from_schema(
@@ -613,7 +613,7 @@ def compile_DescribeStmt(
                 ctx=ictx,
             )
 
-        elif ql.object == qlast.DescribeGlobal.SystemConfig:
+        elif ql.object is qlast.DescribeGlobal.SystemConfig:
             if ql.language is qltypes.DescribeLanguage.DDL:
                 function_call = dispatch.compile(
                     qlast.FunctionCall(
@@ -625,7 +625,8 @@ def compile_DescribeStmt(
             else:
                 raise errors.QueryError(
                     f'cannot describe config as {ql.language}')
-        elif ql.object == qlast.DescribeGlobal.Roles:
+
+        elif ql.object is qlast.DescribeGlobal.Roles:
             if ql.language is qltypes.DescribeLanguage.DDL:
                 function_call = dispatch.compile(
                     qlast.FunctionCall(
@@ -637,6 +638,7 @@ def compile_DescribeStmt(
             else:
                 raise errors.QueryError(
                     f'cannot describe roles as {ql.language}')
+
         else:
             assert isinstance(ql.object, qlast.ObjectRef), ql.object
             modules = []

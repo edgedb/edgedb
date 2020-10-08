@@ -20,25 +20,25 @@
 from __future__ import annotations
 from typing import *
 
+from edb import errors
 from edb.edgeql.qltypes import ConfigScope
 
-from .ops import OpCode, Operation, lookup
-from .ops import spec_to_json, to_json, from_json
+from .ops import OpCode, Operation, SettingValue
+from .ops import spec_to_json, to_json, from_json, from_dict, set_value
 from .ops import value_from_json
-from .spec import Spec, Setting, load_spec_from_schema, generate_config_query
+from .spec import Spec, Setting, load_spec_from_schema
 from .types import ConfigType
 
 
 __all__ = (
     'get_settings', 'set_settings',
     'lookup',
-    'Spec', 'Setting',
-    'spec_to_json', 'to_json', 'from_json',
+    'Spec', 'Setting', 'SettingValue',
+    'spec_to_json', 'to_json', 'from_json', 'from_dict', 'set_value',
     'value_from_json',
     'ConfigScope', 'OpCode', 'Operation',
     'ConfigType',
     'load_spec_from_schema',
-    'generate_config_query',
 )
 
 
@@ -52,3 +52,33 @@ def get_settings() -> Spec:
 def set_settings(settings: Spec) -> None:
     global _settings
     _settings = settings
+
+
+def lookup(
+    name: str,
+    *configs: Mapping[str, SettingValue],
+    allow_unrecognized: bool = False,
+    spec: Optional[Spec] = None,
+) -> Any:
+
+    if spec is None:
+        spec = get_settings()
+
+    try:
+        setting = spec[name]
+    except (KeyError, TypeError):
+        if allow_unrecognized:
+            return None
+        else:
+            raise errors.ConfigurationError(
+                f'unrecognized configuration parameter {name!r}')
+
+    for c in configs:
+        try:
+            setting_value = c[name]
+        except KeyError:
+            pass
+        else:
+            return setting_value.value
+    else:
+        return setting.default

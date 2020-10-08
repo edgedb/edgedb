@@ -478,17 +478,17 @@ def top_output_as_config_op(
             ]
         )
 
-        result = pgast.FuncCall(
+        array = pgast.FuncCall(
             name=('jsonb_build_array',),
             args=result_row.args,
             null_safe=True,
             ser_safe=True,
         )
 
-        return pgast.SelectStmt(
+        result = pgast.SelectStmt(
             target_list=[
                 pgast.ResTarget(
-                    val=result,
+                    val=array,
                 ),
             ],
             from_clause=[
@@ -496,6 +496,11 @@ def top_output_as_config_op(
             ],
         )
 
+        result.ctes = stmt.ctes
+        result.argnames = stmt.argnames
+        stmt.ctes = []
+
+        return result
     else:
         raise errors.InternalServerError(
             f'CONFIGURE {ir_set.expr.scope} INSERT is not supported')

@@ -111,10 +111,12 @@ class Server:
         cfg = self._dbindex.get_sys_config()
 
         if not self._mgmt_host_addr:
-            self._mgmt_host_addr = cfg.get('listen_addresses') or 'localhost'
+            self._mgmt_host_addr = (
+                config.lookup('listen_addresses', cfg) or 'localhost')
 
         if not self._mgmt_port_no:
-            self._mgmt_port_no = cfg.get('listen_port', defines.EDGEDB_PORT)
+            self._mgmt_port_no = (
+                config.lookup('listen_port', cfg) or defines.EDGEDB_PORT)
 
         self._mgmt_port = self._new_port(
             mng_port.ManagementPort,
@@ -126,9 +128,9 @@ class Server:
         )
 
     def _populate_sys_auth(self):
-        self._sys_auth = tuple(sorted(
-            self._dbindex.get_sys_config().get('auth', ()),
-            key=lambda a: a.priority))
+        cfg = self._dbindex.get_sys_config()
+        auth = config.lookup('auth', cfg) or ()
+        self._sys_auth = tuple(sorted(auth, key=lambda a: a.priority))
 
     def _get_pgaddr(self):
         return self._cluster.get_connection_spec()
@@ -318,8 +320,9 @@ class Server:
                 g.create_task(port.start())
 
         sys_config = self._dbindex.get_sys_config()
-        if 'ports' in sys_config:
-            for portconf in sys_config['ports']:
+        ports = config.lookup('ports', sys_config)
+        if ports:
+            for portconf in ports:
                 await self._start_portconf(portconf, suppress_errors=True)
 
         self._serving = True

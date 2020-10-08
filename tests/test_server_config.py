@@ -19,6 +19,7 @@
 
 import dataclasses
 import json
+import textwrap
 import typing
 import unittest
 
@@ -109,28 +110,62 @@ class TestServerConfigUtils(unittest.TestCase):
         config.set_settings(self._cfgspec)
 
     def test_server_config_01(self):
-        j = ops.to_json(
-            testspec1,
-            immutables.Map({s.name: s.default for s in testspec1.values()}))
+        conf = immutables.Map({
+            s.name: ops.SettingValue(
+                name=s.name,
+                value=s.default,
+                source='system override',
+            ) for s in testspec1.values()
+        })
 
+        j = ops.to_json(testspec1, conf)
         self.assertEqual(
             json.loads(j),
             {
-                'bool': True,
-                'bools': [],
-                'int': 0,
-                'ints': [],
-                'port': testspec1['port'].default.to_json_value(),
-                'ports': [],
-                'str': 'hello',
-                'strings': [],
+                'bool': {
+                    'name': 'bool',
+                    'value': True,
+                    'source': 'system override',
+                },
+                'bools': {
+                    'name': 'bools',
+                    'value': [],
+                    'source': 'system override',
+                },
+                'int': {
+                    'name': 'int',
+                    'value': 0,
+                    'source': 'system override',
+                },
+                'ints': {
+                    'name': 'ints',
+                    'value': [],
+                    'source': 'system override',
+                },
+                'port': {
+                    'name': 'port',
+                    'value': testspec1['port'].default.to_json_value(),
+                    'source': 'system override',
+                },
+                'ports': {
+                    'name': 'ports',
+                    'value': [],
+                    'source': 'system override',
+                },
+                'str': {
+                    'name': 'str',
+                    'value': 'hello',
+                    'source': 'system override',
+                },
+                'strings': {
+                    'name': 'strings',
+                    'value': [],
+                    'source': 'system override',
+                },
             }
         )
 
-        self.assertEqual(
-            ops.from_json(testspec1, j),
-            immutables.Map({s.name: s.default for s in testspec1.values()})
-        )
+        self.assertEqual(ops.from_json(testspec1, j), conf)
 
     def test_server_config_02(self):
         storage = immutables.Map()
@@ -152,7 +187,7 @@ class TestServerConfigUtils(unittest.TestCase):
         storage2 = op.apply(testspec1, storage1)
 
         self.assertEqual(
-            storage2['ports'],
+            config.lookup('ports', storage2, spec=testspec1),
             {
                 Port.from_pyvalue(make_port_value(database='f1')),
                 Port.from_pyvalue(make_port_value(database='f2')),
@@ -171,7 +206,7 @@ class TestServerConfigUtils(unittest.TestCase):
         storage3 = op.apply(testspec1, storage2)
 
         self.assertEqual(
-            storage3['ports'],
+            config.lookup('ports', storage3, spec=testspec1),
             {
                 Port.from_pyvalue(make_port_value(database='f2')),
             })
@@ -258,7 +293,7 @@ class TestServerConfigUtils(unittest.TestCase):
             11
         )
         storage1 = op.apply(testspec1, storage)
-        self.assertEqual(storage1['int'], 11)
+        self.assertEqual(config.lookup('int', storage1, spec=testspec1), 11)
 
         op = ops.Operation(
             ops.OpCode.CONFIG_SET,
@@ -294,9 +329,10 @@ class TestServerConfigUtils(unittest.TestCase):
         )
         storage2 = op.apply(testspec1, storage2)
 
-        self.assertEqual(storage1['int'], 11)
-        self.assertEqual(storage2['int'], 42)
-        self.assertEqual(storage2['ints'], {42, 43})
+        self.assertEqual(config.lookup('int', storage1, spec=testspec1), 11)
+        self.assertEqual(config.lookup('int', storage2, spec=testspec1), 42)
+        self.assertEqual(
+            config.lookup('ints', storage2, spec=testspec1), {42, 43})
 
     def test_server_config_05(self):
         j = ops.spec_to_json(testspec1)
@@ -355,7 +391,7 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
                 edgedb.UnsupportedFeatureError,
                 'CONFIGURE SESSION INSERT is not supported'):
             await self.con.query('''
-                CONFIGURE SESSION INSERT SessionConfig { name := 'foo' };
+                CONFIGURE SESSION INSERT TestSessionConfig { name := 'foo' };
             ''')
 
         with self.assertRaisesRegex(
@@ -363,14 +399,14 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
                 'CONFIGURE DATABASE INSERT is not supported'):
             await self.con.query('''
                 CONFIGURE CURRENT DATABASE
-                INSERT SessionConfig { name := 'foo' };
+                INSERT TestSessionConfig { name := 'foo' };
             ''')
 
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 'module must be either \'cfg\' or empty'):
             await self.con.query('''
-                CONFIGURE SYSTEM INSERT cf::SystemConfig { name := 'foo' };
+                CONFIGURE SYSTEM INSERT cf::TestSystemConfig { name := 'foo' };
             ''')
 
     async def test_server_proto_configure_02(self):
@@ -389,27 +425,43 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
         self.assertEqual(conf['value'], 0)
         self.assertEqual(conf['source'], 'default')
 
-        # The "Configure" is spelled the way it's spelled on purpose
-        # to test that we handle keywords in a case-insensitive manner
-        # in constant extraction code.
-        await self.con.query('''
-            Configure SYSTEM SET __internal_testvalue := 1;
-        ''')
+        try:
+            await self.con.query('''
+                CONFIGURE SESSION SET multiprop := {"one", "two"};
+            ''')
 
-        conf = await self.con.query_one('''
-            SELECT cfg::Config.__internal_testvalue LIMIT 1
-        ''')
-        self.assertEqual(conf, 1)
+            # The "Configure" is spelled the way it's spelled on purpose
+            # to test that we handle keywords in a case-insensitive manner
+            # in constant extraction code.
+            await self.con.query('''
+                Configure SYSTEM SET __internal_testvalue := 1;
+            ''')
 
-        jsonconf = await self.con.query_one('''
-            SELECT cfg::get_config_json()
-        ''')
+            conf = await self.con.query_one('''
+                SELECT cfg::Config.__internal_testvalue LIMIT 1
+            ''')
+            self.assertEqual(conf, 1)
 
-        all_conf = json.loads(jsonconf)
-        conf = all_conf['__internal_testvalue']
+            jsonconf = await self.con.query_one('''
+                SELECT cfg::get_config_json()
+            ''')
 
-        self.assertEqual(conf['value'], 1)
-        self.assertEqual(conf['source'], 'system override')
+            all_conf = json.loads(jsonconf)
+
+            conf = all_conf['__internal_testvalue']
+            self.assertEqual(conf['value'], 1)
+            self.assertEqual(conf['source'], 'system override')
+
+            conf = all_conf['multiprop']
+            self.assertEqual(set(conf['value']), {'one', 'two'})
+            self.assertEqual(conf['source'], 'session')
+        finally:
+            await self.con.execute('''
+                CONFIGURE SYSTEM RESET __internal_testvalue
+            ''')
+            await self.con.execute('''
+                CONFIGURE SESSION RESET multiprop
+            ''')
 
     async def test_server_proto_configure_03(self):
         await self.assert_query_result(
@@ -420,18 +472,18 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
         )
 
         await self.con.query('''
-            CONFIGURE SYSTEM INSERT SystemConfig { name := 'test_03' };
+            CONFIGURE SYSTEM INSERT TestSystemConfig { name := 'test_03' };
         ''')
 
         await self.con.query('''
-            CONFIGURE SYSTEM INSERT cfg::SystemConfig {
+            CONFIGURE SYSTEM INSERT cfg::TestSystemConfig {
                 name := 'test_03_01'
             };
         ''')
 
         with self.assertRaisesRegex(edgedb.InterfaceError, r'\bquery_one\('):
             await self.con.query_one('''
-                CONFIGURE SYSTEM INSERT cfg::SystemConfig {
+                CONFIGURE SYSTEM INSERT cfg::TestSystemConfig {
                     name := 'test_03_0122222222'
                 };
             ''')
@@ -453,7 +505,8 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
         )
 
         await self.con.query('''
-            CONFIGURE SYSTEM RESET SystemConfig FILTER .name = 'test_03';
+            CONFIGURE SYSTEM
+            RESET TestSystemConfig FILTER .name = 'test_03';
         ''')
 
         await self.assert_query_result(
@@ -469,7 +522,8 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
         )
 
         await self.con.query('''
-            CONFIGURE SYSTEM RESET SystemConfig FILTER .name = 'test_03_01';
+            CONFIGURE SYSTEM
+            RESET TestSystemConfig FILTER .name = 'test_03_01';
         ''')
 
         await self.assert_query_result(
@@ -482,11 +536,12 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
 
         # Repeat reset that doesn't match anything this time.
         await self.con.query('''
-            CONFIGURE SYSTEM RESET SystemConfig FILTER .name = 'test_03_01';
+            CONFIGURE SYSTEM
+            RESET TestSystemConfig FILTER .name = 'test_03_01';
         ''')
 
         await self.con.query('''
-            CONFIGURE SYSTEM INSERT SystemConfig {
+            CONFIGURE SYSTEM INSERT TestSystemConfig {
                 name := 'test_03',
                 obj := (INSERT Subclass1 { name := 'foo', sub1 := 'sub1' })
             }
@@ -515,7 +570,7 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
         )
 
         await self.con.query('''
-            CONFIGURE SYSTEM INSERT SystemConfig {
+            CONFIGURE SYSTEM INSERT TestSystemConfig {
                 name := 'test_03_01',
                 obj := (INSERT Subclass2 { name := 'bar', sub2 := 'sub2' })
             }
@@ -552,7 +607,7 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
         )
 
         await self.con.query('''
-            CONFIGURE SYSTEM RESET SystemConfig
+            CONFIGURE SYSTEM RESET TestSystemConfig
             FILTER .obj.name IN {'foo', 'bar'} AND .name ILIKE 'test_03%';
         ''')
 
@@ -565,8 +620,8 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
         )
 
         await self.con.query('''
-            CONFIGURE SYSTEM INSERT SystemConfig {
-                name := 'test_03_' ++ <str>count(DETACHED SystemConfig),
+            CONFIGURE SYSTEM INSERT TestSystemConfig {
+                name := 'test_03_' ++ <str>count(DETACHED TestSystemConfig),
             }
         ''')
 
@@ -586,7 +641,7 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
         )
 
         await self.con.query('''
-            CONFIGURE SYSTEM RESET SystemConfig
+            CONFIGURE SYSTEM RESET TestSystemConfig
             FILTER .name ILIKE 'test_03%';
         ''')
 
@@ -603,7 +658,7 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
                 edgedb.UnsupportedFeatureError,
                 'CONFIGURE SESSION INSERT is not supported'):
             await self.con.query('''
-                CONFIGURE SESSION INSERT SessionConfig {name := 'test_04'}
+                CONFIGURE SESSION INSERT TestSessionConfig {name := 'test_04'}
             ''')
 
         with self.assertRaisesRegex(
@@ -637,16 +692,16 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
             ''')
 
         await self.con.query('''
-            CONFIGURE SYSTEM INSERT SystemConfig {
+            CONFIGURE SYSTEM INSERT TestSystemConfig {
                 name := 'test_04',
             }
         ''')
 
         with self.assertRaisesRegex(
                 edgedb.ConstraintViolationError,
-                "SystemConfig.name violates exclusivity constraint"):
+                "TestSystemConfig.name violates exclusivity constraint"):
             await self.con.query('''
-                CONFIGURE SYSTEM INSERT SystemConfig {
+                CONFIGURE SYSTEM INSERT TestSystemConfig {
                     name := 'test_04',
                 }
             ''')
@@ -683,6 +738,24 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
                 ],
             )
 
+            await self.assert_query_result(
+                '''
+                SELECT cfg::SystemConfig.effective_cache_size
+                ''',
+                [
+                    '2GB'
+                ],
+            )
+
+            await self.assert_query_result(
+                '''
+                SELECT cfg::DatabaseConfig.effective_cache_size
+                ''',
+                [
+                    '3GB'
+                ],
+            )
+
             await self.con.execute('''
                 CONFIGURE SESSION RESET effective_cache_size;
             ''')
@@ -705,7 +778,7 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
                 SELECT cfg::Config.effective_cache_size
                 ''',
                 [
-                    '2097152kB'
+                    '2GB'
                 ],
             )
         finally:
@@ -829,6 +902,41 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
                 CONFIGURE SYSTEM RESET multiprop;
             ''')
 
+    async def test_server_proto_configure_describe_system_config(self):
+        try:
+            conf1 = "CONFIGURE SYSTEM SET singleprop := '1337';"
+            await self.con.execute(conf1)
+
+            conf2 = textwrap.dedent('''\
+                CONFIGURE SYSTEM INSERT cfg::TestSystemConfig {
+                    name := 'test_describe',
+                    obj := (
+                        (INSERT cfg::Subclass1 {
+                            name := 'foo',
+                            sub1 := 'sub1',
+                        })
+                    ),
+                };
+            ''')
+            await self.con.execute(conf2)
+
+            conf3 = "CONFIGURE SESSION SET singleprop := '42';"
+            await self.con.execute(conf3)
+
+            res = await self.con.query_one('DESCRIBE SYSTEM CONFIG;')
+            self.assertIn(conf1, res)
+            self.assertIn(conf2, res)
+            self.assertNotIn(conf3, res)
+
+        finally:
+            await self.con.execute('''
+                CONFIGURE SYSTEM
+                RESET TestSystemConfig FILTER .name = 'test_describe'
+            ''')
+            await self.con.execute('''
+                CONFIGURE SYSTEM RESET singleprop;
+            ''')
+
     async def test_server_proto_configure_msg(self):
         msgs = []
 
@@ -918,7 +1026,7 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
             )
 
             self.run_cli(
-                'configure', 'insert', 'systemconfig', '--name=cliconf'
+                'configure', 'insert', 'testsystemconfig', '--name=cliconf'
             )
 
             await self.assert_query_result(
@@ -937,7 +1045,7 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
             )
 
             self.run_cli(
-                'configure', 'reset', 'systemconfig', '--name=cliconf'
+                'configure', 'reset', 'testsystemconfig', '--name=cliconf'
             )
 
         finally:
@@ -950,5 +1058,6 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
             ''')
 
             await self.con.execute('''
-                CONFIGURE SYSTEM RESET SystemConfig FILTER .name = 'cliconf';
+                CONFIGURE SYSTEM
+                RESET TestSystemConfig FILTER .name = 'cliconf';
             ''')

@@ -241,7 +241,7 @@ def _validate_op(
         )
 
     name = expr.name.name
-    cfg_host_type = ctx.env.get_track_schema_type('cfg::Config')
+    cfg_host_type = ctx.env.get_track_schema_type('cfg::AbstractConfig')
     assert isinstance(cfg_host_type, s_objtypes.ObjectType)
     cfg_type = None
 
@@ -281,8 +281,11 @@ def _validate_op(
                 ptr_candidate = pointer_link
                 break
 
-        if (ptr_candidate is None
-                or ptr_candidate.get_source(ctx.env.schema) != cfg_host_type):
+        if (
+            ptr_candidate is None
+            or (ptr_source := ptr_candidate.get_source(ctx.env.schema)) is None
+            or not ptr_source.issubclass(ctx.env.schema, cfg_host_type)
+        ):
             raise errors.ConfigurationError(
                 f'{name!r} cannot be configured directly'
             )
