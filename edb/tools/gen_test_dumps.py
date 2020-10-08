@@ -70,6 +70,9 @@ def execute(
 
     dumps_dir = pathlib.Path(tests_dir) / "dumps"
     db_friendly_version = version.split("+", 1)[0]
+    db_friendly_version = db_friendly_version.replace("-alpha.", "a")
+    db_friendly_version = db_friendly_version.replace("-beta.", "b")
+    db_friendly_version = db_friendly_version.replace("-rc.", "rc")
     db_friendly_version = db_friendly_version.replace("-", "_")
     db_friendly_version = db_friendly_version.replace(".", "_")
     for db_name in dump_cases:
@@ -107,7 +110,7 @@ def die(msg):
     help="number of parallel processes to use",
 )
 def gen_test_dumps(*, jobs, tests_dir):
-    version = buildmeta.get_version()
+    version = str(buildmeta.get_version())
     if not jobs:
         jobs = os.cpu_count()
 
