@@ -23,7 +23,7 @@ Version Check
 Version check checks the current version of command-line tool by fetching
 ``https://packages.edgedb.com/.jsonindexes/*.json``.
 
-Here is how request looks like::
+Here is how such a request looks like::
 
     GET /archive/.jsonindexes/linux-x86_64.json HTTP/1.1
     host: packages.edgedb.com
