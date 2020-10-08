@@ -866,7 +866,7 @@ class CommandContext:
         self.schema_object_ids = schema_object_ids
         self.backend_superuser_role = backend_superuser_role
         self.affected_finalization: \
-            Dict[Command, Tuple[DeltaRoot, Command]] = dict()
+            Dict[Command, Tuple[DeltaRoot, Command, bool]] = dict()
         self.compat_ver = compat_ver
 
     @property
@@ -1234,16 +1234,19 @@ class ObjectCommand(
         schema: s_schema.Schema,
         context: CommandContext,
         action: str,
-    ) -> Tuple[s_schema.Schema, List[qlast.DDLCommand]]:
+        fixer: Optional[
+            Callable[[s_schema.Schema, CommandContext, s_expr.Expression],
+                     s_expr.Expression]
+        ]=None,
+    ) -> s_schema.Schema:
         scls = self.scls
         expr_refs = s_expr.get_expr_referrers(schema, scls)
-        # Commands to be executed after the original change is
-        # complete
-        finalize_ast: List[qlast.DDLCommand] = []
 
         if expr_refs:
             ref_desc = []
             for ref, fn in expr_refs.items():
+                really_apply = False
+
                 from . import functions as s_func
                 from . import indexes as s_indexes
                 from . import pointers as s_pointers
@@ -1260,11 +1263,15 @@ class ObjectCommand(
                     for fname in type(ref).get_fields():
                         value = ref.get_explicit_field_value(
                             schema, fname, None)
+                        if isinstance(value, s_expr.Expression):
+                            if fixer:
+                                value = fixer(schema, context, value)
+                                really_apply = True
                         if value is not None:
                             create_cmd.set_attribute_value(fname, value)
                     create_parent.add(create_cmd)
                     context.affected_finalization[self] = (
-                        create_root, create_cmd)
+                        create_root, create_cmd, really_apply)
                     schema = ref.delete(schema)
                     continue
 
@@ -1278,11 +1285,15 @@ class ObjectCommand(
 
                     # Copy own fields into the create command.
                     value = ref.get_explicit_field_value(schema, fn, None)
+                    if isinstance(value, s_expr.Expression):
+                        if fixer:
+                            value = fixer(schema, context, value)
+                            really_apply = True
                     cmd_drop.set_attribute_value(fn, None)
                     cmd_create.set_attribute_value(fn, value)
 
                     context.affected_finalization[self] = (
-                        delta_create, cmd_create
+                        delta_create, cmd_create, really_apply
                     )
                     schema = delta_drop.apply(schema, context)
                     continue
@@ -1303,12 +1314,15 @@ class ObjectCommand(
                         # Strip the "compiled" out of the expression
                         value = s_expr.Expression(
                             text=value.text, origtext=value.origtext)
+                        if fixer:
+                            value = fixer(schema, context, value)
+                            really_apply = True
                     cmd_drop.set_attribute_value(
                         fn, ref.get_dummy_body(schema))
                     cmd_create.set_attribute_value(fn, value)
 
                     context.affected_finalization[self] = (
-                        delta_create, cmd_create
+                        delta_create, cmd_create, really_apply
                     )
                     schema = delta_drop.apply(schema, context)
                     continue
@@ -1335,14 +1349,15 @@ class ObjectCommand(
                     )
                 )
 
-        return schema, finalize_ast
+        return schema
 
     def _finalize_affected_refs(
         self,
         schema: s_schema.Schema,
         context: CommandContext,
     ) -> s_schema.Schema:
-        delta, cmd = context.affected_finalization.get(self, (None, None))
+        delta, cmd, really_apply = context.affected_finalization.get(
+            self, (None, None, False))
         if delta is not None:
             from . import lproperties as s_props
             from . import links as s_links
@@ -1376,6 +1391,9 @@ class ObjectCommand(
                         target = expression.irast.stype
                         cmd.set_attribute_value('target', target)
                         break
+
+            if not context.canonical and really_apply and delta:
+                self.add(delta)
 
             schema = delta.apply(schema, context)
 
@@ -2137,6 +2155,25 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
 
     new_name = struct.Field(str)
 
+    def _fix_referencing_expr(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+        expr: s_expr.Expression,
+    ) -> s_expr.Expression:
+        new_shortname = sn.shortname_from_fullname(self.new_name).name
+        old_shortname = sn.shortname_from_fullname(self.classname).name
+
+        # XXX: This is obviously and badly wrong!
+        text = expr.text.replace(old_shortname, new_shortname)
+
+        expr = s_expr.Expression(
+            text=text,
+            # nobody cares about origtext!
+            origtext=expr.origtext)
+
+        return expr
+
     def _rename_begin(
         self,
         schema: s_schema.Schema,
@@ -2149,8 +2186,9 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
         # not supported yet.  Eventually we'll add support
         # for transparent recompilation.
         vn = scls.get_verbosename(schema)
-        schema, finalize_ast = self._propagate_if_expr_refs(
-            schema, context, action=f'rename {vn}')
+        schema = self._propagate_if_expr_refs(
+            schema, context, action=f'rename {vn}',
+            fixer=self._fix_referencing_expr)
 
         if not context.canonical:
             self.set_attribute_value(
