@@ -65,11 +65,12 @@ Bindings
 
 * Switch UUID decoding from a rich object to a string (
   `#72 <https://github.com/edgedb/edgedb-js/pull/72>`_).
-
 * Add ``EdgeDBDateTimeCodec`` for handling various datetime scalars
   (`#68 <https://github.com/edgedb/edgedb-js/pull/68>`_).
 * Update the `edgedb-js <https://github.com/edgedb/edgedb-js>`_ driver
-  to 0.10.0-alpha.3.
+  to 0.11.0.
+* Update the `edgedb-python <https://github.com/edgedb/edgedb-python>`_ driver
+  to 0.11.0.
 
 
 .. _migrations:
