@@ -7,7 +7,7 @@ Network Usage by Command-Line Tools
 Generally command-line tools connect only to the database host. But
 there are two exceptions:
 
-1. At the start of the command-line tool it checks if version is up to
+1. When the command-line tool starts, it checks if its version is up to
    date. :ref:`Details <ref_cli_edgedb_version_check>`
 2. The ``edgedb server`` family of commands and ``edgedb self-update``
    discover package versions and docker images and also invoke package
