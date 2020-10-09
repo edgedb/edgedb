@@ -1235,7 +1235,8 @@ class ObjectCommand(
         context: CommandContext,
         action: str,
         fixer: Optional[
-            Callable[[s_schema.Schema, CommandContext, s_expr.Expression],
+            Callable[[s_schema.Schema, so.Object, str,
+                      CommandContext, s_expr.Expression],
                      s_expr.Expression]
         ]=None,
     ) -> s_schema.Schema:
@@ -1265,7 +1266,7 @@ class ObjectCommand(
                             schema, fname, None)
                         if isinstance(value, s_expr.Expression):
                             if fixer:
-                                value = fixer(schema, context, value)
+                                value = fixer(schema, ref, fn, context, value)
                                 really_apply = True
                         if value is not None:
                             create_cmd.set_attribute_value(fname, value)
@@ -1287,7 +1288,7 @@ class ObjectCommand(
                     value = ref.get_explicit_field_value(schema, fn, None)
                     if isinstance(value, s_expr.Expression):
                         if fixer:
-                            value = fixer(schema, context, value)
+                            value = fixer(schema, ref, fn, context, value)
                             really_apply = True
                     cmd_drop.set_attribute_value(fn, None)
                     cmd_create.set_attribute_value(fn, value)
@@ -1315,7 +1316,7 @@ class ObjectCommand(
                         value = s_expr.Expression(
                             text=value.text, origtext=value.origtext)
                         if fixer:
-                            value = fixer(schema, context, value)
+                            value = fixer(schema, ref, fn, context, value)
                             really_apply = True
                     cmd_drop.set_attribute_value(
                         fn, ref.get_dummy_body(schema))
@@ -1748,6 +1749,7 @@ class ObjectCommand(
         context: CommandContext,
         field: so.Field[Any],
         value: Any,
+        track_schema_ref_exprs: bool=False,
     ) -> s_expr.Expression:
         cdn = self.get_schema_metaclass().get_schema_class_displayname()
         raise errors.InternalServerError(
@@ -2158,21 +2160,42 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
     def _fix_referencing_expr(
         self,
         schema: s_schema.Schema,
+        obj: so.Object,
+        fn: str,
         context: CommandContext,
         expr: s_expr.Expression,
     ) -> s_expr.Expression:
+        from edb.ir import ast as irast
+
+        cmd_create = obj.init_delta_command(schema, cmdtype=AlterObject)
+        cmd_create.scls = obj
+
+        # Strip any compilation of the expression
+        expr = s_expr.Expression(text=expr.text)
+
+        # Recompile the expression with reference tracking on so that we
+        # can clean up the ast.
+        field = cmd_create.get_schema_metaclass().get_field(fn)
+        compiled = cmd_create.compile_expr_field(
+            schema, context, field, expr,
+            track_schema_ref_exprs=True)
+        assert isinstance(compiled.irast, irast.Statement)
+        assert compiled.irast.schema_ref_exprs is not None
+
+        # Now that the compilation is done, try to do the fixup.
         new_shortname = sn.shortname_from_fullname(self.new_name).name
         old_shortname = sn.shortname_from_fullname(self.classname).name
+        for ref in compiled.irast.schema_ref_exprs.get(self.scls, []):
+            if isinstance(ref, qlast.Ptr):
+                ref = ref.ptr
+            assert isinstance(ref, qlast.ObjectRef), (
+                f"only support object refs but got {ref}")
+            assert ref.name == old_shortname
+            ref.name = new_shortname
 
-        # XXX: This is obviously and badly wrong!
-        text = expr.text.replace(old_shortname, new_shortname)
-
-        expr = s_expr.Expression(
-            text=text,
-            # nobody cares about origtext!
-            origtext=expr.origtext)
-
-        return expr
+        # say as_fragment=True as a hack to avoid renormalizing it
+        return s_expr.Expression.from_ast(
+            compiled.qlast, schema, modaliases={}, as_fragment=True)
 
     def _rename_begin(
         self,

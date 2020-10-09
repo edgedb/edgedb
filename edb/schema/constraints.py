@@ -383,6 +383,7 @@ class ConstraintCommand(
         context: sd.CommandContext,
         field: so.Field[Any],
         value: s_expr.Expression,
+        track_schema_ref_exprs: bool=False,
     ) -> s_expr.Expression:
 
         referrer_ctx = self.get_referrer_context(context)
@@ -418,6 +419,7 @@ class ConstraintCommand(
                         allow_generic_type_output=True,
                         schema_object_context=self.get_schema_metaclass(),
                         apply_query_rewrites=not context.stdmode,
+                        track_schema_ref_exprs=track_schema_ref_exprs,
                     ),
                 )
 
@@ -445,10 +447,12 @@ class ConstraintCommand(
                     allow_generic_type_output=True,
                     schema_object_context=self.get_schema_metaclass(),
                     apply_query_rewrites=not context.stdmode,
+                    track_schema_ref_exprs=track_schema_ref_exprs,
                 ),
             )
         else:
-            return super().compile_expr_field(schema, context, field, value)
+            return super().compile_expr_field(
+                schema, context, field, value, track_schema_ref_exprs)
 
     @classmethod
     def get_inherited_ref_name(

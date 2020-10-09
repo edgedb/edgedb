@@ -6604,7 +6604,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ['test::Post', 'test::Video']
         )
 
-    async def test_edgeql_ddl_rename_w_func_ref_01(self):
+    async def test_edgeql_ddl_rename_ref_01(self):
         await self.con.execute("""
             WITH MODULE test
             CREATE TYPE Note {
@@ -6613,37 +6613,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
             WITH MODULE test
             CREATE FUNCTION hello(x: Note) ->  str {
-                USING (SELECT ('hello ' ++ x.note))
-            }
-        """)
-
-        await self.con.execute("""
-            WITH MODULE test
-            ALTER TYPE Note {
-                ALTER PROPERTY note {
-                    RENAME TO remark;
-                }
-            }
-            """)
-
-        res = await self.con.query_one("""
-            DESCRIBE MODULE test
-        """)
-
-        self.assertNotIn(res, "note")
-        self.assertEqual(res.count("remark"), 2)
-
-    # honestly this should just merge with the first test
-    async def test_edgeql_ddl_rename_w_func_ref_02(self):
-        await self.con.execute("""
-            WITH MODULE test
-            CREATE TYPE Note {
-                CREATE PROPERTY note -> str;
-            };
-
-            WITH MODULE test
-            CREATE FUNCTION hello(x: Note) ->  str {
-                USING (SELECT ('note ' ++ x.note))
+                USING (SELECT ('note ' ++ x.note ++
+                               (SELECT Note.note LIMIT 1)))
             }
         """)
 
@@ -6661,4 +6632,37 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         """)
 
         self.assertEqual(res.count("note"), 1)
+        self.assertEqual(res.count("remark"), 3)
+
+    async def test_edgeql_ddl_rename_ref_02(self):
+        await self.con.execute("""
+            WITH MODULE test
+            CREATE TYPE Note {
+                CREATE PROPERTY note -> str;
+            };
+
+            WITH MODULE test
+            CREATE TYPE Object2 {
+                CREATE REQUIRED PROPERTY x -> str {
+                    SET default := (
+                        SELECT Note.note LIMIT 1
+                    )
+                }
+            };
+        """)
+
+        await self.con.execute("""
+            WITH MODULE test
+            ALTER TYPE Note {
+                ALTER PROPERTY note {
+                    RENAME TO remark;
+                }
+            }
+        """)
+
+        res = await self.con.query_one("""
+            DESCRIBE MODULE test
+        """)
+
+        self.assertEqual(res.count("note"), 0)
         self.assertEqual(res.count("remark"), 2)

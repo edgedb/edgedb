@@ -1079,6 +1079,7 @@ class FunctionCommand(
         context: sd.CommandContext,
         field: so.Field[Any],
         value: expr.Expression,
+        track_schema_ref_exprs: bool=False,
     ) -> expr.Expression:
         if field.name == 'initial_value':
             return type(value).compiled(
@@ -1088,12 +1089,15 @@ class FunctionCommand(
                     allow_generic_type_output=True,
                     schema_object_context=self.get_schema_metaclass(),
                     apply_query_rewrites=not context.stdmode,
+                    track_schema_ref_exprs=track_schema_ref_exprs,
                 ),
             )
         elif field.name == 'nativecode':
-            return self.compile_function(schema, context, value)
+            return self.compile_function(
+                schema, context, value, track_schema_ref_exprs)
         else:
-            return super().compile_expr_field(schema, context, field, value)
+            return super().compile_expr_field(
+                schema, context, field, value, track_schema_ref_exprs)
 
     def _get_attribute_value(
         self,
@@ -1123,6 +1127,7 @@ class FunctionCommand(
         schema: s_schema.Schema,
         context: sd.CommandContext,
         body: expr.Expression,
+        track_schema_ref_exprs: bool=False,
     ) -> expr.Expression:
         from edb.ir import ast as irast
 
@@ -1151,6 +1156,7 @@ class FunctionCommand(
                 # other session_only functions
                 session_mode=session_only,
                 apply_query_rewrites=not context.stdmode,
+                track_schema_ref_exprs=track_schema_ref_exprs,
             ),
         )
 

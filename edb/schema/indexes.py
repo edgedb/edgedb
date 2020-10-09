@@ -324,6 +324,7 @@ class CreateIndex(
         context: sd.CommandContext,
         field: so.Field[Any],
         value: s_expr.Expression,
+        track_schema_ref_exprs: bool=False,
     ) -> s_expr.Expression:
         from . import objtypes as s_objtypes
 
@@ -357,6 +358,7 @@ class CreateIndex(
                     path_prefix_anchor=path_prefix_anchor,
                     singletons=frozenset(singletons),
                     apply_query_rewrites=not context.stdmode,
+                    track_schema_ref_exprs=track_schema_ref_exprs,
                 ),
             )
 
@@ -369,7 +371,8 @@ class CreateIndex(
 
             return expr
         else:
-            return super().compile_expr_field(schema, context, field, value)
+            return super().compile_expr_field(
+                schema, context, field, value, track_schema_ref_exprs)
 
 
 class RenameIndex(
