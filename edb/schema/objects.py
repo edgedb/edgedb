@@ -1141,6 +1141,18 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         explicit: bool = False,
     ) -> float:
         fname = field.name
+
+        # If a field is not inheritable (and thus cannot be affected
+        # by other objects) and the value is missing, it is exactly
+        # equivalent to that field having the default value instead,
+        # so we should use the default for comparisons. This means
+        # that we perform the comparison as if explicit = False.
+        #
+        # E.g. 'is_owned' being None and False is semantically
+        # identical and should not be considered a change.
+        if (isinstance(field, SchemaField) and not field.inheritable):
+            explicit = False
+
         if explicit:
             our_value = ours.get_explicit_field_value(
                 our_schema, fname, None)
@@ -2679,7 +2691,7 @@ class InheritingObject(SubclassableObject):
         )
 
         # Check to see if this field's inherited status has changed.
-        # If so, this is defintely a change.
+        # If so, this is definitely a change.
         our_ifs = ours.get_inherited_fields(our_schema)
         their_ifs = theirs.get_inherited_fields(their_schema)
 

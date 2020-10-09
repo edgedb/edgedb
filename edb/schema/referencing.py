@@ -1459,3 +1459,15 @@ class AlterOwned(
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         cmd.set_attribute_value('is_owned', astnode.owned)
         return cmd
+
+    def _apply_field_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        node: qlast.DDLOperation,
+        op: sd.AlterObjectProperty,
+    ) -> None:
+        if op.property == 'is_owned':
+            node.owned = op.new_value
+        else:
+            super()._apply_field_ast(schema, context, node, op)
