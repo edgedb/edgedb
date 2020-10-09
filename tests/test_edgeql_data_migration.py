@@ -63,6 +63,9 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         down which step is causing issues.
         '''
 
+        # Keep track of proposed DDL
+        prevddl = ''
+
         try:
             while True:
                 mig = await self.con.query_one(
@@ -78,18 +81,24 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                     break
 
                 for stmt in mig['proposed']['statements']:
+                    curddl = stmt['text']
+                    if prevddl == curddl:
+                        raise Exception(
+                            f"Repeated previous proposed DDL {curddl!r}"
+                        )
                     try:
-                        await self.con.execute(stmt['text'])
+                        await self.con.execute(curddl)
                     except Exception as exc:
                         raise Exception(
-                            f"Error while processing {stmt['text']!r}"
+                            f"Error while processing {curddl!r}"
                         ) from exc
+                    prevddl = curddl
 
         except Exception:
             self.add_fail_notes(serialization='json')
             raise
 
-    async def migrate(self, migration, *, module: str = 'test', ff=True):
+    async def migrate(self, migration, *, module: str = 'test'):
         async with self.con.transaction():
             mig = f"""
                 START MIGRATION TO {{
@@ -98,15 +107,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                     }}
                 }};
             """
-            if ff:
-                await self.con.execute(mig)
-                await self.fast_forward_describe_migration()
-            else:
-                await self.con.execute(f"""
-                    {mig}
-                    POPULATE MIGRATION;
-                    COMMIT MIGRATION;
-                """)
+            await self.con.execute(mig)
+            await self.fast_forward_describe_migration()
 
     async def test_edgeql_migration_simple_01(self):
         # Base case, ensuring a single SDL migration from a clean
@@ -1102,8 +1104,12 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         res = await self.con.query('''
             WITH MODULE test
-            INSERT Type01 {
-                foo1 := (INSERT Foo)
+            SELECT (
+                INSERT Type01 {
+                    foo1 := (INSERT Foo)
+                }
+            ) {
+                foo1
             };
         ''')
 
@@ -2744,6 +2750,12 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
+    @test.xfail('''
+        The "complete" flag is not set even though the DDL from
+        "proposed" list is used.
+
+        The second migration fails.
+    ''')
     async def test_edgeql_migration_eq_16(self):
         await self.migrate(r"""
             type Child;
@@ -2753,7 +2765,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Derived extending Base {
                 link bar -> Child;
             }
-        """, ff=False)
+        """)
         await self.con.execute("""
             SET MODULE test;
         """)
@@ -2776,7 +2788,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
 
             type Derived extending Base;
-        """, ff=False)
+        """)
 
         await self.assert_query_result(
             r"""
@@ -2800,7 +2812,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 # also make the link 'required'
                 overloaded required link bar -> Child;
             }
-        """, ff=False)
+        """)
 
         await self.assert_query_result(
             r"""
@@ -3249,7 +3261,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Parent {
                 link bar -> Child;
             }
-        """, ff=False)
+        """)
         await self.con.execute(r"""
             SET MODULE test;
 
@@ -3267,7 +3279,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
             # derive a type
             type DerivedParent extending Parent;
-        """, ff=False)
+        """)
 
         await self.assert_query_result(
             r"""
@@ -3295,7 +3307,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type DerivedParent extending Parent {
                 overloaded link bar -> DerivedChild;
             }
-        """, ff=False)
+        """)
 
         await self.con.execute(r"""
             INSERT DerivedParent {
@@ -3439,6 +3451,12 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             # drop everything
         """)
 
+    @test.xfail('''
+        The "complete" flag is not set even though the DDL from
+        "proposed" list is used.
+
+        This happens on the third migration.
+    ''')
     async def test_edgeql_migration_eq_30(self):
         await self.migrate(r"""
             type Foo {
@@ -3448,7 +3466,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Bar {
                 property title -> str;
             };
-        """, ff=False)
+        """)
         await self.con.execute(r"""
             SET MODULE test;
 
@@ -3469,7 +3487,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 # rename 'title' to 'name'
                 property name -> str;
             };
-        """, ff=False)
+        """)
 
         await self.assert_query_result(
             r"""
@@ -3497,7 +3515,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
             type Foo extending Named;
             type Bar extending Named;
-        """, ff=False)
+        """)
 
         await self.assert_query_result(
             r"""
@@ -5283,9 +5301,10 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         )
 
     @test.xfail('''
-        edgedb.errors.InternalServerError: duplicate key value
-        violates unique constraint
-        "68d4c708-db91-11e9-9b69-4fe8032d0_source_target_ptr_item_id_key"
+        The "complete" flag is not set even though the DDL from
+        "proposed" list is used.
+
+        This happens on the second migration.
     ''')
     async def test_edgeql_migration_eq_linkprops_04(self):
         await self.migrate(r"""
@@ -5433,6 +5452,12 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
+    @test.xfail('''
+        The "complete" flag is not set even though the DDL from
+        "proposed" list is used.
+
+        The second migration fails.
+    ''')
     async def test_edgeql_migration_eq_linkprops_07(self):
         await self.migrate(r"""
             type Child;
@@ -5446,7 +5471,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                     property foo -> str
                 }
             };
-        """, ff=False)
+        """)
         await self.con.execute(r"""
             SET MODULE test;
 
@@ -5470,7 +5495,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
 
             type Derived extending Base;
-        """, ff=False)
+        """)
 
         await self.assert_query_result(
             r"""
@@ -5498,7 +5523,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
 
             type Derived extending Base;
-        """, ff=False)
+        """)
         await self.con.execute(r"""
             SET MODULE test;
 
@@ -5526,7 +5551,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                     property foo -> str
                 }
             };
-        """, ff=False)
+        """)
 
         await self.assert_query_result(
             r"""
@@ -5554,6 +5579,12 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
+    @test.xfail('''
+        The "complete" flag is not set even though the DDL from
+        "proposed" list is used.
+
+        The second migration fails.
+    ''')
     async def test_edgeql_migration_eq_linkprops_09(self):
         await self.migrate(r"""
             type Child;
@@ -5567,7 +5598,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                     property foo -> str
                 }
             };
-        """, ff=False)
+        """)
         await self.con.execute(r"""
             SET MODULE test;
 
@@ -5593,7 +5624,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
 
             type Derived extending Base;
-        """, ff=False)
+        """)
 
         await self.assert_query_result(
             r"""
@@ -5611,11 +5642,18 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         )
 
     @test.xfail('''
-        edgedb.errors.InvalidReferenceError: reference to a
-        non-existent schema item e5fb06f7-f7fc-11ea-8e14-e5990eb2a843
-        in schema <Schema gen:3770 at 0x7ff2f45df280>
+        edgedb.errors.SchemaError: cannot drop abstract link
+        'test::base_child' because other objects in the schema depend
+        on it
 
-        The second migration fails.
+        DETAILS: link 'child' of object type 'test::Derived' depends
+        on test::base_child; link 'child' of object type 'test::Base'
+        depends on test::base_child
+
+        Exception: Error while processing
+        'DROP ABSTRACT LINK test::base_child {
+            DROP PROPERTY foo;
+        };'
     ''')
     async def test_edgeql_migration_eq_linkprops_10(self):
         # reverse of the test_edgeql_migration_eq_linkprops_09 refactoring
@@ -5631,7 +5669,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
 
             type Derived extending Base;
-        """, ff=False)
+        """)
         await self.con.execute(r"""
             SET MODULE test;
 
@@ -5657,7 +5695,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                     property foo -> str
                 }
             };
-        """, ff=False)
+        """)
 
         await self.assert_query_result(
             r"""
@@ -5674,6 +5712,12 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
+    @test.xfail('''
+        The "complete" flag is not set even though the DDL from
+        "proposed" list is used.
+
+        The second migration fails.
+    ''')
     async def test_edgeql_migration_eq_linkprops_11(self):
         # merging a link with the same properties
         await self.migrate(r"""
@@ -5690,7 +5734,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                     property foo -> str;
                 }
             };
-        """, ff=False)
+        """)
         await self.con.execute(r"""
             SET MODULE test;
 
@@ -5723,7 +5767,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Owner extending Base;
 
             type Renter extending Base;
-        """, ff=False)
+        """)
 
         await self.assert_query_result(
             r"""
@@ -6763,11 +6807,10 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         )
 
     @test.xfail('''
-        edgedb.errors.InternalServerError: column
-        "62ff8c71-0222-11eb-8eb0-3d08691ea43c" cannot be cast
-        automatically to type "ad341a65-1334-a65a-41c8-1ad54002b4bd_t"
+        The "complete" flag is not set even though the DDL from
+        "proposed" list is used.
 
-        The error occurs on attempting to update the type.
+        This happens on the second migration.
     ''')
     async def test_edgeql_migration_eq_collections_07(self):
         await self.con.execute("""
@@ -6811,11 +6854,10 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         )
 
     @test.xfail('''
-        edgedb.errors.InternalServerError: column
-        "640f155d-0222-11eb-94a7-4362f11ee8b5" cannot be cast
-        automatically to type "a1862b57-10bb-1a9a-149d-9642013c8bab_t"
+        The "complete" flag is not set even though the DDL from
+        "proposed" list is used.
 
-        The error occurs on attempting to update the type.
+        This happens on the second migration.
     ''')
     async def test_edgeql_migration_eq_collections_08(self):
         await self.migrate(r"""
@@ -6849,11 +6891,10 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         )
 
     @test.xfail('''
-        edgedb.errors.InternalServerError: column
-        "651f90a6-0222-11eb-86e3-2332f60fd3ca" cannot be cast
-        automatically to type "25fa38ac-b716-0c90-f7c7-76448eee8c87_t"
+        The "complete" flag is not set even though the DDL from
+        "proposed" list is used.
 
-        The error occurs on attempting to update the type.
+        This happens on the second migration.
     ''')
     async def test_edgeql_migration_eq_collections_09(self):
         await self.migrate(r"""
@@ -6943,8 +6984,14 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         )
 
     @test.xfail('''
-        edgedb.errors.InvalidReferenceError: object type or alias
-        'default::Base' does not exist
+        edgedb.errors.SchemaError: cannot drop scalar type
+        'test::CollAlias' because other objects in the schema depend
+        on it
+
+        DETAILS: alias 'test::CollAlias' depends on test::CollAlias
+
+        Exception: Error while processing
+        'DROP SCALAR TYPE test::CollAlias;'
 
         This happens on the second migration.
     ''')
