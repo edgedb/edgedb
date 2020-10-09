@@ -106,6 +106,12 @@ def fini_expression(
     ctx: context.ContextLevel,
 ) -> irast.Command:
 
+    if (
+        isinstance(ir, irast.Set)
+        and pathctx.get_set_scope(ir, ctx=ctx) is None
+    ):
+        ir = setgen.scoped_set(ir, ctx=ctx)
+
     cardinality = qltypes.Cardinality.AT_MOST_ONE
     if ctx.path_scope is not None:
         # Simple expressions have no scope.
