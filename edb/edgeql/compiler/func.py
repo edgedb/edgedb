@@ -174,7 +174,7 @@ def compile_FunctionCall(
         # We cannot add strong references to functions from
         # abstract constraints, since we cannot know which
         # form of the function is actually used.
-        env.schema_refs.add(func)
+        env.add_schema_ref(func, expr)
 
     func_initial_value: Optional[irast.Set]
 
@@ -473,7 +473,7 @@ def compile_operator(
 
     oper = matched_call.func
     assert isinstance(oper, s_oper.Operator)
-    env.schema_refs.add(oper)
+    env.add_schema_ref(oper, expr=qlexpr)
     oper_name = oper.get_shortname(env.schema)
 
     matched_params = oper.get_params(env.schema)

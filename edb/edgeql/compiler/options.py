@@ -57,6 +57,9 @@ class GlobalCompilerOptions:
     #: Use material types for pointer targets in schema views.
     schema_view_mode: bool = False
 
+    #: Whether to track which subexpressions reference each schema object.
+    track_schema_ref_exprs: bool = False
+
     #: If the expression is being processed in the context of a certain
     #: schema object, i.e. a constraint expression, or a pointer default,
     #: this contains the type of the schema object.

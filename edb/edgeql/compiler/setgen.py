@@ -365,7 +365,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
 
             else:
                 path_tip = ptr_step_set(
-                    path_tip, source=source, ptr_name=ptr_name,
+                    path_tip, expr=step, source=source, ptr_name=ptr_name,
                     direction=direction,
                     ignore_computable=True,
                     source_context=step.context, ctx=ctx)
@@ -550,6 +550,7 @@ def resolve_special_anchor(
 def ptr_step_set(
         path_tip: irast.Set, *,
         source: s_obj.Object,
+        expr: Optional[qlast.Base],
         ptr_name: str,
         direction: PtrDir = PtrDir.Outbound,
         source_context: parsing.ParserContext,
@@ -558,6 +559,7 @@ def ptr_step_set(
     ptrcls = resolve_ptr(
         source,
         ptr_name,
+        track_ref=expr,
         direction=direction,
         source_context=source_context,
         ctx=ctx)
@@ -576,7 +578,7 @@ def resolve_ptr(
         s_pointers.PointerDirection.Outbound
     ),
     source_context: Optional[parsing.ParserContext] = None,
-    track_ref: bool = True,
+    track_ref: Optional[Union[qlast.Base, Literal[False]]],
     ctx: context.ContextLevel,
 ) -> s_pointers.Pointer:
 
@@ -592,18 +594,18 @@ def resolve_ptr(
 
         if ptr is not None:
             ref = ptr.get_nearest_non_derived_parent(ctx.env.schema)
-            if track_ref:
-                ctx.env.schema_refs.add(ref)
+            if track_ref is not False:
+                ctx.env.add_schema_ref(ref, track_ref)
 
     else:
         ptrs = near_endpoint.getrptrs(ctx.env.schema, pointer_name,
                                       sources=far_endpoints)
         if ptrs:
-            if track_ref:
-                ctx.env.schema_refs.update(
-                    p.get_nearest_non_derived_parent(ctx.env.schema)
-                    for p in ptrs
-                )
+            if track_ref is not False:
+                for p in ptrs:
+                    ctx.env.add_schema_ref(
+                        p.get_nearest_non_derived_parent(ctx.env.schema),
+                        track_ref)
 
             opaque = (
                 direction is s_pointers.PointerDirection.Inbound

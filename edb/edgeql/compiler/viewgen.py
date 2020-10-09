@@ -423,7 +423,8 @@ def _normalize_view_ptr_expr(
     ptrcls: Optional[s_pointers.Pointer]
 
     if compexpr is None:
-        ptrcls = setgen.resolve_ptr(ptrsource, ptrname, ctx=ctx)
+        ptrcls = setgen.resolve_ptr(
+            ptrsource, ptrname, track_ref=lexpr, ctx=ctx)
         if is_polymorphic:
             ptrcls = schemactx.derive_ptr(
                 ptrcls, view_scls,
@@ -568,7 +569,8 @@ def _normalize_view_ptr_expr(
         if (is_mutation
                 and ptrname not in ctx.special_computables_in_mutation_shape):
             # If this is a mutation, the pointer must exist.
-            ptrcls = setgen.resolve_ptr(ptrsource, ptrname, ctx=ctx)
+            ptrcls = setgen.resolve_ptr(
+                ptrsource, ptrname, track_ref=lexpr, ctx=ctx)
 
             base_ptrcls = ptrcls.get_bases(
                 ctx.env.schema).first(ctx.env.schema)
@@ -758,9 +760,9 @@ def _normalize_view_ptr_expr(
             src_scls = view_scls
 
         if ptr_target.is_object_type():
-            base = ctx.env.get_track_schema_object('std::link')
+            base = ctx.env.get_track_schema_object('std::link', expr=None)
         else:
-            base = ctx.env.get_track_schema_object('std::property')
+            base = ctx.env.get_track_schema_object('std::property', expr=None)
 
         if base_ptrcls is not None:
             derive_from = base_ptrcls
@@ -944,10 +946,11 @@ def derive_ptrcls(
             transparent = False
 
             if target_scls.is_object_type():
-                base = ctx.env.get_track_schema_object('std::link')
+                base = ctx.env.get_track_schema_object('std::link', expr=None)
                 view_rptr.base_ptrcls = cast(s_links.Link, base)
             else:
-                base = ctx.env.get_track_schema_object('std::property')
+                base = ctx.env.get_track_schema_object(
+                    'std::property', expr=None)
                 view_rptr.base_ptrcls = cast(s_props.Property, base)
 
         derived_name = schemactx.derive_view_name(
@@ -1116,7 +1119,7 @@ def _get_shape_configuration(
         assert isinstance(stype, s_objtypes.ObjectType)
 
         try:
-            ptr = setgen.resolve_ptr(stype, '__tid__', ctx=ctx)
+            ptr = setgen.resolve_ptr(stype, '__tid__', track_ref=None, ctx=ctx)
         except errors.InvalidReferenceError:
             ql = qlast.ShapeElement(
                 expr=qlast.Path(
