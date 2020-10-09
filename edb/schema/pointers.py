@@ -868,6 +868,7 @@ class PointerCommandOrFragment(
     ) -> Tuple[s_schema.Schema, s_types.TypeShell, Optional[PointerLike]]:
         from edb.ir import ast as irast
         from edb.ir import typeutils as irtyputils
+        from edb.ir import utils as irutils
         from edb.schema import objtypes as s_objtypes
 
         # "source" attribute is set automatically as a refdict back-attr
@@ -904,20 +905,17 @@ class PointerCommandOrFragment(
             target_shell = target.as_shell(schema)
 
         result_expr = expression.irast.expr
+        if isinstance(result_expr, irast.Set):
+            result_expr = irutils.unwrap_set(result_expr)
+            if result_expr.rptr is not None:
+                result_expr, _ = irutils.collapse_type_intersection(
+                    result_expr)
 
         # Process a computable pointer which potentially could be an
         # aliased link that should inherit link properties.
-        if (isinstance(result_expr, irast.Set)
-                and result_expr.rptr is not None):
+        if isinstance(result_expr, irast.Set) and result_expr.rptr is not None:
             expr_rptr = result_expr.rptr
-            while isinstance(expr_rptr, irast.TypeIntersectionPointer):
-                expr_rptr = expr_rptr.source.rptr
-
-            is_ptr_alias = (
-                expr_rptr.direction is PointerDirection.Outbound
-            )
-
-            if is_ptr_alias:
+            if expr_rptr.direction is PointerDirection.Outbound:
                 new_schema, base = irtyputils.ptrcls_from_ptrref(
                     expr_rptr.ptrref, schema=schema
                 )

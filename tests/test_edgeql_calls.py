@@ -1306,7 +1306,6 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         )
 
     async def test_edgeql_calls_39(self):
-        # Test a function taking an object as an argument.
         await self.con.execute('''
             CREATE FUNCTION test::call39(
                 foo: str
@@ -1317,4 +1316,24 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         await self.assert_query_result(
             r'''SELECT test::call39("identity");''',
             ['identity'],
+        )
+
+    async def test_edgeql_calls_40(self):
+        await self.con.execute('''
+            CREATE TYPE Rectangle {
+                CREATE PROPERTY width -> int64;
+                CREATE PROPERTY height -> int64;
+            };
+
+            INSERT Rectangle { width := 2, height := 3 };
+
+            CREATE FUNCTION test::call40(
+                r: Rectangle
+            ) -> int64
+                USING (r.width * r.height);
+        ''')
+
+        await self.assert_query_result(
+            r'''SELECT test::call40(Rectangle);''',
+            [6],
         )
