@@ -6666,3 +6666,54 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         self.assertEqual(res.count("note"), 0)
         self.assertEqual(res.count("remark"), 2)
+
+    @test.xfail('''constraints aren't supported yet''')
+    async def test_edgeql_ddl_rename_ref_03(self):
+        await self.con.execute("""
+            WITH MODULE test
+            CREATE TYPE Note {
+                CREATE PROPERTY note -> str;
+                CREATE CONSTRAINT exclusive ON (__subject__.note);
+            };
+        """)
+
+        await self.con.execute("""
+            WITH MODULE test
+            ALTER TYPE Note {
+                ALTER PROPERTY note {
+                    RENAME TO remark;
+                }
+            }
+        """)
+
+        res = await self.con.query_one("""
+            DESCRIBE MODULE test
+        """)
+
+        self.assertEqual(res.count("note"), 0)
+        self.assertEqual(res.count("remark"), 2)
+
+    async def test_edgeql_ddl_rename_ref_04(self):
+        await self.con.execute("""
+            WITH MODULE test
+            CREATE TYPE Note {
+                CREATE PROPERTY note -> str;
+                CREATE INDEX ON (.note);
+            };
+        """)
+
+        await self.con.execute("""
+            WITH MODULE test
+            ALTER TYPE Note {
+                ALTER PROPERTY note {
+                    RENAME TO remark;
+                }
+            }
+        """)
+
+        res = await self.con.query_one("""
+            DESCRIBE MODULE test
+        """)
+
+        self.assertEqual(res.count("note"), 0)
+        self.assertEqual(res.count("remark"), 2)

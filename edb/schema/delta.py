@@ -1235,7 +1235,7 @@ class ObjectCommand(
         context: CommandContext,
         action: str,
         fixer: Optional[
-            Callable[[s_schema.Schema, so.Object, str,
+            Callable[[s_schema.Schema, ObjectCommand[so.Object], str,
                       CommandContext, s_expr.Expression],
                      s_expr.Expression]
         ]=None,
@@ -1255,71 +1255,39 @@ class ObjectCommand(
                 cmd_drop: Command
                 cmd_create: Command
 
-                if isinstance(ref, s_indexes.Index):
-                    # If the affected entity is an index, just drop it and
-                    # schedule it to be re-created.
-                    create_root, create_parent = ref.init_parent_delta_branch(
-                        schema)
-                    create_cmd = ref.init_delta_command(schema, CreateObject)
-                    for fname in type(ref).get_fields():
-                        value = ref.get_explicit_field_value(
-                            schema, fname, None)
-                        if isinstance(value, s_expr.Expression):
-                            if fixer:
-                                value = fixer(schema, ref, fn, context, value)
-                                really_apply = True
-                        if value is not None:
-                            create_cmd.set_attribute_value(fname, value)
-                    create_parent.add(create_cmd)
-                    context.affected_finalization[self] = (
-                        create_root, create_cmd, really_apply)
-                    schema = ref.delete(schema)
-                    continue
-
-                elif isinstance(ref, s_pointers.Pointer):
-                    # If the affected entity is a pointer, drop/create
-                    # the default value or computable.
+                if isinstance(
+                    ref,
+                    (s_indexes.Index, s_pointers.Pointer, s_func.Function)
+                ):
+                    # Alter the affected entity to change the body to
+                    # a dummy version (removing the dependency) and
+                    # then reset the body to original expression.
                     delta_drop, cmd_drop = ref.init_delta_branch(
                         schema, cmdtype=AlterObject)
                     delta_create, cmd_create = ref.init_delta_branch(
                         schema, cmdtype=AlterObject)
+                    cmd_create.scls = ref
 
-                    # Copy own fields into the create command.
-                    value = ref.get_explicit_field_value(schema, fn, None)
-                    if isinstance(value, s_expr.Expression):
-                        if fixer:
-                            value = fixer(schema, ref, fn, context, value)
-                            really_apply = True
-                    cmd_drop.set_attribute_value(fn, None)
-                    cmd_create.set_attribute_value(fn, value)
+                    # Compute a dummy value
+                    dummy = None
+                    if isinstance(ref, s_indexes.Index):
+                        dummy = s_expr.Expression(text='0')
+                    elif isinstance(ref, s_pointers.Pointer):
+                        dummy = None
+                    elif isinstance(ref, s_func.Function):
+                        dummy = ref.get_dummy_body(schema)
 
-                    context.affected_finalization[self] = (
-                        delta_create, cmd_create, really_apply
-                    )
-                    schema = delta_drop.apply(schema, context)
-                    continue
-
-                elif isinstance(ref, s_func.Function):
-                    # If the affected entity is a function, alter it
-                    # to change the body to a dummy version (removing
-                    # the dependency) and then reset the body to
-                    # original expression.
-                    delta_drop, cmd_drop = ref.init_delta_branch(
-                        schema, cmdtype=AlterObject)
-                    delta_create, cmd_create = ref.init_delta_branch(
-                        schema, cmdtype=AlterObject)
-
-                    # Copy own fields into the create command.
+                    # Do the switcheraroo
                     value = ref.get_explicit_field_value(schema, fn, None)
                     if isinstance(value, s_expr.Expression):
                         # Strip the "compiled" out of the expression
                         value = s_expr.Expression(
                             text=value.text, origtext=value.origtext)
                         if fixer:
-                            value = fixer(schema, ref, fn, context, value)
+                            value = fixer(
+                                schema, cmd_create, fn, context, value)
                             really_apply = True
-                    cmd_drop.set_attribute_value(
-                        fn, ref.get_dummy_body(schema))
+                    cmd_drop.set_attribute_value(fn, dummy)
                     cmd_create.set_attribute_value(fn, value)
 
                     context.affected_finalization[self] = (
@@ -2160,23 +2128,20 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
     def _fix_referencing_expr(
         self,
         schema: s_schema.Schema,
-        obj: so.Object,
+        cmd: ObjectCommand[so.Object],
         fn: str,
         context: CommandContext,
         expr: s_expr.Expression,
     ) -> s_expr.Expression:
         from edb.ir import ast as irast
 
-        cmd_create = obj.init_delta_command(schema, cmdtype=AlterObject)
-        cmd_create.scls = obj
-
         # Strip any compilation of the expression
         expr = s_expr.Expression(text=expr.text)
 
         # Recompile the expression with reference tracking on so that we
         # can clean up the ast.
-        field = cmd_create.get_schema_metaclass().get_field(fn)
-        compiled = cmd_create.compile_expr_field(
+        field = cmd.get_schema_metaclass().get_field(fn)
+        compiled = cmd.compile_expr_field(
             schema, context, field, expr,
             track_schema_ref_exprs=True)
         assert isinstance(compiled.irast, irast.Statement)
@@ -2190,7 +2155,7 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
                 ref = ref.ptr
             assert isinstance(ref, qlast.ObjectRef), (
                 f"only support object refs but got {ref}")
-            assert ref.name == old_shortname
+            assert ref.name == old_shortname, (ref.name, old_shortname)
             ref.name = new_shortname
 
         # say as_fragment=True as a hack to avoid renormalizing it

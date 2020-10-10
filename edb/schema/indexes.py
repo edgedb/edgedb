@@ -265,59 +265,6 @@ class IndexCommand(
         else:
             return None
 
-
-class CreateIndex(
-    IndexCommand,
-    referencing.CreateReferencedInheritingObject[Index],
-):
-    astnode = qlast.CreateIndex
-    referenced_astnode = qlast.CreateIndex
-
-    @classmethod
-    def _cmd_tree_from_ast(
-        cls,
-        schema: s_schema.Schema,
-        astnode: qlast.DDLOperation,
-        context: sd.CommandContext,
-    ) -> sd.Command:
-        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
-        assert isinstance(astnode, qlast.CreateIndex)
-        orig_text = cls.get_orig_expr_text(schema, astnode, 'expr')
-        cmd.set_attribute_value(
-            'expr',
-            s_expr.Expression.from_ast(
-                astnode.expr,
-                schema,
-                context.modaliases,
-                orig_text=orig_text,
-            ),
-        )
-
-        return cmd
-
-    @classmethod
-    def as_inherited_ref_ast(
-        cls,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        name: str,
-        parent: referencing.ReferencedObject,
-    ) -> qlast.ObjectDDL:
-        assert isinstance(parent, Index)
-        nref = cls.get_inherited_ref_name(schema, context, parent, name)
-        astnode_cls = cls.referenced_astnode
-
-        expr = parent.get_expr(schema)
-        if expr is not None:
-            expr_ql = edgeql.parse_fragment(expr.origtext)
-        else:
-            expr_ql = None
-
-        return astnode_cls(
-            name=nref,
-            expr=expr_ql,
-        )
-
     def compile_expr_field(
         self,
         schema: s_schema.Schema,
@@ -373,6 +320,59 @@ class CreateIndex(
         else:
             return super().compile_expr_field(
                 schema, context, field, value, track_schema_ref_exprs)
+
+
+class CreateIndex(
+    IndexCommand,
+    referencing.CreateReferencedInheritingObject[Index],
+):
+    astnode = qlast.CreateIndex
+    referenced_astnode = qlast.CreateIndex
+
+    @classmethod
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> sd.Command:
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        assert isinstance(astnode, qlast.CreateIndex)
+        orig_text = cls.get_orig_expr_text(schema, astnode, 'expr')
+        cmd.set_attribute_value(
+            'expr',
+            s_expr.Expression.from_ast(
+                astnode.expr,
+                schema,
+                context.modaliases,
+                orig_text=orig_text,
+            ),
+        )
+
+        return cmd
+
+    @classmethod
+    def as_inherited_ref_ast(
+        cls,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        name: str,
+        parent: referencing.ReferencedObject,
+    ) -> qlast.ObjectDDL:
+        assert isinstance(parent, Index)
+        nref = cls.get_inherited_ref_name(schema, context, parent, name)
+        astnode_cls = cls.referenced_astnode
+
+        expr = parent.get_expr(schema)
+        if expr is not None:
+            expr_ql = edgeql.parse_fragment(expr.origtext)
+        else:
+            expr_ql = None
+
+        return astnode_cls(
+            name=nref,
+            expr=expr_ql,
+        )
 
 
 class RenameIndex(
