@@ -1267,6 +1267,10 @@ class ObjectCommand(
                     delta_create, cmd_create = ref.init_delta_branch(
                         schema, cmdtype=AlterObject)
                     cmd_create.scls = ref
+                    # Mark it metadata_only so that if it actually gets
+                    # applied, only the metadata is changed but not
+                    # the real underlying schema.
+                    cmd_create.metadata_only = True
 
                     # Compute a dummy value
                     dummy = None
@@ -2356,6 +2360,9 @@ class AlterObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
 
     #: If True, apply the command only if the object exists.
     if_exists = struct.Field(bool, default=False)
+
+    #: If True, only apply changes to properties, not "real" schema changes
+    metadata_only = struct.Field(bool, default=False)
 
     @classmethod
     def _cmd_tree_from_ast(

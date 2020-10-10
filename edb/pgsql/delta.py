@@ -613,6 +613,9 @@ class AlterFunction(
     ) -> s_schema.Schema:
         schema = super().apply(schema, context)
 
+        if self.metadata_only:
+            return schema
+
         if (
             self.get_attribute_value('volatility') is not None or
             self.get_attribute_value('nativecode') is not None
@@ -2866,6 +2869,9 @@ class AlterProperty(
         schema = s_props.AlterProperty.apply(self, schema, context)
         prop = self.scls
         schema = PropertyMetaCommand.apply(self, schema, context)
+
+        if self.metadata_only:
+            return schema
 
         with context(
                 s_props.PropertyCommandContext(schema, self, prop)) as ctx:
