@@ -386,8 +386,15 @@ class ConstraintCommand(
         track_schema_ref_exprs: bool=False,
     ) -> s_expr.Expression:
 
-        referrer_ctx = self.get_referrer_context(context)
-        if referrer_ctx is not None:
+        base = None
+        if isinstance(self, AlterConstraint):
+            base = self.scls.get_subject(schema)
+        else:
+            referrer_ctx = self.get_referrer_context(context)
+            if referrer_ctx:
+                base = referrer_ctx.op.scls
+
+        if base is not None:
             # Concrete constraint
             if field.name == 'expr':
                 # Concrete constraints cannot redefine the base check
@@ -404,10 +411,9 @@ class ConstraintCommand(
                 return value
 
             elif field.name in {'subjectexpr', 'finalexpr'}:
-                anchors = {'__subject__': referrer_ctx.op.scls}
+                anchors = {'__subject__': base}
                 path_prefix_anchor = (
-                    '__subject__'
-                    if isinstance(referrer_ctx.op.scls, s_types.Type) else None
+                    '__subject__' if isinstance(base, s_types.Type) else None
                 )
                 return s_expr.Expression.compiled(
                     value,

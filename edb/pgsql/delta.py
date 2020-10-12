@@ -1096,6 +1096,8 @@ class AlterConstraint(
         orig_schema = delta_root_ctx.original_schema
         schema = super().apply(schema, context)
         constraint = self.scls
+        if self.metadata_only:
+            return schema
         if (
             not self.constraint_is_effective(schema, constraint)
             and not self.constraint_is_effective(orig_schema, constraint)

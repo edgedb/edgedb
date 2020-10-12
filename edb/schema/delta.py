@@ -1245,19 +1245,25 @@ class ObjectCommand(
 
         if expr_refs:
             ref_desc = []
-            for ref, fn in expr_refs.items():
+            for ref, fn in expr_refs:
                 really_apply = False
 
                 from . import functions as s_func
                 from . import indexes as s_indexes
                 from . import pointers as s_pointers
+                from . import constraints as s_cnstr
 
                 cmd_drop: Command
                 cmd_create: Command
 
                 if isinstance(
                     ref,
-                    (s_indexes.Index, s_pointers.Pointer, s_func.Function)
+                    (
+                        s_indexes.Index,
+                        s_pointers.Pointer,
+                        s_func.Function,
+                        s_cnstr.Constraint,
+                    ),
                 ):
                     # Alter the affected entity to change the body to
                     # a dummy version (removing the dependency) and
@@ -1276,6 +1282,8 @@ class ObjectCommand(
                     dummy = None
                     if isinstance(ref, s_indexes.Index):
                         dummy = s_expr.Expression(text='0')
+                    elif isinstance(ref, s_cnstr.Constraint):
+                        dummy = s_expr.Expression(text='SELECT false')
                     elif isinstance(ref, s_pointers.Pointer):
                         dummy = None
                     elif isinstance(ref, s_func.Function):
@@ -2163,8 +2171,9 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
             ref.name = new_shortname
 
         # say as_fragment=True as a hack to avoid renormalizing it
-        return s_expr.Expression.from_ast(
+        out = s_expr.Expression.from_ast(
             compiled.qlast, schema, modaliases={}, as_fragment=True)
+        return out
 
     def _rename_begin(
         self,

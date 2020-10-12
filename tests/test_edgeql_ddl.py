@@ -6619,8 +6619,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         """)
 
         await self.con.execute("""
-            WITH MODULE test
-            ALTER TYPE Note {
+            ALTER TYPE test::Note {
                 ALTER PROPERTY note {
                     RENAME TO remark;
                 }
@@ -6667,7 +6666,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         self.assertEqual(res.count("note"), 0)
         self.assertEqual(res.count("remark"), 2)
 
-    @test.xfail('''constraints aren't supported yet''')
     async def test_edgeql_ddl_rename_ref_03(self):
         await self.con.execute("""
             WITH MODULE test
