@@ -6717,3 +6717,52 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         self.assertEqual(res.count("note"), 0)
         self.assertEqual(res.count("remark"), 2)
+
+    @test.xfail('''
+        Fails doing the delete with function does not exist, due to
+        not renaming the function's mangled name.
+    ''')
+    async def test_edgeql_ddl_rename_ref_05(self):
+        await self.con.execute("""
+            WITH MODULE test
+            CREATE TYPE Note {
+                CREATE PROPERTY note -> str;
+            };
+
+            WITH MODULE test
+            CREATE FUNCTION hello(x: Note) ->  str {
+                USING (SELECT ('Note note ' ++ x.note ++
+                               (SELECT Note.note LIMIT 1)))
+            }
+        """)
+
+        await self.con.execute("""
+            WITH MODULE test
+            INSERT Note { note := "uh." }
+        """)
+
+        await self.con.execute("""
+            WITH MODULE test
+            ALTER TYPE Note {
+                RENAME TO Remark;
+            }
+            """)
+
+        res = await self.con.query_one("""
+            DESCRIBE MODULE test
+        """)
+
+        self.assertEqual(res.count("Note"), 1)
+        self.assertEqual(res.count("Remark"), 3)
+
+        await self.assert_query_result(
+            '''
+                WITH MODULE test
+                SELECT hello(Remark);
+            ''',
+            ['Note note uh.uh.'],
+        )
+
+        await self.con.execute("""
+            DROP FUNCTION test::hello(x: test::Remark);
+        """)
