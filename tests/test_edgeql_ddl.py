@@ -6766,3 +6766,39 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute("""
             DROP FUNCTION test::hello(x: test::Remark);
         """)
+
+    async def test_edgeql_ddl_rename_ref_06(self):
+        await self.con.execute("""
+            WITH MODULE test
+            CREATE TYPE Note {
+                CREATE PROPERTY note -> str;
+            };
+
+            WITH MODULE test
+            CREATE TYPE Uses {
+                CREATE REQUIRED PROPERTY x -> str {
+                    SET default := (SELECT Note.note LIMIT 1)
+                }
+            };
+
+            WITH MODULE test
+            CREATE TYPE Uses2 {
+                CREATE REQUIRED PROPERTY x -> str {
+                    SET default := (SELECT Note.note LIMIT 1)
+                }
+            };
+        """)
+
+        await self.con.execute("""
+            WITH MODULE test
+            ALTER TYPE Note {
+                RENAME TO Remark;
+            }
+            """)
+
+        res = await self.con.query_one("""
+            DESCRIBE MODULE test
+        """)
+
+        self.assertEqual(res.count("Note"), 0)
+        self.assertEqual(res.count("Remark"), 3)

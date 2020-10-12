@@ -866,7 +866,7 @@ class CommandContext:
         self.schema_object_ids = schema_object_ids
         self.backend_superuser_role = backend_superuser_role
         self.affected_finalization: \
-            Dict[Command, Tuple[DeltaRoot, Command, bool]] = dict()
+            Dict[Command, List[Tuple[DeltaRoot, Command, bool]]] = dict()
         self.compat_ver = compat_ver
 
     @property
@@ -1294,8 +1294,8 @@ class ObjectCommand(
                     cmd_drop.set_attribute_value(fn, dummy)
                     cmd_create.set_attribute_value(fn, value)
 
-                    context.affected_finalization[self] = (
-                        delta_create, cmd_create, really_apply
+                    context.affected_finalization.setdefault(self, []).append(
+                        (delta_create, cmd_create, really_apply)
                     )
                     schema = delta_drop.apply(schema, context)
                     continue
@@ -1329,9 +1329,9 @@ class ObjectCommand(
         schema: s_schema.Schema,
         context: CommandContext,
     ) -> s_schema.Schema:
-        delta, cmd, really_apply = context.affected_finalization.get(
-            self, (None, None, False))
-        if delta is not None:
+        for delta, cmd, really_apply in context.affected_finalization.get(
+            self, []
+        ):
             from . import lproperties as s_props
             from . import links as s_links
             from . import pointers as s_pointers
