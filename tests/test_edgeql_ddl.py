@@ -6666,6 +6666,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         self.assertEqual(res.count("note"), 0)
         self.assertEqual(res.count("remark"), 2)
 
+        await self.con.execute("""
+            ALTER TYPE test::Object2
+            DROP PROPERTY x;
+        """)
+
     async def test_edgeql_ddl_rename_ref_03(self):
         await self.con.execute("""
             WITH MODULE test
@@ -6691,6 +6696,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         self.assertEqual(res.count("note"), 0)
         self.assertEqual(res.count("remark"), 2)
 
+        await self.con.execute("""
+            ALTER TYPE test::Note
+            DROP CONSTRAINT exclusive ON (__subject__.remark);
+        """)
+
     async def test_edgeql_ddl_rename_ref_04(self):
         await self.con.execute("""
             WITH MODULE test
@@ -6715,6 +6725,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         self.assertEqual(res.count("note"), 0)
         self.assertEqual(res.count("remark"), 2)
+
+        await self.con.execute("""
+            ALTER TYPE test::Note
+            DROP INDEX ON (.note);
+        """)
 
     @test.xfail('''
         Fails doing the delete with function does not exist, due to

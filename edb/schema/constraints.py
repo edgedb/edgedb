@@ -386,7 +386,7 @@ class ConstraintCommand(
         track_schema_ref_exprs: bool=False,
     ) -> s_expr.Expression:
 
-        base = None
+        base: Optional[so.Object] = None
         if isinstance(self, AlterConstraint):
             base = self.scls.get_subject(schema)
         else:

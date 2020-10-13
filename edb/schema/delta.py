@@ -1245,7 +1245,7 @@ class ObjectCommand(
 
         if expr_refs:
             ref_desc = []
-            for ref, fn in expr_refs:
+            for ref, fns in expr_refs.items():
                 really_apply = False
 
                 from . import functions as s_func
@@ -1289,18 +1289,19 @@ class ObjectCommand(
                     elif isinstance(ref, s_func.Function):
                         dummy = ref.get_dummy_body(schema)
 
-                    # Do the switcheraroo
-                    value = ref.get_explicit_field_value(schema, fn, None)
-                    if isinstance(value, s_expr.Expression):
-                        # Strip the "compiled" out of the expression
-                        value = s_expr.Expression(
-                            text=value.text, origtext=value.origtext)
-                        if fixer:
-                            value = fixer(
-                                schema, cmd_create, fn, context, value)
-                            really_apply = True
-                    cmd_drop.set_attribute_value(fn, dummy)
-                    cmd_create.set_attribute_value(fn, value)
+                    for fn in fns:
+                        # Do the switcheraroos
+                        value = ref.get_explicit_field_value(schema, fn, None)
+                        if isinstance(value, s_expr.Expression):
+                            # Strip the "compiled" out of the expression
+                            value = s_expr.Expression(
+                                text=value.text, origtext=value.origtext)
+                            if fixer:
+                                value = fixer(
+                                    schema, cmd_create, fn, context, value)
+                                really_apply = True
+                        cmd_drop.set_attribute_value(fn, dummy)
+                        cmd_create.set_attribute_value(fn, value)
 
                     context.affected_finalization.setdefault(self, []).append(
                         (delta_create, cmd_create, really_apply)
@@ -1344,12 +1345,13 @@ class ObjectCommand(
             from . import links as s_links
             from . import pointers as s_pointers
             from . import types as s_types
+            from . import constraints as s_cnstr
             from edb.ir import ast as irast
 
             # if the delta involves re-setting a computable
             # expression, then we also need to change the type to the
             # new expression type
-            if (isinstance(cmd, (s_props.AlterProperty, s_links.AlterLink))):
+            if isinstance(cmd, (s_props.AlterProperty, s_links.AlterLink)):
                 for cm in cmd.get_subcommands(type=AlterObjectProperty):
                     if cm.property == 'expr':
                         assert isinstance(cm.new_value, s_expr.Expression)
@@ -1372,6 +1374,31 @@ class ObjectCommand(
                         target = expression.irast.stype
                         cmd.set_attribute_value('target', target)
                         break
+            # If it involves changing the subjectexpr of a constraint,
+            # we unfortunately need to compute a new name and rename
+            # the constraint.
+            elif (
+                isinstance(cmd, s_cnstr.AlterConstraint)
+                and not cmd.get_attribute_value('is_abstract')
+                and (subjectexpr :=
+                     cmd.get_attribute_value('subjectexpr')) is not None
+            ):
+                name = sn.shortname_from_fullname(cmd.classname)
+                ast = qlast.CreateConcreteConstraint(
+                    name=qlast.ObjectRef(name=name.name, module=name.module),
+                    subjectexpr=subjectexpr.qlast,
+                )
+                quals = sn.quals_from_fullname(cmd.classname)
+                new_name = cmd._classname_from_ast_and_referrer(
+                    schema, sn.SchemaName(quals[0]), ast, context)
+
+                rename = cmd.scls.init_delta_command(
+                    schema, RenameObject, new_name=new_name,
+                )
+                rename.set_attribute_value(
+                    'name', value=new_name, orig_value=cmd.classname,
+                )
+                cmd.add(rename)
 
             if not context.canonical and really_apply and delta:
                 self.add(delta)
