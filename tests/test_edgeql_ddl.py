@@ -6675,8 +6675,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute("""
             WITH MODULE test
             CREATE TYPE Note {
+                CREATE PROPERTY name -> str;
                 CREATE PROPERTY note -> str;
-                CREATE CONSTRAINT exclusive ON (__subject__.note);
+                CREATE CONSTRAINT exclusive ON (
+                    (__subject__.name, __subject__.note));
             };
         """)
 
@@ -6685,7 +6687,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ALTER TYPE Note {
                 ALTER PROPERTY note {
                     RENAME TO remark;
-                }
+                };
+                ALTER PROPERTY name {
+                    RENAME TO callsign;
+                };
             }
         """)
 
@@ -6695,10 +6700,13 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         self.assertEqual(res.count("note"), 0)
         self.assertEqual(res.count("remark"), 2)
+        self.assertEqual(res.count("name"), 0)
+        self.assertEqual(res.count("callsign"), 2)
 
         await self.con.execute("""
             ALTER TYPE test::Note
-            DROP CONSTRAINT exclusive ON (__subject__.remark);
+            DROP CONSTRAINT exclusive ON ((
+                (__subject__.callsign, __subject__.remark)));
         """)
 
     async def test_edgeql_ddl_rename_ref_04(self):
