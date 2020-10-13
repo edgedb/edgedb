@@ -1333,6 +1333,72 @@ class ObjectCommand(
 
         return schema
 
+    def _finalize_affected_refs_specialize(
+        self,
+        cmd: Command,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> None:
+        # Handle some special cases in affected ref handling below
+        from . import lproperties as s_props
+        from . import links as s_links
+        from . import pointers as s_pointers
+        from . import types as s_types
+        from . import constraints as s_cnstr
+        from edb.ir import ast as irast
+
+        # if the delta involves re-setting a computable
+        # expression, then we also need to change the type to the
+        # new expression type
+        if isinstance(cmd, (s_props.AlterProperty, s_links.AlterLink)):
+            for cm in cmd.get_subcommands(type=AlterObjectProperty):
+                if cm.property == 'expr':
+                    assert isinstance(cm.new_value, s_expr.Expression)
+                    pointer = cast(
+                        s_pointers.Pointer, schema.get(cmd.classname))
+                    source = cast(s_types.Type, pointer.get_source(schema))
+                    expression = s_expr.Expression.compiled(
+                        cm.new_value,
+                        schema=schema,
+                        options=qlcompiler.CompilerOptions(
+                            modaliases=context.modaliases,
+                            anchors={qlast.Source().name: source},
+                            path_prefix_anchor=qlast.Source().name,
+                            singletons=frozenset([source]),
+                            apply_query_rewrites=not context.stdmode,
+                        ),
+                    )
+
+                    assert isinstance(expression.irast, irast.Statement)
+                    target = expression.irast.stype
+                    cmd.set_attribute_value('target', target)
+                    break
+        # If it involves changing the subjectexpr of a constraint,
+        # we unfortunately need to compute a new name and rename
+        # the constraint.
+        elif (
+            isinstance(cmd, s_cnstr.AlterConstraint)
+            and not cmd.get_attribute_value('is_abstract')
+            and (subjectexpr :=
+                 cmd.get_attribute_value('subjectexpr')) is not None
+        ):
+            name = sn.shortname_from_fullname(cmd.classname)
+            ast = qlast.CreateConcreteConstraint(
+                name=qlast.ObjectRef(name=name.name, module=name.module),
+                subjectexpr=subjectexpr.qlast,
+            )
+            quals = sn.quals_from_fullname(cmd.classname)
+            new_name = cmd._classname_from_ast_and_referrer(
+                schema, sn.SchemaName(quals[0]), ast, context)
+
+            rename = cmd.scls.init_delta_command(
+                schema, RenameObject, new_name=new_name,
+            )
+            rename.set_attribute_value(
+                'name', value=new_name, orig_value=cmd.classname,
+            )
+            cmd.add(rename)
+
     def _finalize_affected_refs(
         self,
         schema: s_schema.Schema,
@@ -1341,64 +1407,7 @@ class ObjectCommand(
         for delta, cmd, really_apply in context.affected_finalization.get(
             self, []
         ):
-            from . import lproperties as s_props
-            from . import links as s_links
-            from . import pointers as s_pointers
-            from . import types as s_types
-            from . import constraints as s_cnstr
-            from edb.ir import ast as irast
-
-            # if the delta involves re-setting a computable
-            # expression, then we also need to change the type to the
-            # new expression type
-            if isinstance(cmd, (s_props.AlterProperty, s_links.AlterLink)):
-                for cm in cmd.get_subcommands(type=AlterObjectProperty):
-                    if cm.property == 'expr':
-                        assert isinstance(cm.new_value, s_expr.Expression)
-                        pointer = cast(
-                            s_pointers.Pointer, schema.get(cmd.classname))
-                        source = cast(s_types.Type, pointer.get_source(schema))
-                        expression = s_expr.Expression.compiled(
-                            cm.new_value,
-                            schema=schema,
-                            options=qlcompiler.CompilerOptions(
-                                modaliases=context.modaliases,
-                                anchors={qlast.Source().name: source},
-                                path_prefix_anchor=qlast.Source().name,
-                                singletons=frozenset([source]),
-                                apply_query_rewrites=not context.stdmode,
-                            ),
-                        )
-
-                        assert isinstance(expression.irast, irast.Statement)
-                        target = expression.irast.stype
-                        cmd.set_attribute_value('target', target)
-                        break
-            # If it involves changing the subjectexpr of a constraint,
-            # we unfortunately need to compute a new name and rename
-            # the constraint.
-            elif (
-                isinstance(cmd, s_cnstr.AlterConstraint)
-                and not cmd.get_attribute_value('is_abstract')
-                and (subjectexpr :=
-                     cmd.get_attribute_value('subjectexpr')) is not None
-            ):
-                name = sn.shortname_from_fullname(cmd.classname)
-                ast = qlast.CreateConcreteConstraint(
-                    name=qlast.ObjectRef(name=name.name, module=name.module),
-                    subjectexpr=subjectexpr.qlast,
-                )
-                quals = sn.quals_from_fullname(cmd.classname)
-                new_name = cmd._classname_from_ast_and_referrer(
-                    schema, sn.SchemaName(quals[0]), ast, context)
-
-                rename = cmd.scls.init_delta_command(
-                    schema, RenameObject, new_name=new_name,
-                )
-                rename.set_attribute_value(
-                    'name', value=new_name, orig_value=cmd.classname,
-                )
-                cmd.add(rename)
+            self._finalize_affected_refs_specialize(cmd, schema, context)
 
             schema = delta.apply(schema, context)
 
