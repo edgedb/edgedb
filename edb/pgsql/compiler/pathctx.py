@@ -79,7 +79,11 @@ def get_less_specific_aspect(
 def map_path_id(
         path_id: irast.PathId,
         path_id_map: Dict[irast.PathId, irast.PathId]) -> irast.PathId:
-    for outer_id, inner_id in path_id_map.items():
+
+    sorted_map = sorted(
+        path_id_map.items(), key=lambda kv: len(kv[0]), reverse=True)
+
+    for outer_id, inner_id in sorted_map:
         new_path_id = path_id.replace_prefix(outer_id, inner_id)
         if new_path_id != path_id:
             path_id = new_path_id
@@ -98,6 +102,15 @@ def reverse_map_path_id(
             break
 
     return path_id
+
+
+def put_path_id_map(
+    rel: pgast.Query,
+    outer_path_id: irast.PathId,
+    inner_path_id: irast.PathId,
+) -> None:
+    inner_path_id = map_path_id(inner_path_id, rel.view_path_id_map)
+    rel.view_path_id_map[outer_path_id] = inner_path_id
 
 
 def get_path_var(

@@ -554,6 +554,26 @@ def ptrref_from_ptrcls(  # NoQA: F811
             ) for p in non_overlapping
         }
 
+    intersection_components: Set[irast.BasePointerRef] = set()
+    intersection_of = ptrcls.get_intersection_of(schema)
+    if intersection_of:
+        intersection_ptrs = set()
+
+        for component in intersection_of.objects(schema):
+            assert isinstance(component, s_pointers.Pointer)
+            schema, material_comp = component.material_type(schema)
+            intersection_ptrs.add(material_comp)
+
+        intersection_components = {
+            ptrref_from_ptrcls(
+                ptrcls=p,
+                direction=direction,
+                schema=schema,
+                cache=cache,
+                typeref_cache=typeref_cache,
+            ) for p in intersection_ptrs
+        }
+
     std_parent_name = None
     for ancestor in ptrcls.get_ancestors(schema).objects(schema):
         ancestor_name = ancestor.get_name(schema)
@@ -612,6 +632,7 @@ def ptrref_from_ptrcls(  # NoQA: F811
         is_derived=ptrcls.get_is_derived(schema),
         is_computable=ptrcls.get_computable(schema),
         union_components=union_components,
+        intersection_components=intersection_components,
         union_is_concrete=union_is_concrete,
         has_properties=ptrcls.has_user_defined_properties(schema),
         dir_cardinality=dir_cardinality,
@@ -815,7 +836,7 @@ def find_actual_ptrref(
     elif ptrref.dir_source.id != source_typeref.id:
         # We are updating a subtype, find the
         # correct descendant ptrref.
-        for dp in ptrref.union_components:
+        for dp in ptrref.union_components | ptrref.intersection_components:
             candidate = maybe_find_actual_ptrref(source_typeref, dp)
             if candidate is not None:
                 actual_ptrref = candidate

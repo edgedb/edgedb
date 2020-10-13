@@ -673,7 +673,7 @@ def compile_insert_else_body(
 
             pathctx.put_path_bond(ictx.rel, subject_id)
             dispatch.compile(else_select, ctx=ictx)
-            ictx.rel.view_path_id_map[subject_id] = else_select.path_id
+            pathctx.put_path_id_map(ictx.rel, subject_id, else_select.path_id)
 
             else_select_cte = pgast.CommonTableExpr(
                 query=ictx.rel,
@@ -694,7 +694,7 @@ def compile_insert_else_body(
                 parent=ictx.enclosing_cte_iterator)
             ictx.volatility_ref = ()
             dispatch.compile(else_branch, ctx=ictx)
-            ictx.rel.view_path_id_map[subject_id] = else_branch.path_id
+            pathctx.put_path_id_map(ictx.rel, subject_id, else_branch.path_id)
 
             assert else_cte_rvar
             else_branch_cte = else_cte_rvar[0]

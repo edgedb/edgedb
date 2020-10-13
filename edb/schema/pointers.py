@@ -725,6 +725,12 @@ class PseudoPointer(s_abc.Pointer):
     ) -> None:
         return None
 
+    def get_intersection_of(
+        self,
+        schema: s_schema.Schema,
+    ) -> None:
+        return None
+
     def get_default(
         self,
         schema: s_schema.Schema,

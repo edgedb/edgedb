@@ -770,7 +770,7 @@ def process_set_as_path(
                 subctx.intersection_narrowing[ir_source] = ir_set
                 source_rvar = get_set_rvar(ir_source, ctx=subctx)
 
-            stmt.view_path_id_map[ir_set.path_id] = ir_source.path_id
+            pathctx.put_path_id_map(stmt, ir_set.path_id, ir_source.path_id)
             relctx.include_rvar(stmt, source_rvar, ir_set.path_id, ctx=ctx)
 
         else:
@@ -821,8 +821,8 @@ def process_set_as_path(
             )
 
             if isinstance(source_rvar.query, pgast.Query):
-                source_rvar.query.view_path_id_map[ir_set.path_id] = (
-                    ir_source.path_id)
+                pathctx.put_path_id_map(
+                    source_rvar.query, ir_set.path_id, ir_source.path_id)
 
             for aspect in ('source', 'value'):
                 pathctx.put_path_rvar(
@@ -1053,7 +1053,7 @@ def process_set_as_subquery(
         semi_join = False
 
         if inner_id != outer_id:
-            ctx.rel.view_path_id_map[outer_id] = inner_id
+            pathctx.put_path_id_map(ctx.rel, outer_id, inner_id)
 
         if ir_source is not None:
             if (
@@ -1202,12 +1202,12 @@ def process_set_as_setop(
 
         with newctx.subrel() as _, _.newscope() as scopectx:
             larg = scopectx.rel
-            larg.view_path_id_map[ir_set.path_id] = left.path_id
+            pathctx.put_path_id_map(larg, ir_set.path_id, left.path_id)
             dispatch.visit(left, ctx=scopectx)
 
         with newctx.subrel() as _, _.newscope() as scopectx:
             rarg = scopectx.rel
-            rarg.view_path_id_map[ir_set.path_id] = right.path_id
+            pathctx.put_path_id_map(rarg, ir_set.path_id, right.path_id)
             dispatch.visit(right, ctx=scopectx)
 
     with ctx.subrel() as subctx:
@@ -1234,7 +1234,7 @@ def process_set_as_distinct(
     with ctx.subrel() as subctx:
         subqry = subctx.rel
         arg = expr.args[0].expr
-        subqry.view_path_id_map[ir_set.path_id] = arg.path_id
+        pathctx.put_path_id_map(subqry, ir_set.path_id, arg.path_id)
         dispatch.visit(arg, ctx=subctx)
         subrvar = relctx.rvar_for_rel(
             subqry, typeref=arg.typeref, lateral=True, ctx=subctx)
@@ -1314,7 +1314,7 @@ def process_set_as_ifelse(
     else:
         with ctx.subrel() as _, _.newscope() as subctx:
             larg = subctx.rel
-            larg.view_path_id_map[ir_set.path_id] = if_expr.path_id
+            pathctx.put_path_id_map(larg, ir_set.path_id, if_expr.path_id)
             dispatch.visit(if_expr, ctx=subctx)
 
             larg.where_clause = astutils.extend_binop(
@@ -1324,7 +1324,7 @@ def process_set_as_ifelse(
 
         with ctx.subrel() as _, _.newscope() as subctx:
             rarg = subctx.rel
-            rarg.view_path_id_map[ir_set.path_id] = else_expr.path_id
+            pathctx.put_path_id_map(rarg, ir_set.path_id, else_expr.path_id)
             dispatch.visit(else_expr, ctx=subctx)
 
             rarg.where_clause = astutils.extend_binop(
@@ -1447,7 +1447,8 @@ def process_set_as_coalesce(
 
                     with sub2ctx.subrel() as scopectx:
                         larg = scopectx.rel
-                        larg.view_path_id_map[ir_set.path_id] = left_ir.path_id
+                        pathctx.put_path_id_map(
+                            larg, ir_set.path_id, left_ir.path_id)
                         dispatch.visit(left_ir, ctx=scopectx)
 
                         lvar = pathctx.get_path_value_var(
@@ -1466,8 +1467,8 @@ def process_set_as_coalesce(
 
                     with sub2ctx.subrel() as scopectx:
                         rarg = scopectx.rel
-                        rarg.view_path_id_map[ir_set.path_id] = \
-                            right_ir.path_id
+                        pathctx.put_path_id_map(
+                            rarg, ir_set.path_id, right_ir.path_id)
                         dispatch.visit(right_ir, ctx=scopectx)
 
                     marker = sub2ctx.env.aliases.get('m')
@@ -1543,7 +1544,7 @@ def process_set_as_tuple(
         for element in expr.elements:
             path_id = element.path_id
             if path_id != element.val.path_id:
-                stmt.view_path_id_map[path_id] = element.val.path_id
+                pathctx.put_path_id_map(stmt, path_id, element.val.path_id)
 
             dispatch.visit(element.val, ctx=subctx)
             elements.append(pgast.TupleElementBase(path_id=path_id))
@@ -1613,7 +1614,7 @@ def process_set_as_type_cast(
     is_json_cast = expr.to_type.id == s_obj.get_known_type_id('std::json')
 
     with ctx.new() as subctx:
-        ctx.rel.view_path_id_map[ir_set.path_id] = inner_set.path_id
+        pathctx.put_path_id_map(ctx.rel, ir_set.path_id, inner_set.path_id)
 
         if (is_json_cast
                 and (irtyputils.is_collection(inner_set.typeref)

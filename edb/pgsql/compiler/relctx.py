@@ -818,7 +818,7 @@ def range_for_material_objtype(
                 typeref=typeref,
                 alias=pgast.Alias(aliasname=env.aliases.get('t'))
             )
-            sctx.rel.view_path_id_map[path_id] = rewrite.path_id
+            pathctx.put_path_id_map(sctx.rel, path_id, rewrite.path_id)
             include_rvar(sctx.rel, cte_rvar, rewrite.path_id, ctx=sctx)
             rvar = rvar_for_rel(sctx.rel, typeref=typeref, ctx=sctx)
     else:
@@ -881,8 +881,7 @@ def range_for_material_objtype(
             if path_id.is_objtype_path():
                 pathctx.put_path_source_rvar(qry, cte_path_id, rvar, env=env)
             pathctx.put_path_bond(qry, cte_path_id)
-
-            qry.view_path_id_map[path_id] = cte_path_id
+            pathctx.put_path_id_map(qry, path_id, cte_path_id)
 
             qry_rvar = pgast.RangeSubselect(
                 subquery=qry,

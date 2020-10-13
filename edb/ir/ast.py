@@ -186,6 +186,7 @@ class BasePointerRef(ImmutableBase):
     material_ptr: BasePointerRef
     descendants: typing.FrozenSet[BasePointerRef]
     union_components: typing.Set[BasePointerRef]
+    intersection_components: typing.Set[BasePointerRef]
     union_is_concrete: bool
     has_properties: bool
     is_derived: bool
