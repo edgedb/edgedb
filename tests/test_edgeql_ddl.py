@@ -6603,3 +6603,223 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ''',
             ['test::Post', 'test::Video']
         )
+
+    async def test_edgeql_ddl_rename_ref_01(self):
+        await self.con.execute("""
+            WITH MODULE test
+            CREATE TYPE Note {
+                CREATE PROPERTY note -> str;
+            };
+
+            WITH MODULE test
+            CREATE FUNCTION hello(x: Note) ->  str {
+                USING (SELECT ('note ' ++ x.note ++
+                               (SELECT Note.note LIMIT 1)))
+            }
+        """)
+
+        await self.con.execute("""
+            ALTER TYPE test::Note {
+                ALTER PROPERTY note {
+                    RENAME TO remark;
+                }
+            }
+            """)
+
+        res = await self.con.query_one("""
+            DESCRIBE MODULE test
+        """)
+
+        self.assertEqual(res.count("note"), 1)
+        self.assertEqual(res.count("remark"), 3)
+
+    async def test_edgeql_ddl_rename_ref_02(self):
+        await self.con.execute("""
+            WITH MODULE test
+            CREATE TYPE Note {
+                CREATE PROPERTY note -> str;
+            };
+
+            WITH MODULE test
+            CREATE TYPE Object2 {
+                CREATE REQUIRED PROPERTY x -> str {
+                    SET default := (
+                        SELECT Note.note LIMIT 1
+                    )
+                }
+            };
+        """)
+
+        await self.con.execute("""
+            WITH MODULE test
+            ALTER TYPE Note {
+                ALTER PROPERTY note {
+                    RENAME TO remark;
+                }
+            }
+        """)
+
+        res = await self.con.query_one("""
+            DESCRIBE MODULE test
+        """)
+
+        self.assertEqual(res.count("note"), 0)
+        self.assertEqual(res.count("remark"), 2)
+
+        await self.con.execute("""
+            ALTER TYPE test::Object2
+            DROP PROPERTY x;
+        """)
+
+    async def test_edgeql_ddl_rename_ref_03(self):
+        await self.con.execute("""
+            WITH MODULE test
+            CREATE TYPE Note {
+                CREATE PROPERTY name -> str;
+                CREATE PROPERTY note -> str;
+                CREATE CONSTRAINT exclusive ON (
+                    (__subject__.name, __subject__.note));
+            };
+        """)
+
+        await self.con.execute("""
+            WITH MODULE test
+            ALTER TYPE Note {
+                ALTER PROPERTY note {
+                    RENAME TO remark;
+                };
+                ALTER PROPERTY name {
+                    RENAME TO callsign;
+                };
+            }
+        """)
+
+        res = await self.con.query_one("""
+            DESCRIBE MODULE test
+        """)
+
+        self.assertEqual(res.count("note"), 0)
+        self.assertEqual(res.count("remark"), 2)
+        self.assertEqual(res.count("name"), 0)
+        self.assertEqual(res.count("callsign"), 2)
+
+        await self.con.execute("""
+            ALTER TYPE test::Note
+            DROP CONSTRAINT exclusive ON ((
+                (__subject__.callsign, __subject__.remark)));
+        """)
+
+    async def test_edgeql_ddl_rename_ref_04(self):
+        await self.con.execute("""
+            WITH MODULE test
+            CREATE TYPE Note {
+                CREATE PROPERTY note -> str;
+                CREATE INDEX ON (.note);
+            };
+        """)
+
+        await self.con.execute("""
+            WITH MODULE test
+            ALTER TYPE Note {
+                ALTER PROPERTY note {
+                    RENAME TO remark;
+                }
+            }
+        """)
+
+        res = await self.con.query_one("""
+            DESCRIBE MODULE test
+        """)
+
+        self.assertEqual(res.count("note"), 0)
+        self.assertEqual(res.count("remark"), 2)
+
+        await self.con.execute("""
+            ALTER TYPE test::Note
+            DROP INDEX ON (.note);
+        """)
+
+    @test.xfail('''
+        Fails doing the delete with function does not exist, due to
+        not renaming the function's mangled name.
+    ''')
+    async def test_edgeql_ddl_rename_ref_05(self):
+        await self.con.execute("""
+            WITH MODULE test
+            CREATE TYPE Note {
+                CREATE PROPERTY note -> str;
+            };
+
+            WITH MODULE test
+            CREATE FUNCTION hello(x: Note) ->  str {
+                USING (SELECT ('Note note ' ++ x.note ++
+                               (SELECT Note.note LIMIT 1)))
+            }
+        """)
+
+        await self.con.execute("""
+            WITH MODULE test
+            INSERT Note { note := "uh." }
+        """)
+
+        await self.con.execute("""
+            WITH MODULE test
+            ALTER TYPE Note {
+                RENAME TO Remark;
+            }
+            """)
+
+        res = await self.con.query_one("""
+            DESCRIBE MODULE test
+        """)
+
+        self.assertEqual(res.count("Note"), 1)
+        self.assertEqual(res.count("Remark"), 3)
+
+        await self.assert_query_result(
+            '''
+                WITH MODULE test
+                SELECT hello(Remark);
+            ''',
+            ['Note note uh.uh.'],
+        )
+
+        await self.con.execute("""
+            DROP FUNCTION test::hello(x: test::Remark);
+        """)
+
+    async def test_edgeql_ddl_rename_ref_06(self):
+        await self.con.execute("""
+            WITH MODULE test
+            CREATE TYPE Note {
+                CREATE PROPERTY note -> str;
+            };
+
+            WITH MODULE test
+            CREATE TYPE Uses {
+                CREATE REQUIRED PROPERTY x -> str {
+                    SET default := (SELECT Note.note LIMIT 1)
+                }
+            };
+
+            WITH MODULE test
+            CREATE TYPE Uses2 {
+                CREATE REQUIRED PROPERTY x -> str {
+                    SET default := (SELECT Note.note LIMIT 1)
+                }
+            };
+        """)
+
+        await self.con.execute("""
+            WITH MODULE test
+            ALTER TYPE Note {
+                RENAME TO Remark;
+            }
+            """)
+
+        res = await self.con.query_one("""
+            DESCRIBE MODULE test
+        """)
+
+        self.assertEqual(res.count("Note"), 0)
+        self.assertEqual(res.count("Remark"), 3)

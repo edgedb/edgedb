@@ -135,6 +135,10 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer, s_abc.Expression):
         )
 
     @classmethod
+    def not_compiled(cls: Type[Expression], expr: Expression) -> Expression:
+        return Expression(text=expr.text, origtext=expr.origtext)
+
+    @classmethod
     def compiled(
         cls: Type[Expression],
         expr: Expression,
@@ -344,15 +348,16 @@ def imprint_expr_context(
 
 
 def get_expr_referrers(schema: s_schema.Schema,
-                       obj: so.Object) -> Dict[so.Object, str]:
+                       obj: so.Object) -> Dict[so.Object, List[str]]:
     """Return schema referrers with refs in expressions."""
 
     refs = schema.get_referrers_ex(obj)
-    result = {}
+    result: Dict[so.Object, List[str]] = {}
 
     for (mcls, fn), referrers in refs.items():
         field = mcls.get_field(fn)
         if issubclass(field.type, (Expression, ExpressionList)):
-            result.update({ref: fn for ref in referrers})
+            for ref in referrers:
+                result.setdefault(ref, []).append(fn)
 
     return result

@@ -142,7 +142,7 @@ def compile_ConfigInsert(
 
     level = 'SYSTEM' if expr.system else 'SESSION'
     subject = ctx.env.get_track_schema_object(
-        f'cfg::{expr.name.name}', default=None)
+        f'cfg::{expr.name.name}', expr.name, default=None)
     if subject is None:
         raise errors.ConfigurationError(
             f'{expr.name.name!r} is not a valid configuration item',

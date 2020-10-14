@@ -428,6 +428,26 @@ class StronglyReferencedObjectCommand(
 class ReferencedObjectCommand(ReferencedObjectCommandBase[ReferencedT]):
 
     @classmethod
+    def _classname_from_ast_and_referrer(cls,
+                                         schema: s_schema.Schema,
+                                         referrer_name: sn.SchemaName,
+                                         astnode: qlast.NamedDDL,
+                                         context: sd.CommandContext
+                                         ) -> sn.Name:
+        base_ref = utils.ast_to_object_shell(
+            astnode.name,
+            modaliases=context.modaliases,
+            schema=schema,
+            metaclass=cls.get_schema_metaclass(),
+        )
+
+        base_name = base_ref.name
+        quals = cls._classname_quals_from_ast(
+            schema, astnode, base_name, referrer_name, context)
+        pnn = sn.get_specialized_name(base_name, referrer_name, *quals)
+        return sn.Name(name=pnn, module=referrer_name.module)
+
+    @classmethod
     def _classname_from_ast(cls,
                             schema: s_schema.Schema,
                             astnode: qlast.NamedDDL,
@@ -439,18 +459,9 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase[ReferencedT]):
         if parent_ctx is not None:
             assert isinstance(parent_ctx.op, sd.QualifiedObjectCommand)
             referrer_name = parent_ctx.op.classname
-            base_ref = utils.ast_to_object_shell(
-                astnode.name,
-                modaliases=context.modaliases,
-                schema=schema,
-                metaclass=cls.get_schema_metaclass(),
+            name = cls._classname_from_ast_and_referrer(
+                schema, referrer_name, astnode, context
             )
-
-            base_name = base_ref.name
-            quals = cls._classname_quals_from_ast(
-                schema, astnode, base_name, referrer_name, context)
-            pnn = sn.get_specialized_name(base_name, referrer_name, *quals)
-            name = sn.Name(name=pnn, module=referrer_name.module)
 
         assert isinstance(name, sn.Name)
         return name

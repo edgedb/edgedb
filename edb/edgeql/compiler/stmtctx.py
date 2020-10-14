@@ -224,6 +224,7 @@ def fini_expression(
         schema=ctx.env.schema,
         schema_refs=frozenset(
             ctx.env.schema_refs - ctx.env.created_schema_objects),
+        schema_ref_exprs=ctx.env.schema_ref_exprs,
         new_coll_types=frozenset(
             t for t in ctx.env.created_schema_objects
             if isinstance(t, s_types.Collection) and t != expr_type

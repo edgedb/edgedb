@@ -866,7 +866,7 @@ class CommandContext:
         self.schema_object_ids = schema_object_ids
         self.backend_superuser_role = backend_superuser_role
         self.affected_finalization: \
-            Dict[Command, Tuple[DeltaRoot, Command]] = dict()
+            Dict[Command, List[Tuple[DeltaRoot, Command, bool]]] = dict()
         self.compat_ver = compat_ver
 
     @property
@@ -1234,77 +1234,77 @@ class ObjectCommand(
         schema: s_schema.Schema,
         context: CommandContext,
         action: str,
-    ) -> Tuple[s_schema.Schema, List[qlast.DDLCommand]]:
+        fixer: Optional[
+            Callable[[s_schema.Schema, ObjectCommand[so.Object], str,
+                      CommandContext, s_expr.Expression],
+                     s_expr.Expression]
+        ]=None,
+    ) -> s_schema.Schema:
         scls = self.scls
         expr_refs = s_expr.get_expr_referrers(schema, scls)
-        # Commands to be executed after the original change is
-        # complete
-        finalize_ast: List[qlast.DDLCommand] = []
 
         if expr_refs:
             ref_desc = []
-            for ref, fn in expr_refs.items():
+            for ref, fns in expr_refs.items():
+                really_apply = False
+
                 from . import functions as s_func
                 from . import indexes as s_indexes
                 from . import pointers as s_pointers
+                from . import constraints as s_cnstr
 
                 cmd_drop: Command
                 cmd_create: Command
 
-                if isinstance(ref, s_indexes.Index):
-                    # If the affected entity is an index, just drop it and
-                    # schedule it to be re-created.
-                    create_root, create_parent = ref.init_parent_delta_branch(
-                        schema)
-                    create_cmd = ref.init_delta_command(schema, CreateObject)
-                    for fname in type(ref).get_fields():
-                        value = ref.get_explicit_field_value(
-                            schema, fname, None)
-                        if value is not None:
-                            create_cmd.set_attribute_value(fname, value)
-                    create_parent.add(create_cmd)
-                    context.affected_finalization[self] = (
-                        create_root, create_cmd)
-                    schema = ref.delete(schema)
-                    continue
-
-                elif isinstance(ref, s_pointers.Pointer):
-                    # If the affected entity is a pointer, drop/create
-                    # the default value or computable.
+                if isinstance(
+                    ref,
+                    (
+                        s_indexes.Index,
+                        s_pointers.Pointer,
+                        s_func.Function,
+                        s_cnstr.Constraint,
+                    ),
+                ):
+                    # Alter the affected entity to change the body to
+                    # a dummy version (removing the dependency) and
+                    # then reset the body to original expression.
                     delta_drop, cmd_drop = ref.init_delta_branch(
                         schema, cmdtype=AlterObject)
                     delta_create, cmd_create = ref.init_delta_branch(
                         schema, cmdtype=AlterObject)
+                    cmd_create.scls = ref
+                    # Mark it metadata_only so that if it actually gets
+                    # applied, only the metadata is changed but not
+                    # the real underlying schema.
+                    cmd_create.metadata_only = True
 
-                    # Copy own fields into the create command.
-                    value = ref.get_explicit_field_value(schema, fn, None)
-                    cmd_drop.set_attribute_value(fn, None)
-                    cmd_create.set_attribute_value(fn, value)
+                    # Compute a dummy value
+                    dummy = None
+                    if isinstance(ref, s_indexes.Index):
+                        dummy = s_expr.Expression(text='0')
+                    elif isinstance(ref, s_cnstr.Constraint):
+                        dummy = s_expr.Expression(text='SELECT false')
+                    elif isinstance(ref, s_pointers.Pointer):
+                        dummy = None
+                    elif isinstance(ref, s_func.Function):
+                        dummy = ref.get_dummy_body(schema)
 
-                    context.affected_finalization[self] = (
-                        delta_create, cmd_create
-                    )
-                    schema = delta_drop.apply(schema, context)
-                    continue
+                    for fn in fns:
+                        # Do the switcheraroos
+                        value = ref.get_explicit_field_value(schema, fn, None)
+                        assert isinstance(value, s_expr.Expression)
+                        # Strip the "compiled" out of the expression
+                        value = s_expr.Expression.not_compiled(value)
+                        if fixer:
+                            value = fixer(
+                                schema, cmd_create, fn, context, value)
+                            really_apply = True
 
-                elif isinstance(ref, s_func.Function):
-                    # If the affected entity is a function, alter it
-                    # to change the body to a dummy version (removing
-                    # the dependency) and then reset the body to
-                    # original expression.
-                    delta_drop, cmd_drop = ref.init_delta_branch(
-                        schema, cmdtype=AlterObject)
-                    delta_create, cmd_create = ref.init_delta_branch(
-                        schema, cmdtype=AlterObject)
+                        cmd_drop.set_attribute_value(fn, dummy)
+                        cmd_create.set_attribute_value(fn, value)
 
-                    # Copy own fields into the create command.
-                    value = ref.get_explicit_field_value(schema, fn, None)
-                    cmd_drop.set_attribute_value(
-                        fn, ref.get_dummy_body(schema))
-                    cmd_create.set_attribute_value(fn, value)
-
-                    context.affected_finalization[self] = (
-                        delta_create, cmd_create
+                    context.affected_finalization.setdefault(self, []).append(
+                        (delta_create, cmd_create, really_apply)
                     )
                     schema = delta_drop.apply(schema, context)
                     continue
@@ -1331,49 +1331,99 @@ class ObjectCommand(
                     )
                 )
 
-        return schema, finalize_ast
+        return schema
+
+    def _finalize_affected_refs_specialize(
+        self,
+        cmd: Command,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> None:
+        # Handle some special cases in affected ref handling below
+        from . import lproperties as s_props
+        from . import links as s_links
+        from . import pointers as s_pointers
+        from . import types as s_types
+        from . import constraints as s_cnstr
+        from edb.ir import ast as irast
+
+        # if the delta involves re-setting a computable
+        # expression, then we also need to change the type to the
+        # new expression type
+        if isinstance(cmd, (s_props.AlterProperty, s_links.AlterLink)):
+            for cm in cmd.get_subcommands(type=AlterObjectProperty):
+                if cm.property == 'expr':
+                    assert isinstance(cm.new_value, s_expr.Expression)
+                    pointer = cast(
+                        s_pointers.Pointer, schema.get(cmd.classname))
+                    source = cast(s_types.Type, pointer.get_source(schema))
+                    expression = s_expr.Expression.compiled(
+                        cm.new_value,
+                        schema=schema,
+                        options=qlcompiler.CompilerOptions(
+                            modaliases=context.modaliases,
+                            anchors={qlast.Source().name: source},
+                            path_prefix_anchor=qlast.Source().name,
+                            singletons=frozenset([source]),
+                            apply_query_rewrites=not context.stdmode,
+                        ),
+                    )
+
+                    assert isinstance(expression.irast, irast.Statement)
+                    target = expression.irast.stype
+                    cmd.set_attribute_value('target', target)
+                    break
+        # If it involves changing the subjectexpr of a constraint,
+        # we unfortunately need to compute a new name and rename
+        # the constraint.
+        elif (
+            isinstance(cmd, s_cnstr.AlterConstraint)
+            and not cmd.get_attribute_value('is_abstract')
+            and (subjectexpr :=
+                 cmd.get_attribute_value('subjectexpr')) is not None
+        ):
+            # To compute the new name, we construct an AST of the
+            # constraint, since that is the infrastructure we have for
+            # computing the classname.
+            name = sn.shortname_from_fullname(cmd.classname)
+            ast = qlast.CreateConcreteConstraint(
+                name=qlast.ObjectRef(name=name.name, module=name.module),
+                subjectexpr=subjectexpr.qlast,
+            )
+            quals = sn.quals_from_fullname(cmd.classname)
+            new_name = cmd._classname_from_ast_and_referrer(
+                schema, sn.SchemaName(quals[0]), ast, context)
+
+            rename = cmd.scls.init_delta_command(
+                schema, RenameObject, new_name=new_name,
+            )
+            rename.set_attribute_value(
+                'name', value=new_name, orig_value=cmd.classname,
+            )
+            cmd.add(rename)
 
     def _finalize_affected_refs(
         self,
         schema: s_schema.Schema,
         context: CommandContext,
     ) -> s_schema.Schema:
-        delta, cmd = context.affected_finalization.get(self, (None, None))
-        if delta is not None:
-            from . import lproperties as s_props
-            from . import links as s_links
-            from . import pointers as s_pointers
-            from . import types as s_types
-            from edb.ir import ast as irast
-
-            # if the delta involves re-setting a computable
-            # expression, then we also need to change the type to the
-            # new expression type
-            if (isinstance(cmd, (s_props.AlterProperty, s_links.AlterLink))):
-                for cm in cmd.get_subcommands(type=AlterObjectProperty):
-                    if cm.property == 'expr':
-                        assert isinstance(cm.new_value, s_expr.Expression)
-                        pointer = cast(
-                            s_pointers.Pointer, schema.get(cmd.classname))
-                        source = cast(s_types.Type, pointer.get_source(schema))
-                        expression = s_expr.Expression.compiled(
-                            cm.new_value,
-                            schema=schema,
-                            options=qlcompiler.CompilerOptions(
-                                modaliases=context.modaliases,
-                                anchors={qlast.Source().name: source},
-                                path_prefix_anchor=qlast.Source().name,
-                                singletons=frozenset([source]),
-                                apply_query_rewrites=not context.stdmode,
-                            ),
-                        )
-
-                        assert isinstance(expression.irast, irast.Statement)
-                        target = expression.irast.stype
-                        cmd.set_attribute_value('target', target)
-                        break
+        for delta, cmd, really_apply in context.affected_finalization.get(
+            self, []
+        ):
+            self._finalize_affected_refs_specialize(cmd, schema, context)
 
             schema = delta.apply(schema, context)
+
+            if not context.canonical and really_apply and delta:
+                # We need to force the attributes to be resolved so
+                # that expressions get compiled *now* under a schema
+                # where they are correct, and not later, when more
+                # renames may have broken them.
+                assert isinstance(cmd, ObjectCommand)
+                for key, value in cmd.get_resolved_attributes(
+                        schema, context).items():
+                    cmd.set_attribute_value(key, value)
+                self.add(delta)
 
         return schema
 
@@ -1726,6 +1776,7 @@ class ObjectCommand(
         context: CommandContext,
         field: so.Field[Any],
         value: Any,
+        track_schema_ref_exprs: bool=False,
     ) -> s_expr.Expression:
         cdn = self.get_schema_metaclass().get_schema_class_displayname()
         raise errors.InternalServerError(
@@ -2133,6 +2184,41 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
 
     new_name = struct.Field(str)
 
+    def _fix_referencing_expr(
+        self,
+        schema: s_schema.Schema,
+        cmd: ObjectCommand[so.Object],
+        fn: str,
+        context: CommandContext,
+        expr: s_expr.Expression,
+    ) -> s_expr.Expression:
+        from edb.ir import ast as irast
+
+        # Recompile the expression with reference tracking on so that we
+        # can clean up the ast.
+        field = cmd.get_schema_metaclass().get_field(fn)
+        compiled = cmd.compile_expr_field(
+            schema, context, field, expr,
+            track_schema_ref_exprs=True)
+        assert isinstance(compiled.irast, irast.Statement)
+        assert compiled.irast.schema_ref_exprs is not None
+
+        # Now that the compilation is done, try to do the fixup.
+        new_shortname = sn.shortname_from_fullname(self.new_name).name
+        old_shortname = sn.shortname_from_fullname(self.classname).name
+        for ref in compiled.irast.schema_ref_exprs.get(self.scls, []):
+            if isinstance(ref, qlast.Ptr):
+                ref = ref.ptr
+            assert isinstance(ref, qlast.ObjectRef), (
+                f"only support object refs but got {ref}")
+            assert ref.name == old_shortname, (ref.name, old_shortname)
+            ref.name = new_shortname
+
+        # say as_fragment=True as a hack to avoid renormalizing it
+        out = s_expr.Expression.from_ast(
+            compiled.qlast, schema, modaliases={}, as_fragment=True)
+        return out
+
     def _rename_begin(
         self,
         schema: s_schema.Schema,
@@ -2145,8 +2231,9 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
         # not supported yet.  Eventually we'll add support
         # for transparent recompilation.
         vn = scls.get_verbosename(schema)
-        schema, finalize_ast = self._propagate_if_expr_refs(
-            schema, context, action=f'rename {vn}')
+        schema = self._propagate_if_expr_refs(
+            schema, context, action=f'rename {vn}',
+            fixer=self._fix_referencing_expr)
 
         if not context.canonical:
             self.set_attribute_value(
@@ -2326,6 +2413,9 @@ class AlterObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
 
     #: If True, apply the command only if the object exists.
     if_exists = struct.Field(bool, default=False)
+
+    #: If True, only apply changes to properties, not "real" schema changes
+    metadata_only = struct.Field(bool, default=False)
 
     @classmethod
     def _cmd_tree_from_ast(

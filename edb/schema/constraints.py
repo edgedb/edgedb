@@ -383,10 +383,18 @@ class ConstraintCommand(
         context: sd.CommandContext,
         field: so.Field[Any],
         value: s_expr.Expression,
+        track_schema_ref_exprs: bool=False,
     ) -> s_expr.Expression:
 
-        referrer_ctx = self.get_referrer_context(context)
-        if referrer_ctx is not None:
+        base: Optional[so.Object] = None
+        if isinstance(self, AlterConstraint):
+            base = self.scls.get_subject(schema)
+        else:
+            referrer_ctx = self.get_referrer_context(context)
+            if referrer_ctx:
+                base = referrer_ctx.op.scls
+
+        if base is not None:
             # Concrete constraint
             if field.name == 'expr':
                 # Concrete constraints cannot redefine the base check
@@ -403,10 +411,9 @@ class ConstraintCommand(
                 return value
 
             elif field.name in {'subjectexpr', 'finalexpr'}:
-                anchors = {'__subject__': referrer_ctx.op.scls}
+                anchors = {'__subject__': base}
                 path_prefix_anchor = (
-                    '__subject__'
-                    if isinstance(referrer_ctx.op.scls, s_types.Type) else None
+                    '__subject__' if isinstance(base, s_types.Type) else None
                 )
                 return s_expr.Expression.compiled(
                     value,
@@ -418,6 +425,7 @@ class ConstraintCommand(
                         allow_generic_type_output=True,
                         schema_object_context=self.get_schema_metaclass(),
                         apply_query_rewrites=not context.stdmode,
+                        track_schema_ref_exprs=track_schema_ref_exprs,
                     ),
                 )
 
@@ -445,10 +453,12 @@ class ConstraintCommand(
                     allow_generic_type_output=True,
                     schema_object_context=self.get_schema_metaclass(),
                     apply_query_rewrites=not context.stdmode,
+                    track_schema_ref_exprs=track_schema_ref_exprs,
                 ),
             )
         else:
-            return super().compile_expr_field(schema, context, field, value)
+            return super().compile_expr_field(
+                schema, context, field, value, track_schema_ref_exprs)
 
     @classmethod
     def get_inherited_ref_name(

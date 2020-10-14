@@ -195,6 +195,11 @@ class Environment:
     schema_refs: Set[s_obj.Object]
     """A set of all schema objects referenced by an expression."""
 
+    schema_ref_exprs: Optional[Dict[s_obj.Object, Set[qlast.Base]]]
+    """Map from all schema objects referenced to the ast referants.
+
+    This is used for rewriting expressions in the schema after a rename. """
+
     created_schema_objects: Set[s_obj.Object]
     """A set of all schema objects derived by this compilation."""
 
@@ -231,6 +236,7 @@ class Environment:
         self.view_shapes_metadata = collections.defaultdict(
             irast.ViewShapeMetadata)
         self.schema_refs = set()
+        self.schema_ref_exprs = {} if options.track_schema_ref_exprs else None
         self.created_schema_objects = set()
         self.ptr_ref_cache = PointerRefCache()
         self.type_ref_cache = {}
@@ -238,10 +244,17 @@ class Environment:
         self.pointer_derivation_map = collections.defaultdict(list)
         self.pointer_specified_info = {}
 
+    def add_schema_ref(
+            self, sobj: s_obj.Object, expr: Optional[qlast.Base]) -> None:
+        self.schema_refs.add(sobj)
+        if self.schema_ref_exprs is not None and expr:
+            self.schema_ref_exprs.setdefault(sobj, set()).add(expr)
+
     @overload
     def get_track_schema_object(  # NoQA: F811
         self,
         name: str,
+        expr: Optional[qlast.Base],
         *,
         modaliases: Optional[Mapping[Optional[str], str]] = None,
         type: Optional[Type[s_obj.Object]] = None,
@@ -255,6 +268,7 @@ class Environment:
     def get_track_schema_object(  # NoQA: F811
         self,
         name: str,
+        expr: Optional[qlast.Base],
         *,
         modaliases: Optional[Mapping[Optional[str], str]] = None,
         type: Optional[Type[s_obj.Object]] = None,
@@ -267,6 +281,7 @@ class Environment:
     def get_track_schema_object(  # NoQA: F811
         self,
         name: str,
+        expr: Optional[qlast.Base],
         *,
         modaliases: Optional[Mapping[Optional[str], str]] = None,
         type: Optional[Type[s_obj.Object]] = None,
@@ -278,7 +293,7 @@ class Environment:
                                condition=condition, label=label,
                                default=default)
         if sobj is not None and sobj is not default:
-            self.schema_refs.add(sobj)
+            self.add_schema_ref(sobj, expr)
 
             if (
                 isinstance(sobj, s_types.Type)
@@ -292,13 +307,15 @@ class Environment:
                     scls_type=s_aliases.Alias,
                     field_name='type',
                 )
-                self.schema_refs.update(alias_objs)
+                for obj in alias_objs:
+                    self.add_schema_ref(obj, expr)
 
         return sobj
 
     def get_track_schema_type(
         self,
         name: str,
+        expr: Optional[qlast.Base]=None,
         *,
         modaliases: Optional[Mapping[Optional[str], str]] = None,
         default: Union[None, s_obj.Object, s_obj.NoDefaultT] = s_obj.NoDefault,
@@ -307,7 +324,7 @@ class Environment:
     ) -> s_types.Type:
 
         stype = self.get_track_schema_object(
-            name, modaliases=modaliases, default=default, label=label,
+            name, expr, modaliases=modaliases, default=default, label=label,
             condition=condition, type=s_types.Type,
         )
 

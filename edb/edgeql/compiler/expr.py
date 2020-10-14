@@ -598,7 +598,7 @@ def compile_type_check_op(
 
     if ltype.is_object_type():
         left = setgen.ptr_step_set(
-            left, source=ltype, ptr_name='__type__',
+            left, expr=None, source=ltype, ptr_name='__type__',
             source_context=expr.context, ctx=ctx)
         pathctx.register_set_in_scope(left, ctx=ctx)
         result = None

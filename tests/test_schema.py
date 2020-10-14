@@ -4067,6 +4067,29 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
+    @test.xfail("""
+        The diff generates:
+          ALTER PROPERTY, CREATE CONSTRAINT, DELETE CONSTRAINT
+        which fails, because the alter renames the constraint and so
+        collides with the CREATE. We should instead always put the DELETE
+        first or (more ideally) realize that the ALTER is sufficient.
+    """)
+    def test_schema_migrations_equivalence_constraints_01(self):
+        # Irritatingly, if we start with it named note and rename to
+        # remark, it works! Probably the ordering ends up comparing
+        # the names at some point to provide a kind of ersatz determinism.
+        self._assert_migration_equivalence([r"""
+            type Note {
+                required property remark -> str;
+                constraint exclusive on (__subject__.remark);
+            };
+        """, r"""
+            type Note {
+                required property note -> str;
+                constraint exclusive on (__subject__.note);
+            };
+        """])
+
 
 class TestDescribe(tb.BaseSchemaLoadTest):
     """Test the DESCRIBE command."""

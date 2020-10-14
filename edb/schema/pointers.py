@@ -1235,6 +1235,7 @@ class PointerCommand(
         context: sd.CommandContext,
         field: so.Field[Any],
         value: s_expr.Expression,
+        track_schema_ref_exprs: bool=False,
     ) -> s_expr.Expression:
         from . import sources as s_sources
 
@@ -1269,10 +1270,12 @@ class PointerCommand(
                     path_prefix_anchor=path_prefix_anchor,
                     singletons=frozenset(singletons),
                     apply_query_rewrites=not context.stdmode,
+                    track_schema_ref_exprs=track_schema_ref_exprs,
                 ),
             )
         else:
-            return super().compile_expr_field(schema, context, field, value)
+            return super().compile_expr_field(
+                schema, context, field, value, track_schema_ref_exprs)
 
     def _apply_field_ast(
         self,
@@ -1324,7 +1327,7 @@ class SetPointerType(
         # alter to the type that is compatible (i.e. does not change)
         # with all expressions it is used in.
         vn = scls.get_verbosename(schema, with_parent=True)
-        schema, finalize_ast = self._propagate_if_expr_refs(
+        schema = self._propagate_if_expr_refs(
             schema, context, action=f'alter the type of {vn}')
 
         if not context.canonical:

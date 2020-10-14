@@ -265,6 +265,62 @@ class IndexCommand(
         else:
             return None
 
+    def compile_expr_field(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        field: so.Field[Any],
+        value: s_expr.Expression,
+        track_schema_ref_exprs: bool=False,
+    ) -> s_expr.Expression:
+        from . import objtypes as s_objtypes
+
+        singletons: List[s_types.Type]
+        if field.name == 'expr':
+            # type ignore below, for the class is used as mixin
+            parent_ctx = context.get_ancestor(
+                IndexSourceCommandContext,  # type: ignore
+                self
+            )
+            assert parent_ctx is not None
+            assert isinstance(parent_ctx.op, sd.ObjectCommand)
+            subject_name = parent_ctx.op.classname
+            subject = schema.get(subject_name, default=None)
+
+            if isinstance(subject, s_abc.Pointer):
+                singletons = []
+                path_prefix_anchor = None
+            else:
+                assert isinstance(subject, s_objtypes.ObjectType)
+                singletons = [subject]
+                path_prefix_anchor = qlast.Subject().name
+
+            expr = type(value).compiled(
+                value,
+                schema=schema,
+                options=qlcompiler.CompilerOptions(
+                    modaliases=context.modaliases,
+                    schema_object_context=self.get_schema_metaclass(),
+                    anchors={qlast.Subject().name: subject},
+                    path_prefix_anchor=path_prefix_anchor,
+                    singletons=frozenset(singletons),
+                    apply_query_rewrites=not context.stdmode,
+                    track_schema_ref_exprs=track_schema_ref_exprs,
+                ),
+            )
+
+            # Check that the inferred cardinality is no more than 1
+            if expr.irast.cardinality.is_multi():
+                raise errors.ResultCardinalityMismatchError(
+                    f'possibly more than one element returned by '
+                    f'the index expression where only singletons '
+                    f'are allowed')
+
+            return expr
+        else:
+            return super().compile_expr_field(
+                schema, context, field, value, track_schema_ref_exprs)
+
 
 class CreateIndex(
     IndexCommand,
@@ -317,59 +373,6 @@ class CreateIndex(
             name=nref,
             expr=expr_ql,
         )
-
-    def compile_expr_field(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        field: so.Field[Any],
-        value: s_expr.Expression,
-    ) -> s_expr.Expression:
-        from . import objtypes as s_objtypes
-
-        singletons: List[s_types.Type]
-        if field.name == 'expr':
-            # type ignore below, for the class is used as mixin
-            parent_ctx = context.get_ancestor(
-                IndexSourceCommandContext,  # type: ignore
-                self
-            )
-            assert parent_ctx is not None
-            assert isinstance(parent_ctx.op, sd.ObjectCommand)
-            subject_name = parent_ctx.op.classname
-            subject = schema.get(subject_name, default=None)
-
-            if isinstance(subject, s_abc.Pointer):
-                singletons = []
-                path_prefix_anchor = None
-            else:
-                assert isinstance(subject, s_objtypes.ObjectType)
-                singletons = [subject]
-                path_prefix_anchor = qlast.Subject().name
-
-            expr = type(value).compiled(
-                value,
-                schema=schema,
-                options=qlcompiler.CompilerOptions(
-                    modaliases=context.modaliases,
-                    schema_object_context=self.get_schema_metaclass(),
-                    anchors={qlast.Subject().name: subject},
-                    path_prefix_anchor=path_prefix_anchor,
-                    singletons=frozenset(singletons),
-                    apply_query_rewrites=not context.stdmode,
-                ),
-            )
-
-            # Check that the inferred cardinality is no more than 1
-            if expr.irast.cardinality.is_multi():
-                raise errors.ResultCardinalityMismatchError(
-                    f'possibly more than one element returned by '
-                    f'the index expression where only singletons '
-                    f'are allowed')
-
-            return expr
-        else:
-            return super().compile_expr_field(schema, context, field, value)
 
 
 class RenameIndex(

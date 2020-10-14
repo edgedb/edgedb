@@ -45,6 +45,7 @@ from edb.edgeql import qltypes
 from . import context
 
 
+# XXX: COME BACK TO THIS
 def get_schema_object(
         name: Union[str, qlast.BaseObjectRef],
         module: Optional[str]=None, *,
@@ -53,6 +54,8 @@ def get_schema_object(
         label: Optional[str]=None,
         ctx: context.ContextLevel,
         srcctx: Optional[parsing.ParserContext] = None) -> s_obj.Object:
+
+    expr = name if isinstance(name, qlast.BaseObjectRef) else None
 
     if isinstance(name, qlast.ObjectRef):
         if srcctx is None:
@@ -76,7 +79,7 @@ def get_schema_object(
 
     try:
         stype = ctx.env.get_track_schema_object(
-            name=name, modaliases=ctx.modaliases,
+            name=name, expr=expr, modaliases=ctx.modaliases,
             type=item_type, condition=condition,
             label=label,
         )
@@ -327,7 +330,7 @@ def get_union_type(
             or union.get_name(ctx.env.schema).module != '__derived__'
         )
     ):
-        ctx.env.schema_refs.add(union)
+        ctx.env.add_schema_ref(union, expr=None)
 
     return union
 
@@ -350,7 +353,7 @@ def get_intersection_type(
             or intersection.get_name(ctx.env.schema).module != '__derived__'
         )
     ):
-        ctx.env.schema_refs.add(intersection)
+        ctx.env.add_schema_ref(intersection, expr=None)
 
     return intersection
 
