@@ -287,10 +287,14 @@ class BaseCompiler:
         connection: asyncpg.Connection,
     ) -> s_schema.Schema:
         data = await connection.fetch(self._intro_query)
-        return s_refl.parse_into(
-            schema=self._std_schema,
-            data=[r[0] for r in data],
-            schema_class_layout=self._schema_class_layout,
+        return s_schema.ChainedSchema(
+            self._std_schema,
+            s_refl.parse_into(
+                base_schema=self._std_schema,
+                schema=s_schema.FlatSchema(),
+                data=[r[0] for r in data],
+                schema_class_layout=self._schema_class_layout,
+            )
         )
 
     async def _load_reflection_cache(
@@ -2061,7 +2065,7 @@ class Compiler(BaseCompiler):
         tables = []
         for schema_object_id, typedesc in blocks:
             schema_object_id = uuidgen.from_bytes(schema_object_id)
-            obj = schema._id_to_type.get(schema_object_id)
+            obj = schema.get_by_id(schema_object_id)
             desc = sertypes.TypeSerializer.parse(typedesc)
 
             if isinstance(obj, s_props.Property):

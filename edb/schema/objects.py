@@ -881,7 +881,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
         id = cls._prepare_id(id, data)
         scls = cls._create_from_id(id)
-        schema = schema._add(id, scls, obj_data)
+        schema = schema.add(id, scls, obj_data)
 
         return schema, scls
 
@@ -930,7 +930,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         *,
         allow_default: bool = True,
     ) -> Any:
-        val = schema._get_obj_field(self.id, field_name)
+        val = schema.get_obj_field(self.id, field_name)
         if val is not None:
             return val
 
@@ -975,7 +975,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         field = type(self).get_field(field_name)
 
         if field.is_schema_field:
-            val = schema._get_obj_field(self.id, field_name)
+            val = schema.get_obj_field(self.id, field_name)
             if val is not None:
                 return val
             elif default is not NoDefault:
@@ -1004,10 +1004,10 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         assert field.is_schema_field
 
         if value is None:
-            return schema._unset_obj_field(self.id, name)
+            return schema.unset_obj_field(self.id, name)
         else:
             value = field.coerce_value(schema, value)
-            return schema._set_obj_field(self.__dict__['id'], name, value)
+            return schema.set_obj_field(self.__dict__['id'], name, value)
 
     def update(
         self, schema: s_schema.Schema, updates: Dict[str, Any]
@@ -1024,7 +1024,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                 new_val = field.coerce_value(schema, new_val)
                 updates[field_name] = new_val
 
-        return schema._update_obj(self.__dict__['id'], updates)
+        return schema.update_obj(self.__dict__['id'], updates)
 
     def is_type(self) -> bool:
         return False
@@ -1037,7 +1037,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         sig: List[Union[Type[Object_T], Tuple[str, Any]]] = [cls]
         for f in cls._hashable_fields:
             fn = f.name
-            val = schema._get_obj_field(self.id, fn)
+            val = schema.get_obj_field(self.id, fn)
             if val is None:
                 continue
             sig.append((fn, val))

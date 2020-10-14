@@ -61,18 +61,18 @@ def delta_objects(
 
     delta = DeltaRoot()
 
-    oldkeys = {o.id: o.hash_criteria(old_schema) for o in old}
-    newkeys = {o.id: o.hash_criteria(new_schema) for o in new}
+    oldkeys = {o: o.hash_criteria(old_schema) for o in old}
+    newkeys = {o: o.hash_criteria(new_schema) for o in new}
 
     unchanged = set(oldkeys.values()) & set(newkeys.values())
 
     old = ordered.OrderedSet[so.Object_T](
-        o for o in old
-        if oldkeys[o.id] not in unchanged
+        o for o, checksum in oldkeys.items()
+        if checksum not in unchanged
     )
     new = ordered.OrderedSet[so.Object_T](
-        o for o in new
-        if newkeys[o.id] not in unchanged
+        o for o, checksum in newkeys.items()
+        if checksum not in unchanged
     )
 
     oldnames = {o.get_name(old_schema) for o in old}
