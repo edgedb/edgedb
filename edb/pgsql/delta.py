@@ -455,6 +455,18 @@ class DeleteParameter(ParameterCommand, DeleteObject,
     pass
 
 
+class RenameParameter(ParameterCommand, RenameObject,
+                      adapts=s_funcs.RenameParameter):
+
+    pass
+
+
+class AlterParameter(ParameterCommand, AlterObject,
+                     adapts=s_funcs.AlterParameter):
+
+    pass
+
+
 class FunctionCommand:
 
     def get_pgname(self, func: s_funcs.Function, schema):
