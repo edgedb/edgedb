@@ -135,6 +135,10 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer, s_abc.Expression):
         )
 
     @classmethod
+    def not_compiled(cls: Type[Expression], expr: Expression) -> Expression:
+        return Expression(text=expr.text, origtext=expr.origtext)
+
+    @classmethod
     def compiled(
         cls: Type[Expression],
         expr: Expression,

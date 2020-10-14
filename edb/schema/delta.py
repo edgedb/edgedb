@@ -1292,14 +1292,14 @@ class ObjectCommand(
                     for fn in fns:
                         # Do the switcheraroos
                         value = ref.get_explicit_field_value(schema, fn, None)
-                        if isinstance(value, s_expr.Expression):
-                            # Strip the "compiled" out of the expression
-                            value = s_expr.Expression(
-                                text=value.text, origtext=value.origtext)
-                            if fixer:
-                                value = fixer(
-                                    schema, cmd_create, fn, context, value)
-                                really_apply = True
+                        assert isinstance(value, s_expr.Expression)
+                        # Strip the "compiled" out of the expression
+                        value = s_expr.Expression.not_compiled(value)
+                        if fixer:
+                            value = fixer(
+                                schema, cmd_create, fn, context, value)
+                            really_apply = True
+
                         cmd_drop.set_attribute_value(fn, dummy)
                         cmd_create.set_attribute_value(fn, value)
 
@@ -1382,6 +1382,9 @@ class ObjectCommand(
             and (subjectexpr :=
                  cmd.get_attribute_value('subjectexpr')) is not None
         ):
+            # To compute the new name, we construct an AST of the
+            # constraint, since that is the infrastructure we have for
+            # computing the classname.
             name = sn.shortname_from_fullname(cmd.classname)
             ast = qlast.CreateConcreteConstraint(
                 name=qlast.ObjectRef(name=name.name, module=name.module),
@@ -2190,9 +2193,6 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
         expr: s_expr.Expression,
     ) -> s_expr.Expression:
         from edb.ir import ast as irast
-
-        # Strip any compilation of the expression
-        expr = s_expr.Expression(text=expr.text)
 
         # Recompile the expression with reference tracking on so that we
         # can clean up the ast.

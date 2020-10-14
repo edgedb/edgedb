@@ -308,7 +308,7 @@ class Environment:
                     field_name='type',
                 )
                 for obj in alias_objs:
-                    self.add_schema_ref(obj, expr)  # is this right?
+                    self.add_schema_ref(obj, expr)
 
         return sobj
 
