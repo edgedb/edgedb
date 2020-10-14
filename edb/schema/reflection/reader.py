@@ -39,10 +39,11 @@ from . import structure as sr_struct
 
 
 def parse_into(
-    schema: s_schema.Schema,
+    base_schema: s_schema.Schema,
+    schema: s_schema.FlatSchema,
     data: Sequence[str],
     schema_class_layout: Dict[Type[s_obj.Object], sr_struct.SchemaTypeLayout],
-) -> s_schema.Schema:
+) -> s_schema.FlatSchema:
     """Parse JSON-encoded schema objects and populate the schema with them.
 
     Args:
@@ -125,7 +126,7 @@ def parse_into(
                     if newobj is not None:
                         val = newobj[0]
                     else:
-                        val = schema.get_by_id(refid)
+                        val = base_schema.get_by_id(refid)
                     objdata[fn] = val
                     refs_to[val.id][mcls, fn][objid] = None
 

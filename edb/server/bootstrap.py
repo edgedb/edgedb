@@ -342,7 +342,7 @@ class StdlibBits(NamedTuple):
 
 
 async def _make_stdlib(testmode: bool, global_ids) -> StdlibBits:
-    schema = s_schema.Schema()
+    schema: s_schema.Schema = s_schema.FlatSchema()
     schema, _ = s_mod.Module.create_in_schema(schema, name='__derived__')
 
     current_block = dbops.PLTopBlock()

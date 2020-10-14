@@ -2802,7 +2802,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         with self.assertRaisesRegex(
                 edgedb.InvalidOperatorDefinitionError,
                 r'cannot create the non-recursive '
-                r'`std::=\(l: array<std::int64>, '
+                r'`test::=\(l: array<std::int64>, '
                 r'r: array<std::int64>\)` operator: '
                 r'overloading a recursive operator '
                 r'`array<anytype> = array<anytype>` with a non-recursive one '
@@ -2811,7 +2811,13 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             # non-recursive version
             await self.con.execute('''
                 CREATE INFIX OPERATOR
-                std::`=` (l: array<int64>, r: array<int64>) -> std::bool {
+                test::`=` (l: array<anytype>, r: array<anytype>) -> std::bool {
+                    SET recursive := true;
+                    USING SQL EXPRESSION;
+                };
+
+                CREATE INFIX OPERATOR
+                test::`=` (l: array<int64>, r: array<int64>) -> std::bool {
                     USING SQL EXPRESSION;
                 };
             ''')

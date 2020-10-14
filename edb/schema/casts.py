@@ -243,7 +243,8 @@ class CastCommand(sd.QualifiedObjectCommand[Cast],
             schema=schema,
         )
 
-        return get_cast_fullname(schema, 'std', from_type, to_type)
+        module = 'std' if context.stdmode else '__derived__'
+        return get_cast_fullname(schema, module, from_type, to_type)
 
     def canonicalize_attributes(
         self,

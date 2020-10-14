@@ -237,7 +237,7 @@ def _load_std_schema():
                 std_dirs_hash, 'transient-stdschema.pickle')
 
         if schema is None:
-            schema = s_schema.Schema()
+            schema = s_schema.FlatSchema()
             for modname in s_schema.STD_LIB + ('stdgraphql',):
                 schema = s_std.load_std_module(schema, modname)
 

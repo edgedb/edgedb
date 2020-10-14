@@ -396,6 +396,8 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         old_bases: List[so.InheritingObjectT],
         new_bases: List[so.InheritingObjectT],
     ) -> Tuple[s_schema.Schema, AlterInheritingObject[so.InheritingObjectT]]:
+        from . import referencing as s_referencing
+
         old_base_names = [b.get_name(schema) for b in old_bases]
         new_base_names = [b.get_name(schema) for b in new_bases]
 
@@ -412,8 +414,8 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
             schema, new_bases)
         schema = scls.set_field_value(schema, 'bases', new_bases_coll)
         ancestors = so.compute_ancestors(schema, scls)
-        ancestors_coll = so.ObjectList[so.InheritingObjectT].create(
-            schema, ancestors)
+        ancestors_coll = so.ObjectList[
+            s_referencing.ReferencedInheritingObject].create(schema, ancestors)
 
         if rebase is not None:
             rebase_cmd = rebase(
