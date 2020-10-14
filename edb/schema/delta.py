@@ -1348,6 +1348,7 @@ class ObjectCommand(
         from . import functions as s_func
         from edb.ir import ast as irast
 
+        ast: qlast.ObjectDDL
         # if the delta involves re-setting a computable
         # expression, then we also need to change the type to the
         # new expression type
