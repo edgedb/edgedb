@@ -190,6 +190,14 @@ class DescribeStmt(Nonterm):
             options=kids[2].val.options,
         )
 
+    def reduce_DESCRIBE_CURRENT_DATABASE_CONFIG(self, *kids):
+        """%reduce DESCRIBE CURRENT DATABASE CONFIG DescribeFormat"""
+        self.val = qlast.DescribeStmt(
+            object=qlast.DescribeGlobal.DatabaseConfig,
+            language=kids[4].val.language,
+            options=kids[4].val.options,
+        )
+
     def reduce_DESCRIBE_SYSTEM_CONFIG(self, *kids):
         """%reduce DESCRIBE SYSTEM CONFIG DescribeFormat"""
         self.val = qlast.DescribeStmt(

@@ -937,6 +937,26 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
                 CONFIGURE SYSTEM RESET singleprop;
             ''')
 
+    async def test_server_proto_configure_describe_database_config(self):
+        try:
+            conf1 = (
+                "CONFIGURE CURRENT DATABASE "
+                "SET singleprop := '1337';"
+            )
+            await self.con.execute(conf1)
+
+            conf2 = "CONFIGURE SESSION SET singleprop := '42';"
+            await self.con.execute(conf2)
+
+            res = await self.con.query_one('DESCRIBE CURRENT DATABASE CONFIG;')
+            self.assertIn(conf1, res)
+            self.assertNotIn(conf2, res)
+
+        finally:
+            await self.con.execute('''
+                CONFIGURE CURRENT DATABASE RESET singleprop;
+            ''')
+
     async def test_server_proto_configure_msg(self):
         msgs = []
 

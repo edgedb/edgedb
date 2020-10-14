@@ -68,6 +68,7 @@ class CardinalityModifier(s_enum.StrEnum):
 
 class DescribeGlobal(s_enum.StrEnum):
     Schema = 'SCHEMA'
+    DatabaseConfig = 'DATABASE CONFIG'
     SystemConfig = 'SYSTEM CONFIG'
     Roles = 'ROLES'
 

@@ -613,6 +613,19 @@ def compile_DescribeStmt(
                 ctx=ictx,
             )
 
+        elif ql.object is qlast.DescribeGlobal.DatabaseConfig:
+            if ql.language is qltypes.DescribeLanguage.DDL:
+                function_call = dispatch.compile(
+                    qlast.FunctionCall(
+                        func=('cfg', '_describe_database_config_as_ddl'),
+                    ),
+                    ctx=ictx)
+                assert isinstance(function_call, irast.Set), function_call
+                stmt.result = function_call
+            else:
+                raise errors.QueryError(
+                    f'cannot describe config as {ql.language}')
+
         elif ql.object is qlast.DescribeGlobal.SystemConfig:
             if ql.language is qltypes.DescribeLanguage.DDL:
                 function_call = dispatch.compile(

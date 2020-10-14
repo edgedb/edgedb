@@ -3065,8 +3065,26 @@ async def generate_more_support_functions(conn, compiler, schema, testmode):
         text=text,
     )
 
+    _, text = edbbootstrap.compile_bootstrap_script(
+        compiler,
+        schema,
+        _describe_config(
+            schema, source='database', testmode=testmode),
+        output_format=edbcompiler.IoFormat.BINARY,
+    )
+
+    DescribeDatabaseConfigAsDDLFunction = dbops.Function(
+        name=('edgedb', '_describe_database_config_as_ddl'),
+        args=[],
+        returns=('text'),
+        # Stable because it's raising exceptions.
+        volatility='stable',
+        text=text,
+    )
+
     commands.add_commands([
         dbops.CreateFunction(DescribeSystemConfigAsDDLFunction),
+        dbops.CreateFunction(DescribeDatabaseConfigAsDDLFunction),
         dbops.CreateFunction(DescribeRolesAsDDLFunction(compiler, schema)),
     ])
 
@@ -3085,6 +3103,9 @@ def _describe_config(
     if source == 'system override':
         scope = qltypes.ConfigScope.SYSTEM
         config_object_name = 'cfg::SystemConfig'
+    elif source == 'database':
+        scope = qltypes.ConfigScope.DATABASE
+        config_object_name = 'cfg::DatabaseConfig'
     else:
         raise AssertionError(f'unexpected configuration source: {source!r}')
 

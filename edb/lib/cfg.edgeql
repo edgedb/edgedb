@@ -171,3 +171,13 @@ cfg::_describe_system_config_as_ddl() -> str
     SET internal := true;
     USING SQL FUNCTION 'edgedb._describe_system_config_as_ddl';
 };
+
+
+CREATE FUNCTION
+cfg::_describe_database_config_as_ddl() -> str
+{
+    # The results won't change within a single statement.
+    SET volatility := 'STABLE';
+    SET internal := true;
+    USING SQL FUNCTION 'edgedb._describe_database_config_as_ddl';
+};
