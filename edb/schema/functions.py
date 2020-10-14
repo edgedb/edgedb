@@ -268,6 +268,17 @@ class ParameterDesc(ParameterLike):
             default=props.get('default'),
         )
 
+    def get_fqname(
+        self,
+        schema: s_schema.Schema,
+        func_fqname: sn.Name,
+    ) -> str:
+        return sn.Name(
+            module=func_fqname.module,
+            name=sn.get_specialized_name(
+                self.get_name(schema), func_fqname)
+        )
+
     def as_create_delta(
         self,
         schema: s_schema.Schema,
@@ -278,11 +289,7 @@ class ParameterDesc(ParameterLike):
         CreateParameter = sd.ObjectCommandMeta.get_command_class_or_die(
             sd.CreateObject, Parameter)
 
-        param_name = sn.Name(
-            module=func_fqname.module,
-            name=sn.get_specialized_name(
-                self.get_name(schema), func_fqname)
-        )
+        param_name = self.get_fqname(schema, func_fqname)
 
         cmd = CreateParameter(classname=param_name)
         cmd.set_attribute_value('name', param_name)
@@ -473,6 +480,14 @@ class CreateParameter(ParameterCommand, sd.CreateObject[Parameter]):
 
 
 class DeleteParameter(ParameterCommand, sd.DeleteObject[Parameter]):
+    pass
+
+
+class RenameParameter(ParameterCommand, sd.RenameObject[Parameter]):
+    pass
+
+
+class AlterParameter(ParameterCommand, sd.AlterObject[Parameter]):
     pass
 
 

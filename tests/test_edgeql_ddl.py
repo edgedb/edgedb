@@ -6739,10 +6739,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             DROP INDEX ON (.note);
         """)
 
-    @test.xfail('''
-        Fails doing the delete with function does not exist, due to
-        not renaming the function's mangled name.
-    ''')
     async def test_edgeql_ddl_rename_ref_05(self):
         await self.con.execute("""
             WITH MODULE test
