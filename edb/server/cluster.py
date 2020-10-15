@@ -256,6 +256,8 @@ class Cluster:
         conn_args = self.get_connect_args().copy()
         conn_args['host'] = str(self._runstate_dir)
         conn_args['admin'] = True
+        conn_args['user'] = 'edgedb'
+        conn_args['database'] = 'edgedb'
         conn = self.connect(**conn_args)
 
         try:

@@ -23,7 +23,6 @@ from typing import *
 import asyncio
 import contextlib
 import errno
-import getpass
 import logging
 import os
 import os.path
@@ -417,8 +416,8 @@ class ServerConfig(typing.NamedTuple):
     bootstrap_only: bool
     bootstrap_command: str
     bootstrap_script: pathlib.Path
-    default_database: str
-    default_database_user: str
+    default_database: Optional[str]
+    default_database_user: Optional[str]
     devmode: bool
     testmode: bool
     bind_address: str
@@ -494,16 +493,16 @@ _server_options = [
         type=str, metavar='DEST', default='stderr'),
     click.option(
         '--bootstrap', is_flag=True, hidden=True,
-        help='bootstrap the database cluster and exit'),
+        help='[DEPRECATED] bootstrap the database cluster and exit'),
     click.option(
         '--bootstrap-only', is_flag=True,
         help='bootstrap the database cluster and exit'),
     click.option(
-        '--default-database', type=str, default=getpass.getuser(),
-        help='the name of the default database to create'),
+        '--default-database', type=str, hidden=True,
+        help='[DEPRECATED] the name of the default database to create'),
     click.option(
-        '--default-database-user', type=str, default=getpass.getuser(),
-        help='the name of the default database owner'),
+        '--default-database-user', type=str, hidden=True,
+        help='[DEPRECATED] the name of the default database owner'),
     click.option(
         '--bootstrap-command', metavar="QUERIES",
         help='run the commands when initializing the database. '
@@ -589,6 +588,36 @@ def server_main(*, insecure=False, bootstrap, **kwargs):
             DeprecationWarning,
         )
         kwargs['bootstrap_only'] = True
+
+    if kwargs['default_database_user']:
+        if kwargs['default_database_user'] == 'edgedb':
+            warnings.warn(
+                "Option `--default-database-user` is deprecated."
+                " Role `edgedb` is always created and"
+                " no role named after unix user is created any more.",
+                DeprecationWarning,
+            )
+        else:
+            warnings.warn(
+                "Option `--default-database-user` is deprecated."
+                " Please create the role explicitly.",
+                DeprecationWarning,
+            )
+
+    if kwargs['default_database']:
+        if kwargs['default_database'] == 'edgedb':
+            warnings.warn(
+                "Option `--default-database` is deprecated."
+                " Database `edgedb` is always created and"
+                " no database named after unix user is created any more.",
+                DeprecationWarning,
+            )
+        else:
+            warnings.warn(
+                "Option `--default-database` is deprecated."
+                " Please create the database explicitly.",
+                DeprecationWarning,
+            )
 
     if kwargs['temp_dir']:
         if kwargs['data_dir']:
