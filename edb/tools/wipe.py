@@ -124,7 +124,7 @@ async def do_wipe(
         await pgconn.close()
 
     stmts = [
-        f'SET ROLE {edbdef.EDGEDB_SUPERUSER}',
+        f'SET ROLE {qi(edbdef.EDGEDB_SUPERUSER)}',
     ]
 
     pgconn = await cluster.connect()
