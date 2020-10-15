@@ -6841,3 +6841,30 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         self.assertEqual(res.count("Note"), 0)
         self.assertEqual(res.count("Remark"), 3)
+
+    async def test_edgeql_ddl_rename_ref_08(self):
+        await self.con.execute("""
+            WITH MODULE test
+            CREATE TYPE Note {
+                CREATE PROPERTY note -> str;
+            };
+
+            WITH MODULE test
+            CREATE ALIAS Alias := Note;
+        """)
+
+        await self.con.execute("""
+            WITH MODULE test
+            ALTER TYPE Note {
+                RENAME TO Remark;
+            }
+            """)
+
+        res = await self.con.query_one("""
+            DESCRIBE MODULE test
+        """)
+
+        self.assertEqual(res.count("Note"), 0)
+        self.assertEqual(res.count("Remark"), 2)
+
+    # how about: function that returns the type?

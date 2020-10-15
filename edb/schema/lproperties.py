@@ -279,6 +279,10 @@ class CreateProperty(
 
     referenced_astnode = qlast.CreateConcreteProperty
 
+    # def __init__(self, *args, **kwargs):
+    #     # print("CREATE PROPERTY", self, args, kwargs)
+    #     super().__init__(*args, **kwargs)
+
     @classmethod
     def _cmd_tree_from_ast(
         cls,

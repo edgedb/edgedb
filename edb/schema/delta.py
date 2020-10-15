@@ -1252,6 +1252,8 @@ class ObjectCommand(
                 from . import indexes as s_indexes
                 from . import pointers as s_pointers
                 from . import constraints as s_cnstr
+                from . import expraliases as s_alias
+                from . import types as s_types
 
                 cmd_drop: Command
                 cmd_create: Command
@@ -1263,6 +1265,8 @@ class ObjectCommand(
                         s_pointers.Pointer,
                         s_func.Function,
                         s_cnstr.Constraint,
+                        s_alias.Alias,
+                        s_types.Type,
                     ),
                 ):
                     # Alter the affected entity to change the body to
@@ -1276,6 +1280,7 @@ class ObjectCommand(
                     # Mark it metadata_only so that if it actually gets
                     # applied, only the metadata is changed but not
                     # the real underlying schema.
+                    cmd_drop.metadata_only = True
                     cmd_create.metadata_only = True
 
                     # Compute a dummy value
@@ -1284,14 +1289,25 @@ class ObjectCommand(
                         dummy = s_expr.Expression(text='0')
                     elif isinstance(ref, s_cnstr.Constraint):
                         dummy = s_expr.Expression(text='SELECT false')
-                    elif isinstance(ref, s_pointers.Pointer):
-                        dummy = None
                     elif isinstance(ref, s_func.Function):
                         dummy = ref.get_dummy_body(schema)
+                    elif isinstance(
+                        ref, (s_alias.Alias)
+                    ):
+                        dummy = s_expr.Expression(text='Object')
+                    elif isinstance(
+                        ref, (s_types.Type)
+                    ):
+                        dummy = s_expr.Expression(text='std::Object')
+                    elif isinstance(
+                        ref, (s_pointers.Pointer, s_alias.Alias, s_types.Type)
+                    ):
+                        dummy = None
 
                     for fn in fns:
                         # Do the switcheraroos
                         value = ref.get_explicit_field_value(schema, fn, None)
+                        ovalue = value
                         assert isinstance(value, s_expr.Expression)
                         # Strip the "compiled" out of the expression
                         value = s_expr.Expression.not_compiled(value)
@@ -1299,6 +1315,7 @@ class ObjectCommand(
                             value = fixer(
                                 schema, cmd_create, fn, context, value)
                             really_apply = True
+                        # print(f"switch: {ovalue=} {value=} {dummy=}")
 
                         cmd_drop.set_attribute_value(fn, dummy)
                         cmd_create.set_attribute_value(fn, value)
@@ -1306,6 +1323,10 @@ class ObjectCommand(
                     context.affected_finalization.setdefault(self, []).append(
                         (delta_create, cmd_create, really_apply)
                     )
+                    # from edb.common import debug
+                    # print(ref)
+                    # debug.header("argh")
+                    # debug.dump(delta_drop)
                     schema = delta_drop.apply(schema, context)
                     continue
 
@@ -1446,6 +1467,9 @@ class ObjectCommand(
         ):
             self._finalize_affected_refs_specialize(cmd, schema, context)
 
+            # from edb.common import debug
+            # debug.header("finalize")
+            # debug.dump(delta)
             schema = delta.apply(schema, context)
 
             if not context.canonical and really_apply and delta:
