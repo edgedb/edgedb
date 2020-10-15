@@ -4067,17 +4067,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
-    @test.xfail("""
-        The diff generates:
-          ALTER PROPERTY, CREATE CONSTRAINT, DELETE CONSTRAINT
-        which fails, because the alter renames the constraint and so
-        collides with the CREATE. We should instead always put the DELETE
-        first or (more ideally) realize that the ALTER is sufficient.
-    """)
-    def test_schema_migrations_equivalence_constraints_01(self):
-        # Irritatingly, if we start with it named note and rename to
-        # remark, it works! Probably the ordering ends up comparing
-        # the names at some point to provide a kind of ersatz determinism.
+    def test_schema_migrations_equivalence_rename_refs_01(self):
         self._assert_migration_equivalence([r"""
             type Note {
                 required property remark -> str;
@@ -4087,6 +4077,57 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Note {
                 required property note -> str;
                 constraint exclusive on (__subject__.note);
+            };
+        """])
+
+    def test_schema_migrations_equivalence_rename_refs_02(self):
+        self._assert_migration_equivalence([r"""
+            type Note {
+                required property remark -> str;
+            };
+
+            type User {
+                property x -> str {
+                    default := (SELECT Note.remark LIMIT 1)
+                }
+            };
+        """, r"""
+            type Note {
+                required property note -> str;
+            };
+
+            type User {
+                property x -> str {
+                    default := (SELECT Note.note LIMIT 1)
+                }
+            };
+        """])
+
+    def test_schema_migrations_equivalence_rename_refs_03(self):
+        self._assert_migration_equivalence([r"""
+            type Remark {
+                required property note -> str;
+            };
+
+            function foo(x: Remark) -> str using ( SELECT x.note );
+        """, r"""
+            type Note {
+                required property note -> str;
+            };
+
+            function foo(x: Note) -> str using ( SELECT x.note );
+        """])
+
+    def test_schema_migrations_equivalence_rename_refs_04(self):
+        self._assert_migration_equivalence([r"""
+            type Note {
+                required property note -> str;
+                index on (.note);
+            };
+        """, r"""
+            type Note {
+                required property remark -> str;
+                index on (.remark);
             };
         """])
 
