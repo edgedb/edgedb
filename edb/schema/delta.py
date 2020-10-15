@@ -1309,14 +1309,15 @@ class ObjectCommand(
                     schema = delta_drop.apply(schema, context)
                     continue
 
-                if fn == 'expr':
-                    fdesc = 'expression'
-                else:
-                    fdesc = f"{fn.replace('_', ' ')} expression"
+                for fn in fns:
+                    if fn == 'expr':
+                        fdesc = 'expression'
+                    else:
+                        fdesc = f"{fn.replace('_', ' ')} expression"
 
-                vn = ref.get_verbosename(schema, with_parent=True)
+                    vn = ref.get_verbosename(schema, with_parent=True)
 
-                ref_desc.append(f'{fdesc} of {vn}')
+                    ref_desc.append(f'{fdesc} of {vn}')
 
             if ref_desc:
                 expr_s = (
