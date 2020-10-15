@@ -59,6 +59,7 @@ from edb.pgsql import common as pg_common
 from edb.pgsql import dbops
 from edb.pgsql import delta as delta_cmds
 from edb.pgsql import metaschema
+from edb.pgsql.common import quote_ident as qi
 
 from edgedb import scram
 
@@ -1087,7 +1088,7 @@ async def _bootstrap(
 
     await _execute(
         pgconn,
-        f'SET ROLE {edbdef.EDGEDB_SUPERUSER};',
+        f'SET ROLE {qi(edbdef.EDGEDB_SUPERUSER)};',
     )
     cluster.set_default_session_authorization(edbdef.EDGEDB_SUPERUSER)
 
@@ -1152,7 +1153,7 @@ async def _bootstrap(
 
     await _execute(
         pgconn,
-        f"SET ROLE {args['default_database_user']};",
+        f"SET ROLE {qi(args['default_database_user'])};",
     )
 
     await _ensure_edgedb_database(
