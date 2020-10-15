@@ -1093,26 +1093,27 @@ async def _bootstrap(
         cluster=cluster,
         objid=superuser_db.id,
     )
+    if args['default_database_user']:
+        await _ensure_edgedb_role(
+            cluster,
+            pgconn,
+            args['default_database_user'],
+            membership=membership,
+            is_superuser=True,
+        )
 
-    await _ensure_edgedb_role(
-        cluster,
-        pgconn,
-        args['default_database_user'],
-        membership=membership,
-        is_superuser=True,
-    )
+        await _execute(
+            pgconn,
+            f"SET ROLE {qi(args['default_database_user'])};",
+        )
 
-    await _execute(
-        pgconn,
-        f"SET ROLE {qi(args['default_database_user'])};",
-    )
-
-    await _ensure_edgedb_database(
-        pgconn,
-        args['default_database'],
-        args['default_database_user'],
-        cluster=cluster,
-    )
+    if args['default_database']:
+        await _ensure_edgedb_database(
+            pgconn,
+            args['default_database'],
+            args['default_database_user'] or edbdef.EDGEDB_SUPERUSER,
+            cluster=cluster,
+        )
 
 
 async def ensure_bootstrapped(
