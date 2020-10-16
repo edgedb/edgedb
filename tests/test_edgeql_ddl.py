@@ -6633,6 +6633,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         *,
         rename_type,
         rename_prop,
+        type_extra=0,
+        prop_extra=0,
         type_refs=1,
         prop_refs=1,
     ):
@@ -6669,11 +6671,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         total_type = 1 + type_refs
         num_type_orig = 0 if rename_type else total_type
-        self.assertEqual(res.count("Note"), num_type_orig)
-        self.assertEqual(res.count("Remark"), total_type-num_type_orig)
+        self.assertEqual(res.count("Note"), num_type_orig + type_extra)
+        self.assertEqual(res.count("Remark"), total_type - num_type_orig)
         total_prop = 1 + prop_refs
         num_prop_orig = 0 if rename_prop else total_prop
-        self.assertEqual(res.count("note"), num_prop_orig)
+        self.assertEqual(res.count("note"), num_prop_orig + type_extra)
         self.assertEqual(res.count("remark"), total_prop - num_prop_orig)
 
         if cleanup:
@@ -6699,58 +6701,53 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 ddl, cleanup, rename_type=True, rename_prop=True, **kwargs)
 
     async def test_edgeql_ddl_rename_ref_function_01(self):
-        await self.con.execute("""
-            WITH MODULE test
-            CREATE TYPE Note {
-                CREATE PROPERTY note -> str;
-            };
-
-            WITH MODULE test
-            CREATE FUNCTION hello(x: Note) ->  str {
-                USING (SELECT ('note ' ++ x.note ++
-                               (SELECT Note.note LIMIT 1)))
-            }
-        """)
-
-        await self.con.execute("""
-            ALTER TYPE test::Note {
-                ALTER PROPERTY note {
-                    RENAME TO remark;
-                }
-            }
-            """)
-
-        res = await self.con.query_one("""
-            DESCRIBE MODULE test
-        """)
-
-        self.assertEqual(res.count("note"), 1)
-        self.assertEqual(res.count("remark"), 3)
-
-
-    async def test_edgeql_ddl_rename_ref_function_02(self):
-        await self.con.execute("""
-            WITH MODULE test
-            CREATE TYPE Note {
-                CREATE PROPERTY note -> str;
-            };
-
-            WITH MODULE test
-            CREATE FUNCTION hello(x: Note) ->  str {
+        await self._simple_rename_ref_tests(
+            """
+            CREATE FUNCTION foo(x: Note) ->  str {
                 USING (SELECT ('Note note ' ++ x.note ++
                                (SELECT Note.note LIMIT 1)))
             }
+            """,
+            """DROP FUNCTION foo(x: Note);""",
+            type_extra=1,
+            prop_extra=1,
+            type_refs=2,
+            prop_refs=2,
+        )
+
+    async def test_edgeql_ddl_rename_ref_function_02(self):
+        # Test renaming two types that appear as function arguments at
+        # the same time.
+        await self.con.execute("""
+            WITH MODULE test
+            CREATE TYPE Note {
+                CREATE PROPERTY note -> str;
+            };
+
+            WITH MODULE test
+            CREATE TYPE Name {
+                CREATE PROPERTY name -> str;
+            };
+
+            WITH MODULE test
+            CREATE FUNCTION foo(x: Note, y: Name) -> str {
+                USING (SELECT (x.note ++ " " ++ y.name))
+            };
         """)
 
         await self.con.execute("""
             WITH MODULE test
-            INSERT Note { note := "uh." }
+            INSERT Note { note := "hello" }
+        """)
+        await self.con.execute("""
+            WITH MODULE test
+            INSERT Name { name := "world" }
         """)
 
         await self.con.execute("""
-            WITH MODULE test
-            ALTER TYPE Note {
-                RENAME TO Remark;
+            CREATE MIGRATION {
+                ALTER TYPE test::Note RENAME TO test::Remark;
+                ALTER TYPE test::Name RENAME TO test::Handle;
             }
             """)
 
@@ -6758,58 +6755,35 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             DESCRIBE MODULE test
         """)
 
-        self.assertEqual(res.count("Note"), 1)
-        self.assertEqual(res.count("Remark"), 3)
+        self.assertEqual(res.count("Note"), 0)
+        self.assertEqual(res.count("Name"), 0)
+        self.assertEqual(res.count("Remark"), 2)
+        self.assertEqual(res.count("Handle"), 2)
 
         await self.assert_query_result(
             '''
                 WITH MODULE test
-                SELECT hello(Remark);
+                SELECT foo(Remark, Handle);
             ''',
-            ['Note note uh.uh.'],
+            ['hello world'],
         )
 
         await self.con.execute("""
-            DROP FUNCTION test::hello(x: test::Remark);
+            WITH MODULE test
+            DROP FUNCTION foo(x: Remark, y: Handle);
         """)
 
     async def test_edgeql_ddl_rename_ref_default_01(self):
-        await self.con.execute("""
-            WITH MODULE test
-            CREATE TYPE Note {
-                CREATE PROPERTY note -> str;
-            };
-
-            WITH MODULE test
+        await self._simple_rename_ref_tests(
+            """
             CREATE TYPE Object2 {
                 CREATE REQUIRED PROPERTY x -> str {
-                    SET default := (
-                        SELECT Note.note LIMIT 1
-                    )
+                    SET default := (SELECT Note.note LIMIT 1)
                 }
             };
-        """)
-
-        await self.con.execute("""
-            WITH MODULE test
-            ALTER TYPE Note {
-                ALTER PROPERTY note {
-                    RENAME TO remark;
-                }
-            }
-        """)
-
-        res = await self.con.query_one("""
-            DESCRIBE MODULE test
-        """)
-
-        self.assertEqual(res.count("note"), 0)
-        self.assertEqual(res.count("remark"), 2)
-
-        await self.con.execute("""
-            ALTER TYPE test::Object2
-            DROP PROPERTY x;
-        """)
+            """,
+            """ALTER TYPE Object2 DROP PROPERTY x;""",
+        )
 
     async def test_edgeql_ddl_rename_ref_constraint_01(self):
         await self.con.execute("""
@@ -6875,17 +6849,20 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_rename_ref_type_alias_01(self):
         await self._simple_rename_ref_tests(
             """CREATE ALIAS Alias := Note;""",
+            """DROP ALIAS Alias;""",
             prop_refs=0,
         )
 
     async def test_edgeql_ddl_rename_ref_expr_alias_01(self):
         await self._simple_rename_ref_tests(
-            """CREATE ALIAS Alias := (SELECT Note.note);"""
+            """CREATE ALIAS Alias := (SELECT Note.note);""",
+            """DROP ALIAS Alias;""",
         )
 
     async def test_edgeql_ddl_rename_ref_shape_alias_01(self):
         await self._simple_rename_ref_tests(
-            """CREATE ALIAS Alias := Note { command := .note ++ "!" };"""
+            """CREATE ALIAS Alias := Note { command := .note ++ "!" };""",
+            """DROP ALIAS Alias;""",
         )
 
     # need computable property
