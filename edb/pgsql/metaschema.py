@@ -3153,13 +3153,13 @@ def _describe_config(
             condition = f'({condition}) AND testmode'
         items.append(f"(\n{item}\n    IF {condition} ELSE ''\n  )")
 
-    testmode = (
+    testmode_check = (
         "<bool>json_get(cfg::get_config_json(),'__internal_testmode','value')"
         " ?? false"
     )
     query = (
         f"WITH\n  conf := cfg::get_config_json(sources := [{ql(source)}]),\n"
-        + (f"  testmode := {testmode}\n" if testmode else "")
+        + (f"  testmode := {testmode_check}\n" if testmode else "")
         + "SELECT\n  " + ' ++ '.join(items)
     )
     return query
