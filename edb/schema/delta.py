@@ -1252,6 +1252,8 @@ class ObjectCommand(
                 from . import indexes as s_indexes
                 from . import pointers as s_pointers
                 from . import constraints as s_cnstr
+                from . import expraliases as s_alias
+                from . import types as s_types
 
                 cmd_drop: Command
                 cmd_create: Command
@@ -1263,6 +1265,8 @@ class ObjectCommand(
                         s_pointers.Pointer,
                         s_func.Function,
                         s_cnstr.Constraint,
+                        s_alias.Alias,
+                        s_types.Type,
                     ),
                 ):
                     # Alter the affected entity to change the body to
@@ -1276,6 +1280,7 @@ class ObjectCommand(
                     # Mark it metadata_only so that if it actually gets
                     # applied, only the metadata is changed but not
                     # the real underlying schema.
+                    cmd_drop.metadata_only = True
                     cmd_create.metadata_only = True
 
                     # Compute a dummy value
@@ -1284,10 +1289,23 @@ class ObjectCommand(
                         dummy = s_expr.Expression(text='0')
                     elif isinstance(ref, s_cnstr.Constraint):
                         dummy = s_expr.Expression(text='SELECT false')
-                    elif isinstance(ref, s_pointers.Pointer):
-                        dummy = None
                     elif isinstance(ref, s_func.Function):
                         dummy = ref.get_dummy_body(schema)
+                    elif isinstance(ref, (s_alias.Alias, s_types.Type)):
+                        dummy = s_expr.Expression(text='std::Object')
+                    elif isinstance(
+                        ref, (s_pointers.Pointer, s_alias.Alias, s_types.Type)
+                    ):
+                        dummy = None
+
+                    # We need to extract the command on whatever the
+                    # enclosing object of our referer is, since we
+                    # need to put that in the context so that
+                    # compile_expr_field calls in the fixer can find
+                    # the subject.
+                    obj_cmd = next(iter(delta_create.ops))
+                    assert isinstance(obj_cmd, ObjectCommand)
+                    obj = obj_cmd.get_object(schema, context)
 
                     for fn in fns:
                         # Do the switcheraroos
@@ -1296,9 +1314,10 @@ class ObjectCommand(
                         # Strip the "compiled" out of the expression
                         value = s_expr.Expression.not_compiled(value)
                         if fixer:
-                            value = fixer(
-                                schema, cmd_create, fn, context, value)
-                            really_apply = True
+                            with obj_cmd.new_context(schema, context, obj):
+                                value = fixer(
+                                    schema, cmd_create, fn, context, value)
+                                really_apply = True
 
                         cmd_drop.set_attribute_value(fn, dummy)
                         cmd_create.set_attribute_value(fn, value)
@@ -1309,14 +1328,15 @@ class ObjectCommand(
                     schema = delta_drop.apply(schema, context)
                     continue
 
-                if fn == 'expr':
-                    fdesc = 'expression'
-                else:
-                    fdesc = f"{fn.replace('_', ' ')} expression"
+                for fn in fns:
+                    if fn == 'expr':
+                        fdesc = 'expression'
+                    else:
+                        fdesc = f"{fn.replace('_', ' ')} expression"
 
-                vn = ref.get_verbosename(schema, with_parent=True)
+                    vn = ref.get_verbosename(schema, with_parent=True)
 
-                ref_desc.append(f'{fdesc} of {vn}')
+                    ref_desc.append(f'{fdesc} of {vn}')
 
             if ref_desc:
                 expr_s = (
@@ -1346,6 +1366,7 @@ class ObjectCommand(
         from . import types as s_types
         from . import constraints as s_cnstr
         from . import functions as s_func
+        from . import indexes as s_indexes
         from edb.ir import ast as irast
 
         ast: qlast.ObjectDDL
@@ -1403,6 +1424,34 @@ class ObjectCommand(
             rename.set_attribute_value(
                 'name', value=new_name, orig_value=cmd.classname)
             cmd.add(rename)
+
+        # Also indexes.
+        elif (
+            isinstance(cmd, s_indexes.AlterIndex)
+            and not cmd.get_attribute_value('is_abstract')
+            and (indexexpr :=
+                 cmd.get_attribute_value('expr')) is not None
+        ):
+            # To compute the new name, we construct an AST of the
+            # index, since that is the infrastructure we have for
+            # computing the classname.
+            name = sn.shortname_from_fullname(cmd.classname)
+            ast = qlast.CreateIndex(
+                name=qlast.ObjectRef(name="idx", module="__"),
+                expr=indexexpr.qlast,
+            )
+            quals = sn.quals_from_fullname(cmd.classname)
+            new_name = cmd._classname_from_ast_and_referrer(
+                schema, sn.SchemaName(quals[0]), ast, context)
+            if new_name == cmd.classname:
+                return
+
+            rename = cmd.scls.init_delta_command(
+                schema, RenameObject, new_name=new_name)
+            rename.set_attribute_value(
+                'name', value=new_name, orig_value=cmd.classname)
+            cmd.add(rename)
+
         # For functions, we need to update the internal function name and
         # the internal param names if a type name has changed.
         elif isinstance(cmd, s_func.AlterFunction):

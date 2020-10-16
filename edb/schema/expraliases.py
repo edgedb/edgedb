@@ -84,6 +84,29 @@ class AliasCommand(
         assert isinstance(name, sn.Name)
         return name
 
+    def compile_expr_field(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        field: so.Field[Any],
+        value: s_expr.Expression,
+        track_schema_ref_exprs: bool=False,
+    ) -> s_expr.Expression:
+        assert field.name == 'expr'
+        classname = sn.shortname_from_fullname(self.classname)
+        return type(value).compiled(
+            value,
+            schema=schema,
+            options=qlcompiler.CompilerOptions(
+                derived_target_module=classname.module,
+                result_view_name=classname,
+                modaliases=context.modaliases,
+                schema_view_mode=True,
+                in_ddl_context_name='alias definition',
+                track_schema_ref_exprs=track_schema_ref_exprs,
+            ),
+        )
+
     def _compile_alias_expr(
         self,
         expr: qlast.Base,
@@ -319,7 +342,7 @@ class AlterAlias(
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        if not context.canonical:
+        if not context.canonical and not self.metadata_only:
             expr = self.get_attribute_value('expr')
             if expr:
                 alias_name = sn.shortname_from_fullname(self.classname)

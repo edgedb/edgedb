@@ -284,8 +284,7 @@ class IndexCommand(
             )
             assert parent_ctx is not None
             assert isinstance(parent_ctx.op, sd.ObjectCommand)
-            subject_name = parent_ctx.op.classname
-            subject = schema.get(subject_name, default=None)
+            subject = parent_ctx.op.get_object(schema, context)
 
             if isinstance(subject, s_abc.Pointer):
                 singletons = []
@@ -310,6 +309,8 @@ class IndexCommand(
             )
 
             # Check that the inferred cardinality is no more than 1
+            from edb.ir import ast as ir_ast
+            assert isinstance(expr.irast, ir_ast.Statement)
             if expr.irast.cardinality.is_multi():
                 raise errors.ResultCardinalityMismatchError(
                     f'possibly more than one element returned by '

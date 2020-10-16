@@ -32,6 +32,7 @@ from edb.common import uuidgen
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
+from edb.edgeql import compiler as qlcompiler
 
 from . import abc as s_abc
 from . import delta as sd
@@ -83,7 +84,7 @@ class Type(
         default=None, coerce=True, compcoef=0.909)
 
     # For a type representing an expression alias, this would contain the
-    # expressoin type.  Non-alias types have None here.
+    # expression type.  Non-alias types have None here.
     expr_type = so.SchemaField(
         ExprType,
         default=None, compcoef=0.909)
@@ -1960,6 +1961,25 @@ class TypeCommand(sd.ObjectCommand[TypeT]):
             return None
         else:
             return super().get_ast(schema, context, parent_node=parent_node)
+
+    def compile_expr_field(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        field: so.Field[Any],
+        value: s_expr.Expression,
+        track_schema_ref_exprs: bool=False,
+    ) -> s_expr.Expression:
+        assert field.name == 'expr'
+        return type(value).compiled(
+            value,
+            schema=schema,
+            options=qlcompiler.CompilerOptions(
+                modaliases=context.modaliases,
+                in_ddl_context_name='type definition',
+                track_schema_ref_exprs=track_schema_ref_exprs,
+            ),
+        )
 
     def _create_begin(
         self, schema: s_schema.Schema, context: sd.CommandContext

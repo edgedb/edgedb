@@ -1256,8 +1256,7 @@ class PointerCommand(
                 )
                 assert parent_ctx is not None
                 assert isinstance(parent_ctx.op, sd.ObjectCommand)
-                source_name = parent_ctx.op.classname
-                source = schema.get(source_name, default=None)
+                source = parent_ctx.op.get_object(schema, context)
                 anchors[qlast.Source().name] = source
                 if not isinstance(source, Pointer):
                     assert source is not None

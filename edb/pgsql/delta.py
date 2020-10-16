@@ -1719,31 +1719,7 @@ class RenameIndex(IndexCommand, RenameObject, adapts=s_indexes.RenameIndex):
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         schema = s_indexes.RenameIndex.apply(self, schema, context)
-        index = self.scls
         schema = RenameObject.apply(self, schema, context)
-
-        subject = context.get(s_links.LinkCommandContext)
-        if not subject:
-            subject = context.get(s_objtypes.ObjectTypeCommandContext)
-        orig_table_name = common.get_backend_name(
-            subject.original_schema, index, catenate=False)
-
-        index_ctx = context.get(s_indexes.IndexCommandContext)
-
-        orig_schema = index_ctx.original_schema
-        module = schema.get_global(
-            s_mod.Module, index.get_name(orig_schema).module)
-        orig_idx_name = common.get_index_backend_name(
-            index.id, module.id, catenate=False)
-
-        new_index_name = orig_idx_name
-
-        orig_pg_idx = dbops.Index(
-            name=orig_idx_name[1], table_name=orig_table_name, inherit=True,
-            metadata={'schemaname': index.get_name(schema)})
-
-        rename = dbops.RenameIndex(orig_pg_idx, new_name=new_index_name[1])
-        self.pgops.add(rename)
 
         return schema
 
