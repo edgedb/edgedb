@@ -6857,6 +6857,19 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             type_refs=0,
         )
 
+    async def test_edgeql_ddl_rename_ref_computable_02(self):
+        await self._simple_rename_ref_tests(
+            """
+            CREATE TYPE Foo {
+                CREATE PROPERTY foo -> str;
+                CREATE MULTI LINK x := (
+                    SELECT Note FILTER Note.note = Foo.foo);
+            };
+            """,
+            """ALTER TYPE Foo DROP LINK x;""",
+            type_refs=2,
+        )
+
     async def test_edgeql_ddl_rename_ref_type_alias_01(self):
         await self._simple_rename_ref_tests(
             """CREATE ALIAS Alias := Note;""",

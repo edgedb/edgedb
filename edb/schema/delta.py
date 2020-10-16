@@ -1298,6 +1298,14 @@ class ObjectCommand(
                     ):
                         dummy = None
 
+                    # We need to extract the command on whatever the
+                    # enclosing object of our referer is, since we
+                    # need to put that in the context so that
+                    # compile_expr_field calls in the fixer can find
+                    # the subject.
+                    obj_cmd = next(iter(delta_create.ops))
+                    obj = obj_cmd.get_object(schema, context)
+
                     for fn in fns:
                         # Do the switcheraroos
                         value = ref.get_explicit_field_value(schema, fn, None)
@@ -1306,9 +1314,10 @@ class ObjectCommand(
                         # Strip the "compiled" out of the expression
                         value = s_expr.Expression.not_compiled(value)
                         if fixer:
-                            value = fixer(
-                                schema, cmd_create, fn, context, value)
-                            really_apply = True
+                            with obj_cmd.new_context(schema, context, obj):
+                                value = fixer(
+                                    schema, cmd_create, fn, context, value)
+                                really_apply = True
 
                         cmd_drop.set_attribute_value(fn, dummy)
                         cmd_create.set_attribute_value(fn, value)
