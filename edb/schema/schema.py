@@ -192,7 +192,7 @@ class Schema(abc.ABC):
         obj_id: uuid.UUID,
         default: Union[so.Object_T, so.NoDefaultT] = so.NoDefault,
         *,
-        type: Type[so.Object_T] = None,
+        type: Optional[Type[so.Object_T]] = None,
     ) -> so.Object_T:
         ...
 
@@ -510,7 +510,7 @@ class FlatSchema(Schema):
 
         id_to_data = self._id_to_data.set(obj_id, new_data)
         scls = self._id_to_type[obj_id]
-        refs_to = self._update_refs_to(scls, data, new_data)
+        refs_to = self._update_refs_to(obj_id, type(scls), data, new_data)
         return self._replace(name_to_id=name_to_id,
                              shortname_to_id=shortname_to_id,
                              globalname_to_id=globalname_to_id,
@@ -567,7 +567,8 @@ class FlatSchema(Schema):
         else:
             orig_field_data = {}
 
-        refs_to = self._update_refs_to(scls, orig_field_data, {field: value})
+        refs_to = self._update_refs_to(
+            obj_id, type(scls), orig_field_data, {field: value})
 
         return self._replace(name_to_id=name_to_id,
                              shortname_to_id=shortname_to_id,
@@ -607,7 +608,8 @@ class FlatSchema(Schema):
 
         id_to_data = self._id_to_data.set(obj_id, new_data)
         scls = self._id_to_type[obj_id]
-        refs_to = self._update_refs_to(scls, {field: data[field]}, None)
+        refs_to = self._update_refs_to(
+            obj_id, type(scls), {field: data[field]}, None)
 
         return self._replace(name_to_id=name_to_id,
                              shortname_to_id=shortname_to_id,
@@ -617,12 +619,12 @@ class FlatSchema(Schema):
 
     def _update_refs_to(
         self,
-        scls: so.Object,
+        object_id: uuid.UUID,
+        schemaclass: Type[so.Object],
         orig_data: Optional[Mapping[str, Any]],
         new_data: Optional[Mapping[str, Any]],
     ) -> Refs_T:
-        scls_type = type(scls)
-        objfields = scls_type.get_object_fields()
+        objfields = schemaclass.get_object_fields()
         if not objfields:
             return self._refs_to
 
@@ -670,7 +672,7 @@ class FlatSchema(Schema):
                 old_ids: Optional[FrozenSet[uuid.UUID]]
                 new_ids: Optional[FrozenSet[uuid.UUID]]
 
-                key = (scls_type, field.name)
+                key = (schemaclass, field.name)
 
                 if ids and orig_ids:
                     new_ids = ids - orig_ids
@@ -688,21 +690,21 @@ class FlatSchema(Schema):
                             refs = mm[ref_id]
                         except KeyError:
                             mm[ref_id] = immu.Map((
-                                (key, immu.Map(((scls.id, None),))),
+                                (key, immu.Map(((object_id, None),))),
                             ))
                         else:
                             try:
                                 field_refs = refs[key]
                             except KeyError:
-                                field_refs = immu.Map(((scls.id, None),))
+                                field_refs = immu.Map(((object_id, None),))
                             else:
-                                field_refs = field_refs.set(scls.id, None)
+                                field_refs = field_refs.set(object_id, None)
                             mm[ref_id] = refs.set(key, field_refs)
 
                 if old_ids:
                     for ref_id in old_ids:
                         refs = mm[ref_id]
-                        field_refs = refs[key].delete(scls.id)
+                        field_refs = refs[key].delete(object_id)
                         if not field_refs:
                             mm[ref_id] = refs.delete(key)
                         else:
@@ -734,7 +736,7 @@ class FlatSchema(Schema):
             name_to_id=name_to_id,
             shortname_to_id=shortname_to_id,
             globalname_to_id=globalname_to_id,
-            refs_to=self._update_refs_to(scls, None, data),
+            refs_to=self._update_refs_to(id, type(scls), None, data),
         )
 
         if (
@@ -760,7 +762,8 @@ class FlatSchema(Schema):
         name_to_id, shortname_to_id, globalname_to_id = self._update_obj_name(
             obj.id, self._id_to_type[obj.id], name, None)
 
-        refs_to = self._update_refs_to(obj, self._id_to_data[obj.id], None)
+        refs_to = self._update_refs_to(
+            obj.id, type(obj), self._id_to_data[obj.id], None)
 
         updates.update(dict(
             name_to_id=name_to_id,
@@ -1475,7 +1478,7 @@ class ChainedSchema(Schema):
         obj_id: uuid.UUID,
         default: Union[so.Object_T, so.NoDefaultT] = so.NoDefault,
         *,
-        type: Type[so.Object_T] = None,
+        type: Optional[Type[so.Object_T]] = None,
     ) -> so.Object_T:
         ...
 

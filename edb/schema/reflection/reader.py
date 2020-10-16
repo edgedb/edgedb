@@ -81,7 +81,7 @@ def parse_into(
     for entry_json in data:
         entry = json.loads(entry_json)
         _, _, clsname = entry['_tname'].rpartition('::')
-        mcls = s_obj.ObjectMeta.get_schema_metaclass(clsname)
+        mcls = s_obj.ObjectMeta.maybe_get_schema_class(clsname)
         if mcls is None:
             raise ValueError(
                 f'unexpected type in schema reflection: {clsname}')
@@ -135,8 +135,8 @@ def parse_into(
                     if issubclass(ftype, s_obj.ObjectDict):
                         refids = ftype._container(
                             uuidgen.UUID(e['value']) for e in v)
-                        val = ftype(refids, _private_init=True)
-                        val._keys = tuple(e['name'] for e in v)
+                        refkeys = tuple(e['name'] for e in v)
+                        val = ftype(refids, refkeys, _private_init=True)
                     else:
                         refids = ftype._container(
                             uuidgen.UUID(e['id']) for e in v)
