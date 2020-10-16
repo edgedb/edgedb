@@ -499,10 +499,6 @@ class ObjectMeta(type):
         refdicts = collections.OrderedDict()
         mydicts = {}
 
-        if '__slots__' in clsdict:
-            raise TypeError(
-                f'cannot create {name} class: __slots__ are not supported')
-
         if name in mcls._all_types:
             raise TypeError(
                 f'duplicate name for schema class: {name}, already defined'
@@ -522,6 +518,7 @@ class ObjectMeta(type):
 
             v.name = k
             myfields[k] = v
+            del clsdict[k]
 
             if v.is_schema_field:
                 getter_name = f'get_{v.name}'
@@ -700,7 +697,11 @@ class ObjectMeta(type):
         return iter(mcls._all_types.values())
 
     @classmethod
-    def get_schema_metaclass(mcls, name: str) -> Optional[Type[Object]]:
+    def get_schema_class(mcls, name: str) -> Type[Object]:
+        return mcls._all_types[name]
+
+    @classmethod
+    def maybe_get_schema_class(mcls, name: str) -> Optional[Type[Object]]:
         return mcls._all_types.get(name)
 
     @classmethod
@@ -735,6 +736,8 @@ class FieldValueNotFoundError(Exception):
 
 class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
     """Base schema item class."""
+
+    __slots__ = ('id',)
 
     # Unique ID for this schema item.
     id = Field(
@@ -817,8 +820,8 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         dname = self.get_displayname(schema)
         return f"{clsname} '{dname}'"
 
-    def __init__(self, *, _private_init: bool) -> None:
-        pass
+    def __init__(self, *, _private_id: uuid.UUID) -> None:
+        self.id = _private_id
 
     def __eq__(self, other: Any) -> bool:
         if type(self) is not type(other):
@@ -843,9 +846,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
     @classmethod
     def _create_from_id(cls: Type[Object_T], id: uuid.UUID) -> Object_T:
         assert id is not None
-        obj = cls(_private_init=True)
-        obj.__dict__['id'] = id
-        return obj
+        return cls(_private_id=id)
 
     @classmethod
     def create_in_schema(
@@ -884,40 +885,6 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         schema = schema.add(id, scls, obj_data)
 
         return schema, scls
-
-    @classmethod
-    def _create(
-        cls: Type[Object_T],
-        schema: Optional[s_schema.Schema],
-        *,
-        id: Optional[uuid.UUID] = None,
-        **data: Any,
-    ) -> Object_T:
-        if cls.is_schema_object:
-            raise TypeError(
-                f'{cls.__name__} type cannot be created outside of a schema')
-
-        obj = cls(_private_init=True)
-
-        id = cls._prepare_id(id, data)
-        obj.__dict__['id'] = id
-
-        for field_name, value in data.items():
-            try:
-                field = cls._fields[field_name]
-            except KeyError:
-                raise TypeError(
-                    f'type {cls.__name__} has no field for '
-                    f'keyword argument {field_name!r}') from None
-
-            assert not field.is_schema_field
-            obj.__dict__[field_name] = value
-
-        return obj
-
-    def __setattr__(self, name: str, value: Any) -> None:
-        raise RuntimeError(
-            f'cannot set value to attribute {self}.{name} directly')
 
     # XXX sadly, in the methods below, statically we don't know any better than
     # "Any" since providing the field name as a `str` is the equivalent of
@@ -959,8 +926,8 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                 schema, field_name, allow_default=allow_default)
         else:
             try:
-                return self.__dict__[field_name]
-            except KeyError:
+                return object.__getattribute__(self, field_name)
+            except AttributeError:
                 pass
 
         raise FieldValueNotFoundError(
@@ -986,8 +953,8 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
         else:
             try:
-                return self.__dict__[field_name]
-            except KeyError:
+                return object.__getattribute__(self, field_name)
+            except AttributeError:
                 if default is not NoDefault:
                     return default
 
@@ -1007,7 +974,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             return schema.unset_obj_field(self.id, name)
         else:
             value = field.coerce_value(schema, value)
-            return schema.set_obj_field(self.__dict__['id'], name, value)
+            return schema.set_obj_field(self.id, name, value)
 
     def update(
         self, schema: s_schema.Schema, updates: Dict[str, Any]
@@ -1024,7 +991,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                 new_val = field.coerce_value(schema, new_val)
                 updates[field_name] = new_val
 
-        return schema.update_obj(self.__dict__['id'], updates)
+        return schema.update_obj(self.id, updates)
 
     def is_type(self) -> bool:
         return False
@@ -1786,6 +1753,7 @@ class ObjectCollection(
     parametric.SingleParametricType[Object_T],
     Generic[Object_T],
 ):
+    __slots__ = ('_ids',)
 
     # Even though Object_T would be a correct annotation below,
     # we want the type to default to base `Object` for cases
@@ -1796,7 +1764,6 @@ class ObjectCollection(
     # no easy solution to do that.
     type: ClassVar[Type[Object]] = Object  # type: ignore
     _container: ClassVar[Type[CollectionFactory[Any]]]
-    _ids: Collection[uuid.UUID]
 
     def __init_subclass__(
         cls,
@@ -1809,7 +1776,7 @@ class ObjectCollection(
 
     def __init__(
         self,
-        ids: Collection[uuid.UUID],
+        _ids: Collection[uuid.UUID],
         *,
         _private_init: bool,
     ) -> None:
@@ -1817,7 +1784,7 @@ class ObjectCollection(
             raise TypeError(
                 f"{type(self)!r} unresolved type parameters"
             )
-        self._ids = ids
+        self._ids = _ids
 
     def __len__(self) -> int:
         return len(self._ids)
@@ -1845,23 +1812,21 @@ class ObjectCollection(
             types = (None,)
 
         typeargs = types[0] if len(types) == 1 else types
-        return cls.__restore__, (typeargs, self.__dict__)
+        attrs = {k: getattr(self, k) for k in self.__slots__}
+        return cls.__restore__, (typeargs, attrs)
 
     @classmethod
     def __restore__(
         cls,
         params: Optional[Tuple[builtins.type, ...]],
-        objdict: Dict[str, Any],
+        attrs: Dict[str, Any],
     ) -> ObjectCollection[Object_T]:
-        ids = objdict.pop('_ids')
-
         if params is None:
-            obj = cls(ids=ids, _private_init=True)
+            # mypy complains about multiple values for
+            # keyword argument "_private_init"
+            obj = cls(**attrs, _private_init=True)  # type: ignore
         else:
-            obj = cls[params](ids=ids, _private_init=True)  # type: ignore
-
-        if objdict:
-            obj.__dict__.update(objdict)
+            obj = cls[params](**attrs, _private_init=True)  # type: ignore
 
         return obj
 
@@ -1877,6 +1842,7 @@ class ObjectCollection(
         cls: Type[ObjectCollection[Object_T]],
         schema: s_schema.Schema,
         data: Iterable[Object_T],
+        **kwargs: Any,
     ) -> ObjectCollection[Object_T]:
         ids: List[uuid.UUID] = []
 
@@ -1886,7 +1852,9 @@ class ObjectCollection(
             for v in data:
                 ids.append(cls._validate_value(schema, v))
         container: Collection[uuid.UUID] = cls._container(ids)
-        return cls(container, _private_init=True)
+        # mypy complains about multiple values for
+        # keyword argument "_private_init"
+        return cls(container, **kwargs, _private_init=True)  # type: ignore
 
     @classmethod
     def create_empty(cls) -> ObjectCollection[Object_T]:
@@ -2019,10 +1987,11 @@ class ObjectIndexBase(
         cls: Type[ObjectIndexBase[Object_T]],
         schema: s_schema.Schema,
         data: Iterable[Object_T],
+        **kwargs: Any,
     ) -> ObjectIndexBase[Object_T]:
         coll = cast(
             ObjectIndexBase[Object_T],
-            super().create(schema, data)
+            super().create(schema, data, **kwargs)
         )
         coll._check_duplicates(schema)
         return coll
@@ -2208,7 +2177,7 @@ class ObjectDict(
     ObjectCollection[Object_T],
     container=tuple,
 ):
-    _keys: Tuple[Key_T, ...]
+    __slots__ = ('_ids', '_keys')
 
     # Breaking the Liskov Substitution Principle
     @classmethod
@@ -2216,15 +2185,22 @@ class ObjectDict(
         cls,
         schema: s_schema.Schema,
         data: Mapping[Key_T, Object_T],
+        **kwargs: Any,
     ) -> ObjectDict[Key_T, Object_T]:
-
-        result = cast(
+        return cast(
             ObjectDict[Key_T, Object_T],
-            super().create(schema, data.values()),
+            super().create(schema, data.values(), _keys=tuple(data.keys())),
         )
 
-        result._keys = tuple(data.keys())
-        return result
+    def __init__(
+        self,
+        _ids: Collection[uuid.UUID],
+        _keys: Tuple[Key_T, ...],
+        *,
+        _private_init: bool,
+    ) -> None:
+        super().__init__(_ids, _private_init=_private_init)
+        self._keys = _keys
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, type(self)):
@@ -2364,8 +2340,9 @@ class ObjectList(
         cls,
         schema: s_schema.Schema,
         data: Iterable[Object_T],
+        **kwargs: Any,
     ) -> ObjectList[Object_T]:
-        return super().create(schema, data)  # type: ignore
+        return super().create(schema, data, **kwargs)  # type: ignore
 
 
 class SubclassableObject(Object):

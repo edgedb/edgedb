@@ -631,7 +631,7 @@ class Pointer(referencing.ReferencedInheritingObject,
 
         assert isinstance(schema_objtype, so.QualifiedObject)
         src_name = schema_objtype.get_name(schema)
-        mcls = so.ObjectMeta.get_schema_metaclass(src_name.name)
+        mcls = so.ObjectMeta.maybe_get_schema_class(src_name.name)
         if mcls is None:
             # This schema class is not (publicly) reflected.
             return None
@@ -808,14 +808,13 @@ class PseudoPointer(s_abc.Pointer):
 PointerLike = Union[Pointer, PseudoPointer]
 
 
-class ComputableRef(so.Object):
+class ComputableRef:
     """A shell for a computed target type."""
 
-    expr: qlast.Expr
+    expr: qlast.Base
 
     def __init__(self, expr: qlast.Base) -> None:
-        super().__init__(_private_init=True)
-        self.__dict__['expr'] = expr
+        self.expr = expr
 
 
 class PointerCommandContext(sd.ObjectCommandContext[Pointer],
@@ -1014,7 +1013,7 @@ class PointerCommand(
         schema: s_schema.Schema,
         astnode: qlast.CreateConcretePointer,
         context: sd.CommandContext,
-        target_ref: Union[so.Object, so.ObjectShell],
+        target_ref: Union[so.Object, so.ObjectShell, ComputableRef],
     ) -> None:
         return None
 

@@ -208,7 +208,7 @@ class PropertyCommand(pointers.PointerCommand,
         schema: s_schema.Schema,
         astnode: qlast.CreateConcretePointer,
         context: sd.CommandContext,
-        target_ref: Union[so.Object, so.ObjectShell],
+        target_ref: Union[so.Object, so.ObjectShell, pointers.ComputableRef],
     ) -> None:
         assert astnode.target is not None
         spt = SetPropertyType(classname=self.classname, type=target_ref)

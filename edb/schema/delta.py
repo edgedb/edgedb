@@ -276,13 +276,12 @@ class CommandMeta(
             mapping[astnode] = cast(Type["Command"], cls)
 
 
-_void = object()
-
-
 # We use _DummyObject for contexts where an instance of an object is
 # required by type signatures, and the actual reference will be quickly
 # replaced by a real object.
-_dummy_object = so.Object(_private_init=True)
+_dummy_object = so.Object(
+    _private_id=uuid.UUID('C0FFEE00-C0DE-0000-0000-000000000000'),
+)
 
 
 Command_T = TypeVar("Command_T", bound="Command")
