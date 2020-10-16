@@ -6773,6 +6773,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             DROP FUNCTION foo(x: Remark, y: Handle);
         """)
 
+    async def test_edgeql_ddl_rename_ref_function_03(self):
+        await self._simple_rename_ref_tests(
+            """
+            CREATE FUNCTION foo(x: str) -> Note {
+                USING (SELECT Note FILTER .note = x LIMIT 1)
+            }
+            """,
+            """DROP FUNCTION foo(x: str);""",
+            type_refs=2,
+        )
+
     async def test_edgeql_ddl_rename_ref_default_01(self):
         await self._simple_rename_ref_tests(
             """
@@ -6888,5 +6899,3 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             """CREATE ALIAS Alias := Note { command := .note ++ "!" };""",
             """DROP ALIAS Alias;""",
         )
-
-    # how about: function that returns the type?
