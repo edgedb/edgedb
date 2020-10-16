@@ -6294,15 +6294,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-    @test.xfail('''
-        Fails on the last migration that attempts to rename the
-        property being indexed.
-
-        edgedb.errors.InternalServerError: cannot determine backend
-        name for <edb.schema.indexes.Index
-        UUID('38a6b615-0224-11eb-b246-672ac1280943') at
-        0x7ff2a317d3d0>
-    ''')
     async def test_edgeql_migration_eq_index_01(self):
         await self.con.execute("""
             SET MODULE test;
