@@ -6846,6 +6846,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """, prop_refs=2, type_refs=2)
 
+    async def test_edgeql_ddl_rename_ref_computable_01(self):
+        await self._simple_rename_ref_tests(
+            """
+            ALTER TYPE Note {
+                CREATE PROPERTY x := .note ++ "!";
+            };
+            """,
+            """ALTER TYPE Note DROP PROPERTY x;""",
+            type_refs=0,
+        )
+
     async def test_edgeql_ddl_rename_ref_type_alias_01(self):
         await self._simple_rename_ref_tests(
             """CREATE ALIAS Alias := Note;""",
@@ -6865,5 +6876,4 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             """DROP ALIAS Alias;""",
         )
 
-    # need computable property
     # how about: function that returns the type?
