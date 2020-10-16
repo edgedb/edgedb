@@ -309,6 +309,8 @@ class IndexCommand(
             )
 
             # Check that the inferred cardinality is no more than 1
+            from edb.ir import ast as ir_ast
+            assert isinstance(expr.irast, ir_ast.Statement)
             if expr.irast.cardinality.is_multi():
                 raise errors.ResultCardinalityMismatchError(
                     f'possibly more than one element returned by '

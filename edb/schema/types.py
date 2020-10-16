@@ -1967,9 +1967,9 @@ class TypeCommand(sd.ObjectCommand[TypeT]):
         schema: s_schema.Schema,
         context: sd.CommandContext,
         field: so.Field[Any],
-        value: expr.Expression,
+        value: s_expr.Expression,
         track_schema_ref_exprs: bool=False,
-    ) -> expr.Expression:
+    ) -> s_expr.Expression:
         assert field.name == 'expr'
         return type(value).compiled(
             value,

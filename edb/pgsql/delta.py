@@ -1723,6 +1723,7 @@ class RenameIndex(IndexCommand, RenameObject, adapts=s_indexes.RenameIndex):
 
         return schema
 
+
 class AlterIndexOwned(
     IndexCommand,
     AlterObject,

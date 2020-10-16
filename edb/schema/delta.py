@@ -1304,12 +1304,12 @@ class ObjectCommand(
                     # compile_expr_field calls in the fixer can find
                     # the subject.
                     obj_cmd = next(iter(delta_create.ops))
+                    assert isinstance(obj_cmd, ObjectCommand)
                     obj = obj_cmd.get_object(schema, context)
 
                     for fn in fns:
                         # Do the switcheraroos
                         value = ref.get_explicit_field_value(schema, fn, None)
-                        ovalue = value
                         assert isinstance(value, s_expr.Expression)
                         # Strip the "compiled" out of the expression
                         value = s_expr.Expression.not_compiled(value)

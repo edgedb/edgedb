@@ -6638,10 +6638,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         type_refs=1,
         prop_refs=1,
     ):
-        """Driver for doing simple rename tests for objects with expr references.
+        """Driver for simple rename tests for objects with expr references.
 
-        Supports renaming a type, a property, or both. By default, each is expected
-        to be named once in the referencing object.
+        Supports renaming a type, a property, or both. By default,
+        each is expected to be named once in the referencing object.
+
         """
         await self.con.execute(f"""
             WITH MODULE test
