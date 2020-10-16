@@ -4131,6 +4131,36 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
+    def test_schema_migrations_equivalence_rename_refs_05(self):
+        self._assert_migration_equivalence([r"""
+            type Note {
+                required property note -> str;
+                property foo := .note ++ "!";
+            };
+        """, r"""
+            type Remark {
+                required property remark -> str;
+                property foo := .remark ++ "!";
+            };
+        """])
+
+    def test_schema_migrations_equivalence_rename_refs_06(self):
+        self._assert_migration_equivalence([r"""
+            type Note {
+                required property note -> str;
+            };
+            alias Alias1 := Note;
+            alias Alias2 := (SELECT Note.note);
+            alias Alias3 := Note { command := .note ++ "!" };
+        """, r"""
+            type Remark {
+                required property remark -> str;
+            };
+            alias Alias1 := Remark;
+            alias Alias2 := (SELECT Remark.remark);
+            alias Alias3 := Remark { command := .remark ++ "!" };
+        """])
+
 
 class TestDescribe(tb.BaseSchemaLoadTest):
     """Test the DESCRIBE command."""
