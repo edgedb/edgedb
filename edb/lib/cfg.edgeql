@@ -157,6 +157,7 @@ cfg::get_config_json(
 CREATE FUNCTION
 cfg::_quote(text: std::str) -> std::str
 {
+    SET volatility := 'STABLE';
     SET internal := true;
     USING SQL $$
         SELECT replace(quote_literal(text), '''''', '\\''')
