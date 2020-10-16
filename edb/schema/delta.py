@@ -1291,13 +1291,7 @@ class ObjectCommand(
                         dummy = s_expr.Expression(text='SELECT false')
                     elif isinstance(ref, s_func.Function):
                         dummy = ref.get_dummy_body(schema)
-                    elif isinstance(
-                        ref, (s_alias.Alias)
-                    ):
-                        dummy = s_expr.Expression(text='Object')
-                    elif isinstance(
-                        ref, (s_types.Type)
-                    ):
+                    elif isinstance(ref, (s_alias.Alias, s_types.Type)):
                         dummy = s_expr.Expression(text='std::Object')
                     elif isinstance(
                         ref, (s_pointers.Pointer, s_alias.Alias, s_types.Type)
@@ -1315,7 +1309,6 @@ class ObjectCommand(
                             value = fixer(
                                 schema, cmd_create, fn, context, value)
                             really_apply = True
-                        # print(f"switch: {ovalue=} {value=} {dummy=}")
 
                         cmd_drop.set_attribute_value(fn, dummy)
                         cmd_create.set_attribute_value(fn, value)
@@ -1323,10 +1316,6 @@ class ObjectCommand(
                     context.affected_finalization.setdefault(self, []).append(
                         (delta_create, cmd_create, really_apply)
                     )
-                    # from edb.common import debug
-                    # print(ref)
-                    # debug.header("argh")
-                    # debug.dump(delta_drop)
                     schema = delta_drop.apply(schema, context)
                     continue
 
@@ -1368,6 +1357,7 @@ class ObjectCommand(
         from . import types as s_types
         from . import constraints as s_cnstr
         from . import functions as s_func
+        from . import indexes as s_indexes
         from edb.ir import ast as irast
 
         ast: qlast.ObjectDDL
@@ -1425,6 +1415,34 @@ class ObjectCommand(
             rename.set_attribute_value(
                 'name', value=new_name, orig_value=cmd.classname)
             cmd.add(rename)
+
+        # Also indexes.
+        elif (
+            isinstance(cmd, s_indexes.AlterIndex)
+            and not cmd.get_attribute_value('is_abstract')
+            and (indexexpr :=
+                 cmd.get_attribute_value('expr')) is not None
+        ):
+            # To compute the new name, we construct an AST of the
+            # index, since that is the infrastructure we have for
+            # computing the classname.
+            name = sn.shortname_from_fullname(cmd.classname)
+            ast = qlast.CreateIndex(
+                name=qlast.ObjectRef(name="idx", module="__"),
+                expr=indexexpr.qlast,
+            )
+            quals = sn.quals_from_fullname(cmd.classname)
+            new_name = cmd._classname_from_ast_and_referrer(
+                schema, sn.SchemaName(quals[0]), ast, context)
+            if new_name == cmd.classname:
+                return
+
+            rename = cmd.scls.init_delta_command(
+                schema, RenameObject, new_name=new_name)
+            rename.set_attribute_value(
+                'name', value=new_name, orig_value=cmd.classname)
+            cmd.add(rename)
+
         # For functions, we need to update the internal function name and
         # the internal param names if a type name has changed.
         elif isinstance(cmd, s_func.AlterFunction):
@@ -1467,9 +1485,6 @@ class ObjectCommand(
         ):
             self._finalize_affected_refs_specialize(cmd, schema, context)
 
-            # from edb.common import debug
-            # debug.header("finalize")
-            # debug.dump(delta)
             schema = delta.apply(schema, context)
 
             if not context.canonical and really_apply and delta:

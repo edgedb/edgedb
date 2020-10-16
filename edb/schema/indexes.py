@@ -284,8 +284,7 @@ class IndexCommand(
             )
             assert parent_ctx is not None
             assert isinstance(parent_ctx.op, sd.ObjectCommand)
-            subject_name = parent_ctx.op.classname
-            subject = schema.get(subject_name, default=None)
+            subject = parent_ctx.op.get_object(schema, context)
 
             if isinstance(subject, s_abc.Pointer):
                 singletons = []
