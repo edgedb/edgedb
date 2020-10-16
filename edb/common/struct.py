@@ -163,16 +163,6 @@ class StructMeta(type):
         setattr(cls, fa, myfields)
         return cls
 
-    def __init__(
-        cls,
-        name: str,
-        bases: Tuple[type, ...],
-        clsdict: Dict[str, Any],
-        *,
-        use_slots: bool = None,
-    ) -> None:
-        super().__init__(name, bases, clsdict)
-
     def get_field(cls, name: str) -> Optional[Field[Any]]:
         return cls._fields.get(name)
 

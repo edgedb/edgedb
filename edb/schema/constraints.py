@@ -1042,7 +1042,7 @@ class CreateConstraint(
                 pname = s_func.Parameter.paramname_from_fullname(props['name'])
                 if pname == '__subject__':
                     continue
-                num = props['num']
+                num: int = props['num']
                 default = props.get('default')
                 param = qlast.FuncParam(
                     name=pname,

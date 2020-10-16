@@ -1356,7 +1356,8 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                 self.record_field_create_delta(schema, delta, context, fn, v)
 
         for refdict in cls.get_refdicts():
-            refcoll = self.get_field_value(schema, refdict.attr)
+            refcoll: ObjectCollection[Object] = (
+                self.get_field_value(schema, refdict.attr))
             sorted_refcoll = sorted(
                 refcoll.objects(schema),
                 key=lambda o: o.get_name(schema),
@@ -1444,13 +1445,15 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                     )
 
         for refdict in cls.get_refdicts():
-            oldcoll = self.get_field_value(self_schema, refdict.attr)
+            oldcoll: ObjectCollection[Object] = (
+                self.get_field_value(self_schema, refdict.attr))
             oldcoll_idx = sorted(
                 oldcoll.objects(self_schema),
                 key=lambda o: o.get_name(self_schema)
             )
 
-            newcoll = other.get_field_value(other_schema, refdict.attr)
+            newcoll: ObjectCollection[Object] = (
+                other.get_field_value(other_schema, refdict.attr))
             newcoll_idx = sorted(
                 newcoll.objects(other_schema),
                 key=lambda o: o.get_name(other_schema),

@@ -467,7 +467,7 @@ def delta_from_ddl(
     schema_object_ids: Optional[
         Mapping[Tuple[str, Optional[str]], uuid.UUID]
     ]=None,
-    compat_ver: verutils.Version = None,
+    compat_ver: Optional[verutils.Version] = None,
 ) -> sd.DeltaRoot:
     _, cmd = _delta_from_ddl(
         ddl_stmt,
@@ -492,7 +492,7 @@ def _delta_from_ddl(
     schema_object_ids: Optional[
         Mapping[Tuple[str, Optional[str]], uuid.UUID]
     ]=None,
-    compat_ver: verutils.Version = None,
+    compat_ver: Optional[verutils.Version] = None,
 ) -> Tuple[s_schema.Schema, sd.DeltaRoot]:
     delta = sd.DeltaRoot()
     context = sd.CommandContext(

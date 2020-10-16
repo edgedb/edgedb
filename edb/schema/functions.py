@@ -1457,7 +1457,7 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
         params = []
         for op in self.get_subcommands(type=ParameterCommand):
             props = op.get_resolved_attributes(schema, context)
-            num = props['num']
+            num: int = props['num']
             default = props.get('default')
             param = qlast.FuncParam(
                 name=Parameter.paramname_from_fullname(props['name']),
@@ -1607,7 +1607,7 @@ class DeleteFunction(DeleteCallableObject[Function], FunctionCommand):
         params = []
         for op in self.get_subcommands(type=ParameterCommand):
             props = op.get_orig_attributes(schema, context)
-            num = props['num']
+            num: int = props['num']
             param = qlast.FuncParam(
                 name=Parameter.paramname_from_fullname(props['name']),
                 type=utils.typeref_to_ast(schema, props['type']),
