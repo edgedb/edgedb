@@ -4262,7 +4262,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             """
             type test::Child extending test::Parent, test::Parent2 {
                 annotation test::anno := 'annotated';
-                overloaded link foo extending test::f -> test::Foo {
+                overloaded single link foo extending test::f -> test::Foo {
                     annotation test::anno := 'annotated link';
                     constraint std::exclusive {
                         annotation test::anno := 'annotated constraint';
