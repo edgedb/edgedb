@@ -707,7 +707,7 @@ class Schema(s_abc.Schema):
         obj_id: uuid.UUID,
         default: Union[so.Object_T, so.NoDefaultT] = so.NoDefault,
         *,
-        type: Type[so.Object_T] = None,
+        type: Optional[Type[so.Object_T]] = None,
     ) -> so.Object_T:
         ...
 

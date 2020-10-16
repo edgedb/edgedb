@@ -256,7 +256,7 @@ def find_column_in_subselect_rvar(
 def get_column(
         rvar: pgast.BaseRangeVar,
         colspec: Union[str, pgast.ColumnRef], *,
-        nullable: bool=None) -> pgast.ColumnRef:
+        nullable: Optional[bool]=None) -> pgast.ColumnRef:
 
     if isinstance(colspec, pgast.ColumnRef):
         colname = colspec.name[-1]

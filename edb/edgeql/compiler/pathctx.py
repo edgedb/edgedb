@@ -82,7 +82,7 @@ def get_expression_path_id(
 
 def register_set_in_scope(
         ir_set: irast.Set, *,
-        path_scope: irast.ScopeTreeNode=None,
+        path_scope: Optional[irast.ScopeTreeNode]=None,
         optional: bool=False,
         fence_points: FrozenSet[irast.PathId]=frozenset(),
         ctx: context.ContextLevel) -> List[irast.ScopeTreeNode]:

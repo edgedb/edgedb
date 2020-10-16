@@ -861,7 +861,7 @@ class Collection(Type, s_abc.Collection):
         self,
         schema: s_schema.Schema,
         *,
-        view_name: str = None,
+        view_name: Optional[str] = None,
     ) -> sd.Command:
         raise NotImplementedError
 
@@ -1148,7 +1148,7 @@ class Array(
             return (schema, self)
 
     def as_colltype_delete_delta(
-        self, schema: s_schema.Schema, *, view_name: str = None
+        self, schema: s_schema.Schema, *, view_name: Optional[str] = None
     ) -> Union[DeleteArray, DeleteArrayExprAlias]:
         cmd: Union[DeleteArray, DeleteArrayExprAlias]
         if view_name is None:
@@ -1672,7 +1672,7 @@ class Tuple(
             return schema, self
 
     def as_colltype_delete_delta(
-        self, schema: s_schema.Schema, *, view_name: str = None
+        self, schema: s_schema.Schema, *, view_name: Optional[str] = None
     ) -> Union[DeleteTuple, DeleteTupleExprAlias]:
         cmd: Union[DeleteTuple, DeleteTupleExprAlias]
         if view_name is None:

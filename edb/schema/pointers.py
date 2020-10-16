@@ -452,7 +452,7 @@ class Pointer(referencing.ReferencedInheritingObject,
         source: s_sources.Source,
         target: s_types.Type,
         *,
-        derived_name_base: str = None,
+        derived_name_base: Optional[str] = None,
         **kwargs: Any
     ) -> Tuple[s_schema.Schema, Pointer]:
         fqname = self.derive_name(
