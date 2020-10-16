@@ -112,7 +112,7 @@ def compile_SelectQuery(
 def compile_ForQuery(
         qlstmt: qlast.ForQuery, *, ctx: context.ContextLevel) -> irast.Set:
     with ctx.subquery() as sctx:
-        stmt = irast.SelectStmt()
+        stmt = irast.SelectStmt(context=qlstmt.context)
         init_stmt(stmt, qlstmt, ctx=sctx, parent_ctx=ctx)
 
         # As an optimization, if the iterator is a singleton set, use
@@ -181,14 +181,19 @@ def compile_ForQuery(
                                 context=iterator.context)
 
         # Compile the body
-        stmt.result = compile_result_clause(
-            qlstmt.result,
-            view_scls=ctx.view_scls,
-            view_rptr=ctx.view_rptr,
-            result_alias=qlstmt.result_alias,
-            view_name=ctx.toplevel_result_view_name,
-            forward_rptr=True,
-            ctx=sctx)
+        with sctx.newscope(fenced=True) as bctx:
+            stmt.result = setgen.scoped_set(
+                compile_result_clause(
+                    qlstmt.result,
+                    view_scls=ctx.view_scls,
+                    view_rptr=ctx.view_rptr,
+                    result_alias=qlstmt.result_alias,
+                    view_name=ctx.toplevel_result_view_name,
+                    forward_rptr=True,
+                    ctx=bctx,
+                ),
+                ctx=bctx,
+            )
 
         # Inject an implicit limit if appropriate
         if ((ctx.expr_exposed or sctx.stmt is ctx.toplevel_stmt)
@@ -345,7 +350,7 @@ def compile_InsertQuery(
     ctx.env.dml_exprs.append(expr)
 
     with ctx.subquery() as ictx:
-        stmt = irast.InsertStmt()
+        stmt = irast.InsertStmt(context=expr.context)
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
         subject = dispatch.compile(expr.subject, ctx=ictx)
@@ -431,7 +436,7 @@ def compile_UpdateQuery(
     ctx.env.dml_exprs.append(expr)
 
     with ctx.subquery() as ictx:
-        stmt = irast.UpdateStmt()
+        stmt = irast.UpdateStmt(context=expr.context)
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
         subject = dispatch.compile(expr.subject, ctx=ictx)
@@ -502,7 +507,7 @@ def compile_DeleteQuery(
     ctx.env.dml_exprs.append(expr)
 
     with ctx.subquery() as ictx:
-        stmt = irast.DeleteStmt()
+        stmt = irast.DeleteStmt(context=expr.context)
         # Expand the DELETE from sugar into full DELETE (SELECT ...)
         # form, if there's any additional clauses.
         if any([expr.where, expr.orderby, expr.offset, expr.limit]):
@@ -903,7 +908,8 @@ def init_stmt(
 
     irstmt.parent_stmt = parent_ctx.stmt
 
-    process_with_block(qlstmt, ctx=ctx, parent_ctx=parent_ctx)
+    irstmt.bindings = process_with_block(
+        qlstmt, ctx=ctx, parent_ctx=parent_ctx)
 
 
 def fini_stmt(
@@ -948,6 +954,9 @@ def fini_stmt(
     type_override = view if view is not None else None
     result = setgen.scoped_set(
         irstmt, type_override=type_override, path_id=path_id, ctx=ctx)
+    if irstmt.context and not result.context:
+        result = setgen.new_set_from_set(
+            result, context=irstmt.context, ctx=ctx)
 
     if view is not None:
         parent_ctx.view_sets[view] = result
@@ -957,7 +966,9 @@ def fini_stmt(
 
 def process_with_block(
         edgeql_tree: qlast.Statement, *,
-        ctx: context.ContextLevel, parent_ctx: context.ContextLevel) -> None:
+        ctx: context.ContextLevel,
+        parent_ctx: context.ContextLevel) -> List[irast.Set]:
+    results = []
     for with_entry in edgeql_tree.aliases:
         if isinstance(with_entry, qlast.ModuleAliasDecl):
             ctx.modaliases[with_entry.alias] = with_entry.module
@@ -965,15 +976,19 @@ def process_with_block(
         elif isinstance(with_entry, qlast.AliasedExpr):
             with ctx.new() as scopectx:
                 scopectx.expr_exposed = False
-                stmtctx.declare_view(
-                    with_entry.expr,
-                    with_entry.alias,
-                    must_be_used=True,
-                    ctx=scopectx)
+                results.append(
+                    stmtctx.declare_view(
+                        with_entry.expr,
+                        with_entry.alias,
+                        must_be_used=True,
+                        ctx=scopectx)
+                )
 
         else:
             raise RuntimeError(
                 f'unexpected expression in WITH block: {with_entry}')
+
+    return results
 
 
 def compile_result_clause(

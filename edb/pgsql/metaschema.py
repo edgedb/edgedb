@@ -3158,9 +3158,13 @@ def _describe_config(
         " ?? false"
     )
     query = (
-        f"WITH\n  conf := cfg::get_config_json(sources := [{ql(source)}]),\n"
-        + (f"  testmode := {testmode_check}\n" if testmode else "")
+        f"FOR conf IN {{cfg::get_config_json(sources := [{ql(source)}])}} "
+        + "UNION (\n"
+        + (f"FOR testmode IN {{{testmode_check}}} UNION (\n"
+           if testmode else "")
         + "SELECT\n  " + ' ++ '.join(items)
+        + (")" if testmode else "")
+        + ")"
     )
     return query
 

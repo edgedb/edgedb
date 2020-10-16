@@ -671,22 +671,24 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         } FILTER .name = 'Alice'
 
 % OK %
+    "FENCE": {
+        "(test::User)",
         "FENCE": {
-            "(test::User)",
+            "(__derived__::__derived__|letter@w~1)",
+            "(test::User).>select_deck[IS test::Card]",
             "FENCE": {
-                "(__derived__::__derived__|letter@w~1)",
-                "(test::User).>select_deck[IS test::Card]",
                 "FENCE": {
                     "(test::User).>deck[IS test::Card]",
                     "FENCE": {
                         "(test::User).>deck[IS test::Card].>name[IS std::str]"
                     }
                 }
-            },
-            "FENCE": {
-                "(test::User).>name[IS std::str]"
             }
+        },
+        "FENCE": {
+            "(test::User).>name[IS std::str]"
         }
+    }
         """
 
     def test_edgeql_ir_scope_tree_26(self):
@@ -706,25 +708,27 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         } FILTER .name = 'Alice'
 
 % OK %
+    "FENCE": {
+        "(test::User)",
         "FENCE": {
-            "(test::User)",
+            "(__derived__::__derived__|letter@w~1)",
+            "(test::User).>select_deck[IS test::Card]",
             "FENCE": {
                 "(__derived__::__derived__|foo@w~2)": {
                     "FENCE": {
                         "(test::User).>deck[IS test::Card]",
                         "FENCE": {
-                            "(test::User).>deck[IS test::Card]\
-.>name[IS std::str]"
+                            "(test::User).>deck[IS test::Card].>\
+name[IS std::str]"
                         }
                     }
-                },
-                "(__derived__::__derived__|letter@w~1)",
-                "(test::User).>select_deck[IS test::Card]"
-            },
-            "FENCE": {
-                "(test::User).>name[IS std::str]"
+                }
             }
+        },
+        "FENCE": {
+            "(test::User).>name[IS std::str]"
         }
+    }
         """
 
     def test_edgeql_ir_scope_tree_27(self):

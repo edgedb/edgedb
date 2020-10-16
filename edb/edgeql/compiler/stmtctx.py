@@ -118,9 +118,7 @@ def fini_expression(
         cardinality = inference.infer_cardinality(
             ir,
             scope_tree=ctx.path_scope,
-            ctx=inference.CardCtx(
-                env=ctx.env, inferred_cardinality={}, singletons=()
-            )
+            ctx=inference.make_ctx(env=ctx.env),
         )
 
     # Strip weak namespaces
