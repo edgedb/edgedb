@@ -156,10 +156,13 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
             else:
                 ours = None
 
-            inherited = result is not None and ours is None
+            inherited = self.is_field_inherited(
+                schema, field_name, bases, result, ours)
+
             inherited_fields_update[field_name] = inherited
 
-            if (result is not None or ours is not None) and result != ours:
+            if (result is not None or ours is not None) and (
+                    result != ours or inherited):
                 schema = self.inherit_field(
                     schema,
                     context,
@@ -172,6 +175,16 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
             schema, context, inherited_fields_update)
 
         return schema
+
+    def is_field_inherited(
+        self,
+        schema: s_schema.Schema,
+        field_name: str,
+        bases: Tuple[so.Object, ...],
+        merged_value: Any,
+        explicit_value: Any
+    ) -> bool:
+        return merged_value is not None and explicit_value is None
 
     def inherit_field(
         self,

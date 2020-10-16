@@ -1297,10 +1297,38 @@ class PointerCommand(
                 assert isinstance(field, so.SchemaField)
                 dval = field.default
 
-                if op.source == 'inheritance' and op.new_value is dval:
+                # For all properties other than cardinality, if they
+                # are inherited and have the default value, skip them.
+                # Cardinality is special and should be explicitly
+                # included, though.
+                if (op.property != 'cardinality'
+                        and op.source == 'inheritance'
+                        and op.new_value is dval):
                     return
 
         super()._apply_field_ast(schema, context, node, op)
+
+    def is_field_inherited(
+        self,
+        schema: s_schema.Schema,
+        field_name: str,
+        bases: Tuple[so.Object, ...],
+        merged_value: Any,
+        explicit_value: Any
+    ) -> bool:
+        if field_name == 'cardinality':
+            # As long 'cardinality' is not None in at least one
+            # base it is inherited (it cannot be redefined). The
+            # `field.mrege_fn` ensures that it is inherited
+            # properly.
+            for base in bases:
+                v = base.get_explicit_field_value(schema, field_name, None)
+                if v is not None:
+                    return True
+            return False
+        else:
+            return super().is_field_inherited(
+                schema, field_name, bases, merged_value, explicit_value)
 
 
 class SetPointerType(
