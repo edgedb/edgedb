@@ -62,6 +62,9 @@ def linearize_delta(
     # tree is broken up into linear branches, which are then sorted
     # and reassembled back into a tree.
 
+    # A map of commands to root->command paths through the tree.
+    # Nodes are duplicated so the interior nodes of the path are
+    # distinct.
     opmap: Dict[sd.Command, List[sd.Command]] = {}
     strongrefs: Dict[str, str] = {}
 
@@ -131,7 +134,7 @@ def reconstruct_tree(
         """Determine if a given command can be attached to another.
 
         Returns True, if *op_to_attach* can be attached to *op_to_attach_to*
-        without violating the depenedncy order.
+        without violating the dependency order.
         """
         tgt_offset = offsets[op_to_attach_to]
         tgt_offset_len = len(tgt_offset)
@@ -568,6 +571,21 @@ def _trace_op(
         # If the object was renamed, use the new name, else use regular.
         name = renames.get(op.classname, op.classname)
         obj = get_object(new_schema, op, name)
+
+        if tag == 'rename':
+            # On renames, we want to delete any references before we
+            # do the rename. This is because for functions and
+            # constraints we implicitly rename the object when
+            # something it references is renamed, and this implicit
+            # rename can interfere with a CREATE/DELETE pair.  So we
+            # make sure to put the DELETE before the RENAME of a
+            # referenced object. (An improvement would be to elide a
+            # CREATE/DELETE pair when it could be implicitly handled
+            # by a rename).
+            assert old_schema
+            old_obj = get_object(old_schema, op, op.classname)
+            for ref in _get_referrers(old_schema, old_obj, strongrefs):
+                deps.add(('delete', ref.get_name(old_schema)))
 
         refs = _get_referrers(new_schema, obj, strongrefs)
         for ref in refs:
