@@ -386,7 +386,7 @@ class Pointer(referencing.ReferencedInheritingObject,
         *,
         allow_contravariant: bool = False,
     ) -> Tuple[s_schema.Schema, Optional[s_types.Type]]:
-        if t1 is t2:
+        if t1 == t2:
             return schema, t1
 
         # When two pointers are merged, check target compatibility

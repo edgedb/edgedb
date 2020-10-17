@@ -111,7 +111,7 @@ class Type(
     def is_blocking_ref(
         self, schema: s_schema.Schema, reference: so.Object
     ) -> bool:
-        return reference is not self.get_rptr(schema)
+        return reference != self.get_rptr(schema)
 
     def derive_subtype(
         self: TypeT,
@@ -436,7 +436,7 @@ class InheritingType(so.DerivableInheritingObject, Type):
 
         if ancestor is None:
             return -1
-        elif ancestor is self:
+        elif ancestor == self:
             return 0
         else:
             ancestors = list(self.get_ancestors(schema).objects(schema))
@@ -1139,7 +1139,7 @@ class Array(
 
         st = self.get_element_type(schema)
         schema, stm = st.material_type(schema)
-        if stm is not st:
+        if stm != st:
             return self.__class__.from_subtypes(
                 schema,
                 [stm],
@@ -1662,7 +1662,7 @@ class Tuple(
 
         for st_name, st in self.iter_subtypes(schema):
             schema, stm = st.material_type(schema)
-            if stm is not st:
+            if stm != st:
                 new_material_type = True
             subtypes[st_name] = stm
 

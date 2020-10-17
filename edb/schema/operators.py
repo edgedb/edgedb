@@ -206,7 +206,7 @@ class CreateOperator(
                 context=self.source_context)
 
         for oper in schema.get_operators(shortname, ()):
-            if oper is self.scls:
+            if oper == self.scls:
                 continue
 
             oper_return_typemod = oper.get_return_typemod(schema)

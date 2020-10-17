@@ -334,7 +334,7 @@ def _process_view(
             ctx.env.view_shapes[source].append((ptrcls, shape_op))
 
     if (view_rptr is not None and view_rptr.ptrcls is not None and
-            view_scls is not stype):
+            view_scls != stype):
         ctx.env.schema = view_scls.set_field_value(
             ctx.env.schema, 'rptr', view_rptr.ptrcls)
 
