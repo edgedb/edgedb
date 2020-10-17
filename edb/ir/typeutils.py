@@ -205,7 +205,7 @@ def type_to_typeref(
         schema, material_type = t.material_type(schema)
 
         material_typeref: Optional[irast.TypeRef]
-        if material_type is not t:
+        if material_type != t:
             material_typeref = type_to_typeref(
                 schema,
                 material_type,
@@ -218,7 +218,7 @@ def type_to_typeref(
         if (isinstance(material_type, s_scalars.ScalarType)
                 and not material_type.get_is_abstract(schema)):
             base_type = material_type.get_topmost_concrete_base(schema)
-            if base_type is material_type:
+            if base_type == material_type:
                 base_typeref = None
             else:
                 assert isinstance(base_type, s_types.Type)
@@ -282,7 +282,7 @@ def type_to_typeref(
     elif isinstance(t, s_types.Tuple) and t.is_named(schema):
         schema, material_type = t.material_type(schema)
 
-        if material_type is not t:
+        if material_type != t:
             material_typeref = type_to_typeref(
                 schema, material_type, cache=cache
             )
@@ -304,7 +304,7 @@ def type_to_typeref(
     else:
         schema, material_type = t.material_type(schema)
 
-        if material_type is not t:
+        if material_type != t:
             material_typeref = type_to_typeref(
                 schema, material_type, cache=cache
             )
@@ -517,7 +517,7 @@ def ptrref_from_ptrcls(  # NoQA: F811
 
     schema, material_ptrcls = ptrcls.material_type(schema)
     material_ptr: Optional[irast.BasePointerRef]
-    if material_ptrcls is not None and material_ptrcls is not ptrcls:
+    if material_ptrcls is not None and material_ptrcls != ptrcls:
         material_ptr = ptrref_from_ptrcls(
             ptrcls=material_ptrcls,
             direction=direction,

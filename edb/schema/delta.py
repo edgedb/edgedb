@@ -953,7 +953,7 @@ class CommandContext:
             True if *obj* is being deleted in this context.
         """
         return any(isinstance(ctx.op, DeleteObject)
-                   and ctx.op.scls is obj for ctx in self.stack)
+                   and ctx.op.scls == obj for ctx in self.stack)
 
     def push(self, token: CommandContextToken[Command]) -> None:
         self.stack.append(token)

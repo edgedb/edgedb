@@ -941,7 +941,7 @@ def get_config_type_shape(
 
             elem_path: List[qlast.Base] = []
 
-            if t is not stype:
+            if t != stype:
                 elem_path.append(
                     qlast.TypeIntersection(
                         type=qlast.TypeName(

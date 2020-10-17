@@ -783,7 +783,7 @@ def type_intersection_set(
     arg_type = get_set_type(source_set, ctx=ctx)
 
     result = schemactx.apply_intersection(arg_type, stype, ctx=ctx)
-    if result.stype is arg_type:
+    if result.stype == arg_type:
         return source_set
 
     poly_set = new_set(stype=result.stype, ctx=ctx)

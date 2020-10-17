@@ -131,7 +131,7 @@ class ObjectType(
                 return ' & '.join(
                     dn for dn in comp_dns if dn != 'std::BaseObject'
                 )
-            elif mtype is self:
+            elif mtype == self:
                 return super().get_displayname(schema)
             else:
                 return mtype.get_displayname(schema)

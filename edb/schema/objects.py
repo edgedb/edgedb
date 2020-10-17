@@ -2718,8 +2718,10 @@ def _serialize_to_markup(o: Object, *, ctx: markup.Context) -> markup.Markup:
 
 
 def _merge_lineage(
-    schema: s_schema.Schema, obj: Object, lineage: Iterable[Any]
-) -> List[Any]:
+    schema: s_schema.Schema,
+    obj: InheritingObjectT,
+    lineage: Iterable[List[InheritingObjectT]],
+) -> List[InheritingObjectT]:
     result: List[Any] = []
 
     while True:
@@ -2729,8 +2731,7 @@ def _merge_lineage(
 
         for line in nonempty:
             candidate = line[0]
-            tails = [m for m in nonempty
-                     if id(candidate) in {id(c) for c in m[1:]}]
+            tails = [m for m in nonempty if candidate in m[1:]]
             if not tails:
                 break
         else:
@@ -2742,15 +2743,16 @@ def _merge_lineage(
         result.append(candidate)
 
         for line in nonempty:
-            if line[0] is candidate:
+            if line[0] == candidate:
                 del line[0]
 
     return result
 
 
 def compute_lineage(
-    schema: s_schema.Schema, obj: InheritingObject
-) -> List[Any]:
+    schema: s_schema.Schema,
+    obj: InheritingObjectT,
+) -> List[InheritingObjectT]:
     bases = tuple(obj.get_bases(schema).objects(schema))
     lineage = [[obj]]
 
@@ -2761,8 +2763,9 @@ def compute_lineage(
 
 
 def compute_ancestors(
-    schema: s_schema.Schema, obj: InheritingObject
-) -> List[Any]:
+    schema: s_schema.Schema,
+    obj: InheritingObjectT,
+) -> List[InheritingObjectT]:
     return compute_lineage(schema, obj)[1:]
 
 
