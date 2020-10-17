@@ -327,19 +327,20 @@ class AlterTableRenameMultiConstraint(
             for i, _expr in enumerate(exprs):
                 old_name = c.numbered_constraint_name(i, quote=False)
                 new_name = nc.numbered_constraint_name(i, quote=False)
+                if old_name != new_name:
+                    ac = dbops.AlterTableRenameConstraintSimple(
+                        name=self.name, old_name=old_name, new_name=new_name)
 
-                ac = dbops.AlterTableRenameConstraintSimple(
-                    name=self.name, old_name=old_name, new_name=new_name)
-
-                self.add_command(ac)
+                    self.add_command(ac)
         else:
             old_name = c.constraint_name(quote=False)
             new_name = nc.constraint_name(quote=False)
 
-            ac = dbops.AlterTableRenameConstraintSimple(
-                name=self.name, old_name=old_name, new_name=new_name)
+            if old_name != new_name:
+                ac = dbops.AlterTableRenameConstraintSimple(
+                    name=self.name, old_name=old_name, new_name=new_name)
 
-            self.add_command(ac)
+                self.add_command(ac)
 
         return super().generate(block)
 
@@ -428,6 +429,9 @@ class AlterTableConstraintBase(dbops.AlterTableBaseMixin, dbops.CommandGroup):
 
         cname = constraint.raw_constraint_name()
         ncname = new_constr.raw_constraint_name()
+
+        if cname == ncname:
+            return ()
 
         ins_trigger_name = common.edgedb_name_to_pg_name(cname + '_instrigger')
         new_ins_trg_name = common.edgedb_name_to_pg_name(

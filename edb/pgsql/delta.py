@@ -1087,9 +1087,33 @@ class CreateConstraint(
 class RenameConstraint(
         ConstraintCommand, RenameObject,
         adapts=s_constr.RenameConstraint):
-    # Constraints are created using the ID in the backend,
-    # so there is nothing special we need to do here.
-    pass
+    def apply(self, schema, context):
+        delta_root_ctx = context.top()
+        orig_schema = delta_root_ctx.original_schema
+        schema = super().apply(schema, context)
+        constraint = self.scls
+        if not self.constraint_is_effective(orig_schema, constraint):
+            return schema
+
+        subject = constraint.get_subject(schema)
+
+        if subject is not None:
+            schemac_to_backendc = \
+                schemamech.ConstraintMech.\
+                schema_constraint_to_backend_constraint
+
+            bconstr = schemac_to_backendc(subject, constraint, schema, context)
+
+            orig_subject = constraint.get_subject(orig_schema)
+            orig_bconstr = schemac_to_backendc(
+                orig_subject, constraint, orig_schema, context
+            )
+
+            op = dbops.CommandGroup(priority=1)
+            op.add_command(bconstr.rename_ops(orig_bconstr))
+            self.pgops.add(op)
+
+        return schema
 
 
 class AlterConstraintOwned(
@@ -1532,6 +1556,10 @@ class CompositeObjectMetaCommand(ObjectMetaCommand):
             old_table_name = (new_table_name[0], old_table_name[1])
 
             cond = dbops.TableExists(name=old_table_name)
+
+            self.pgops.add(self.drop_inhview(
+                orig_schema, context, obj,
+            ))
 
         if old_table_name[1] != new_table_name[1]:
             self.pgops.add(

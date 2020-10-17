@@ -292,11 +292,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             'proposed': None,
         })
 
-    @test.xfail('''
-        The "complete" flag is not set even though the DDL from
-        "proposed" list is used. The specific way to trigger it is to
-        reject the proposed DDL and then use it anyway.
-    ''')
     async def test_edgeql_migration_describe_reject_04(self):
         # Migration involving 2 modules
         await self.con.execute('''
