@@ -21,6 +21,7 @@ from __future__ import annotations
 from typing import *
 
 import copy
+import uuid
 
 from edb.common import checked
 from edb.common import struct
@@ -39,7 +40,8 @@ if TYPE_CHECKING:
     from edb.ir import ast as irast_
 
 
-class Expression(struct.MixedStruct, s_abc.ObjectContainer, s_abc.Expression):
+class Expression(struct.MixedStruct, so.ObjectContainer, s_abc.Expression):
+
     text = struct.Field(str, frozen=True)
     origtext = struct.Field(str, default=None, frozen=True)
     # mypy wants an argument to the ObjectSet generic, but
@@ -210,6 +212,62 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer, s_abc.Expression):
             ) if self.refs is not None else None,
             _qlast=self._qlast,
         )
+
+    def schema_reduce(
+        self,
+    ) -> Tuple[
+        str,
+        Optional[str],
+        Tuple[
+            str,
+            Optional[Union[Tuple[type, ...], type]],
+            Tuple[uuid.UUID, ...],
+            Tuple[Tuple[str, Any], ...],
+        ],
+    ]:
+        assert self.refs is not None, 'expected expression to be compiled'
+        return (
+            self.text,
+            self.origtext,
+            self.refs.schema_reduce(),
+        )
+
+    @classmethod
+    def schema_restore(
+        cls,
+        data: Tuple[
+            str,
+            Optional[str],
+            Tuple[
+                str,
+                Optional[Union[Tuple[type, ...], type]],
+                Tuple[uuid.UUID, ...],
+                Tuple[Tuple[str, Any], ...],
+            ],
+        ],
+    ) -> Expression:
+        text, origtext, refs_data = data
+        return Expression(
+            text=text,
+            origtext=origtext,
+            refs=so.ObjectCollection.schema_restore(refs_data),
+        )
+
+    @classmethod
+    def schema_refs_from_data(
+        cls,
+        data: Tuple[
+            str,
+            Optional[str],
+            Tuple[
+                str,
+                Optional[Union[Tuple[type, ...], type]],
+                Tuple[uuid.UUID, ...],
+                Tuple[Tuple[str, Any], ...],
+            ],
+        ],
+    ) -> FrozenSet[uuid.UUID]:
+        return so.ObjectCollection.schema_refs_from_data(data[2])
 
 
 class ExpressionShell(so.Shell):

@@ -28,6 +28,7 @@ import immutables
 
 from edb.common import uuidgen
 
+from edb.schema import abc as s_abc
 from edb.schema import expr as s_expr
 from edb.schema import functions as s_func
 from edb.schema import name as s_name
@@ -105,7 +106,7 @@ def parse_into(
             shortname = mcls.get_shortname_static(name)
             shortname_to_id[mcls, shortname].add(objid)
 
-        id_to_type[objid] = obj
+        id_to_type[objid] = type(obj).__name__
 
         objdata: Dict[str, Any] = {}
         val: Any
@@ -127,7 +128,7 @@ def parse_into(
                         val = newobj[0]
                     else:
                         val = base_schema.get_by_id(refid)
-                    objdata[fn] = val
+                    objdata[fn] = val.schema_reduce()
                     refs_to[val.id][mcls, fn][objid] = None
 
                 elif desc.storage.ptrkind == 'multi link':
@@ -141,7 +142,7 @@ def parse_into(
                         refids = ftype._container(
                             uuidgen.UUID(e['id']) for e in v)
                         val = ftype(refids, _private_init=True)
-                    objdata[fn] = val
+                    objdata[fn] = val.schema_reduce()
                     for refid in refids:
                         refs_to[refid][mcls, fn][objid] = None
 
@@ -162,8 +163,13 @@ def parse_into(
                                     refs_to[refid][mcls, fn][objid] = None
                                 exprs.append(e)
                             val = ftype(exprs)
+                        elif issubclass(ftype, s_obj.Object):
+                            val = val.id
                         else:
                             val = ftype(val)
+
+                    if issubclass(ftype, s_abc.Reducible):
+                        val = val.schema_reduce()
                     objdata[fn] = val
 
                 else:
@@ -180,7 +186,7 @@ def parse_into(
                     refs_to[refid][mcls, fn][objid] = None
 
                 val = ftype(refids, _private_init=True)
-                objdata[fn] = val
+                objdata[fn] = val.schema_reduce()
                 if desc.properties:
                     for e_dict in v:
                         refdict_updates[uuidgen.UUID(e_dict['id'])] = {

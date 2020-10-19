@@ -1309,6 +1309,8 @@ class ObjectCommand(
                     for fn in fns:
                         # Do the switcheraroos
                         value = ref.get_explicit_field_value(schema, fn, None)
+                        if value is None:
+                            continue
                         assert isinstance(value, s_expr.Expression)
                         # Strip the "compiled" out of the expression
                         value = s_expr.Expression.not_compiled(value)

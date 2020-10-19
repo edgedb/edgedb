@@ -278,6 +278,10 @@ class ParametricType:
         cls.types = tuple(types)
         cls._forward_refs = {}
 
+    @classmethod
+    def is_anon_parametrized(cls) -> bool:
+        return cls.__name__.endswith(']')
+
     def __reduce__(self) -> Tuple[Any, ...]:
         raise NotImplementedError(
             'must implement explicit __reduce__ for ParametricType subclass'

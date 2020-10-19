@@ -24,6 +24,7 @@ import builtins
 import collections
 import collections.abc
 import enum
+import functools
 import uuid
 
 from edb import errors
@@ -87,14 +88,13 @@ DEFAULT_CONSTRUCTOR: Final = DefaultConstructorT.DefaultConstructor
 
 T = TypeVar("T")
 Type_T = TypeVar("Type_T", bound=type)
+ObjectContainer_T = TypeVar('ObjectContainer_T', bound='ObjectContainer')
 Object_T = TypeVar("Object_T", bound="Object")
 ObjectCollection_T = TypeVar(
     "ObjectCollection_T",
     bound="ObjectCollection[Object]",
 )
 HashCriterion = Union[Type["Object"], Tuple[str, Any]]
-
-_EMPTY_FIELD_FROZENSET: FrozenSet[Field[Any]] = frozenset()
 
 
 class ReflectionMethod(enum.Enum):
@@ -285,6 +285,7 @@ class Field(struct.ProtoField, Generic[T]):
         self.weak_ref = weak_ref
         self.reflection_method = reflection_method
         self.reflection_proxy = reflection_proxy
+        self.is_reducible = issubclass(type_, s_abc.Reducible)
 
         if (
             merge_fn is default_field_merge
@@ -461,6 +462,16 @@ class RefDict(struct.Struct):
         type, frozen=True)
 
 
+class ObjectContainer(s_abc.Reducible):
+
+    @classmethod
+    def schema_refs_from_data(
+        cls,
+        data: Any,
+    ) -> FrozenSet[uuid.UUID]:
+        raise NotImplementedError
+
+
 class ObjectMeta(type):
 
     _all_types: ClassVar[Dict[str, Type[Object]]] = {}
@@ -474,7 +485,10 @@ class ObjectMeta(type):
     _fields: Dict[str, Field[Any]]
     _hashable_fields: Set[Field[Any]]  # if f.is_schema_field and f.hashable
     _sorted_fields: collections.OrderedDict[str, Field[Any]]
-    _object_fields: FrozenSet[Field[Any]]
+    #: Fields that contain references to objects either directly or
+    #: indirectly.
+    _objref_fields: FrozenSet[Field[Any]]
+    _reducible_fields: FrozenSet[Field[Any]]
     _refdicts: collections.OrderedDict[str, RefDict]
     _refdicts_by_refclass: Dict[type, RefDict]
     _refdicts_by_field: Dict[str, RefDict]  # key is rd.attr
@@ -505,30 +519,82 @@ class ObjectMeta(type):
                 f' as {mcls._all_types[name]!r}'
             )
 
-        for k, v in tuple(clsdict.items()):
-            if isinstance(v, RefDict):
-                mydicts[k] = v
+        for k, field in tuple(clsdict.items()):
+            if isinstance(field, RefDict):
+                mydicts[k] = field
                 continue
-            if not isinstance(v, struct.ProtoField):
+            if not isinstance(field, struct.ProtoField):
                 continue
-            if not isinstance(v, Field):
+            if not isinstance(field, Field):
                 raise TypeError(
                     f'cannot create {name} class: schema.objects.Field '
-                    f'expected, got {type(v)}')
+                    f'expected, got {type(field)}')
 
-            v.name = k
-            myfields[k] = v
+            field.name = k
+            myfields[k] = field
             del clsdict[k]
 
-            if v.is_schema_field:
-                getter_name = f'get_{v.name}'
+            if isinstance(field, SchemaField):
+                getter_name = f'get_{field.name}'
                 if getter_name in clsdict:
                     # The getter was defined explicitly, move on.
                     continue
-                clsdict[getter_name] = (
-                    lambda self, schema, *, _fn=v.name:
-                        self._get_schema_field_value(schema, _fn)
-                )
+
+                ftype = field.type
+                # The field getters are hot code as they're essentially
+                # attribute access, so be mindful about what you are adding
+                # into the callables below.
+                if issubclass(ftype, s_abc.Reducible):
+                    def reducible_getter(
+                        self: Any,
+                        schema: s_schema.Schema,
+                        *,
+                        _f: SchemaField[Any] = field,
+                        _fn: str = field.name,
+                        _sr: Callable[[Any], s_abc.Reducible] = (
+                            ftype.schema_restore
+                        ),
+                    ) -> Any:
+                        data = schema.get_obj_data_raw(self.id)
+                        v = data.get(_fn)
+                        if v is not None:
+                            return _sr(v)
+                        else:
+                            try:
+                                return _f.get_default()
+                            except ValueError:
+                                pass
+
+                            raise FieldValueNotFoundError(
+                                f'{self!r} object has no value '
+                                f'for field {_fn!r}'
+                            )
+
+                    clsdict[getter_name] = reducible_getter
+                else:
+                    def regular_getter(
+                        self: Any,
+                        schema: s_schema.Schema,
+                        *,
+                        _f: SchemaField[Any] = field,
+                        _fn: str = field.name,
+                    ) -> Any:
+                        data = schema.get_obj_data_raw(self.id)
+                        v = data.get(_fn)
+                        if v is not None:
+                            return v
+                        else:
+                            try:
+                                return _f.get_default()
+                            except ValueError:
+                                pass
+
+                            raise FieldValueNotFoundError(
+                                f'{self!r} object has no value '
+                                f'for field {_fn!r}'
+                            )
+
+                    clsdict[getter_name] = regular_getter
 
         try:
             cls = cast(ObjectMeta, super().__new__(mcls, name, bases, clsdict))
@@ -550,8 +616,14 @@ class ObjectMeta(type):
                                 if isinstance(f, SchemaField) and f.hashable}
         cls._sorted_fields = collections.OrderedDict(
             sorted(fields.items(), key=lambda e: e[0]))
-        # Populated lazily
-        cls._object_fields = _EMPTY_FIELD_FROZENSET
+        cls._objref_fields = frozenset(
+            f for f in cls._fields.values()
+            if issubclass(f.type, ObjectContainer)
+        )
+        cls._reducible_fields = frozenset(
+            f for f in cls._fields.values()
+            if issubclass(f.type, s_abc.Reducible)
+        )
 
         fa = '{}.{}_fields'.format(cls.__module__, cls.__name__)
         setattr(cls, fa, myfields)
@@ -623,13 +695,11 @@ class ObjectMeta(type):
 
         return cls
 
-    def get_object_fields(cls) -> FrozenSet[Field[Any]]:
-        if cls._object_fields is _EMPTY_FIELD_FROZENSET:
-            cls._object_fields = frozenset(
-                f for f in cls._fields.values()
-                if issubclass(f.type, s_abc.ObjectContainer)
-            )
-        return cls._object_fields
+    def get_object_reference_fields(cls) -> FrozenSet[Field[Any]]:
+        return cls._objref_fields
+
+    def get_reducible_fields(cls) -> FrozenSet[Field[Any]]:
+        return cls._reducible_fields
 
     def has_field(cls, name: str) -> bool:
         return name in cls._fields
@@ -734,7 +804,7 @@ class FieldValueNotFoundError(Exception):
     pass
 
 
-class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
+class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
     """Base schema item class."""
 
     __slots__ = ('id',)
@@ -785,6 +855,27 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         default=None)
 
     _fields: Dict[str, SchemaField[Any]]
+
+    def schema_reduce(self) -> Tuple[str, uuid.UUID]:
+        return type(self).__name__, self.id
+
+    @classmethod
+    @functools.lru_cache(maxsize=10240)
+    # mypy hates lru_cache
+    def schema_restore(  # type: ignore
+        cls,
+        data: Tuple[str, uuid.UUID],
+    ) -> Object:
+        sclass_name, obj_id = data
+        sclass = ObjectMeta.get_schema_class(sclass_name)
+        return sclass(_private_id=obj_id)
+
+    @classmethod
+    def schema_refs_from_data(
+        cls,
+        data: Tuple[str, uuid.UUID],
+    ) -> FrozenSet[uuid.UUID]:
+        return frozenset((data[1],))
 
     def get_id(self, schema: s_schema.Schema) -> uuid.UUID:
         return self.id
@@ -882,48 +973,33 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
         id = cls._prepare_id(id, data)
         scls = cls._create_from_id(id)
-        schema = schema.add(id, scls, obj_data)
+        schema = schema.add(id, cls, obj_data)
 
         return schema, scls
 
     # XXX sadly, in the methods below, statically we don't know any better than
     # "Any" since providing the field name as a `str` is the equivalent of
     # getattr() on a regular class.
-
-    def _get_schema_field_value(
-        self,
-        schema: s_schema.Schema,
-        field_name: str,
-        *,
-        allow_default: bool = True,
-    ) -> Any:
-        val = schema.get_obj_field(self.id, field_name)
-        if val is not None:
-            return val
-
-        if allow_default:
-            field = type(self).get_field(field_name)
-
-            try:
-                return field.get_default()
-            except ValueError:
-                pass
-
-        raise FieldValueNotFoundError(
-            f'{self!r} object has no value for field {field_name!r}')
-
     def get_field_value(
         self,
         schema: s_schema.Schema,
         field_name: str,
-        *,
-        allow_default: bool = True,
     ) -> Any:
         field = type(self).get_field(field_name)
 
         if field.is_schema_field:
-            return self._get_schema_field_value(
-                schema, field_name, allow_default=allow_default)
+            data = schema.get_obj_data_raw(self.id)
+            val = data.get(field_name)
+            if val is not None:
+                if field.is_reducible:
+                    return field.type.schema_restore(val)
+                else:
+                    return val
+            else:
+                try:
+                    return field.get_default()
+                except ValueError:
+                    pass
         else:
             try:
                 return object.__getattribute__(self, field_name)
@@ -942,14 +1018,15 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         field = type(self).get_field(field_name)
 
         if field.is_schema_field:
-            val = schema.get_obj_field(self.id, field_name)
+            data = schema.get_obj_data_raw(self.id)
+            val = data.get(field_name)
             if val is not None:
-                return val
+                if field.is_reducible:
+                    return field.type.schema_restore(val)
+                else:
+                    return val
             elif default is not NoDefault:
                 return default
-            else:
-                raise FieldValueNotFoundError(
-                    f'{self!r} object has no value for field {field_name!r}')
 
         else:
             try:
@@ -958,8 +1035,8 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                 if default is not NoDefault:
                     return default
 
-            raise FieldValueNotFoundError(
-                f'{self!r} object has no value for field {field_name!r}')
+        raise FieldValueNotFoundError(
+            f'{self!r} object has no value for field {field_name!r}')
 
     def set_field_value(
         self,
@@ -1004,7 +1081,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         sig: List[Union[Type[Object_T], Tuple[str, Any]]] = [cls]
         for f in cls._hashable_fields:
             fn = f.name
-            val = schema.get_obj_field(self.id, fn)
+            val = self.get_explicit_field_value(schema, fn, default=None)
             if val is None:
                 continue
             sig.append((fn, val))
@@ -1328,7 +1405,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             value = self.get_explicit_field_value(schema, fn, None)
             if value is not None:
                 v: Any
-                if issubclass(f.type, s_abc.ObjectContainer):
+                if issubclass(f.type, ObjectContainer):
                     v = value.as_shell(schema)
                 else:
                     v = value
@@ -1387,7 +1464,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             old_v: Any
             new_v: Any
 
-            if issubclass(f.type, s_abc.ObjectContainer):
+            if issubclass(f.type, ObjectContainer):
                 if oldattr_v is not None:
                     old_v = oldattr_v.as_shell(self_schema)
                 else:
@@ -1480,7 +1557,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         for fn, f in fields.items():
             value = self.get_explicit_field_value(schema, fn, None)
             if value is not None:
-                if issubclass(f.type, s_abc.ObjectContainer):
+                if issubclass(f.type, ObjectContainer):
                     v = value.as_shell(schema)
                 else:
                     v = value
@@ -1749,7 +1826,7 @@ class ObjectCollectionDuplicateNameError(Exception):
 
 
 class ObjectCollection(
-    s_abc.ObjectContainer,
+    ObjectContainer,
     parametric.SingleParametricType[Object_T],
     Generic[Object_T],
 ):
@@ -1763,6 +1840,8 @@ class ObjectCollection(
     # pass the actual type at the call site, but there seems to be
     # no easy solution to do that.
     type: ClassVar[Type[Object]] = Object  # type: ignore
+    _registry: ClassVar[Dict[str, Type[ObjectCollection[Object]]]] = {}
+
     _container: ClassVar[Type[CollectionFactory[Any]]]
 
     def __init_subclass__(
@@ -1773,6 +1852,20 @@ class ObjectCollection(
         super().__init_subclass__()
         if container is not None:
             cls._container = container
+
+        if not cls.is_anon_parametrized():
+            name = cls.__name__
+            if name in cls._registry:
+                raise TypeError(
+                    f'duplicate name for schema collection class: {name},'
+                    f'already defined as {cls._registry[name]!r}'
+                )
+            else:
+                cls._registry[name] = cls  # type: ignore
+
+    @classmethod
+    def get_subclass(cls, name: str) -> Type[ObjectCollection[Object]]:
+        return cls._registry[name]
 
     def __init__(
         self,
@@ -1797,36 +1890,90 @@ class ObjectCollection(
     def __hash__(self) -> int:
         return hash(self._ids)
 
-    def __reduce__(self) -> Tuple[Any, ...]:
+    def schema_reduce(
+        self,
+    ) -> Tuple[
+        str,
+        Optional[Union[Tuple[builtins.type, ...], builtins.type]],
+        Tuple[uuid.UUID, ...],
+        Tuple[Tuple[str, Any], ...],
+    ]:
+        cls = type(self)
+        _, (typeargs, ids, attrs) = self.__reduce__()
+        if cls.is_anon_parametrized():
+            clsname = cls.__bases__[0].__name__
+        else:
+            clsname = cls.__name__
+        return (clsname, typeargs, ids, tuple(attrs.items()))
+
+    @classmethod
+    @functools.lru_cache(maxsize=10240)
+    # mypy hates lru_cache
+    def schema_restore(  # type: ignore
+        cls,
+        data: Tuple[
+            str,
+            Optional[Union[Tuple[builtins.type, ...], builtins.type]],
+            Tuple[uuid.UUID, ...],
+            Tuple[Tuple[str, Any], ...],
+        ],
+    ) -> ObjectCollection[Object]:
+        clsname, typeargs, ids, attrs = data
+        scoll_class = ObjectCollection.get_subclass(clsname)
+        return scoll_class.__restore__(typeargs, ids, dict(attrs))
+
+    @classmethod
+    def schema_refs_from_data(
+        cls,
+        data: Tuple[
+            str,
+            Optional[Union[Tuple[builtins.type, ...], builtins.type]],
+            Tuple[uuid.UUID, ...],
+            Tuple[Tuple[str, Any], ...],
+        ],
+    ) -> FrozenSet[uuid.UUID]:
+        return frozenset(data[2])
+
+    def __reduce__(
+        self
+    ) -> Tuple[
+        Callable[..., ObjectCollection[Any]],
+        Tuple[
+            Optional[Union[Tuple[builtins.type, ...], builtins.type]],
+            Tuple[uuid.UUID, ...],
+            Dict[str, Any],
+        ],
+    ]:
         assert type(self).is_fully_resolved(), \
             f'{type(self)} parameters are not resolved'
-        types: Optional[Tuple[Optional[type], ...]] = self.types
-        if types is None:
-            types = (None,)
-        cls: Type[ObjectCollection[Object_T]] = self.__class__
-        if cls.__name__.endswith("]"):
-            # Parametrized type.
-            cls = cls.__bases__[0]
-        else:
-            # A subclass of a parametrized type.
-            types = (None,)
 
-        typeargs = types[0] if len(types) == 1 else types
-        attrs = {k: getattr(self, k) for k in self.__slots__}
-        return cls.__restore__, (typeargs, attrs)
+        cls: Type[ObjectCollection[Object_T]] = self.__class__
+        types: Optional[Tuple[type, ...]] = self.types
+        if types is None or not cls.is_anon_parametrized():
+            typeargs = None
+        else:
+            typeargs = types[0] if len(types) == 1 else types
+        attrs = {k: getattr(self, k) for k in self.__slots__ if k != '_ids'}
+        # Mypy fails to resolve typeargs properly
+        return (
+            cls.__restore__,
+            (typeargs, tuple(self._ids), attrs)  # type: ignore
+        )
 
     @classmethod
     def __restore__(
         cls,
-        params: Optional[Tuple[builtins.type, ...]],
+        typeargs: Optional[Union[Tuple[builtins.type, ...], builtins.type]],
+        ids: Tuple[uuid.UUID, ...],
         attrs: Dict[str, Any],
     ) -> ObjectCollection[Object_T]:
-        if params is None:
+        if typeargs is None or cls.is_anon_parametrized():
             # mypy complains about multiple values for
             # keyword argument "_private_init"
-            obj = cls(**attrs, _private_init=True)  # type: ignore
+            obj = cls(_ids=ids, **attrs, _private_init=True)  # type: ignore
         else:
-            obj = cls[params](**attrs, _private_init=True)  # type: ignore
+            obj = cls[typeargs](  # type: ignore
+                _ids=ids, **attrs, _private_init=True)
 
         return obj
 
