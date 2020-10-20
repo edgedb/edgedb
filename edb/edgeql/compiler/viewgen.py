@@ -208,7 +208,9 @@ def _process_view(
                         assert ptrcls_target is not None
                         if ptrcls_target.issubclass(
                                 ctx.env.schema,
-                                ctx.env.schema.get('std::sequence')):
+                                ctx.env.schema.get(
+                                    'std::sequence',
+                                    type=s_objects.SubclassableObject)):
                             continue
 
                         what = 'property'

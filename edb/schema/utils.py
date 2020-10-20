@@ -60,6 +60,7 @@ def ast_objref_to_object_shell(
     else:
         if obj is not None:
             actual_name = obj.get_name(schema)
+            assert isinstance(actual_name, sn.Name)
             module = actual_name.module
         else:
             aliased_module = modaliases.get(module)
@@ -97,6 +98,7 @@ def ast_objref_to_type_shell(
     obj = schema.get(lname, module_aliases=modaliases, default=None)
     if obj is not None:
         actual_name = obj.get_name(schema)
+        assert isinstance(actual_name, sn.Name)
         module = actual_name.module
     else:
         aliased_module = modaliases.get(module)

@@ -442,10 +442,11 @@ def derive_dummy_ptr(
     *,
     ctx: context.ContextLevel,
 ) -> s_pointers.Pointer:
-    stdobj = cast(s_objtypes.ObjectType, ctx.env.schema.get('std::BaseObject'))
+    stdobj = ctx.env.schema.get('std::BaseObject', type=s_objtypes.ObjectType)
     derived_obj_name = stdobj.get_derived_name(
         ctx.env.schema, stdobj, module='__derived__')
-    derived_obj = ctx.env.schema.get(derived_obj_name, None)
+    derived_obj = ctx.env.schema.get(
+        derived_obj_name, None, type=s_obj.QualifiedObject)
     if derived_obj is None:
         ctx.env.schema, derived_obj = stdobj.derive_subtype(
             ctx.env.schema, name=derived_obj_name)

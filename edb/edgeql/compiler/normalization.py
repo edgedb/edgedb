@@ -387,7 +387,9 @@ def compile_Path(
                     module_aliases=modaliases,
                 )
                 if obj is not None:
-                    step.module = obj.get_name(schema).module
+                    name = obj.get_name(schema)
+                    assert isinstance(name, sn.Name)
+                    step.module = name.module
                 elif None in modaliases:
                     # Even if the name was not resolved in the
                     # schema it may be the name of the object
@@ -461,7 +463,9 @@ def compile_TypeName(
             )
 
             if maintype is not None:
-                node.maintype.module = maintype.get_name(schema).module
+                name = maintype.get_name(schema)
+                assert isinstance(name, sn.Name)
+                node.maintype.module = name.module
             elif None in modaliases:
                 # Even if the name was not resolved in the schema it
                 # may be the name of the object being defined, as such

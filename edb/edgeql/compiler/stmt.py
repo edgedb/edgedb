@@ -43,6 +43,7 @@ from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import pseudo as s_pseudo
 from edb.schema import types as s_types
+from edb.schema import constraints as s_constr
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import utils as qlutils
@@ -59,9 +60,6 @@ from . import viewgen
 from . import schemactx
 from . import stmtctx
 from . import typegen
-
-if TYPE_CHECKING:
-    from edb.schema import constraints as s_constr
 
 
 @dispatch.compile.register(qlast.SelectQuery)
@@ -266,7 +264,7 @@ def compile_insert_unless_conflict(
             context=constraint_spec.context,
         )
 
-    exclusive_constr: s_constr.Constraint = schema.get('std::exclusive')
+    exclusive_constr = schema.get('std::exclusive', type=s_constr.Constraint)
     ex_cnstrs = [c for c in ptr.get_constraints(schema).objects(schema)
                  if c.issubclass(schema, exclusive_constr)]
 

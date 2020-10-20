@@ -250,7 +250,33 @@ class Schema(abc.ABC):
         default: Union[so.Object_T, so.NoDefaultT] = so.NoDefault,
         *,
         module_aliases: Optional[Mapping[Optional[str], str]] = None,
-        type: Optional[Type[so.Object_T]] = None,
+        condition: Optional[Callable[[so.Object], bool]] = None,
+        label: Optional[str] = None,
+        sourcectx: Optional[parsing.ParserContext] = None,
+    ) -> so.Object:
+        ...
+
+    @overload
+    def get(  # NoQA: F811
+        self,
+        name: str,
+        default: None,
+        *,
+        module_aliases: Optional[Mapping[Optional[str], str]] = None,
+        condition: Optional[Callable[[so.Object], bool]] = None,
+        label: Optional[str] = None,
+        sourcectx: Optional[parsing.ParserContext] = None,
+    ) -> Optional[so.Object]:
+        ...
+
+    @overload
+    def get(  # NoQA: F811
+        self,
+        name: str,
+        default: Union[so.Object_T, so.NoDefaultT] = so.NoDefault,
+        *,
+        module_aliases: Optional[Mapping[Optional[str], str]] = None,
+        type: Type[so.Object_T],
         condition: Optional[Callable[[so.Object], bool]] = None,
         label: Optional[str] = None,
         sourcectx: Optional[parsing.ParserContext] = None,
@@ -261,28 +287,63 @@ class Schema(abc.ABC):
     def get(  # NoQA: F811
         self,
         name: str,
-        default: Union[so.Object_T, so.NoDefaultT, None] = so.NoDefault,
+        default: None,
         *,
         module_aliases: Optional[Mapping[Optional[str], str]] = None,
-        type: Optional[Type[so.Object_T]] = None,
+        type: Type[so.Object_T],
         condition: Optional[Callable[[so.Object], bool]] = None,
         label: Optional[str] = None,
         sourcectx: Optional[parsing.ParserContext] = None,
     ) -> Optional[so.Object_T]:
         ...
 
-    @abc.abstractmethod
+    @overload
     def get(  # NoQA: F811
         self,
         name: str,
-        default: Union[so.Object_T, so.NoDefaultT, None] = so.NoDefault,
+        default: Union[so.Object, so.NoDefaultT, None] = so.NoDefault,
         *,
         module_aliases: Optional[Mapping[Optional[str], str]] = None,
         type: Optional[Type[so.Object_T]] = None,
         condition: Optional[Callable[[so.Object], bool]] = None,
         label: Optional[str] = None,
         sourcectx: Optional[parsing.ParserContext] = None,
-    ) -> Optional[so.Object_T]:
+    ) -> Optional[so.Object]:
+        ...
+
+    def get(  # NoQA: F811
+        self,
+        name: str,
+        default: Union[so.Object, so.NoDefaultT, None] = so.NoDefault,
+        *,
+        module_aliases: Optional[Mapping[Optional[str], str]] = None,
+        type: Optional[Type[so.Object_T]] = None,
+        condition: Optional[Callable[[so.Object], bool]] = None,
+        label: Optional[str] = None,
+        sourcectx: Optional[parsing.ParserContext] = None,
+    ) -> Optional[so.Object]:
+        return self.get_generic(
+            name,
+            default,
+            module_aliases=module_aliases,
+            type=type,
+            condition=condition,
+            label=label,
+            sourcectx=sourcectx,
+        )
+
+    @abc.abstractmethod
+    def get_generic(  # NoQA: F811
+        self,
+        name: str,
+        default: Union[so.Object, so.NoDefaultT, None],
+        *,
+        module_aliases: Optional[Mapping[Optional[str], str]],
+        type: Optional[Type[so.Object_T]],
+        condition: Optional[Callable[[so.Object], bool]],
+        label: Optional[str],
+        sourcectx: Optional[parsing.ParserContext],
+    ) -> Optional[so.Object]:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -1079,45 +1140,17 @@ class FlatSchema(Schema):
             raise errors.InvalidReferenceError(
                 f'{desc} {name!r} does not exist')
 
-    @overload
-    def get(  # NoQA: F811
+    def get_generic(
         self,
         name: str,
-        default: Union[so.Object_T, so.NoDefaultT] = so.NoDefault,
+        default: Union[so.Object, so.NoDefaultT, None],
         *,
-        module_aliases: Optional[Mapping[Optional[str], str]] = None,
-        type: Optional[Type[so.Object_T]] = None,
-        condition: Optional[Callable[[so.Object], bool]] = None,
-        label: Optional[str] = None,
-        sourcectx: Optional[parsing.ParserContext] = None,
-    ) -> so.Object_T:
-        ...
-
-    @overload
-    def get(  # NoQA: F811
-        self,
-        name: str,
-        default: Union[so.Object_T, so.NoDefaultT, None] = so.NoDefault,
-        *,
-        module_aliases: Optional[Mapping[Optional[str], str]] = None,
-        type: Optional[Type[so.Object_T]] = None,
-        condition: Optional[Callable[[so.Object], bool]] = None,
-        label: Optional[str] = None,
-        sourcectx: Optional[parsing.ParserContext] = None,
-    ) -> Optional[so.Object_T]:
-        ...
-
-    def get(  # NoQA: F811
-        self,
-        name: str,
-        default: Union[so.Object_T, so.NoDefaultT, None] = so.NoDefault,
-        *,
-        module_aliases: Optional[Mapping[Optional[str], str]] = None,
-        type: Optional[Type[so.Object_T]] = None,
-        condition: Optional[Callable[[so.Object], bool]] = None,
-        label: Optional[str] = None,
-        sourcectx: Optional[parsing.ParserContext] = None,
-    ) -> Optional[so.Object_T]:
+        module_aliases: Optional[Mapping[Optional[str], str]],
+        type: Optional[Type[so.Object_T]],
+        condition: Optional[Callable[[so.Object], bool]],
+        label: Optional[str],
+        sourcectx: Optional[parsing.ParserContext],
+    ) -> Optional[so.Object]:
         def getter(schema: FlatSchema, name: str) -> Optional[so.Object]:
             obj = schema._get_by_name(name, type=type)
             if obj is not None and condition is not None:
@@ -1535,45 +1568,17 @@ class ChainedSchema(Schema):
         except errors.InvalidReferenceError:
             return self._base_schema.get_global(objtype, name, default=default)
 
-    @overload
-    def get(  # NoQA: F811
+    def get_generic(  # NoQA: F811
         self,
         name: str,
-        default: Union[so.Object_T, so.NoDefaultT] = so.NoDefault,
+        default: Union[so.Object, so.NoDefaultT, None],
         *,
-        module_aliases: Optional[Mapping[Optional[str], str]] = None,
-        type: Optional[Type[so.Object_T]] = None,
-        condition: Optional[Callable[[so.Object], bool]] = None,
-        label: Optional[str] = None,
-        sourcectx: Optional[parsing.ParserContext] = None,
-    ) -> so.Object_T:
-        ...
-
-    @overload
-    def get(  # NoQA: F811
-        self,
-        name: str,
-        default: Union[so.Object_T, so.NoDefaultT, None] = so.NoDefault,
-        *,
-        module_aliases: Optional[Mapping[Optional[str], str]] = None,
-        type: Optional[Type[so.Object_T]] = None,
-        condition: Optional[Callable[[so.Object], bool]] = None,
-        label: Optional[str] = None,
-        sourcectx: Optional[parsing.ParserContext] = None,
-    ) -> Optional[so.Object_T]:
-        ...
-
-    def get(  # NoQA: F811
-        self,
-        name: str,
-        default: Union[so.Object_T, so.NoDefaultT, None] = so.NoDefault,
-        *,
-        module_aliases: Optional[Mapping[Optional[str], str]] = None,
-        type: Optional[Type[so.Object_T]] = None,
-        condition: Optional[Callable[[so.Object], bool]] = None,
-        label: Optional[str] = None,
-        sourcectx: Optional[parsing.ParserContext] = None,
-    ) -> Optional[so.Object_T]:
+        module_aliases: Optional[Mapping[Optional[str], str]],
+        type: Optional[Type[so.Object_T]],
+        condition: Optional[Callable[[so.Object], bool]],
+        label: Optional[str],
+        sourcectx: Optional[parsing.ParserContext],
+    ) -> Optional[so.Object]:
         obj = self._top_schema.get(
             name,
             module_aliases=module_aliases,

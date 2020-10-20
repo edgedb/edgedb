@@ -82,7 +82,8 @@ class ObjectType(
     ) -> Optional[s_expr.ExpressionList]:
         if (
             self.get_name(schema).module == 'schema'
-            and self.issubclass(schema, schema.get('schema::Object'))
+            and self.issubclass(schema,
+                                schema.get('schema::Object', type=ObjectType))
         ):
             return s_expr.ExpressionList([
                 s_expr.Expression.from_ast(
