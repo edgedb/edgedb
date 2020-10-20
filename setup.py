@@ -18,6 +18,7 @@
 
 
 import binascii
+import functools
 import os
 import os.path
 import pathlib
@@ -539,7 +540,11 @@ else:
 
 def custom_scm_version():
     from edb.server import buildmeta
-    return {'version_scheme': buildmeta.scm_version_scheme}
+    return {
+        'version_scheme': (
+            functools.partial(buildmeta.scm_version_scheme, ROOT_PATH)
+        ),
+    }
 
 
 setuptools.setup(

@@ -20,6 +20,7 @@
 from __future__ import annotations
 from typing import *
 
+import functools
 import hashlib
 import json
 import logging
@@ -182,13 +183,13 @@ def write_data_cache(
 
 def get_version() -> verutils.Version:
     if devmode.is_in_dev_mode():
+        root = pathlib.Path(__file__).parent.parent.parent.resolve()
         if setuptools_scm is None:
             raise MetadataError(
                 'cannot determine build version: no setuptools_scm module')
         version = setuptools_scm.get_version(
-            root='../..',
-            relative_to=__file__,
-            version_scheme=scm_version_scheme,
+            root=str(root),
+            version_scheme=functools.partial(scm_version_scheme, root),
         )
         version = verutils.parse_version(version)
     else:
@@ -228,7 +229,7 @@ def get_version_json() -> str:
     return _version_json
 
 
-def scm_version_scheme(version):
+def scm_version_scheme(root, version):
     pretend = os.environ.get('SETUPTOOLS_SCM_PRETEND_VERSION')
     if pretend:
         return pretend
@@ -258,6 +259,7 @@ def scm_version_scheme(version):
         stdout=subprocess.PIPE,
         universal_newlines=True,
         check=True,
+        cwd=root,
     )
     versions = proc.stdout.split('\n')
     latest_version = max(versions)
@@ -267,6 +269,7 @@ def scm_version_scheme(version):
         stdout=subprocess.PIPE,
         universal_newlines=True,
         check=True,
+        cwd=root,
     )
     tag_list = proc.stdout.strip()
     if tag_list:
@@ -283,6 +286,7 @@ def scm_version_scheme(version):
         stdout=subprocess.PIPE,
         universal_newlines=True,
         check=True,
+        cwd=root,
     )
     commits_on_branch = proc.stdout.strip()
     m = pep440_version_re.match(latest_version[1:])
