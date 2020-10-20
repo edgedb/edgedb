@@ -43,6 +43,7 @@ from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import pseudo as s_pseudo
 from edb.schema import types as s_types
+from edb.schema import constraints as s_constr
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import utils as qlutils
@@ -59,9 +60,6 @@ from . import viewgen
 from . import schemactx
 from . import stmtctx
 from . import typegen
-
-if TYPE_CHECKING:
-    from edb.schema import constraints as s_constr
 
 
 @dispatch.compile.register(qlast.SelectQuery)

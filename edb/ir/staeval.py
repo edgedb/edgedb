@@ -44,11 +44,9 @@ from edb.schema import objtypes as s_objtypes
 from edb.schema import types as s_types
 from edb.schema import scalars as s_scalars
 from edb.schema import schema as s_schema
+from edb.schema import constraints as s_constr
 
 from edb.server import config
-
-if TYPE_CHECKING:
-    from edb.schema import constraints as s_constr
 
 
 class StaticEvaluationError(errors.QueryError):
