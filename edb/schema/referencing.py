@@ -207,7 +207,7 @@ class ReferencedObject(so.DerivableObject):
             parent_cmd.add(cmd)
             schema = delta.apply(schema, context)
 
-        derived: ReferencedT = schema.get(derived_name)
+        derived = cast(ReferencedT, schema.get(derived_name))
 
         return schema, derived
 

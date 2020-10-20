@@ -266,7 +266,7 @@ def compile_insert_unless_conflict(
             context=constraint_spec.context,
         )
 
-    exclusive_constr: s_constr.Constraint = schema.get('std::exclusive')
+    exclusive_constr = schema.get('std::exclusive', type=s_constr.Constraint)
     ex_cnstrs = [c for c in ptr.get_constraints(schema).objects(schema)
                  if c.issubclass(schema, exclusive_constr)]
 

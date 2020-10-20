@@ -339,7 +339,8 @@ def generate_structure(
                 delta=delta,
             )
 
-            schema_objtype = schema.get(rschema_name)
+            schema_objtype = schema.get(
+                rschema_name, type=s_objtypes.ObjectType)
         else:
             ex_bases = schema_objtype.get_bases(schema).names(schema)
             _, added_bases = s_inh.delta_bases(ex_bases, bases)

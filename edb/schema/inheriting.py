@@ -374,10 +374,10 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
                 assert isinstance(obj,
                                   s_referencing.ReferencedInheritingObject)
                 existing_bases = obj.get_implicit_bases(schema)
-                schema, cmd = self._rebase_ref(
+                schema, cmd2 = self._rebase_ref(
                     schema, context, obj, existing_bases, bases)
-                group.add(cmd)
-                schema = cmd.apply(schema, context)
+                group.add(cmd2)
+                schema = cmd2.apply(schema, context)
 
         for fqname, delete_cmd_cls in deleted_refs.items():
             delete_cmd = delete_cmd_cls(classname=fqname)
@@ -393,8 +393,8 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         schema: s_schema.Schema,
         context: sd.CommandContext,
         scls: s_referencing.ReferencedInheritingObject,
-        old_bases: List[so.InheritingObjectT],
-        new_bases: List[so.InheritingObjectT],
+        old_bases: Sequence[so.InheritingObject],
+        new_bases: Sequence[so.InheritingObject],
     ) -> Tuple[s_schema.Schema, AlterInheritingObject[so.InheritingObjectT]]:
         from . import referencing as s_referencing
 
@@ -410,8 +410,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         alter_cmd = scls.init_delta_command(schema, sd.AlterObject)
         assert isinstance(alter_cmd, AlterInheritingObject)
 
-        new_bases_coll = so.ObjectList[so.InheritingObjectT].create(
-            schema, new_bases)
+        new_bases_coll = so.ObjectList.create(schema, new_bases)
         schema = scls.set_field_value(schema, 'bases', new_bases_coll)
         ancestors = so.compute_ancestors(schema, scls)
         ancestors_coll = so.ObjectList[

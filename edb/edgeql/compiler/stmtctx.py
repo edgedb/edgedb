@@ -168,7 +168,8 @@ def fini_expression(
                     # in schema views.
                     ctx.env.schema = vptr.set_target(
                         ctx.env.schema,
-                        ctx.env.schema.get('std::BaseObject'),
+                        ctx.env.schema.get(
+                            'std::BaseObject', type=s_types.Type),
                     )
 
                 if not hasattr(vptr, 'get_pointers'):

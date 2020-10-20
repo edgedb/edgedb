@@ -37,6 +37,7 @@ from edb.edgeql import qltypes
 
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
+from edb.schema import constraints as s_constr
 
 from edb.ir import ast as irast
 from edb.ir import utils as irutils
@@ -46,9 +47,6 @@ from edb.edgeql import ast as qlast
 from . import volatility
 
 from .. import context
-
-if TYPE_CHECKING:
-    from edb.schema import constraints as s_constr
 
 
 AT_MOST_ONE = qltypes.Cardinality.AT_MOST_ONE
@@ -869,9 +867,10 @@ def extract_filters(
                         assert isinstance(left_stype, s_objtypes.ObjectType)
                         _ptr = left_stype.getptr(schema, 'id')
                     else:
-                        _ptr = env.schema.get(left.rptr.ptrref.name)
+                        _ptr = env.schema.get(left.rptr.ptrref.name,
+                                              type=s_pointers.Pointer)
 
-                    assert isinstance(_ptr, s_pointers.Pointer)
+                    assert _ptr is not None
                     ptr = _ptr
 
                     return [(ptr, right)]
@@ -885,9 +884,10 @@ def extract_filters(
                         assert isinstance(right_stype, s_objtypes.ObjectType)
                         _ptr = right_stype.getptr(schema, 'id')
                     else:
-                        _ptr = env.schema.get(right.rptr.ptrref.name)
+                        _ptr = env.schema.get(right.rptr.ptrref.name,
+                                              type=s_pointers.Pointer)
 
-                    assert isinstance(_ptr, s_pointers.Pointer)
+                    assert _ptr is not None
                     ptr = _ptr
 
                     return [(ptr, right)]
@@ -930,7 +930,8 @@ def _analyse_filter_clause(
         result_set, filter_clause, scope_tree, ctx)
 
     if filtered_ptrs:
-        exclusive_constr: s_constr.Constraint = schema.get('std::exclusive')
+        exclusive_constr = schema.get(
+            'std::exclusive', type=s_constr.Constraint)
 
         for ptr, _ in filtered_ptrs:
             ptr = ptr.get_nearest_non_derived_parent(ctx.env.schema)

@@ -289,9 +289,10 @@ class Environment:
         label: Optional[str] = None,
         condition: Optional[Callable[[s_obj.Object], bool]] = None,
     ) -> Optional[s_obj.Object]:
-        sobj = self.schema.get(name, module_aliases=modaliases, type=type,
-                               condition=condition, label=label,
-                               default=default)
+        sobj = self.schema.get(
+            name, module_aliases=modaliases, type=type,
+            condition=condition, label=label,
+            default=default)
         if sobj is not None and sobj is not default:
             self.add_schema_ref(sobj, expr)
 

@@ -860,7 +860,7 @@ class CreateConstraint(
             ),
         )
 
-        bool_t: s_scalars.ScalarType = schema.get('std::bool')
+        bool_t = schema.get('std::bool', type=s_scalars.ScalarType)
         assert isinstance(final_expr.irast, ir_ast.Statement)
 
         expr_type = final_expr.irast.stype

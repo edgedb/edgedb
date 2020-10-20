@@ -95,9 +95,11 @@ class Property(pointers.Pointer, s_abc.Property,
         if (not self.generic(our_schema) and
                 not other.generic(their_schema) and
                 self.issubclass(
-                    our_schema, our_schema.get('std::source')) and
+                    our_schema,
+                    our_schema.get('std::source', type=Property)) and
                 other.issubclass(
-                    their_schema, their_schema.get('std::source'))):
+                    their_schema,
+                    their_schema.get('std::source', type=Property))):
             # Make std::source link property ignore differences in its target.
             # This is consistent with skipping the comparison on Pointer.source
             # in general.
