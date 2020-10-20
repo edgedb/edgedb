@@ -419,6 +419,13 @@ class AlterProperty(
                     value=op.new_value,
                 ),
             )
+        elif op.property == 'cardinality':
+            node.commands.append(
+                qlast.SetSpecialField(
+                    name='cardinality',
+                    value=op.new_value,
+                ),
+            )
         else:
             super()._apply_field_ast(schema, context, node, op)
 
