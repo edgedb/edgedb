@@ -3651,7 +3651,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         )
 
         await self.con.execute("""
-            DROP ABSTRACT ANNOTATION test::anno11_new_name;
+            CREATE MODULE foo;
+
+            ALTER ABSTRACT ANNOTATION test::anno11_new_name
+                RENAME TO foo::anno11_new_name;
         """)
 
         await self.assert_query_result(
@@ -3661,7 +3664,23 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     name,
                 }
                 FILTER
-                    .name LIKE 'test::anno11%';
+                    .name LIKE 'foo::anno11%';
+            ''',
+            [{"name": "foo::anno11_new_name"}]
+        )
+
+        await self.con.execute("""
+            DROP ABSTRACT ANNOTATION foo::anno11_new_name;
+        """)
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT Annotation {
+                    name,
+                }
+                FILTER
+                    .name LIKE 'foo::anno11%';
             ''',
             []
         )
@@ -4528,6 +4547,25 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ''',
             ['rename alias 03']
         )
+
+        await self.con.execute(r"""
+            CREATE MODULE foo;
+
+            ALTER ALIAS test::NewAlias03 {
+                RENAME TO foo::NewAlias03;
+            };
+        """)
+
+        await self.assert_query_result(
+            r'''
+                SELECT foo::NewAlias03.alias_computable LIMIT 1;
+            ''',
+            ['rename alias 03']
+        )
+
+        await self.con.execute(r"""
+            DROP ALIAS foo::NewAlias03;
+        """)
 
     async def test_edgeql_ddl_alias_04(self):
         await self.con.execute(r"""
