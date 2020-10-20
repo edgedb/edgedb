@@ -3132,12 +3132,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-    @test.xfail('''
-        The "complete" flag is not set even though the DDL from
-        "proposed" list is used.
-
-        This happens on the second migration.
-    ''')
     async def test_edgeql_migration_eq_24(self):
         await self.migrate(r"""
             type Child;
@@ -3179,12 +3173,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-    @test.xfail('''
-        The "complete" flag is not set even though the DDL from
-        "proposed" list is used.
-
-        This happens on the second migration.
-    ''')
     async def test_edgeql_migration_eq_25(self):
         await self.migrate(r"""
             type Child;
@@ -3983,12 +3971,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }]
         )
 
-    @test.xfail('''
-        The "complete" flag is not set even though the DDL from
-        "proposed" list is used.
-
-        This happens on the second migration.
-    ''')
     async def test_edgeql_migration_eq_36(self):
         await self.migrate(r"""
             type Child {
@@ -5340,12 +5322,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [{'foo': [{'@bar': 'lp04'}]}],
         )
 
-    @test.xfail('''
-        The "complete" flag is not set even though the DDL from
-        "proposed" list is used.
-
-        This happens on the second migration.
-    ''')
     async def test_edgeql_migration_eq_linkprops_05(self):
         await self.migrate(r"""
             type Child;
