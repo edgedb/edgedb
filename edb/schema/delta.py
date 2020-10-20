@@ -2294,7 +2294,7 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
         assert compiled.irast.schema_ref_exprs is not None
 
         # Now that the compilation is done, try to do the fixup.
-        new_shortname = sn.shortname_from_fullname(self.new_name).name
+        new_shortname = sn.shortname_from_fullname(self.new_name)
         old_shortname = sn.shortname_from_fullname(self.classname).name
         for ref in compiled.irast.schema_ref_exprs.get(self.scls, []):
             if isinstance(ref, qlast.Ptr):
@@ -2302,7 +2302,9 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
             assert isinstance(ref, qlast.ObjectRef), (
                 f"only support object refs but got {ref}")
             assert ref.name == old_shortname, (ref.name, old_shortname)
-            ref.name = new_shortname
+            ref.name = new_shortname.name
+            if new_shortname.module != "__":
+                ref.module = new_shortname.module
 
         # say as_fragment=True as a hack to avoid renormalizing it
         out = s_expr.Expression.from_ast(
