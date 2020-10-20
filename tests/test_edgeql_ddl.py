@@ -6626,6 +6626,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ['test::Post', 'test::Video']
         )
 
+    async def test_edgeql_ddl_change_module_01(self):
+        await self.con.execute("""
+            CREATE MODULE foo;
+
+            CREATE TYPE test::Note {
+                CREATE PROPERTY note -> str;
+            };
+            ALTER TYPE test::Note RENAME TO foo::Note;
+            DROP TYPE foo::Note;
+        """)
+
     async def _simple_rename_ref_test(
         self,
         ddl,

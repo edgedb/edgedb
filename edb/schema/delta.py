@@ -2400,9 +2400,10 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
                 quals = list(sn.quals_from_fullname(ref_name))
                 quals[0] = self.new_name
                 shortname = sn.shortname_from_fullname(ref_name)
+
                 new_ref_name = sn.Name(
                     name=sn.get_specialized_name(shortname, *quals),
-                    module=ref_name.module,
+                    module=sn.Name(self.new_name).module,
                 )
                 rename = ref.init_delta_command(
                     schema,
