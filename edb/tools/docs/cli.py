@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-from edb.edgeql.pygments import EdgeQLLexer
+from edb.tools.pygments.edgeql import EdgeQLLexer
 
 from sphinx import domains as s_domains
 from sphinx.directives import code as s_code

@@ -129,6 +129,10 @@ class flags(metaclass=FlagsMeta):
     migrations_via_ddl = Flag(
         doc="Always use generated DDL when running migrations.")
 
+    disable_docs_edgeql_validation = Flag(
+        doc="Disable validation of edgeql in docs (for site build)"
+    )
+
 
 @contextlib.contextmanager
 def timeit(title='block'):

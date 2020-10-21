@@ -18,9 +18,10 @@
 
 
 from edb.testbase import protocol
+from edb.testbase.protocol.test import ProtocolTestCase
 
 
-class TestProtocol(protocol.ProtocolTestCase):
+class TestProtocol(ProtocolTestCase):
 
     async def test_proto_executescript_01(self):
         # Test that ExecuteScript returns ErrorResponse immediately.

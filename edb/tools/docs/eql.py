@@ -207,13 +207,10 @@ import re
 import lxml.etree
 import pygments.lexers.special
 
-from edb.edgeql.pygments import EdgeQLLexer
+from edb.common import debug
 
-from edb.edgeql.parser import parser as edgeql_parser
-from edb.edgeql import ast as ql_ast
-from edb.edgeql import codegen as ql_gen
-from edb.edgeql import qltypes
-from edb.common import markup  # NoQA
+from edb.tools.pygments.edgeql import EdgeQLLexer
+
 from edb.testbase import protocol
 
 from docutils import nodes as d_nodes
@@ -685,6 +682,16 @@ class EQLFunctionDirective(BaseEQLDirective):
     ]
 
     def handle_signature(self, sig, signode):
+        if debug.flags.disable_docs_edgeql_validation:
+            signode['eql-fullname'] = fullname = sig.split('(')[0]
+            signode['eql-signature'] = sig
+            return fullname
+
+        from edb.edgeql.parser import parser as edgeql_parser
+        from edb.edgeql import ast as ql_ast
+        from edb.edgeql import codegen as ql_gen
+        from edb.edgeql import qltypes
+
         parser = edgeql_parser.EdgeQLBlockParser()
         try:
             astnode = parser.parse(
@@ -748,6 +755,15 @@ class EQLConstraintDirective(BaseEQLDirective):
     ]
 
     def handle_signature(self, sig, signode):
+        if debug.flags.disable_docs_edgeql_validation:
+            signode['eql-fullname'] = fullname = re.split(r'\(| ', sig)[0]
+            signode['eql-signature'] = sig
+            return fullname
+
+        from edb.edgeql.parser import parser as edgeql_parser
+        from edb.edgeql import ast as ql_ast
+        from edb.edgeql import codegen as ql_gen
+
         parser = edgeql_parser.EdgeQLBlockParser()
         try:
             astnode = parser.parse(
