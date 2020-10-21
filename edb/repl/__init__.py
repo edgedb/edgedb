@@ -44,7 +44,7 @@ from prompt_toolkit import lexers as pt_lexers
 from edb.errors import base as base_errors
 
 from edb.common import term
-from edb.edgeql import pygments as eql_pygments
+from edb.tools.pygments import edgeql as eql_pygments
 from edb.edgeql import quote as eql_quote
 from edb.schema import schema
 
