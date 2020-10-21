@@ -2118,6 +2118,16 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
 
         props = self.get_resolved_attributes(schema, context)
         metaclass = self.get_schema_metaclass()
+
+        # Check if functions by this name exist
+        fn = props.get('name')
+        if fn is not None:
+            funcs = schema.get_functions(fn, tuple())
+            if funcs:
+                raise errors.SchemaError(
+                    f'{funcs[0].get_verbosename(schema)} is already present '
+                    f'in the schema {schema!r}')
+
         schema, self.scls = metaclass.create_in_schema(schema, **props)
 
         if not props.get('id'):

@@ -5460,8 +5460,6 @@ class TestDescribe(tb.BaseSchemaLoadTest):
     def test_schema_describe_poly_01(self):
         self._assert_describe(
             """
-            scalar type all extending str;
-
             type Object {
                 property real -> bool;
             }
@@ -5479,8 +5477,6 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             function test::all() -> std::bool using (SELECT
                 true
             );
-            scalar type test::all extending std::str;
-
             # The following builtins are masked by the above:
 
             # function std::all(vals: SET OF std::bool) ->  std::bool {

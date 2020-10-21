@@ -2622,6 +2622,26 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 DROP FUNCTION test::constant_decimal();
             """)
 
+    async def test_edgeql_ddl_function_28(self):
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                r"'test::foo' is already present in the schema"):
+
+            await self.con.execute('''\
+                CREATE TYPE test::foo;
+                CREATE FUNCTION test::foo() -> str USING ('a');
+            ''')
+
+    async def test_edgeql_ddl_function_29(self):
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                r"'test::foo\(\)' is already present in the schema"):
+
+            await self.con.execute('''\
+                CREATE FUNCTION test::foo() -> str USING ('a');
+                CREATE TYPE test::foo;
+            ''')
+
     async def test_edgeql_ddl_module_01(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaError,
