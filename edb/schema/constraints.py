@@ -553,8 +553,10 @@ class ConstraintCommand(
             modaliases.update(
                 cls._modaliases_from_ast(schema, astnode, context))
             # Get the original constraint.
+            name = (sn.Name(objref.name, module=objref.module)
+                    if objref.module else objref.name)
             constr = schema.get(
-                objref.name,
+                name,
                 module_aliases=modaliases,
                 type=Constraint,
             )

@@ -1076,6 +1076,40 @@ class TestConstraintsDDL(tb.DDLTestCase):
                                 FILTER .text = "obj_test" LIMIT 1) };
             """)
 
+    async def test_constraints_ddl_10(self):
+        await self.con.execute(r"""
+            CREATE ABSTRACT CONSTRAINT test::mymax(max: std::int64) {
+                USING (__subject__ <= max);
+            };
+
+            CREATE TYPE test::ConstraintTest {
+                CREATE PROPERTY foo -> std::int64 {
+                    CREATE CONSTRAINT test::mymax(3);
+                };
+            };
+        """)
+
+        await self.con.execute(r"""
+            ALTER ABSTRACT CONSTRAINT test::mymax
+            RENAME TO test::mymax2;
+        """)
+
+        with self.assertRaises(edgedb.ConstraintViolationError):
+            await self.con.execute(r"""
+                INSERT test::ConstraintTest { foo := 4 }
+            """)
+
+        await self.con.execute(r"""
+            CREATE MODULE foo;
+            ALTER ABSTRACT CONSTRAINT test::mymax2
+            RENAME TO foo::mymax2;
+        """)
+
+        await self.con.execute(r"""
+            DROP TYPE test::ConstraintTest;
+            DROP ABSTRACT CONSTRAINT foo::mymax2;
+        """)
+
     async def test_constraints_ddl_function(self):
         await self.con.execute('''\
             CREATE FUNCTION test::comp_func(s: str) -> str {
