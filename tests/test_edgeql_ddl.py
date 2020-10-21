@@ -445,7 +445,9 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE SCALAR TYPE b::bar_t EXTENDING int64;
 
             CREATE TYPE Obj {
-                CREATE PROPERTY foo -> foo_t;
+                CREATE PROPERTY foo -> foo_t {
+                    SET default := <foo::foo_t>20;
+                };
                 CREATE PROPERTY bar -> b::bar_t;
             };
 
@@ -477,6 +479,20 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 ]},
             ]
         )
+
+        await self.con.execute("""
+            ALTER SCALAR TYPE foo::foo_t RENAME TO foo::baz_t;
+        """)
+
+        await self.con.execute("""
+            ALTER SCALAR TYPE foo::baz_t RENAME TO bar::quux_t;
+        """)
+
+        await self.con.execute("""
+            DROP TYPE bar::Obj2;
+            DROP TYPE foo::Obj;
+            DROP SCALAR TYPE bar::quux_t;
+        """)
 
     async def test_edgeql_ddl_19(self):
         await self.con.execute("""
