@@ -1301,13 +1301,20 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
         schema, cp = self._get_param_desc_from_delta(schema, context, self)
         signature = f'{shortname}({", ".join(p.as_str(schema) for p in cp)})'
 
-        func = schema.get(fullname, None)
-        if func:
+        if func := schema.get(fullname, None):
             raise errors.DuplicateFunctionDefinitionError(
                 f'cannot create the `{signature}` function: '
                 f'a function with the same signature '
                 f'is already defined',
                 context=self.source_context)
+
+        # Check if other schema objects with the same name (ignoring
+        # signature, of course) exist.
+        if other := schema.get(
+                sn.SchemaName(shortname, fullname.module), None):
+            raise errors.SchemaError(
+                f'{other.get_verbosename(schema)} is already present '
+                f'in the schema {schema!r}')
 
         schema = super()._create_begin(schema, context)
 
