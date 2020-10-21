@@ -6643,6 +6643,63 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             DROP TYPE foo::Note;
         """)
 
+    async def test_edgeql_ddl_change_module_02(self):
+        await self.con.execute("""
+            CREATE MODULE foo;
+
+            CREATE TYPE test::Parent {
+                CREATE PROPERTY note -> str;
+            };
+            CREATE TYPE test::Sub EXTENDING test::Parent;
+            ALTER TYPE test::Parent RENAME TO foo::Parent;
+            DROP TYPE test::Sub;
+            DROP TYPE foo::Parent;
+        """)
+
+    async def test_edgeql_ddl_change_module_03(self):
+        await self.con.execute("""
+            CREATE MODULE foo;
+
+            CREATE TYPE test::Note {
+                CREATE PROPERTY note -> str {
+                    CREATE CONSTRAINT exclusive;
+                }
+            };
+            ALTER TYPE test::Note RENAME TO foo::Note;
+            DROP TYPE foo::Note;
+        """)
+
+    async def test_edgeql_ddl_change_module_04(self):
+        await self.con.execute("""
+            CREATE MODULE foo;
+
+            CREATE TYPE test::Tag;
+
+            CREATE TYPE test::Note {
+                CREATE SINGLE LINK tags -> test::Tag {
+                    ON TARGET DELETE DELETE SOURCE;
+                }
+            };
+
+            INSERT test::Note { tags := (INSERT test::Tag) };
+        """)
+
+        await self.con.execute("""
+            ALTER TYPE test::Tag RENAME TO foo::Tag;
+            DELETE foo::Tag FILTER true;
+        """)
+
+        await self.assert_query_result(
+            """SELECT test::Note;""",
+            [],
+        )
+
+        await self.con.execute("""
+            ALTER TYPE test::Note RENAME TO foo::Note;
+            DROP TYPE foo::Note;
+            DROP TYPE foo::Tag;
+        """)
+
     async def _simple_rename_ref_test(
         self,
         ddl,
@@ -6650,6 +6707,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         *,
         rename_type,
         rename_prop,
+        rename_module,
         type_extra=0,
         prop_extra=0,
         type_refs=1,
@@ -6682,41 +6740,60 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 {prop_rename.lstrip()}
             }}
         """)
+        if rename_module:
+            await self.con.execute(f"""
+            CREATE MODULE foo;
+            ALTER TYPE test::Note RENAME TO foo::Note;
+            """)
 
-        res = await self.con.query_one("""
-            DESCRIBE MODULE test
-        """)
+        else:
+            res = await self.con.query_one("""
+                DESCRIBE MODULE test
+            """)
 
-        total_type = 1 + type_refs
-        num_type_orig = 0 if rename_type else total_type
-        self.assertEqual(res.count("Note"), num_type_orig + type_extra)
-        self.assertEqual(res.count("Remark"), total_type - num_type_orig)
-        total_prop = 1 + prop_refs
-        num_prop_orig = 0 if rename_prop else total_prop
-        self.assertEqual(res.count("note"), num_prop_orig + type_extra)
-        self.assertEqual(res.count("remark"), total_prop - num_prop_orig)
+            total_type = 1 + type_refs
+            num_type_orig = 0 if rename_type else total_type
+            self.assertEqual(res.count("Note"), num_type_orig + type_extra)
+            self.assertEqual(res.count("Remark"), total_type - num_type_orig)
+            total_prop = 1 + prop_refs
+            num_prop_orig = 0 if rename_prop else total_prop
+            self.assertEqual(res.count("note"), num_prop_orig + type_extra)
+            self.assertEqual(res.count("remark"), total_prop - num_prop_orig)
 
         if cleanup:
             if rename_prop:
                 cleanup = cleanup.replace("note", "remark")
             if rename_type:
                 cleanup = cleanup.replace("Note", "Remark")
-                await self.con.execute(f"""
-                    WITH MODULE test
-                    {cleanup.lstrip()}
-                """)
+            if rename_module:
+                cleanup = cleanup.replace("test", "foo")
+            await self.con.execute(f"""
+                WITH MODULE test
+                {cleanup.lstrip()}
+            """)
 
     async def _simple_rename_ref_tests(self, ddl, cleanup=None, **kwargs):
         """Do the three interesting invocations of _simple_rename_ref_test"""
         async with self._run_and_rollback():
             await self._simple_rename_ref_test(
-                ddl, cleanup, rename_type=False, rename_prop=True, **kwargs)
+                ddl, cleanup,
+                rename_type=False, rename_prop=True, rename_module=False,
+                **kwargs)
         async with self._run_and_rollback():
             await self._simple_rename_ref_test(
-                ddl, cleanup, rename_type=True, rename_prop=False, **kwargs)
+                ddl, cleanup,
+                rename_type=True, rename_prop=False, rename_module=False,
+                **kwargs)
         async with self._run_and_rollback():
             await self._simple_rename_ref_test(
-                ddl, cleanup, rename_type=True, rename_prop=True, **kwargs)
+                ddl, cleanup,
+                rename_type=True, rename_prop=True, rename_module=False,
+                **kwargs)
+        async with self._run_and_rollback():
+            await self._simple_rename_ref_test(
+                ddl, cleanup,
+                rename_type=False, rename_prop=False, rename_module=True,
+                **kwargs)
 
     async def test_edgeql_ddl_rename_ref_function_01(self):
         await self._simple_rename_ref_tests(
@@ -6726,7 +6803,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                                (SELECT Note.note LIMIT 1)))
             }
             """,
-            """DROP FUNCTION foo(x: Note);""",
+            """DROP FUNCTION foo(x: test::Note);""",
             type_extra=1,
             prop_extra=1,
             type_refs=2,
@@ -6855,7 +6932,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_rename_ref_index_01(self):
         await self._simple_rename_ref_tests(
             """ALTER TYPE Note CREATE INDEX ON (.note);""",
-            """ALTER TYPE Note DROP INDEX ON (.note);""",
+            """ALTER TYPE test::Note DROP INDEX ON (.note);""",
             type_refs=0,
         )
 
@@ -6882,7 +6959,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 CREATE PROPERTY x := .note ++ "!";
             };
             """,
-            """ALTER TYPE Note DROP PROPERTY x;""",
+            """ALTER TYPE test::Note DROP PROPERTY x;""",
             type_refs=0,
         )
 
