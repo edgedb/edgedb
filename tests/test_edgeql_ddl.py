@@ -5586,7 +5586,37 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         ''')
 
         await self.con.execute('''
-            DROP SCALAR TYPE test::my_enum_3;
+            CREATE MODULE foo;
+            ALTER SCALAR TYPE test::my_enum_3
+                RENAME TO foo::my_enum_4;
+        ''')
+
+        await self.con.execute('''
+            DROP SCALAR TYPE foo::my_enum_4;
+        ''')
+
+    async def test_edgeql_ddl_enum_02(self):
+        await self.con.execute('''
+            CREATE SCALAR TYPE test::my_enum EXTENDING enum<'foo', 'bar'>;
+        ''')
+
+        await self.con.execute('''
+            CREATE TYPE test::Obj {
+                CREATE PROPERTY e -> test::my_enum {
+                    SET default := <test::my_enum>'foo';
+                }
+            }
+        ''')
+
+        await self.con.execute('''
+            CREATE MODULE foo;
+            ALTER SCALAR TYPE test::my_enum
+                RENAME TO foo::my_enum_2;
+        ''')
+
+        await self.con.execute('''
+            DROP TYPE test::Obj;
+            DROP SCALAR TYPE foo::my_enum_2;
         ''')
 
     async def test_edgeql_ddl_explicit_id(self):
