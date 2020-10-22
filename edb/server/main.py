@@ -44,6 +44,8 @@ import setproctitle
 from edb.common import devmode
 from edb.common import exceptions
 
+from edb.server import defines as edgedb_defines
+
 from . import buildmeta
 from . import cluster as edgedb_cluster
 from . import daemon
