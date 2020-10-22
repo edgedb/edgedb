@@ -44,6 +44,8 @@ class TestServerOps(tb.TestCase):
         async def read_runtime_info(stdout: asyncio.StreamReader):
             while True:
                 line = await stdout.readline()
+                if not line:
+                    raise RuntimeError("EdgeDB server terminated")
                 if line.startswith(b'EDGEDB_SERVER_DATA:'):
                     break
 
