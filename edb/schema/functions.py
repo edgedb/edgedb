@@ -413,11 +413,23 @@ class Parameter(
 
     def get_ast(self, schema: s_schema.Schema) -> qlast.FuncParam:
         default = self.get_default(schema)
+        type = utils.typeref_to_ast(schema, self.get_type(schema))
+        kind = self.get_kind(schema)
+        # If the param is variadic, strip the array from the type in the schema
+        if kind is ft.ParameterKind.VariadicParam:
+            assert (
+                isinstance(type, qlast.TypeName)
+                and isinstance(type.maintype, qlast.ObjectRef)
+                and type.maintype.name == 'array'
+                and type.subtypes
+            )
+            type = type.subtypes[0]
+
         return qlast.FuncParam(
             name=self.get_parameter_name(schema),
-            type=utils.typeref_to_ast(schema, self.get_type(schema)),
+            type=type,
             typemod=self.get_typemod(schema),
-            kind=self.get_kind(schema),
+            kind=kind,
             default=default.qlast if default else None,
         )
 
@@ -803,6 +815,20 @@ class CallableCommand(sd.QualifiedObjectCommand[CallableObjectT]):
         return result
 
     @classmethod
+    def _get_param_desc_from_params_ast(
+        cls,
+        schema: s_schema.Schema,
+        modaliases: Mapping[Optional[str], str],
+        params: List[qlast.FuncParam],
+        *,
+        param_offset: int=0,
+    ) -> List[ParameterDesc]:
+        return [
+            ParameterDesc.from_ast(schema, modaliases, num, param)
+            for num, param in enumerate(params, param_offset)
+        ]
+
+    @classmethod
     def _get_param_desc_from_ast(
         cls,
         schema: s_schema.Schema,
@@ -811,19 +837,13 @@ class CallableCommand(sd.QualifiedObjectCommand[CallableObjectT]):
         *,
         param_offset: int=0,
     ) -> List[ParameterDesc]:
-        params = []
         if not hasattr(astnode, 'params'):
             # Some Callables, like the concrete constraints,
             # have no params in their AST.
             return []
         assert isinstance(astnode, qlast.CallableObject)
-
-        for num, param in enumerate(astnode.params, param_offset):
-            param_desc = ParameterDesc.from_ast(
-                schema, modaliases, num, param)
-            params.append(param_desc)
-
-        return params
+        return cls._get_param_desc_from_params_ast(
+            schema, modaliases, astnode.params, param_offset=param_offset)
 
     @classmethod
     def _get_param_desc_from_delta(
@@ -848,6 +868,40 @@ class CallableCommand(sd.QualifiedObjectCommand[CallableObjectT]):
         schema = super().canonicalize_attributes(schema, context)
         return s_types.materialize_type_in_attribute(
             schema, context, self, 'return_type')
+
+
+class RenameCallableObject(
+    CallableCommand[CallableObjectT],
+    sd.RenameObject[CallableObjectT],
+):
+    def _canonicalize(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        scls: so.Object,
+    ) -> List[sd.Command]:
+        assert isinstance(scls, CallableObject)
+        commands = list(super()._canonicalize(schema, context, scls))
+
+        # Don't do anything for concrete constraints
+        if not isinstance(scls, Function) and not scls.get_is_abstract(schema):
+            return commands
+
+        # params don't get picked up by the base _canonicalize because
+        # they aren't RefDicts (and use a different mangling scheme to
+        # boot), so we need to do it ourselves.
+        param_list = scls.get_params(schema)
+        params = CallableCommand._get_param_desc_from_params_ast(
+            schema, context.modaliases, param_list.get_ast(schema))
+
+        for dparam, oparam in zip(params, param_list.objects(schema)):
+            ref_name = oparam.get_name(schema)
+            new_ref_name = dparam.get_fqname(schema, sn.Name(self.new_name))
+            commands.append(
+                self._canonicalize_ref_rename(
+                    oparam, ref_name, new_ref_name, schema, context, scls))
+
+        return commands
 
 
 class AlterCallableObject(
@@ -955,17 +1009,22 @@ class DeleteCallableObject(
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         assert isinstance(cmd, DeleteCallableObject)
 
-        params = cls._get_param_desc_from_ast(
-            schema, context.modaliases, astnode)
-
-        for param in params:
-            cmd.add(param.as_delete_delta(
-                schema, cmd.classname, context=context))
-
         obj: CallableObject = schema.get(
             cmd.classname,
             type=cls.get_schema_metaclass(),
             sourcectx=astnode.context)
+
+        # Don't do anything for concrete constraints
+        if not isinstance(obj, Function) and not obj.get_is_abstract(schema):
+            return cmd
+
+        # Pull the params from the schema instead of the AST so that
+        # this works for constraints (which don't specify arguments in
+        # the delete syntax) as well as functions.
+        params = obj.get_params(schema).get_ast(schema)
+        for num, param in enumerate(params):
+            pd = ParameterDesc.from_ast(schema, context.modaliases, num, param)
+            cmd.add(pd.as_delete_delta(schema, cmd.classname, context=context))
 
         return_type = obj.get_return_type(schema)
         if isinstance(return_type, s_types.Collection):
@@ -1512,7 +1571,7 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
             super()._apply_field_ast(schema, context, node, op)
 
 
-class RenameFunction(sd.RenameObject[Function], FunctionCommand):
+class RenameFunction(RenameCallableObject[Function], FunctionCommand):
     pass
 
 

@@ -1109,7 +1109,9 @@ class CreateConstraint(
             return super()._classbases_from_ast(schema, astnode, context)
 
 
-class RenameConstraint(ConstraintCommand, sd.RenameObject[Constraint]):
+class RenameConstraint(
+    ConstraintCommand, s_func.RenameCallableObject[Constraint]
+):
     pass
 
 

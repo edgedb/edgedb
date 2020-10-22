@@ -1078,20 +1078,20 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
     async def test_constraints_ddl_10(self):
         await self.con.execute(r"""
-            CREATE ABSTRACT CONSTRAINT test::mymax(max: std::int64) {
+            CREATE ABSTRACT CONSTRAINT test::mymax5(max: std::int64) {
                 USING (__subject__ <= max);
             };
 
             CREATE TYPE test::ConstraintTest {
                 CREATE PROPERTY foo -> std::int64 {
-                    CREATE CONSTRAINT test::mymax(3);
+                    CREATE CONSTRAINT test::mymax5(3);
                 };
             };
         """)
 
         await self.con.execute(r"""
-            ALTER ABSTRACT CONSTRAINT test::mymax
-            RENAME TO test::mymax2;
+            ALTER ABSTRACT CONSTRAINT test::mymax5
+            RENAME TO test::mymax6;
         """)
 
         with self.assertRaises(edgedb.ConstraintViolationError):
@@ -1100,15 +1100,45 @@ class TestConstraintsDDL(tb.DDLTestCase):
             """)
 
         await self.con.execute(r"""
-            CREATE MODULE foo;
-            ALTER ABSTRACT CONSTRAINT test::mymax2
+            CREATE MODULE foo IF NOT EXISTS;
+            ALTER ABSTRACT CONSTRAINT test::mymax6
             RENAME TO foo::mymax2;
         """)
 
         await self.con.execute(r"""
             DROP TYPE test::ConstraintTest;
+        """)
+        await self.con.execute(r"""
             DROP ABSTRACT CONSTRAINT foo::mymax2;
         """)
+
+    async def test_constraints_ddl_11(self):
+        qry = r"""
+            CREATE ABSTRACT CONSTRAINT test::mymax7(max: std::int64) {
+                USING (__subject__ <= max);
+            };
+        """
+
+        # Check that renaming and then recreating works
+        await self.con.execute(qry)
+        await self.con.execute("""
+            ALTER ABSTRACT CONSTRAINT test::mymax7 RENAME TO test::mymax8;
+        """)
+        await self.con.execute(qry)
+
+    async def test_constraints_ddl_12(self):
+        qry = r"""
+            CREATE ABSTRACT CONSTRAINT test::mymax9(max: std::int64) {
+                USING (__subject__ <= max);
+            };
+        """
+
+        # Check that deleting and then recreating works
+        await self.con.execute(qry)
+        await self.con.execute("""
+            DROP ABSTRACT CONSTRAINT test::mymax9;
+        """)
+        await self.con.execute(qry)
 
     async def test_constraints_ddl_function(self):
         await self.con.execute('''\
