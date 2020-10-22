@@ -3675,9 +3675,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 CREATE ABSTRACT ANNOTATION bogus::anno12;
             """)
 
-    @test.xfail('''
-        UnknownModuleError not raised.
-    ''')
     async def test_edgeql_ddl_annotation_13(self):
         await self.con.execute("""
             CREATE ABSTRACT ANNOTATION test::anno13;

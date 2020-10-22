@@ -515,6 +515,14 @@ class FlatSchema(Schema):
                         f'is already present in the schema')
                 globalname_to_id = globalname_to_id.set(key, obj_id)
             else:
+                assert isinstance(new_name, sn.Name)
+                if (
+                    not self.has_module(new_name.module)
+                    and new_name.module != '__derived__'
+                ):
+                    raise errors.UnknownModuleError(
+                        f'module {new_name.module!r} is not in this schema')
+
                 if new_name in name_to_id:
                     raise errors.SchemaError(
                         f'name {new_name!r} is already in the schema')
