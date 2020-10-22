@@ -4736,6 +4736,27 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         # TODO: Add an actual INSERT/SELECT test.
 
+    @test.xfail('''
+       ISE: relation "<blah>" does not exist
+
+       (Is the bug that we fail to create the table or that we don't
+        reject an alias being used there?)
+    ''')
+    async def test_edgeql_ddl_alias_09(self):
+        await self.con.execute(r"""
+            CREATE ALIAS test::CreateAlias09 := (
+                SELECT BaseObject {
+                    alias_computable := 'rename alias 03'
+                }
+            );
+        """)
+
+        await self.con.execute(r"""
+            CREATE TYPE test::AliasType09 {
+                CREATE OPTIONAL SINGLE LINK a -> test::CreateAlias09;
+            }
+        """)
+
     async def test_edgeql_ddl_inheritance_alter_01(self):
         await self.con.execute(r"""
             CREATE TYPE test::InhTest01 {
