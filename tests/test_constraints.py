@@ -1082,7 +1082,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                 USING (__subject__ <= max);
             };
 
-            CREATE TYPE test::ConstraintTest {
+            CREATE TYPE test::ConstraintTest10 {
                 CREATE PROPERTY foo -> std::int64 {
                     CREATE CONSTRAINT test::mymax5(3);
                 };
@@ -1096,7 +1096,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
         with self.assertRaises(edgedb.ConstraintViolationError):
             await self.con.execute(r"""
-                INSERT test::ConstraintTest { foo := 4 }
+                INSERT test::ConstraintTest10 { foo := 4 }
             """)
 
         await self.con.execute(r"""
@@ -1106,7 +1106,11 @@ class TestConstraintsDDL(tb.DDLTestCase):
         """)
 
         await self.con.execute(r"""
-            DROP TYPE test::ConstraintTest;
+            ALTER TYPE test::ConstraintTest10 {
+                ALTER PROPERTY foo {
+                    DROP CONSTRAINT foo::mymax2(3);
+                }
+            }
         """)
         await self.con.execute(r"""
             DROP ABSTRACT CONSTRAINT foo::mymax2;
@@ -1139,6 +1143,59 @@ class TestConstraintsDDL(tb.DDLTestCase):
             DROP ABSTRACT CONSTRAINT test::mymax9;
         """)
         await self.con.execute(qry)
+
+    async def test_constraints_ddl_13(self):
+        await self.con.execute(r"""
+            CREATE ABSTRACT CONSTRAINT test::mymax13(max: std::int64) {
+                USING (__subject__ <= max);
+            };
+
+            CREATE TYPE test::ConstraintTest13 {
+                CREATE PROPERTY foo -> std::int64 {
+                    CREATE CONSTRAINT test::mymax13(3);
+                };
+            };
+        """)
+
+        await self.con.execute(r"""
+            ALTER ABSTRACT CONSTRAINT test::mymax13
+            RENAME TO test::mymax13b;
+        """)
+
+        res = await self.con.query_one("""
+            DESCRIBE MODULE test
+        """)
+
+        self.assertEqual(res.count("mymax13b"), 2)
+
+    async def test_constraints_ddl_14(self):
+        await self.con.execute(r"""
+            CREATE ABSTRACT CONSTRAINT test::mymax14(max: std::int64) {
+                USING (__subject__ <= max);
+            };
+
+            CREATE TYPE test::ConstraintTest14 {
+                CREATE PROPERTY foo -> std::int64 {
+                    CREATE CONSTRAINT test::mymax14(3);
+                };
+            };
+        """)
+
+        await self.con.execute(r"""
+            ALTER TYPE test::ConstraintTest14 {
+                ALTER PROPERTY foo {
+                    DROP CONSTRAINT test::mymax14(3);
+                }
+            }
+        """)
+
+        await self.con.execute(r"""
+            ALTER TYPE test::ConstraintTest14 {
+                ALTER PROPERTY foo {
+                    CREATE CONSTRAINT test::mymax14(5);
+                }
+            }
+        """)
 
     async def test_constraints_ddl_function(self):
         await self.con.execute('''\
