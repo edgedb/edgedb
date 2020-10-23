@@ -2302,15 +2302,21 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
         for ref in compiled.irast.schema_ref_exprs.get(self.scls, []):
             if isinstance(ref, qlast.Ptr):
                 ref = ref.ptr
-            assert isinstance(ref, qlast.ObjectRef), (
-                f"only support object refs but got {ref}")
-            assert ref.name == old_shortname, (ref.name, old_shortname)
-            ref.name = new_shortname.name
-            if (
-                isinstance(new_shortname, sn.QualName)
-                and new_shortname.module != "__"
-            ):
-                ref.module = new_shortname.module
+
+            assert isinstance(ref, (qlast.ObjectRef, qlast.FunctionCall)), (
+                f"only support object refs and func calls but got {ref}")
+            if isinstance(ref, qlast.FunctionCall):
+                ref.func = ((new_shortname.module, new_shortname.name)
+                            if isinstance(new_shortname, sn.QualName)
+                            else new_shortname.name)
+            elif isinstance(ref, qlast.ObjectRef):
+                assert ref.name == old_shortname, (ref.name, old_shortname)
+                ref.name = new_shortname.name
+                if (
+                    isinstance(new_shortname, sn.QualName)
+                    and new_shortname.module != "__"
+                ):
+                    ref.module = new_shortname.module
 
         # say as_fragment=True as a hack to avoid renormalizing it
         out = s_expr.Expression.from_ast(
@@ -2334,6 +2340,7 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
             fixer=self._fix_referencing_expr)
 
         if not context.canonical:
+            self.validate_rename(schema, context)
             self.set_attribute_value(
                 'name',
                 value=self.new_name,
@@ -2369,6 +2376,13 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
     ) -> s_schema.Schema:
         schema = self._finalize_affected_refs(schema, context)
         return schema
+
+    def validate_rename(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> None:
+        pass
 
     def apply(
         self,

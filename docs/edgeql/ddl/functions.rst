@@ -51,6 +51,7 @@ CREATE FUNCTION
 
       SET session_only := {true | false} ;
       SET volatility := {'VOLATILE' | 'IMMUTABLE' | 'STABLE'} ;
+      RENAME TO <newname> ;
       CREATE ANNOTATION <annotation-name> := <value> ;
       USING ( <expr> ) ;
       USING <language> <functionbody> ;

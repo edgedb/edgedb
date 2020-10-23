@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import abc
 import types
+import uuid
 from typing import *
 
 from edb import errors
@@ -29,6 +30,7 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes as ft
 from edb.edgeql import parser as qlparser
+from edb.common import uuidgen
 
 from . import abc as s_abc
 from . import annos as s_anno
@@ -1099,6 +1101,13 @@ class DeleteCallableObject(
 class Function(CallableObject, VolatilitySubject, s_abc.Function,
                qlkind=ft.SchemaObjectClass.FUNCTION):
 
+    # A func_id that is shared between all overloads of the same
+    # function, to make them independent from the actual name.
+    func_id = so.SchemaField(
+        uuid.UUID,
+        default=None,
+    )
+
     code = so.SchemaField(
         str, default=None, compcoef=0.4)
 
@@ -1538,6 +1547,17 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
         context: sd.CommandContext,
     ) -> sd.Command:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        assert isinstance(cmd, CreateFunction)
+
+        fullname = cmd.classname
+        shortname = sn.shortname_from_fullname(fullname)
+        if others := schema.get_functions(
+                sn.QualName(fullname.module, shortname.name), ()):
+            func_id = others[0].get_func_id(schema)
+        else:
+            func_id = uuidgen.uuid1mc()
+
+        cmd.set_attribute_value('func_id', func_id)
 
         assert isinstance(astnode, qlast.CreateFunction)
         if astnode.code is not None:
@@ -1645,7 +1665,52 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
 
 
 class RenameFunction(RenameCallableObject[Function], FunctionCommand):
-    pass
+    @classmethod
+    def _classname_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.NamedDDL,
+        context: sd.CommandContext,
+    ) -> sn.QualName:
+        ctx = context.current()
+        assert isinstance(ctx.op, AlterFunction)
+        name = sd.QualifiedObjectCommand._classname_from_ast(
+            schema, astnode, context)
+
+        quals = list(sn.quals_from_fullname(ctx.op.classname))
+        out = sn.QualName(
+            name=sn.get_specialized_name(name, *quals),
+            module=name.module
+        )
+        return out
+
+    def validate_rename(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> None:
+        cur_shortname = sn.shortname_from_fullname(self.classname)
+        cur_name = sn.QualName(self.classname.module, cur_shortname.name)
+
+        new_shortname = sn.shortname_from_fullname(self.new_name)
+        assert isinstance(self.new_name, sn.QualName)
+        new_name = sn.QualName(self.new_name.module, new_shortname.name)
+
+        if cur_name == new_name:
+            return
+
+        existing = schema.get_functions(cur_name)
+        if len(existing) > 1:
+            raise errors.SchemaError(
+                'renaming an overloaded function is not allowed',
+                context=self.source_context)
+
+        target = schema.get_functions(new_name, ())
+        if target:
+            raise errors.SchemaError(
+                f"can not rename function to '{new_name!s}' because "
+                f"it already exists",
+                context=self.source_context)
 
 
 class AlterFunction(AlterCallableObject[Function], FunctionCommand):

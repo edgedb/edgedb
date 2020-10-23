@@ -351,6 +351,7 @@ class BaseSchemaTest(BaseDocTest):
 
                 migration_script.extend(
                     s_ddl.ddlast_from_delta(
+                        migration_schema,
                         migration_target,
                         migration_diff,
                     ),

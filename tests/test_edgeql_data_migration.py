@@ -98,7 +98,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             self.add_fail_notes(serialization='json')
             raise
 
-    async def migrate(self, migration, *, module: str = 'test'):
+    async def migrate(self, migration, *,
+                      populate: bool = False, module: str = 'test'):
         async with self.con.transaction():
             mig = f"""
                 START MIGRATION TO {{
@@ -108,6 +109,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 }};
             """
             await self.con.execute(mig)
+            if populate:
+                await self.con.execute('POPULATE MIGRATION;')
             await self.fast_forward_describe_migration()
 
     async def test_edgeql_migration_simple_01(self):
@@ -2200,22 +2203,15 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             },
         })
 
-    @test.xfail('''
-        Function rename DESCRIBE fails with:
-
-        InvalidReferenceError: function 'default::foo' does not exist
-    ''')
     async def test_edgeql_migration_describe_function_01(self):
-        # Migration that renames a function (currently we expect a
-        # drop/create instead of renaming).
         await self.migrate('''
-            function foo() -> str using (SELECT <str>random());
+            function foo(x: str) -> str using (SELECT <str>random());
         ''')
 
         await self.con.execute('''
             START MIGRATION TO {
                 module test {
-                    function bar() -> str using (SELECT <str>random());
+                    function bar(x: str) -> str using (SELECT <str>random());
                 };
             };
         ''')
@@ -2224,7 +2220,12 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             'confirmed': [],
             'complete': False,
             'proposed': {
-                # TODO: add actual validation for statements
+                'statements': [{
+                    'text': (
+                        'ALTER FUNCTION test::foo(x: std::str) '
+                        'RENAME TO test::bar;'
+                    )
+                }],
                 'confidence': 1.0,
             },
         })
@@ -2241,6 +2242,48 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             function hello_note(x: Note) -> str {
                 USING (SELECT x.name)
             }
+        ''')
+
+    async def test_edgeql_migration_function_02(self):
+        await self.migrate('''
+            type Foo;
+
+            function foo(x: Foo) -> int64 {
+                USING (SELECT 0)
+            }
+        ''')
+
+        await self.migrate('''
+            type Bar;
+
+            function foo(x: Bar) -> int64 {
+                USING (SELECT 0)
+            }
+        ''')
+
+        await self.con.execute('''
+            DROP FUNCTION test::foo(x: test::Bar);
+        ''')
+
+    async def test_edgeql_migration_function_03(self):
+        await self.migrate('''
+            type Foo;
+
+            function foo(x: Foo) -> int64 {
+                USING (SELECT 0)
+            }
+        ''')
+
+        await self.migrate('''
+            type Bar;
+
+            function foo2(x: Bar) -> int64 {
+                USING (SELECT 0)
+            }
+        ''')
+
+        await self.con.execute('''
+            DROP FUNCTION test::foo2(x: test::Bar);
         ''')
 
     async def test_edgeql_migration_describe_type_rename_01(self):

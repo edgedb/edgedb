@@ -2642,6 +2642,141 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 CREATE TYPE test::foo;
             ''')
 
+    async def test_edgeql_ddl_function_rename_01(self):
+        await self.con.execute("""
+            CREATE FUNCTION test::foo(s: str) -> str {
+                USING (SELECT s)
+            }
+        """)
+
+        await self.assert_query_result(
+            """SELECT test::foo("a")""",
+            ["a"],
+        )
+
+        await self.con.execute("""
+            ALTER FUNCTION test::foo(s: str)
+            RENAME TO test::bar;
+        """)
+
+        await self.assert_query_result(
+            """SELECT test::bar("a")""",
+            ["a"],
+        )
+
+        await self.con.execute("""
+            DROP FUNCTION test::bar(s: str)
+        """)
+
+    async def test_edgeql_ddl_function_rename_02(self):
+        await self.con.execute("""
+            CREATE FUNCTION test::foo(s: str) -> str {
+                USING (SELECT s)
+            };
+
+            CREATE FUNCTION test::bar(s: int64) -> str {
+                USING (SELECT <str>s)
+            };
+        """)
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                r"can not rename function to 'test::foo' because "
+                r"it already exists"):
+            await self.con.execute("""
+                ALTER FUNCTION test::bar(s: int64)
+                RENAME TO test::foo;
+            """)
+
+    async def test_edgeql_ddl_function_rename_03(self):
+        await self.con.execute("""
+            CREATE FUNCTION test::foo(s: str) -> str {
+                USING (SELECT s)
+            };
+
+            CREATE FUNCTION test::foo(s: int64) -> str {
+                USING (SELECT <str>s)
+            };
+        """)
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                r"renaming an overloaded function is not allowed"):
+            await self.con.execute("""
+                ALTER FUNCTION test::foo(s: int64)
+                RENAME TO test::bar;
+            """)
+
+    async def test_edgeql_ddl_function_rename_04(self):
+        await self.con.execute("""
+            CREATE FUNCTION test::foo(s: str) -> str {
+                USING (SELECT s)
+            };
+            CREATE MODULE foo;
+        """)
+
+        await self.assert_query_result(
+            """SELECT test::foo("a")""",
+            ["a"],
+        )
+
+        await self.con.execute("""
+            ALTER FUNCTION test::foo(s: str)
+            RENAME TO foo::bar;
+        """)
+
+        await self.assert_query_result(
+            """SELECT foo::bar("a")""",
+            ["a"],
+        )
+
+        await self.con.execute("""
+            DROP FUNCTION foo::bar(s: str)
+        """)
+
+    async def test_edgeql_ddl_function_rename_05(self):
+        await self.con.execute("""
+            CREATE FUNCTION test::foo(s: str) -> str {
+                USING (SELECT s)
+            };
+            CREATE FUNCTION test::call(s: str) -> str {
+                USING (SELECT test::foo(s))
+            };
+        """)
+
+        await self.con.execute("""
+            ALTER FUNCTION test::foo(s: str) RENAME TO test::bar;
+        """)
+
+        await self.assert_query_result(
+            """SELECT test::call("a")""",
+            ["a"],
+        )
+
+    @test.xfail('''
+        ISE: relation <whatever> does not exist
+        We change the schema of the function but don't update anything.
+    ''')
+    async def test_edgeql_ddl_function_rename_06(self):
+        await self.con.execute("""
+            CREATE FUNCTION test::foo(s: str) -> str {
+                USING (SELECT s)
+            };
+            CREATE FUNCTION test::call(s: str) -> str {
+                USING (SELECT test::foo(s))
+            };
+        """)
+
+        await self.con.execute("""
+            CREATE MODULE foo;
+            ALTER FUNCTION test::foo(s: str) RENAME TO foo::foo;
+        """)
+
+        await self.assert_query_result(
+            """SELECT test::call("a")""",
+            ["a"],
+        )
+
     async def test_edgeql_ddl_module_01(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaError,
@@ -7433,6 +7568,21 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             }
             """,
             """DROP FUNCTION foo(x: str);""",
+            type_refs=2,
+        )
+
+    @test.xfail('''
+        ISE: relation <whatever> does not exist
+        We change the schema of the table but don't update anything.
+    ''')
+    async def test_edgeql_ddl_rename_ref_function_04(self):
+        await self._simple_rename_ref_tests(
+            """
+            CREATE FUNCTION foo(x: str) -> Note {
+                USING (SELECT Note FILTER .note = x LIMIT 1)
+            }
+            """,
+            """SELECT foo("test");""",
             type_refs=2,
         )
 

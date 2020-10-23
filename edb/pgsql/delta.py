@@ -612,7 +612,26 @@ class CreateFunction(FunctionCommand, CreateObject,
 
 class RenameFunction(
         FunctionCommand, RenameObject, adapts=s_funcs.RenameFunction):
-    pass
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        func = self.get_object(schema, context)
+        orig_schema = schema
+        schema = super().apply(schema, context)
+
+        variadic = func.get_params(orig_schema).find_variadic(orig_schema)
+        self.pgops.add(
+            dbops.RenameFunction(
+                name=self.get_pgname(func, orig_schema),
+                new_name=self.get_pgname(func, schema),
+                args=self.compile_args(func, schema),
+                has_variadic=variadic is not None,
+            )
+        )
+
+        return schema
 
 
 class AlterFunction(
