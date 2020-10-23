@@ -4270,6 +4270,29 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
+    def test_schema_migrations_equivalence_rename_abs_constraint_01(self):
+        # This drops and recreates the constraint; we'd prefer if that
+        # didn't happen
+        self._assert_migration_equivalence([r"""
+            abstract constraint greater_or_equal(val: int64) {
+                using (SELECT __subject__ >= val);
+            };
+            type Note {
+                required property note -> int64 {
+                    constraint greater_or_equal(10);
+                }
+            };
+        """, r"""
+            abstract constraint not_less(val: int64) {
+                using (SELECT __subject__ >= val);
+            };
+            type Note {
+                required property note -> int64 {
+                    constraint not_less(10);
+                }
+            };
+        """])
+
 
 class TestDescribe(tb.BaseSchemaLoadTest):
     """Test the DESCRIBE command."""
