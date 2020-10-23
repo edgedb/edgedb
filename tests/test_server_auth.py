@@ -23,7 +23,8 @@ from edb.testbase import server as tb
 
 class TestServerAuth(tb.ConnectedTestCase):
 
-    ISOLATED_METHODS = False
+    PARALLELISM_GRANULARITY = 'system'
+    TRANSACTION_ISOLATION = False
 
     async def test_server_auth_01(self):
         await self.con.query('''

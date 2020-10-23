@@ -26,8 +26,7 @@ from edb.testbase import server as tb
 
 class TestDumpBasics(tb.DatabaseTestCase, tb.CLITestCaseMixin):
 
-    ISOLATED_METHODS = False
-    SERIALIZED = True
+    TRANSACTION_ISOLATION = False
 
     SETUP = '''
         CREATE TYPE test::Tmp {

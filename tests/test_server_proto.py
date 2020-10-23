@@ -36,8 +36,7 @@ from edb.tools import test
 
 class TestServerProto(tb.QueryTestCase):
 
-    ISOLATED_METHODS = False
-    SERIALIZED = True
+    TRANSACTION_ISOLATION = False
 
     SETUP = '''
         CREATE TYPE test::Tmp {
@@ -1897,7 +1896,7 @@ class TestServerProto(tb.QueryTestCase):
 
 class TestServerProtoMigration(tb.QueryTestCase):
 
-    ISOLATED_METHODS = False
+    TRANSACTION_ISOLATION = False
 
     async def test_server_proto_mig_01(self):
         # Replicating the "test_edgeql_tutorial" test that might
@@ -1931,7 +1930,7 @@ class TestServerProtoMigration(tb.QueryTestCase):
 
 class TestServerProtoDdlPropagation(tb.QueryTestCase):
 
-    ISOLATED_METHODS = False
+    TRANSACTION_ISOLATION = False
 
     @unittest.skipUnless(devmode.is_in_dev_mode(),
                          'the test requires devmode')
@@ -2027,7 +2026,9 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
                     await proc.wait()
 
 
-class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
+class TestServerProtoDDL(tb.DDLTestCase):
+
+    TRANSACTION_ISOLATION = False
 
     async def test_server_proto_query_cache_invalidate_01(self):
         typename = 'CacheInv_01'

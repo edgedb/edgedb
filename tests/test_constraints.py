@@ -25,7 +25,7 @@ from edb.testbase import server as tb
 
 
 class TestConstraintsSchema(tb.QueryTestCase):
-    ISOLATED_METHODS = False
+
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'constraints.esdl')
 
@@ -39,17 +39,18 @@ class TestConstraintsSchema(tb.QueryTestCase):
         )
 
         for val, expected in cases:
-            expr = qry.format(value=str(val))
+            async with self._run_and_rollback():
+                expr = qry.format(value=str(val))
 
-            if expected == 'good':
-                try:
-                    await self.con.execute(expr)
-                except Exception as ex:
-                    raise AssertionError(f'{expr!r} failed') from ex
-            else:
-                with self.assertRaisesRegex(
-                        edgedb.ConstraintViolationError, expected):
-                    await self.con.execute(expr)
+                if expected == 'good':
+                    try:
+                        await self.con.execute(expr)
+                    except Exception as ex:
+                        raise AssertionError(f'{expr!r} failed') from ex
+                else:
+                    with self.assertRaisesRegex(
+                            edgedb.ConstraintViolationError, expected):
+                        await self.con.execute(expr)
 
     async def test_constraints_scalar_length(self):
         data = {
@@ -385,7 +386,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
 
 
 class TestConstraintsSchemaMigration(tb.QueryTestCase):
-    ISOLATED_METHODS = False
+
     SCHEMA = os.path.join(os.path.dirname(__file__),
                           'schemas', 'constraints_migration',
                           'schema.esdl')
@@ -558,7 +559,8 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
             """)
 
 
-class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
+class TestConstraintsDDL(tb.DDLTestCase):
+
     async def test_constraints_ddl_01(self):
         qry = """
             CREATE ABSTRACT LINK test::translated_label {
@@ -587,20 +589,19 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
         await self.con.execute(qry)
 
         # Simple exclusivity constraint on a link
-        #
-        async with self._run_and_rollback():
-            with self.assertRaisesRegex(
-                    edgedb.ConstraintViolationError,
-                    'name violates exclusivity constraint'):
-                await self.con.execute("""
-                    INSERT test::UniqueName {
-                        name := 'Test'
-                    };
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            'name violates exclusivity constraint',
+        ):
+            await self.con.execute("""
+                INSERT test::UniqueName {
+                    name := 'Test'
+                };
 
-                    INSERT test::UniqueName {
-                        name := 'Test'
-                    };
-                """)
+                INSERT test::UniqueName {
+                    name := 'Test'
+                };
+            """)
 
         qry = """
             CREATE TYPE test::AbstractConstraintParent {
@@ -615,28 +616,27 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
 
         await self.con.execute(qry)
 
-        async with self._run_and_rollback():
-            # This is OK, the name exclusivity constraint is abstract
-            await self.con.execute("""
-                INSERT test::AbstractConstraintParent {
-                    name := 'exclusive_name_ap'
-                };
+        # This is OK, the name exclusivity constraint is abstract
+        await self.con.execute("""
+            INSERT test::AbstractConstraintParent {
+                name := 'exclusive_name_ap'
+            };
 
-                INSERT test::AbstractConstraintParent {
-                    name := 'exclusive_name_ap'
-                };
-            """)
+            INSERT test::AbstractConstraintParent {
+                name := 'exclusive_name_ap'
+            };
+        """)
 
-            # This is OK too
-            await self.con.execute("""
-                INSERT test::AbstractConstraintParent {
-                    name := 'exclusive_name_ap1'
-                };
+        # This is OK too
+        await self.con.execute("""
+            INSERT test::AbstractConstraintParent {
+                name := 'exclusive_name_ap1'
+            };
 
-                INSERT test::AbstractConstraintPureChild {
-                    name := 'exclusive_name_ap1'
-                };
-            """)
+            INSERT test::AbstractConstraintPureChild {
+                name := 'exclusive_name_ap1'
+            };
+        """)
 
     async def test_constraints_ddl_02(self):
         # testing the generalized constraint with 'ON (...)' clause
@@ -742,55 +742,54 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
         )
 
         # making sure the constraint was applied successfully
-        async with self._run_and_rollback():
-            with self.assertRaisesRegex(
-                    edgedb.ConstraintViolationError,
-                    'foo must be no longer than 3 characters.'):
-                await self.con.execute("""
-                    INSERT test::ConstraintOnTest1 {
-                        foo := 'Test'
-                    };
-                """)
-
-        async with self._run_and_rollback():
-            with self.assertRaisesRegex(
-                    edgedb.ConstraintViolationError,
-                    'bar must be no longer than 3 characters.'):
-                await self.con.execute("""
-                    INSERT test::ConstraintOnTest1 {
-                        bar := 'Test'
-                    };
-                """)
-
-        async with self._run_and_rollback():
-            # constraint should not fail
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            'foo must be no longer than 3 characters.',
+        ):
             await self.con.execute("""
                 INSERT test::ConstraintOnTest1 {
-                    foo := '',
-                    bar := ''
-                };
-
-                INSERT test::ConstraintOnTest1 {
-                    foo := 'a',
-                    bar := 'q'
-                };
-
-                INSERT test::ConstraintOnTest1 {
-                    foo := 'ab',
-                    bar := 'qw'
-                };
-
-                INSERT test::ConstraintOnTest1 {
-                    foo := 'abc',
-                    bar := 'qwe'
-                };
-
-                # a duplicate 'foo' and 'bar' just for good measure
-                INSERT test::ConstraintOnTest1 {
-                    foo := 'ab',
-                    bar := 'qw'
+                    foo := 'Test'
                 };
             """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            'bar must be no longer than 3 characters.',
+        ):
+            await self.con.execute("""
+                INSERT test::ConstraintOnTest1 {
+                    bar := 'Test'
+                };
+            """)
+
+        # constraint should not fail
+        await self.con.execute("""
+            INSERT test::ConstraintOnTest1 {
+                foo := '',
+                bar := ''
+            };
+
+            INSERT test::ConstraintOnTest1 {
+                foo := 'a',
+                bar := 'q'
+            };
+
+            INSERT test::ConstraintOnTest1 {
+                foo := 'ab',
+                bar := 'qw'
+            };
+
+            INSERT test::ConstraintOnTest1 {
+                foo := 'abc',
+                bar := 'qwe'
+            };
+
+            # a duplicate 'foo' and 'bar' just for good measure
+            INSERT test::ConstraintOnTest1 {
+                foo := 'ab',
+                bar := 'qw'
+            };
+        """)
 
     async def test_constraints_ddl_03(self):
         # testing the specialized constraint with 'ON (...)' clause
@@ -820,55 +819,54 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
         await self.con.execute(qry)
 
         # making sure the constraint was applied successfully
-        async with self._run_and_rollback():
-            with self.assertRaisesRegex(
-                    edgedb.ConstraintViolationError,
-                    'foo must be no longer than 3 characters.'):
-                await self.con.execute("""
-                    INSERT test::ConstraintOnTest2 {
-                        foo := 'Test'
-                    };
-                """)
-
-        async with self._run_and_rollback():
-            with self.assertRaisesRegex(
-                    edgedb.ConstraintViolationError,
-                    'bar must be no longer than 3 characters.'):
-                await self.con.execute("""
-                    INSERT test::ConstraintOnTest2 {
-                        bar := 'Test'
-                    };
-                """)
-
-        async with self._run_and_rollback():
-            # constraint should not fail
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            'foo must be no longer than 3 characters.',
+        ):
             await self.con.execute("""
                 INSERT test::ConstraintOnTest2 {
-                    foo := '',
-                    bar := ''
-                };
-
-                INSERT test::ConstraintOnTest2 {
-                    foo := 'a',
-                    bar := 'q'
-                };
-
-                INSERT test::ConstraintOnTest2 {
-                    foo := 'ab',
-                    bar := 'qw'
-                };
-
-                INSERT test::ConstraintOnTest2 {
-                    foo := 'abc',
-                    bar := 'qwe'
-                };
-
-                # a duplicate 'foo' and 'bar' just for good measure
-                INSERT test::ConstraintOnTest2 {
-                    foo := 'ab',
-                    bar := 'qw'
+                    foo := 'Test'
                 };
             """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            'bar must be no longer than 3 characters.',
+        ):
+            await self.con.execute("""
+                INSERT test::ConstraintOnTest2 {
+                    bar := 'Test'
+                };
+            """)
+
+        # constraint should not fail
+        await self.con.execute("""
+            INSERT test::ConstraintOnTest2 {
+                foo := '',
+                bar := ''
+            };
+
+            INSERT test::ConstraintOnTest2 {
+                foo := 'a',
+                bar := 'q'
+            };
+
+            INSERT test::ConstraintOnTest2 {
+                foo := 'ab',
+                bar := 'qw'
+            };
+
+            INSERT test::ConstraintOnTest2 {
+                foo := 'abc',
+                bar := 'qwe'
+            };
+
+            # a duplicate 'foo' and 'bar' just for good measure
+            INSERT test::ConstraintOnTest2 {
+                foo := 'ab',
+                bar := 'qw'
+            };
+        """)
 
     async def test_constraints_ddl_04(self):
         # testing an issue with expressions used for 'errmessage'
@@ -890,15 +888,15 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
         await self.con.execute(qry)
 
         # making sure the constraint was applied successfully
-        async with self._run_and_rollback():
-            with self.assertRaisesRegex(
-                    edgedb.ConstraintViolationError,
-                    'foo must be no longer than 3 characters.'):
-                await self.con.execute("""
-                    INSERT test::ConstraintOnTest3 {
-                        foo := 'Test'
-                    };
-                """)
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            'foo must be no longer than 3 characters.',
+        ):
+            await self.con.execute("""
+                INSERT test::ConstraintOnTest3 {
+                    foo := 'Test'
+                };
+            """)
 
     async def test_constraints_ddl_05(self):
         # Test that constraint expression returns a boolean.
@@ -923,22 +921,22 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
             }
         """)
 
-        with self.assertRaisesRegex(
-                edgedb.errors.ConstraintViolationError,
-                r'invalid foo'):
+        async with self.assertRaisesRegexTx(
+            edgedb.errors.ConstraintViolationError,
+            r'invalid foo',
+        ):
             await self.con.execute("""
                 INSERT test::ConstraintOnTest5 {
                     foo := 42
                 };
             """)
 
-        async with self._run_and_rollback():
-            # constraint should not fail
-            await self.con.execute("""
-                INSERT test::ConstraintOnTest5 {
-                    foo := 2
-                };
-            """)
+        # constraint should not fail
+        await self.con.execute("""
+            INSERT test::ConstraintOnTest5 {
+                foo := 2
+            };
+        """)
 
     async def test_constraints_ddl_06(self):
         # Test that constraint expression returns a boolean.
@@ -962,19 +960,18 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
             }
         """)
 
-        async with self._run_and_rollback():
-            # constraint should not fail
-            await self.con.execute("""
-                INSERT test::ConstraintOnTest6 {
-                    foo := 42
-                };
-            """)
+        # constraint should not fail
+        await self.con.execute("""
+            INSERT test::ConstraintOnTest6 {
+                foo := 42
+            };
+        """)
 
-            await self.con.execute("""
-                INSERT test::ConstraintOnTest6 {
-                    foo := 2
-                };
-            """)
+        await self.con.execute("""
+            INSERT test::ConstraintOnTest6 {
+                foo := 2
+            };
+        """)
 
     async def test_constraints_ddl_07(self):
         await self.con.execute("""
@@ -989,9 +986,10 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
             INSERT test::ObjCnstr { first_name := "foo", last_name := "bar" }
         """)
 
-        with self.assertRaisesRegex(
-                edgedb.ConstraintViolationError,
-                "ObjCnstr violates exclusivity constraint"):
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            "ObjCnstr violates exclusivity constraint",
+        ):
             await self.con.execute("""
                 INSERT test::ObjCnstr {
                     first_name := "foo", last_name := "baz" }
@@ -1024,58 +1022,59 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
             INSERT test::ObjCnstr { first_name := "foo", last_name := "baz" }
         """)
 
-        with self.assertRaisesRegex(
-                edgedb.ConstraintViolationError,
-                "nope!"):
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            "nope!",
+        ):
             await self.con.execute("""
                 INSERT test::ObjCnstr {
                     first_name := "foo", last_name := "bar" }
             """)
 
     async def test_constraints_ddl_08(self):
-        async with self._run_and_rollback():
+        await self.con.execute("""
+            CREATE TYPE test::ObjCnstr2 {
+                CREATE MULTI PROPERTY first_name -> str;
+                CREATE MULTI PROPERTY last_name -> str;
+                CREATE CONSTRAINT exclusive on (__subject__.first_name);
+            };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidConstraintDefinitionError,
+            "Constraint with multi cardinality may not "
+            "reference multiple links or properties",
+        ):
             await self.con.execute("""
-                CREATE TYPE test::ObjCnstr2 {
-                    CREATE MULTI PROPERTY first_name -> str;
-                    CREATE MULTI PROPERTY last_name -> str;
-                    CREATE CONSTRAINT exclusive on (__subject__.first_name);
+                ALTER TYPE test::ObjCnstr2 {
+                    CREATE CONSTRAINT exclusive
+                    on ((__subject__.first_name, __subject__.last_name));
                 };
             """)
-
-            with self.assertRaisesRegex(
-                    edgedb.InvalidConstraintDefinitionError,
-                    "Constraint with multi cardinality may not "
-                    "reference multiple links or properties"):
-                await self.con.execute("""
-                    ALTER TYPE test::ObjCnstr2 {
-                        CREATE CONSTRAINT exclusive
-                        on ((__subject__.first_name, __subject__.last_name));
-                    };
-                """)
 
     async def test_constraints_ddl_09(self):
-        async with self._run_and_rollback():
-            await self.con.execute("""
-                CREATE TYPE test::Label {
-                    CREATE PROPERTY text -> str;
-                };
-                CREATE TYPE test::ObjCnstr3 {
-                    CREATE LINK label -> test::Label;
-                    CREATE CONSTRAINT exclusive on (__subject__.label);
-                };
-                INSERT test::ObjCnstr3 {
-                    label := (INSERT test::Label {text := "obj_test" })
-                };
-            """)
+        await self.con.execute("""
+            CREATE TYPE test::Label {
+                CREATE PROPERTY text -> str;
+            };
+            CREATE TYPE test::ObjCnstr3 {
+                CREATE LINK label -> test::Label;
+                CREATE CONSTRAINT exclusive on (__subject__.label);
+            };
+            INSERT test::ObjCnstr3 {
+                label := (INSERT test::Label {text := "obj_test" })
+            };
+        """)
 
-            with self.assertRaisesRegex(
-                    edgedb.ConstraintViolationError,
-                    "ObjCnstr3 violates exclusivity constraint"):
-                await self.con.execute("""
-                    INSERT test::ObjCnstr3 {
-                        label := (SELECT test::Label
-                                  FILTER .text = "obj_test" LIMIT 1) };
-                """)
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            "ObjCnstr3 violates exclusivity constraint",
+        ):
+            await self.con.execute("""
+                INSERT test::ObjCnstr3 {
+                    label := (SELECT test::Label
+                                FILTER .text = "obj_test" LIMIT 1) };
+            """)
 
     async def test_constraints_ddl_function(self):
         await self.con.execute('''\
@@ -1098,28 +1097,28 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
     async def test_constraints_ddl_error_02(self):
         # testing that subjectexpr cannot be overridden after it is
         # specified explicitly
-        async with self._run_and_rollback():
-            with self.assertRaisesRegex(
-                    edgedb.InvalidConstraintDefinitionError,
-                    r"subjectexpr is already defined for .+max_int"):
-                await self.con.execute(r"""
-                    CREATE ABSTRACT CONSTRAINT test::max_int(m: std::int64)
-                        ON (<int64>__subject__)
-                    {
-                        SET errmessage :=
-                      # XXX: once simple string concat is possible here
-                      #      formatting can be saner
-                      '{__subject__} must be no longer than {m} characters.';
-                        USING (__subject__ <= m);
-                    };
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidConstraintDefinitionError,
+            r"subjectexpr is already defined for .+max_int",
+        ):
+            await self.con.execute(r"""
+                CREATE ABSTRACT CONSTRAINT test::max_int(m: std::int64)
+                    ON (<int64>__subject__)
+                {
+                    SET errmessage :=
+                    # XXX: once simple string concat is possible here
+                    #      formatting can be saner
+                    '{__subject__} must be no longer than {m} characters.';
+                    USING (__subject__ <= m);
+                };
 
-                    CREATE TYPE test::InvalidConstraintTest2 {
-                        CREATE PROPERTY foo -> std::str {
-                            CREATE CONSTRAINT test::max_int(3)
-                                ON (len(__subject__));
-                        };
+                CREATE TYPE test::InvalidConstraintTest2 {
+                    CREATE PROPERTY foo -> std::str {
+                        CREATE CONSTRAINT test::max_int(3)
+                            ON (len(__subject__));
                     };
-                """)
+                };
+            """)
 
     async def test_constraints_ddl_error_05(self):
         # Test that constraint expression returns a boolean.
@@ -1131,10 +1130,11 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
             };
         """
 
-        with self.assertRaisesRegex(
-                edgedb.SchemaDefinitionError,
-                "constraint expression expected to return a bool value, "
-                "got scalar type 'std::int64'"):
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            "constraint expression expected to return a bool value, "
+            "got scalar type 'std::int64'",
+        ):
             await self.migrate(schema)
 
         qry = """
@@ -1145,10 +1145,11 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
             };
         """
 
-        with self.assertRaisesRegex(
-                edgedb.SchemaDefinitionError,
-                "constraint expression expected to return a bool value, "
-                "got scalar type 'std::int64'"):
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            "constraint expression expected to return a bool value, "
+            "got scalar type 'std::int64'",
+        ):
             await self.con.execute(qry)
 
         qry = """
@@ -1163,10 +1164,11 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
             };
         """
 
-        with self.assertRaisesRegex(
-                edgedb.SchemaDefinitionError,
-                "constraint expression expected to return a bool value, "
-                "got scalar type 'std::str'"):
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            "constraint expression expected to return a bool value, "
+            "got scalar type 'std::str'",
+        ):
             await self.con.execute(qry)
 
         qry = """
@@ -1175,72 +1177,75 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
             };
         """
 
-        with self.assertRaisesRegex(
-                edgedb.SchemaDefinitionError,
-                "abstract constraint 'std::exclusive' may not "
-                "be used on scalar types"):
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            "abstract constraint 'std::exclusive' may not "
+            "be used on scalar types",
+        ):
             await self.con.execute(qry)
 
     async def test_constraints_ddl_error_06(self):
-        async with self._run_and_rollback():
-            with self.assertRaisesRegex(
-                    edgedb.InvalidConstraintDefinitionError,
-                    r'dollar-prefixed.*cannot be used'):
-                await self.con.execute(r"""
-                    CREATE ABSTRACT CONSTRAINT
-                    test::mymax_er_06(max: std::int64) ON (len(__subject__))
-                    {
-                        USING (__subject__ <= $max);
-                    };
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidConstraintDefinitionError,
+            r'dollar-prefixed.*cannot be used',
+        ):
+            await self.con.execute(r"""
+                CREATE ABSTRACT CONSTRAINT
+                test::mymax_er_06(max: std::int64) ON (len(__subject__))
+                {
+                    USING (__subject__ <= $max);
+                };
 
-                    CREATE TYPE test::ConstraintOnTest_err_06 {
-                        CREATE PROPERTY foo -> std::str {
-                            CREATE CONSTRAINT test::mymax_er_06(3);
-                        };
+                CREATE TYPE test::ConstraintOnTest_err_06 {
+                    CREATE PROPERTY foo -> std::str {
+                        CREATE CONSTRAINT test::mymax_er_06(3);
                     };
-                """)
+                };
+            """)
 
     async def test_constraints_tuple(self):
-        async with self._run_and_rollback():
-            await self.con.execute(r"""
-                CREATE TYPE Transaction {
-                    CREATE PROPERTY credit
-                      -> tuple<nest: tuple<amount: decimal, currency: str>> {
-                        CREATE CONSTRAINT max_value(0)
-                          ON (__subject__.nest.amount)
-                    };
+        await self.con.execute(r"""
+            CREATE TYPE Transaction {
+                CREATE PROPERTY credit
+                    -> tuple<nest: tuple<amount: decimal, currency: str>> {
+                    CREATE CONSTRAINT max_value(0)
+                        ON (__subject__.nest.amount)
                 };
-            """)
+            };
+        """)
+        await self.con.execute(r"""
+            INSERT Transaction {
+                credit := (nest := (amount := -1, currency := "usd")) };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            "Maximum allowed value for credit is 0.",
+        ):
             await self.con.execute(r"""
                 INSERT Transaction {
-                    credit := (nest := (amount := -1, currency := "usd")) };
+                    credit := (nest := (amount := 1, currency := "usd")) };
             """)
-
-            with self.assertRaisesRegex(
-                    edgedb.ConstraintViolationError,
-                    "Maximum allowed value for credit is 0."):
-                await self.con.execute(r"""
-                    INSERT Transaction {
-                        credit := (nest := (amount := 1, currency := "usd")) };
-                """)
 
     async def test_constraints_partial_path(self):
-        async with self._run_and_rollback():
-            await self.con.execute('''\
-                CREATE TYPE Vector {
-                    CREATE PROPERTY x -> float64;
-                    CREATE PROPERTY y -> float64;
-                    CREATE CONSTRAINT expression ON (
-                        .x^2 + .y^2 < 25
-                    );
-                };
-            ''')
+        await self.con.execute('''\
+            CREATE TYPE Vector {
+                CREATE PROPERTY x -> float64;
+                CREATE PROPERTY y -> float64;
+                CREATE CONSTRAINT expression ON (
+                    .x^2 + .y^2 < 25
+                );
+            };
+        ''')
 
+        await self.con.execute(r"""
+            INSERT Vector { x := 3, y := 3 };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            'invalid Vector',
+        ):
             await self.con.execute(r"""
-                INSERT Vector { x := 3, y := 3 };
+                INSERT Vector { x := 4, y := 4 };
             """)
-
-            with self.assertRaises(edgedb.ConstraintViolationError):
-                await self.con.execute(r"""
-                    INSERT Vector { x := 4, y := 4 };
-                """)

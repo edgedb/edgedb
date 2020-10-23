@@ -24,17 +24,19 @@ from edb.testbase import server as tb
 
 class TestEdgeQLSys(tb.QueryTestCase):
 
-    ISOLATED_METHODS = False
-
     async def test_edgeql_sys_locks(self):
         lock_key = tb.gen_lock_key()
 
-        with self.assertRaisesRegex(edgedb.InternalServerError,
-                                    "lock key cannot be negative"):
+        async with self.assertRaisesRegexTx(
+            edgedb.InternalServerError,
+            "lock key cannot be negative",
+        ):
             await self.con.execute('select sys::advisory_lock(-1)')
 
-        with self.assertRaisesRegex(edgedb.InternalServerError,
-                                    "lock key cannot be negative"):
+        async with self.assertRaisesRegexTx(
+            edgedb.InternalServerError,
+            "lock key cannot be negative",
+        ):
             await self.con.execute('select sys::advisory_unlock(-1)')
 
         self.assertEqual(

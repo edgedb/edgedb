@@ -51,7 +51,7 @@ class BaseHttpTest:
     # compiler processes and at a high number of parallel test
     # workers this ends up with test consuming too much system resources
     # for no particular speedup.
-    SERIALIZED = True
+    PARALLELISM_GRANULARITY = 'system'
 
     @classmethod
     def get_port_proto(cls):

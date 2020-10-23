@@ -352,8 +352,8 @@ class TestServerConfigUtils(unittest.TestCase):
 
 class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
 
-    ISOLATED_METHODS = False
-    SERIALIZED = True
+    PARALLELISM_GRANULARITY = 'system'
+    TRANSACTION_ISOLATION = False
 
     async def test_server_proto_configure_01(self):
         with self.assertRaisesRegex(

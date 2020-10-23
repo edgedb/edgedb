@@ -38,7 +38,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                          'graphql_setup.edgeql')
 
     # GraphQL queries cannot run in a transaction
-    ISOLATED_METHODS = False
+    TRANSACTION_ISOLATION = False
 
     def test_graphql_http_keepalive_01(self):
         with self.http_con() as con:
@@ -3436,7 +3436,7 @@ class TestGraphQLInit(tb.GraphQLTestCase):
     """Test GraphQL initialization on an empty database."""
 
     # GraphQL queries cannot run in a transaction
-    ISOLATED_METHODS = False
+    TRANSACTION_ISOLATION = False
 
     def test_graphql_init_type_01(self):
         # An empty database should still have an "Object" interface.

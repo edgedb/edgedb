@@ -28,7 +28,7 @@ from edb.testbase import http as tb
 class TestHttpNotebook(tb.BaseHttpTest, tb.server.QueryTestCase):
 
     # EdgeQL/HTTP queries cannot run in a transaction
-    ISOLATED_METHODS = False
+    TRANSACTION_ISOLATION = False
 
     @classmethod
     def get_port_proto(cls):

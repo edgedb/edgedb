@@ -32,7 +32,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                                 'graphql_schema_other.esdl')
 
     # GraphQL queries cannot run in a transaction
-    ISOLATED_METHODS = False
+    TRANSACTION_ISOLATION = False
 
     def test_graphql_schema_base_01(self):
         self.assert_graphql_query_result(r"""

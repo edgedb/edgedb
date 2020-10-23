@@ -121,7 +121,7 @@ class TestCaseMeta(type(unittest.TestCase)):
                     if (
                         try_no == 3
                         # Only do a retry loop when we have a transaction
-                        or not getattr(self, 'ISOLATED_METHODS', False)
+                        or not getattr(self, 'TRANSACTION_ISOLATION', False)
                     ):
                         raise
                     else:
@@ -159,6 +159,7 @@ class TestCaseMeta(type(unittest.TestCase)):
 
 
 class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
+
     @classmethod
     def setUpClass(cls):
         loop = asyncio.new_event_loop()
@@ -185,8 +186,7 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
             raise
 
     @contextlib.contextmanager
-    def assertRaisesRegex(self, exception, regex, msg=None,
-                          **kwargs):
+    def assertRaisesRegex(self, exception, regex, msg=None, **kwargs):
         with super().assertRaisesRegex(exception, regex, msg=msg):
             try:
                 yield
@@ -635,6 +635,7 @@ class ConnectedTestCase(ClusterTestCase, ConnectedTestCaseMixin):
 
 
 class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
+
     SETUP = None
     TEARDOWN = None
     SCHEMA = None
@@ -643,8 +644,17 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
     TEARDOWN_METHOD = None
 
     # Some tests may want to manage transactions manually,
-    # in which case ISOLATED_METHODS will be False.
-    ISOLATED_METHODS = True
+    # or affect non-transactional state, in which case
+    # TRANSACTION_ISOLATION must be set to False
+    TRANSACTION_ISOLATION = True
+
+    # By default, tests from the same testsuite may be ran
+    # in parallel in several test worker processes.  However,
+    # certain cases might exhibit pathological locking behavior,
+    # or are parallel-unsafe altogether, in which case
+    # PARALLELISM_GRANULARITY must be set to 'database' or 'system'.
+    PARALLELISM_GRANULARITY = 'default'
+
     # Turns on "EdgeDB developer" mode which allows using restricted
     # syntax like USING SQL and similar. It allows modifying standard
     # library (e.g. declaring casts).
@@ -658,7 +668,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                 self.con.execute(
                     'CONFIGURE SESSION SET __internal_testmode := true;'))
 
-        if self.ISOLATED_METHODS:
+        if self.TRANSACTION_ISOLATION:
             self.xact = self.con.transaction()
             self.loop.run_until_complete(self.xact.start())
 
@@ -675,7 +685,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                     self.con.execute(self.TEARDOWN_METHOD))
         finally:
             try:
-                if self.ISOLATED_METHODS:
+                if self.TRANSACTION_ISOLATION:
                     self.loop.run_until_complete(self.xact.rollback())
                     del self.xact
 
@@ -686,7 +696,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                         'test connection is still in transaction '
                         '*after* the test')
 
-                if not self.ISOLATED_METHODS:
+                if not self.TRANSACTION_ISOLATION:
                     self.loop.run_until_complete(
                         self.con.execute('RESET ALIAS *;'))
 
@@ -715,6 +725,16 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
             script = cls.get_setup_script()
             if script:
                 cls.loop.run_until_complete(cls.con.execute(script))
+
+    @classmethod
+    def get_parallelism_granularity(cls):
+        if cls.PARALLELISM_GRANULARITY == 'default':
+            if cls.TRANSACTION_ISOLATION:
+                return 'default'
+            else:
+                return 'database'
+        else:
+            return cls.PARALLELISM_GRANULARITY
 
     @classmethod
     def get_database_name(cls):
@@ -877,12 +897,7 @@ class BaseQueryTestCase(DatabaseTestCase):
 class DDLTestCase(BaseQueryTestCase):
     # DDL test cases generally need to be serialized
     # to avoid deadlocks in parallel execution.
-    SERIALIZED = True
-
-
-class NonIsolatedDDLTestCase(DDLTestCase):
-    ISOLATED_METHODS = False
-
+    PARALLELISM_GRANULARITY = 'database'
     BASE_TEST_CLASS = True
 
 
@@ -962,6 +977,7 @@ class StableDumpTestCase(QueryTestCase, CLITestCaseMixin):
     BASE_TEST_CLASS = True
     ISOLATED_METHODS = False
     STABLE_DUMP = True
+    TRANSACTION_ISOLATION = False
 
     async def check_dump_restore(self, check_method):
         dbname = self.get_database_name()

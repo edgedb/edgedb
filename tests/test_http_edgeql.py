@@ -36,7 +36,7 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
                          'graphql_setup.edgeql')
 
     # EdgeQL/HTTP queries cannot run in a transaction
-    ISOLATED_METHODS = False
+    TRANSACTION_ISOLATION = False
 
     def test_http_edgeql_proto_errors_01(self):
         with self.http_con() as con:

@@ -31,8 +31,7 @@ class TestDump02(tb.QueryTestCase, tb.CLITestCaseMixin):
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
                          'dump02_setup.edgeql')
 
-    ISOLATED_METHODS = False
-    SERIALIZED = True
+    TRANSACTION_ISOLATION = False
 
     async def test_dump02_basic(self):
         await self.ensure_schema_data_integrity()

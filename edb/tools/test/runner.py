@@ -921,7 +921,10 @@ class ParallelTextTestRunner:
         serialized_suites = {
             casecls: unittest.TestSuite(tests)
             for casecls, tests in cases.items()
-            if getattr(casecls, 'SERIALIZED', False)
+            if (
+                (gg := getattr(casecls, 'get_parallelism_granularity', None))
+                and gg() in ('database', 'system')
+            )
         }
 
         tests = itertools.chain(
