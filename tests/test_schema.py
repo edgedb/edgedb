@@ -4244,6 +4244,32 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
+    def test_schema_migrations_equivalence_rename_enum_01(self):
+        self._assert_migration_equivalence([r"""
+            scalar type foo extending enum<'foo', 'bar'>;
+            type Baz {
+                property a -> foo;
+            }
+        """, r"""
+            scalar type bar extending enum<'foo', 'bar'>;
+            type Baz {
+                property a -> bar;
+            }
+        """])
+
+    def test_schema_migrations_equivalence_rename_scalar_01(self):
+        self._assert_migration_equivalence([r"""
+            scalar type foo extending str;
+            type Baz {
+                property a -> foo;
+            }
+        """, r"""
+            scalar type bar extending str;
+            type Baz {
+                property a -> bar;
+            }
+        """])
+
 
 class TestDescribe(tb.BaseSchemaLoadTest):
     """Test the DESCRIBE command."""
