@@ -1887,16 +1887,18 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-    @test.xfail('''
-        We drop and create a new constraint but would prefer to
-        rename it directly.
-    ''')
     async def test_edgeql_migration_describe_constraint_01(self):
         # Migration that renames a constraint.
         await self.migrate('''
             abstract constraint my_oneof(one_of: array<anytype>) {
                 using (contains(one_of, __subject__));
             };
+
+            type Foo {
+                property note -> str {
+                    constraint my_oneof(["foo", "bar"]);
+                }
+            }
         ''')
 
         await self.con.execute('''
@@ -1905,6 +1907,12 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                     abstract constraint my_one_of(one_of: array<anytype>) {
                         using (contains(one_of, __subject__));
                     };
+
+                    type Foo {
+                        property note -> str {
+                            constraint my_one_of(["foo", "bar"]);
+                        }
+                    }
                 };
             };
         ''')
@@ -1923,7 +1931,103 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             },
         })
 
+        await self.fast_forward_describe_migration()
+
     async def test_edgeql_migration_describe_constraint_02(self):
+        # Migration that renames a link constraint.
+        # Honestly I'm not sure if link constraints can really be
+        # anything other than exclusive?
+        await self.migrate('''
+            abstract constraint my_exclusive() extending std::exclusive;
+
+            type Foo;
+            type Bar {
+                link foo -> Foo {
+                    constraint my_exclusive;
+                }
+            }
+        ''')
+
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    abstract constraint myexclusive() extending std::exclusive;
+
+                    type Foo;
+                    type Bar {
+                        link foo -> Foo {
+                            constraint myexclusive;
+                        }
+                    }
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': (
+                        'ALTER ABSTRACT CONSTRAINT test::my_exclusive '
+                        'RENAME TO test::myexclusive;'
+                    )
+                }],
+                'confidence': 1.0,
+            },
+        })
+
+        await self.fast_forward_describe_migration()
+
+    async def test_edgeql_migration_describe_constraint_03(self):
+        # Migration that renames a object constraint.
+        await self.migrate('''
+            abstract constraint my_oneof(one_of: array<anytype>) {
+                using (contains(one_of, __subject__));
+            };
+
+            type Foo {
+                property a -> str;
+                property b -> str;
+                constraint my_oneof(["foo", "bar"])
+                    ON (__subject__.a++__subject__.b);
+            }
+        ''')
+
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    abstract constraint my_one_of(one_of: array<anytype>) {
+                        using (contains(one_of, __subject__));
+                    };
+
+                    type Foo {
+                        property a -> str;
+                        property b -> str;
+                        constraint my_one_of(["foo", "bar"])
+                            ON (__subject__.a++__subject__.b);
+                    }
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': (
+                        'ALTER ABSTRACT CONSTRAINT test::my_oneof '
+                        'RENAME TO test::my_one_of;'
+                    )
+                }],
+                'confidence': 1.0,
+            },
+        })
+
+        await self.fast_forward_describe_migration()
+
+    async def test_edgeql_migration_describe_constraint_04(self):
         # Migration that creates a constraint.
         await self.con.execute('''
             START MIGRATION TO {

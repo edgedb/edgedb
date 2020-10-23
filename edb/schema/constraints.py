@@ -134,6 +134,58 @@ class Constraint(referencing.ReferencedInheritingObject,
     is_aggregate = so.SchemaField(
         bool, default=False, compcoef=0.971, allow_ddl_set=False)
 
+    @classmethod
+    def _maybe_fix_name(
+        cls,
+        name: sn.Name,
+        *,
+        schema: s_schema.Schema,
+        context: so.ComparisonContext,
+    ) -> sn.Name:
+        obj = schema.get(name, type=Constraint)
+
+        if not obj.generic(schema):
+            base = obj.get_bases(schema).objects(schema)[0]
+            base_name = context.get_obj_name(schema, base)
+
+            quals = list(sn.quals_from_fullname(name))
+            name = sn.Name(
+                name=sn.get_specialized_name(base_name, *quals),
+                module=sn.Name(name).module,
+            )
+
+        return name
+
+    @classmethod
+    def compare_field_value(
+        cls,
+        field: so.Field[Type[so.T]],
+        our_value: so.T,
+        their_value: so.T,
+        *,
+        our_schema: s_schema.Schema,
+        their_schema: s_schema.Schema,
+        context: so.ComparisonContext,
+    ) -> float:
+        # When comparing names, patch up the names to take into
+        # account renames of the base abstract constraints.
+        if field.name == 'name':
+            assert isinstance(our_value, sn.Name)
+            assert isinstance(their_value, sn.Name)
+            our_value = cls._maybe_fix_name(  # type: ignore
+                our_value, schema=our_schema, context=context)
+            their_value = cls._maybe_fix_name(  # type: ignore
+                their_value, schema=their_schema, context=context)
+
+        return super().compare_field_value(
+            field,
+            our_value,
+            their_value,
+            our_schema=our_schema,
+            their_schema=their_schema,
+            context=context,
+        )
+
     def get_verbosename(
         self,
         schema: s_schema.Schema,

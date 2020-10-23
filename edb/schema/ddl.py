@@ -232,6 +232,14 @@ def delta_schemas(
 
     objects = sd.DeltaRoot(canonical=True)
 
+    # FIXME: We (mostly accidentally) rely on the ordering of
+    # schemaclasses, which is totally implicit from our import
+    # structures but also deterministic.
+    # This is because in some cases involving renames, we need to
+    # process the rename before we process consumers of it.
+    # In particular, I think ObjectType needs to be processed pretty late.
+    #
+    # This should be explicit and not implicit.
     schemaclasses = [
         schemacls
         for schemacls in so.ObjectMeta.get_schema_metaclasses()
