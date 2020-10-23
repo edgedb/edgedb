@@ -84,8 +84,8 @@ def init_worker(status_queue: multiprocessing.SimpleQueue,
         if server_addr is not None:
             os.environ['EDGEDB_TEST_CLUSTER_ADDR'] = json.dumps(server_addr)
 
+    os.environ['EDGEDB_TEST_PARALLEL'] = '1'
     coverage_run = devmode.CoverageConfig.start_coverage_if_requested()
-
     status_queue.put(True)
 
 
@@ -622,7 +622,7 @@ class ParallelTextTestResult(unittest.result.TestResult):
             description,
             currently_running=list(self.currently_running),
         )
-        self.currently_running.pop(test)
+        self.currently_running.pop(test, None)
 
     def record_test_stats(self, test, stats):
         self.test_stats.append((test, stats))
@@ -923,7 +923,7 @@ class ParallelTextTestRunner:
             for casecls, tests in cases.items()
             if (
                 (gg := getattr(casecls, 'get_parallelism_granularity', None))
-                and gg() in ('database', 'system')
+                and gg() == 'system'
             )
         }
 

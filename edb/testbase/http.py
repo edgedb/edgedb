@@ -80,6 +80,16 @@ class BaseHttpTest:
 
         cls.http_addr = f'http://127.0.0.1:{cls.http_port}'
 
+    @classmethod
+    def tearDownClass(cls):
+        dbname = cls.get_database_name()
+        cls.loop.run_until_complete(
+            cls.con.execute(
+                f'CONFIGURE SYSTEM RESET Port FILTER .database = "{dbname}";',
+            ),
+        )
+        super().tearDownClass()
+
     @contextlib.contextmanager
     def http_con(self):
         con = StubbornHttpConnection(self.http_host, self.http_port)

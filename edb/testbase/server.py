@@ -46,6 +46,8 @@ import click.testing
 import edgedb
 
 from edb import cli
+
+from edb.edgeql import quote as qlquote
 from edb.server import cluster as edgedb_cluster
 from edb.server import defines as edgedb_defines
 
@@ -653,6 +655,12 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
     # certain cases might exhibit pathological locking behavior,
     # or are parallel-unsafe altogether, in which case
     # PARALLELISM_GRANULARITY must be set to 'database' or 'system'.
+    # The 'database' granularity signals that no two runners may
+    # execute tests on the same database in parallel, although the
+    # tests may still run on copies of the test database.
+    # The 'system' granularity means that the test suite is not
+    # parallelizable at all and must run sequentially in the same
+    # worker process.
     PARALLELISM_GRANULARITY = 'default'
 
     # Turns on "EdgeDB developer" mode which allows using restricted
@@ -719,12 +727,81 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
             cls.admin_conn = cls.loop.run_until_complete(cls.connect())
             cls.loop.run_until_complete(cls.admin_conn.execute(script))
 
+        elif cls.uses_database_copies():
+            cls.admin_conn = cls.loop.run_until_complete(cls.connect())
+
+            orig_testmode = cls.loop.run_until_complete(
+                cls.admin_conn.query(
+                    'SELECT cfg::Config.__internal_testmode',
+                ),
+            )
+            if not orig_testmode:
+                orig_testmode = False
+            else:
+                orig_testmode = orig_testmode[0]
+
+            if not orig_testmode:
+                cls.loop.run_until_complete(
+                    cls.admin_conn.execute(
+                        'CONFIGURE SESSION SET __internal_testmode := true;',
+                    ),
+                )
+
+            base_db_name, _, _ = dbname.rpartition('_')
+            cls.loop.run_until_complete(
+                cls.admin_conn.execute(
+                    f'''
+                        CREATE DATABASE {qlquote.quote_ident(dbname)}
+                        FROM {qlquote.quote_ident(base_db_name)}
+                    ''',
+                ),
+            )
+
+            if not orig_testmode:
+                cls.loop.run_until_complete(
+                    cls.admin_conn.execute(
+                        'CONFIGURE SESSION SET __internal_testmode := false;',
+                    ),
+                )
+
         cls.con = cls.loop.run_until_complete(cls.connect(database=dbname))
 
         if not class_set_up:
             script = cls.get_setup_script()
             if script:
                 cls.loop.run_until_complete(cls.con.execute(script))
+
+    @classmethod
+    def tearDownClass(cls):
+        script = ''
+
+        class_set_up = os.environ.get('EDGEDB_TEST_CASES_SET_UP')
+
+        if cls.TEARDOWN and not class_set_up:
+            script = cls.TEARDOWN.strip()
+
+        try:
+            if script:
+                cls.loop.run_until_complete(
+                    cls.con.execute(script))
+        finally:
+            try:
+                cls.loop.run_until_complete(cls.con.aclose())
+
+                if not class_set_up or cls.uses_database_copies():
+                    dbname = cls.get_database_name()
+                    script = f'DROP DATABASE {dbname};'
+
+                    cls.loop.run_until_complete(
+                        cls.admin_conn.execute(script))
+
+            finally:
+                try:
+                    if cls.admin_conn is not None:
+                        cls.loop.run_until_complete(
+                            cls.admin_conn.aclose())
+                finally:
+                    super().tearDownClass()
 
     @classmethod
     def get_parallelism_granularity(cls):
@@ -737,6 +814,13 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
             return cls.PARALLELISM_GRANULARITY
 
     @classmethod
+    def uses_database_copies(cls):
+        return (
+            os.environ.get('EDGEDB_TEST_PARALLEL')
+            and cls.get_parallelism_granularity() == 'database'
+        )
+
+    @classmethod
     def get_database_name(cls):
         if cls.__name__.startswith('TestEdgeQL'):
             dbname = cls.__name__[len('TestEdgeQL'):]
@@ -745,7 +829,10 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
         else:
             dbname = cls.__name__
 
-        return dbname.lower()
+        if cls.uses_database_copies():
+            return f'{dbname.lower()}_{os.getpid()}'
+        else:
+            return dbname.lower()
 
     @classmethod
     def get_setup_script(cls):
@@ -796,38 +883,6 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
             script += '\nCONFIGURE SESSION SET __internal_testmode := false;'
 
         return script.strip(' \n')
-
-    @classmethod
-    def tearDownClass(cls):
-        script = ''
-
-        class_set_up = os.environ.get('EDGEDB_TEST_CASES_SET_UP')
-
-        if cls.TEARDOWN and not class_set_up:
-            script = cls.TEARDOWN.strip()
-
-        try:
-            if script:
-                cls.loop.run_until_complete(
-                    cls.con.execute(script))
-        finally:
-            try:
-                cls.loop.run_until_complete(cls.con.aclose())
-
-                if not class_set_up:
-                    dbname = cls.get_database_name()
-                    script = f'DROP DATABASE {dbname};'
-
-                    cls.loop.run_until_complete(
-                        cls.admin_conn.execute(script))
-
-            finally:
-                try:
-                    if cls.admin_conn is not None:
-                        cls.loop.run_until_complete(
-                            cls.admin_conn.aclose())
-                finally:
-                    super().tearDownClass()
 
     @contextlib.asynccontextmanager
     async def assertRaisesRegexTx(self, exception, regex, msg=None, **kwargs):
