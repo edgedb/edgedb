@@ -86,10 +86,12 @@ class TestServerOps(tb.TestCase):
 
             self.assertTrue(os.path.exists(runstate_dir))
 
-            con1 = await edgedb.async_connect(host=runstate_dir, port=port)
+            con1 = await edgedb.async_connect(
+                user='edgedb', host=runstate_dir, port=port)
             self.assertEqual(await con1.query_one('SELECT 1'), 1)
 
-            con2 = await edgedb.async_connect(host=runstate_dir, port=port)
+            con2 = await edgedb.async_connect(
+                user='edgedb', host=runstate_dir, port=port)
             self.assertEqual(await con2.query_one('SELECT 1'), 1)
 
             await con1.aclose()
@@ -102,7 +104,8 @@ class TestServerOps(tb.TestCase):
                 # the cluster was started with an "--auto-shutdown"
                 # option, we expect this connection to be rejected
                 # and the cluster to be shutdown soon.
-                await edgedb.async_connect(host=runstate_dir, port=port)
+                await edgedb.async_connect(
+                    user='edgedb', host=runstate_dir, port=port)
 
             i = 600 * 5  # Give it up to 5 minutes to cleanup.
             while i > 0:
