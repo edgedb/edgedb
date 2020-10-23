@@ -202,8 +202,11 @@ def _run_server(cluster, args: ServerConfig,
     if bootstrap_script_text is not None:
         bootstrap_script = server.StartupScript(
             text=bootstrap_script_text,
-            database=edgedb_defines.EDGEDB_SUPERUSER,
-            user=edgedb_defines.EDGEDB_SUPERUSER_DB,
+            database=args.default_database or edgedb_defines.EDGEDB_SUPERUSER,
+            user=(
+                args.default_database_user or
+                edgedb_defines.EDGEDB_SUPERUSER_DB
+            ),
         )
     else:
         bootstrap_script = None
