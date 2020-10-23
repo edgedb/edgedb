@@ -4213,6 +4213,22 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
+    def test_schema_migrations_equivalence_rename_annot_01(self):
+        self._assert_migration_equivalence([r"""
+            abstract annotation foo;
+
+            type Object1 {
+                annotation foo := 'bar';
+            };
+        """, r"""
+            abstract annotation bar;
+
+            type Object1 {
+                annotation bar := 'bar';
+            };
+        """])
+
+
 class TestDescribe(tb.BaseSchemaLoadTest):
     """Test the DESCRIBE command."""
 
