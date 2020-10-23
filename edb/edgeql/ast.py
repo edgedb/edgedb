@@ -745,7 +745,8 @@ class Database:
 
 
 class CreateDatabase(CreateObject, Database):
-    pass
+
+    template: typing.Optional[ObjectRef] = None
 
 
 class AlterDatabase(AlterObject, Database):

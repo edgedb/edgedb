@@ -424,11 +424,21 @@ commands_block(
 # CREATE DATABASE
 #
 class CreateDatabaseStmt(Nonterm):
-    def reduce_CREATE_DATABASE_AnyNodeName_OptCreateRoleCommandsBlock(
-        self,
-        *kids,
-    ):
+    def reduce_CREATE_DATABASE_regular(self, *kids):
+        """%reduce CREATE DATABASE AnyNodeName OptCreateDatabaseCommandsBlock
+        """
         self.val = qlast.CreateDatabase(name=kids[2].val, commands=kids[3].val)
+
+    def reduce_CREATE_DATABASE_from_template(self, *kids):
+        """%reduce
+            CREATE DATABASE AnyNodeName FROM AnyNodeName
+            OptCreateDatabaseCommandsBlock
+        """
+        self.val = qlast.CreateDatabase(
+            name=kids[2].val,
+            commands=kids[5].val,
+            template=kids[4].val,
+        )
 
 
 #

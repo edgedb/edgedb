@@ -3764,6 +3764,7 @@ class CreateDatabase(ObjectMetaCommand, adapts=s_db.CreateDatabase):
                         id=str(db.id),
                         builtin=db.get_builtin(schema),
                     ),
+                    template=self.template,
                 )
             )
         )

@@ -39,7 +39,7 @@ class Database(base.DBObject):
         encoding: Optional[str] = None,
         lc_collate: Optional[str] = None,
         lc_ctype: Optional[str] = None,
-        template: Optional[str] = 'edgedb0',
+        template: Optional[str] = None,
         metadata: Optional[Mapping[str, Any]] = None,
     ) -> None:
         super().__init__()
@@ -49,7 +49,7 @@ class Database(base.DBObject):
         self.encoding = encoding
         self.lc_collate = lc_collate
         self.lc_ctype = lc_ctype
-        self.template = template
+        self.template = template or 'edgedb0'
         self.metadata = metadata
 
     def get_type(self):
