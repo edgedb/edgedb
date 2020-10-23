@@ -4228,6 +4228,22 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
+    @test.xfail('''
+      object type 'default::Bar' does not exist
+    ''')
+    def test_schema_migrations_equivalence_rename_type_01(self):
+        self._assert_migration_equivalence([r"""
+            type Foo;
+            type Baz {
+                link a -> Foo;
+            }
+        """, r"""
+            type Bar;
+            type Baz {
+                link a -> Bar;
+            }
+        """])
+
 
 class TestDescribe(tb.BaseSchemaLoadTest):
     """Test the DESCRIBE command."""
