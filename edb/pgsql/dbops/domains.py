@@ -235,9 +235,12 @@ class AlterDomainRenameConstraint(AlterDomainAlterConstraint):
         self._new_constraint = new_constraint
 
     def code(self, block: base.PLBlock) -> str:
-        code = self.prefix_code()
         name = self._constraint.constraint_name()
         new_name = self._new_constraint.constraint_name()
+        if name == new_name:
+            return ''
+
+        code = self.prefix_code()
         code += f' RENAME CONSTRAINT {name} TO {new_name}'
 
         return code

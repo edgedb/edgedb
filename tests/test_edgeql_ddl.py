@@ -445,7 +445,9 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE SCALAR TYPE b::bar_t EXTENDING int64;
 
             CREATE TYPE Obj {
-                CREATE PROPERTY foo -> foo_t;
+                CREATE PROPERTY foo -> foo_t {
+                    SET default := <foo::foo_t>20;
+                };
                 CREATE PROPERTY bar -> b::bar_t;
             };
 
@@ -477,6 +479,20 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 ]},
             ]
         )
+
+        await self.con.execute("""
+            ALTER SCALAR TYPE foo::foo_t RENAME TO foo::baz_t;
+        """)
+
+        await self.con.execute("""
+            ALTER SCALAR TYPE foo::baz_t RENAME TO bar::quux_t;
+        """)
+
+        await self.con.execute("""
+            DROP TYPE bar::Obj2;
+            DROP TYPE foo::Obj;
+            DROP SCALAR TYPE bar::quux_t;
+        """)
 
     async def test_edgeql_ddl_19(self):
         await self.con.execute("""
@@ -3651,7 +3667,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         )
 
         await self.con.execute("""
-            DROP ABSTRACT ANNOTATION test::anno11_new_name;
+            CREATE MODULE foo;
+
+            ALTER ABSTRACT ANNOTATION test::anno11_new_name
+                RENAME TO foo::anno11_new_name;
         """)
 
         await self.assert_query_result(
@@ -3661,7 +3680,23 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     name,
                 }
                 FILTER
-                    .name LIKE 'test::anno11%';
+                    .name LIKE 'foo::anno11%';
+            ''',
+            [{"name": "foo::anno11_new_name"}]
+        )
+
+        await self.con.execute("""
+            DROP ABSTRACT ANNOTATION foo::anno11_new_name;
+        """)
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT Annotation {
+                    name,
+                }
+                FILTER
+                    .name LIKE 'foo::anno11%';
             ''',
             []
         )
@@ -4526,6 +4561,25 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ['rename alias 03']
         )
 
+        await self.con.execute(r"""
+            CREATE MODULE foo;
+
+            ALTER ALIAS test::NewAlias03 {
+                RENAME TO foo::NewAlias03;
+            };
+        """)
+
+        await self.assert_query_result(
+            r'''
+                SELECT foo::NewAlias03.alias_computable LIMIT 1;
+            ''',
+            ['rename alias 03']
+        )
+
+        await self.con.execute(r"""
+            DROP ALIAS foo::NewAlias03;
+        """)
+
     async def test_edgeql_ddl_alias_04(self):
         await self.con.execute(r"""
             CREATE ALIAS test::DupAlias04_1 := BaseObject {
@@ -4678,6 +4732,27 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         """)
 
         # TODO: Add an actual INSERT/SELECT test.
+
+    @test.xfail('''
+       ISE: relation "<blah>" does not exist
+
+       (Is the bug that we fail to create the table or that we don't
+        reject an alias being used there?)
+    ''')
+    async def test_edgeql_ddl_alias_09(self):
+        await self.con.execute(r"""
+            CREATE ALIAS test::CreateAlias09 := (
+                SELECT BaseObject {
+                    alias_computable := 'rename alias 03'
+                }
+            );
+        """)
+
+        await self.con.execute(r"""
+            CREATE TYPE test::AliasType09 {
+                CREATE OPTIONAL SINGLE LINK a -> test::CreateAlias09;
+            }
+        """)
 
     async def test_edgeql_ddl_inheritance_alter_01(self):
         await self.con.execute(r"""
@@ -5545,7 +5620,37 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         ''')
 
         await self.con.execute('''
-            DROP SCALAR TYPE test::my_enum_3;
+            CREATE MODULE foo;
+            ALTER SCALAR TYPE test::my_enum_3
+                RENAME TO foo::my_enum_4;
+        ''')
+
+        await self.con.execute('''
+            DROP SCALAR TYPE foo::my_enum_4;
+        ''')
+
+    async def test_edgeql_ddl_enum_02(self):
+        await self.con.execute('''
+            CREATE SCALAR TYPE test::my_enum EXTENDING enum<'foo', 'bar'>;
+        ''')
+
+        await self.con.execute('''
+            CREATE TYPE test::Obj {
+                CREATE PROPERTY e -> test::my_enum {
+                    SET default := <test::my_enum>'foo';
+                }
+            }
+        ''')
+
+        await self.con.execute('''
+            CREATE MODULE foo;
+            ALTER SCALAR TYPE test::my_enum
+                RENAME TO foo::my_enum_2;
+        ''')
+
+        await self.con.execute('''
+            DROP TYPE test::Obj;
+            DROP SCALAR TYPE foo::my_enum_2;
         ''')
 
     async def test_edgeql_ddl_explicit_id(self):

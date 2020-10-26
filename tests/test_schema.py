@@ -4162,6 +4162,114 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             alias Alias3 := Remark { command := .remark ++ "!" };
         """])
 
+    def test_schema_migrations_equivalence_rename_alias_01(self):
+        self._assert_migration_equivalence([r"""
+            type Note {
+                required property note -> str;
+            };
+            alias Alias1 := Note;
+            alias Alias2 := (SELECT Note.note);
+            alias Alias3 := Note { command := .note ++ "!" };
+
+            type Foo {
+                link a -> Alias1;
+            };
+        """, r"""
+            type Note {
+                required property note -> str;
+            };
+            alias Blias1 := Note;
+            alias Blias2 := (SELECT Note.note);
+            alias Blias3 := Note { command := .note ++ "!" };
+
+            type Foo {
+                link a -> Blias1;
+            };
+        """])
+
+    @test.xfail('''Trips a SchemaError''')
+    def test_schema_migrations_equivalence_rename_alias_02(self):
+        self._assert_migration_equivalence([r"""
+            type Note {
+                required property note -> str;
+            };
+            alias Alias2 := (SELECT Note.note);
+
+            type Foo {
+                multi property b -> str {
+                    default := (SELECT Alias2 LIMIT 1);
+                }
+            };
+        """, r"""
+            type Note {
+                required property note -> str;
+            };
+            alias Blias2 := (SELECT Note.note);
+
+            type Foo {
+                multi property b -> str {
+                    default := (SELECT Blias2 LIMIT 1);
+                }
+            };
+        """])
+
+    def test_schema_migrations_equivalence_rename_annot_01(self):
+        self._assert_migration_equivalence([r"""
+            abstract annotation foo;
+
+            type Object1 {
+                annotation foo := 'bar';
+            };
+        """, r"""
+            abstract annotation bar;
+
+            type Object1 {
+                annotation bar := 'bar';
+            };
+        """])
+
+    @test.xfail('''
+      object type 'default::Bar' does not exist
+    ''')
+    def test_schema_migrations_equivalence_rename_type_01(self):
+        self._assert_migration_equivalence([r"""
+            type Foo;
+            type Baz {
+                link a -> Foo;
+            }
+        """, r"""
+            type Bar;
+            type Baz {
+                link a -> Bar;
+            }
+        """])
+
+    def test_schema_migrations_equivalence_rename_enum_01(self):
+        self._assert_migration_equivalence([r"""
+            scalar type foo extending enum<'foo', 'bar'>;
+            type Baz {
+                property a -> foo;
+            }
+        """, r"""
+            scalar type bar extending enum<'foo', 'bar'>;
+            type Baz {
+                property a -> bar;
+            }
+        """])
+
+    def test_schema_migrations_equivalence_rename_scalar_01(self):
+        self._assert_migration_equivalence([r"""
+            scalar type foo extending str;
+            type Baz {
+                property a -> foo;
+            }
+        """, r"""
+            scalar type bar extending str;
+            type Baz {
+                property a -> bar;
+            }
+        """])
+
 
 class TestDescribe(tb.BaseSchemaLoadTest):
     """Test the DESCRIBE command."""
