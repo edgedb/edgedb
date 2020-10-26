@@ -130,8 +130,10 @@ class flags(metaclass=FlagsMeta):
         doc="Always use generated DDL when running migrations.")
 
     disable_docs_edgeql_validation = Flag(
-        doc="Disable validation of edgeql in docs (for site build)"
-    )
+        doc="Disable validation of edgeql in docs (for site build)")
+
+    parallelize_tests_better = Flag(
+        doc="Improve test run parallelization by making copies of test dbs")
 
 
 @contextlib.contextmanager

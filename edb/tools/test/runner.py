@@ -46,6 +46,7 @@ import click
 import edgedb
 
 from edb.common import devmode
+from edb.common import debug
 from edb.testbase import server as tb
 
 from . import mproc_fixes
@@ -918,12 +919,17 @@ class ParallelTextTestRunner:
         return result
 
     def _sort_tests(self, cases):
+        if debug.flags.parallelize_tests_better:
+            non_parallelizable = ('system',)
+        else:
+            non_parallelizable = ('system', 'database',)
+
         serialized_suites = {
             casecls: unittest.TestSuite(tests)
             for casecls, tests in cases.items()
             if (
                 (gg := getattr(casecls, 'get_parallelism_granularity', None))
-                and gg() == 'system'
+                and gg() in non_parallelizable
             )
         }
 

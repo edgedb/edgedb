@@ -51,6 +51,7 @@ from edb.edgeql import quote as qlquote
 from edb.server import cluster as edgedb_cluster
 from edb.server import defines as edgedb_defines
 
+from edb.common import debug
 from edb.common import taskgroup
 
 from edb.testbase import serutils
@@ -818,6 +819,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
         return (
             os.environ.get('EDGEDB_TEST_PARALLEL')
             and cls.get_parallelism_granularity() == 'database'
+            and debug.flags.parallelize_tests_better
         )
 
     @classmethod
