@@ -1891,8 +1891,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         )
 
     @test.xfail('''
-        edgedb.errors.InternalServerError: missing AlterObject
-        implementation for Parameter
+        We drop and create a new constraint but would prefer to
+        rename it directly.
     ''')
     async def test_edgeql_migration_describe_constraint_01(self):
         # Migration that renames a constraint.
@@ -1926,16 +1926,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             },
         })
 
-    @test.xfail('''
-        edgedb.errors.SchemaError: Parameter
-        'test::__subject__@test|my_one_of' is already present in the
-        schema <Schema gen:3726 at 0x7ff99249ffd0>
-
-        Exception: Error while processing
-        'CREATE ABSTRACT CONSTRAINT test::my_one_of(one_of: array<anytype>) {
-            USING (std::contains(one_of, __subject__));
-        };'
-    ''')
     async def test_edgeql_migration_describe_constraint_02(self):
         # Migration that creates a constraint.
         await self.con.execute('''

@@ -553,8 +553,10 @@ class ConstraintCommand(
             modaliases.update(
                 cls._modaliases_from_ast(schema, astnode, context))
             # Get the original constraint.
+            name = (sn.Name(objref.name, module=objref.module)
+                    if objref.module else objref.name)
             constr = schema.get(
-                objref.name,
+                name,
                 module_aliases=modaliases,
                 type=Constraint,
             )
@@ -1107,8 +1109,41 @@ class CreateConstraint(
             return super()._classbases_from_ast(schema, astnode, context)
 
 
-class RenameConstraint(ConstraintCommand, sd.RenameObject[Constraint]):
-    pass
+class RenameConstraint(
+    ConstraintCommand, s_func.RenameCallableObject[Constraint]
+):
+    def _canonicalize(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        scls: so.Object,
+    ) -> List[sd.Command]:
+        assert isinstance(scls, Constraint)
+        commands = list(super()._canonicalize(schema, context, scls))
+
+        # Don't do anything for concrete constraints
+        if not scls.get_is_abstract(schema):
+            return commands
+
+        # Concrete constraints are children of abstract constraints
+        # and have names derived from the abstract constraints. We
+        # unfortunately need to go update their names.
+        children = scls.children(schema)
+        for ref in children:
+            if ref.get_is_abstract(schema):
+                continue
+
+            ref_name = ref.get_name(schema)
+            quals = list(sn.quals_from_fullname(ref_name))
+            new_ref_name = sn.Name(
+                name=sn.get_specialized_name(self.new_name, *quals),
+                module=sn.Name(ref_name).module,
+            )
+            commands.append(
+                self._canonicalize_ref_rename(
+                    ref, ref_name, new_ref_name, schema, context, scls))
+
+        return commands
 
 
 class AlterConstraintOwned(
