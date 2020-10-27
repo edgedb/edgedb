@@ -782,7 +782,7 @@ async def _configure(
 
         for setting, value in settings.items():
             scripts.append(f'''
-                CONFIGURE SYSTEM SET {setting} := {value};
+                CONFIGURE SYSTEM SET {setting} := {value.value};
             ''')
     else:
         settings = {}
