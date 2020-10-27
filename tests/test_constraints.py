@@ -1094,10 +1094,11 @@ class TestConstraintsDDL(tb.DDLTestCase):
             RENAME TO test::mymax6;
         """)
 
-        with self.assertRaises(edgedb.ConstraintViolationError):
-            await self.con.execute(r"""
-                INSERT test::ConstraintTest10 { foo := 4 }
-            """)
+        async with self._run_and_rollback():
+            with self.assertRaises(edgedb.ConstraintViolationError):
+                await self.con.execute(r"""
+                    INSERT test::ConstraintTest10 { foo := 4 }
+                """)
 
         await self.con.execute(r"""
             CREATE MODULE foo IF NOT EXISTS;
