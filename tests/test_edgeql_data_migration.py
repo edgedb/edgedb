@@ -1891,8 +1891,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         )
 
     @test.xfail('''
-        edgedb.errors.InternalServerError: missing AlterObject
-        implementation for Parameter
+        We drop and create a new constraint but would prefer to
+        rename it directly.
     ''')
     async def test_edgeql_migration_describe_constraint_01(self):
         # Migration that renames a constraint.
