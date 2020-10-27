@@ -4543,6 +4543,64 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             DROP ABSTRACT LINK foo::new_abs_link2;
         """)
 
+    async def test_edgeql_ddl_rename_abs_ptr_02(self):
+        await self.con.execute("""
+            CREATE ABSTRACT PROPERTY test::abs_prop {
+                CREATE ANNOTATION title := "lol";
+            };
+
+            CREATE TYPE test::RenameObj {
+                CREATE PROPERTY prop EXTENDING test::abs_prop -> str;
+            };
+        """)
+
+        await self.con.execute("""
+            ALTER ABSTRACT PROPERTY test::abs_prop
+            RENAME TO test::new_abs_prop;
+        """)
+
+        # Check we can create a new type that uses it
+        await self.con.execute("""
+            CREATE TYPE test::RenameObj2 {
+                CREATE PROPERTY prop EXTENDING test::new_abs_prop -> str;
+            };
+        """)
+
+        # Check we can create a new prop with the same name
+        await self.con.execute("""
+            CREATE ABSTRACT PROPERTY test::abs_prop {
+                CREATE ANNOTATION title := "lol";
+            };
+        """)
+
+        await self.con.execute("""
+            CREATE MODULE foo;
+
+            ALTER ABSTRACT PROPERTY test::new_abs_prop
+            RENAME TO foo::new_abs_prop2;
+        """)
+
+        await self.con.execute("""
+            ALTER TYPE test::RenameObj DROP PROPERTY prop;
+            ALTER TYPE test::RenameObj2 DROP PROPERTY prop;
+            DROP ABSTRACT PROPERTY foo::new_abs_prop2;
+        """)
+
+    async def test_edgeql_ddl_rename_annotated_01(self):
+        await self.con.execute("""
+            CREATE TYPE test::RenameObj {
+                CREATE PROPERTY prop -> str {
+                   CREATE ANNOTATION title := "lol";
+                }
+            };
+        """)
+
+        await self.con.execute("""
+            ALTER TYPE test::RenameObj {
+                ALTER PROPERTY prop RENAME TO prop2;
+            };
+        """)
+
     async def test_edgeql_ddl_delete_abs_link_01(self):
         # test deleting a trivial abstract link
         await self.con.execute("""

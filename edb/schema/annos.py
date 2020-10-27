@@ -394,6 +394,13 @@ class RebaseAnnotationValue(
     pass
 
 
+class RenameAnnotationValue(
+    AnnotationValueCommand,
+    referencing.RenameReferencedInheritingObject[AnnotationValue],
+):
+    pass
+
+
 class DeleteAnnotationValue(
     AnnotationValueCommand,
     referencing.DeleteReferencedInheritingObject[AnnotationValue],

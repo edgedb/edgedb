@@ -4314,6 +4314,25 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
+    def test_schema_migrations_equivalence_rename_abs_ptr_02(self):
+        self._assert_migration_equivalence([r"""
+            abstract property abs_prop {
+                annotation title := "lol";
+            };
+
+            type RenameObj {
+                property prop EXTENDING abs_prop -> str;
+            };
+        """, r"""
+            abstract property new_abs_prop {
+                annotation title := "lol";
+            };
+
+            type RenameObj {
+                property prop EXTENDING new_abs_prop -> str;
+            };
+        """])
+
 
 class TestDescribe(tb.BaseSchemaLoadTest):
     """Test the DESCRIBE command."""
