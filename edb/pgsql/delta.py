@@ -2646,6 +2646,10 @@ class DeleteLink(LinkMetaCommand, adapts=s_links.DeleteLink):
             self.attach_alter_table(context)
 
         self.pgops.add(
+            self.drop_inhview(orig_schema, context, link, drop_ancestors=True)
+        )
+
+        self.pgops.add(
             dbops.DropTable(
                 name=old_table_name,
                 priority=1,

@@ -4291,6 +4291,29 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
+    def test_schema_migrations_equivalence_rename_abs_ptr_01(self):
+        self._assert_migration_equivalence([r"""
+            abstract link abs_link {
+                property prop -> int64;
+            };
+
+            type LinkedObj;
+            type RenameObj {
+                multi link link EXTENDING abs_link
+                    -> LinkedObj;
+            };
+        """, r"""
+            abstract link new_abs_link {
+                property prop -> int64;
+            };
+
+            type LinkedObj;
+            type RenameObj {
+                multi link link EXTENDING new_abs_link
+                    -> LinkedObj;
+            };
+        """])
+
 
 class TestDescribe(tb.BaseSchemaLoadTest):
     """Test the DESCRIBE command."""
