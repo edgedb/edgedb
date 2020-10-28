@@ -103,15 +103,24 @@ from :eql:type:`str` and :eql:type:`json`.
         db> SELECT 42n IS bigint;
         {true}
 
-    Note that a float literal followed by ‘n’ produces a
-    :eql:type:`decimal`:
+    To represent really big integers it is possible to use the
+    exponent notation (e.g. ``1e20n`` instead of ``100000000000000000000n``)
+    as long as the exponent is positive and there is no dot anywhere.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT 1e+100n IS bigint;
+        {true}
+
+    When a float literal is followed by ‘n’ it produces a
+    :eql:type:`decimal` instead:
 
     .. code-block:: edgeql-repl
 
         db> SELECT 1.23n IS decimal;
         {true}
 
-        db> SELECT 1e+100n IS decimal;
+        db> SELECT 1.0e+100n IS decimal;
         {true}
 
     .. note::
@@ -156,15 +165,19 @@ from :eql:type:`str` and :eql:type:`json`.
         db> SELECT 1.23n IS decimal;
         {true}
 
-        db> SELECT 1e+100n IS decimal;
+        db> SELECT 1.0e+100n IS decimal;
         {true}
 
-    Note that an integer literal (without a dot or exponent) followed by 'n'
-    produces a :eql:type:`bigint`:
+    Note that an integer literal (without a dot or exponent) followed
+    by ‘n’ produces a :eql:type:`bigint`. A literal without a dot
+    and with a positive exponent makes a :eql:type:`bigint`, too:
 
     .. code-block:: edgeql-repl
 
         db> SELECT 42n IS bigint;
+        {true}
+
+        db> SELECT 12e+34n IS bigint;
         {true}
 
     .. note::
