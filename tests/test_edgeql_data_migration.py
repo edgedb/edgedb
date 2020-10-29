@@ -1057,9 +1057,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             'field02': None,
         }])
 
-    @test.xfail('''
-        In the final migration DESCRIBE generates "RENAME TO foo01;" twice
-    ''')
     async def test_edgeql_migration_describe_link_01(self):
         # Migration that renames a link.
         await self.con.execute(r'''
@@ -2071,6 +2068,33 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             await self.con.execute(r"""
                 SELECT <test::my_str>'my';
             """)
+
+    async def test_edgeql_migration_describe_abs_ptr_01(self):
+        await self.migrate('''
+            abstract link abs_link;
+        ''')
+
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    abstract link new_abs_link;
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': (
+                        'ALTER ABSTRACT LINK test::abs_link '
+                        'RENAME TO test::new_abs_link;'
+                    )
+                }],
+                'confidence': 1.0,
+            },
+        })
 
     @test.xfail('''
         Function rename DESCRIBE fails with:

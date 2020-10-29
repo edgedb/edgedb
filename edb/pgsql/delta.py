@@ -1011,6 +1011,12 @@ class AlterAnnotationValue(
     pass
 
 
+class RenameAnnotationValue(
+        AnnotationValueCommand, RenameObject,
+        adapts=s_anno.RenameAnnotationValue):
+    pass
+
+
 class RebaseAnnotationValue(
     AnnotationValueCommand,
     RebaseObject,
@@ -2644,6 +2650,10 @@ class DeleteLink(LinkMetaCommand, adapts=s_links.DeleteLink):
                     link, orig_schema, schema, context)
 
             self.attach_alter_table(context)
+
+        self.pgops.add(
+            self.drop_inhview(orig_schema, context, link, drop_ancestors=True)
+        )
 
         self.pgops.add(
             dbops.DropTable(

@@ -216,7 +216,11 @@ class LinkCommand(lproperties.PropertySourceCommand,
     ) -> None:
         if issubclass(refdict.ref_cls, pointers.Pointer):
             for op in self.get_subcommands(metaclass=refdict.ref_cls):
-                if isinstance(op, pointers.PointerCommand):
+                if (
+                    isinstance(op, pointers.PointerCommand)
+                    and op.classname != self.classname
+
+                ):
                     pname = sn.shortname_from_fullname(op.classname)
                     if pname.name not in {'source', 'target'}:
                         self._append_subcmd_ast(schema, node, op, context)
