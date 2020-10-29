@@ -540,15 +540,13 @@ def _trace_op(
         graph_key = op.classname
 
     elif isinstance(op, sd.AlterObjectProperty):
-        if isinstance(op.new_value, so.Object):
-            new_value_name = op.new_value.get_name(new_schema)
-            deps.add(('create', new_value_name))
-            deps.add(('alter', new_value_name))
-        elif isinstance(op.new_value, so.ObjectShell):
+        if isinstance(op.new_value, (so.Object, so.ObjectShell)):
             nvn = op.new_value.get_name(new_schema)
             if nvn is not None:
                 deps.add(('create', nvn))
                 deps.add(('alter', nvn))
+                if nvn in renames_r:
+                    deps.add(('rename', renames_r[nvn]))
 
         parent_op = opbranch[-2]
         assert isinstance(parent_op, sd.ObjectCommand)
@@ -631,6 +629,7 @@ def _trace_op(
 
             item['deps'].add(('create', op.classname))
             item['deps'].add(('alter', op.classname))
+            item['deps'].add(('rename', op.classname))
 
             try:
                 item = depgraph[('rename', ref_name)]

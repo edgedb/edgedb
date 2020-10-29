@@ -7409,3 +7409,78 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             'SELECT (SELECT schema::Module FILTER .name LIKE "%test").name;',
             ['newtest']
         )
+
+    async def test_edgeql_migration_rename_type_02(self):
+        await self.migrate(r"""
+            type Note {
+                property note -> str;
+            }
+            type Subtype extending Note;
+            type Link {
+                link a -> Note;
+            }
+            type Uses {
+                required property x -> str {
+                    default := (SELECT Note.note LIMIT 1)
+                }
+            };
+            type ComputeLink {
+                property foo -> str;
+                multi link x := (
+                    SELECT Note FILTER Note.note = ComputeLink.foo);
+            };
+            alias Alias := Note;
+        """)
+
+        await self.migrate(r"""
+            type Remark {
+                property note -> str;
+            }
+            type Subtype extending Remark;
+            type Link {
+                link a -> Remark;
+            }
+            type Uses {
+                required property x -> str {
+                    default := (SELECT Remark.note LIMIT 1)
+                }
+            };
+            type ComputeLink {
+                property foo -> str;
+                multi link x := (
+                    SELECT Remark FILTER Remark.note = ComputeLink.foo);
+            };
+            alias Alias := Remark;
+        """)
+
+        await self.migrate("")
+
+    async def test_edgeql_migration_rename_type_03(self):
+        await self.migrate(r"""
+            type Note {
+                property note -> str;
+            }
+        """)
+
+        await self.migrate(r"""
+            type Remark {
+                property note -> str;
+            }
+            type Subtype extending Remark;
+            type Link {
+                link a -> Remark;
+            }
+            type Uses {
+                required property x -> str {
+                    default := (SELECT Remark.note LIMIT 1)
+                }
+            };
+            type ComputeLink {
+                property foo -> str;
+                multi link x := (
+                    SELECT Remark FILTER Remark.note = ComputeLink.foo);
+            };
+            alias Alias := Remark;
+        """)
+
+        await self.migrate("")
