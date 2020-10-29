@@ -23,6 +23,7 @@ from typing import *
 import builtins
 import collections
 import collections.abc
+import copy
 import enum
 import functools
 import uuid
@@ -394,6 +395,8 @@ class SchemaField(Field[Type_T]):
     hashable: bool
     #: Whether it's possible to set the field in DDL.
     allow_ddl_set: bool
+    #: Field index within the object data tuple
+    index: int
 
     def __init__(
         self,
@@ -408,6 +411,7 @@ class SchemaField(Field[Type_T]):
         self.default = default
         self.hashable = hashable
         self.allow_ddl_set = allow_ddl_set
+        self.index = -1
 
     @property
     def required(self) -> bool:
@@ -483,12 +487,13 @@ class ObjectMeta(type):
 
     # Instance fields (i.e. class fields on types built with ObjectMeta)
     _fields: Dict[str, Field[Any]]
+    _schema_fields: Dict[str, SchemaField[Any]]
     _hashable_fields: Set[Field[Any]]  # if f.is_schema_field and f.hashable
     _sorted_fields: collections.OrderedDict[str, Field[Any]]
     #: Fields that contain references to objects either directly or
     #: indirectly.
-    _objref_fields: FrozenSet[Field[Any]]
-    _reducible_fields: FrozenSet[Field[Any]]
+    _objref_fields: FrozenSet[SchemaField[Any]]
+    _reducible_fields: FrozenSet[SchemaField[Any]]
     _refdicts: collections.OrderedDict[str, RefDict]
     _refdicts_by_refclass: Dict[type, RefDict]
     _refdicts_by_field: Dict[str, RefDict]  # key is rd.attr
@@ -534,68 +539,6 @@ class ObjectMeta(type):
             myfields[k] = field
             del clsdict[k]
 
-            if isinstance(field, SchemaField):
-                getter_name = f'get_{field.name}'
-                if getter_name in clsdict:
-                    # The getter was defined explicitly, move on.
-                    continue
-
-                ftype = field.type
-                # The field getters are hot code as they're essentially
-                # attribute access, so be mindful about what you are adding
-                # into the callables below.
-                if issubclass(ftype, s_abc.Reducible):
-                    def reducible_getter(
-                        self: Any,
-                        schema: s_schema.Schema,
-                        *,
-                        _f: SchemaField[Any] = field,
-                        _fn: str = field.name,
-                        _sr: Callable[[Any], s_abc.Reducible] = (
-                            ftype.schema_restore
-                        ),
-                    ) -> Any:
-                        data = schema.get_obj_data_raw(self.id)
-                        v = data.get(_fn)
-                        if v is not None:
-                            return _sr(v)
-                        else:
-                            try:
-                                return _f.get_default()
-                            except ValueError:
-                                pass
-
-                            raise FieldValueNotFoundError(
-                                f'{self!r} object has no value '
-                                f'for field {_fn!r}'
-                            )
-
-                    clsdict[getter_name] = reducible_getter
-                else:
-                    def regular_getter(
-                        self: Any,
-                        schema: s_schema.Schema,
-                        *,
-                        _f: SchemaField[Any] = field,
-                        _fn: str = field.name,
-                    ) -> Any:
-                        data = schema.get_obj_data_raw(self.id)
-                        v = data.get(_fn)
-                        if v is not None:
-                            return v
-                        else:
-                            try:
-                                return _f.get_default()
-                            except ValueError:
-                                pass
-
-                            raise FieldValueNotFoundError(
-                                f'{self!r} object has no value '
-                                f'for field {_fn!r}'
-                            )
-
-                    clsdict[getter_name] = regular_getter
-
         try:
             cls = cast(ObjectMeta, super().__new__(mcls, name, bases, clsdict))
         except TypeError as ex:
@@ -607,26 +550,102 @@ class ObjectMeta(type):
                 fields.update(myfields)
                 refdicts.update(mydicts)
             elif isinstance(parent, ObjectMeta):
-                fields.update(parent.get_ownfields())
-                refdicts.update({k: d.copy()
-                                for k, d in parent.get_own_refdicts().items()})
+                fields.update({
+                    fn: copy.copy(f)
+                    for fn, f in parent.get_ownfields().items()
+                })
+                refdicts.update({
+                    k: d.copy()
+                    for k, d in parent.get_own_refdicts().items()
+                })
 
         cls._fields = fields
-        cls._hashable_fields = {f for f in fields.values()
-                                if isinstance(f, SchemaField) and f.hashable}
+        cls._schema_fields = {
+            fn: f for fn, f in fields.items()
+            if isinstance(f, SchemaField)
+        }
+        cls._hashable_fields = {
+            f for f in cls._schema_fields.values()
+            if f.hashable
+        }
         cls._sorted_fields = collections.OrderedDict(
             sorted(fields.items(), key=lambda e: e[0]))
         cls._objref_fields = frozenset(
-            f for f in cls._fields.values()
+            f for f in cls._schema_fields.values()
             if issubclass(f.type, ObjectContainer)
         )
         cls._reducible_fields = frozenset(
-            f for f in cls._fields.values()
+            f for f in cls._schema_fields.values()
             if issubclass(f.type, s_abc.Reducible)
         )
 
         fa = '{}.{}_fields'.format(cls.__module__, cls.__name__)
         setattr(cls, fa, myfields)
+
+        for findex, field in enumerate(cls._schema_fields.values()):
+            field.index = findex
+            getter_name = f'get_{field.name}'
+            if getter_name in clsdict:
+                # The getter was defined explicitly, move on.
+                continue
+
+            ftype = field.type
+            # The field getters are hot code as they're essentially
+            # attribute access, so be mindful about what you are adding
+            # into the callables below.
+            if issubclass(ftype, s_abc.Reducible):
+                def reducible_getter(
+                    self: Any,
+                    schema: s_schema.Schema,
+                    *,
+                    _f: SchemaField[Any] = field,
+                    _fn: str = field.name,
+                    _fi: int = findex,
+                    _sr: Callable[[Any], s_abc.Reducible] = (
+                        ftype.schema_restore
+                    ),
+                ) -> Any:
+                    data = schema.get_obj_data_raw(self.id)
+                    v = data[_fi]
+                    if v is not None:
+                        return _sr(v)
+                    else:
+                        try:
+                            return _f.get_default()
+                        except ValueError:
+                            pass
+
+                        raise FieldValueNotFoundError(
+                            f'{self!r} object has no value '
+                            f'for field {_fn!r}'
+                        )
+
+                setattr(cls, getter_name, reducible_getter)
+            else:
+                def regular_getter(
+                    self: Any,
+                    schema: s_schema.Schema,
+                    *,
+                    _f: SchemaField[Any] = field,
+                    _fn: str = field.name,
+                    _fi: int = findex,
+                ) -> Any:
+                    data = schema.get_obj_data_raw(self.id)
+                    v = data[_fi]
+                    if v is not None:
+                        return v
+                    else:
+                        try:
+                            return _f.get_default()
+                        except ValueError:
+                            pass
+
+                        raise FieldValueNotFoundError(
+                            f'{self!r} object has no value '
+                            f'for field {_fn!r}'
+                        )
+
+                setattr(cls, getter_name, regular_getter)
 
         non_schema_fields = {field.name for field in fields.values()
                              if not field.is_schema_field}
@@ -695,10 +714,10 @@ class ObjectMeta(type):
 
         return cls
 
-    def get_object_reference_fields(cls) -> FrozenSet[Field[Any]]:
+    def get_object_reference_fields(cls) -> FrozenSet[SchemaField[Any]]:
         return cls._objref_fields
 
-    def get_reducible_fields(cls) -> FrozenSet[Field[Any]]:
+    def get_reducible_fields(cls) -> FrozenSet[SchemaField[Any]]:
         return cls._reducible_fields
 
     def has_field(cls, name: str) -> bool:
@@ -714,6 +733,17 @@ class ObjectMeta(type):
 
     def get_fields(cls, sorted: bool = False) -> Mapping[str, Field[Any]]:
         return cls._sorted_fields if sorted else cls._fields
+
+    def get_schema_field(cls, name: str) -> SchemaField[Any]:
+        field = cls._schema_fields.get(name)
+        if field is None:
+            raise LookupError(
+                f'schema class {cls.__name__!r} has no schema field {name!r}'
+            )
+        return field
+
+    def get_schema_fields(cls) -> Mapping[str, SchemaField[Any]]:
+        return cls._schema_fields
 
     def get_ownfields(cls) -> Mapping[str, Field[Any]]:
         return getattr(  # type: ignore
@@ -954,26 +984,16 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         if not data.get('name'):
             raise RuntimeError(f'cannot create {cls} without a name')
 
-        obj_data = {}
+        all_fields = cls.get_schema_fields()
+        obj_data = [None] * len(all_fields)
         for field_name, value in data.items():
-            try:
-                field = cls._fields[field_name]
-            except KeyError:
-                raise TypeError(
-                    f'type {cls.__name__} has no schema field for '
-                    f'keyword argument {field_name!r}') from None
-
-            assert isinstance(field, SchemaField)
-
+            field = cls.get_schema_field(field_name)
             value = field.coerce_value(schema, value)
-            if value is None:
-                continue
-
-            obj_data[field_name] = value
+            obj_data[field.index] = value
 
         id = cls._prepare_id(id, data)
         scls = cls._create_from_id(id)
-        schema = schema.add(id, cls, obj_data)
+        schema = schema.add(id, cls, tuple(obj_data))
 
         return schema, scls
 
@@ -987,9 +1007,9 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
     ) -> Any:
         field = type(self).get_field(field_name)
 
-        if field.is_schema_field:
+        if isinstance(field, SchemaField):
             data = schema.get_obj_data_raw(self.id)
-            val = data.get(field_name)
+            val = data[field.index]
             if val is not None:
                 if field.is_reducible:
                     return field.type.schema_restore(val)
@@ -1017,9 +1037,9 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
     ) -> Any:
         field = type(self).get_field(field_name)
 
-        if field.is_schema_field:
+        if isinstance(field, SchemaField):
             data = schema.get_obj_data_raw(self.id)
-            val = data.get(field_name)
+            val = data[field.index]
             if val is not None:
                 if field.is_reducible:
                     return field.type.schema_restore(val)

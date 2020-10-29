@@ -66,7 +66,7 @@ class Schema(abc.ABC):
         self: Schema_T,
         id: uuid.UUID,
         sclass: Type[so.Object],
-        data: Mapping[str, Any],
+        data: Tuple[Any, ...],
     ) -> Schema_T:
         raise NotImplementedError
 
@@ -75,7 +75,7 @@ class Schema(abc.ABC):
         self: Schema_T,
         id: uuid.UUID,
         sclass: Type[so.Object],
-        data: Mapping[str, Any],
+        data: Tuple[Any, ...],
     ) -> Schema_T:
         raise NotImplementedError
 
@@ -99,14 +99,14 @@ class Schema(abc.ABC):
     def maybe_get_obj_data_raw(
         self,
         obj_id: uuid.UUID,
-    ) -> Optional[immu.Map[str, Any]]:
+    ) -> Optional[Tuple[Any, ...]]:
         raise NotImplementedError
 
     @abc.abstractmethod
     def get_obj_data_raw(
         self,
         obj_id: uuid.UUID,
-    ) -> immu.Map[str, Any]:
+    ) -> Tuple[Any, ...]:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -412,7 +412,7 @@ class Schema(abc.ABC):
 
 class FlatSchema(Schema):
 
-    _id_to_data: immu.Map[uuid.UUID, immu.Map[str, Any]]
+    _id_to_data: immu.Map[uuid.UUID, Tuple[Any, ...]]
     _id_to_type: immu.Map[uuid.UUID, str]
     _name_to_id: immu.Map[str, uuid.UUID]
     _shortname_to_id: immu.Map[
@@ -435,7 +435,7 @@ class FlatSchema(Schema):
     def _replace(
         self,
         *,
-        id_to_data: Optional[immu.Map[uuid.UUID, immu.Map[str, Any]]] = None,
+        id_to_data: Optional[immu.Map[uuid.UUID, Tuple[Any, ...]]] = None,
         id_to_type: Optional[immu.Map[uuid.UUID, str]] = None,
         name_to_id: Optional[immu.Map[str, uuid.UUID]] = None,
         shortname_to_id: Optional[
@@ -563,14 +563,15 @@ class FlatSchema(Schema):
         if not updates:
             return self
 
-        try:
-            data = self._id_to_data[obj_id]
-        except KeyError:
-            data = immu.Map()
-
         sclass = so.ObjectMeta.get_schema_class(self._id_to_type[obj_id])
+        all_fields = sclass.get_schema_fields()
         object_ref_fields = sclass.get_object_reference_fields()
         reducible_fields = sclass.get_reducible_fields()
+
+        try:
+            data = list(self._id_to_data[obj_id])
+        except KeyError:
+            data = [None] * len(all_fields)
 
         name_to_id = None
         shortname_to_id = None
@@ -578,38 +579,36 @@ class FlatSchema(Schema):
         orig_refs = {}
         new_refs = {}
 
-        with data.mutate() as mm:
-            for fieldname, value in updates.items():
-                if fieldname == 'name':
-                    name_to_id, shortname_to_id, globalname_to_id = (
-                        self._update_obj_name(
-                            obj_id,
-                            sclass,
-                            mm.get('name'),
-                            value
-                        )
+        for fieldname, value in updates.items():
+            field = all_fields[fieldname]
+            findex = field.index
+            if fieldname == 'name':
+                name_to_id, shortname_to_id, globalname_to_id = (
+                    self._update_obj_name(
+                        obj_id,
+                        sclass,
+                        data[findex],
+                        value
                     )
+                )
 
-                if value is None:
-                    mm.pop(fieldname, None)
-                else:
-                    field = sclass.get_field(fieldname)
-                    if field in reducible_fields:
-                        value = value.schema_reduce()
-                        if field in object_ref_fields:
-                            new_refs[fieldname] = (
-                                field.type.schema_refs_from_data(value))
-                            orig_value = mm.get(fieldname)
-                            if orig_value is not None:
-                                orig_refs[fieldname] = (
-                                    field.type.schema_refs_from_data(
-                                        orig_value))
+            if value is None:
+                data[findex] = None
+            else:
+                if field in reducible_fields:
+                    value = value.schema_reduce()
+                    if field in object_ref_fields:
+                        new_refs[fieldname] = (
+                            field.type.schema_refs_from_data(value))
+                        orig_value = data[findex]
+                        if orig_value is not None:
+                            orig_refs[fieldname] = (
+                                field.type.schema_refs_from_data(
+                                    orig_value))
 
-                    mm[fieldname] = value
+                data[findex] = value
 
-            new_data = mm.finish()
-
-        id_to_data = self._id_to_data.set(obj_id, new_data)
+        id_to_data = self._id_to_data.set(obj_id, tuple(data))
         refs_to = self._update_refs_to(obj_id, sclass, orig_refs, new_refs)
 
         return self._replace(name_to_id=name_to_id,
@@ -621,13 +620,13 @@ class FlatSchema(Schema):
     def maybe_get_obj_data_raw(
         self,
         obj_id: uuid.UUID,
-    ) -> Optional[immu.Map[str, Any]]:
+    ) -> Optional[Tuple[Any, ...]]:
         return self._id_to_data.get(obj_id)
 
     def get_obj_data_raw(
         self,
         obj_id: uuid.UUID,
-    ) -> immu.Map[str, Any]:
+    ) -> Tuple[Any, ...]:
         try:
             d = self._id_to_data[obj_id]
         except KeyError:
@@ -652,7 +651,8 @@ class FlatSchema(Schema):
 
         sclass = so.ObjectMeta.get_schema_class(self._id_to_type[obj_id])
 
-        field = sclass.get_field(fieldname)
+        field = sclass.get_schema_field(fieldname)
+        findex = field.index
         is_object_ref = field in sclass.get_object_reference_fields()
 
         if field in sclass.get_reducible_fields():
@@ -662,18 +662,21 @@ class FlatSchema(Schema):
         shortname_to_id = None
         globalname_to_id = None
         if fieldname == 'name':
-            old_name = data.get('name')
+            old_name = data[findex]
             name_to_id, shortname_to_id, globalname_to_id = (
                 self._update_obj_name(obj_id, sclass, old_name, value)
             )
 
-        new_data = data.set(fieldname, value)
+        data_list = list(data)
+        data_list[findex] = value
+        new_data = tuple(data_list)
+
         id_to_data = self._id_to_data.set(obj_id, new_data)
 
         if not is_object_ref:
             refs_to = None
         else:
-            orig_value = data.get(fieldname)
+            orig_value = data[findex]
             if orig_value is not None:
                 orig_refs = {
                     fieldname: field.type.schema_refs_from_data(orig_value),
@@ -703,34 +706,37 @@ class FlatSchema(Schema):
             return self
 
         sclass = so.ObjectMeta.get_schema_class(self._id_to_type[obj_id])
+        field = sclass.get_schema_field(fieldname)
+        findex = field.index
+
         name_to_id = None
         shortname_to_id = None
         globalname_to_id = None
-        name = data.get('name')
-        if fieldname == 'name' and name is not None:
+        orig_value = data[findex]
+
+        if orig_value is None:
+            return self
+
+        if fieldname == 'name':
             name_to_id, shortname_to_id, globalname_to_id = (
                 self._update_obj_name(
                     obj_id,
                     sclass,
-                    name,
+                    orig_value,
                     None
                 )
             )
-            new_data = data.delete(fieldname)
-        else:
-            try:
-                new_data = data.delete(fieldname)
-            except KeyError:
-                return self
 
-        field = sclass.get_field(fieldname)
+        data_list = list(data)
+        data_list[findex] = None
+        new_data = tuple(data_list)
+
         id_to_data = self._id_to_data.set(obj_id, new_data)
         is_object_ref = field in sclass.get_object_reference_fields()
 
         if not is_object_ref:
             refs_to = None
         else:
-            orig_value = data[fieldname]
             orig_refs = {
                 fieldname: field.type.schema_refs_from_data(orig_value),
             }
@@ -817,9 +823,10 @@ class FlatSchema(Schema):
         self,
         id: uuid.UUID,
         sclass: Type[so.Object],
-        data: Mapping[str, Any],
+        data: Tuple[Any, ...],
     ) -> FlatSchema:
-        name = data['name']
+        name_field = sclass.get_schema_field('name')
+        name = data[name_field.index]
 
         if name in self._name_to_id:
             raise errors.SchemaError(
@@ -832,7 +839,7 @@ class FlatSchema(Schema):
         else:
             new_refs = {}
             for field in object_ref_fields:
-                ref = data.get(field.name)
+                ref = data[field.index]
                 if ref is not None:
                     ref = field.type.schema_refs_from_data(ref)
                     new_refs[field.name] = ref
@@ -840,8 +847,6 @@ class FlatSchema(Schema):
 
         name_to_id, shortname_to_id, globalname_to_id = self._update_obj_name(
             id, sclass, None, name)
-
-        data = immu.Map(data)
 
         updates = dict(
             id_to_data=self._id_to_data.set(id, data),
@@ -866,15 +871,16 @@ class FlatSchema(Schema):
         self,
         id: uuid.UUID,
         sclass: Type[so.Object],
-        data: Mapping[str, Any],
+        data: Tuple[Any, ...],
     ) -> FlatSchema:
         reducible_fields = sclass.get_reducible_fields()
         if reducible_fields:
-            data = dict(data)
+            data_list = list(data)
             for field in reducible_fields:
-                val = data.get(field.name)
+                val = data[field.index]
                 if val is not None:
-                    data[field.name] = val.schema_reduce()
+                    data_list[field.index] = val.schema_reduce()
+            data = tuple(data_list)
 
         return self.add_raw(id, sclass, data)
 
@@ -884,8 +890,9 @@ class FlatSchema(Schema):
             raise errors.InvalidReferenceError(
                 f'cannot delete {obj!r}: not in this schema')
 
-        name = data['name']
         sclass = type(obj)
+        name_field = sclass.get_schema_field('name')
+        name = data[name_field.index]
 
         updates = {}
 
@@ -899,7 +906,7 @@ class FlatSchema(Schema):
             values = self._id_to_data[obj.id]
             orig_refs = {}
             for field in object_ref_fields:
-                ref = values.get(field.name)
+                ref = values[field.index]
                 if ref is not None:
                     ref = field.type.schema_refs_from_data(ref)
                     orig_refs[field.name] = ref
@@ -1392,7 +1399,7 @@ class ChainedSchema(Schema):
         self,
         id: uuid.UUID,
         sclass: Type[so.Object],
-        data: Mapping[str, Any],
+        data: Tuple[Any, ...],
     ) -> ChainedSchema:
         return ChainedSchema(
             self._base_schema,
@@ -1403,7 +1410,7 @@ class ChainedSchema(Schema):
         self,
         id: uuid.UUID,
         sclass: Type[so.Object],
-        data: Mapping[str, Any],
+        data: Tuple[Any, ...],
     ) -> ChainedSchema:
         return ChainedSchema(
             self._base_schema,
@@ -1442,7 +1449,7 @@ class ChainedSchema(Schema):
     def maybe_get_obj_data_raw(
         self,
         obj_id: uuid.UUID,
-    ) -> Optional[immu.Map[str, Any]]:
+    ) -> Optional[Tuple[Any, ...]]:
         top = self._top_schema.maybe_get_obj_data_raw(obj_id)
         if top is not None:
             return top
@@ -1452,7 +1459,7 @@ class ChainedSchema(Schema):
     def get_obj_data_raw(
         self,
         obj_id: uuid.UUID,
-    ) -> immu.Map[str, Any]:
+    ) -> Tuple[Any, ...]:
         top = self._top_schema.maybe_get_obj_data_raw(obj_id)
         if top is not None:
             return top
