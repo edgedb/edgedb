@@ -23,16 +23,13 @@
 from __future__ import annotations
 from typing import *
 
-import base64
-import hashlib
-
 from edb import errors
 from edb.common import debug
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import codegen as qlcodegen
 from edb.edgeql import qltypes
-from edb._edgeql_rust import tokenize as qltokenize
+from edb._edgeql_rust import Hasher
 
 from . import abc as s_abc
 from . import delta as sd
@@ -132,24 +129,17 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
         else:
             parent_name = 'initial'
 
-        stmt_text = f'CREATE MIGRATION ONTO {parent_name}\n{{'
-
+        hasher = Hasher.start_migration(parent_name)
         if astnode.commands:
             ddl_text = ';\n'.join(
                 qlcodegen.generate_source(stmt)
                 for stmt in astnode.commands
             ) + ';'
+            hasher.add_source(ddl_text)
         else:
             ddl_text = ''
 
-        stmt_text += f'{ddl_text}\n}}'
-
-        tokenstream = b'\x00'.join(
-            token.text().encode('utf-8') for token in qltokenize(stmt_text)
-        )
-
-        hashsum = hashlib.sha256(tokenstream).digest()
-        name = f'm1{base64.b32encode(hashsum).decode().strip("=").lower()}'
+        name = hasher.make_migration_id()
 
         if specified_name is not None and name != specified_name:
             raise errors.SchemaDefinitionError(

@@ -6,6 +6,8 @@ authors = ["MagicStack Inc. <hello@magic.io>"]
 edition = "2018"
 
 [dependencies]
+base32 = "0.4.0"
+sha2 = "0.9.1"
 snafu = "0.6.0"
 combine = "4.0.0-beta.1"
 twoway = "0.2.1"
