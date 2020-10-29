@@ -2159,7 +2159,11 @@ class SysConfigFunction(dbops.Function):
             (s.value->>'typemod') AS typemod,
             (s.value->>'backend_setting') AS backend_setting
         FROM
-            jsonb_each(edgedbinstdata.__syscache_configspec()) AS s
+            jsonb_each(
+                (SELECT json
+                 FROM edgedbinstdata.instdata
+                 WHERE key = 'configspec')
+            ) AS s
     ),
 
     config_defaults AS (
