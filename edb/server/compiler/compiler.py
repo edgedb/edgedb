@@ -833,6 +833,10 @@ class Compiler(BaseCompiler):
                 mstate.target_schema,
                 guidance=mstate.guidance,
             )
+            if debug.flags.delta_plan:
+                debug.header('Populate Migration Diff')
+                debug.dump(diff, schema=schema)
+
             new_ddl = s_ddl.ddlast_from_delta(mstate.target_schema, diff)
             all_ddl = mstate.current_ddl + new_ddl
             if not mstate.current_ddl:

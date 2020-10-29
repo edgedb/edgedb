@@ -4228,9 +4228,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
-    @test.xfail('''
-      object type 'default::Bar' does not exist
-    ''')
     def test_schema_migrations_equivalence_rename_type_01(self):
         self._assert_migration_equivalence([r"""
             type Foo;
@@ -4242,6 +4239,73 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Baz {
                 link a -> Bar;
             }
+        """])
+
+    def test_schema_migrations_equivalence_rename_type_02(self):
+        self._assert_migration_equivalence([r"""
+            type Note {
+                property note -> str;
+            }
+            type Subtype extending Note;
+            type Link {
+                link a -> Note;
+            }
+            type Uses {
+                required property x -> str {
+                    default := (SELECT Note.note LIMIT 1)
+                }
+            };
+            type ComputeLink {
+                property foo -> str;
+                multi link x := (
+                    SELECT Note FILTER Note.note = ComputeLink.foo);
+            };
+            alias Alias := Note;
+        """, r"""
+            type Remark {
+                property note -> str;
+            }
+            type Subtype extending Remark;
+            type Link {
+                link a -> Remark;
+            }
+            type Uses {
+                required property x -> str {
+                    default := (SELECT Remark.note LIMIT 1)
+                }
+            };
+            type ComputeLink {
+                property foo -> str;
+                multi link x := (
+                    SELECT Remark FILTER Remark.note = ComputeLink.foo);
+            };
+            alias Alias := Remark;
+        """])
+
+    def test_schema_migrations_equivalence_rename_type_03(self):
+        self._assert_migration_equivalence([r"""
+            type Note {
+                property note -> str;
+            }
+        """, r"""
+            type Remark {
+                property note -> str;
+            }
+            type Subtype extending Remark;
+            type Link {
+                link a -> Remark;
+            }
+            type Uses {
+                required property x -> str {
+                    default := (SELECT Remark.note LIMIT 1)
+                }
+            };
+            type ComputeLink {
+                property foo -> str;
+                multi link x := (
+                    SELECT Remark FILTER Remark.note = ComputeLink.foo);
+            };
+            alias Alias := Remark;
         """])
 
     def test_schema_migrations_equivalence_rename_enum_01(self):
