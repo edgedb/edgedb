@@ -1543,6 +1543,61 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_DropObject(
             node, 'INDEX', after_name=after_name, named=False)
 
+    def visit_CreateOperator(self, node: qlast.CreateOperator) -> None:
+        def after_name() -> None:
+            self.write('(')
+            self.visit_list(node.params, newlines=False)
+            self.write(')')
+            self.write(' -> ')
+            self.write(node.returning_typemod.to_edgeql(), ' ')
+            self.visit(node.returning)
+
+            if node.commands:
+                self.write(' {')
+                self._block_ws(1)
+                commands = self._ddl_clean_up_commands(node.commands)
+                self.visit_list(commands, terminator=';')
+                self.new_lines = 1
+            else:
+                self.write(' ')
+
+            if node.code.from_operator:
+                from_clause = f'USING {node.code.language} OPERATOR '
+                if self.sdlmode:
+                    from_clause = from_clause.lower()
+                self.write(from_clause)
+                op, *types = node.code.from_operator
+                op_str = op
+                if types:
+                    op_str += f'({",".join(types)})'
+                self.write(f'{op_str!r}')
+            elif node.code.from_expr:
+                from_clause = f'USING {node.code.language} EXPRESSION'
+                if self.sdlmode:
+                    from_clause = from_clause.lower()
+                self.write(from_clause)
+            else:
+                from_clause = f'USING {node.code.language} '
+                if self.sdlmode:
+                    from_clause = from_clause.lower()
+                self.write(from_clause)
+                if node.code.code:
+                    self.write(edgeql_quote.dollar_quote_literal(
+                        node.code.code))
+
+            self._block_ws(-1)
+            if node.commands:
+                self.write(';')
+                self.write('}')
+
+        if node.kind:
+            op_type = [node.kind.upper(), 'OPERATOR']
+        else:
+            op_type = ['OPERATOR']
+
+        self._visit_CreateObject(node, *op_type, after_name=after_name,
+                                 render_commands=False)
+
     def visit_CreateFunction(self, node: qlast.CreateFunction) -> None:
         def after_name() -> None:
             self.write('(')
