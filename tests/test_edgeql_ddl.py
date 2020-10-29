@@ -5540,6 +5540,24 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             []
         )
 
+    async def test_edgeql_ddl_drop_03(self):
+        await self.con.execute("""
+            CREATE TYPE test::Foo {
+                CREATE REQUIRED SINGLE PROPERTY name -> std::str;
+            };
+        """)
+        await self.con.execute("""
+            CREATE TYPE test::Bar {
+                CREATE OPTIONAL SINGLE LINK lol -> test::Foo {
+                    CREATE PROPERTY note -> str;
+                };
+            };
+        """)
+
+        await self.con.execute("""
+            DROP TYPE test::Bar;
+        """)
+
     async def test_edgeql_ddl_drop_refuse_01(self):
         # Check that the schema refuses to drop objects with live references
         await self.con.execute("""
