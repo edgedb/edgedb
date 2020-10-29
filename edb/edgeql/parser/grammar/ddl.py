@@ -290,6 +290,14 @@ class UsingStmt(Nonterm):
         )
 
 
+class DropUsingStmt(Nonterm):
+    def reduce_DROP_EXPRESSION(self, *kids):
+        self.val = qlast.SetSpecialField(
+            name='expr',
+            value=None
+        )
+
+
 class SetFieldStmt(Nonterm):
     # field := <expr>
     def reduce_SET_Identifier_ASSIGN_Expr(self, *kids):
@@ -339,6 +347,7 @@ commands_block(
 commands_block(
     'Alter',
     UsingStmt,
+    DropUsingStmt,
     RenameStmt,
     SetFieldStmt,
     CreateAnnotationValueStmt,
@@ -1078,6 +1087,7 @@ class AlterPropertyOwned(Nonterm):
 commands_block(
     'AlterConcreteProperty',
     UsingStmt,
+    DropUsingStmt,
     RenameStmt,
     SetFieldStmt,
     AlterPropertyOwned,
@@ -1297,6 +1307,7 @@ class AlterLinkOwned(Nonterm):
 commands_block(
     'AlterConcreteLink',
     UsingStmt,
+    DropUsingStmt,
     RenameStmt,
     SetFieldStmt,
     AlterLinkOwned,

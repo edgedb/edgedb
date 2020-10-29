@@ -981,10 +981,13 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_SetSpecialField(self, node: qlast.SetSpecialField) -> None:
         if node.name == 'expr':
-            self._write_keywords('USING')
-            self.write(' (')
-            self.visit(node.value)
-            self.write(')')
+            if node.value is None:
+                self._write_keywords('DROP', 'EXPRESSION')
+            else:
+                self._write_keywords('USING')
+                self.write(' (')
+                self.visit(node.value)
+                self.write(')')
         else:
             keywords = self._process_SetSpecialField(node)
             self.write(*keywords, delimiter=' ')

@@ -3854,6 +3854,37 @@ aa';
         };
         """
 
+    def test_edgeql_syntax_ddl_type_12(self):
+        """
+        CREATE TYPE Foo {
+            CREATE PROPERTY bar := 'something';
+        };
+
+% OK %
+
+        CREATE TYPE Foo {
+            CREATE PROPERTY bar := ('something');
+        };
+        """
+
+    def test_edgeql_syntax_ddl_type_13(self):
+        """
+        ALTER TYPE Foo {
+            ALTER PROPERTY bar {
+                DROP EXPRESSION;
+            };
+        };
+        """
+
+    def test_edgeql_syntax_ddl_type_14(self):
+        """
+        ALTER TYPE Foo {
+            ALTER LINK bar {
+                DROP EXPRESSION;
+            };
+        };
+        """
+
     def test_edgeql_syntax_set_command_01(self):
         """
         SET MODULE default;
