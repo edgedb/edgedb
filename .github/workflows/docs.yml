@@ -1,0 +1,15 @@
+name: Deploy Documentation Changes
+
+on:
+  push:
+    paths:
+      - "docs/**"
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/releases/')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger vercel deploy hook
+        run: curl -X POST ${{ secrets.VERCEL_DOC_DEPLOY_URL_HOOK }}
