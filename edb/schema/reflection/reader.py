@@ -108,7 +108,8 @@ def parse_into(
 
         id_to_type[objid] = type(obj).__name__
 
-        objdata: Dict[str, Any] = {}
+        all_fields = mcls.get_schema_fields()
+        objdata = [None] * len(all_fields)
         val: Any
 
         for k, v in entry.items():
@@ -117,6 +118,10 @@ def parse_into(
                 continue
 
             fn = desc.fieldname
+            field = all_fields.get(fn)
+            if field is None:
+                continue
+            findex = field.index
 
             if desc.storage is not None:
                 if v is None:
@@ -128,7 +133,7 @@ def parse_into(
                         val = newobj[0]
                     else:
                         val = base_schema.get_by_id(refid)
-                    objdata[fn] = val.schema_reduce()
+                    objdata[findex] = val.schema_reduce()
                     refs_to[val.id][mcls, fn][objid] = None
 
                 elif desc.storage.ptrkind == 'multi link':
@@ -142,7 +147,7 @@ def parse_into(
                         refids = ftype._container(
                             uuidgen.UUID(e['id']) for e in v)
                         val = ftype(refids, _private_init=True)
-                    objdata[fn] = val.schema_reduce()
+                    objdata[findex] = val.schema_reduce()
                     for refid in refids:
                         refs_to[refid][mcls, fn][objid] = None
 
@@ -170,14 +175,14 @@ def parse_into(
 
                     if issubclass(ftype, s_abc.Reducible):
                         val = val.schema_reduce()
-                    objdata[fn] = val
+                    objdata[findex] = val
 
                 else:
                     ftype = mcls.get_field(fn).type
                     if type(v) is not ftype:
-                        objdata[fn] = ftype(v)
+                        objdata[findex] = ftype(v)
                     else:
-                        objdata[fn] = v
+                        objdata[findex] = v
 
             elif desc.is_refdict:
                 ftype = mcls.get_field(fn).type
@@ -186,7 +191,7 @@ def parse_into(
                     refs_to[refid][mcls, fn][objid] = None
 
                 val = ftype(refids, _private_init=True)
-                objdata[fn] = val.schema_reduce()
+                objdata[findex] = val.schema_reduce()
                 if desc.properties:
                     for e_dict in v:
                         refdict_updates[uuidgen.UUID(e_dict['id'])] = {
@@ -194,11 +199,16 @@ def parse_into(
                             if (pv := e_dict[f'@{p}']) is not None
                         }
 
-        id_to_data[objid] = immutables.Map(objdata)
+        id_to_data[objid] = tuple(objdata)
 
     for objid, updates in refdict_updates.items():
         if updates:
-            id_to_data[objid] = id_to_data[objid].update(updates)
+            sclass = s_obj.ObjectMeta.get_schema_class(id_to_type[objid])
+            updated_data = list(id_to_data[objid])
+            for fn, v in updates.items():
+                field = sclass.get_schema_field(fn)
+                updated_data[field.index] = v
+            id_to_data[objid] = tuple(updated_data)
 
     with schema._refs_to.mutate() as mm:
         for referred_id, refdata in refs_to.items():
