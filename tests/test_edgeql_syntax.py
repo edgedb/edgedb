@@ -3599,6 +3599,48 @@ aa';
             std::int64 USING SQL FUNCTION 'aaa';
         """
 
+    def test_edgeql_syntax_ddl_operator_01(self):
+        """
+        CREATE INFIX OPERATOR
+        std::`OR` (a: std::bool, b: std::bool) -> std::bool {
+            SET volatility := 'IMMUTABLE';
+            USING SQL $$
+            SELECT ("a" OR "b") AND ("a"::int | "b"::int)::bool
+            $$;
+        };
+        """
+
+    def test_edgeql_syntax_ddl_operator_02(self):
+        """
+        CREATE INFIX OPERATOR
+        std::`AND` (a: std::bool, b: std::bool) -> std::bool {
+            SET volatility := 'IMMUTABLE';
+            USING SQL EXPRESSION;
+        };
+        """
+
+    def test_edgeql_syntax_ddl_operator_03(self):
+        """
+        CREATE INFIX OPERATOR
+        std::`=` (l: std::bool, r: std::bool) -> std::bool {
+            SET volatility := 'IMMUTABLE';
+            SET commutator := 'std::=';
+            SET negator := 'std::!=';
+            USING SQL OPERATOR '=';
+        };
+        """
+
+    def test_edgeql_syntax_ddl_operator_04(self):
+        """
+        CREATE INFIX OPERATOR
+        std::`>` (l: std::int32, r: std::float32) -> std::bool {
+            SET volatility := 'IMMUTABLE';
+            SET commutator := 'std::<';
+            SET negator := 'std::<=';
+            USING SQL OPERATOR '>(float8,float8)';
+        };
+        """
+
     def test_edgeql_syntax_ddl_property_01(self):
         """
         CREATE ABSTRACT PROPERTY std::property {
