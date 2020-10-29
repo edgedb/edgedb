@@ -235,11 +235,31 @@ async def _ensure_edgedb_template_database(cluster, conn):
 async def _store_static_bin_cache(cluster, key: str, data: bytes) -> None:
 
     text = f"""\
-        CREATE OR REPLACE FUNCTION edgedbinstdata.__syscache_{key} ()
-        RETURNS bytea
-        AS $$
-            SELECT {pg_common.quote_bytea_literal(data)};
-        $$ LANGUAGE SQL IMMUTABLE;
+        INSERT INTO edgedbinstdata.instdata (key, bin)
+        VALUES(
+            {pg_common.quote_literal(key)},
+            {pg_common.quote_bytea_literal(data)}::bytea
+        )
+    """
+
+    dbconn = await cluster.connect(
+        database=edbdef.EDGEDB_TEMPLATE_DB,
+    )
+
+    try:
+        await _execute(dbconn, text)
+    finally:
+        await dbconn.close()
+
+
+async def _store_static_text_cache(cluster, key: str, data: str) -> None:
+
+    text = f"""\
+        INSERT INTO edgedbinstdata.instdata (key, text)
+        VALUES(
+            {pg_common.quote_literal(key)},
+            {pg_common.quote_literal(data)}::text
+        )
     """
 
     dbconn = await cluster.connect(
@@ -255,11 +275,11 @@ async def _store_static_bin_cache(cluster, key: str, data: bytes) -> None:
 async def _store_static_json_cache(cluster, key: str, data: str) -> None:
 
     text = f"""\
-        CREATE OR REPLACE FUNCTION edgedbinstdata.__syscache_{key} ()
-        RETURNS jsonb
-        AS $$
-            SELECT {pg_common.quote_literal(data)}::jsonb;
-        $$ LANGUAGE SQL IMMUTABLE;
+        INSERT INTO edgedbinstdata.instdata (key, json)
+        VALUES(
+            {pg_common.quote_literal(key)},
+            {pg_common.quote_literal(data)}::jsonb
+        )
     """
 
     dbconn = await cluster.connect(
@@ -662,10 +682,10 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
         pickle.dumps(stdlib.classlayout, protocol=pickle.HIGHEST_PROTOCOL),
     )
 
-    await _store_static_json_cache(
+    await _store_static_text_cache(
         cluster,
         'introquery',
-        json.dumps(stdlib.introquery),
+        stdlib.introquery,
     )
 
     await metaschema.generate_support_views(cluster, conn, stdlib.reflschema)
@@ -881,6 +901,33 @@ async def _populate_misc_instance_data(cluster, conn):
     commands = dbops.CommandGroup()
     commands.add_commands([
         dbops.CreateSchema(name='edgedbinstdata'),
+        dbops.CreateTable(dbops.Table(
+            name=('edgedbinstdata', 'instdata'),
+            columns=[
+                dbops.Column(
+                    name='key',
+                    type='text',
+                ),
+                dbops.Column(
+                    name='bin',
+                    type='bytea',
+                ),
+                dbops.Column(
+                    name='text',
+                    type='text',
+                ),
+                dbops.Column(
+                    name='json',
+                    type='jsonb',
+                ),
+            ],
+            constraints=[
+                dbops.PrimaryKey(
+                    table_name=('edgedbinstdata', 'instdata'),
+                    columns=['key'],
+                ),
+            ],
+        ))
     ])
 
     block = dbops.PLTopBlock()
@@ -955,7 +1002,7 @@ def _pg_log_listener(conn, msg):
 async def _get_instance_data(conn: Any) -> Dict[str, Any]:
 
     data = await conn.fetchval(
-        'SELECT edgedbinstdata.__syscache_instancedata()'
+        "SELECT json FROM edgedbinstdata.instdata WHERE key = 'instancedata'"
     )
 
     return json.loads(data)

@@ -315,10 +315,10 @@ cdef class DatabaseIndex:
 
     async def get_sys_query(self, conn, key: str) -> bytes:
         if self._sys_queries is None:
-            result = await conn.simple_query(
-                b'SELECT edgedbinstdata.__syscache_sysqueries()',
-                ignore_data=False,
-            )
+            result = await conn.simple_query(b'''\
+                SELECT json FROM edgedbinstdata.instdata
+                WHERE key = 'sysqueries';
+            ''', ignore_data=False)
             queries = json.loads(result[0][0].decode('utf-8'))
             self._sys_queries = {k: q.encode() for k, q in queries.items()}
 
@@ -326,10 +326,10 @@ cdef class DatabaseIndex:
 
     async def get_instance_data(self, conn, key: str) -> object:
         if self._instance_data is None:
-            result = await conn.simple_query(
-                b'SELECT edgedbinstdata.__syscache_instancedata()',
-                ignore_data=False,
-            )
+            result = await conn.simple_query(b'''\
+                SELECT json FROM edgedbinstdata.instdata
+                WHERE key = 'instancedata';
+            ''', ignore_data=False)
             self._instance_data = json.loads(result[0][0].decode('utf-8'))
 
         return self._instance_data[key]
