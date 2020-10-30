@@ -78,7 +78,7 @@ class PathId:
     _norm_path: Tuple[
         Union[
             uuid.UUID,
-            str,
+            s_name.Name,
             Tuple[
                 str, s_pointers.PointerDirection, bool
             ],
@@ -134,7 +134,7 @@ class PathId:
         *,
         env: Optional[qlcompiler_ctx.Environment] = None,
         namespace: AbstractSet[AnyNamespace] = frozenset(),
-        typename: Optional[s_name.QualifiedName] = None,
+        typename: Optional[s_name.QualName] = None,
     ) -> PathId:
         """Return a ``PathId``instance for a given :class:`schema.types.Type`
 
@@ -175,7 +175,7 @@ class PathId:
         typeref: irast.TypeRef,
         *,
         namespace: AbstractSet[AnyNamespace] = frozenset(),
-        typename: Optional[Union[str, uuid.UUID]] = None,
+        typename: Optional[Union[s_name.Name, uuid.UUID]] = None,
     ) -> PathId:
         """Return a ``PathId``instance for a given :class:`ir.ast.TypeRef`
 
@@ -499,7 +499,7 @@ class PathId:
         else:
             return None
 
-    def rptr_name(self) -> Optional[s_name.QualifiedName]:
+    def rptr_name(self) -> Optional[s_name.QualName]:
         """Return the name of a pointer for the last path step, if any.
 
            If this PathId represents a non-path expression, ``rptr_name()``
@@ -619,7 +619,7 @@ class PathId:
         return self._path[-1]  # type: ignore
 
     @property
-    def target_name_hint(self) -> s_name.QualifiedName:
+    def target_name_hint(self) -> s_name.QualName:
         """Return the name of the type for this PathId."""
         if self.target.material_type is not None:
             material_type = self.target.material_type
@@ -688,7 +688,7 @@ class PathId:
         if rptr_name is None:
             return False
         else:
-            return rptr_name in (
+            return str(rptr_name) in (
                 '__type__::indirection',
                 '__type__::optindirection',
             )

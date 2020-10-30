@@ -130,7 +130,9 @@ def evaluate_OperatorCall(
     if irutils.is_union_expr(opcall):
         return _evaluate_union(opcall, schema)
 
-    eval_func = op_table.get((opcall.operator_kind, opcall.func_shortname))
+    eval_func = op_table.get(
+        (opcall.operator_kind, str(opcall.func_shortname)),
+    )
     if eval_func is None:
         raise UnsupportedExpressionError(
             f'unsupported operator: {opcall.func_shortname}',

@@ -212,7 +212,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         context: sd.CommandContext,
         refdict: so.RefDict
     ) -> Dict[
-        sn.QualifiedName,
+        sn.QualName,
         Tuple[
             Type[
                 s_referencing.CreateReferencedObject[
@@ -228,7 +228,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         attr = refdict.attr
         bases = self.scls.get_bases(schema)
         refs: Dict[
-            sn.QualifiedName,
+            sn.QualName,
             Tuple[
                 Type[
                     s_referencing.CreateReferencedObject[
@@ -241,7 +241,10 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         ] = {}
 
         for base in bases.objects(schema):
-            base_refs = base.get_field_value(schema, attr)
+            base_refs: so.ObjectIndexBase[
+                s_referencing.ReferencedInheritingObject
+            ] = base.get_field_value(schema, attr)
+
             for k, v in base_refs.items(schema):
                 if v.get_is_final(schema):
                     continue
@@ -272,12 +275,12 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         schema: s_schema.Schema,
         context: sd.CommandContext,
         refdict: so.RefDict,
-        present_refs: AbstractSet[sn.QualifiedName],
-    ) -> Dict[str, Type[sd.ObjectCommand[so.Object]]]:
+        present_refs: AbstractSet[sn.QualName],
+    ) -> Dict[sn.Name, Type[sd.ObjectCommand[so.Object]]]:
         from . import referencing as s_referencing
 
         local_refs = self.scls.get_field_value(schema, refdict.attr)
-        dropped_refs: Dict[str, Type[sd.ObjectCommand[so.Object]]] = {}
+        dropped_refs: Dict[sn.Name, Type[sd.ObjectCommand[so.Object]]] = {}
         for k, v in local_refs.items(schema):
             if not v.get_is_owned(schema):
                 mcls = type(v)
@@ -518,8 +521,8 @@ BaseDelta_T = Tuple[
 
 
 def delta_bases(
-    old_bases: Iterable[str],
-    new_bases: Iterable[str],
+    old_bases: Iterable[sn.Name],
+    new_bases: Iterable[sn.Name],
 ) -> BaseDelta_T:
     dropped = frozenset(old_bases) - frozenset(new_bases)
     removed_bases = [so.ObjectShell(name=b) for b in dropped]
@@ -707,11 +710,11 @@ class CreateInheritingObject(
         schema: s_schema.Schema,
         context: sd.CommandContext,
         bases: Any,
-    ) -> List[str]:
+    ) -> List[sn.Name]:
 
         mcls = self.get_schema_metaclass()
         default_base = mcls.get_default_base_name()
-        base_names: List[str]
+        base_names: List[sn.Name]
 
         if isinstance(bases, so.ObjectCollectionShell):
             base_names = []
@@ -729,7 +732,7 @@ class CreateInheritingObject(
             if (
                 b != default_base
                 and (
-                    not isinstance(b, sn.QualifiedName)
+                    not isinstance(b, sn.QualName)
                     or sn.shortname_from_fullname(b) == b
                 )
             )

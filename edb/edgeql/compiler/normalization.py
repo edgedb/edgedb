@@ -388,7 +388,7 @@ def compile_Path(
                 )
                 if obj is not None:
                     name = obj.get_name(schema)
-                    assert isinstance(name, sn.QualifiedName)
+                    assert isinstance(name, sn.QualName)
                     step.module = name.module
                 elif None in modaliases:
                     # Even if the name was not resolved in the
@@ -416,9 +416,8 @@ def compile_FunctionCall(
             # As long as we found some functions, they will be from
             # the same module (the first valid resolved module for the
             # function name will mask "std").
-            _, fname = funcs[0].get_name(schema).as_tuple()
-            _, module, name = sn.split_name(sn.shortname_from_fullname(fname))
-            node.func = (module, name)
+            sname = funcs[0].get_shortname(schema)
+            node.func = (sname.module, sname.name)
 
         # It's odd we don't find a function, but this will be picked up
         # by the compiler with a more appropriate error message.
@@ -464,7 +463,7 @@ def compile_TypeName(
 
             if maintype is not None:
                 name = maintype.get_name(schema)
-                assert isinstance(name, sn.QualifiedName)
+                assert isinstance(name, sn.QualName)
                 node.maintype.module = name.module
             elif None in modaliases:
                 # Even if the name was not resolved in the schema it

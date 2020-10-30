@@ -122,8 +122,9 @@ enum_re = re.compile(
 
 def translate_pgtype(schema, msg):
     translated = pgtype_re.sub(
-        lambda r: types.base_type_name_map_r.get(r.group(0), r.group(0)),
-        msg)
+        lambda r: str(types.base_type_name_map_r.get(r.group(0), r.group(0))),
+        msg,
+    )
 
     if translated != msg:
         return translated
@@ -230,8 +231,8 @@ def static_interpret_backend_error(fields):
                 expected = err_details.detail_json.get('expected')
 
                 if srcname and ptrname:
-                    srcname = sn.QualifiedName(srcname)
-                    ptrname = sn.QualifiedName(ptrname)
+                    srcname = sn.QualName.from_string(srcname)
+                    ptrname = sn.QualName.from_string(ptrname)
                     lname = '{}.{}'.format(srcname, ptrname.name)
                 else:
                     lname = ''
@@ -401,7 +402,7 @@ def interpret_backend_error(schema, fields):
             domain_name = match.group(1)
             stype_name = types.base_type_name_map_r.get(domain_name)
             if stype_name:
-                msg = f'invalid value for scalar type {stype_name!r}'
+                msg = f'invalid value for scalar type {str(stype_name)!r}'
             else:
                 msg = translate_pgtype(schema, err_details.message)
             return errors.InvalidValueError(msg)

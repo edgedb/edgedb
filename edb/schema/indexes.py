@@ -75,17 +75,17 @@ class Index(
     __str__ = __repr__
 
     @classmethod
-    def get_shortname_static(cls, name: str) -> sn.QualifiedName:
+    def get_shortname_static(cls, name: sn.Name) -> sn.QualName:
         quals = sn.quals_from_fullname(name)
         ptr_qual = quals[2]
         expr_qual = quals[1]
-        return sn.QualifiedName(
+        return sn.QualName(
             module='__',
             name=f'{ptr_qual}_{expr_qual[:8]}',
         )
 
     @classmethod
-    def get_displayname_static(cls, name: str) -> str:
+    def get_displayname_static(cls, name: sn.Name) -> str:
         shortname = cls.get_shortname_static(name)
         return shortname.name
 
@@ -134,14 +134,14 @@ class IndexCommand(
         schema: s_schema.Schema,
         astnode: qlast.NamedDDL,
         context: sd.CommandContext,
-    ) -> sn.QualifiedName:
+    ) -> sn.QualName:
         referrer_ctx = cls.get_referrer_context(context)
         if referrer_ctx is not None:
 
             referrer_name = referrer_ctx.op.classname
-            assert isinstance(referrer_name, sn.QualifiedName)
+            assert isinstance(referrer_name, sn.QualName)
 
-            shortname = sn.QualifiedName(
+            shortname = sn.QualName(
                 module='__',
                 name=astnode.name.name,
             )
@@ -149,11 +149,11 @@ class IndexCommand(
             quals = cls._classname_quals_from_ast(
                 schema, astnode, shortname, referrer_name, context)
 
-            name = sn.QualifiedName(
+            name = sn.QualName(
                 module=referrer_name.module,
                 name=sn.get_specialized_name(
                     shortname,
-                    referrer_name,
+                    str(referrer_name),
                     *quals,
                 ),
             )
@@ -167,8 +167,8 @@ class IndexCommand(
         cls,
         schema: s_schema.Schema,
         astnode: qlast.NamedDDL,
-        base_name: str,
-        referrer_name: str,
+        base_name: sn.Name,
+        referrer_name: sn.QualName,
         context: sd.CommandContext,
     ) -> Tuple[str, ...]:
         assert isinstance(astnode, qlast.IndexOp)
@@ -190,7 +190,7 @@ class IndexCommand(
     @classmethod
     def _classname_quals_from_name(
         cls,
-        name: sn.QualifiedName
+        name: sn.QualName
     ) -> Tuple[str, ...]:
         quals = sn.quals_from_fullname(name)
         return tuple(quals[-2:])
@@ -201,7 +201,7 @@ class IndexCommand(
         schema: s_schema.Schema,
         context: sd.CommandContext,
         *,
-        name: Optional[str] = None,
+        name: Optional[sn.Name] = None,
         default: Union[Index, so.NoDefaultT] = so.NoDefault,
     ) -> Index:
         ...
@@ -212,7 +212,7 @@ class IndexCommand(
         schema: s_schema.Schema,
         context: sd.CommandContext,
         *,
-        name: Optional[str] = None,
+        name: Optional[sn.Name] = None,
         default: None = None,
     ) -> Optional[Index]:
         ...
@@ -222,7 +222,7 @@ class IndexCommand(
         schema: s_schema.Schema,
         context: sd.CommandContext,
         *,
-        name: Optional[str] = None,
+        name: Optional[sn.Name] = None,
         default: Union[Index, so.NoDefaultT, None] = so.NoDefault,
     ) -> Optional[Index]:
         try:
@@ -361,7 +361,6 @@ class CreateIndex(
         parent: referencing.ReferencedObject,
     ) -> qlast.ObjectDDL:
         assert isinstance(parent, Index)
-        nref = cls.get_inherited_ref_name(schema, context, parent, name)
         astnode_cls = cls.referenced_astnode
 
         expr = parent.get_expr(schema)
@@ -370,10 +369,7 @@ class CreateIndex(
         else:
             expr_ql = edgeql.parse_fragment(expr.origtext)
 
-        return astnode_cls(
-            name=nref,
-            expr=expr_ql,
-        )
+        return astnode_cls(name=qlast.ObjectRef(name='idx'), expr=expr_ql)
 
 
 class RenameIndex(

@@ -93,11 +93,10 @@ def parse_into(
 
     for objid, (obj, entry) in objects.items():
         mcls = type(obj)
-        name = entry['name__internal']
+        name = s_name.name_from_string(entry['name__internal'])
         layout = schema_class_layout[mcls]
 
         if isinstance(obj, s_obj.QualifiedObject):
-            name = s_name.QualifiedName(name)
             name_to_id[name] = objid
         else:
             globalname_to_id[mcls, name] = objid
@@ -170,6 +169,8 @@ def parse_into(
                             val = ftype(exprs)
                         elif issubclass(ftype, s_obj.Object):
                             val = val.id
+                        elif issubclass(ftype, s_name.Name):
+                            val = s_name.name_from_string(val)
                         else:
                             val = ftype(val)
 

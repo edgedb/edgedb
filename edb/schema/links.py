@@ -163,15 +163,15 @@ class Link(sources.Source, pointers.Pointer, s_abc.Link,
         return schema
 
     @classmethod
-    def get_root_classes(cls) -> Tuple[sn.QualifiedName, ...]:
+    def get_root_classes(cls) -> Tuple[sn.QualName, ...]:
         return (
-            sn.QualifiedName(module='std', name='link'),
-            sn.QualifiedName(module='schema', name='__type__'),
+            sn.QualName(module='std', name='link'),
+            sn.QualName(module='schema', name='__type__'),
         )
 
     @classmethod
-    def get_default_base_name(self) -> sn.QualifiedName:
-        return sn.QualifiedName('std::link')
+    def get_default_base_name(self) -> sn.QualName:
+        return sn.QualName('std', 'link')
 
 
 class LinkSourceCommandContext(sources.SourceCommandContext):
@@ -368,10 +368,10 @@ class CreateLink(
         if parent_ctx is None:
             return cmd
 
-        base_prop_name = sn.QualifiedName('std::source')
+        base_prop_name = sn.QualName('std', 'source')
         s_name = sn.get_specialized_name(
-            sn.QualifiedName('__::source'), self.classname)
-        src_prop_name = sn.QualifiedName(
+            sn.QualName('__', 'source'), str(self.classname))
+        src_prop_name = sn.QualName(
             name=s_name, module=self.classname.module)
 
         src_prop = lproperties.CreateProperty(
@@ -400,10 +400,10 @@ class CreateLink(
 
         cmd.prepend(src_prop)
 
-        base_prop_name = sn.QualifiedName('std::target')
+        base_prop_name = sn.QualName('std', 'target')
         s_name = sn.get_specialized_name(
-            sn.QualifiedName('__::target'), self.classname)
-        tgt_prop_name = sn.QualifiedName(
+            sn.QualName('__', 'target'), str(self.classname))
+        tgt_prop_name = sn.QualName(
             name=s_name, module=self.classname.module)
 
         tgt_prop = lproperties.CreateProperty(

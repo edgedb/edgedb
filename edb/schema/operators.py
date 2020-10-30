@@ -66,13 +66,13 @@ class Operator(s_func.CallableObject, s_func.VolatilitySubject,
     # For example, the `std::IN` operator has `std::=`
     # as its origin.
     derivative_of = so.SchemaField(
-        sn.QualifiedName, coerce=True, default=None, compcoef=0.4)
+        sn.QualName, coerce=True, default=None, compcoef=0.4)
 
     commutator = so.SchemaField(
-        sn.QualifiedName, coerce=True, default=None, compcoef=0.99)
+        sn.QualName, coerce=True, default=None, compcoef=0.99)
 
     negator = so.SchemaField(
-        sn.QualifiedName, coerce=True, default=None, compcoef=0.99)
+        sn.QualName, coerce=True, default=None, compcoef=0.99)
 
     recursive = so.SchemaField(
         bool, default=False, compcoef=0.4)
@@ -135,7 +135,7 @@ class OperatorCommand(
         schema: s_schema.Schema,
         astnode: qlast.NamedDDL,
         context: sd.CommandContext,
-    ) -> sn.QualifiedName:
+    ) -> sn.QualName:
         assert isinstance(astnode, qlast.OperatorCommand)
         name = super()._classname_from_ast(schema, astnode, context)
 
@@ -143,7 +143,7 @@ class OperatorCommand(
             schema, context.modaliases, astnode)
         fqname = cls.get_schema_metaclass().get_fqname(
             schema, name, params, astnode.kind)
-        assert isinstance(fqname, sn.QualifiedName)
+        assert isinstance(fqname, sn.QualName)
         return fqname
 
 

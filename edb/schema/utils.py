@@ -40,45 +40,87 @@ if TYPE_CHECKING:
     T = TypeVar('T')
 
 
+def name_to_ast_ref(name: sn.Name) -> qlast.ObjectRef:
+    if isinstance(name, sn.QualName):
+        return qlast.ObjectRef(
+            module=name.module,
+            name=name.name,
+        )
+    else:
+        return qlast.ObjectRef(
+            name=name.name,
+        )
+
+
+def ast_ref_to_name(ref: qlast.ObjectRef) -> sn.Name:
+    if ref.module:
+        return sn.QualName(name=ref.name, module=ref.module)
+    else:
+        return sn.UnqualName(name=ref.name)
+
+
+def resolve_name(
+    lname: sn.Name,
+    *,
+    metaclass: Optional[Type[so.Object]] = None,
+    modaliases: Mapping[Optional[str], str],
+    schema: s_schema.Schema,
+) -> sn.Name:
+    obj = schema.get(
+        lname,
+        type=metaclass,
+        module_aliases=modaliases,
+        default=None,
+    )
+    if obj is not None:
+        name = obj.get_name(schema)
+    elif isinstance(lname, sn.QualName):
+        name = sn.QualName(
+            module=modaliases.get(lname.module, lname.module),
+            name=lname.name,
+        )
+    elif metaclass is not None and issubclass(metaclass, so.QualifiedObject):
+        actual_module = modaliases.get(None)
+        if actual_module is None:
+            raise errors.InvalidReferenceError(
+                'unqualified name and no default module alias set')
+        name = sn.QualName(module=actual_module, name=lname.name)
+    else:
+        # Do not assume the name is fully-qualified unless asked
+        # explicitly.
+        name = lname
+
+    return name
+
+
 def ast_objref_to_object_shell(
-    node: qlast.ObjectRef, *,
+    ref: qlast.ObjectRef,
+    *,
     metaclass: Optional[Type[so.Object]] = None,
     modaliases: Mapping[Optional[str], str],
     schema: s_schema.Schema,
 ) -> so.ObjectShell:
+    if metaclass is None:
+        metaclass = so.Object
 
-    nqname = node.name
-    module = node.module
-    if module is not None:
-        lname: str = sn.QualifiedName(module=module, name=nqname)
-    else:
-        lname = nqname
-    obj = schema.get(lname, module_aliases=modaliases, default=None)
-
-    if metaclass is not None and not issubclass(metaclass, so.QualifiedObject):
-        name = nqname
-    else:
-        if obj is not None:
-            actual_name = obj.get_name(schema)
-            assert isinstance(actual_name, sn.QualifiedName)
-            module = actual_name.module
-        else:
-            aliased_module = modaliases.get(module)
-            if aliased_module is not None:
-                module = aliased_module
-
-        name = sn.QualifiedName(module=module, name=nqname)
+    lname = ast_ref_to_name(ref)
+    name = resolve_name(
+        lname,
+        metaclass=metaclass,
+        modaliases=modaliases,
+        schema=schema,
+    )
 
     return so.ObjectShell(
         name=name,
         origname=lname,
-        schemaclass=metaclass or so.Object,
-        sourcectx=node.context,
+        schemaclass=metaclass,
+        sourcectx=ref.context,
     )
 
 
 def ast_objref_to_type_shell(
-    node: qlast.ObjectRef,
+    ref: qlast.ObjectRef,
     *,
     metaclass: Optional[Type[s_types.Type]] = None,
     modaliases: Mapping[Optional[str], str],
@@ -87,29 +129,21 @@ def ast_objref_to_type_shell(
     from . import types as s_types
 
     if metaclass is None:
-        metaclass = s_types.Type
+        metaclass = s_types.InheritingType
 
-    nqname = node.name
-    module = node.module
-    if module is not None:
-        lname: str = sn.QualifiedName(module=module, name=nqname)
-    else:
-        lname = nqname
-    obj = schema.get(lname, module_aliases=modaliases, default=None)
-    if obj is not None:
-        actual_name = obj.get_name(schema)
-        assert isinstance(actual_name, sn.QualifiedName)
-        module = actual_name.module
-    else:
-        aliased_module = modaliases.get(module)
-        if aliased_module is not None:
-            module = aliased_module
+    lname = ast_ref_to_name(ref)
+    name = resolve_name(
+        lname,
+        metaclass=metaclass,
+        modaliases=modaliases,
+        schema=schema,
+    )
 
     return s_types.TypeShell(
-        name=sn.QualifiedName(module=module, name=nqname),
+        name=name,
         origname=lname,
         schemaclass=metaclass,
-        sourcectx=node.context,
+        sourcectx=ref.context,
     )
 
 
@@ -235,11 +269,11 @@ def ast_to_type_shell(
 
     elif isinstance(node.maintype, qlast.AnyType):
         from . import pseudo as s_pseudo
-        return s_pseudo.PseudoTypeShell(name='anytype')
+        return s_pseudo.PseudoTypeShell(name=sn.UnqualName('anytype'))
 
     elif isinstance(node.maintype, qlast.AnyTuple):
         from . import pseudo as s_pseudo
-        return s_pseudo.PseudoTypeShell(name='anytuple')
+        return s_pseudo.PseudoTypeShell(name=sn.UnqualName('anytuple'))
 
     assert isinstance(node.maintype, qlast.ObjectRef)
 
@@ -387,9 +421,9 @@ def shell_to_ast(
     qlref: qlast.BaseObjectRef
 
     if isinstance(t, s_pseudo.PseudoTypeShell):
-        if t.name == 'anytype':
+        if t.name.name == 'anytype':
             qlref = qlast.AnyType()
-        elif t.name == 'anytuple':
+        elif t.name.name == 'anytuple':
             qlref = qlast.AnyTuple()
         else:
             raise AssertionError(f'unexpected pseudo type shell: {t.name!r}')
@@ -439,7 +473,7 @@ def shell_to_ast(
             )
     elif isinstance(t, so.ObjectShell):
         name = t.name
-        if isinstance(name, sn.QualifiedName):
+        if isinstance(name, sn.QualName):
             qlref = qlast.ObjectRef(
                 module=name.module,
                 name=name.name,
@@ -457,18 +491,6 @@ def shell_to_ast(
         raise NotImplementedError(f'cannot represent {t!r} as a shell')
 
     return result
-
-
-def name_to_ast_ref(name: str) -> qlast.ObjectRef:
-    if isinstance(name, sn.QualifiedName):
-        return qlast.ObjectRef(
-            module=name.module,
-            name=name.name,
-        )
-    else:
-        return qlast.ObjectRef(
-            name=name,
-        )
 
 
 def is_nontrivial_container(value: Any) -> Optional[Iterable[Any]]:
@@ -569,37 +591,29 @@ def merge_reduce(
         return None
 
 
-def get_nq_name(schema: s_schema.Schema,
-                item: so.Object) -> str:
+def get_nq_name(schema: s_schema.Schema, item: so.Object) -> str:
     shortname = item.get_shortname(schema)
-    if isinstance(shortname, sn.QualifiedName):
+    if isinstance(shortname, sn.QualName):
         return shortname.name
     else:
-        return shortname
+        return str(shortname)
 
 
 def find_item_suggestions(
-        name: Optional[str],
-        modaliases: Mapping[Optional[str], str],
-        schema: s_schema.Schema,
-        *,
-        item_type: Optional[so.ObjectMeta] = None,
-        limit: int = 3,
-        collection: Optional[Iterable[so.Object]] = None,
-        condition: Optional[Callable[[so.Object], bool]] = None
+    name: sn.Name,
+    modaliases: Mapping[Optional[str], str],
+    schema: s_schema.Schema,
+    *,
+    item_type: Optional[so.ObjectMeta] = None,
+    limit: int = 3,
+    collection: Optional[Iterable[so.Object]] = None,
+    condition: Optional[Callable[[so.Object], bool]] = None,
 ) -> List[so.Object]:
     from . import functions as s_func
     from . import modules as s_mod
 
-    if isinstance(name, sn.QualifiedName):
-        orig_modname: Optional[str] = name.module
-        short_name: str = name.name
-    else:
-        assert name is not None, ("A name must be provided either "
-                                  "as string or QualifiedName")
-        orig_modname = None
-        short_name = name
-
+    local_name = name.name
+    orig_modname = name.module if isinstance(name, sn.QualName) else None
     modname = modaliases.get(orig_modname, orig_modname)
 
     suggestions: List[so.Object] = []
@@ -628,7 +642,7 @@ def find_item_suggestions(
 
     if not item_type:
         # When schema class is not specified, only suggest generic objects.
-        filters.append(lambda s: not sn.is_fullname(s.get_name(schema)))
+        filters.append(lambda s: not sn.is_fullname(str(s.get_name(schema))))
         filters.append(lambda s: not isinstance(s, s_func.CallableObject))
 
     # Never suggest object fragments.
@@ -639,7 +653,7 @@ def find_item_suggestions(
 
     # Compute Levenshtein distance for each suggestion.
     with_distance: List[Tuple[so.Object, int]] = [
-        (s, levenshtein.distance(short_name, get_nq_name(schema, s)))
+        (s, levenshtein.distance(local_name, get_nq_name(schema, s)))
         for s in filtered_suggestions
     ]
 
@@ -652,7 +666,7 @@ def find_item_suggestions(
     closest.sort(
         key=lambda s: (
             s[1],
-            not get_nq_name(schema, s[0]).startswith(short_name),
+            not get_nq_name(schema, s[0]).startswith(local_name),
             s[0].get_displayname(schema)
         )
     )
@@ -661,17 +675,18 @@ def find_item_suggestions(
 
 
 def enrich_schema_lookup_error(
-        error: errors.EdgeDBError,
-        item_name: Optional[str],
-        modaliases: Mapping[Optional[str], str],
-        schema: s_schema.Schema,
-        *,
-        item_type: Optional[so.ObjectMeta] = None,
-        suggestion_limit: int = 3,
-        name_template: Optional[str] = None,
-        collection: Optional[Iterable[so.Object]] = None,
-        condition: Optional[Callable[[so.Object], bool]] = None,
-        context: Any = None) -> None:
+    error: errors.EdgeDBError,
+    item_name: sn.Name,
+    modaliases: Mapping[Optional[str], str],
+    schema: s_schema.Schema,
+    *,
+    item_type: Optional[so.ObjectMeta] = None,
+    suggestion_limit: int = 3,
+    name_template: Optional[str] = None,
+    collection: Optional[Iterable[so.Object]] = None,
+    condition: Optional[Callable[[so.Object], bool]] = None,
+    context: Any = None,
+) -> None:
 
     suggestions = find_item_suggestions(
         item_name, modaliases, schema,

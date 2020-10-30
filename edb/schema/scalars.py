@@ -196,7 +196,7 @@ class AnonymousEnumTypeShell(s_types.TypeShell):
     def __init__(
         self,
         *,
-        name: str = 'std::anyenum',
+        name: s_name.Name = s_name.QualName(module='std', name='anyenum'),
         elements: Iterable[str],
     ) -> None:
         super().__init__(name=name)
@@ -333,7 +333,7 @@ class CreateScalarType(
                 create_cmd.set_attribute_value('bases', [
                     s_utils.ast_objref_to_object_shell(
                         s_utils.name_to_ast_ref(
-                            s_name.QualifiedName('std::anyenum'),
+                            s_name.QualName('std', 'anyenum'),
                         ),
                         schema=schema,
                         metaclass=ScalarType,

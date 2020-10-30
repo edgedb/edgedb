@@ -94,7 +94,7 @@ class CompilerOptions(GlobalCompilerOptions):
     derived_target_module: Optional[str] = None
 
     #: The name to use for the top-level type variant.
-    result_view_name: Optional[s_name.QualifiedName] = None
+    result_view_name: Optional[s_name.QualName] = None
 
     #: If > 0, Inject implicit LIMIT to every SELECT query.
     implicit_limit: int = 0

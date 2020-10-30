@@ -61,7 +61,7 @@ class Property(pointers.Pointer, s_abc.Property,
         schema, ptr = super().derive_ref(
             schema, referrer, target=target, attrs=attrs, **kwargs)
 
-        ptr_sn = ptr.get_shortname(schema)
+        ptr_sn = str(ptr.get_shortname(schema))
 
         if ptr_sn == 'std::source':
             assert isinstance(referrer, s_links.Link)
@@ -170,14 +170,14 @@ class Property(pointers.Pointer, s_abc.Property,
             return not source.is_view(schema)
 
     @classmethod
-    def get_root_classes(cls) -> Tuple[sn.QualifiedName, ...]:
+    def get_root_classes(cls) -> Tuple[sn.QualName, ...]:
         return (
-            sn.QualifiedName(module='std', name='property'),
+            sn.QualName(module='std', name='property'),
         )
 
     @classmethod
-    def get_default_base_name(self) -> sn.QualifiedName:
-        return sn.QualifiedName('std::property')
+    def get_default_base_name(self) -> sn.QualName:
+        return sn.QualName('std', 'property')
 
     def is_blocking_ref(
         self,

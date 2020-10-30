@@ -513,7 +513,7 @@ def get_path_output_alias(
     elif path_id.is_collection_path():
         alias_base = path_id.target.collection
     else:
-        _, _, alias_base = path_id.target_name_hint.rpartition('::')
+        alias_base = path_id.target_name_hint.name
 
     return env.aliases.get(f'{alias_base}_{aspect}')
 

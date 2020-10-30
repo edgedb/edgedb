@@ -64,7 +64,7 @@ def process_view(
     path_id: irast.PathId,
     elements: List[qlast.ShapeElement],
     view_rptr: Optional[context.ViewRPtr] = None,
-    view_name: Optional[sn.QualifiedName] = None,
+    view_name: Optional[sn.QualName] = None,
     is_insert: bool = False,
     is_update: bool = False,
     is_delete: bool = False,
@@ -111,7 +111,7 @@ def _process_view(
     path_id_namespace: Optional[irast.WeakNamespace] = None,
     elements: List[qlast.ShapeElement],
     view_rptr: Optional[context.ViewRPtr] = None,
-    view_name: Optional[sn.QualifiedName] = None,
+    view_name: Optional[sn.QualName] = None,
     is_insert: bool = False,
     is_update: bool = False,
     is_delete: bool = False,
@@ -146,7 +146,7 @@ def _process_view(
             )
 
         name = f'{source_name}__{ptr_name}'
-        view_name = sn.QualifiedName(
+        view_name = sn.QualName(
             module=ctx.derived_target_module or '__derived__',
             name=name,
         )
@@ -438,7 +438,7 @@ def _normalize_view_ptr_expr(
 
         base_ptrcls = ptrcls.get_bases(ctx.env.schema).first(ctx.env.schema)
         base_ptr_is_computable = base_ptrcls in ctx.source_map
-        ptr_name = sn.QualifiedName(
+        ptr_name = sn.QualName(
             module='__',
             name=ptrcls.get_shortname(ctx.env.schema).name,
         )
@@ -579,13 +579,13 @@ def _normalize_view_ptr_expr(
             base_ptrcls = ptrcls.get_bases(
                 ctx.env.schema).first(ctx.env.schema)
 
-            ptr_name = sn.QualifiedName(
+            ptr_name = sn.QualName(
                 module='__',
                 name=ptrcls.get_shortname(ctx.env.schema).name,
             )
 
         else:
-            ptr_name = sn.QualifiedName(
+            ptr_name = sn.QualName(
                 module='__',
                 name=ptrname,
             )
@@ -764,9 +764,11 @@ def _normalize_view_ptr_expr(
             src_scls = view_scls
 
         if ptr_target.is_object_type():
-            base = ctx.env.get_track_schema_object('std::link', expr=None)
+            base = ctx.env.get_track_schema_object(
+                sn.QualName('std', 'link'), expr=None)
         else:
-            base = ctx.env.get_track_schema_object('std::property', expr=None)
+            base = ctx.env.get_track_schema_object(
+                sn.QualName('std', 'property'), expr=None)
 
         if base_ptrcls is not None:
             derive_from = base_ptrcls
@@ -776,8 +778,9 @@ def _normalize_view_ptr_expr(
         derived_name = schemactx.derive_view_name(
             base_ptrcls,
             derived_name_base=ptr_name,
-            derived_name_quals=[src_scls.get_name(ctx.env.schema)],
-            ctx=ctx)
+            derived_name_quals=[str(src_scls.get_name(ctx.env.schema))],
+            ctx=ctx,
+        )
 
         existing: Optional[s_objects.Object] = (
             ctx.env.schema.get(derived_name, None))
@@ -950,18 +953,19 @@ def derive_ptrcls(
             transparent = False
 
             if target_scls.is_object_type():
-                base = ctx.env.get_track_schema_object('std::link', expr=None)
+                base = ctx.env.get_track_schema_object(
+                    sn.QualName('std', 'link'), expr=None)
                 view_rptr.base_ptrcls = cast(s_links.Link, base)
             else:
                 base = ctx.env.get_track_schema_object(
-                    'std::property', expr=None)
+                    sn.QualName('std', 'property'), expr=None)
                 view_rptr.base_ptrcls = cast(s_props.Property, base)
 
         derived_name = schemactx.derive_view_name(
             view_rptr.base_ptrcls,
             derived_name_base=view_rptr.ptrcls_name,
             derived_name_quals=(
-                view_rptr.source.get_name(ctx.env.schema),
+                str(view_rptr.source.get_name(ctx.env.schema)),
             ),
             ctx=ctx)
 
@@ -986,7 +990,9 @@ def derive_ptrcls(
 
         view_rptr.ptrcls = schemactx.derive_ptr(
             view_rptr.ptrcls, view_rptr.source, target_scls,
-            derived_name_quals=(view_rptr.source.get_name(ctx.env.schema),),
+            derived_name_quals=(
+                str(view_rptr.source.get_name(ctx.env.schema)),
+            ),
             is_insert=view_rptr.is_insert,
             is_update=view_rptr.is_update,
             attrs=attrs,

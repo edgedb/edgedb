@@ -34,6 +34,7 @@ from edb.ir import staeval as ireval
 from edb.ir import typeutils as irtyputils
 
 from edb.schema import links as s_links
+from edb.schema import name as sn
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import types as s_types
@@ -140,7 +141,7 @@ def compile_ConfigInsert(
         )
 
     subject = ctx.env.get_track_schema_object(
-        f'cfg::{expr.name.name}', expr.name, default=None)
+        sn.QualName('cfg', expr.name.name), expr.name, default=None)
     if subject is None:
         raise errors.ConfigurationError(
             f'{expr.name.name!r} is not a valid configuration item',
@@ -241,7 +242,8 @@ def _validate_op(
         )
 
     name = expr.name.name
-    cfg_host_type = ctx.env.get_track_schema_type('cfg::AbstractConfig')
+    cfg_host_type = ctx.env.get_track_schema_type(
+        sn.QualName('cfg', 'AbstractConfig'))
     assert isinstance(cfg_host_type, s_objtypes.ObjectType)
     cfg_type = None
 
@@ -259,7 +261,8 @@ def _validate_op(
             )
 
         # expr.name is the name of the configuration type
-        cfg_type = ctx.env.get_track_schema_type(f'cfg::{name}', default=None)
+        cfg_type = ctx.env.get_track_schema_type(
+            sn.QualName('cfg', name), default=None)
         if cfg_type is None:
             raise errors.ConfigurationError(
                 f'unrecognized configuration object {name!r}',

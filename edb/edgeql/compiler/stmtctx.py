@@ -58,7 +58,10 @@ def init_context(
 ) -> context.ContextLevel:
 
     if not schema.get_global(s_mod.Module, '__derived__', None):
-        schema, _ = s_mod.Module.create_in_schema(schema, name='__derived__')
+        schema, _ = s_mod.Module.create_in_schema(
+            schema,
+            name=s_name.UnqualName('__derived__'),
+        )
     env = context.Environment(
         schema=schema,
         path_scope=irast.new_scope_tree(),
@@ -209,7 +212,7 @@ def fini_expression(
     if ctx.must_use_views:
         alias, srcctx = next(iter(ctx.must_use_views.values()))
         raise errors.QueryError(
-            f'unused alias definition: {alias!r}',
+            f'unused alias definition: {str(alias)!r}',
             context=srcctx,
         )
 
@@ -373,7 +376,7 @@ def populate_anchors(
 
 def declare_view(
     expr: qlast.Expr,
-    alias: str,
+    alias: s_name.Name,
     *,
     fully_detached: bool=False,
     must_be_used: bool=False,
@@ -402,16 +405,16 @@ def declare_view(
 
         if cached_view_set is not None:
             subctx.view_scls = setgen.get_set_type(cached_view_set, ctx=ctx)
-            view_name = s_name.QualifiedName(
-                subctx.view_scls.get_name(ctx.env.schema))
+            view_name = subctx.view_scls.get_name(ctx.env.schema)
+            assert isinstance(view_name, s_name.QualName)
         else:
-            if isinstance(alias, s_name.QualifiedName):
+            if isinstance(alias, s_name.QualName):
                 basename = alias
             else:
-                basename = s_name.QualifiedName(
-                    module='__derived__', name=alias)
+                basename = s_name.QualName(
+                    module='__derived__', name=alias.name)
 
-            view_name = s_name.QualifiedName(
+            view_name = s_name.QualName(
                 module=ctx.derived_target_module or '__derived__',
                 name=s_name.get_specialized_name(
                     basename,

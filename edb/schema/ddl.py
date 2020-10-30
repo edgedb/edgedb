@@ -32,6 +32,7 @@ from . import expr as s_expr
 from . import functions as s_func
 from . import migrations as s_migr
 from . import modules as s_mod
+from . import name as sn
 from . import objects as so
 from . import objtypes as s_objtypes
 from . import ordering as s_ordering
@@ -50,8 +51,8 @@ def delta_schemas(
     *,
     included_modules: Optional[Iterable[str]]=None,
     excluded_modules: Optional[Iterable[str]]=None,
-    included_items: Optional[Iterable[str]]=None,
-    excluded_items: Optional[Iterable[str]]=None,
+    included_items: Optional[Iterable[sn.Name]]=None,
+    excluded_items: Optional[Iterable[sn.Name]]=None,
     schema_a_filters: Iterable[
         Callable[[s_schema.Schema, so.Object], bool]
     ] = (),
@@ -153,12 +154,12 @@ def delta_schemas(
                         and (obj.get_name(schema).module
                              in s_schema.STD_MODULES))
                     or (isinstance(obj, s_mod.Module)
-                        and obj.get_name(schema) in s_schema.STD_MODULES)
+                        and str(obj.get_name(schema)) in s_schema.STD_MODULES)
                 )
             schema_a_filters.append(_filter)
 
     my_modules = {
-        m.get_name(schema_b)
+        str(m.get_name(schema_b))
         for m in schema_b.get_objects(
             type=s_mod.Module,
             extra_filters=schema_b_filters,
@@ -166,7 +167,7 @@ def delta_schemas(
     }
 
     other_modules = {
-        m.get_name(schema_a)
+        str(m.get_name(schema_a))
         for m in schema_a.get_objects(
             type=s_mod.Module,
             extra_filters=schema_a_filters,
@@ -467,7 +468,7 @@ def delta_from_ddl(
     stdmode: bool=False,
     testmode: bool=False,
     schema_object_ids: Optional[
-        Mapping[Tuple[str, Optional[str]], uuid.UUID]
+        Mapping[Tuple[sn.Name, Optional[str]], uuid.UUID]
     ]=None,
     compat_ver: Optional[verutils.Version] = None,
 ) -> sd.DeltaRoot:
@@ -492,7 +493,7 @@ def _delta_from_ddl(
     internal_schema_mode: bool=False,
     testmode: bool=False,
     schema_object_ids: Optional[
-        Mapping[Tuple[str, Optional[str]], uuid.UUID]
+        Mapping[Tuple[sn.Name, Optional[str]], uuid.UUID]
     ]=None,
     compat_ver: Optional[verutils.Version] = None,
 ) -> Tuple[s_schema.Schema, sd.DeltaRoot]:
@@ -667,8 +668,8 @@ def ddl_text_from_schema(
     schema: s_schema.Schema, *,
     included_modules: Optional[Iterable[str]]=None,
     excluded_modules: Optional[Iterable[str]]=None,
-    included_items: Optional[Iterable[str]]=None,
-    excluded_items: Optional[Iterable[str]]=None,
+    included_items: Optional[Iterable[sn.Name]]=None,
+    excluded_items: Optional[Iterable[sn.Name]]=None,
     included_ref_classes: Iterable[so.ObjectMeta]=tuple(),
     include_module_ddl: bool=True,
     include_std_ddl: bool=False,
@@ -691,8 +692,8 @@ def sdl_text_from_schema(
     schema: s_schema.Schema, *,
     included_modules: Optional[Iterable[str]]=None,
     excluded_modules: Optional[Iterable[str]]=None,
-    included_items: Optional[Iterable[str]]=None,
-    excluded_items: Optional[Iterable[str]]=None,
+    included_items: Optional[Iterable[sn.Name]]=None,
+    excluded_items: Optional[Iterable[sn.Name]]=None,
     included_ref_classes: Iterable[so.ObjectMeta]=tuple(),
     include_module_ddl: bool=True,
     include_std_ddl: bool=False,
@@ -716,8 +717,8 @@ def descriptive_text_from_schema(
     schema: s_schema.Schema, *,
     included_modules: Optional[Iterable[str]]=None,
     excluded_modules: Optional[Iterable[str]]=None,
-    included_items: Optional[Iterable[str]]=None,
-    excluded_items: Optional[Iterable[str]]=None,
+    included_items: Optional[Iterable[sn.Name]]=None,
+    excluded_items: Optional[Iterable[sn.Name]]=None,
     included_ref_classes: Iterable[so.ObjectMeta]=tuple(),
     include_module_ddl: bool=True,
     include_std_ddl: bool=False,

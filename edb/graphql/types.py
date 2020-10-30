@@ -273,20 +273,20 @@ GQL_TO_OPS_MAP = {
 
 HIDDEN_MODULES = s_schema.STD_MODULES - {'std'}
 TOP_LEVEL_TYPES = {
-    s_name.QualifiedName(module='stdgraphql', name='Query'),
-    s_name.QualifiedName(module='stdgraphql', name='Mutation'),
+    s_name.QualName(module='stdgraphql', name='Query'),
+    s_name.QualName(module='stdgraphql', name='Mutation'),
 }
 
 
 class GQLCoreSchema:
 
     _gql_interfaces: Dict[
-        s_name.QualifiedName,
+        s_name.QualName,
         GraphQLInterfaceType,
     ]
 
     _gql_objtypes: Dict[
-        s_name.QualifiedName,
+        s_name.QualName,
         Union[GraphQLInterfaceType, GraphQLObjectType],
     ]
 
@@ -323,7 +323,7 @@ class GQLCoreSchema:
 
         self._define_types()
 
-        Query = s_name.QualifiedName(module='stdgraphql', name='Query')
+        Query = s_name.QualName(module='stdgraphql', name='Query')
         query = self._gql_objtypes[Query] = GraphQLObjectType(
             name='Query',
             fields=self.get_fields(Query),
@@ -334,7 +334,7 @@ class GQLCoreSchema:
         # but we would still want the reflection to work without
         # error, even if all that can be discovered through GraphQL
         # then is the schema.
-        Mutation = s_name.QualifiedName(module='stdgraphql', name='Mutation')
+        Mutation = s_name.QualName(module='stdgraphql', name='Mutation')
         fields = self.get_fields(Mutation)
         if not fields:
             mutation = None
@@ -367,7 +367,7 @@ class GQLCoreSchema:
     def graphql_schema(self) -> GraphQLSchema:
         return self._gql_schema
 
-    def get_gql_name(self, name: s_name.QualifiedName) -> str:
+    def get_gql_name(self, name: s_name.QualName) -> str:
         module, shortname = name.module, name.name
         if module in {'default', 'std'}:
             if shortname.startswith('__'):
@@ -429,7 +429,7 @@ class GQLCoreSchema:
 
         elif edb_target.is_view(self.edb_schema):
             tname = edb_target.get_name(self.edb_schema)
-            assert isinstance(tname, s_name.QualifiedName)
+            assert isinstance(tname, s_name.QualName)
             target = self._gql_objtypes.get(tname)
 
         elif isinstance(edb_target, s_objtypes.ObjectType):
@@ -456,7 +456,7 @@ class GQLCoreSchema:
             base_target = edb_target.get_topmost_concrete_base(self.edb_schema)
             bt_name = base_target.get_name(self.edb_schema)
             try:
-                target = EDB_TO_GQL_SCALARS_MAP[bt_name]
+                target = EDB_TO_GQL_SCALARS_MAP[str(bt_name)]
             except KeyError:
                 # this is the scalar base case, where all potentially
                 # unrecognized scalars should end up
@@ -527,7 +527,7 @@ class GQLCoreSchema:
 
     def _get_query_args(
         self,
-        typename: s_name.QualifiedName,
+        typename: s_name.QualName,
     ) -> Dict[str, GraphQLArgument]:
         return {
             'filter': GraphQLArgument(self._gql_inobjtypes[str(typename)]),
@@ -542,7 +542,7 @@ class GQLCoreSchema:
 
     def _get_insert_args(
         self,
-        typename: s_name.QualifiedName,
+        typename: s_name.QualName,
     ) -> Dict[str, GraphQLArgument]:
         # The data can only be a specific non-interface type, if no
         # such type exists, skip it as we cannot accept unambiguous
@@ -559,7 +559,7 @@ class GQLCoreSchema:
 
     def _get_update_args(
         self,
-        typename: s_name.QualifiedName,
+        typename: s_name.QualName,
     ) -> Dict[str, GraphQLArgument]:
         # some types have no updates
         uptype = self._gql_inobjtypes.get(f'Update{typename}')
@@ -573,7 +573,7 @@ class GQLCoreSchema:
 
     def get_fields(
         self,
-        typename: s_name.QualifiedName,
+        typename: s_name.QualName,
     ) -> Dict[str, GraphQLField]:
         fields = {}
 
@@ -672,7 +672,7 @@ class GQLCoreSchema:
 
     def get_filter_fields(
         self,
-        typename: s_name.QualifiedName,
+        typename: s_name.QualName,
         nested: bool = False,
     ) -> Dict[str, GraphQLInputObjectField]:
         selftype = self._gql_inobjtypes[str(typename)]
@@ -742,7 +742,7 @@ class GQLCoreSchema:
 
     def get_insert_fields(
         self,
-        typename: s_name.QualifiedName,
+        typename: s_name.QualName,
     ) -> Dict[str, GraphQLInputObjectField]:
         fields = {}
 
@@ -788,7 +788,7 @@ class GQLCoreSchema:
 
                 elif edb_target.is_enum(self.edb_schema):
                     enum_name = edb_target.get_name(self.edb_schema)
-                    assert isinstance(enum_name, s_name.QualifiedName)
+                    assert isinstance(enum_name, s_name.QualName)
                     inobjtype = self._gql_inobjtypes.get(f'Insert{enum_name}')
                     assert inobjtype is not None
                     intype = inobjtype
@@ -816,7 +816,7 @@ class GQLCoreSchema:
 
     def get_update_fields(
         self,
-        typename: s_name.QualifiedName,
+        typename: s_name.QualName,
     ) -> Dict[str, GraphQLInputObjectField]:
         fields = {}
 
@@ -907,7 +907,7 @@ class GQLCoreSchema:
         target: GraphQLInputType,
     ) -> GraphQLInputObjectType:
         typename = edb_base.get_name(self.edb_schema)
-        assert isinstance(typename, s_name.QualifiedName)
+        assert isinstance(typename, s_name.QualName)
         name = f'UpdateOp{typename}__{fname}'
         edb_target = ptr.get_target(self.edb_schema)
 
@@ -919,7 +919,7 @@ class GQLCoreSchema:
         if not ptr.get_required(self.edb_schema):
             fields['clear'] = GraphQLInputObjectField(GraphQLBoolean)
 
-        bt_name: Optional[s_name.QualifiedName]
+        bt_name: Optional[s_name.QualName]
         if isinstance(edb_target, s_scalars.ScalarType):
             base_target = edb_target.get_topmost_concrete_base(self.edb_schema)
             bt_name = base_target.get_name(self.edb_schema)
@@ -936,7 +936,7 @@ class GQLCoreSchema:
             fields['increment'] = GraphQLInputObjectField(target)
             fields['decrement'] = GraphQLInputObjectField(target)
         elif (
-            bt_name == s_name.QualifiedName(module='std', name='str')
+            bt_name == s_name.QualName(module='std', name='str')
             or isinstance(edb_target, s_types.Array)
         ):
             # only actual strings and arrays have append, prepend and
@@ -1120,7 +1120,7 @@ class GQLCoreSchema:
 
     def get_order_fields(
         self,
-        typename: s_name.QualifiedName,
+        typename: s_name.QualName,
     ) -> Dict[str, GraphQLInputObjectField]:
         fields: Dict[str, GraphQLInputObjectField] = {}
 
@@ -1294,7 +1294,8 @@ class GQLCoreSchema:
 
         if not name.startswith('stdgraphql::'):
             if edb_base is None:
-                type_id = s_types.type_id_from_name(name)
+                type_id = s_types.type_id_from_name(
+                    s_name.name_from_string(name))
                 if type_id is not None:
                     edb_base = self.edb_schema.get_by_id(
                         type_id,
@@ -1346,14 +1347,14 @@ class GQLTypeMeta(type):
 
         edb_type = dct.get('edb_type')
         if edb_type:
-            mcls.edb_map[edb_type] = cls
+            mcls.edb_map[str(edb_type)] = cls
 
         return cls  # type: ignore
 
 
 class GQLBaseType(metaclass=GQLTypeMeta):
 
-    edb_type: ClassVar[Optional[s_name.QualifiedName]] = None
+    edb_type: ClassVar[Optional[s_name.QualName]] = None
     _edb_base: s_types.Type
     _module: Optional[str]
     _fields: Dict[Tuple[str, bool], GQLBaseType]
@@ -1381,7 +1382,7 @@ class GQLBaseType(metaclass=GQLTypeMeta):
                     f'define a required edb_base for {type(self)!r}',
                 )
 
-        edb_base_name = edb_base.get_name(schema.edb_schema)
+        edb_base_name = str(edb_base.get_name(schema.edb_schema))
 
         # __typename
         if name is None:
@@ -1409,7 +1410,7 @@ class GQLBaseType(metaclass=GQLTypeMeta):
         # we're dealing with it
         if isinstance(edb_base, s_scalars.ScalarType):
             bt = edb_base.get_topmost_concrete_base(self.edb_schema)
-            bt_name = bt.get_name(self.edb_schema)
+            bt_name = str(bt.get_name(self.edb_schema))
             self._is_json = bt_name == 'std::json'
             self._is_bool = bt_name == 'std::bool'
             self._is_float = edb_base.issubclass(
@@ -1463,14 +1464,14 @@ class GQLBaseType(metaclass=GQLTypeMeta):
         if isinstance(self.edb_base, s_types.Array):
             el = self.edb_base.get_element_type(self.edb_schema)
             base_name = el.get_name(self.edb_schema)
-            assert isinstance(base_name, s_name.QualifiedName)
+            assert isinstance(base_name, s_name.QualName)
             return qlast.ObjectRef(
                 module=base_name.module,
                 name=base_name.name,
             )
         else:
             base_name = self.edb_base.get_name(self.edb_schema)
-            assert isinstance(base_name, s_name.QualifiedName)
+            assert isinstance(base_name, s_name.QualName)
             return qlast.ObjectRef(
                 module=base_name.module,
                 name=base_name.name,
@@ -1520,7 +1521,7 @@ class GQLBaseType(metaclass=GQLTypeMeta):
         if self.dummy:
             kwargs['dummy'] = True
 
-        return self.schema.get(base.get_name(self.edb_schema), **kwargs)
+        return self.schema.get(str(base.get_name(self.edb_schema)), **kwargs)
 
     def is_field_shadowed(self, name: str) -> bool:
         return name in self._shadow_fields
@@ -1538,7 +1539,7 @@ class GQLBaseType(metaclass=GQLTypeMeta):
             if name == '__typename':
                 target = self.convert_edb_to_gql_type(
                     self.edb_schema.get(
-                        s_name.QualifiedName(
+                        s_name.QualName(
                             module='std',
                             name='str',
                         ),
@@ -1705,7 +1706,7 @@ class GQLBaseQuery(GQLBaseType):
 
 
 class GQLQuery(GQLBaseQuery):
-    edb_type = s_name.QualifiedName(module='stdgraphql', name='Query')
+    edb_type = s_name.QualName(module='stdgraphql', name='Query')
 
     def get_field_type(self, name: str) -> Optional[GQLBaseType]:
         fkey = (name, self.dummy)
@@ -1725,7 +1726,7 @@ class GQLQuery(GQLBaseQuery):
 
             if target is None:
                 module, edb_name = self.get_module_and_name(name)
-                edb_qname = s_name.QualifiedName(module=module, name=edb_name)
+                edb_qname = s_name.QualName(module=module, name=edb_name)
                 edb_type = self.edb_schema.get(
                     edb_qname,
                     default=None,
@@ -1741,7 +1742,7 @@ class GQLQuery(GQLBaseQuery):
 
 
 class GQLMutation(GQLBaseQuery):
-    edb_type = s_name.QualifiedName(module='stdgraphql', name='Mutation')
+    edb_type = s_name.QualName(module='stdgraphql', name='Mutation')
 
     def get_field_type(self, name: str) -> Optional[GQLBaseType]:
         fkey = (name, self.dummy)
@@ -1753,7 +1754,7 @@ class GQLMutation(GQLBaseQuery):
 
             if target is None:
                 module, edb_name = self.get_module_and_name(name)
-                edb_qname = s_name.QualifiedName(module=module, name=edb_name)
+                edb_qname = s_name.QualName(module=module, name=edb_name)
                 edb_type = self.edb_schema.get(
                     edb_qname,
                     default=None,

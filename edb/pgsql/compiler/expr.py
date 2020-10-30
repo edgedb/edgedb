@@ -324,7 +324,7 @@ def compile_OperatorCall(
         expr: irast.OperatorCall, *,
         ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
-    if (expr.func_shortname == 'std::IF'
+    if (str(expr.func_shortname) == 'std::IF'
             and expr.args[0].cardinality.is_single()
             and expr.args[2].cardinality.is_single()):
         if_expr, condition, else_expr = (a.expr for a in expr.args)
@@ -361,18 +361,19 @@ def compile_operator(
     else:
         raise RuntimeError(f'unexpected operator kind: {expr.operator_kind!r}')
 
-    if ((expr.func_shortname in {'std::=', 'std::!='}
-            or expr.origin_name in {'std::=', 'std::!='})
+    str_func_name = str(expr.func_shortname)
+    if ((str_func_name in {'std::=', 'std::!='}
+            or str(expr.origin_name) in {'std::=', 'std::!='})
             and expr.args[0].expr.typeref is not None
             and irtyputils.is_object(expr.args[0].expr.typeref)
             and expr.args[1].expr.typeref is not None
             and irtyputils.is_object(expr.args[1].expr.typeref)):
-        if expr.func_shortname == 'std::=' or expr.origin_name == 'std::=':
+        if str_func_name == 'std::=' or str(expr.origin_name) == 'std::=':
             sql_oper = '='
         else:
             sql_oper = '!='
 
-    elif expr.func_shortname == 'std::EXISTS':
+    elif str_func_name == 'std::EXISTS':
         result = pgast.NullTest(arg=rexpr, negated=True)
 
     elif expr.sql_operator:

@@ -124,7 +124,7 @@ def type_to_typeref(
     t: s_types.Type,
     *,
     cache: Optional[Dict[TypeRefCacheKey, irast.TypeRef]] = None,
-    typename: Optional[s_name.QualifiedName] = None,
+    typename: Optional[s_name.QualName] = None,
     include_descendants: bool = False,
     _name: Optional[str] = None,
 ) -> irast.TypeRef:
@@ -734,7 +734,7 @@ def cardinality_from_ptrcls(
 def is_id_ptrref(ptrref: irast.BasePointerRef) -> bool:
     """Return True if *ptrref* describes the id property."""
     return (
-        ptrref.std_parent_name == 'std::id'
+        str(ptrref.std_parent_name) == 'std::id'
     )
 
 

@@ -54,6 +54,7 @@ from edb.schema import delta as s_delta
 from edb.schema import links as s_links
 from edb.schema import lproperties as s_props
 from edb.schema import modules as s_mod
+from edb.schema import name as s_name
 from edb.schema import objects as s_obj
 from edb.schema import objtypes as s_objtypes
 from edb.schema import reflection as s_refl
@@ -103,7 +104,7 @@ class CompileContext:
     implicit_limit: int = 0
     inline_typeids: bool = False
     inline_typenames: bool = False
-    schema_object_ids: Optional[Mapping[str, uuid.UUID]] = None
+    schema_object_ids: Optional[Mapping[s_name.Name, uuid.UUID]] = None
     source: Optional[edgeql.Source] = None
     backend_instance_params: BackendInstanceParams = BackendInstanceParams()
     compat_ver: Optional[verutils.Version] = None
@@ -946,7 +947,7 @@ class Compiler(BaseCompiler):
 
                 desc = json.dumps({
                     'parent': (
-                        mstate.parent_migration.get_name(schema)
+                        str(mstate.parent_migration.get_name(schema))
                         if mstate.parent_migration is not None
                         else 'initial'
                     ),
@@ -1625,7 +1626,7 @@ class Compiler(BaseCompiler):
         inline_typenames: bool=False,
         json_parameters: bool=False,
         schema: Optional[s_schema.Schema] = None,
-        schema_object_ids: Optional[Mapping[str, uuid.UUID]] = None,
+        schema_object_ids: Optional[Mapping[s_name.Name, uuid.UUID]] = None,
         compat_ver: Optional[verutils.Version] = None,
     ) -> CompileContext:
 
@@ -2075,7 +2076,10 @@ class Compiler(BaseCompiler):
         blocks: List[Tuple[bytes, bytes]],  # type_id, typespec
     ) -> RestoreDescriptor:
         schema_object_ids = {
-            (name, qltype if qltype else None): uuidgen.from_bytes(objid)
+            (
+                s_name.name_from_string(name),
+                qltype if qltype else None
+            ): uuidgen.from_bytes(objid)
             for name, qltype, objid in schema_ids
         }
 

@@ -33,6 +33,7 @@ from edb.edgeql import hasher as qlhasher
 
 from . import abc as s_abc
 from . import delta as sd
+from . import name as sn
 from . import objects as so
 from . import utils as s_utils
 
@@ -120,16 +121,16 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
             if parent.name != actual_parent_name:
                 raise errors.SchemaDefinitionError(
                     f'specified migration parent is not the most '
-                    f'recent migration, expected {actual_parent_name!r}',
+                    f'recent migration, expected {str(actual_parent_name)!r}',
                     context=astnode.parent.context,
                 )
 
         if parent is not None:
             parent_name = parent.name
         else:
-            parent_name = 'initial'
+            parent_name = sn.UnqualName(name='initial')
 
-        hasher = qlhasher.Hasher.start_migration(parent_name)
+        hasher = qlhasher.Hasher.start_migration(str(parent_name))
         if astnode.body.context is not None:
             # This is an explicitly specified CREATE MIGRATION
             src_start = astnode.body.context.start.pointer
@@ -155,7 +156,7 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
                 context=astnode.name.context,
             )
 
-        cmd = cls(classname=name)
+        cmd = cls(classname=sn.UnqualName(name))
         cmd.set_attribute_value('script', ddl_text)
         cmd.set_attribute_value('builtin', False)
         cmd.set_attribute_value('internal', False)

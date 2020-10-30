@@ -57,34 +57,34 @@ base_type_name_map = {
 }
 
 base_type_name_map_r = {
-    'character varying': sn.QualifiedName('std::str'),
-    'character': sn.QualifiedName('std::str'),
-    'text': sn.QualifiedName('std::str'),
-    'numeric': sn.QualifiedName('std::decimal'),
-    'edgedb.bigint_t': sn.QualifiedName('std::bigint'),
-    'bigint_t': sn.QualifiedName('std::bigint'),
-    'int4': sn.QualifiedName('std::int32'),
-    'integer': sn.QualifiedName('std::int32'),
-    'bigint': sn.QualifiedName('std::int64'),
-    'int8': sn.QualifiedName('std::int64'),
-    'int2': sn.QualifiedName('std::int16'),
-    'smallint': sn.QualifiedName('std::int16'),
-    'boolean': sn.QualifiedName('std::bool'),
-    'bool': sn.QualifiedName('std::bool'),
-    'double precision': sn.QualifiedName('std::float64'),
-    'float8': sn.QualifiedName('std::float64'),
-    'real': sn.QualifiedName('std::float32'),
-    'float4': sn.QualifiedName('std::float32'),
-    'uuid': sn.QualifiedName('std::uuid'),
-    'timestamp with time zone': sn.QualifiedName('std::datetime'),
-    'timestamptz': sn.QualifiedName('std::datetime'),
-    'interval': sn.QualifiedName('std::duration'),
-    'bytea': sn.QualifiedName('std::bytes'),
-    'jsonb': sn.QualifiedName('std::json'),
+    'character varying': sn.QualName('std', 'str'),
+    'character': sn.QualName('std', 'str'),
+    'text': sn.QualName('std', 'str'),
+    'numeric': sn.QualName('std', 'decimal'),
+    'edgedb.bigint_t': sn.QualName('std', 'bigint'),
+    'bigint_t': sn.QualName('std', 'bigint'),
+    'int4': sn.QualName('std', 'int32'),
+    'integer': sn.QualName('std', 'int32'),
+    'bigint': sn.QualName('std', 'int64'),
+    'int8': sn.QualName('std', 'int64'),
+    'int2': sn.QualName('std', 'int16'),
+    'smallint': sn.QualName('std', 'int16'),
+    'boolean': sn.QualName('std', 'bool'),
+    'bool': sn.QualName('std', 'bool'),
+    'double precision': sn.QualName('std', 'float64'),
+    'float8': sn.QualName('std', 'float64'),
+    'real': sn.QualName('std', 'float32'),
+    'float4': sn.QualName('std', 'float32'),
+    'uuid': sn.QualName('std', 'uuid'),
+    'timestamp with time zone': sn.QualName('std', 'datetime'),
+    'timestamptz': sn.QualName('std', 'datetime'),
+    'interval': sn.QualName('std', 'duration'),
+    'bytea': sn.QualName('std', 'bytes'),
+    'jsonb': sn.QualName('std', 'json'),
 
-    'timestamp': sn.QualifiedName('cal::local_datetime'),
-    'date': sn.QualifiedName('cal::local_date'),
-    'time': sn.QualifiedName('cal::local_time'),
+    'timestamp': sn.QualName('cal', 'local_datetime'),
+    'date': sn.QualName('cal', 'local_date'),
+    'time': sn.QualName('cal', 'local_time'),
 }
 
 
@@ -406,7 +406,7 @@ def get_ptrref_storage_info(
 
         target = ptrref.out_target
 
-    if is_lprop and ptrref.std_parent_name == 'std::target':
+    if is_lprop and str(ptrref.std_parent_name) == 'std::target':
         # Normalize link@target to link
         ptrref = source
         is_lprop = False

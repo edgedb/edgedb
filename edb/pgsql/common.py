@@ -185,7 +185,7 @@ def get_scalar_backend_name(id, module_id, catenate=True, *, aspect=None):
     if aspect not in ('domain', 'sequence', 'enum'):
         raise ValueError(
             f'unexpected aspect for scalar backend name: {aspect!r}')
-    name = s_name.QualifiedName(module=str(module_id), name=str(id))
+    name = s_name.QualName(module=str(module_id), name=str(id))
     return convert_name(name, aspect, catenate)
 
 
@@ -206,7 +206,7 @@ def get_objtype_backend_name(id, module_id, *, catenate=True, aspect=None):
         raise ValueError(
             f'unexpected aspect for object type backend name: {aspect!r}')
 
-    name = s_name.QualifiedName(module=str(module_id), name=str(id))
+    name = s_name.QualName(module=str(module_id), name=str(id))
 
     suffix = get_aspect_suffix(aspect)
     return convert_name(name, suffix=suffix, catenate=catenate)
@@ -220,21 +220,21 @@ def get_pointer_backend_name(id, module_id, *, catenate=False, aspect=None):
         raise ValueError(
             f'unexpected aspect for pointer backend name: {aspect!r}')
 
-    name = s_name.QualifiedName(module=str(module_id), name=str(id))
+    name = s_name.QualName(module=str(module_id), name=str(id))
 
     suffix = get_aspect_suffix(aspect)
     return convert_name(name, suffix=suffix, catenate=catenate)
 
 
 _operator_map = {
-    'std::AND': 'AND',
-    'std::NOT': 'NOT',
-    'std::?=': 'IS NOT DISTINCT FROM',
-    'std::?!=': 'IS DISTINCT FROM',
-    'std::LIKE': 'LIKE',
-    'std::ILIKE': 'ILIKE',
-    'std::NOT LIKE': 'NOT LIKE',
-    'std::NOT ILIKE': 'NOT ILIKE',
+    s_name.name_from_string('std::AND'): 'AND',
+    s_name.name_from_string('std::NOT'): 'NOT',
+    s_name.name_from_string('std::?='): 'IS NOT DISTINCT FROM',
+    s_name.name_from_string('std::?!='): 'IS DISTINCT FROM',
+    s_name.name_from_string('std::LIKE'): 'LIKE',
+    s_name.name_from_string('std::ILIKE'): 'ILIKE',
+    s_name.name_from_string('std::NOT LIKE'): 'NOT LIKE',
+    s_name.name_from_string('std::NOT ILIKE'): 'NOT ILIKE',
 }
 
 
@@ -243,7 +243,7 @@ def get_operator_backend_name(name, module_id, catenate=False, *, aspect=None):
         aspect = 'operator'
 
     if aspect == 'function':
-        fullname = s_name.QualifiedName(module=str(module_id), name=name.name)
+        fullname = s_name.QualName(module=str(module_id), name=name.name)
         return convert_name(fullname, 'f', catenate=catenate)
     elif aspect != 'operator':
         raise ValueError(
@@ -275,7 +275,7 @@ def get_operator_backend_name(name, module_id, catenate=False, *, aspect=None):
 
 def get_cast_backend_name(name, module_id, catenate=False, *, aspect=None):
     if aspect == 'function':
-        fullname = s_name.QualifiedName(module=str(module_id), name=name.name)
+        fullname = s_name.QualName(module=str(module_id), name=name.name)
         return convert_name(fullname, 'f', catenate=catenate)
     else:
         raise ValueError(
@@ -283,7 +283,7 @@ def get_cast_backend_name(name, module_id, catenate=False, *, aspect=None):
 
 
 def get_function_backend_name(name, module_id, catenate=False):
-    fullname = s_name.QualifiedName(module=str(module_id), name=name.name)
+    fullname = s_name.QualName(module=str(module_id), name=name.name)
     schema, func_name = convert_name(fullname, catenate=False)
     if catenate:
         return qname(schema, func_name)
@@ -296,20 +296,20 @@ def get_constraint_backend_name(id, module_id, catenate=True, *, aspect=None):
         raise ValueError(
             f'unexpected aspect for constraint backend name: {aspect!r}')
 
-    name = s_name.QualifiedName(module=str(module_id), name=str(id))
+    name = s_name.QualName(module=str(module_id), name=str(id))
     return convert_name(name, aspect, catenate)
 
 
 def get_index_backend_name(id, module_id, catenate=True, *, aspect=None):
     if aspect is None:
         aspect = 'index'
-    name = s_name.QualifiedName(module=str(module_id), name=str(id))
+    name = s_name.QualName(module=str(module_id), name=str(id))
     return convert_name(name, aspect, catenate)
 
 
 def get_tuple_backend_name(id, catenate=True, *, aspect=None):
 
-    name = s_name.QualifiedName(module='edgedb', name=f'{id}_t')
+    name = s_name.QualName(module='edgedb', name=f'{id}_t')
     return convert_name(name, aspect, catenate, prefix='')
 
 

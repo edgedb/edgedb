@@ -640,7 +640,7 @@ def write_meta_create_object(
                 }}
             '''
 
-            variables['__parent_classname'] = json.dumps(refop.classname)
+            variables['__parent_classname'] = json.dumps(str(refop.classname))
             blocks.append((parent_update_query, variables))
 
     _descend(
@@ -695,7 +695,7 @@ def write_meta_alter_object(
                     {shape}
                 }};
             '''
-            variables['__classname'] = json.dumps(cmd.classname)
+            variables['__classname'] = json.dumps(str(cmd.classname))
             blocks.append((query, variables))
 
         if isinstance(cmd, s_ref.ReferencedObjectCommand):
@@ -779,7 +779,7 @@ def _update_lprops(
 
     if shape:
         parent_variables = {}
-        parent_variables[f'__{target_link}'] = json.dumps(target_ref)
+        parent_variables[f'__{target_link}'] = json.dumps(str(target_ref))
 
         # XXX: we have to do a -= followed by a += because
         # support for filtered nested link property updates
@@ -797,7 +797,7 @@ def _update_lprops(
         '''
 
         parent_variables['__parent_classname'] = (
-            json.dumps(refop.classname)
+            json.dumps(str(refop.classname))
         )
 
         blocks.append((parent_update_query, parent_variables))
@@ -889,7 +889,7 @@ def write_meta_delete_object(
             '''
 
             parent_variables['__parent_classname'] = (
-                json.dumps(refop.classname)
+                json.dumps(str(refop.classname))
             )
 
             blocks.append((parent_update_query, parent_variables))
@@ -898,5 +898,5 @@ def write_meta_delete_object(
             DELETE schema::{mcls.__name__}
             FILTER .name__internal = <str>$__classname;
         '''
-        variables = {'__classname': json.dumps(cmd.classname)}
+        variables = {'__classname': json.dumps(str(cmd.classname))}
         blocks.append((query, variables))

@@ -153,11 +153,12 @@ def _classify_object_field(field: s_obj.Field[Any]) -> FieldStorage:
         ptr_kind = 'property'
         ptr_type = 'json'
 
-    elif issubclass(ftype, str):
+    elif issubclass(ftype, (str, sn.Name)):
         ptr_kind = 'property'
         ptr_type = 'str'
 
         if field.name == 'name':
+            # TODO: consider shadow-reflecting names as tuples
             shadow_ptr_kind = 'property'
             shadow_ptr_type = 'str'
 
@@ -187,21 +188,21 @@ def _classify_object_field(field: s_obj.Field[Any]) -> FieldStorage:
     )
 
 
-def get_schema_name_for_pycls(py_cls: Type[s_obj.Object]) -> str:
+def get_schema_name_for_pycls(py_cls: Type[s_obj.Object]) -> sn.Name:
     py_cls_name = py_cls.__name__
     if issubclass(py_cls, s_obj.GlobalObject):
         # Global objects, like Role and Database live in the sys:: module
-        return sn.QualifiedName(module='sys', name=py_cls_name)
+        return sn.QualName(module='sys', name=py_cls_name)
     else:
-        return sn.QualifiedName(module='schema', name=py_cls_name)
+        return sn.QualName(module='schema', name=py_cls_name)
 
 
-def get_default_base_for_pycls(py_cls: Type[s_obj.Object]) -> str:
+def get_default_base_for_pycls(py_cls: Type[s_obj.Object]) -> sn.Name:
     if issubclass(py_cls, s_obj.GlobalObject):
         # Global objects, like Role and Database live in the sys:: module
-        return sn.QualifiedName(module='sys', name='SystemObject')
+        return sn.QualName(module='sys', name='SystemObject')
     else:
-        return sn.QualifiedName(module='schema', name='Object')
+        return sn.QualName(module='schema', name='Object')
 
 
 def generate_structure(
@@ -301,7 +302,7 @@ def generate_structure(
 
         py_classes.append(py_cls)
 
-    read_sets: Dict[str, List[str]] = {}
+    read_sets: Dict[sn.Name, List[str]] = {}
 
     for py_cls in py_classes:
         rschema_name = get_schema_name_for_pycls(py_cls)
@@ -333,7 +334,7 @@ def generate_structure(
                 f'''
                     CREATE {'ABSTRACT' if as_abstract else ''}
                     TYPE {rschema_name}
-                    EXTENDING {', '.join(bases)};
+                    EXTENDING {', '.join(str(b) for b in bases)};
                 ''',
                 schema=schema,
                 delta=delta,
@@ -354,7 +355,7 @@ def generate_structure(
                     else:
                         position_clause = position
 
-                    bases_expr = ', '.join(t.name for t in subset)
+                    bases_expr = ', '.join(str(t.name) for t in subset)
 
                     stmt = f'''
                         ALTER TYPE {rschema_name} {{
@@ -756,9 +757,13 @@ def generate_structure(
 
     union_parts = []
     for objname, shape_els in read_sets.items():
+        str_objname = str(objname)
         if (
             not shape_els
-            or objname in {'schema::TupleExprAlias', 'schema::ArrayExprAlias'}
+            or str_objname in {
+                'schema::TupleExprAlias',
+                'schema::ArrayExprAlias'
+            }
         ):
             continue
 
@@ -768,7 +773,7 @@ def generate_structure(
                 {shape}
             }}
         '''
-        if objname not in {'schema::Tuple', 'schema::Array'}:
+        if str_objname not in {'schema::Tuple', 'schema::Array'}:
             qry += ' FILTER NOT .builtin'
         union_parts.append(qry)
 

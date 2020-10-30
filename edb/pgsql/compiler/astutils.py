@@ -50,13 +50,13 @@ def tuple_element_for_shape_el(
     if value is not None:
         return pgast.TupleElement(
             path_id=shape_el.path_id,
-            name=ptrname,
+            name=ptrname.name,
             val=value,
         )
     else:
         return pgast.TupleElementBase(
             path_id=shape_el.path_id,
-            name=ptrname,
+            name=ptrname.name,
         )
 
 

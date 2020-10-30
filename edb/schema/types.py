@@ -119,7 +119,7 @@ class Type(
         self: TypeT,
         schema: s_schema.Schema,
         *,
-        name: s_name.QualifiedName,
+        name: s_name.QualName,
         mark_derived: bool = False,
         attrs: Optional[Mapping[str, Any]] = None,
         inheritance_merge: bool = True,
@@ -376,7 +376,7 @@ class Type(
         return not self.is_view(schema)
 
     def as_shell(self, schema: s_schema.Schema) -> TypeShell:
-        name = typing.cast(s_name.QualifiedName, self.get_name(schema))
+        name = typing.cast(s_name.QualName, self.get_name(schema))
 
         if union_of := self.get_union_of(schema):
             assert isinstance(self, so.QualifiedObject)
@@ -452,8 +452,8 @@ class TypeShell(so.ObjectShell):
     def __init__(
         self,
         *,
-        name: str,
-        origname: Optional[str] = None,
+        name: s_name.Name,
+        origname: Optional[s_name.Name] = None,
         displayname: Optional[str] = None,
         expr: Optional[str] = None,
         is_abstract: bool = False,
@@ -485,7 +485,7 @@ class TypeShell(so.ObjectShell):
         self,
         schema: s_schema.Schema,
         *,
-        view_name: Optional[str] = None,
+        view_name: Optional[s_name.QualName] = None,
         attrs: Optional[Dict[str, Any]] = None,
     ) -> sd.Command:
         raise NotImplementedError
@@ -544,7 +544,7 @@ class UnionTypeShell(TypeExprShell):
     def get_name(
         self,
         schema: s_schema.Schema,
-    ) -> str:
+    ) -> s_name.Name:
         _, name = get_union_type_id(
             schema,
             self.components,
@@ -557,7 +557,7 @@ class UnionTypeShell(TypeExprShell):
         self,
         schema: s_schema.Schema,
         *,
-        view_name: Optional[str] = None,
+        view_name: Optional[s_name.QualName] = None,
         attrs: Optional[Dict[str, Any]] = None,
     ) -> sd.Command:
 
@@ -637,7 +637,7 @@ class IntersectionTypeShell(TypeExprShell):
     def get_name(
         self,
         schema: s_schema.Schema,
-    ) -> str:
+    ) -> s_name.Name:
         _, name = get_intersection_type_id(
             schema,
             self.components,
@@ -658,7 +658,7 @@ class Collection(Type, s_abc.Collection):
     )
 
     @classmethod
-    def get_displayname_static(cls, name: str) -> str:
+    def get_displayname_static(cls, name: s_name.Name) -> str:
         return type_displayname_from_name(name)
 
     def is_polymorphic(self, schema: s_schema.Schema) -> bool:
@@ -761,11 +761,9 @@ class Collection(Type, s_abc.Collection):
         # Disregard differences in generated names, because those
         # contain type ids which are volatile.
         if field.name == 'name':
-            assert isinstance(our_value, str)
-            assert isinstance(their_value, str)
             if (
-                our_value.startswith('__id:')
-                and their_value.startswith('__id:')
+                str(our_value).startswith('__id:')
+                and str(their_value).startswith('__id:')
             ):
                 return 1.0
 
@@ -864,7 +862,7 @@ class Collection(Type, s_abc.Collection):
         self,
         schema: s_schema.Schema,
         *,
-        view_name: Optional[str] = None,
+        view_name: Optional[s_name.QualName] = None,
     ) -> sd.Command:
         raise NotImplementedError
 
@@ -916,7 +914,7 @@ class Array(
         cls: typing.Type[Array_T],
         schema: s_schema.Schema,
         *,
-        name: Optional[str] = None,
+        name: Optional[s_name.Name] = None,
         id: Union[uuid.UUID, so.NoDefaultT] = so.NoDefault,
         dimensions: Sequence[int] = (),
         element_type: Any,
@@ -932,7 +930,7 @@ class Array(
         if id is so.NoDefault:
             quals = []
             if name is not None:
-                quals.append(name)
+                quals.append(str(name))
             id = generate_array_type_id(
                 schema, element_type, dimensions, *quals)
 
@@ -967,7 +965,7 @@ class Array(
         self,
         schema: s_schema.Schema,
         *,
-        name: s_name.QualifiedName,
+        name: s_name.QualName,
         attrs: Optional[Mapping[str, Any]] = None,
         **kwargs: Any,
     ) -> typing.Tuple[s_schema.Schema, Array]:
@@ -1071,7 +1069,7 @@ class Array(
         subtypes: Sequence[Type],
         typemods: Any = None,
         *,
-        name: Optional[s_name.QualifiedName] = None,
+        name: Optional[s_name.QualName] = None,
         id: Union[uuid.UUID, so.NoDefaultT] = so.NoDefault,
         **kwargs: Any,
     ) -> typing.Tuple[s_schema.Schema, Array_T]:
@@ -1103,7 +1101,7 @@ class Array(
         *,
         subtypes: Sequence[TypeShell],
         typemods: Any = None,
-        name: Optional[str] = None,
+        name: Optional[s_name.Name] = None,
         expr: Optional[str] = None,
     ) -> ArrayTypeShell:
         if not typemods:
@@ -1112,7 +1110,7 @@ class Array(
         st = next(iter(subtypes))
 
         if name is None:
-            name = '__unresolved__'
+            name = s_name.UnqualName('__unresolved__')
 
         return ArrayTypeShell(
             subtype=st,
@@ -1151,7 +1149,10 @@ class Array(
             return (schema, self)
 
     def as_colltype_delete_delta(
-        self, schema: s_schema.Schema, *, view_name: Optional[str] = None
+        self,
+        schema: s_schema.Schema,
+        *,
+        view_name: Optional[s_name.QualName] = None,
     ) -> Union[DeleteArray, DeleteArrayExprAlias]:
         cmd: Union[DeleteArray, DeleteArrayExprAlias]
         if view_name is None:
@@ -1172,7 +1173,7 @@ class ArrayTypeShell(CollectionTypeShell):
     def __init__(
         self,
         *,
-        name: str,
+        name: s_name.Name,
         expr: Optional[str] = None,
         subtype: TypeShell,
         typemods: typing.Tuple[typing.Any, ...],
@@ -1182,8 +1183,8 @@ class ArrayTypeShell(CollectionTypeShell):
         self.subtype = subtype
         self.typemods = typemods
 
-    def get_name(self, schema: s_schema.Schema) -> str:
-        if self.name == '__unresolved__':
+    def get_name(self, schema: s_schema.Schema) -> s_name.Name:
+        if str(self.name) == '__unresolved__':
             typemods = self.typemods
             dimensions = typemods[0]
             tid = generate_array_type_id(schema, self.subtype, dimensions)
@@ -1207,7 +1208,7 @@ class ArrayTypeShell(CollectionTypeShell):
             return stable_type_id
 
         dimensions = self.typemods[0]
-        quals = [name]
+        quals: typing.List[str] = [str(name)]
         if self.expr is not None:
             quals.append(self.expr)
         return generate_array_type_id(
@@ -1224,7 +1225,7 @@ class ArrayTypeShell(CollectionTypeShell):
         self,
         schema: s_schema.Schema,
         *,
-        view_name: Optional[str] = None,
+        view_name: Optional[s_name.QualName] = None,
         attrs: Optional[Dict[str, Any]] = None,
     ) -> sd.CommandGroup:
         ca: Union[CreateArray, CreateArrayExprAlias]
@@ -1308,7 +1309,7 @@ class Tuple(
         cls: typing.Type[Tuple_T],
         schema: s_schema.Schema,
         *,
-        name: Optional[str] = None,
+        name: Optional[s_name.Name] = None,
         id: Union[uuid.UUID, so.NoDefaultT] = so.NoDefault,
         element_types: Mapping[str, Type],
         named: bool = False,
@@ -1318,7 +1319,7 @@ class Tuple(
         if id is so.NoDefault:
             quals = []
             if name is not None:
-                quals.append(name)
+                quals.append(str(name))
             id = generate_tuple_type_id(schema, element_types, named, *quals)
 
         if name is None:
@@ -1419,7 +1420,7 @@ class Tuple(
         self,
         schema: s_schema.Schema,
         *,
-        name: s_name.QualifiedName,
+        name: s_name.QualName,
         attrs: Optional[Mapping[str, Any]] = None,
         **kwargs: Any,
     ) -> typing.Tuple[s_schema.Schema, Tuple]:
@@ -1439,7 +1440,7 @@ class Tuple(
         subtypes: Union[Iterable[Type], Mapping[str, Type]],
         typemods: Any = None,
         *,
-        name: Optional[s_name.QualifiedName] = None,
+        name: Optional[s_name.QualName] = None,
         id: Union[uuid.UUID, so.NoDefaultT] = so.NoDefault,
         **kwargs: Any,
     ) -> typing.Tuple[s_schema.Schema, Tuple_T]:
@@ -1462,10 +1463,10 @@ class Tuple(
         *,
         subtypes: Mapping[str, TypeShell],
         typemods: Any = None,
-        name: Optional[str] = None,
+        name: Optional[s_name.Name] = None,
     ) -> TupleTypeShell:
         if name is None:
-            name = '__unresolved__'
+            name = s_name.UnqualName(name='__unresolved__')
 
         return TupleTypeShell(
             subtypes=subtypes,
@@ -1668,14 +1669,17 @@ class Tuple(
                 new_material_type = True
             subtypes[st_name] = stm
 
-        if new_material_type or self.get_name(schema) != str(self.id):
+        if new_material_type or str(self.get_name(schema)) != str(self.id):
             return self.__class__.from_subtypes(
                 schema, subtypes, typemods=self.get_typemods(schema))
         else:
             return schema, self
 
     def as_colltype_delete_delta(
-        self, schema: s_schema.Schema, *, view_name: Optional[str] = None
+        self,
+        schema: s_schema.Schema,
+        *,
+        view_name: Optional[s_name.QualName] = None,
     ) -> Union[DeleteTuple, DeleteTupleExprAlias]:
         cmd: Union[DeleteTuple, DeleteTupleExprAlias]
         if view_name is None:
@@ -1702,7 +1706,7 @@ class TupleTypeShell(CollectionTypeShell):
     def __init__(
         self,
         *,
-        name: str,
+        name: s_name.Name,
         expr: Optional[str] = None,
         subtypes: Mapping[str, TypeShell],
         typemods: Any = None,
@@ -1711,8 +1715,8 @@ class TupleTypeShell(CollectionTypeShell):
         self.subtypes = subtypes
         self.typemods = typemods
 
-    def get_name(self, schema: s_schema.Schema) -> str:
-        if self.name == '__unresolved__':
+    def get_name(self, schema: s_schema.Schema) -> s_name.Name:
+        if str(self.name) == '__unresolved__':
             typemods = self.typemods
             subtypes = self.subtypes
             named = typemods is not None and typemods.get('named', False)
@@ -1752,7 +1756,7 @@ class TupleTypeShell(CollectionTypeShell):
 
         named = self.is_named()
 
-        quals = [name]
+        quals: typing.List[str] = [str(name)]
         if self.expr is not None:
             quals.append(self.expr)
 
@@ -1765,7 +1769,7 @@ class TupleTypeShell(CollectionTypeShell):
         self,
         schema: s_schema.Schema,
         *,
-        view_name: Optional[str] = None,
+        view_name: Optional[s_name.QualName] = None,
         attrs: Optional[Dict[str, Any]] = None,
     ) -> sd.CommandGroup:
         ct: Union[CreateTuple, CreateTupleExprAlias]
@@ -1810,28 +1814,35 @@ class TupleExprAlias(
     pass
 
 
-def type_name_from_id_and_displayname(id: uuid.UUID, displayname: str) -> str:
-    return f'__id:{id}:{s_name.mangle_name(displayname)}'
+def type_name_from_id_and_displayname(
+    id: uuid.UUID,
+    displayname: str,
+) -> s_name.UnqualName:
+    return s_name.UnqualName(
+        name=f'__id:{id}:{s_name.mangle_name(displayname)}',
+    )
 
 
 def is_type_id_name(name: str) -> bool:
     return name.startswith('__id:')
 
 
-def type_id_from_name(name: str) -> Optional[uuid.UUID]:
-    if is_type_id_name(name):
-        parts = name.split(':', maxsplit=2)
+def type_id_from_name(name: s_name.Name) -> Optional[uuid.UUID]:
+    strname = str(name)
+    if strname.startswith('__id:'):
+        parts = strname.split(':', maxsplit=2)
         return uuid.UUID(parts[1])
     else:
         return None
 
 
-def type_displayname_from_name(name: str) -> str:
-    if is_type_id_name(name):
-        parts = name.split(':', maxsplit=2)
+def type_displayname_from_name(name: s_name.Name) -> str:
+    strname = str(name)
+    if is_type_id_name(strname):
+        parts = strname.split(':', maxsplit=2)
         return s_name.unmangle_name(parts[2])
     else:
-        return name
+        return strname
 
 
 def generate_type_id(id_str: str) -> uuid.UUID:
@@ -1870,31 +1881,30 @@ def get_union_type_id(
     *,
     opaque: bool = False,
     module: typing.Optional[str] = None,
-) -> typing.Tuple[uuid.UUID, s_name.QualifiedName]:
+) -> typing.Tuple[uuid.UUID, s_name.QualName]:
 
     component_ids = sorted(str(t.get_id(schema)) for t in components)
     if opaque:
-        name = f"(opaque: {' | '.join(component_ids)})"
+        nqname = f"(opaque: {' | '.join(component_ids)})"
     else:
-        name = f"({' | '.join(component_ids)})"
-    name = s_name.QualifiedName(name=name, module=module or '__derived__')
-
-    return generate_type_id(name), name
+        nqname = f"({' | '.join(component_ids)})"
+    name = s_name.QualName(name=nqname, module=module or '__derived__')
+    return generate_type_id(str(name)), name
 
 
 def get_intersection_type_id(
     schema: s_schema.Schema,
     components: typing.Iterable[Union[Type, TypeShell]], *,
     module: typing.Optional[str]=None,
-) -> typing.Tuple[uuid.UUID, s_name.QualifiedName]:
+) -> typing.Tuple[uuid.UUID, s_name.QualName]:
 
     component_ids = sorted(str(t.get_id(schema)) for t in components)
-    name = s_name.QualifiedName(
+    name = s_name.QualName(
         name=f"({' & '.join(component_ids)})",
         module=module or '__derived__',
     )
 
-    return generate_type_id(name), name
+    return generate_type_id(str(name)), name
 
 
 def ensure_schema_type_expr_type(
