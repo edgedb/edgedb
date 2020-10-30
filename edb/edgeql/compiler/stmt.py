@@ -674,7 +674,8 @@ def compile_DescribeStmt(
 
                 name: str
                 if objref.module:
-                    name = s_name.Name(module=objref.module, name=objref.name)
+                    name = s_name.QualifiedName(
+                        module=objref.module, name=objref.name)
                 else:
                     name = objref.name
 
@@ -996,7 +997,7 @@ def compile_result_clause(
         result: qlast.Expr, *,
         view_scls: Optional[s_types.Type]=None,
         view_rptr: Optional[context.ViewRPtr]=None,
-        view_name: Optional[s_name.SchemaName]=None,
+        view_name: Optional[s_name.QualifiedName]=None,
         result_alias: Optional[str]=None,
         forward_rptr: bool=False,
         ctx: context.ContextLevel) -> irast.Set:
@@ -1080,7 +1081,7 @@ def compile_query_subject(
         expr: irast.Set, *,
         shape: Optional[List[qlast.ShapeElement]]=None,
         view_rptr: Optional[context.ViewRPtr]=None,
-        view_name: Optional[s_name.SchemaName]=None,
+        view_name: Optional[s_name.QualifiedName]=None,
         result_alias: Optional[str]=None,
         view_scls: Optional[s_types.Type]=None,
         compile_views: bool=True,
@@ -1136,7 +1137,7 @@ def compile_query_subject(
 
     if shape is not None and view_scls is None:
         if (view_name is None and
-                isinstance(result_alias, s_name.SchemaName)):
+                isinstance(result_alias, s_name.QualifiedName)):
             view_name = result_alias
 
         if not isinstance(expr_stype, s_objtypes.ObjectType):

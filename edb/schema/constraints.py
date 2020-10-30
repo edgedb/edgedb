@@ -239,14 +239,14 @@ class Constraint(referencing.ReferencedInheritingObject,
         return ddl_identity
 
     @classmethod
-    def get_root_classes(cls) -> Tuple[sn.Name, ...]:
+    def get_root_classes(cls) -> Tuple[sn.QualifiedName, ...]:
         return (
-            sn.Name(module='std', name='constraint'),
+            sn.QualifiedName(module='std', name='constraint'),
         )
 
     @classmethod
-    def get_default_base_name(self) -> sn.Name:
-        return sn.Name('std::constraint')
+    def get_default_base_name(self) -> sn.QualifiedName:
+        return sn.QualifiedName('std::constraint')
 
 
 class ConsistencySubject(
@@ -347,7 +347,7 @@ class ConstraintCommand(
     @classmethod
     def _classname_quals_from_name(
         cls,
-        name: sn.SchemaName
+        name: sn.QualifiedName
     ) -> Tuple[str, ...]:
         quals = sn.quals_from_fullname(name)
         return (quals[-1],)
@@ -471,12 +471,12 @@ class ConstraintCommand(
         refctx = cls.get_referrer_context(context)
         assert refctx is not None
         # reduce name to shortname
-        if sn.Name.is_qualified(name):
-            shortname: str = sn.shortname_from_fullname(sn.Name(name))
+        if sn.QualifiedName.is_qualified(name):
+            shortname: str = sn.shortname_from_fullname(sn.QualifiedName(name))
         else:
             shortname = name
 
-        assert isinstance(refctx.op.classname, sn.SchemaName)
+        assert isinstance(refctx.op.classname, sn.QualifiedName)
         nref = qlast.ObjectRef(
             name=shortname,
             module=refctx.op.classname.module,
@@ -553,7 +553,7 @@ class ConstraintCommand(
             modaliases.update(
                 cls._modaliases_from_ast(schema, astnode, context))
             # Get the original constraint.
-            name = (sn.Name(objref.name, module=objref.module)
+            name = (sn.QualifiedName(objref.name, module=objref.module)
                     if objref.module else objref.name)
             constr = schema.get(
                 name,
@@ -1135,9 +1135,9 @@ class RenameConstraint(
 
             ref_name = ref.get_name(schema)
             quals = list(sn.quals_from_fullname(ref_name))
-            new_ref_name = sn.Name(
+            new_ref_name = sn.QualifiedName(
                 name=sn.get_specialized_name(self.new_name, *quals),
-                module=sn.Name(ref_name).module,
+                module=sn.QualifiedName(ref_name).module,
             )
             commands.append(
                 self._canonicalize_ref_rename(

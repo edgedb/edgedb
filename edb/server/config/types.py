@@ -62,7 +62,7 @@ class CompositeConfigType(ConfigType):
         tname = data.pop('_tname', None)
         if tname is not None:
             if '::' in tname:
-                tname = s_name.Name(tname).name
+                tname = s_name.QualifiedName(tname).name
             cls = spec.get_type_by_name(tname)
 
         fields = {f.name: f for f in dataclasses.fields(cls)}
@@ -114,7 +114,7 @@ class CompositeConfigType(ConfigType):
                 tname = value.get('_tname', None)
                 if tname is not None:
                     if '::' in tname:
-                        tname = s_name.Name(tname).name
+                        tname = s_name.QualifiedName(tname).name
                     actual_f_type = spec.get_type_by_name(tname)
                 else:
                     actual_f_type = f_type

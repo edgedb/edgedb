@@ -67,7 +67,7 @@ class ViewRPtr:
         source: s_sources.Source,
         *,
         ptrcls: Optional[s_pointers.Pointer],
-        ptrcls_name: Optional[s_name.Name] = None,
+        ptrcls_name: Optional[s_name.QualifiedName] = None,
         base_ptrcls: Optional[s_pointers.Pointer] = None,
         ptrcls_is_linkprop: bool = False,
         ptrcls_is_alias: bool = False,
@@ -438,7 +438,7 @@ class ContextLevel(compiler.ContextLevel):
     view_scls: Optional[s_types.Type]
     """Schema class for the top-level set of the substatement."""
 
-    toplevel_result_view_name: Optional[s_name.SchemaName]
+    toplevel_result_view_name: Optional[s_name.QualifiedName]
     """The name to use for the view that is the result of the top statement."""
 
     partial_path_prefix: Optional[irast.Set]

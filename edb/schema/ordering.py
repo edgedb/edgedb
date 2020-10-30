@@ -715,7 +715,7 @@ def get_object(
         name = op.classname
 
     if issubclass(metaclass, s_types.Collection):
-        if sn.Name.is_qualified(name):
+        if sn.QualifiedName.is_qualified(name):
             return schema.get(name)
         else:
             t_id = s_types.type_id_from_name(name)

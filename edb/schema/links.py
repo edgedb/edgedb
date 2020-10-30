@@ -163,15 +163,15 @@ class Link(sources.Source, pointers.Pointer, s_abc.Link,
         return schema
 
     @classmethod
-    def get_root_classes(cls) -> Tuple[sn.Name, ...]:
+    def get_root_classes(cls) -> Tuple[sn.QualifiedName, ...]:
         return (
-            sn.Name(module='std', name='link'),
-            sn.Name(module='schema', name='__type__'),
+            sn.QualifiedName(module='std', name='link'),
+            sn.QualifiedName(module='schema', name='__type__'),
         )
 
     @classmethod
-    def get_default_base_name(self) -> sn.Name:
-        return sn.Name('std::link')
+    def get_default_base_name(self) -> sn.QualifiedName:
+        return sn.QualifiedName('std::link')
 
 
 class LinkSourceCommandContext(sources.SourceCommandContext):
@@ -368,11 +368,11 @@ class CreateLink(
         if parent_ctx is None:
             return cmd
 
-        base_prop_name = sn.Name('std::source')
+        base_prop_name = sn.QualifiedName('std::source')
         s_name = sn.get_specialized_name(
-            sn.Name('__::source'), self.classname)
-        src_prop_name = sn.Name(name=s_name,
-                                module=self.classname.module)
+            sn.QualifiedName('__::source'), self.classname)
+        src_prop_name = sn.QualifiedName(
+            name=s_name, module=self.classname.module)
 
         src_prop = lproperties.CreateProperty(
             classname=src_prop_name,
@@ -400,11 +400,11 @@ class CreateLink(
 
         cmd.prepend(src_prop)
 
-        base_prop_name = sn.Name('std::target')
+        base_prop_name = sn.QualifiedName('std::target')
         s_name = sn.get_specialized_name(
-            sn.Name('__::target'), self.classname)
-        tgt_prop_name = sn.Name(name=s_name,
-                                module=self.classname.module)
+            sn.QualifiedName('__::target'), self.classname)
+        tgt_prop_name = sn.QualifiedName(
+            name=s_name, module=self.classname.module)
 
         tgt_prop = lproperties.CreateProperty(
             classname=tgt_prop_name,

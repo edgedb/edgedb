@@ -170,14 +170,14 @@ class Property(pointers.Pointer, s_abc.Property,
             return not source.is_view(schema)
 
     @classmethod
-    def get_root_classes(cls) -> Tuple[sn.Name, ...]:
+    def get_root_classes(cls) -> Tuple[sn.QualifiedName, ...]:
         return (
-            sn.Name(module='std', name='property'),
+            sn.QualifiedName(module='std', name='property'),
         )
 
     @classmethod
-    def get_default_base_name(self) -> sn.Name:
-        return sn.Name('std::property')
+    def get_default_base_name(self) -> sn.QualifiedName:
+        return sn.QualifiedName('std::property')
 
     def is_blocking_ref(
         self,

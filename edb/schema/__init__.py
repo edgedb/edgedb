@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-from .name import SchemaName  # NOQA
+from .name import QualifiedName  # NOQA
 
 from .objects import Object, ObjectMeta  # NOQA
 from .schema import Schema  # NOQA

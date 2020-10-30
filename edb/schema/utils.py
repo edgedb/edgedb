@@ -50,7 +50,7 @@ def ast_objref_to_object_shell(
     nqname = node.name
     module = node.module
     if module is not None:
-        lname: str = sn.Name(module=module, name=nqname)
+        lname: str = sn.QualifiedName(module=module, name=nqname)
     else:
         lname = nqname
     obj = schema.get(lname, module_aliases=modaliases, default=None)
@@ -60,14 +60,14 @@ def ast_objref_to_object_shell(
     else:
         if obj is not None:
             actual_name = obj.get_name(schema)
-            assert isinstance(actual_name, sn.Name)
+            assert isinstance(actual_name, sn.QualifiedName)
             module = actual_name.module
         else:
             aliased_module = modaliases.get(module)
             if aliased_module is not None:
                 module = aliased_module
 
-        name = sn.Name(module=module, name=nqname)
+        name = sn.QualifiedName(module=module, name=nqname)
 
     return so.ObjectShell(
         name=name,
@@ -92,13 +92,13 @@ def ast_objref_to_type_shell(
     nqname = node.name
     module = node.module
     if module is not None:
-        lname: str = sn.Name(module=module, name=nqname)
+        lname: str = sn.QualifiedName(module=module, name=nqname)
     else:
         lname = nqname
     obj = schema.get(lname, module_aliases=modaliases, default=None)
     if obj is not None:
         actual_name = obj.get_name(schema)
-        assert isinstance(actual_name, sn.Name)
+        assert isinstance(actual_name, sn.QualifiedName)
         module = actual_name.module
     else:
         aliased_module = modaliases.get(module)
@@ -106,7 +106,7 @@ def ast_objref_to_type_shell(
             module = aliased_module
 
     return s_types.TypeShell(
-        name=sn.Name(module=module, name=nqname),
+        name=sn.QualifiedName(module=module, name=nqname),
         origname=lname,
         schemaclass=metaclass,
         sourcectx=node.context,
@@ -439,7 +439,7 @@ def shell_to_ast(
             )
     elif isinstance(t, so.ObjectShell):
         name = t.name
-        if isinstance(name, sn.SchemaName):
+        if isinstance(name, sn.QualifiedName):
             qlref = qlast.ObjectRef(
                 module=name.module,
                 name=name.name,
@@ -460,7 +460,7 @@ def shell_to_ast(
 
 
 def name_to_ast_ref(name: str) -> qlast.ObjectRef:
-    if isinstance(name, sn.Name):
+    if isinstance(name, sn.QualifiedName):
         return qlast.ObjectRef(
             module=name.module,
             name=name.name,
@@ -572,7 +572,7 @@ def merge_reduce(
 def get_nq_name(schema: s_schema.Schema,
                 item: so.Object) -> str:
     shortname = item.get_shortname(schema)
-    if isinstance(shortname, sn.Name):
+    if isinstance(shortname, sn.QualifiedName):
         return shortname.name
     else:
         return shortname
@@ -591,12 +591,12 @@ def find_item_suggestions(
     from . import functions as s_func
     from . import modules as s_mod
 
-    if isinstance(name, sn.Name):
+    if isinstance(name, sn.QualifiedName):
         orig_modname: Optional[str] = name.module
         short_name: str = name.name
     else:
         assert name is not None, ("A name must be provided either "
-                                  "as string or SchemaName")
+                                  "as string or QualifiedName")
         orig_modname = None
         short_name = name
 

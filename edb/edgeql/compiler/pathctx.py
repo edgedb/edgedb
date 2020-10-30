@@ -37,7 +37,7 @@ from . import context
 
 
 def get_path_id(stype: s_types.Type, *,
-                typename: Optional[s_name.Name]=None,
+                typename: Optional[s_name.QualifiedName]=None,
                 ctx: context.ContextLevel) -> irast.PathId:
     return irast.PathId.from_type(
         ctx.env.schema,
@@ -76,7 +76,7 @@ def get_expression_path_id(
         ctx: context.ContextLevel) -> irast.PathId:
     if alias is None:
         alias = ctx.aliases.get('expr')
-    typename = s_name.Name(module='__derived__', name=alias)
+    typename = s_name.QualifiedName(module='__derived__', name=alias)
     return get_path_id(stype, typename=typename, ctx=ctx)
 
 

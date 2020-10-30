@@ -26,10 +26,10 @@ import re
 from edb import errors
 
 
-NameT = TypeVar("NameT", bound="SchemaName")
+NameT = TypeVar("NameT", bound="QualifiedName")
 
 
-class SchemaName(str):
+class QualifiedName(str):
     __slots__ = ('module', 'name')
 
     module: str
@@ -37,13 +37,13 @@ class SchemaName(str):
 
     def __new__(
         cls: Type[NameT],
-        name: Union[SchemaName, str],
+        name: Union[QualifiedName, str],
         module: Optional[str] = None,
     ) -> NameT:
         if not name:
             raise NameError('name must not be empty')
 
-        if isinstance(name, SchemaName):
+        if isinstance(name, QualifiedName):
             _name = name.name
             _module = name.module
         elif module is not None:
@@ -75,11 +75,11 @@ class SchemaName(str):
         return (self.module, self.name)
 
     @staticmethod
-    def is_qualified(name: Union[SchemaName, str]) -> bool:
-        return isinstance(name, SchemaName) or '::' in name
+    def is_qualified(name: Union[QualifiedName, str]) -> bool:
+        return isinstance(name, QualifiedName) or '::' in name
 
 
-class UnqualifiedName(SchemaName):
+class UnqualifiedName(QualifiedName):
 
     def __new__(cls, name: str) -> UnqualifiedName:
         # Ignore below since Mypy doesn't believe you can pass `name` to
@@ -91,24 +91,21 @@ class UnqualifiedName(SchemaName):
         return cast(UnqualifiedName, result)
 
 
-Name = SchemaName
-
-
 def split_name(
-    name: Union[SchemaName, str]
-) -> Tuple[Union[SchemaName, str], Optional[str], str]:
+    name: Union[QualifiedName, str]
+) -> Tuple[Union[QualifiedName, str], Optional[str], str]:
     module: Optional[str]
     nqname: str
 
-    if isinstance(name, SchemaName):
+    if isinstance(name, QualifiedName):
         module = name.module
         nqname = name.name
     elif isinstance(name, tuple):
         module = name[0]
         nqname = name[1]
         name = module + '::' + nqname if module else nqname
-    elif SchemaName.is_qualified(name):
-        name = SchemaName(name)
+    elif QualifiedName.is_qualified(name):
+        name = QualifiedName(name)
         module = name.module
         nqname = name.name
     else:
@@ -118,7 +115,7 @@ def split_name(
     return name, module, nqname
 
 
-def mangle_name(name: Union[SchemaName, str]) -> str:
+def mangle_name(name: Union[QualifiedName, str]) -> str:
     return (
         name
         .replace('|', '||')
@@ -136,7 +133,7 @@ def unmangle_name(name: str) -> str:
 
 @functools.lru_cache(4096)
 def shortname_str_from_fullname(fullname: str) -> str:
-    if isinstance(fullname, SchemaName):
+    if isinstance(fullname, QualifiedName):
         name = fullname.name
     else:
         # `name` is a str
@@ -150,29 +147,29 @@ def shortname_str_from_fullname(fullname: str) -> str:
 
 
 @functools.lru_cache(4096)
-def shortname_from_fullname(fullname: SchemaName) -> SchemaName:
-    return SchemaName(shortname_str_from_fullname(fullname))
+def shortname_from_fullname(fullname: QualifiedName) -> QualifiedName:
+    return QualifiedName(shortname_str_from_fullname(fullname))
 
 
 @functools.lru_cache(4096)
-def quals_from_fullname(fullname: SchemaName) -> List[str]:
+def quals_from_fullname(fullname: QualifiedName) -> List[str]:
     _, _, mangled_quals = fullname.name.partition('@')
     return [unmangle_name(p) for p in mangled_quals.split('@')]
 
 
 def get_specialized_name(
-    basename: Union[SchemaName, str], *qualifiers: str
+    basename: Union[QualifiedName, str], *qualifiers: str
 ) -> str:
     mangled_quals = '@'.join(mangle_name(qual) for qual in qualifiers if qual)
     return f'{mangle_name(basename)}@{mangled_quals}'
 
 
 def is_fullname(name: str) -> bool:
-    return SchemaName.is_qualified(name) and '@' in name
+    return QualifiedName.is_qualified(name) and '@' in name
 
 
 def compat_get_specialized_name(
-    basename: Union[SchemaName, str], *qualifiers: str
+    basename: Union[QualifiedName, str], *qualifiers: str
 ) -> str:
     mangled_quals = '@'.join(
         compat_mangle_name(qual) for qual in qualifiers if qual
@@ -180,18 +177,18 @@ def compat_get_specialized_name(
     return f'{compat_mangle_name(basename)}@@{mangled_quals}'
 
 
-def compat_mangle_name(name: Union[SchemaName, str]) -> str:
+def compat_mangle_name(name: Union[QualifiedName, str]) -> str:
     return name.replace('::', '|')
 
 
 def compat_name_remangle(name: str) -> str:
     if is_fullname(name):
-        qname = SchemaName(name)
+        qname = QualifiedName(name)
         sn = shortname_str_from_fullname(qname)
         quals = list(quals_from_fullname(qname))
         if quals and is_fullname(quals[0]):
             quals[0] = compat_name_remangle(quals[0])
         compat_sn = compat_get_specialized_name(sn, *quals)
-        return SchemaName(name=compat_sn, module=qname.module)
+        return QualifiedName(name=compat_sn, module=qname.module)
     else:
         return name

@@ -879,7 +879,7 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
     # so that this item can act as a transparent proxy for the item
     # it has been derived from, specifically in path ids.
     path_id_name = SchemaField(
-        sn.Name,
+        sn.QualifiedName,
         inheritable=False,
         ephemeral=True,
         default=None)
@@ -1701,18 +1701,18 @@ class QualifiedObject(Object):
     name = SchemaField(
         # ignore below because Mypy doesn't understand fields which are not
         # inheritable.
-        sn.Name,  # type: ignore
+        sn.QualifiedName,  # type: ignore
         inheritable=False,
         compcoef=0.670,
     )
 
     @classmethod
-    def get_shortname_static(cls, name: str) -> sn.Name:
+    def get_shortname_static(cls, name: str) -> sn.QualifiedName:
         shortname = sn.shortname_from_fullname(name)
-        assert isinstance(shortname, sn.Name)
+        assert isinstance(shortname, sn.QualifiedName)
         return shortname
 
-    def get_shortname(self, schema: s_schema.Schema) -> sn.Name:
+    def get_shortname(self, schema: s_schema.Schema) -> sn.QualifiedName:
         return type(self).get_shortname_static(self.get_name(schema))
 
 
@@ -1736,7 +1736,7 @@ class DerivableObject(QualifiedObject):
         *qualifiers: str,
         derived_name_base: Optional[str] = None,
         module: Optional[str] = None,
-    ) -> sn.SchemaName:
+    ) -> sn.QualifiedName:
         if module is None:
             module = source.get_name(schema).module
         source_name = source.get_name(schema)
@@ -1764,7 +1764,7 @@ class DerivableObject(QualifiedObject):
         mark_derived: bool = False,
         derived_name_base: Optional[str] = None,
         module: Optional[str] = None,
-    ) -> sn.Name:
+    ) -> sn.QualifiedName:
         return self.derive_name(
             schema, source, *qualifiers,
             derived_name_base=derived_name_base,
@@ -2625,7 +2625,7 @@ class InheritingObject(SubclassableObject):
         return self.get_topmost_concrete_base(schema)
 
     @classmethod
-    def get_root_classes(cls) -> Tuple[sn.Name, ...]:
+    def get_root_classes(cls) -> Tuple[sn.QualifiedName, ...]:
         return tuple()
 
     def _issubclass(
@@ -2942,11 +2942,11 @@ def derive_name(
     module: str,
     parent: Optional[DerivableObject] = None,
     derived_name_base: Optional[str] = None,
-) -> sn.Name:
+) -> sn.QualifiedName:
     if derived_name_base is None:
         assert parent is not None
         derived_name_base = parent.get_derived_name_base(schema)
 
     name = sn.get_specialized_name(derived_name_base, *qualifiers)
 
-    return sn.Name(name=name, module=module)
+    return sn.QualifiedName(name=name, module=module)

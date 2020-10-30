@@ -56,7 +56,7 @@ class Source(so.QualifiedObject, indexes.IndexableSubject):
         schema: s_schema.Schema,
         name: str,
     ) -> Optional[s_pointers.Pointer]:
-        if sn.Name.is_qualified(name):
+        if sn.QualifiedName.is_qualified(name):
             raise ValueError(
                 'references to concrete pointers must not be qualified')
         return self.get_pointers(schema).get(schema, name, None)

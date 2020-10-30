@@ -73,35 +73,38 @@ class TraceContextBase:
         ref: qlast.ObjectRef,
         *,
         type: Optional[Type[qltracer.NamedObject]] = None
-    ) -> s_name.Name:
+    ) -> s_name.QualifiedName:
         if isinstance(ref, qlast.ObjectRef):
             if ref.module:
-                return s_name.Name(module=ref.module, name=ref.name)
+                return s_name.QualifiedName(module=ref.module, name=ref.name)
             else:
                 if type is None:
-                    return s_name.Name(module=self.module, name=ref.name)
+                    return s_name.QualifiedName(
+                        module=self.module, name=ref.name)
                 else:
                     # check if there's a name in default module
                     # actually registered to the right type
                     name = f'{self.module}::{ref.name}'
                     if isinstance(self.objects.get(name), type):
-                        return s_name.Name(module=self.module, name=ref.name)
+                        return s_name.QualifiedName(
+                            module=self.module, name=ref.name)
                     else:
-                        return s_name.Name(module='std', name=ref.name)
+                        return s_name.QualifiedName(
+                            module='std', name=ref.name)
         else:
             raise TypeError(
                 "ObjectRef expected "
                 "(got type {!r})".format(type(ref).__name__)
             )
 
-    def get_ref_name(self, ref: qlast.ObjectRef) -> s_name.Name:
+    def get_ref_name(self, ref: qlast.ObjectRef) -> s_name.QualifiedName:
         if isinstance(ref, qlast.ObjectRef):
             if ref.module:
-                return s_name.Name(module=ref.module, name=ref.name)
+                return s_name.QualifiedName(module=ref.module, name=ref.name)
             elif f'{self.module}::{ref.name}' in self.objects:
-                return s_name.Name(module=self.module, name=ref.name)
+                return s_name.QualifiedName(module=self.module, name=ref.name)
             else:
-                return s_name.Name(module="std", name=ref.name)
+                return s_name.QualifiedName(module="std", name=ref.name)
         else:
             raise TypeError(
                 "ObjectRef expected "
@@ -688,7 +691,7 @@ def _register_item(
 def _get_hard_deps(
     expr: qlast.TypeExpr, *,
     ctx: DepTraceContext
-) -> MutableSet[s_name.Name]:
+) -> MutableSet[s_name.QualifiedName]:
     deps = set()
 
     # If we have any type ops, get a flat list of their operands.
@@ -716,7 +719,7 @@ def _get_bases(
     decl: qlast.BasesMixin,
     *,
     ctx: LayoutTraceContext
-) -> List[s_name.Name]:
+) -> List[s_name.QualifiedName]:
     """Resolve object bases from the "extends" declaration."""
     bases = []
 
@@ -734,7 +737,7 @@ def _get_bases(
                     context=decl.bases[0].context,
                 )
 
-            bases = [s_name.Name("std::anyenum")]
+            bases = [s_name.QualifiedName("std::anyenum")]
 
         else:
             for base_ref in decl.bases:

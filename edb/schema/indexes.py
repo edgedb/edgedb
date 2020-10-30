@@ -75,11 +75,11 @@ class Index(
     __str__ = __repr__
 
     @classmethod
-    def get_shortname_static(cls, name: str) -> sn.Name:
+    def get_shortname_static(cls, name: str) -> sn.QualifiedName:
         quals = sn.quals_from_fullname(name)
         ptr_qual = quals[2]
         expr_qual = quals[1]
-        return sn.Name(
+        return sn.QualifiedName(
             module='__',
             name=f'{ptr_qual}_{expr_qual[:8]}',
         )
@@ -134,14 +134,14 @@ class IndexCommand(
         schema: s_schema.Schema,
         astnode: qlast.NamedDDL,
         context: sd.CommandContext,
-    ) -> sn.Name:
+    ) -> sn.QualifiedName:
         referrer_ctx = cls.get_referrer_context(context)
         if referrer_ctx is not None:
 
             referrer_name = referrer_ctx.op.classname
-            assert isinstance(referrer_name, sn.Name)
+            assert isinstance(referrer_name, sn.QualifiedName)
 
-            shortname = sn.Name(
+            shortname = sn.QualifiedName(
                 module='__',
                 name=astnode.name.name,
             )
@@ -149,7 +149,7 @@ class IndexCommand(
             quals = cls._classname_quals_from_ast(
                 schema, astnode, shortname, referrer_name, context)
 
-            name = sn.Name(
+            name = sn.QualifiedName(
                 module=referrer_name.module,
                 name=sn.get_specialized_name(
                     shortname,
@@ -190,7 +190,7 @@ class IndexCommand(
     @classmethod
     def _classname_quals_from_name(
         cls,
-        name: sn.SchemaName
+        name: sn.QualifiedName
     ) -> Tuple[str, ...]:
         quals = sn.quals_from_fullname(name)
         return tuple(quals[-2:])

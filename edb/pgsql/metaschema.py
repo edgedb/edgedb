@@ -2594,7 +2594,8 @@ classref_attr_aliases = {
 
 
 def dbname(n):
-    return common.quote_ident(common.edgedb_name_to_pg_name(sn.Name(n)))
+    return common.quote_ident(
+        common.edgedb_name_to_pg_name(sn.QualifiedName(n)))
 
 
 def tabname(schema, obj):

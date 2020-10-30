@@ -212,7 +212,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         context: sd.CommandContext,
         refdict: so.RefDict
     ) -> Dict[
-        sn.Name,
+        sn.QualifiedName,
         Tuple[
             Type[
                 s_referencing.CreateReferencedObject[
@@ -228,7 +228,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         attr = refdict.attr
         bases = self.scls.get_bases(schema)
         refs: Dict[
-            sn.Name,
+            sn.QualifiedName,
             Tuple[
                 Type[
                     s_referencing.CreateReferencedObject[
@@ -272,7 +272,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         schema: s_schema.Schema,
         context: sd.CommandContext,
         refdict: so.RefDict,
-        present_refs: AbstractSet[sn.Name],
+        present_refs: AbstractSet[sn.QualifiedName],
     ) -> Dict[str, Type[sd.ObjectCommand[so.Object]]]:
         from . import referencing as s_referencing
 
@@ -729,7 +729,7 @@ class CreateInheritingObject(
             if (
                 b != default_base
                 and (
-                    not isinstance(b, sn.SchemaName)
+                    not isinstance(b, sn.QualifiedName)
                     or sn.shortname_from_fullname(b) == b
                 )
             )

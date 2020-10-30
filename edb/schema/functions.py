@@ -119,7 +119,7 @@ def param_is_inherited(
     qualname = sn.get_specialized_name(
         param.get_parameter_name(schema), func.get_name(schema))
     param_name = param.get_name(schema)
-    assert isinstance(param_name, sn.Name)
+    assert isinstance(param_name, sn.QualifiedName)
     return qualname != param_name.name
 
 
@@ -271,9 +271,9 @@ class ParameterDesc(ParameterLike):
     def get_fqname(
         self,
         schema: s_schema.Schema,
-        func_fqname: sn.Name,
+        func_fqname: sn.QualifiedName,
     ) -> str:
-        return sn.Name(
+        return sn.QualifiedName(
             module=func_fqname.module,
             name=sn.get_specialized_name(
                 self.get_name(schema), func_fqname)
@@ -282,7 +282,7 @@ class ParameterDesc(ParameterLike):
     def as_create_delta(
         self,
         schema: s_schema.Schema,
-        func_fqname: sn.Name,
+        func_fqname: sn.QualifiedName,
         *,
         context: sd.CommandContext,
     ) -> sd.Command:
@@ -303,14 +303,14 @@ class ParameterDesc(ParameterLike):
     def as_delete_delta(
         self,
         schema: s_schema.Schema,
-        func_fqname: sn.Name,
+        func_fqname: sn.QualifiedName,
         *,
         context: sd.CommandContext,
     ) -> sd.Command:
         DeleteParameter = sd.ObjectCommandMeta.get_command_class_or_die(
             sd.DeleteObject, Parameter)
 
-        param_name = sn.Name(
+        param_name = sn.QualifiedName(
             module=func_fqname.module,
             name=sn.get_specialized_name(
                 self.get_name(schema), func_fqname)
@@ -350,12 +350,12 @@ class Parameter(
         ft.ParameterKind, coerce=True, compcoef=0.4)
 
     @classmethod
-    def paramname_from_fullname(cls, fullname: sn.Name) -> str:
+    def paramname_from_fullname(cls, fullname: sn.QualifiedName) -> str:
         parts = str(fullname.name).split('@', 1)
         if len(parts) == 2:
             return sn.unmangle_name(parts[0])
         elif '::' in fullname:
-            return sn.Name(fullname).name
+            return sn.QualifiedName(fullname).name
         else:
             return fullname
 
@@ -378,9 +378,9 @@ class Parameter(
             return vn
 
     @classmethod
-    def get_shortname_static(cls, name: str) -> sn.Name:
-        assert isinstance(name, sn.Name)
-        return sn.Name(
+    def get_shortname_static(cls, name: str) -> sn.QualifiedName:
+        assert isinstance(name, sn.QualifiedName)
+        return sn.QualifiedName(
             module='__',
             name=cls.paramname_from_fullname(name),
         )
@@ -767,13 +767,13 @@ class CallableObject(
     def get_fqname(
         cls,
         schema: s_schema.Schema,
-        shortname: sn.Name,
+        shortname: sn.QualifiedName,
         params: List[ParameterDesc],
         *extra_quals: str,
-    ) -> sn.Name:
+    ) -> sn.QualifiedName:
 
         quals = cls._get_fqname_quals(schema, params)
-        return sn.Name(
+        return sn.QualifiedName(
             module=shortname.module,
             name=sn.get_specialized_name(shortname, *(quals + extra_quals)))
 
@@ -896,7 +896,8 @@ class RenameCallableObject(
 
         for dparam, oparam in zip(params, param_list.objects(schema)):
             ref_name = oparam.get_name(schema)
-            new_ref_name = dparam.get_fqname(schema, sn.Name(self.new_name))
+            new_ref_name = dparam.get_fqname(
+                schema, sn.QualifiedName(self.new_name))
             commands.append(
                 self._canonicalize_ref_rename(
                     oparam, ref_name, new_ref_name, schema, context, scls))
@@ -1129,7 +1130,7 @@ class FunctionCommand(
         schema: s_schema.Schema,
         astnode: qlast.NamedDDL,
         context: sd.CommandContext,
-    ) -> sn.SchemaName:
+    ) -> sn.QualifiedName:
         # _classname_from_ast signature expects qlast.NamedDDL,
         # but _get_param_desc_from_ast expects a ObjectDDL,
         # which is more specific
@@ -1311,7 +1312,7 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
         # Check if other schema objects with the same name (ignoring
         # signature, of course) exist.
         if other := schema.get(
-                sn.SchemaName(shortname, fullname.module), None):
+                sn.QualifiedName(shortname, fullname.module), None):
             raise errors.SchemaError(
                 f'{other.get_verbosename(schema)} is already present '
                 f'in the schema {schema!r}')

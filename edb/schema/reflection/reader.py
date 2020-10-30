@@ -97,7 +97,7 @@ def parse_into(
         layout = schema_class_layout[mcls]
 
         if isinstance(obj, s_obj.QualifiedObject):
-            name = s_name.Name(name)
+            name = s_name.QualifiedName(name)
             name_to_id[name] = objid
         else:
             globalname_to_id[mcls, name] = objid

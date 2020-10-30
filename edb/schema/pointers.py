@@ -471,9 +471,12 @@ class Pointer(referencing.ReferencedInheritingObject,
         assert isinstance(ptr, Pointer)
         return schema, ptr
 
-    def get_derived_name_base(self, schema: s_schema.Schema) -> sn.Name:
+    def get_derived_name_base(
+        self,
+        schema: s_schema.Schema,
+    ) -> sn.QualifiedName:
         shortname = self.get_shortname(schema)
-        return sn.Name(module='__', name=shortname.name)
+        return sn.QualifiedName(module='__', name=shortname.name)
 
     def derive_ref(
         self,
@@ -880,7 +883,7 @@ class PointerCommandOrFragment(
         parent_ctx = self.get_referrer_context(context)
         assert parent_ctx is not None
         source_name = parent_ctx.op.classname
-        assert isinstance(source_name, sn.Name)
+        assert isinstance(source_name, sn.QualifiedName)
 
         source = schema.get(source_name, type=s_objtypes.ObjectType)
 
@@ -1098,19 +1101,19 @@ class PointerCommand(
         schema: s_schema.Schema,
         astnode: qlast.NamedDDL,
         context: sd.CommandContext,
-    ) -> sn.Name:
+    ) -> sn.QualifiedName:
         referrer_ctx = cls.get_referrer_context(context)
         if referrer_ctx is not None:
 
             referrer_name = referrer_ctx.op.classname
-            assert isinstance(referrer_name, sn.Name)
+            assert isinstance(referrer_name, sn.QualifiedName)
 
-            shortname = sn.Name(
+            shortname = sn.QualifiedName(
                 module='__',
                 name=astnode.name.name,
             )
 
-            name = sn.Name(
+            name = sn.QualifiedName(
                 module=referrer_name.module,
                 name=sn.get_specialized_name(
                     shortname,
@@ -1175,7 +1178,7 @@ class PointerCommand(
         target_ref: Union[None, s_types.TypeShell, ComputableRef]
 
         if len(targets) > 1:
-            assert isinstance(source_name, sn.Name)
+            assert isinstance(source_name, sn.QualifiedName)
 
             new_targets = [
                 utils.ast_to_type_shell(
@@ -1505,7 +1508,7 @@ def get_or_create_union_pointer(
         schema,
         source,
         target,
-        derived_name_base=sn.Name(
+        derived_name_base=sn.QualifiedName(
             module='__',
             name=ptrname),
         attrs={
@@ -1559,7 +1562,7 @@ def get_or_create_intersection_pointer(
         schema,
         source,
         target,
-        derived_name_base=sn.Name(
+        derived_name_base=sn.QualifiedName(
             module='__',
             name=ptrname),
         attrs={

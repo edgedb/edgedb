@@ -402,15 +402,16 @@ def declare_view(
 
         if cached_view_set is not None:
             subctx.view_scls = setgen.get_set_type(cached_view_set, ctx=ctx)
-            view_name = s_name.SchemaName(
+            view_name = s_name.QualifiedName(
                 subctx.view_scls.get_name(ctx.env.schema))
         else:
-            if isinstance(alias, s_name.SchemaName):
+            if isinstance(alias, s_name.QualifiedName):
                 basename = alias
             else:
-                basename = s_name.SchemaName(module='__derived__', name=alias)
+                basename = s_name.QualifiedName(
+                    module='__derived__', name=alias)
 
-            view_name = s_name.SchemaName(
+            view_name = s_name.QualifiedName(
                 module=ctx.derived_target_module or '__derived__',
                 name=s_name.get_specialized_name(
                     basename,

@@ -139,12 +139,12 @@ def trace_refs(
     qltree: qlast.Base,
     *,
     schema: s_schema.Schema,
-    source: Optional[sn.Name] = None,
-    subject: Optional[sn.Name] = None,
+    source: Optional[sn.QualifiedName] = None,
+    subject: Optional[sn.QualifiedName] = None,
     path_prefix: Optional[str] = None,
     module: Optional[str] = None,
     objects: Dict[str, Optional[so.Object]],
-    params: Dict[str, sn.Name],
+    params: Dict[str, sn.QualifiedName],
 ) -> FrozenSet[str]:
 
     """Return a list of schema item names used in an expression."""
@@ -170,11 +170,11 @@ class TracerContext:
         schema: s_schema.Schema,
         module: Optional[str],
         objects: Dict[str, Optional[so.Object]],
-        source: Optional[sn.Name],
-        subject: Optional[sn.Name],
+        source: Optional[sn.QualifiedName],
+        subject: Optional[sn.QualifiedName],
         path_prefix: Optional[str],
         modaliases: Mapping[Optional[str], str],
-        params: Dict[str, sn.Name],
+        params: Dict[str, sn.QualifiedName],
     ) -> None:
         self.schema = schema
         self.refs: Set[str] = set()
@@ -186,7 +186,7 @@ class TracerContext:
         self.modaliases = modaliases
         self.params = params
 
-    def get_ref_name(self, ref: qlast.BaseObjectRef) -> sn.Name:
+    def get_ref_name(self, ref: qlast.BaseObjectRef) -> sn.QualifiedName:
         # We don't actually expect to handle anything other than
         # ObjectRef here.
         assert isinstance(ref, qlast.ObjectRef)
@@ -194,17 +194,17 @@ class TracerContext:
         if ref.module:
             # replace the module alias with the real name
             module = self.modaliases.get(ref.module, ref.module)
-            return sn.Name(module=module, name=ref.name)
+            return sn.QualifiedName(module=module, name=ref.name)
         elif ref.name in self.params:
             return self.params[ref.name]
         elif f'{self.module}::{ref.name}' in self.objects:
-            return sn.Name(module=self.module, name=ref.name)
+            return sn.QualifiedName(module=self.module, name=ref.name)
         else:
-            return sn.Name(module="std", name=ref.name)
+            return sn.QualifiedName(module="std", name=ref.name)
 
     def get_ref_name_starstwith(
         self, ref: qlast.ObjectRef
-    ) -> Set[sn.Name]:
+    ) -> Set[sn.QualifiedName]:
         refs = set()
         prefixes = []
 
@@ -220,7 +220,7 @@ class TracerContext:
             for prefix in prefixes:
                 if objname.startswith(prefix):
                     parts = objname.split('::', 1)
-                    name = sn.Name(module=parts[0], name=parts[1])
+                    name = sn.QualifiedName(module=parts[0], name=parts[1])
                     refs.add(name)
 
         return refs
