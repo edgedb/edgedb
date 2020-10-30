@@ -1416,7 +1416,7 @@ class ObjectCommand(
             )
             quals = sn.quals_from_fullname(cmd.classname)
             new_name = cmd._classname_from_ast_and_referrer(
-                schema, sn.SchemaName(quals[0]), ast, context)
+                schema, sn.QualifiedName(quals[0]), ast, context)
             if new_name == cmd.classname:
                 return
 
@@ -1443,7 +1443,7 @@ class ObjectCommand(
             )
             quals = sn.quals_from_fullname(cmd.classname)
             new_name = cmd._classname_from_ast_and_referrer(
-                schema, sn.SchemaName(quals[0]), ast, context)
+                schema, sn.QualifiedName(quals[0]), ast, context)
             if new_name == cmd.classname:
                 return
 
@@ -1527,7 +1527,7 @@ class ObjectCommand(
     ) -> qlast.ObjectRef:
         qlclass = self.get_schema_metaclass().get_ql_class()
 
-        if isinstance(name, sn.Name):
+        if isinstance(name, sn.QualifiedName):
             nname = sn.shortname_from_fullname(name)
             ref = qlast.ObjectRef(
                 module=nname.module, name=nname.name, itemclass=qlclass)
@@ -1699,7 +1699,7 @@ class ObjectCommand(
 
             shortname: str
             modname: Optional[str]
-            if isinstance(self.classname, sn.Name):
+            if isinstance(self.classname, sn.QualifiedName):
                 shortname = sn.shortname_from_fullname(self.classname)
                 modname = self.classname.module
             elif issubclass(self.get_schema_metaclass(), s_mod.Module):
@@ -1948,7 +1948,7 @@ class ObjectCommandContext(CommandContextToken[ObjectCommand[so.Object_T]]):
 
 class QualifiedObjectCommand(ObjectCommand[so.QualifiedObject_T]):
 
-    classname = struct.Field(sn.Name)
+    classname = struct.Field(sn.QualifiedName)
 
     @classmethod
     def _classname_from_ast(
@@ -1956,7 +1956,7 @@ class QualifiedObjectCommand(ObjectCommand[so.QualifiedObject_T]):
         schema: s_schema.Schema,
         astnode: qlast.NamedDDL,
         context: CommandContext,
-    ) -> sn.Name:
+    ) -> sn.QualifiedName:
         objref = astnode.name
         module = context.modaliases.get(objref.module, objref.module)
         if module is None:
@@ -1965,7 +1965,7 @@ class QualifiedObjectCommand(ObjectCommand[so.QualifiedObject_T]):
                 context=objref.context,
             )
 
-        return sn.Name(module=module, name=objref.name)
+        return sn.QualifiedName(module=module, name=objref.name)
 
     @overload
     def get_object(
@@ -2032,7 +2032,8 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
 
         if astnode.sdl_alter_if_exists:
             modaliases = cls._modaliases_from_ast(schema, astnode, context)
-            dummy_op = cls(classname=sn.Name('placeholder::placeholder'))
+            dummy_op = cls(
+                classname=sn.QualifiedName('placeholder::placeholder'))
             ctxcls = cast(
                 Type[ObjectCommandContext[so.Object_T]],
                 cls.get_context_class_or_die(),
@@ -2429,9 +2430,9 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
                 quals[0] = self.new_name
                 shortname = sn.shortname_from_fullname(ref_name)
 
-                new_ref_name = sn.Name(
+                new_ref_name = sn.QualifiedName(
                     name=sn.get_specialized_name(shortname, *quals),
-                    module=sn.Name(self.new_name).module,
+                    module=sn.QualifiedName(self.new_name).module,
                 )
 
                 commands.append(self._canonicalize_ref_rename(
@@ -2501,7 +2502,7 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
 
 class RenameQualifiedObject(AlterObjectFragment[so.Object_T]):
 
-    new_name = struct.Field(sn.Name)
+    new_name = struct.Field(sn.QualifiedName)
 
     def _get_ast(
         self,
@@ -3177,10 +3178,11 @@ def get_object_delta_command(
 def get_object_command_id(delta: ObjectCommand[so.Object]) -> str:
     quoted_name: str
 
-    if isinstance(delta.classname, sn.Name):
+    if isinstance(delta.classname, sn.QualifiedName):
         quoted_module = qlquote.quote_ident(delta.classname.module)
         quoted_nqname = qlquote.quote_ident(delta.classname.name)
-        quoted_name = sn.Name(module=quoted_module, name=quoted_nqname)
+        quoted_name = sn.QualifiedName(
+            module=quoted_module, name=quoted_nqname)
     else:
         quoted_name = qlquote.quote_ident(delta.classname)
 

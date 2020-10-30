@@ -41,7 +41,7 @@ class Annotation(so.QualifiedObject,
     # Annotations cannot be renamed, so make sure the name
     # has low compcoef.
     name = so.SchemaField(
-        sn.Name,  # type: ignore
+        sn.QualifiedName,  # type: ignore
         inheritable=False,
         compcoef=0.2,
     )
@@ -229,7 +229,7 @@ class AnnotationValueCommand(
                             schema: s_schema.Schema,
                             astnode: qlast.NamedDDL,
                             context: sd.CommandContext
-                            ) -> sn.Name:
+                            ) -> sn.QualifiedName:
         name = super()._classname_from_ast(schema, astnode, context)
 
         parent_ctx = cls.get_referrer_context_or_die(context)
@@ -246,9 +246,9 @@ class AnnotationValueCommand(
         quals = cls._classname_quals_from_ast(
             schema, astnode, base_name, referrer_name, context)
         pnn = sn.get_specialized_name(base_name, referrer_name, *quals)
-        name = sn.Name(name=pnn, module=referrer_name.module)
+        name = sn.QualifiedName(name=pnn, module=referrer_name.module)
 
-        assert isinstance(name, sn.Name)
+        assert isinstance(name, sn.QualifiedName)
         return name
 
     def populate_ddl_identity(

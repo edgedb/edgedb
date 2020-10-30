@@ -1000,7 +1000,7 @@ def range_for_typeref(
 
 def range_from_queryset(
         set_ops: Sequence[Tuple[str, pgast.SelectStmt]],
-        objname: sn.Name, *,
+        objname: sn.QualifiedName, *,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
 
     rvar: pgast.PathRangeVar

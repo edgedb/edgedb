@@ -117,7 +117,7 @@ class Type(
         self: TypeT,
         schema: s_schema.Schema,
         *,
-        name: s_name.Name,
+        name: s_name.QualifiedName,
         mark_derived: bool = False,
         attrs: Optional[Mapping[str, Any]] = None,
         inheritance_merge: bool = True,
@@ -374,7 +374,7 @@ class Type(
         return not self.is_view(schema)
 
     def as_shell(self, schema: s_schema.Schema) -> TypeShell:
-        name = typing.cast(s_name.Name, self.get_name(schema))
+        name = typing.cast(s_name.QualifiedName, self.get_name(schema))
 
         if union_of := self.get_union_of(schema):
             assert isinstance(self, so.QualifiedObject)
@@ -965,7 +965,7 @@ class Array(
         self,
         schema: s_schema.Schema,
         *,
-        name: s_name.Name,
+        name: s_name.QualifiedName,
         attrs: Optional[Mapping[str, Any]] = None,
         **kwargs: Any,
     ) -> typing.Tuple[s_schema.Schema, Array]:
@@ -1069,7 +1069,7 @@ class Array(
         subtypes: Sequence[Type],
         typemods: Any = None,
         *,
-        name: Optional[s_name.Name] = None,
+        name: Optional[s_name.QualifiedName] = None,
         id: Union[uuid.UUID, so.NoDefaultT] = so.NoDefault,
         **kwargs: Any,
     ) -> typing.Tuple[s_schema.Schema, Array_T]:
@@ -1417,7 +1417,7 @@ class Tuple(
         self,
         schema: s_schema.Schema,
         *,
-        name: s_name.Name,
+        name: s_name.QualifiedName,
         attrs: Optional[Mapping[str, Any]] = None,
         **kwargs: Any,
     ) -> typing.Tuple[s_schema.Schema, Tuple]:
@@ -1437,7 +1437,7 @@ class Tuple(
         subtypes: Union[Iterable[Type], Mapping[str, Type]],
         typemods: Any = None,
         *,
-        name: Optional[s_name.Name] = None,
+        name: Optional[s_name.QualifiedName] = None,
         id: Union[uuid.UUID, so.NoDefaultT] = so.NoDefault,
         **kwargs: Any,
     ) -> typing.Tuple[s_schema.Schema, Tuple_T]:
@@ -1864,14 +1864,14 @@ def get_union_type_id(
     *,
     opaque: bool = False,
     module: typing.Optional[str] = None,
-) -> typing.Tuple[uuid.UUID, s_name.Name]:
+) -> typing.Tuple[uuid.UUID, s_name.QualifiedName]:
 
     component_ids = sorted(str(t.get_id(schema)) for t in components)
     if opaque:
         name = f"(opaque: {' | '.join(component_ids)})"
     else:
         name = f"({' | '.join(component_ids)})"
-    name = s_name.Name(name=name, module=module or '__derived__')
+    name = s_name.QualifiedName(name=name, module=module or '__derived__')
 
     return generate_type_id(name), name
 
@@ -1880,10 +1880,10 @@ def get_intersection_type_id(
     schema: s_schema.Schema,
     components: typing.Iterable[Union[Type, TypeShell]], *,
     module: typing.Optional[str]=None,
-) -> typing.Tuple[uuid.UUID, s_name.Name]:
+) -> typing.Tuple[uuid.UUID, s_name.QualifiedName]:
 
     component_ids = sorted(str(t.get_id(schema)) for t in components)
-    name = s_name.Name(
+    name = s_name.QualifiedName(
         name=f"({' & '.join(component_ids)})",
         module=module or '__derived__',
     )

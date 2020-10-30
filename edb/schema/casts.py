@@ -152,10 +152,10 @@ def get_cast_fullname(
     module: str,
     from_type: s_types.TypeShell,
     to_type: s_types.TypeShell,
-) -> sn.Name:
+) -> sn.QualifiedName:
     quals = [from_type.get_name(schema), to_type.get_name(schema)]
-    shortname = sn.Name(f'{module}::cast')
-    return sn.Name(
+    shortname = sn.QualifiedName(f'{module}::cast')
+    return sn.QualifiedName(
         module=shortname.module,
         name=sn.get_specialized_name(shortname, *quals),
     )
@@ -227,7 +227,7 @@ class CastCommand(sd.QualifiedObjectCommand[Cast],
         schema: s_schema.Schema,
         astnode: qlast.NamedDDL,
         context: sd.CommandContext,
-    ) -> sn.Name:
+    ) -> sn.QualifiedName:
         assert isinstance(astnode, qlast.CastCommand)
         modaliases = context.modaliases
 

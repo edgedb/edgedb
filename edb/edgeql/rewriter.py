@@ -35,7 +35,7 @@ def rewrite_refs(expr, callback):
 
     def _cb(node):
         if isinstance(node, qlast.ObjectRef):
-            name = sn.Name(name=node.name, module=node.module)
+            name = sn.QualifiedName(name=node.name, module=node.module)
             upd = callback(name)
             if name != upd:
                 node.name = upd.name

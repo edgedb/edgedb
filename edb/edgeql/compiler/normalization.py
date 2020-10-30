@@ -388,7 +388,7 @@ def compile_Path(
                 )
                 if obj is not None:
                     name = obj.get_name(schema)
-                    assert isinstance(name, sn.Name)
+                    assert isinstance(name, sn.QualifiedName)
                     step.module = name.module
                 elif None in modaliases:
                     # Even if the name was not resolved in the
@@ -464,7 +464,7 @@ def compile_TypeName(
 
             if maintype is not None:
                 name = maintype.get_name(schema)
-                assert isinstance(name, sn.Name)
+                assert isinstance(name, sn.QualifiedName)
                 node.maintype.module = name.module
             elif None in modaliases:
                 # Even if the name was not resolved in the schema it

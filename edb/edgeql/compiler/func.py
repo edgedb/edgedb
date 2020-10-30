@@ -74,7 +74,7 @@ def compile_FunctionCall(
 
         funcname = expr.func
     else:
-        funcname = sn.Name(expr.func[1], expr.func[0])
+        funcname = sn.QualifiedName(expr.func[1], expr.func[0])
 
     funcs = env.schema.get_functions(funcname, module_aliases=ctx.modaliases)
 
@@ -526,7 +526,7 @@ def compile_operator(
             not in_polymorphic_func):
         sql_operator = tuple(from_op)
 
-    origin_name: Optional[sn.SchemaName]
+    origin_name: Optional[sn.QualifiedName]
     origin_module_id: Optional[uuid.UUID]
     if derivative_op is not None:
         origin_name = oper_name

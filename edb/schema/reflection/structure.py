@@ -191,17 +191,17 @@ def get_schema_name_for_pycls(py_cls: Type[s_obj.Object]) -> str:
     py_cls_name = py_cls.__name__
     if issubclass(py_cls, s_obj.GlobalObject):
         # Global objects, like Role and Database live in the sys:: module
-        return sn.Name(module='sys', name=py_cls_name)
+        return sn.QualifiedName(module='sys', name=py_cls_name)
     else:
-        return sn.Name(module='schema', name=py_cls_name)
+        return sn.QualifiedName(module='schema', name=py_cls_name)
 
 
 def get_default_base_for_pycls(py_cls: Type[s_obj.Object]) -> str:
     if issubclass(py_cls, s_obj.GlobalObject):
         # Global objects, like Role and Database live in the sys:: module
-        return sn.Name(module='sys', name='SystemObject')
+        return sn.QualifiedName(module='sys', name='SystemObject')
     else:
-        return sn.Name(module='schema', name='Object')
+        return sn.QualifiedName(module='schema', name='Object')
 
 
 def generate_structure(

@@ -140,11 +140,11 @@ class ObjectType(
     def getrptrs(
         self,
         schema: s_schema.Schema,
-        name: Union[sn.Name, str],
+        name: Union[sn.QualifiedName, str],
         *,
         sources: Iterable[so.Object] = ()
     ) -> Set[links.Link]:
-        if sn.Name.is_qualified(name):
+        if sn.QualifiedName.is_qualified(name):
             raise ValueError(
                 'references to concrete pointers must not be qualified')
         ptrs = {
@@ -198,15 +198,15 @@ class ObjectType(
         )
 
     @classmethod
-    def get_root_classes(cls) -> Tuple[sn.Name, ...]:
+    def get_root_classes(cls) -> Tuple[sn.QualifiedName, ...]:
         return (
-            sn.Name(module='std', name='BaseObject'),
-            sn.Name(module='std', name='Object'),
+            sn.QualifiedName(module='std', name='BaseObject'),
+            sn.QualifiedName(module='std', name='Object'),
         )
 
     @classmethod
-    def get_default_base_name(cls) -> sn.Name:
-        return sn.Name(module='std', name='Object')
+    def get_default_base_name(cls) -> sn.QualifiedName:
+        return sn.QualifiedName(module='std', name='Object')
 
     def _issubclass(
         self,

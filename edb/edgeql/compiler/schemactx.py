@@ -70,7 +70,7 @@ def get_schema_object(
         raise AssertionError(f"Unhandled BaseObjectRef subclass: {name!r}")
 
     if module:
-        name = sn.Name(name=name, module=module)
+        name = sn.QualifiedName(name=name, module=module)
 
     elif isinstance(name, str):
         view = _get_type_variant(name, ctx)
@@ -104,7 +104,7 @@ def get_schema_object(
 
 
 def _get_type_variant(
-        name: Union[str, sn.Name],
+        name: Union[str, sn.QualifiedName],
         ctx: context.ContextLevel) -> Optional[s_obj.Object]:
     type_variant = ctx.aliased_views.get(name)
     if type_variant is not None:
@@ -133,18 +133,18 @@ def get_schema_type(
 
 def resolve_schema_name(
         name: str, module: str, *,
-        ctx: context.ContextLevel) -> Optional[sn.Name]:
+        ctx: context.ContextLevel) -> Optional[sn.QualifiedName]:
     schema_module = ctx.modaliases.get(module)
     if schema_module is None:
         return None
     else:
-        return sn.Name(name=name, module=schema_module)
+        return sn.QualifiedName(name=name, module=schema_module)
 
 
 def derive_view(
     stype: s_types.Type,
     *,
-    derived_name: Optional[sn.SchemaName] = None,
+    derived_name: Optional[sn.QualifiedName] = None,
     derived_name_quals: Optional[Sequence[str]] = (),
     derived_name_base: Optional[str] = None,
     preserve_shape: bool = False,
@@ -231,7 +231,7 @@ def derive_ptr(
         source: s_sources.Source,
         target: Optional[s_types.Type]=None,
         *qualifiers: str,
-        derived_name: Optional[sn.SchemaName]=None,
+        derived_name: Optional[sn.QualifiedName]=None,
         derived_name_quals: Optional[Sequence[str]]=(),
         derived_name_base: Optional[str]=None,
         preserve_shape: bool=False,
@@ -292,7 +292,7 @@ def derive_view_name(
         stype: Optional[s_obj.DerivableObject],
         derived_name_quals: Optional[Sequence[str]]=(),
         derived_name_base: Optional[str]=None, *,
-        ctx: context.ContextLevel) -> sn.Name:
+        ctx: context.ContextLevel) -> sn.QualifiedName:
 
     if not derived_name_quals:
         derived_name_quals = (ctx.aliases.get('view'),)

@@ -124,7 +124,7 @@ def type_to_typeref(
     t: s_types.Type,
     *,
     cache: Optional[Dict[TypeRefCacheKey, irast.TypeRef]] = None,
-    typename: Optional[s_name.Name] = None,
+    typename: Optional[s_name.QualifiedName] = None,
     include_descendants: bool = False,
     _name: Optional[str] = None,
 ) -> irast.TypeRef:

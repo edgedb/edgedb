@@ -230,8 +230,8 @@ def static_interpret_backend_error(fields):
                 expected = err_details.detail_json.get('expected')
 
                 if srcname and ptrname:
-                    srcname = sn.Name(srcname)
-                    ptrname = sn.Name(ptrname)
+                    srcname = sn.QualifiedName(srcname)
+                    ptrname = sn.QualifiedName(ptrname)
                     lname = '{}.{}'.format(srcname, ptrname.name)
                 else:
                     lname = ''

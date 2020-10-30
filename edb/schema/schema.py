@@ -528,7 +528,7 @@ class FlatSchema(Schema):
                         f'is already present in the schema')
                 globalname_to_id = globalname_to_id.set(key, obj_id)
             else:
-                assert isinstance(new_name, sn.Name)
+                assert isinstance(new_name, sn.QualifiedName)
                 if (
                     not self.has_module(new_name.module)
                     and new_name.module != '__derived__'
@@ -945,7 +945,7 @@ class FlatSchema(Schema):
         implicit_builtins = module is None
 
         if module == '__std__':
-            fqname = sn.SchemaName(shortname, 'std')
+            fqname = sn.QualifiedName(shortname, 'std')
             result = getter(self, fqname)
             if result is not None:
                 return result
@@ -958,13 +958,13 @@ class FlatSchema(Schema):
                 module = fq_module
 
         if module is not None:
-            fqname = sn.SchemaName(shortname, module)
+            fqname = sn.QualifiedName(shortname, module)
             result = getter(self, fqname)
             if result is not None:
                 return result
 
         if implicit_builtins:
-            fqname = sn.SchemaName(shortname, 'std')
+            fqname = sn.QualifiedName(shortname, 'std')
             result = getter(self, fqname)
             if result is not None:
                 return result
@@ -1252,7 +1252,7 @@ class FlatSchema(Schema):
         refname = name
 
         if type is not None:
-            if not sn.Name.is_qualified(refname):
+            if not sn.QualifiedName.is_qualified(refname):
                 if module_aliases is not None:
                     default_module = module_aliases.get(None)
                     if default_module is not None:

@@ -673,7 +673,7 @@ class OperatorCommand(FunctionCommand):
     def oper_name_to_pg_name(
         self,
         schema,
-        name: sn.Name,
+        name: sn.QualifiedName,
     ) -> Tuple[str, str]:
         module = schema.get_global(s_mod.Module, name.module)
         return common.get_operator_backend_name(

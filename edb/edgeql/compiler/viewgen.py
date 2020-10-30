@@ -64,7 +64,7 @@ def process_view(
     path_id: irast.PathId,
     elements: List[qlast.ShapeElement],
     view_rptr: Optional[context.ViewRPtr] = None,
-    view_name: Optional[sn.SchemaName] = None,
+    view_name: Optional[sn.QualifiedName] = None,
     is_insert: bool = False,
     is_update: bool = False,
     is_delete: bool = False,
@@ -111,7 +111,7 @@ def _process_view(
     path_id_namespace: Optional[irast.WeakNamespace] = None,
     elements: List[qlast.ShapeElement],
     view_rptr: Optional[context.ViewRPtr] = None,
-    view_name: Optional[sn.SchemaName] = None,
+    view_name: Optional[sn.QualifiedName] = None,
     is_insert: bool = False,
     is_update: bool = False,
     is_delete: bool = False,
@@ -146,7 +146,7 @@ def _process_view(
             )
 
         name = f'{source_name}__{ptr_name}'
-        view_name = sn.Name(
+        view_name = sn.QualifiedName(
             module=ctx.derived_target_module or '__derived__',
             name=name,
         )
@@ -438,7 +438,7 @@ def _normalize_view_ptr_expr(
 
         base_ptrcls = ptrcls.get_bases(ctx.env.schema).first(ctx.env.schema)
         base_ptr_is_computable = base_ptrcls in ctx.source_map
-        ptr_name = sn.Name(
+        ptr_name = sn.QualifiedName(
             module='__',
             name=ptrcls.get_shortname(ctx.env.schema).name,
         )
@@ -579,13 +579,13 @@ def _normalize_view_ptr_expr(
             base_ptrcls = ptrcls.get_bases(
                 ctx.env.schema).first(ctx.env.schema)
 
-            ptr_name = sn.Name(
+            ptr_name = sn.QualifiedName(
                 module='__',
                 name=ptrcls.get_shortname(ctx.env.schema).name,
             )
 
         else:
-            ptr_name = sn.Name(
+            ptr_name = sn.QualifiedName(
                 module='__',
                 name=ptrname,
             )

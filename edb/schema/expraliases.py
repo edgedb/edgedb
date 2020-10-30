@@ -75,13 +75,13 @@ class AliasCommand(
                             schema: s_schema.Schema,
                             astnode: qlast.NamedDDL,
                             context: sd.CommandContext
-                            ) -> sn.Name:
+                            ) -> sn.QualifiedName:
         type_name = super()._classname_from_ast(schema, astnode, context)
         base_name = type_name
         quals = ('alias',)
         pnn = sn.get_specialized_name(base_name, type_name, *quals)
-        name = sn.Name(name=pnn, module=type_name.module)
-        assert isinstance(name, sn.Name)
+        name = sn.QualifiedName(name=pnn, module=type_name.module)
+        assert isinstance(name, sn.QualifiedName)
         return name
 
     def compile_expr_field(
@@ -110,7 +110,7 @@ class AliasCommand(
     def _compile_alias_expr(
         self,
         expr: qlast.Base,
-        classname: sn.SchemaName,
+        classname: sn.QualifiedName,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> irast.Statement:
@@ -147,7 +147,7 @@ class AliasCommand(
     def _handle_alias_op(
         self,
         expr: s_expr.Expression,
-        classname: sn.SchemaName,
+        classname: sn.QualifiedName,
         schema: s_schema.Schema,
         context: sd.CommandContext,
         is_alter: bool = False,

@@ -334,7 +334,7 @@ class CreateScalarType(
                 create_cmd.set_attribute_value('bases', [
                     s_utils.ast_objref_to_object_shell(
                         s_utils.name_to_ast_ref(
-                            s_name.Name('std::anyenum'),
+                            s_name.QualifiedName('std::anyenum'),
                         ),
                         schema=schema,
                         metaclass=ScalarType,

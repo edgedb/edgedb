@@ -134,7 +134,7 @@ class PathId:
         *,
         env: Optional[qlcompiler_ctx.Environment] = None,
         namespace: AbstractSet[AnyNamespace] = frozenset(),
-        typename: Optional[s_name.Name] = None,
+        typename: Optional[s_name.QualifiedName] = None,
     ) -> PathId:
         """Return a ``PathId``instance for a given :class:`schema.types.Type`
 
@@ -499,7 +499,7 @@ class PathId:
         else:
             return None
 
-    def rptr_name(self) -> Optional[s_name.Name]:
+    def rptr_name(self) -> Optional[s_name.QualifiedName]:
         """Return the name of a pointer for the last path step, if any.
 
            If this PathId represents a non-path expression, ``rptr_name()``
@@ -619,7 +619,7 @@ class PathId:
         return self._path[-1]  # type: ignore
 
     @property
-    def target_name_hint(self) -> s_name.Name:
+    def target_name_hint(self) -> s_name.QualifiedName:
         """Return the name of the type for this PathId."""
         if self.target.material_type is not None:
             material_type = self.target.material_type
