@@ -376,6 +376,7 @@ class AlterPropertyOwned(
 
 class AlterProperty(
     PropertyCommand,
+    pointers.PointerAlterFragment,
     referencing.AlterReferencedInheritingObject[Property],
 ):
     astnode = [qlast.AlterConcreteProperty,
@@ -428,6 +429,14 @@ class AlterProperty(
                     value=op.new_value,
                 ),
             )
+        elif op.property == 'computable':
+            if not op.new_value:
+                node.commands.append(
+                    qlast.SetSpecialField(
+                        name='expr',
+                        value=None,
+                    ),
+                )
         else:
             super()._apply_field_ast(schema, context, node, op)
 

@@ -260,7 +260,7 @@ class Pointer(referencing.ReferencedInheritingObject,
     # but expr=None.
     computable = so.SchemaField(
         bool,
-        default=None,
+        default=False,
         compcoef=0.99,
     )
 
@@ -871,6 +871,11 @@ class PointerCommandOrFragment(
             schema = s_types.materialize_type_in_attribute(
                 schema, context, self, 'target')
 
+        expr = self.get_local_attribute_value('expr')
+        if expr is not None:
+            # There is an expression, therefore it is a computable.
+            self.set_attribute_value('computable', True)
+
         return schema
 
     def _parse_computable(
@@ -1007,6 +1012,68 @@ class PointerCommandOrFragment(
         else:
             ref.module = ''
             return ref
+
+
+class PointerAlterFragment(
+    referencing.ReferencedObjectCommandBase[Pointer]
+):
+    @classmethod
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> referencing.AlterReferencedInheritingObject[Any]:
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        assert isinstance(cmd, PointerCommand)
+        if isinstance(astnode, qlast.CreateConcreteLink):
+            cmd._process_create_or_alter_ast(schema, astnode, context)
+        else:
+            expr_cmd = qlast.get_ddl_field_command(astnode, 'expr')
+            if expr_cmd is not None:
+                expr = expr_cmd.value
+                if expr is None:
+                    # `DROP EXPRESSION` detected
+                    aop = sd.AlterObjectProperty(
+                        property='expr',
+                        new_value=None,
+                        source_context=astnode.context,
+                    )
+                    cmd.add(aop)
+
+        assert isinstance(cmd, referencing.AlterReferencedInheritingObject)
+        return cmd
+
+    def canonicalize_attributes(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super().canonicalize_attributes(schema, context)
+        expr_cmd = self.get_attribute_set_cmd('expr')
+
+        # Handle `DROP EXPRESSION` here
+        if expr_cmd is not None and expr_cmd.source != 'inheritance':
+            if expr_cmd.new_value is None:
+                old_expr = expr_cmd.old_value
+
+                if old_expr is None:
+                    # Get the old value from the schema if the old_expr
+                    # attribute isn't set.
+                    pointer = cast(
+                        Pointer, schema.get(self.classname))
+                    old_expr = pointer.get_expr(schema)
+
+                if old_expr is not None:
+                    # If the expression was explicitly set to None,
+                    # that means that `DROP EXPRESSION` was executed
+                    # and this is no longer a computable.
+                    self.set_attribute_value('computable', False)
+
+                # Clear the placeholder value for 'expr'.
+                self.set_attribute_value('expr', None)
+
+        return schema
 
 
 class PointerCommand(

@@ -3155,6 +3155,44 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             }]
         )
 
+    async def test_edgeql_ddl_property_computable_02(self):
+        await self.con.execute('''\
+            CREATE TYPE test::CompProp {
+                CREATE PROPERTY prop := 'I am a computable';
+            };
+            INSERT test::CompProp;
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                SELECT test::CompProp {
+                    prop
+                };
+            ''',
+            [{
+                'prop': 'I am a computable',
+            }],
+        )
+
+        await self.con.execute('''\
+            ALTER TYPE test::CompProp {
+                ALTER PROPERTY prop {
+                    DROP EXPRESSION;
+                };
+            };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                SELECT test::CompProp {
+                    prop
+                };
+            ''',
+            [{
+                'prop': None,
+            }],
+        )
+
     async def test_edgeql_ddl_property_computable_circular(self):
         await self.con.execute('''\
             CREATE TYPE test::CompPropCircular {
@@ -3172,6 +3210,51 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     CREATE PROPERTY prop := (SELECT std::Object LIMIT 1);
                 };
             ''')
+
+    async def test_edgeql_ddl_link_computable_01(self):
+        await self.con.execute('''\
+            CREATE TYPE test::LinkTarget;
+            CREATE TYPE test::CompLink {
+                CREATE MULTI LINK l := test::LinkTarget;
+            };
+
+            INSERT test::LinkTarget;
+            INSERT test::CompLink;
+        ''')
+        await self.assert_query_result(
+            r'''
+                SELECT test::CompLink {
+                    l: {
+                        id
+                    }
+                };
+            ''',
+            [{
+                'l': [{
+                    'id': uuid.UUID
+                }],
+            }],
+        )
+
+        await self.con.execute('''\
+            ALTER TYPE test::CompLink {
+                ALTER LINK l {
+                    DROP EXPRESSION;
+                };
+            };
+        ''')
+        await self.assert_query_result(
+            r'''
+                SELECT test::CompLink {
+                    l: {
+                        id
+                    }
+                };
+            ''',
+            [{
+                'l': [],
+            }],
+        )
 
     async def test_edgeql_ddl_link_computable_circular_01(self):
         await self.con.execute('''\
