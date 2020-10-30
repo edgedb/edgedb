@@ -5759,3 +5759,109 @@ class TestCreateMigration(tb.BaseSchemaTest):
                     }};
                 '''
             )
+
+    def test_schema_create_migration_hashing_01(self):
+        schema = self.schema
+        schema = self.run_ddl(schema, 'CREATE MODULE default;')
+        m1 = 'm1tjyzfl33vvzwjd5izo5nyp4zdsekyvxpdm7zhtt5ufmqjzczopdq'
+        schema = self.run_ddl(
+            schema,
+            f'''
+                CREATE MIGRATION {m1} ONTO initial;
+            '''
+        )
+
+    def test_schema_create_migration_hashing_02(self):
+        # this should yield the same hash as hashing_01
+        schema = self.schema
+        schema = self.run_ddl(schema, 'CREATE MODULE default;')
+        m1 = 'm1tjyzfl33vvzwjd5izo5nyp4zdsekyvxpdm7zhtt5ufmqjzczopdq'
+        schema = self.run_ddl(
+            schema,
+            f'''
+                CREATE MIGRATION {m1} ONTO initial {{
+                }};
+            '''
+        )
+
+    def test_schema_create_migration_hashing_03(self):
+        # this is different from the above because
+        # of the semicolon arrangement.
+        schema = self.schema
+        schema = self.run_ddl(schema, 'CREATE MODULE default;')
+        m1 = 'm1sdg27s7lffr7knqhlzq5oegfqr74esj5k3busddccorbj5vv2afa'
+        schema = self.run_ddl(
+            schema,
+            f'''
+                CREATE MIGRATION {m1} ONTO initial {{
+                    ;
+                }};
+            '''
+        )
+
+    def test_schema_create_migration_hashing_04(self):
+        # this is different from the above because
+        # of the semicolon arrangement.
+        schema = self.schema
+        schema = self.run_ddl(schema, 'CREATE MODULE default;')
+        m1 = 'm1cbiul6yeoa52xehujfb4l4uh34ty2vrsu5mvxk7h63q6ov57lqtq'
+        schema = self.run_ddl(
+            schema,
+            f'''
+                CREATE MIGRATION {m1} ONTO initial {{
+                    ;;
+                }};
+            '''
+        )
+
+    def test_schema_create_migration_hashing_05(self):
+        schema = self.schema
+        schema = self.run_ddl(schema, 'CREATE MODULE default;')
+        m1 = 'm1vrzjotjgjxhdratq7jz5vdxmhvg2yun2xobiddag4aqr3y4gavgq'
+        schema = self.run_ddl(
+            schema,
+            f'''
+                CREATE MIGRATION {m1} ONTO initial {{
+                    CREATE TYPE Foo;
+                }};
+            '''
+        )
+
+    def test_schema_create_migration_hashing_06(self):
+        schema = self.schema
+        schema = self.run_ddl(schema, 'CREATE MODULE default;')
+        m1 = 'm1oppdh5pqk2mi45e6s7zw3zbmwqgcmbwyew2vwa7pkqs7evmx3eca'
+        schema = self.run_ddl(
+            schema,
+            f'''
+                CREATE MIGRATION {m1} ONTO initial {{
+                    CREATE TYPE Foo;;
+                }};
+            '''
+        )
+
+    def test_schema_create_migration_hashing_07(self):
+        schema = self.schema
+        schema = self.run_ddl(schema, 'CREATE MODULE default;')
+        m1 = 'm1qunrujj5tnobsit2cpok4tpbdpagvfr5kqqvwqva3b2lurt7kzia'
+        schema = self.run_ddl(
+            schema,
+            f'''
+                CREATE MIGRATION {m1} ONTO initial {{
+                    CREATE TYPE Foo {{}}
+                }};
+            '''
+        )
+
+    def test_schema_create_migration_hashing_08(self):
+        schema = self.schema
+        schema = self.run_ddl(schema, 'CREATE MODULE default;')
+        m1 = 'm1usqifmekhxos6pmrjuqdl7qdewxhz32uqfh3loaywiyafdswqdaa'
+        schema = self.run_ddl(
+            schema,
+            f'''
+                CREATE MIGRATION {m1} ONTO initial {{
+                    CREATE TYPE Foo {{}};
+                }};
+            '''
+        )

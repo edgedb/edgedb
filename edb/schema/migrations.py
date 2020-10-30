@@ -29,7 +29,7 @@ from edb.common import debug
 from edb.edgeql import ast as qlast
 from edb.edgeql import codegen as qlcodegen
 from edb.edgeql import qltypes
-from edb._edgeql_rust import Hasher
+from edb.edgeql import hasher as qlhasher
 
 from . import abc as s_abc
 from . import delta as sd
@@ -129,16 +129,22 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
         else:
             parent_name = 'initial'
 
-        hasher = Hasher.start_migration(parent_name)
-        if astnode.commands:
+        hasher = qlhasher.Hasher.start_migration(parent_name)
+        if astnode.body.context is not None:
+            # This is an explicitly specified CREATE MIGRATION
+            src_start = astnode.body.context.start.pointer
+            src_end = astnode.body.context.end.pointer
+            ddl_text = astnode.context.buffer[src_start:src_end]
+        elif astnode.body.commands:
+            # An implicit CREATE MIGRATION produced by START MIGRATION
             ddl_text = ';\n'.join(
                 qlcodegen.generate_source(stmt)
-                for stmt in astnode.commands
+                for stmt in astnode.body.commands
             ) + ';'
-            hasher.add_source(ddl_text)
         else:
             ddl_text = ''
 
+        hasher.add_source(ddl_text)
         name = hasher.make_migration_id()
 
         if specified_name is not None and name != specified_name:
@@ -174,6 +180,12 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
         assert isinstance(astnode, qlast.CreateMigration)
 
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+
+        if astnode.body.commands:
+            for subastnode in astnode.body.commands:
+                subcmd = sd.compile_ddl(schema, subastnode, context=context)
+                if subcmd is not None:
+                    cmd.add(subcmd)
 
         if (
             astnode.auto_diff is not None

@@ -1062,8 +1062,8 @@ class Compiler(BaseCompiler):
                 last_migration_ref = None
 
             create_migration = qlast.CreateMigration(
+                body=qlast.MigrationBody(commands=mstate.current_ddl),
                 parent=last_migration_ref,
-                commands=mstate.current_ddl,
                 auto_diff=mstate.auto_diff,
             )
 
