@@ -3369,6 +3369,54 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 )
         """])
 
+    def test_schema_migrations_equivalence_function_18(self):
+        self._assert_migration_equivalence([r"""
+            function a() -> float64 {
+                using (
+                    SELECT random()
+                )
+            }
+        """, r"""
+            function a() -> float64 {
+                volatility := "volatile";
+                using (
+                    SELECT random()
+                )
+            }
+        """])
+
+    def test_schema_migrations_equivalence_function_19(self):
+        self._assert_migration_equivalence([r"""
+            function a() -> float64 {
+                volatility := "volatile";
+                using (
+                    SELECT random()
+                )
+            }
+        """, r"""
+            function a() -> float64 {
+                using (
+                    SELECT random()
+                )
+            }
+        """])
+
+    def test_schema_migrations_equivalence_function_20(self):
+        self._assert_migration_equivalence([r"""
+            function a() -> float64 {
+                volatility := "volatile";
+                using (
+                    SELECT 1.0
+                )
+            }
+        """, r"""
+            function a() -> float64 {
+                using (
+                    SELECT 1.0
+                )
+            }
+        """])
+
     def test_schema_migrations_equivalence_linkprops_03(self):
         self._assert_migration_equivalence([r"""
             type Child;

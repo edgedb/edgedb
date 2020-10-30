@@ -2056,6 +2056,39 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ALTER TYPE Base1 CREATE LINK foo -> A;
         ''')
 
+    async def test_edgeql_ddl_link_target_alter_06(self):
+        await self.con.execute(r"""
+            CREATE TYPE test::Foo {
+                CREATE PROPERTY foo -> int64;
+                CREATE PROPERTY bar := .foo + .foo;
+            };
+        """)
+
+        await self.con.execute(r"""
+            ALTER TYPE test::Foo {
+                ALTER PROPERTY foo SET TYPE int16;
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH
+                    C := (SELECT schema::ObjectType
+                          FILTER .name = 'test::Foo')
+                SELECT
+                    C.pointers { target: { name } }
+                FILTER
+                    C.pointers.name = 'bar'
+            """,
+            [
+                {
+                    'target': {
+                        'name': 'std::int16'
+                    }
+                },
+            ],
+        )
+
     async def test_edgeql_ddl_prop_target_alter_array_01(self):
         await self.con.execute(r"""
             CREATE TYPE test::Foo {
@@ -3311,6 +3344,227 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             """SELECT test::call("a")""",
             ["a"],
         )
+
+    async def test_edgeql_ddl_function_volatility_01(self):
+        await self.con.execute('''
+            CREATE FUNCTION test::foo() -> int64 {
+                USING (SELECT 1)
+            }
+        ''')
+
+        await self.assert_query_result(
+            r'''
+            SELECT schema::Function { volatility }
+            FILTER .name = 'test::foo';
+            ''',
+            [{
+                "volatility": "Immutable",
+            }]
+        )
+
+        await self.assert_query_result(
+            '''SELECT (test::foo(), {1,2})''',
+            [[1, 1], [1, 2]]
+        )
+
+    async def test_edgeql_ddl_function_volatility_02(self):
+        await self.con.execute('''
+            CREATE FUNCTION test::foo() -> int64 {
+                USING (SELECT <int64>random())
+            }
+        ''')
+
+        await self.assert_query_result(
+            r'''
+            SELECT schema::Function {volatility}
+            FILTER .name = 'test::foo';
+            ''',
+            [{
+                "volatility": "Volatile",
+            }]
+        )
+
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"can not take cross product of volatile operation"):
+            await self.con.query(
+                '''SELECT (test::foo(), {1,2})'''
+            )
+
+    async def test_edgeql_ddl_function_volatility_03(self):
+        await self.con.execute('''
+            CREATE FUNCTION test::foo() -> int64 {
+                USING (SELECT 1);
+                SET volatility := "volatile";
+            }
+        ''')
+
+        await self.assert_query_result(
+            r'''
+            SELECT schema::Function {volatility}
+            FILTER .name = 'test::foo';
+            ''',
+            [{
+                "volatility": "Volatile",
+            }]
+        )
+
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"can not take cross product of volatile operation"):
+            await self.con.query(
+                '''SELECT (test::foo(), {1,2})'''
+            )
+
+    async def test_edgeql_ddl_function_volatility_04(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidFunctionDefinitionError,
+                r"(?s)volatility mismatch in function declared as stable"
+                r".*Actual volatility is volatile"):
+
+            await self.con.execute('''
+                CREATE FUNCTION test::foo() -> int64 {
+                    USING (SELECT <int64>random());
+                    SET volatility := "stable";
+                }
+            ''')
+
+    async def test_edgeql_ddl_function_volatility_05(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidFunctionDefinitionError,
+                r"(?s)volatility mismatch in function declared as immutable"
+                r".*Actual volatility is stable"):
+
+            await self.con.execute('''
+                CREATE FUNCTION test::foo() -> int64 {
+                    USING (SELECT count(Object));
+                    SET volatility := "immutable";
+                }
+            ''')
+
+    async def test_edgeql_ddl_function_volatility_06(self):
+        await self.con.execute('''
+            CREATE FUNCTION test::foo() -> float64 {
+                USING (1);
+            };
+            CREATE FUNCTION test::bar() -> float64 {
+                USING (test::foo());
+            };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+            SELECT schema::Function {name, volatility}
+            FILTER .name LIKE 'test::%'
+            ORDER BY .name;
+            ''',
+            [
+                {"name": "test::bar", "volatility": "Immutable"},
+                {"name": "test::foo", "volatility": "Immutable"},
+            ]
+        )
+
+        await self.con.execute('''
+            ALTER FUNCTION test::foo() SET volatility := "stable";
+        ''')
+
+        await self.assert_query_result(
+            r'''
+            SELECT schema::Function {name, volatility}
+            FILTER .name LIKE 'test::%'
+            ORDER BY .name;
+            ''',
+            [
+                {"name": "test::bar", "volatility": "Stable"},
+                {"name": "test::foo", "volatility": "Stable"},
+            ]
+        )
+
+        await self.con.execute('''
+            ALTER FUNCTION test::foo() {
+                RESET volatility;
+            }
+        ''')
+
+        await self.assert_query_result(
+            r'''
+            SELECT schema::Function {name, volatility}
+            FILTER .name LIKE 'test::%'
+            ORDER BY .name;
+            ''',
+            [
+                {"name": "test::bar", "volatility": "Immutable"},
+                {"name": "test::foo", "volatility": "Immutable"},
+            ]
+        )
+
+        await self.con.execute('''
+            ALTER FUNCTION test::foo() {
+                RESET volatility;
+                USING (random());
+            }
+        ''')
+
+        await self.assert_query_result(
+            r'''
+            SELECT schema::Function {name, volatility}
+            FILTER .name LIKE 'test::%'
+            ORDER BY .name;
+            ''',
+            [
+                {"name": "test::bar", "volatility": "Volatile"},
+                {"name": "test::foo", "volatility": "Volatile"},
+            ]
+        )
+
+    async def test_edgeql_ddl_function_volatility_07(self):
+        await self.con.execute('''
+            CREATE FUNCTION test::foo() -> float64 {
+                USING (1);
+            };
+            CREATE FUNCTION test::bar() -> float64 {
+                USING (test::foo());
+            };
+            CREATE FUNCTION test::baz() -> float64 {
+                USING (test::bar());
+            };
+        ''')
+
+        # Test that the alter propagates multiple times
+        await self.con.execute('''
+            ALTER FUNCTION test::foo() SET volatility := "stable";
+        ''')
+
+        await self.assert_query_result(
+            r'''
+            SELECT schema::Function {name, volatility}
+            FILTER .name LIKE 'test::%'
+            ORDER BY .name;
+            ''',
+            [
+                {"name": "test::bar", "volatility": "Stable"},
+                {"name": "test::baz", "volatility": "Stable"},
+                {"name": "test::foo", "volatility": "Stable"},
+            ]
+        )
+
+    async def test_edgeql_ddl_function_volatility_08(self):
+        await self.con.execute('''
+            CREATE FUNCTION test::foo() -> float64 {
+                USING (1);
+            };
+            CREATE FUNCTION test::bar() -> float64 {
+                SET volatility := "stable";
+                USING (test::foo());
+            };
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidFunctionDefinitionError,
+                'volatility mismatch in function declared as stable'):
+            await self.con.execute('''
+                ALTER FUNCTION test::foo() SET volatility := "volatile";
+            ''')
 
     async def test_edgeql_ddl_module_01(self):
         with self.assertRaisesRegex(
