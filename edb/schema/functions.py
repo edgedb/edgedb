@@ -117,9 +117,11 @@ def param_is_inherited(
     param: ParameterLike,
 ) -> bool:
     qualname = sn.get_specialized_name(
-        param.get_parameter_name(schema), func.get_name(schema))
+        sn.UnqualName(param.get_parameter_name(schema)),
+        str(func.get_name(schema)),
+    )
     param_name = param.get_name(schema)
-    assert isinstance(param_name, sn.QualifiedName)
+    assert isinstance(param_name, sn.QualName)
     return qualname != param_name.name
 
 
@@ -128,7 +130,7 @@ class ParameterLike(s_abc.Parameter):
     def get_parameter_name(self, schema: s_schema.Schema) -> str:
         raise NotImplementedError
 
-    def get_name(self, schema: s_schema.Schema) -> str:
+    def get_name(self, schema: s_schema.Schema) -> sn.Name:
         raise NotImplementedError
 
     def get_kind(self, _: s_schema.Schema) -> ft.ParameterKind:
@@ -151,7 +153,7 @@ class ParameterLike(s_abc.Parameter):
 class ParameterDesc(ParameterLike):
 
     num: int
-    name: str
+    name: sn.Name
     default: Optional[expr.Expression]
     type: s_types.TypeShell
     typemod: ft.TypeModifier
@@ -161,7 +163,7 @@ class ParameterDesc(ParameterLike):
         self,
         *,
         num: int,
-        name: str,
+        name: sn.Name,
         default: Optional[expr.Expression],
         type: s_types.TypeShell,
         typemod: ft.TypeModifier,
@@ -215,7 +217,7 @@ class ParameterDesc(ParameterLike):
 
         return cls(
             num=num,
-            name=astnode.name,
+            name=sn.UnqualName(astnode.name),
             type=paramt,
             typemod=astnode.typemod,
             kind=astnode.kind,
@@ -223,9 +225,9 @@ class ParameterDesc(ParameterLike):
         )
 
     def get_parameter_name(self, schema: s_schema.Schema) -> str:
-        return self.name
+        return str(self.name)
 
-    def get_name(self, schema: s_schema.Schema) -> str:
+    def get_name(self, schema: s_schema.Schema) -> sn.Name:
         return self.name
 
     def get_kind(self, _: s_schema.Schema) -> ft.ParameterKind:
@@ -271,18 +273,17 @@ class ParameterDesc(ParameterLike):
     def get_fqname(
         self,
         schema: s_schema.Schema,
-        func_fqname: sn.QualifiedName,
-    ) -> str:
-        return sn.QualifiedName(
-            module=func_fqname.module,
-            name=sn.get_specialized_name(
-                self.get_name(schema), func_fqname)
+        func_fqname: sn.QualName,
+    ) -> sn.QualName:
+        return sn.QualName(
+            func_fqname.module,
+            sn.get_specialized_name(self.get_name(schema), str(func_fqname))
         )
 
     def as_create_delta(
         self,
         schema: s_schema.Schema,
-        func_fqname: sn.QualifiedName,
+        func_fqname: sn.QualName,
         *,
         context: sd.CommandContext,
     ) -> sd.Command:
@@ -303,17 +304,19 @@ class ParameterDesc(ParameterLike):
     def as_delete_delta(
         self,
         schema: s_schema.Schema,
-        func_fqname: sn.QualifiedName,
+        func_fqname: sn.QualName,
         *,
         context: sd.CommandContext,
     ) -> sd.Command:
         DeleteParameter = sd.ObjectCommandMeta.get_command_class_or_die(
             sd.DeleteObject, Parameter)
 
-        param_name = sn.QualifiedName(
+        param_name = sn.QualName(
             module=func_fqname.module,
             name=sn.get_specialized_name(
-                self.get_name(schema), func_fqname)
+                self.get_name(schema),
+                str(func_fqname),
+            )
         )
 
         cmd = DeleteParameter(classname=param_name)
@@ -350,14 +353,12 @@ class Parameter(
         ft.ParameterKind, coerce=True, compcoef=0.4)
 
     @classmethod
-    def paramname_from_fullname(cls, fullname: sn.QualifiedName) -> str:
+    def paramname_from_fullname(cls, fullname: sn.Name) -> str:
         parts = str(fullname.name).split('@', 1)
         if len(parts) == 2:
             return sn.unmangle_name(parts[0])
-        elif '::' in fullname:
-            return sn.QualifiedName(fullname).name
         else:
-            return fullname
+            return fullname.name
 
     def get_verbosename(
         self,
@@ -378,15 +379,15 @@ class Parameter(
             return vn
 
     @classmethod
-    def get_shortname_static(cls, name: str) -> sn.QualifiedName:
-        assert isinstance(name, sn.QualifiedName)
-        return sn.QualifiedName(
+    def get_shortname_static(cls, name: sn.Name) -> sn.QualName:
+        assert isinstance(name, sn.QualName)
+        return sn.QualName(
             module='__',
             name=cls.paramname_from_fullname(name),
         )
 
     @classmethod
-    def get_displayname_static(cls, name: str) -> str:
+    def get_displayname_static(cls, name: sn.Name) -> str:
         shortname = cls.get_shortname_static(name)
         return shortname.name
 
@@ -752,7 +753,7 @@ class CallableObject(
                 quals.append(pt.get_schema_class_displayname())
                 pt_id = str(pt.get_id(schema))
             else:
-                pt_id = pt.name
+                pt_id = str(pt.name)
 
             quals.append(pt_id)
             pk = param.get_kind(schema)
@@ -767,13 +768,13 @@ class CallableObject(
     def get_fqname(
         cls,
         schema: s_schema.Schema,
-        shortname: sn.QualifiedName,
+        shortname: sn.QualName,
         params: List[ParameterDesc],
         *extra_quals: str,
-    ) -> sn.QualifiedName:
+    ) -> sn.QualName:
 
         quals = cls._get_fqname_quals(schema, params)
-        return sn.QualifiedName(
+        return sn.QualName(
             module=shortname.module,
             name=sn.get_specialized_name(shortname, *(quals + extra_quals)))
 
@@ -894,10 +895,10 @@ class RenameCallableObject(
         params = CallableCommand._get_param_desc_from_params_ast(
             schema, context.modaliases, param_list.get_ast(schema))
 
+        assert isinstance(self.new_name, sn.QualName)
         for dparam, oparam in zip(params, param_list.objects(schema)):
             ref_name = oparam.get_name(schema)
-            new_ref_name = dparam.get_fqname(
-                schema, sn.QualifiedName(self.new_name))
+            new_ref_name = dparam.get_fqname(schema, self.new_name)
             commands.append(
                 self._canonicalize_ref_rename(
                     oparam, ref_name, new_ref_name, schema, context, scls))
@@ -1130,7 +1131,7 @@ class FunctionCommand(
         schema: s_schema.Schema,
         astnode: qlast.NamedDDL,
         context: sd.CommandContext,
-    ) -> sn.QualifiedName:
+    ) -> sn.QualName:
         # _classname_from_ast signature expects qlast.NamedDDL,
         # but _get_param_desc_from_ast expects a ObjectDDL,
         # which is more specific
@@ -1312,7 +1313,7 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
         # Check if other schema objects with the same name (ignoring
         # signature, of course) exist.
         if other := schema.get(
-                sn.QualifiedName(shortname, fullname.module), None):
+                sn.QualName(fullname.module, shortname.name), None):
             raise errors.SchemaError(
                 f'{other.get_verbosename(schema)} is already present '
                 f'in the schema {schema!r}')

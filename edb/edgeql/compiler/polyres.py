@@ -30,6 +30,7 @@ from edb.ir import ast as irast
 from edb.ir import utils as irutils
 
 from edb.schema import functions as s_func
+from edb.schema import name as sn
 from edb.schema import types as s_types
 
 from edb.edgeql import qltypes as ft
@@ -219,7 +220,8 @@ def try_bind_call_args(
             # being called with no arguments.
             bargs: List[BoundArg] = []
             if has_inlined_defaults:
-                bytes_t = ctx.env.get_track_schema_type('std::bytes')
+                bytes_t = ctx.env.get_track_schema_type(
+                    sn.QualName('std', 'bytes'))
                 typeref = typegen.type_to_typeref(bytes_t, env=ctx.env)
                 argval = setgen.ensure_set(
                     irast.BytesConstant(value=b'\x00', typeref=typeref),
@@ -439,7 +441,8 @@ def try_bind_call_args(
     if has_inlined_defaults:
         # If we are compiling an EdgeQL function, inject the defaults
         # bit-mask as a first argument.
-        bytes_t = ctx.env.get_track_schema_type('std::bytes')
+        bytes_t = ctx.env.get_track_schema_type(
+            sn.QualName('std', 'bytes'))
         bm = defaults_mask.to_bytes(nparams // 8 + 1, 'little')
         typeref = typegen.type_to_typeref(bytes_t, env=ctx.env)
         bm_set = setgen.ensure_set(

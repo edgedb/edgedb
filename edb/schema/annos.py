@@ -41,7 +41,7 @@ class Annotation(so.QualifiedObject,
     # Annotations cannot be renamed, so make sure the name
     # has low compcoef.
     name = so.SchemaField(
-        sn.QualifiedName,  # type: ignore
+        sn.QualName,  # type: ignore
         inheritable=False,
         compcoef=0.2,
     )
@@ -106,20 +106,6 @@ class AnnotationSubject(so.Object):
         so.ObjectIndexByShortname[AnnotationValue],
         inheritable=False, ephemeral=True, coerce=True, compcoef=0.909,
         default=so.DEFAULT_CONSTRUCTOR)
-
-    def add_annotation(self,
-                       schema: s_schema.Schema,
-                       annotation: AnnotationValue,
-                       replace: bool = False) -> s_schema.Schema:
-        schema = self.add_classref(
-            schema, 'annotations', annotation, replace=replace)
-        return schema
-
-    def del_annotation(self,
-                       schema: s_schema.Schema,
-                       annotation_name: str) -> s_schema.Schema:
-        shortname = sn.shortname_from_fullname(annotation_name)
-        return self.del_classref(schema, 'annotations', shortname)
 
     def get_annotation(self,
                        schema: s_schema.Schema,
@@ -204,34 +190,19 @@ class AnnotationValueCommand(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-        name: str,
+        name: sn.Name,
     ) -> qlast.ObjectRef:
         ref = super()._deparse_name(schema, context, name)
         # Clear `itemclass`
         ref.itemclass = None
-
         return ref
-
-    def add_annotation(self,
-                       schema: s_schema.Schema,
-                       annotation: AnnotationValue,
-                       parent: AnnotationSubject) -> s_schema.Schema:
-        return parent.add_annotation(schema, annotation, replace=True)
-
-    def del_annotation(self,
-                       schema: s_schema.Schema,
-                       annotation_name: str,
-                       parent: AnnotationSubject) -> s_schema.Schema:
-        return parent.del_annotation(schema, annotation_name)
 
     @classmethod
     def _classname_from_ast(cls,
                             schema: s_schema.Schema,
                             astnode: qlast.NamedDDL,
                             context: sd.CommandContext
-                            ) -> sn.QualifiedName:
-        name = super()._classname_from_ast(schema, astnode, context)
-
+                            ) -> sn.QualName:
         parent_ctx = cls.get_referrer_context_or_die(context)
         assert isinstance(parent_ctx.op, sd.QualifiedObjectCommand)
         referrer_name = parent_ctx.op.classname
@@ -245,11 +216,8 @@ class AnnotationValueCommand(
         base_name = base_ref.name
         quals = cls._classname_quals_from_ast(
             schema, astnode, base_name, referrer_name, context)
-        pnn = sn.get_specialized_name(base_name, referrer_name, *quals)
-        name = sn.QualifiedName(name=pnn, module=referrer_name.module)
-
-        assert isinstance(name, sn.QualifiedName)
-        return name
+        pnn = sn.get_specialized_name(base_name, str(referrer_name), *quals)
+        return sn.QualName(name=pnn, module=referrer_name.module)
 
     def populate_ddl_identity(
         self,

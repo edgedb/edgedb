@@ -18,9 +18,9 @@
 
 
 from __future__ import annotations
+from typing import *
 
 import functools
-from typing import *
 
 from edb import errors
 
@@ -152,10 +152,10 @@ def get_cast_fullname(
     module: str,
     from_type: s_types.TypeShell,
     to_type: s_types.TypeShell,
-) -> sn.QualifiedName:
-    quals = [from_type.get_name(schema), to_type.get_name(schema)]
-    shortname = sn.QualifiedName(f'{module}::cast')
-    return sn.QualifiedName(
+) -> sn.QualName:
+    quals = [str(from_type.get_name(schema)), str(to_type.get_name(schema))]
+    shortname = sn.QualName(module, 'cast')
+    return sn.QualName(
         module=shortname.module,
         name=sn.get_specialized_name(shortname, *quals),
     )
@@ -227,7 +227,7 @@ class CastCommand(sd.QualifiedObjectCommand[Cast],
         schema: s_schema.Schema,
         astnode: qlast.NamedDDL,
         context: sd.CommandContext,
-    ) -> sn.QualifiedName:
+    ) -> sn.QualName:
         assert isinstance(astnode, qlast.CastCommand)
         modaliases = context.modaliases
 

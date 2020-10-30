@@ -712,10 +712,10 @@ def __infer_oper_call(
             arg.expr, scope_tree=scope_tree, ctx=ctx)
         cards.append(arg.cardinality)
 
-    if ir.func_shortname == 'std::UNION':
+    if str(ir.func_shortname) == 'std::UNION':
         # UNION needs to "add up" cardinalities.
         return _union_cardinality(cards)
-    elif ir.func_shortname == 'std::??':
+    elif str(ir.func_shortname) == 'std::??':
         # Coalescing takes the maximum of both lower and upper bounds.
         return _coalesce_cardinality(cards)
     else:
@@ -847,7 +847,7 @@ def extract_filters(
 
     expr = filter_set.expr
     if isinstance(expr, irast.OperatorCall):
-        if expr.func_shortname == 'std::=':
+        if str(expr.func_shortname) == 'std::=':
             left, right = (a.expr for a in expr.args)
 
             op_card = _common_cardinality(
@@ -892,7 +892,7 @@ def extract_filters(
 
                     return [(ptr, right)]
 
-        elif expr.func_shortname == 'std::AND':
+        elif str(expr.func_shortname) == 'std::AND':
             left, right = (a.expr for a in expr.args)
 
             left_filters = extract_filters(

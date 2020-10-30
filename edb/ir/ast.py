@@ -115,7 +115,7 @@ class TypeRef(ImmutableBase):
     module_id: uuid.UUID
     # Full name of the type, not necessarily schema-addressable,
     # used for annotations only.
-    name_hint: sn.QualifiedName
+    name_hint: sn.QualName
     # The ref of the underlying material type, if this is a view type,
     # else None.
     material_type: typing.Optional[TypeRef]
@@ -174,10 +174,10 @@ class BasePointerRef(ImmutableBase):
     # cardinality fields need to be mutable for lazy cardinality inference.
     __ast_mutable_fields__ = frozenset(('dir_cardinality', 'out_cardinality'))
 
-    name: sn.QualifiedName
-    shortname: sn.QualifiedName
-    path_id_name: typing.Optional[sn.QualifiedName]
-    std_parent_name: sn.QualifiedName
+    name: sn.QualName
+    shortname: sn.QualName
+    path_id_name: typing.Optional[sn.QualName]
+    std_parent_name: sn.QualName
     out_source: TypeRef
     out_target: TypeRef
     direction: s_pointers.PointerDirection
@@ -245,7 +245,7 @@ class TupleIndirectionLink(s_pointers.PseudoPointer):
     ) -> None:
         self._source = source
         self._target = target
-        self._name = sn.QualifiedName(
+        self._name = sn.QualName(
             module='__tuple__', name=str(element_name))
 
     def __hash__(self) -> int:
@@ -257,7 +257,7 @@ class TupleIndirectionLink(s_pointers.PseudoPointer):
 
         return self._name == other._name
 
-    def get_name(self, schema: s_schema.Schema) -> str:
+    def get_name(self, schema: s_schema.Schema) -> sn.QualName:
         return self._name
 
     def get_cardinality(
@@ -309,7 +309,7 @@ class TypeIntersectionLink(s_pointers.PseudoPointer):
         cardinality: qltypes.SchemaCardinality,
     ) -> None:
         name = 'optindirection' if optional else 'indirection'
-        self._name = sn.QualifiedName(module='__type__', name=name)
+        self._name = sn.QualName(module='__type__', name=name)
         self._source = source
         self._target = target
         self._cardinality = cardinality
@@ -318,7 +318,7 @@ class TypeIntersectionLink(s_pointers.PseudoPointer):
         self._is_subtype = is_subtype
         self._rptr_specialization = frozenset(rptr_specialization)
 
-    def get_name(self, schema: s_schema.Schema) -> sn.QualifiedName:
+    def get_name(self, schema: s_schema.Schema) -> sn.QualName:
         return self._name
 
     def get_cardinality(
@@ -450,7 +450,7 @@ class Param:
 class Statement(Command):
 
     expr: Set
-    views: typing.Dict[sn.QualifiedName, s_types.Type]
+    views: typing.Dict[sn.QualName, s_types.Type]
     params: typing.List[Param]
     cardinality: qltypes.Cardinality
     volatility: qltypes.Volatility
@@ -603,7 +603,7 @@ class Call(ImmutableExpr):
     func_polymorphic: bool
 
     # Bound callable's name.
-    func_shortname: sn.QualifiedName
+    func_shortname: sn.QualName
 
     # The id of the module in which the callable is defined.
     func_module_id: uuid.UUID
@@ -672,7 +672,7 @@ class OperatorCall(Call):
     sql_operator: typing.Optional[typing.Tuple[str, ...]] = None
 
     # The name of the origin operator if this is a derivative operator.
-    origin_name: sn.QualifiedName
+    origin_name: sn.QualName
 
     # The module id of the origin operator if this is a derivative operator.
     origin_module_id: uuid.UUID

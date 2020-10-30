@@ -265,7 +265,7 @@ def _get_set_rvar(
         rvars = process_set_as_tuple_indirection(ir_set, stmt, ctx=ctx)
 
     elif isinstance(ir_set.expr, irast.FunctionCall):
-        if ir_set.expr.func_shortname == 'std::enumerate':
+        if str(ir_set.expr.func_shortname) == 'std::enumerate':
             if isinstance(irutils.unwrap_set(ir_set.expr.args[0].expr).expr,
                           irast.FunctionCall):
                 # Enumeration of a SET-returning function
@@ -609,7 +609,7 @@ def finalize_optional_rel(
 
 def get_set_rel_alias(ir_set: irast.Set, *,
                       ctx: context.CompilerContextLevel) -> str:
-    _, _, dname = ir_set.path_id.target_name_hint.rpartition('::')
+    dname = ir_set.path_id.target_name_hint.name
     if ir_set.rptr is not None and ir_set.rptr.source.typeref is not None:
         alias_hint = '{}_{}'.format(
             dname,
@@ -649,7 +649,7 @@ def process_set_as_link_property_ref(
         lpropref, resolve_type=False, link_bias=False)
 
     if (ptr_info.table_type == 'ObjectType' or
-            lpropref.std_parent_name == 'std::target'):
+            str(lpropref.std_parent_name) == 'std::target'):
         # This is a singleton link property stored in source rel,
         # e.g. @target
         val = pathctx.get_rvar_path_var(
@@ -1145,7 +1145,7 @@ def process_set_as_membership_expr(
         # since that has a higher chance of using the indexes.
         right_expr = right_arg.expr
         if (isinstance(right_expr, irast.FunctionCall)
-                and right_expr.func_shortname == 'std::array_unpack'):
+                and str(right_expr.func_shortname) == 'std::array_unpack'):
             is_array_unpack = True
             right_arg = right_expr.args[0].expr
         else:
@@ -1168,7 +1168,7 @@ def process_set_as_membership_expr(
                     )
                 )
 
-    negated = expr.func_shortname == 'std::NOT IN'
+    negated = str(expr.func_shortname) == 'std::NOT IN'
     sublink_type = pgast.SubLinkType.ALL if negated else pgast.SubLinkType.ANY
 
     set_expr = exprcomp.compile_operator(

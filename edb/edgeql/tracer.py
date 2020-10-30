@@ -43,14 +43,16 @@ NamedObject_T = TypeVar("NamedObject_T", bound="NamedObject")
 class NamedObject:
     '''Generic tracing object with an explicit name.'''
 
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: sn.QualName) -> None:
         self.name = name
 
-    def get_name(self, schema: s_schema.Schema) -> str:
+    def get_name(self, schema: s_schema.Schema) -> sn.QualName:
         return self.name
 
 
-SentinelObject = NamedObject(name='__unresolved__')
+SentinelObject = NamedObject(
+    name=sn.QualName(module='__unknown__', name='__unknown__'),
+)
 
 
 ObjectLike = Union[NamedObject, so.Object]
@@ -99,7 +101,7 @@ class Source(NamedObject):
     pointers: Dict[str, Union[s_pointers.Pointer, Pointer]]
 
     '''Abstract type that mocks the s_sources.Source for tracing purposes.'''
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: sn.QualName) -> None:
         super().__init__(name)
         self.pointers = {}
 
@@ -141,7 +143,7 @@ class Pointer(Source):
 
     def __init__(
         self,
-        name: str,
+        name: sn.QualName,
         *,
         source: Optional[SourceLike] = None,
         target: Optional[TypeLike] = None,
@@ -165,21 +167,22 @@ class Pointer(Source):
     ) -> Optional[SourceLike]:
         return self.source
 
-    def get_name(self, schema: s_schema.Schema) -> str:
-        return self.name
+
+def qualify_name(name: sn.QualName, qual: str) -> sn.QualName:
+    return sn.QualName(name.module, f'{name.name}@{qual}')
 
 
 def trace_refs(
     qltree: qlast.Base,
     *,
     schema: s_schema.Schema,
-    source: Optional[sn.QualifiedName] = None,
-    subject: Optional[sn.QualifiedName] = None,
-    path_prefix: Optional[str] = None,
-    module: Optional[str] = None,
-    objects: Dict[str, ObjectLike],
-    params: Mapping[str, sn.QualifiedName],
-) -> FrozenSet[str]:
+    source: Optional[sn.QualName] = None,
+    subject: Optional[sn.QualName] = None,
+    path_prefix: Optional[sn.QualName] = None,
+    module: str,
+    objects: Dict[sn.QualName, ObjectLike],
+    params: Mapping[str, sn.QualName],
+) -> FrozenSet[sn.QualName]:
 
     """Return a list of schema item names used in an expression."""
 
@@ -202,16 +205,16 @@ class TracerContext:
         self,
         *,
         schema: s_schema.Schema,
-        module: Optional[str],
-        objects: Dict[str, ObjectLike],
-        source: Optional[sn.QualifiedName],
-        subject: Optional[sn.QualifiedName],
-        path_prefix: Optional[str],
+        module: str,
+        objects: Dict[sn.QualName, ObjectLike],
+        source: Optional[sn.QualName],
+        subject: Optional[sn.QualName],
+        path_prefix: Optional[sn.QualName],
         modaliases: Mapping[Optional[str], str],
-        params: Mapping[str, sn.QualifiedName],
+        params: Mapping[str, sn.QualName],
     ) -> None:
         self.schema = schema
-        self.refs: Set[str] = set()
+        self.refs: Set[sn.QualName] = set()
         self.module = module
         self.objects = objects
         self.source = source
@@ -220,7 +223,7 @@ class TracerContext:
         self.modaliases = modaliases
         self.params = params
 
-    def get_ref_name(self, ref: qlast.BaseObjectRef) -> sn.QualifiedName:
+    def get_ref_name(self, ref: qlast.BaseObjectRef) -> sn.QualName:
         # We don't actually expect to handle anything other than
         # ObjectRef here.
         assert isinstance(ref, qlast.ObjectRef)
@@ -228,17 +231,23 @@ class TracerContext:
         if ref.module:
             # replace the module alias with the real name
             module = self.modaliases.get(ref.module, ref.module)
-            return sn.QualifiedName(module=module, name=ref.name)
+            return sn.QualName(module=module, name=ref.name)
         elif ref.name in self.params:
             return self.params[ref.name]
-        elif f'{self.module}::{ref.name}' in self.objects:
-            return sn.QualifiedName(module=self.module, name=ref.name)
+        elif (
+            self.module is not None
+            and (
+                (qname := sn.QualName(self.module, ref.name))
+                in self.objects
+            )
+        ):
+            return qname
         else:
-            return sn.QualifiedName(module="std", name=ref.name)
+            return sn.QualName(module="std", name=ref.name)
 
     def get_ref_name_starstwith(
         self, ref: qlast.ObjectRef
-    ) -> Set[sn.QualifiedName]:
+    ) -> Set[sn.QualName]:
         refs = set()
         prefixes = []
 
@@ -252,10 +261,8 @@ class TracerContext:
 
         for objname in self.objects.keys():
             for prefix in prefixes:
-                if objname.startswith(prefix):
-                    parts = objname.split('::', 1)
-                    name = sn.QualifiedName(module=parts[0], name=parts[1])
-                    refs.add(name)
+                if str(objname).startswith(prefix):
+                    refs.add(objname)
 
         return refs
 
@@ -283,7 +290,7 @@ def alias_context(
         elif isinstance(alias, qlast.AliasedExpr):
             obj = trace(alias.expr, ctx=ctx)
             assert obj is not None
-            objects[alias.alias] = obj
+            objects[sn.QualName('__alias__', alias.alias)] = obj
 
     if module or modaliases:
         nctx = TracerContext(
@@ -448,8 +455,9 @@ def trace_Path(
         if isinstance(step, qlast.ObjectRef):
             # the ObjectRef without a module may be referring to an
             # aliased expression
-            if not step.module and step.name in ctx.objects:
-                tip = ctx.objects[step.name]
+            aname = sn.QualName('__alias__', step.name)
+            if not step.module and aname in ctx.objects:
+                tip = ctx.objects[aname]
             else:
                 refname = ctx.get_ref_name(step)
                 if refname in ctx.objects:
@@ -486,10 +494,11 @@ def trace_Path(
                         if (isinstance(src, Pointer) and
                                 src.source is not None):
                             src_src_name = src.source.get_name(ctx.schema)
-                            source_name = f'{src_src_name}@{src_name}'
+                            source_name = qualify_name(
+                                src_src_name, src_name.name)
                         else:
                             source_name = src_name
-                        ctx.refs.add(f'{source_name}@{step.ptr.name}')
+                        ctx.refs.add(qualify_name(source_name, step.ptr.name))
             else:
                 if step.direction == '<':
                     if plen > i + 1 and isinstance(node.steps[i + 1],
@@ -511,8 +520,9 @@ def trace_Path(
                             ptr_source = ptr.get_source(ctx.schema)
 
                         if ptr_source is not None:
-                            source_name = ptr_source.get_name(ctx.schema)
-                            ctx.refs.add(f'{source_name}@{step.ptr.name}')
+                            sname = ptr_source.get_name(ctx.schema)
+                            assert isinstance(sname, sn.QualName)
+                            ctx.refs.add(qualify_name(sname, step.ptr.name))
                             tip = ptr.get_target(ctx.schema)
                         else:
                             # Can't figure out the new tip, so we bail.
@@ -539,7 +549,8 @@ def trace_Path(
 
                         if isinstance(tip, Type):
                             tip_name = tip.get_name(ctx.schema)
-                            ctx.refs.add(f'{tip_name}@{prev_step.ptr.name}')
+                            ctx.refs.add(qualify_name(
+                                tip_name, prev_step.ptr.name))
 
                         # This is a backwards link, so we need the source.
                         tip = ptr.get_source(ctx.schema)
@@ -577,12 +588,17 @@ def trace_Subject(
 def _resolve_type_expr(
     texpr: qlast.TypeExpr,
     *,
-    ctx: TracerContext
+    ctx: TracerContext,
 ) -> TypeLike:
 
     if isinstance(texpr, qlast.TypeName):
         if texpr.subtypes and isinstance(texpr.maintype, qlast.ObjectRef):
-            return Type(name=texpr.maintype.name)
+            return Type(
+                name=sn.QualName(
+                    module='__coll__',
+                    name=texpr.maintype.name,
+                ),
+            )
         else:
             refname = ctx.get_ref_name(texpr.maintype)
             local_obj = ctx.objects.get(refname)
@@ -631,9 +647,15 @@ def trace_TypeName(node: qlast.TypeName, *, ctx: TracerContext) -> None:
         for st in node.subtypes:
             trace(st, ctx=ctx)
     elif isinstance(node.maintype, qlast.ObjectRef):
-        fq_name = node.maintype.name
-        if node.maintype.module:
-            fq_name = f'{node.maintype.module}::{fq_name}'
+        tref = node.maintype
+        if tref.module:
+            fq_name = sn.QualName(module=tref.module, name=tref.name)
+        else:
+            fq_name = sn.QualName(module=ctx.module, name=tref.name)
+            if fq_name not in ctx.objects:
+                std_name = sn.QualName(module="std", name=tref.name)
+                if ctx.schema.get(std_name, default=None) is not None:
+                    fq_name = std_name
         ctx.refs.add(fq_name)
 
 
@@ -660,7 +682,9 @@ def trace_Shape(
     if isinstance(node.expr, qlast.Path):
         orig_prefix = ctx.path_prefix
         if tip is not None:
-            ctx.path_prefix = tip.get_name(ctx.schema)
+            tip_name = tip.get_name(ctx.schema)
+            assert isinstance(tip_name, sn.QualName)
+            ctx.path_prefix = tip_name
         else:
             ctx.path_prefix = None
 
@@ -697,7 +721,9 @@ def trace_Select(
     with alias_context(ctx, node.aliases) as ctx:
         tip = trace(node.result, ctx=ctx)
         if tip is not None:
-            ctx.path_prefix = tip.get_name(ctx.schema)
+            tip_name = tip.get_name(ctx.schema)
+            assert isinstance(tip_name, sn.QualName)
+            ctx.path_prefix = tip_name
 
         if node.where is not None:
             trace(node.where, ctx=ctx)
@@ -738,7 +764,9 @@ def trace_UpdateQuery(
         if tip is None:
             return None
 
-        ctx.path_prefix = tip.get_name(ctx.schema)
+        tip_name = tip.get_name(ctx.schema)
+        assert isinstance(tip_name, sn.QualName)
+        ctx.path_prefix = tip_name
 
         for element in node.shape:
             trace(element, ctx=ctx)
@@ -757,7 +785,9 @@ def trace_DeleteQuery(
     with alias_context(ctx, node.aliases) as ctx:
         tip = trace(node.subject, ctx=ctx)
         if tip is not None:
-            ctx.path_prefix = tip.get_name(ctx.schema)
+            tip_name = tip.get_name(ctx.schema)
+            assert isinstance(tip_name, sn.QualName)
+            ctx.path_prefix = tip_name
 
         if node.where is not None:
             trace(node.where, ctx=ctx)
@@ -782,7 +812,7 @@ def trace_For(
         obj = trace(node.iterator, ctx=ctx)
         if obj is None:
             obj = SentinelObject
-        ctx.objects[node.iterator_alias] = obj
+        ctx.objects[sn.QualName('__alias__', node.iterator_alias)] = obj
         tip = trace(node.result, ctx=ctx)
 
         return tip
@@ -795,7 +825,5 @@ def trace_DescribeStmt(
 ) -> None:
 
     if isinstance(node.object, qlast.ObjectRef):
-        fq_name = node.object.name
-        if node.object.module:
-            fq_name = f'{node.object.module}::{fq_name}'
+        fq_name = ctx.get_ref_name(node.object)
         ctx.refs.add(fq_name)

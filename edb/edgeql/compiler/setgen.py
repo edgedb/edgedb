@@ -34,6 +34,7 @@ from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
 
 from edb.schema import links as s_links
+from edb.schema import name as s_name
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import pseudo as s_pseudo
@@ -243,7 +244,10 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
 
             refnode = None
 
-            if not step.module and step.name not in ctx.aliased_views:
+            if (
+                not step.module
+                and s_name.UnqualName(step.name) not in ctx.aliased_views
+            ):
                 # Check if the starting path label is a known anchor
                 refnode = anchors.get(step.name)
 
@@ -645,14 +649,15 @@ def resolve_ptr(
 
     err = errors.InvalidReferenceError(msg, context=source_context)
 
-    if direction == s_pointers.PointerDirection.Outbound:
-        near_enpoint_pointers = near_endpoint.get_pointers(
-            ctx.env.schema)
+    if direction is s_pointers.PointerDirection.Outbound:
+        near_enpoint_pointers = near_endpoint.get_pointers(ctx.env.schema)
         s_utils.enrich_schema_lookup_error(
-            err, pointer_name, modaliases=ctx.modaliases,
+            err,
+            s_name.UnqualName(pointer_name),
+            modaliases=ctx.modaliases,
             item_type=s_pointers.Pointer,
             collection=near_enpoint_pointers.objects(ctx.env.schema),
-            schema=ctx.env.schema
+            schema=ctx.env.schema,
         )
 
     raise err

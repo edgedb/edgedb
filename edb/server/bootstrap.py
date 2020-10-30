@@ -45,6 +45,7 @@ from edb.schema import database as s_db
 from edb.schema import ddl as s_ddl
 from edb.schema import delta as sd
 from edb.schema import modules as s_mod
+from edb.schema import name as sn
 from edb.schema import objects as s_obj
 from edb.schema import reflection as s_refl
 from edb.schema import schema as s_schema
@@ -365,7 +366,10 @@ class StdlibBits(NamedTuple):
 
 async def _make_stdlib(testmode: bool, global_ids) -> StdlibBits:
     schema: s_schema.Schema = s_schema.FlatSchema()
-    schema, _ = s_mod.Module.create_in_schema(schema, name='__derived__')
+    schema, _ = s_mod.Module.create_in_schema(
+        schema,
+        name=sn.UnqualName('__derived__'),
+    )
 
     current_block = dbops.PLTopBlock()
 

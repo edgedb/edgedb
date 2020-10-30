@@ -311,12 +311,12 @@ class Pointer(referencing.ReferencedInheritingObject,
         return bool(self.get_is_from_alias(schema))
 
     @classmethod
-    def get_displayname_static(cls, name: str) -> str:
+    def get_displayname_static(cls, name: sn.Name) -> str:
         sn = cls.get_shortname_static(name)
         if sn.module == '__':
             return sn.name
         else:
-            return sn
+            return str(sn)
 
     def get_verbosename(
         self,
@@ -455,7 +455,7 @@ class Pointer(referencing.ReferencedInheritingObject,
         source: s_sources.Source,
         target: s_types.Type,
         *,
-        derived_name_base: Optional[str] = None,
+        derived_name_base: Optional[sn.Name] = None,
         **kwargs: Any
     ) -> Tuple[s_schema.Schema, Pointer_T]:
         fqname = self.derive_name(
@@ -464,8 +464,11 @@ class Pointer(referencing.ReferencedInheritingObject,
 
         if ptr is None:
             fqname = self.derive_name(
-                schema, source, target.get_name(schema),
-                derived_name_base=derived_name_base)
+                schema,
+                source,
+                str(target.get_name(schema)),
+                derived_name_base=derived_name_base,
+            )
             ptr = schema.get(fqname, default=None)
             if ptr is None:
                 schema, ptr = self.derive_ref(
@@ -476,9 +479,9 @@ class Pointer(referencing.ReferencedInheritingObject,
     def get_derived_name_base(
         self,
         schema: s_schema.Schema,
-    ) -> sn.QualifiedName:
+    ) -> sn.QualName:
         shortname = self.get_shortname(schema)
-        return sn.QualifiedName(module='__', name=shortname.name)
+        return sn.QualName(module='__', name=shortname.name)
 
     def derive_ref(
         self,
@@ -694,14 +697,14 @@ class PseudoPointer(s_abc.Pointer):
     def get_ancestors(self, schema: s_schema.Schema) -> so.ObjectList[Pointer]:
         return so.ObjectList.create(schema, [])
 
-    def get_name(self, schema: s_schema.Schema) -> str:
+    def get_name(self, schema: s_schema.Schema) -> sn.QualName:
         raise NotImplementedError
 
-    def get_shortname(self, schema: s_schema.Schema) -> str:
+    def get_shortname(self, schema: s_schema.Schema) -> sn.QualName:
         return self.get_name(schema)
 
     def get_displayname(self, schema: s_schema.Schema) -> str:
-        return self.get_name(schema)
+        return str(self.get_name(schema))
 
     def has_user_defined_properties(self, schema: s_schema.Schema) -> bool:
         return False
@@ -715,7 +718,7 @@ class PseudoPointer(s_abc.Pointer):
     ) -> qltypes.SchemaCardinality:
         raise NotImplementedError
 
-    def get_path_id_name(self, schema: s_schema.Schema) -> str:
+    def get_path_id_name(self, schema: s_schema.Schema) -> sn.QualName:
         return self.get_name(schema)
 
     def get_is_derived(self, schema: s_schema.Schema) -> bool:
@@ -885,7 +888,7 @@ class PointerCommandOrFragment(
         parent_ctx = self.get_referrer_context(context)
         assert parent_ctx is not None
         source_name = parent_ctx.op.classname
-        assert isinstance(source_name, sn.QualifiedName)
+        assert isinstance(source_name, sn.QualName)
 
         source = schema.get(source_name, type=s_objtypes.ObjectType)
 
@@ -994,7 +997,7 @@ class PointerCommandOrFragment(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-        name: str,
+        name: sn.Name,
     ) -> qlast.ObjectRef:
 
         ref = super()._deparse_name(schema, context, name)
@@ -1103,30 +1106,31 @@ class PointerCommand(
         schema: s_schema.Schema,
         astnode: qlast.NamedDDL,
         context: sd.CommandContext,
-    ) -> sn.QualifiedName:
+    ) -> sn.QualName:
         referrer_ctx = cls.get_referrer_context(context)
         if referrer_ctx is not None:
 
             referrer_name = referrer_ctx.op.classname
-            assert isinstance(referrer_name, sn.QualifiedName)
+            assert isinstance(referrer_name, sn.QualName)
 
-            shortname = sn.QualifiedName(
+            shortname = sn.QualName(
                 module='__',
                 name=astnode.name.name,
             )
 
-            name = sn.QualifiedName(
+            name = sn.QualName(
                 module=referrer_name.module,
                 name=sn.get_specialized_name(
                     shortname,
-                    referrer_name,
+                    str(referrer_name),
                 ),
             )
         else:
             name = super()._classname_from_ast(schema, astnode, context)
 
-        shortname = sn.shortname_from_fullname(name)
-        if len(shortname.name) > s_def.MAX_NAME_LENGTH:
+        sname = sn.shortname_from_fullname(name)
+        assert isinstance(sname, sn.QualName), "expected qualified name"
+        if len(sname.name) > s_def.MAX_NAME_LENGTH:
             raise errors.SchemaDefinitionError(
                 f'link or property name length exceeds the maximum of '
                 f'{s_def.MAX_NAME_LENGTH} characters',
@@ -1180,7 +1184,7 @@ class PointerCommand(
         target_ref: Union[None, s_types.TypeShell, ComputableRef]
 
         if len(targets) > 1:
-            assert isinstance(source_name, sn.QualifiedName)
+            assert isinstance(source_name, sn.QualName)
 
             new_targets = [
                 utils.ast_to_type_shell(
@@ -1510,7 +1514,7 @@ def get_or_create_union_pointer(
         schema,
         source,
         target,
-        derived_name_base=sn.QualifiedName(
+        derived_name_base=sn.QualName(
             module='__',
             name=ptrname),
         attrs={
@@ -1564,7 +1568,7 @@ def get_or_create_intersection_pointer(
         schema,
         source,
         target,
-        derived_name_base=sn.QualifiedName(
+        derived_name_base=sn.QualName(
             module='__',
             name=ptrname),
         attrs={

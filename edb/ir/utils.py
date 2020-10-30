@@ -74,7 +74,7 @@ def is_coalesce_expr(ir: irast.Base) -> bool:
     return (
         isinstance(ir, irast.OperatorCall) and
         ir.operator_kind is ft.OperatorKind.Infix and
-        ir.func_shortname == 'std::??'
+        str(ir.func_shortname) == 'std::??'
     )
 
 
@@ -83,7 +83,7 @@ def is_set_membership_expr(ir: irast.Base) -> bool:
     return (
         isinstance(ir, irast.OperatorCall) and
         ir.operator_kind is ft.OperatorKind.Infix and
-        ir.func_shortname in {'std::IN', 'std::NOT IN'}
+        str(ir.func_shortname) in {'std::IN', 'std::NOT IN'}
     )
 
 
@@ -92,7 +92,7 @@ def is_distinct_expr(ir: irast.Base) -> bool:
     return (
         isinstance(ir, irast.OperatorCall) and
         ir.operator_kind is ft.OperatorKind.Prefix and
-        ir.func_shortname == 'std::DISTINCT'
+        str(ir.func_shortname) == 'std::DISTINCT'
     )
 
 
@@ -101,7 +101,7 @@ def is_union_expr(ir: irast.Base) -> bool:
     return (
         isinstance(ir, irast.OperatorCall) and
         ir.operator_kind is ft.OperatorKind.Infix and
-        ir.func_shortname == 'std::UNION'
+        str(ir.func_shortname) == 'std::UNION'
     )
 
 
@@ -110,7 +110,7 @@ def is_exists_expr(ir: irast.Base) -> bool:
     return (
         isinstance(ir, irast.OperatorCall) and
         ir.operator_kind is ft.OperatorKind.Prefix and
-        ir.func_shortname == 'std::EXISTS'
+        str(ir.func_shortname) == 'std::EXISTS'
     )
 
 
@@ -119,7 +119,7 @@ def is_ifelse_expr(ir: irast.Base) -> bool:
     return (
         isinstance(ir, irast.OperatorCall) and
         ir.operator_kind is ft.OperatorKind.Ternary and
-        ir.func_shortname == 'std::IF'
+        str(ir.func_shortname) == 'std::IF'
     )
 
 

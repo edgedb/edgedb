@@ -35,7 +35,6 @@ from edb.edgeql import quote as qlquote
 
 from edb.schema import migrations  # NoQA
 from edb.schema import modules as s_mod
-from edb.schema import name as sn
 from edb.schema import objtypes as s_objtypes
 from edb.schema import scalars as s_scalars
 from edb.schema import schema as s_schema
@@ -2593,11 +2592,6 @@ classref_attr_aliases = {
 }
 
 
-def dbname(n):
-    return common.quote_ident(
-        common.edgedb_name_to_pg_name(sn.QualifiedName(n)))
-
-
 def tabname(schema, obj):
     return (
         'edgedbss',
@@ -3282,12 +3276,12 @@ def _render_config_object(
                 sub_layout_item = (
                     f'(WITH item := item[IS {type_name}]'
                     f' SELECT {sub_layout_item}) '
-                    f'IF item.__type__.name = {ql(type_name)}'
+                    f'IF item.__type__.name = {ql(str(type_name))}'
                 )
             else:
                 sub_layout_item = (
                     f'{sub_layout_item} '
-                    f'IF item.__type__.name = {ql(type_name)}'
+                    f'IF item.__type__.name = {ql(str(type_name))}'
                 )
 
         sub_layouts_items.append(sub_layout_item)

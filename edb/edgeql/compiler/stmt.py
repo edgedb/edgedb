@@ -32,6 +32,7 @@ from edb.common import context as pctx
 from edb.ir import ast as irast
 from edb.ir import typeutils
 
+from edb.schema import constraints as s_constr
 from edb.schema import ddl as s_ddl
 from edb.schema import functions as s_func
 from edb.schema import links as s_links
@@ -43,7 +44,7 @@ from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import pseudo as s_pseudo
 from edb.schema import types as s_types
-from edb.schema import constraints as s_constr
+from edb.schema import utils as s_utils
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import utils as qlutils
@@ -128,9 +129,11 @@ def compile_ForQuery(
         ictx = iterator_ctx or sctx
 
         iterator_view = stmtctx.declare_view(
-            iterator, qlstmt.iterator_alias,
+            iterator,
+            s_name.UnqualName(qlstmt.iterator_alias),
             path_id_namespace=ictx.path_id_namespace,
-            ctx=ictx)
+            ctx=ictx,
+        )
 
         iterator_stmt = setgen.new_set_from_set(
             iterator_view, preserve_scope_ns=True, ctx=sctx)
@@ -364,7 +367,7 @@ def compile_InsertQuery(
         if subject_stype.is_view(ctx.env.schema):
             raise errors.QueryError(
                 f'cannot insert into expression alias '
-                f'{subject_stype.get_shortname(ctx.env.schema)!r}',
+                f'{str(subject_stype.get_shortname(ctx.env.schema))!r}',
                 context=expr.subject.context)
 
         with ictx.new() as bodyctx:
@@ -610,7 +613,8 @@ def compile_DescribeStmt(
                     f'cannot describe full schema as {ql.language}')
 
             ct = typegen.type_to_typeref(
-                ctx.env.get_track_schema_type('std::str'),
+                ctx.env.get_track_schema_type(
+                    s_name.QualName('std', 'str')),
                 env=ctx.env,
             )
 
@@ -661,7 +665,7 @@ def compile_DescribeStmt(
         else:
             assert isinstance(ql.object, qlast.ObjectRef), ql.object
             modules = []
-            items: DefaultDict[str, List[str]] = defaultdict(list)
+            items: DefaultDict[str, List[s_name.Name]] = defaultdict(list)
             referenced_classes: List[s_obj.ObjectMeta] = []
 
             objref = ql.object
@@ -672,13 +676,7 @@ def compile_DescribeStmt(
             else:
                 itemtype: Optional[Type[s_obj.Object]] = None
 
-                name: str
-                if objref.module:
-                    name = s_name.QualifiedName(
-                        module=objref.module, name=objref.name)
-                else:
-                    name = objref.name
-
+                name = s_utils.ast_ref_to_name(objref)
                 if itemclass is not None:
                     if itemclass is qltypes.SchemaObjectClass.ALIAS:
                         # Look for underlying derived type.
@@ -823,7 +821,8 @@ def compile_DescribeStmt(
                 text += masked
 
             ct = typegen.type_to_typeref(
-                ctx.env.get_track_schema_type('std::str'),
+                ctx.env.get_track_schema_type(
+                    s_name.QualName('std', 'str')),
                 env=ctx.env,
             )
 
@@ -981,9 +980,10 @@ def process_with_block(
                 results.append(
                     stmtctx.declare_view(
                         with_entry.expr,
-                        with_entry.alias,
+                        s_name.UnqualName(with_entry.alias),
                         must_be_used=True,
-                        ctx=scopectx)
+                        ctx=scopectx,
+                    ),
                 )
 
         else:
@@ -997,7 +997,7 @@ def compile_result_clause(
         result: qlast.Expr, *,
         view_scls: Optional[s_types.Type]=None,
         view_rptr: Optional[context.ViewRPtr]=None,
-        view_name: Optional[s_name.QualifiedName]=None,
+        view_name: Optional[s_name.QualName]=None,
         result_alias: Optional[str]=None,
         forward_rptr: bool=False,
         ctx: context.ContextLevel) -> irast.Set:
@@ -1022,7 +1022,11 @@ def compile_result_clause(
         if result_alias:
             # `SELECT foo := expr` is equivalent to
             # `WITH foo := expr SELECT foo`
-            stmtctx.declare_view(result_expr, alias=result_alias, ctx=sctx)
+            stmtctx.declare_view(
+                result_expr,
+                alias=s_name.UnqualName(result_alias),
+                ctx=sctx,
+            )
 
             result_expr = qlast.Path(
                 steps=[qlast.ObjectRef(name=result_alias)]
@@ -1081,7 +1085,7 @@ def compile_query_subject(
         expr: irast.Set, *,
         shape: Optional[List[qlast.ShapeElement]]=None,
         view_rptr: Optional[context.ViewRPtr]=None,
-        view_name: Optional[s_name.QualifiedName]=None,
+        view_name: Optional[s_name.QualName]=None,
         result_alias: Optional[str]=None,
         view_scls: Optional[s_types.Type]=None,
         compile_views: bool=True,
@@ -1137,7 +1141,7 @@ def compile_query_subject(
 
     if shape is not None and view_scls is None:
         if (view_name is None and
-                isinstance(result_alias, s_name.QualifiedName)):
+                isinstance(result_alias, s_name.QualName)):
             view_name = result_alias
 
         if not isinstance(expr_stype, s_objtypes.ObjectType):

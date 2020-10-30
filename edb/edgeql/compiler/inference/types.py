@@ -46,7 +46,7 @@ def amend_empty_set_type(
 ) -> None:
     env.set_types[es] = t
     alias = es.path_id.target_name_hint.name
-    typename = s_name.QualifiedName(module='__derived__', name=alias)
+    typename = s_name.QualName(module='__derived__', name=alias)
     es.path_id = irast.PathId.from_type(
         env.schema, t, env=env, typename=typename
     )
@@ -454,7 +454,7 @@ def __infer_index(
 
     elif (node_type.is_any(env.schema) or
             (node_type.is_scalar() and
-                node_type.get_name(env.schema) == 'std::anyscalar') and
+                str(node_type.get_name(env.schema)) == 'std::anyscalar') and
             (index_type.implicitly_castable_to(int_t, env.schema) or
                 index_type.implicitly_castable_to(str_t, env.schema))):
         result = s_pseudo.PseudoType.get(env.schema, 'anytype')

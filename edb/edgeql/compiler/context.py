@@ -67,7 +67,7 @@ class ViewRPtr:
         source: s_sources.Source,
         *,
         ptrcls: Optional[s_pointers.Pointer],
-        ptrcls_name: Optional[s_name.QualifiedName] = None,
+        ptrcls_name: Optional[s_name.QualName] = None,
         base_ptrcls: Optional[s_pointers.Pointer] = None,
         ptrcls_is_linkprop: bool = False,
         ptrcls_is_alias: bool = False,
@@ -253,7 +253,7 @@ class Environment:
     @overload
     def get_track_schema_object(  # NoQA: F811
         self,
-        name: str,
+        name: s_name.Name,
         expr: Optional[qlast.Base],
         *,
         modaliases: Optional[Mapping[Optional[str], str]] = None,
@@ -267,7 +267,7 @@ class Environment:
     @overload
     def get_track_schema_object(  # NoQA: F811
         self,
-        name: str,
+        name: s_name.Name,
         expr: Optional[qlast.Base],
         *,
         modaliases: Optional[Mapping[Optional[str], str]] = None,
@@ -280,7 +280,7 @@ class Environment:
 
     def get_track_schema_object(  # NoQA: F811
         self,
-        name: str,
+        name: s_name.Name,
         expr: Optional[qlast.Base],
         *,
         modaliases: Optional[Mapping[Optional[str], str]] = None,
@@ -315,7 +315,7 @@ class Environment:
 
     def get_track_schema_type(
         self,
-        name: str,
+        name: s_name.Name,
         expr: Optional[qlast.Base]=None,
         *,
         modaliases: Optional[Mapping[Optional[str], str]] = None,
@@ -362,7 +362,7 @@ class ContextLevel(compiler.ContextLevel):
     source_map: Dict[s_pointers.PointerLike, ComputableInfo]
     """A mapping of computable pointers to QL source AST and context."""
 
-    view_nodes: Dict[str, s_types.Type]
+    view_nodes: Dict[s_name.Name, s_types.Type]
     """A dictionary of newly derived Node classes representing views."""
 
     view_sets: Dict[s_types.Type, irast.Set]
@@ -371,13 +371,16 @@ class ContextLevel(compiler.ContextLevel):
     type_rewrites: Dict[s_types.Type, irast.Set]
     """Access policy rewrites for schema-level types."""
 
-    aliased_views: ChainMap[str, Optional[s_types.Type]]
+    aliased_views: ChainMap[s_name.Name, Optional[s_types.Type]]
     """A dictionary of views aliased in a statement body."""
 
-    must_use_views: Dict[s_types.Type, Tuple[str, parsing.ParserContext]]
+    must_use_views: Dict[
+        s_types.Type,
+        Tuple[s_name.Name, parsing.ParserContext],
+    ]
     """A set of views that *must* be used in an expression."""
 
-    expr_view_cache: Dict[Tuple[qlast.Base, str], irast.Set]
+    expr_view_cache: Dict[Tuple[qlast.Base, s_name.Name], irast.Set]
     """Type cache used by expression-level views."""
 
     shape_type_cache: Dict[
@@ -438,7 +441,7 @@ class ContextLevel(compiler.ContextLevel):
     view_scls: Optional[s_types.Type]
     """Schema class for the top-level set of the substatement."""
 
-    toplevel_result_view_name: Optional[s_name.QualifiedName]
+    toplevel_result_view_name: Optional[s_name.QualName]
     """The name to use for the view that is the result of the top statement."""
 
     partial_path_prefix: Optional[irast.Set]

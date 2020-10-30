@@ -75,13 +75,13 @@ class AliasCommand(
                             schema: s_schema.Schema,
                             astnode: qlast.NamedDDL,
                             context: sd.CommandContext
-                            ) -> sn.QualifiedName:
+                            ) -> sn.QualName:
         type_name = super()._classname_from_ast(schema, astnode, context)
         base_name = type_name
         quals = ('alias',)
-        pnn = sn.get_specialized_name(base_name, type_name, *quals)
-        name = sn.QualifiedName(name=pnn, module=type_name.module)
-        assert isinstance(name, sn.QualifiedName)
+        pnn = sn.get_specialized_name(base_name, str(type_name), *quals)
+        name = sn.QualName(name=pnn, module=type_name.module)
+        assert isinstance(name, sn.QualName)
         return name
 
     def compile_expr_field(
@@ -94,6 +94,8 @@ class AliasCommand(
     ) -> s_expr.Expression:
         assert field.name == 'expr'
         classname = sn.shortname_from_fullname(self.classname)
+        assert isinstance(classname, sn.QualName), \
+            "expected qualified name"
         return type(value).compiled(
             value,
             schema=schema,
@@ -110,7 +112,7 @@ class AliasCommand(
     def _compile_alias_expr(
         self,
         expr: qlast.Base,
-        classname: sn.QualifiedName,
+        classname: sn.QualName,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> irast.Statement:
@@ -147,7 +149,7 @@ class AliasCommand(
     def _handle_alias_op(
         self,
         expr: s_expr.Expression,
-        classname: sn.QualifiedName,
+        classname: sn.QualName,
         schema: s_schema.Schema,
         context: sd.CommandContext,
         is_alter: bool = False,
@@ -276,6 +278,8 @@ class CreateAlias(
     ) -> s_schema.Schema:
         if not context.canonical:
             alias_name = sn.shortname_from_fullname(self.classname)
+            assert isinstance(alias_name, sn.QualName), \
+                "expected qualified name"
             type_cmd = self._handle_alias_op(
                 self.get_attribute_value('expr'),
                 alias_name,
@@ -346,6 +350,8 @@ class AlterAlias(
             expr = self.get_attribute_value('expr')
             if expr:
                 alias_name = sn.shortname_from_fullname(self.classname)
+                assert isinstance(alias_name, sn.QualName), \
+                    "expected qualified name"
                 type_cmd = self._handle_alias_op(
                     expr,
                     alias_name,

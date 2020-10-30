@@ -1000,7 +1000,7 @@ def range_for_typeref(
 
 def range_from_queryset(
         set_ops: Sequence[Tuple[str, pgast.SelectStmt]],
-        objname: sn.QualifiedName, *,
+        objname: sn.QualName, *,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
 
     rvar: pgast.PathRangeVar
@@ -1246,10 +1246,10 @@ def add_ptr_rel_overlay(
 
     if dml_stmts:
         for dml_stmt in dml_stmts:
-            overlays = ctx.ptr_rel_overlays[ptrref.shortname, dml_stmt]
+            overlays = ctx.ptr_rel_overlays[ptrref.shortname.name, dml_stmt]
             overlays.append((op, rel))
     else:
-        overlays = ctx.ptr_rel_overlays[ptrref.shortname, None]
+        overlays = ctx.ptr_rel_overlays[ptrref.shortname.name, None]
         overlays.append((op, rel))
 
 
@@ -1263,4 +1263,4 @@ def get_ptr_rel_overlays(
         Union[pgast.BaseRelation, pgast.CommonTableExpr],
     ]
 ]:
-    return ctx.ptr_rel_overlays[ptrref.shortname, dml_source]
+    return ctx.ptr_rel_overlays[ptrref.shortname.name, dml_source]

@@ -113,19 +113,22 @@ class ReferencedObject(so.DerivableObject):
         mark_derived: bool = False,
         attrs: Optional[Dict[str, Any]] = None,
         dctx: Optional[sd.CommandContext] = None,
-        derived_name_base: Optional[str] = None,
+        derived_name_base: Optional[sn.Name] = None,
         inheritance_merge: bool = True,
         preserve_path_id: Optional[bool] = None,
         inheritance_refdicts: Optional[AbstractSet[str]] = None,
         transient: bool = False,
-        name: Optional[str] = None,
+        name: Optional[sn.QualName] = None,
         **kwargs: Any,
     ) -> Tuple[s_schema.Schema, ReferencedT]:
         if name is None:
-            derived_name: str = self.get_derived_name(
-                schema, referrer, *qualifiers,
+            derived_name = self.get_derived_name(
+                schema,
+                referrer,
+                *qualifiers,
                 mark_derived=mark_derived,
-                derived_name_base=derived_name_base)
+                derived_name_base=derived_name_base,
+            )
         else:
             derived_name = name
 
@@ -428,12 +431,13 @@ class StronglyReferencedObjectCommand(
 class ReferencedObjectCommand(ReferencedObjectCommandBase[ReferencedT]):
 
     @classmethod
-    def _classname_from_ast_and_referrer(cls,
-                                         schema: s_schema.Schema,
-                                         referrer_name: sn.QualifiedName,
-                                         astnode: qlast.NamedDDL,
-                                         context: sd.CommandContext
-                                         ) -> sn.QualifiedName:
+    def _classname_from_ast_and_referrer(
+        cls,
+        schema: s_schema.Schema,
+        referrer_name: sn.QualName,
+        astnode: qlast.NamedDDL,
+        context: sd.CommandContext
+    ) -> sn.QualName:
         base_ref = utils.ast_to_object_shell(
             astnode.name,
             modaliases=context.modaliases,
@@ -444,15 +448,15 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase[ReferencedT]):
         base_name = base_ref.name
         quals = cls._classname_quals_from_ast(
             schema, astnode, base_name, referrer_name, context)
-        pnn = sn.get_specialized_name(base_name, referrer_name, *quals)
-        return sn.QualifiedName(name=pnn, module=referrer_name.module)
+        pnn = sn.get_specialized_name(base_name, str(referrer_name), *quals)
+        return sn.QualName(name=pnn, module=referrer_name.module)
 
     @classmethod
     def _classname_from_ast(cls,
                             schema: s_schema.Schema,
                             astnode: qlast.NamedDDL,
                             context: sd.CommandContext
-                            ) -> sn.QualifiedName:
+                            ) -> sn.QualName:
         name = super()._classname_from_ast(schema, astnode, context)
 
         parent_ctx = cls.get_referrer_context(context)
@@ -463,27 +467,27 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase[ReferencedT]):
                 schema, referrer_name, astnode, context
             )
 
-        assert isinstance(name, sn.QualifiedName)
+        assert isinstance(name, sn.QualName)
         return name
 
     @classmethod
     def _classname_from_name(
         cls,
-        name: sn.QualifiedName,
-        referrer_name: sn.QualifiedName,
-    ) -> sn.QualifiedName:
+        name: sn.QualName,
+        referrer_name: sn.QualName,
+    ) -> sn.QualName:
         base_name = sn.shortname_from_fullname(name)
         quals = cls._classname_quals_from_name(name)
-        pnn = sn.get_specialized_name(base_name, referrer_name, *quals)
-        return sn.QualifiedName(name=pnn, module=referrer_name.module)
+        pnn = sn.get_specialized_name(base_name, str(referrer_name), *quals)
+        return sn.QualName(name=pnn, module=referrer_name.module)
 
     @classmethod
     def _classname_quals_from_ast(
         cls,
         schema: s_schema.Schema,
         astnode: qlast.NamedDDL,
-        base_name: str,
-        referrer_name: str,
+        base_name: sn.Name,
+        referrer_name: sn.QualName,
         context: sd.CommandContext,
     ) -> Tuple[str, ...]:
         return ()
@@ -491,7 +495,7 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase[ReferencedT]):
     @classmethod
     def _classname_quals_from_name(
         cls,
-        name: sn.QualifiedName,
+        name: sn.QualName,
     ) -> Tuple[str, ...]:
         return ()
 
@@ -586,39 +590,36 @@ class CreateReferencedObject(
     ) -> sd.ObjectCommand[ReferencedT]:
         cmd = cls(classname=cls._classname_from_ast(schema, astnode, context))
         cmd.set_attribute_value('name', cmd.classname)
+        cmd.set_attribute_value(
+            'bases', so.ObjectList.create(schema, parents))
         return cmd
 
     @classmethod
-    def as_inherited_ref_ast(cls,
-                             schema: s_schema.Schema,
-                             context: sd.CommandContext,
-                             name: str,
-                             parent: ReferencedObject) -> qlast.ObjectDDL:
-        nref = cls.get_inherited_ref_name(schema, context, parent, name)
+    def as_inherited_ref_ast(
+        cls,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        refname: str,
+        parent: ReferencedObject,
+    ) -> qlast.ObjectDDL:
+        nref = cls.get_inherited_ref_name(schema, context, parent, refname)
         astnode_cls = cls.referenced_astnode
         astnode = astnode_cls(name=nref)
         assert isinstance(astnode, qlast.ObjectDDL)
         return astnode
 
     @classmethod
-    def get_inherited_ref_name(cls,
-                               schema: s_schema.Schema,
-                               context: sd.CommandContext,
-                               parent: ReferencedObject,
-                               name: str
-                               ) -> qlast.ObjectRef:
-        # reduce name to shortname
-        if sn.QualifiedName.is_qualified(name):
-            shortname: str = sn.shortname_from_fullname(sn.QualifiedName(name))
-        else:
-            shortname = name
-
-        nref = qlast.ObjectRef(
-            name=shortname,
-            module=parent.get_shortname(schema).module,
-        )
-
-        return nref
+    def get_inherited_ref_name(
+        cls,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        parent: ReferencedObject,
+        refname: str
+    ) -> qlast.ObjectRef:
+        ref = utils.name_to_ast_ref(sn.name_from_string(refname))
+        if ref.module is None:
+            ref.module = parent.get_shortname(schema).module
+        return ref
 
     def _create_innards(
         self,
@@ -694,7 +695,7 @@ class ReferencedInheritingObjectCommand(
         context: sd.CommandContext,
         referrer: so.InheritingObject,
         referrer_field: str,
-        fq_name: sn.QualifiedName,
+        fq_name: sn.QualName,
     ) -> List[ReferencedInheritingObjectT]:
 
         assert isinstance(referrer, so.QualifiedObject)
@@ -763,11 +764,13 @@ class ReferencedInheritingObjectCommand(
                     assert bref is not None
                     ancestry.append(bref)
 
+                alist = ", ".join(
+                    str(a.get_shortname(schema)) for a in ancestry
+                )
                 raise errors.SchemaDefinitionError(
                     f'{self.scls.get_verbosename(schema, with_parent=True)} '
                     f'must be declared using the `overloaded` keyword because '
-                    f'it is defined in the following ancestor(s): '
-                    f'{", ".join(a.get_shortname(schema) for a in ancestry)}',
+                    f'it is defined in the following ancestor(s): {alist}',
                     context=self.source_context,
                 )
             elif (not implicit_bases
@@ -785,7 +788,7 @@ class ReferencedInheritingObjectCommand(
         schema: s_schema.Schema,
         context: sd.CommandContext,
         bases: Any,
-    ) -> Sequence[str]:
+    ) -> List[sn.QualName]:
 
         mcls = self.get_schema_metaclass()
         default_base = mcls.get_default_base_name()
@@ -804,7 +807,7 @@ class ReferencedInheritingObjectCommand(
             for b in base_names
             if (
                 b != default_base
-                and isinstance(b, sn.QualifiedName)
+                and isinstance(b, sn.QualName)
                 and sn.shortname_from_fullname(b) != b
             )
         ]

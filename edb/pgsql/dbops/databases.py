@@ -42,7 +42,7 @@ class Database(base.DBObject):
         template: Optional[str] = None,
         metadata: Optional[Mapping[str, Any]] = None,
     ) -> None:
-        super().__init__()
+        super().__init__(metadata=metadata)
         self.name = name
         self.owner = owner
         self.is_template = is_template
@@ -50,7 +50,6 @@ class Database(base.DBObject):
         self.lc_collate = lc_collate
         self.lc_ctype = lc_ctype
         self.template = template or 'edgedb0'
-        self.metadata = metadata
 
     def get_type(self):
         return 'DATABASE'

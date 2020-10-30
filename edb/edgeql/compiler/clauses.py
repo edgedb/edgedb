@@ -28,6 +28,7 @@ from edb.edgeql import ast as qlast
 from edb.ir import ast as irast
 
 from edb import errors
+from edb.schema import name as sn
 
 from . import context
 from . import dispatch
@@ -48,7 +49,7 @@ def compile_where_clause(
     with ctx.newscope(fenced=True) as subctx:
         subctx.path_scope.unnest_fence = True
         ir_expr = dispatch.compile(where, ctx=subctx)
-        bool_t = ctx.env.get_track_schema_type('std::bool')
+        bool_t = ctx.env.get_track_schema_type(sn.QualName('std', 'bool'))
         ir_set = setgen.scoped_set(ir_expr, typehint=bool_t, ctx=subctx)
 
     ir_stmt.where = ir_set
@@ -130,7 +131,8 @@ def compile_limit_offset_clause(
             subctx.partial_path_prefix = None
 
             ir_expr = dispatch.compile(expr, ctx=subctx)
-            int_t = ctx.env.get_track_schema_type('std::int64')
+            int_t = ctx.env.get_track_schema_type(
+                sn.QualName('std', 'int64'))
             ir_set = setgen.scoped_set(
                 ir_expr, force_reassign=True, typehint=int_t, ctx=subctx)
             ir_set.context = expr.context

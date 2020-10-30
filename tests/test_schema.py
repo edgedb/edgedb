@@ -592,7 +592,7 @@ _123456789_123456789_123456789 -> str
         constr = name_prop.get_constraints(schema).objects(schema)[0]
         base_names = constr.get_bases(schema).names(schema)
         self.assertEqual(len(base_names), 1)
-        self.assertTrue(base_names[0].startswith(
+        self.assertTrue(str(base_names[0]).startswith(
             'default::std|exclusive@default|__||name&default||Named@'))
 
     def test_schema_constraint_inheritance_02(self):
@@ -617,7 +617,7 @@ _123456789_123456789_123456789 -> str
         constr = name_prop.get_constraints(schema).objects(schema)[0]
         base_names = constr.get_bases(schema).names(schema)
         self.assertEqual(len(base_names), 1)
-        self.assertTrue(base_names[0].startswith(
+        self.assertTrue(str(base_names[0]).startswith(
             'default::std|exclusive@default|__||name&default||Named@'))
 
     def test_schema_constraint_inheritance_03(self):
@@ -5731,7 +5731,7 @@ class TestCreateMigration(tb.BaseSchemaTest):
         with self.assertRaisesRegex(
             errors.SchemaDefinitionError,
             f"specified migration parent is not the most recent migration, "
-            f"expected {m2!r}",
+            f"expected {str(m2)!r}",
         ):
             m3 = 'm1vrzjotjgjxhdratq7jz5vdxmhvg2yun2xobiddag4aqr3y4gavgq'
             schema = self.run_ddl(

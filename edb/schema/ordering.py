@@ -39,7 +39,7 @@ if TYPE_CHECKING:
 
 
 class DepGraphEntryExtra(NamedTuple):
-    implicit_ancestors: List[str]
+    implicit_ancestors: List[sn.Name]
 
 
 DepGraphKey = Tuple[str, str]
@@ -77,15 +77,15 @@ def linearize_delta(
     # Nodes are duplicated so the interior nodes of the path are
     # distinct.
     opmap: Dict[sd.Command, List[sd.Command]] = {}
-    strongrefs: Dict[str, str] = {}
+    strongrefs: Dict[sn.Name, sn.Name] = {}
 
     for op in _get_sorted_subcommands(delta):
         _break_down(opmap, strongrefs, [delta, op])
 
     depgraph: DepGraph = {}
-    renames: Dict[str, str] = {}
-    renames_r: Dict[str, str] = {}
-    deletions: Set[str] = set()
+    renames: Dict[sn.Name, sn.Name] = {}
+    renames_r: Dict[sn.Name, sn.Name] = {}
+    deletions: Set[sn.Name] = set()
 
     for op in opmap:
         if isinstance(op, sd.RenameObject):
@@ -134,7 +134,7 @@ def reconstruct_tree(
     # for a particular object.  Implicit commands are not included in
     # this mapping.
     opindex: Dict[
-        Tuple[Type[sd.ObjectCommand[so.Object]], str],
+        Tuple[Type[sd.ObjectCommand[so.Object]], sn.Name],
         sd.ObjectCommand[so.Object]
     ] = {}
 
@@ -262,7 +262,7 @@ def reconstruct_tree(
 
     def maybe_attach_to_preceding(
         opbranch: Tuple[sd.Command, ...],
-        parent_candidates: List[str],
+        parent_candidates: List[sn.Name],
         allowed_op_types: List[Type[sd.ObjectCommand[so.Object]]],
         as_implicit: bool = False,
         slice_start: int = 1,
@@ -388,7 +388,7 @@ def _get_sorted_subcommands(cmd: sd.Command) -> List[sd.Command]:
 
 def _break_down(
     opmap: Dict[sd.Command, List[sd.Command]],
-    strongrefs: Dict[str, str],
+    strongrefs: Dict[sn.Name, sn.Name],
     opbranch: List[sd.Command],
 ) -> None:
     if len(opbranch) > 2:
@@ -431,15 +431,15 @@ def _trace_op(
     op: sd.Command,
     opbranch: List[sd.Command],
     depgraph: DepGraph,
-    renames: Dict[str, str],
-    renames_r: Dict[str, str],
-    strongrefs: Dict[str, str],
+    renames: Dict[sn.Name, sn.Name],
+    renames_r: Dict[sn.Name, sn.Name],
+    strongrefs: Dict[sn.Name, sn.Name],
     old_schema: Optional[s_schema.Schema],
     new_schema: s_schema.Schema,
 ) -> None:
     deps: ordered.OrderedSet[Tuple[str, str]] = ordered.OrderedSet()
     graph_key: str
-    implicit_ancestors: List[str] = []
+    implicit_ancestors: List[sn.Name] = []
 
     if isinstance(op, sd.CreateObject):
         tag = 'create'
@@ -465,7 +465,7 @@ def _trace_op(
         obj = get_object(old_schema, op)
         refs = _get_referrers(old_schema, obj, strongrefs)
         for ref in refs:
-            ref_name = ref.get_name(old_schema)
+            ref_name_str = str(ref.get_name(old_schema))
             if (
                 (
                     isinstance(obj, referencing.ReferencedObject)
@@ -476,13 +476,13 @@ def _trace_op(
                 # (i.e. the reference is a refdict reference),
                 # we sort the referrer operation first.
                 try:
-                    ref_item = depgraph[('delete', ref_name)]
+                    ref_item = depgraph[('delete', ref_name_str)]
                 except KeyError:
-                    ref_item = depgraph[('delete', ref_name)] = (
+                    ref_item = depgraph[('delete', ref_name_str)] = (
                         DepGraphEntry(item=())
                     )
 
-                ref_item.deps.add((tag, op.classname))
+                ref_item.deps.add((tag, str(op.classname)))
 
             elif (
                 isinstance(ref, referencing.ReferencedInheritingObject)
@@ -503,13 +503,13 @@ def _trace_op(
                 # it as a child of the parent op at the time of tree
                 # reassembly.
                 try:
-                    ref_item = depgraph[('delete', ref_name)]
+                    ref_item = depgraph[('delete', ref_name_str)]
                 except KeyError:
-                    ref_item = depgraph[('delete', ref_name)] = (
+                    ref_item = depgraph[('delete', ref_name_str)] = (
                         DepGraphEntry(item=())
                     )
 
-                ref_item.deps.add((tag, op.classname))
+                ref_item.deps.add((tag, str(op.classname)))
 
             elif (
                 isinstance(ref, referencing.ReferencedObject)
@@ -521,16 +521,16 @@ def _trace_op(
             else:
                 # Otherwise, things must be deleted _after_ their referrers
                 # have been deleted or altered.
-                deps.add(('delete', ref.get_name(old_schema)))
+                deps.add(('delete', str(ref.get_name(old_schema))))
 
         if isinstance(obj, referencing.ReferencedObject):
             referrer = obj.get_referrer(old_schema)
             if referrer is not None:
                 assert isinstance(referrer, so.QualifiedObject)
-                referrer_name: str = referrer.get_name(old_schema)
+                referrer_name: sn.Name = referrer.get_name(old_schema)
                 if referrer_name in renames_r:
                     referrer_name = renames_r[referrer_name]
-                deps.add(('rebase', referrer_name))
+                deps.add(('rebase', str(referrer_name)))
 
                 if (
                     isinstance(obj, referencing.ReferencedInheritingObject)
@@ -542,31 +542,30 @@ def _trace_op(
                     for ancestor in obj.get_implicit_ancestors(old_schema):
                         ancestor_name = ancestor.get_name(old_schema)
                         implicit_ancestors.append(ancestor_name)
+                        gkey = ('delete', str(ancestor_name))
 
                         try:
-                            anc_item = depgraph[('delete', ancestor_name)]
+                            anc_item = depgraph[gkey]
                         except KeyError:
-                            anc_item = depgraph[('delete', ancestor_name)] = (
-                                DepGraphEntry(item=())
-                            )
+                            anc_item = depgraph[gkey] = DepGraphEntry(item=())
 
-                        anc_item.deps.add(('alterowned', op.classname))
+                        anc_item.deps.add(('alterowned', str(op.classname)))
 
-        graph_key = op.classname
+        graph_key = str(op.classname)
 
     elif isinstance(op, sd.AlterObjectProperty):
         if isinstance(op.new_value, (so.Object, so.ObjectShell)):
             nvn = op.new_value.get_name(new_schema)
             if nvn is not None:
-                deps.add(('create', nvn))
-                deps.add(('alter', nvn))
+                deps.add(('create', str(nvn)))
+                deps.add(('alter', str(nvn)))
                 if nvn in renames_r:
-                    deps.add(('rename', renames_r[nvn]))
+                    deps.add(('rename', str(renames_r[nvn])))
 
         parent_op = opbranch[-2]
         assert isinstance(parent_op, sd.ObjectCommand)
         graph_key = f'{parent_op.classname}%%{op.property}'
-        deps.add(('create', parent_op.classname))
+        deps.add(('create', str(parent_op.classname)))
 
         if isinstance(op.old_value, (so.Object, so.ObjectShell)):
             assert old_schema is not None
@@ -574,9 +573,9 @@ def _trace_op(
             nvn = op.new_value.get_name(new_schema)
             if ovn != nvn:
                 try:
-                    ov_item = depgraph[('delete', ovn)]
+                    ov_item = depgraph[('delete', str(ovn))]
                 except KeyError:
-                    ov_item = depgraph[('delete', ovn)] = (
+                    ov_item = depgraph[('delete', str(ovn))] = (
                         DepGraphEntry(item=())
                     )
 
@@ -586,6 +585,7 @@ def _trace_op(
         # If the object was renamed, use the new name, else use regular.
         name = renames.get(op.classname, op.classname)
         obj = get_object(new_schema, op, name)
+        this_name_str = str(op.classname)
 
         if tag == 'rename':
             # On renames, we want to delete any references before we
@@ -600,13 +600,14 @@ def _trace_op(
             assert old_schema
             old_obj = get_object(old_schema, op, op.classname)
             for ref in _get_referrers(old_schema, old_obj, strongrefs):
-                deps.add(('delete', ref.get_name(old_schema)))
+                deps.add(('delete', str(ref.get_name(old_schema))))
 
         refs = _get_referrers(new_schema, obj, strongrefs)
         for ref in refs:
             ref_name = ref.get_name(new_schema)
             if ref_name in renames_r:
                 ref_name = renames_r[ref_name]
+            ref_name_str = str(ref_name)
 
             if ((isinstance(ref, referencing.ReferencedObject)
                     and ref.get_referrer(new_schema) == obj)
@@ -616,52 +617,52 @@ def _trace_op(
                 continue
 
             try:
-                item = depgraph[('create', ref_name)]
+                item = depgraph[('create', ref_name_str)]
             except KeyError:
-                item = depgraph[('create', ref_name)] = (
+                item = depgraph[('create', ref_name_str)] = (
                     DepGraphEntry(item=())
                 )
 
-            item.deps.add(('create', op.classname))
-            item.deps.add(('alter', op.classname))
-            item.deps.add(('rename', op.classname))
+            item.deps.add(('create', this_name_str))
+            item.deps.add(('alter', this_name_str))
+            item.deps.add(('rename', this_name_str))
 
             try:
-                item = depgraph[('alter', ref_name)]
+                item = depgraph[('alter', ref_name_str)]
             except KeyError:
-                item = depgraph[('alter', ref_name)] = (
+                item = depgraph[('alter', ref_name_str)] = (
                     DepGraphEntry(item=())
                 )
 
-            item.deps.add(('create', op.classname))
-            item.deps.add(('alter', op.classname))
-            item.deps.add(('rename', op.classname))
+            item.deps.add(('create', this_name_str))
+            item.deps.add(('alter', this_name_str))
+            item.deps.add(('rename', this_name_str))
 
             try:
-                item = depgraph[('rebase', ref_name)]
+                item = depgraph[('rebase', ref_name_str)]
             except KeyError:
-                item = depgraph[('rebase', ref_name)] = (
+                item = depgraph[('rebase', ref_name_str)] = (
                     DepGraphEntry(item=())
                 )
 
-            item.deps.add(('create', op.classname))
-            item.deps.add(('alter', op.classname))
-            item.deps.add(('rename', op.classname))
+            item.deps.add(('create', this_name_str))
+            item.deps.add(('alter', this_name_str))
+            item.deps.add(('rename', this_name_str))
 
             try:
-                item = depgraph[('rename', ref_name)]
+                item = depgraph[('rename', ref_name_str)]
             except KeyError:
-                item = depgraph[('rename', ref_name)] = (
+                item = depgraph[('rename', ref_name_str)] = (
                     DepGraphEntry(item=())
                 )
 
-            item.deps.add(('create', op.classname))
-            item.deps.add(('alter', op.classname))
+            item.deps.add(('create', this_name_str))
+            item.deps.add(('alter', this_name_str))
 
         if tag in ('create', 'alter'):
             # In a delete/create cycle, deletion must obviously
             # happen first.
-            deps.add(('delete', op.classname))
+            deps.add(('delete', str(op.classname)))
 
             if isinstance(obj, s_func.Function) and old_schema is not None:
                 old_funcs = old_schema.get_functions(
@@ -669,13 +670,13 @@ def _trace_op(
                     default=(),
                 )
                 for old_func in old_funcs:
-                    deps.add(('delete', old_func.get_name(old_schema)))
+                    deps.add(('delete', str(old_func.get_name(old_schema))))
 
         if tag == 'alter':
             # Alteration must happen after creation, if any.
-            deps.add(('create', op.classname))
-            deps.add(('rename', op.classname))
-            deps.add(('rebase', op.classname))
+            deps.add(('create', this_name_str))
+            deps.add(('rename', this_name_str))
+            deps.add(('rebase', this_name_str))
 
         if isinstance(obj, referencing.ReferencedObject):
             referrer = obj.get_referrer(new_schema)
@@ -684,8 +685,9 @@ def _trace_op(
                 referrer_name = referrer.get_name(new_schema)
                 if referrer_name in renames_r:
                     referrer_name = renames_r[referrer_name]
-                deps.add(('create', referrer_name))
-                deps.add(('rebase', referrer_name))
+                ref_name_str = str(referrer_name)
+                deps.add(('create', ref_name_str))
+                deps.add(('rebase', ref_name_str))
 
                 if isinstance(obj, referencing.ReferencedInheritingObject):
                     implicit_ancestors = [
@@ -705,7 +707,7 @@ def _trace_op(
                             for b in old_obj.get_implicit_ancestors(old_schema)
                         ]
 
-        graph_key = op.classname
+        graph_key = this_name_str
 
     else:
         raise AssertionError(f'unexpected op type: {op!r}')
@@ -727,14 +729,14 @@ def _trace_op(
 def get_object(
     schema: s_schema.Schema,
     op: sd.ObjectCommand[so.Object],
-    name: Optional[str] = None,
+    name: Optional[sn.Name] = None,
 ) -> so.Object:
     metaclass = op.get_schema_metaclass()
     if name is None:
         name = op.classname
 
     if issubclass(metaclass, s_types.Collection):
-        if sn.QualifiedName.is_qualified(name):
+        if isinstance(name, sn.QualName):
             return schema.get(name)
         else:
             t_id = s_types.type_id_from_name(name)
@@ -751,7 +753,7 @@ def get_object(
 def _get_referrers(
     schema: s_schema.Schema,
     obj: so.Object,
-    strongrefs: Dict[str, str],
+    strongrefs: Dict[sn.Name, sn.Name],
 ) -> List[so.Object]:
     refs = schema.get_referrers(obj)
     result: Set[so.Object] = set()

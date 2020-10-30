@@ -239,14 +239,14 @@ class Constraint(referencing.ReferencedInheritingObject,
         return ddl_identity
 
     @classmethod
-    def get_root_classes(cls) -> Tuple[sn.QualifiedName, ...]:
+    def get_root_classes(cls) -> Tuple[sn.QualName, ...]:
         return (
-            sn.QualifiedName(module='std', name='constraint'),
+            sn.QualName(module='std', name='constraint'),
         )
 
     @classmethod
-    def get_default_base_name(self) -> sn.QualifiedName:
-        return sn.QualifiedName('std::constraint')
+    def get_default_base_name(self) -> sn.QualName:
+        return sn.QualName('std', 'constraint')
 
 
 class ConsistencySubject(
@@ -324,8 +324,8 @@ class ConstraintCommand(
         cls,
         schema: s_schema.Schema,
         astnode: qlast.NamedDDL,
-        base_name: str,
-        referrer_name: str,
+        base_name: sn.Name,
+        referrer_name: sn.QualName,
         context: sd.CommandContext,
     ) -> Tuple[str, ...]:
         if isinstance(astnode, qlast.CreateConstraint):
@@ -347,7 +347,7 @@ class ConstraintCommand(
     @classmethod
     def _classname_quals_from_name(
         cls,
-        name: sn.QualifiedName
+        name: sn.QualName
     ) -> Tuple[str, ...]:
         quals = sn.quals_from_fullname(name)
         return (quals[-1],)
@@ -468,21 +468,9 @@ class ConstraintCommand(
         parent: so.Object,
         name: str,
     ) -> qlast.ObjectRef:
-        refctx = cls.get_referrer_context(context)
-        assert refctx is not None
-        # reduce name to shortname
-        if sn.QualifiedName.is_qualified(name):
-            shortname: str = sn.shortname_from_fullname(sn.QualifiedName(name))
-        else:
-            shortname = name
-
-        assert isinstance(refctx.op.classname, sn.QualifiedName)
-        nref = qlast.ObjectRef(
-            name=shortname,
-            module=refctx.op.classname.module,
-        )
-
-        return nref
+        assert sn.is_qualified(name)
+        bn = sn.shortname_from_fullname(sn.QualName.from_string(name))
+        return utils.name_to_ast_ref(bn)
 
     def get_ref_implicit_base_delta(
         self,
@@ -553,10 +541,8 @@ class ConstraintCommand(
             modaliases.update(
                 cls._modaliases_from_ast(schema, astnode, context))
             # Get the original constraint.
-            name = (sn.QualifiedName(objref.name, module=objref.module)
-                    if objref.module else objref.name)
             constr = schema.get(
-                name,
+                utils.ast_ref_to_name(objref),
                 module_aliases=modaliases,
                 type=Constraint,
             )
@@ -594,9 +580,9 @@ class CreateConstraint(
 
         params.insert(0, s_func.ParameterDesc(
             num=param_offset,
-            name='__subject__',
+            name=sn.UnqualName('__subject__'),
             default=None,
-            type=s_pseudo.PseudoTypeShell(name='anytype'),
+            type=s_pseudo.PseudoTypeShell(name=sn.UnqualName('anytype')),
             typemod=ft.TypeModifier.SingletonType,
             kind=ft.ParameterKind.PositionalParam,
         ))
@@ -738,13 +724,16 @@ class CreateConstraint(
             props.pop('subject', None)
             fullname = self.classname
             shortname = sn.shortname_from_fullname(fullname)
+            assert isinstance(shortname, sn.QualName), \
+                "expected qualified name"
             self._populate_concrete_constraint_attrs(
                 schema,
                 context,
                 subject_obj=subject,
                 name=shortname,
                 sourcectx=self.source_context,
-                **props)
+                **props,
+            )
 
             self.set_attribute_value('subject', subject)
 
@@ -756,7 +745,7 @@ class CreateConstraint(
         context: sd.CommandContext,
         subject_obj: Optional[so.Object],
         *,
-        name: str,
+        name: sn.QualName,
         subjectexpr: Optional[s_expr.Expression] = None,
         sourcectx: Optional[c_parsing.ParserContext] = None,
         args: Any = None,
@@ -1095,6 +1084,8 @@ class CreateConstraint(
         if isinstance(astnode, qlast.CreateConcreteConstraint):
             classname = cls._classname_from_ast(schema, astnode, context)
             base_name = sn.shortname_from_fullname(classname)
+            assert isinstance(base_name, sn.QualName), \
+                "expected qualified name"
             base = utils.ast_objref_to_object_shell(
                 qlast.ObjectRef(
                     module=base_name.module,
@@ -1135,9 +1126,9 @@ class RenameConstraint(
 
             ref_name = ref.get_name(schema)
             quals = list(sn.quals_from_fullname(ref_name))
-            new_ref_name = sn.QualifiedName(
+            new_ref_name = sn.QualName(
                 name=sn.get_specialized_name(self.new_name, *quals),
-                module=sn.QualifiedName(ref_name).module,
+                module=ref_name.module,
             )
             commands.append(
                 self._canonicalize_ref_rename(
