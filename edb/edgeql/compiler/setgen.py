@@ -1057,7 +1057,9 @@ def computable_ptr_set(
                 raise errors.InternalServerError(
                     f'{ptrcls_sn!r} is not a computable pointer')
 
-            schema_qlexpr = qlparser.parse(comp_expr.text)
+            comp_qlexpr = qlparser.parse(comp_expr.text)
+            assert isinstance(comp_qlexpr, qlast.Expr), 'expected qlast.Expr'
+            schema_qlexpr = comp_qlexpr
 
         # NOTE: Validation of the expression type is not the concern
         # of this function. For any non-object pointer target type,

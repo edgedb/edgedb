@@ -120,7 +120,7 @@ cdef class Protocol(http.HttpProtocol):
             return await comp.call(
                 'compile_notebook',
                 dbver,
-                [q.encode() for q in queries],
+                queries,
                 0,  # implicit limit
             )
         finally:

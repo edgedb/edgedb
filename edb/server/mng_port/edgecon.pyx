@@ -38,9 +38,7 @@ from libc.stdint cimport int8_t, uint8_t, int16_t, uint16_t, \
 
 import immutables
 
-from edb import _edgeql_rust
-
-from edb.server.tokenizer import tokenize, normalize
+from edb import edgeql
 from edb.server.pgproto cimport hton
 from edb.server.pgproto.pgproto cimport (
     WriteBuffer,
@@ -660,33 +658,31 @@ cdef class EdgeConnection:
 
     async def _compile(
         self,
-        tokens: List[_edgeql_rust.Token],
+        source: edgeql.Source,
         *,
         io_format: compiler.IoFormat = FMT_BINARY,
         expect_one: bint = False,
         stmt_mode: str = 'single',
         implicit_limit: uint64_t = 0,
-        first_extracted_var: Optional[int] = None,
     ):
         if self.dbview.in_tx_error():
             self.dbview.raise_in_tx_error()
 
         if self.dbview.in_tx():
             return await self.get_backend().compiler.call(
-                'compile_eql_tokens_in_tx',
+                'compile_in_tx',
                 self.dbview.txid,
-                tokens,
+                source,
                 io_format,
                 expect_one,
                 implicit_limit,
                 stmt_mode,
-                first_extracted_var,
             )
         else:
             return await self.get_backend().compiler.call(
-                'compile_eql_tokens',
+                'compile',
                 self.dbview.dbver,
-                tokens,
+                source,
                 self.dbview.modaliases,
                 self.dbview.get_session_config(),
                 io_format,
@@ -694,7 +690,6 @@ cdef class EdgeConnection:
                 implicit_limit,
                 stmt_mode,
                 CAP_ALL,
-                first_extracted_var,
             )
 
     async def _compile_rollback(self, bytes eql):
@@ -764,10 +759,10 @@ cdef class EdgeConnection:
     async def _simple_query(self, eql: bytes):
         stmt_mode = 'all'
         with self.timer.timed("Query tokenization"):
-            eql_tokens = tokenize(eql)
+            source = edgeql.Source.from_string(eql.decode('utf-8'))
         with self.timer.timed("Query compilation"):
             units = await self._compile(
-                eql_tokens,
+                source,
                 io_format=FMT_SCRIPT,
                 stmt_mode=stmt_mode,
             )
@@ -827,6 +822,12 @@ cdef class EdgeConnection:
 
         return query_unit
 
+    def _tokenize(self, eql: bytes) -> edgeql.Source:
+        if debug.flags.edgeql_disable_normalization:
+            return edgeql.Source.from_string(eql.decode('utf-8'))
+        else:
+            return edgeql.NormalizedSource.from_string(eql.decode('utf-8'))
+
     async def _parse(
         self,
         bytes eql,
@@ -837,16 +838,16 @@ cdef class EdgeConnection:
         if self.debug:
             self.debug_print('PARSE', eql)
 
-        with self.timer.timed("Query normalization"):
-            normalized = normalize(eql)
+        with self.timer.timed("Query tokenization"):
+            source = self._tokenize(eql)
 
         if self.debug:
-            self.debug_print('Cache key', normalized.key())
-            self.debug_print('Extra variables', normalized.variables(),
-                             'after', normalized.first_extra())
+            self.debug_print('Cache key', source.text())
+            self.debug_print('Extra variables', source.variables(),
+                             'after', source.first_extra())
 
         query_unit = self.dbview.lookup_compiled_query(
-            normalized.key(), io_format, expect_one, implicit_limit)
+            source.text(), io_format, expect_one, implicit_limit)
         cached = True
         if query_unit is None:
             # Cache miss; need to compile this query.
@@ -864,12 +865,11 @@ cdef class EdgeConnection:
             else:
                 with self.timer.timed("Query compilation"):
                     query_unit = await self._compile(
-                        normalized.tokens(),
+                        source,
                         io_format=io_format,
                         expect_one=expect_one,
                         stmt_mode='single',
                         implicit_limit=implicit_limit,
-                        first_extracted_var=normalized.first_extra(),
                     )
                 query_unit = query_unit[0]
         elif self.dbview.in_tx_error():
@@ -892,14 +892,14 @@ cdef class EdgeConnection:
 
         if not cached and query_unit.cacheable:
             self.dbview.cache_compiled_query(
-                normalized.key(), io_format, expect_one,
+                source.text(), io_format, expect_one,
                 implicit_limit, query_unit)
 
         return CompiledQuery(
             query_unit=query_unit,
-            first_extra=normalized.first_extra(),
-            extra_count=normalized.extra_count(),
-            extra_blob=normalized.extra_blob(),
+            first_extra=source.first_extra(),
+            extra_count=source.extra_count(),
+            extra_blob=source.extra_blob(),
         )
 
     cdef parse_cardinality(self, bytes card):
@@ -1308,9 +1308,9 @@ cdef class EdgeConnection:
         if not query:
             raise errors.BinaryProtocolError('empty query')
 
-        normalized = normalize(query)
+        source = self._tokenize(query)
         query_unit = self.dbview.lookup_compiled_query(
-            normalized.key(), io_format, expect_one, implicit_limit)
+            source.text(), io_format, expect_one, implicit_limit)
         if query_unit is None:
             if self.debug:
                 self.debug_print('OPTIMISTIC EXECUTE /REPARSE', query)
@@ -1322,9 +1322,9 @@ cdef class EdgeConnection:
         else:
             compiled = CompiledQuery(
                 query_unit=query_unit,
-                first_extra=normalized.first_extra(),
-                extra_count=normalized.extra_count(),
-                extra_blob=normalized.extra_blob(),
+                first_extra=source.first_extra(),
+                extra_count=source.extra_count(),
+                extra_blob=source.extra_blob(),
             )
 
         if (query_unit.in_type_id != in_tid or

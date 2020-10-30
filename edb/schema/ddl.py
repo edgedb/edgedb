@@ -443,6 +443,8 @@ def apply_ddl_script_ex(
         modaliases = {}
 
     for ddl_stmt in edgeql.parse_block(ddl_text):
+        if not isinstance(ddl_stmt, qlast.DDLCommand):
+            raise AssertionError(f'expected DDLCommand node, got {ddl_stmt!r}')
         schema, cmd = _delta_from_ddl(
             ddl_stmt,
             schema=schema,
