@@ -50,6 +50,8 @@ See :ref:`Usage of FOR statement <ref_eql_forstatement>` for more details.
         [ "{" <link> := <insert-value-expr> [, ...]  "}" ]
 
 :eql:synopsis:`UNLESS CONFLICT ON <property>`
+    :index: unless conflict
+
     Handler of conflicts.
 
     This clause allows to handle specific conflicts arising during
@@ -57,6 +59,13 @@ See :ref:`Usage of FOR statement <ref_eql_forstatement>` for more details.
     conflict arises due to constraints on the specified *property*,
     then instead of failing with an error the ``INSERT`` statement
     produces an empty set (or an alternative result).
+
+    Example:
+
+    .. code-block:: edgeql
+
+        INSERT User { email := 'user@example.org' }
+        UNLESS CONFLICT ON .email
 
 :eql:synopsis:`ELSE <alternative>`
     Alternative result in case of conflict.
