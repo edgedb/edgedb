@@ -39,11 +39,13 @@ pub enum Error {
     Assertion(String, Pos),
 }
 
-fn push_var<'x>(res: &mut Vec<CowToken<'x>>, typ: &'x str, var: String,
-    start: Pos, end: Pos)
+fn push_var<'x>(res: &mut Vec<CowToken<'x>>, module: &'x str, typ: &'x str,
+    var: String, start: Pos, end: Pos)
 {
     res.push(CowToken {kind: Kind::OpenParen, value: "(".into(), start, end});
     res.push(CowToken {kind: Kind::Less, value: "<".into(), start, end});
+    res.push(CowToken {kind: Kind::Ident, value: module.into(), start, end});
+    res.push(CowToken {kind: Kind::Namespace, value: "::".into(), start, end});
     res.push(CowToken {kind: Kind::Ident, value: typ.into(), start, end});
     res.push(CowToken {kind: Kind::Greater, value: ">".into(), start, end});
     res.push(CowToken {kind: Kind::Argument, value: var.into(), start, end});
@@ -132,7 +134,7 @@ pub fn normalize<'x>(text: &'x str)
                     if value.eq_ignore_ascii_case("LIMIT")))
             && tok.value != "9223372036854775808"
             => {
-                push_var(&mut rewritten_tokens, "__std__::int64",
+                push_var(&mut rewritten_tokens, "__std__", "int64",
                     next_var(variables.len()),
                     tok.start, tok.end);
                 variables.push(Variable {
@@ -144,7 +146,7 @@ pub fn normalize<'x>(text: &'x str)
                 continue;
             }
             Kind::FloatConst => {
-                push_var(&mut rewritten_tokens, "__std__::float64",
+                push_var(&mut rewritten_tokens, "__std__", "float64",
                     next_var(variables.len()),
                     tok.start, tok.end);
                 let value = float::convert(&tok.value)
@@ -155,7 +157,7 @@ pub fn normalize<'x>(text: &'x str)
                 continue;
             }
             Kind::BigIntConst => {
-                push_var(&mut rewritten_tokens, "__std__::bigint",
+                push_var(&mut rewritten_tokens, "__std__", "bigint",
                     next_var(variables.len()),
                     tok.start, tok.end);
                 let dec: BigDecimal = tok.value[..tok.value.len()-1]
@@ -172,7 +174,7 @@ pub fn normalize<'x>(text: &'x str)
                 continue;
             }
             Kind::DecimalConst => {
-                push_var(&mut rewritten_tokens, "__std__::decimal",
+                push_var(&mut rewritten_tokens, "__std__", "decimal",
                     next_var(variables.len()),
                     tok.start, tok.end);
                 variables.push(Variable {
@@ -187,7 +189,7 @@ pub fn normalize<'x>(text: &'x str)
                 continue;
             }
             Kind::Str => {
-                push_var(&mut rewritten_tokens, "__std__::str",
+                push_var(&mut rewritten_tokens, "__std__", "str",
                     next_var(variables.len()),
                     tok.start, tok.end);
                 variables.push(Variable {
