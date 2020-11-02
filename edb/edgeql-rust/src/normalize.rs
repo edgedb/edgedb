@@ -239,7 +239,6 @@ fn is_operator(token: &CowToken) -> bool {
         | Arrow
         | Coalesce
         | Namespace
-        | ForwardLink
         | BackwardLink
         | FloorDiv
         | Concat

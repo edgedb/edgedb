@@ -152,14 +152,14 @@ fn question_tokens() {
 
 #[test]
 fn dot_tokens() {
-    assert_eq!(tok_str("a.b .> c"), ["a", ".", "b", ".>", "c"]);
-    assert_eq!(tok_typ("a.b .> c"), [Ident, Dot, Ident, ForwardLink, Ident]);
+    assert_eq!(tok_str("a.b .> c"), ["a", ".", "b", ".", ">", "c"]);
+    assert_eq!(tok_typ("a.b .> c"), [Ident, Dot, Ident, Dot, Greater, Ident]);
     assert_eq!(tok_str("a . > b"), ["a", ".", ">", "b"]);
     assert_eq!(tok_typ("a . > b"), [Ident, Dot, Greater, Ident]);
-    assert_eq!(tok_str("a .>> b"), ["a", ".>", ">", "b"]);
-    assert_eq!(tok_typ("a .>> b"), [Ident, ForwardLink, Greater, Ident]);
-    assert_eq!(tok_str("a ..> b"), ["a", ".", ".>", "b"]);
-    assert_eq!(tok_typ("a ..> b"), [Ident, Dot, ForwardLink, Ident]);
+    assert_eq!(tok_str("a .>> b"), ["a", ".", ">", ">", "b"]);
+    assert_eq!(tok_typ("a .>> b"), [Ident, Dot, Greater, Greater, Ident]);
+    assert_eq!(tok_str("a ..> b"), ["a", ".", ".", ">", "b"]);
+    assert_eq!(tok_typ("a ..> b"), [Ident, Dot, Dot, Greater, Ident]);
 
     assert_eq!(tok_str("a.b .< c"), ["a", ".", "b", ".<", "c"]);
     assert_eq!(tok_typ("a.b .< c"), [Ident, Dot, Ident, BackwardLink, Ident]);
@@ -528,11 +528,8 @@ fn tuple_paths() {
     assert_eq!(tok_typ("tup.1.2.3.4.5"),
         [Ident, Dot, IntConst, Dot, IntConst,
                 Dot, IntConst, Dot, IntConst, Dot, IntConst]);
-    assert_eq!(tok_str("tup.1.2.>3.4.>5"),
-        ["tup", ".", "1", ".", "2", ".>", "3", ".", "4", ".>", "5"]);
-    assert_eq!(tok_typ("tup.1.2.>3.4.>5"),
-        [Ident, Dot, IntConst, Dot, IntConst,
-                ForwardLink, IntConst, Dot, IntConst, ForwardLink, IntConst]);
+    assert_eq!(tok_err("tup.1.2.>3.4.>5"),
+        "Unexpected `extra decimal dot in number`");
     assert_eq!(tok_str("$0.1.2.3.4.5"),
         ["$0", ".", "1", ".", "2", ".", "3", ".", "4", ".", "5"]);
     assert_eq!(tok_typ("$0.1.2.3.4.5"),
