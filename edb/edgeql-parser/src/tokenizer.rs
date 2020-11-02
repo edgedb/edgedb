@@ -25,7 +25,6 @@ pub enum Kind {
     Arrow,            // ->
     Coalesce,         // ??
     Namespace,        // ::
-    ForwardLink,      // .>
     BackwardLink,     // .<
     FloorDiv,         // //
     Concat,           // ++
@@ -201,7 +200,7 @@ impl<'a> TokenStream<'a> {
         // faster to update 'as you go', but this is easier to get right first
         self.update_position(len);
         self.dot = match kind {
-            Kind::Dot | Kind::ForwardLink => true,
+            Kind::Dot => true,
             _ => false,
         };
         let value = &self.buf[self.off-len..self.off];
@@ -254,7 +253,6 @@ impl<'a> TokenStream<'a> {
                 _ => return Ok((Div, 1)),
             },
             '.' => match iter.next() {
-                Some((_, '>')) => return Ok((ForwardLink, 2)),
                 Some((_, '<')) => return Ok((BackwardLink, 2)),
                 _ => return Ok((Dot, 1)),
             },
