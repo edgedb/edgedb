@@ -27,6 +27,7 @@ import itertools
 import uuid
 
 from edb import errors
+from edb.errors import compiler as c_errors
 
 from edb.common import adapter
 from edb.common import checked
@@ -358,7 +359,10 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
                     sequence = []
                     for v in value:
                         if isinstance(v, so.Shell):
-                            val = v.resolve(schema)
+                            try:
+                                val = v.resolve(schema)
+                            except c_errors.BadTypeObject as e:
+                                raise e.update(source_context=v.sourcectx)
                         else:
                             val = v
                         sequence.append(val)
