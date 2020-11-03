@@ -569,7 +569,6 @@ class Data(ServerMessage):
 
     mtype = MessageType('D')
     message_length = MessageLength
-    reserved = UInt32()
 
     data = ArrayOf(
         UInt16,
