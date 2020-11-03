@@ -205,15 +205,13 @@ def _sort_by_inheritance(
 ) -> Iterable[so.InheritingObjectT]:
     graph = {}
     for x in objs:
-        graph[x] = {
-            'item': x,
-            'deps': x.get_bases(schema).objects(schema),
-        }
+        graph[x] = topological.DepGraphEntry(
+            item=x,
+            deps=ordered.OrderedSet(x.get_bases(schema).objects(schema)),
+            extra=False,
+        )
 
-    return cast(
-        Iterable[so.InheritingObjectT],
-        topological.sort(graph, allow_unresolved=True),
-    )
+    return topological.sort(graph, allow_unresolved=True)
 
 
 CommandMeta_T = TypeVar("CommandMeta_T", bound="CommandMeta")

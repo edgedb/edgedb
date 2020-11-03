@@ -3571,9 +3571,10 @@ class UpdateInheritanceViews(MetaCommand):
         graph = {}
         for obj in all_updates:
             objname = obj.get_name(schema)
-            graph[objname] = dict(
+            graph[objname] = topological.DepGraphEntry(
                 item=obj,
                 deps=obj.get_bases(schema).names(schema),
+                extra=False,
             )
 
         ordered = topological.sort(graph, allow_unresolved=True)

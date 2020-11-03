@@ -194,10 +194,11 @@ async def _get_dbs_and_roles(pgconn) -> Tuple[List[str], List[str]]:
 
     roles = json.loads(await pgconn.fetchval(get_roles_sql))
     sorted_roles = list(topological.sort({
-        r['name']: {
-            'item': r['name'],
-            'deps': r['parents'],
-        } for r in roles
+        r['name']: topological.DepGraphEntry(
+            item=r['name'],
+            deps=r['parents'],
+            extra=False,
+        ) for r in roles
     }))
 
     return databases, sorted_roles

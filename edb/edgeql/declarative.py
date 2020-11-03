@@ -312,16 +312,14 @@ def _trace_item_layout(node: qlast.CreateObject, *,
                         source=base,
                         target=p.get_target(ctx.schema),
                     )
-                ctx.inh_graph[ref] = {
-                    "item": base_obj,
-                }
+                ctx.inh_graph[ref] = topological.DepGraphEntry(item=base_obj)
 
         ctx.parents[fq_name] = parents
-        ctx.inh_graph[fq_name] = {
-            "item": obj,
-            "deps": bases,
-            "merge": bases,
-        }
+        ctx.inh_graph[fq_name] = topological.DepGraphEntry(
+            item=obj,
+            deps=set(bases),
+            merge=set(bases),
+        )
 
     for decl in node.commands:
         if isinstance(decl, qlast.CreateConcretePointer):
@@ -538,10 +536,10 @@ def _register_item(
     else:
         op.aliases = [qlast.ModuleAliasDecl(alias=None, module=ctx.module)]
 
-    node = {
-        "item": op,
-        "deps": {n for _, n in ctx.depstack if n != loop_control},
-    }
+    node = topological.DepGraphEntry(
+        item=op,
+        deps={n for _, n in ctx.depstack if n != loop_control},
+    )
     ctx.ddlgraph[fq_name] = node
 
     if hasattr(decl, "bases"):
@@ -680,12 +678,9 @@ def _register_item(
 
     if loop_control:
         parent_node = ctx.ddlgraph[loop_control]
-        if 'loop-control' not in parent_node:
-            parent_node['loop-control'] = {fq_name}
-        else:
-            parent_node['loop-control'].add(fq_name)
+        parent_node.loop_control.add(fq_name)
 
-    node["deps"].update(deps)
+    node.deps.update(deps)
 
 
 def _get_hard_deps(

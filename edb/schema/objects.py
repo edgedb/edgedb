@@ -33,6 +33,7 @@ from edb.edgeql import qltypes
 
 from edb.common import checked
 from edb.common import markup
+from edb.common import ordered
 from edb.common import parametric
 from edb.common import parsing
 from edb.common import struct
@@ -2650,10 +2651,13 @@ class InheritingObject(SubclassableObject):
         """Return class descendants in ancestral order."""
         graph = {}
         for descendant in self.descendants(schema):
-            graph[descendant] = {
-                'item': descendant,
-                'deps': descendant.get_bases(schema).objects(schema),
-            }
+            graph[descendant] = topological.DepGraphEntry(
+                item=descendant,
+                deps=ordered.OrderedSet(
+                    descendant.get_bases(schema).objects(schema),
+                ),
+                extra=False,
+            )
 
         return list(topological.sort(graph, allow_unresolved=True))
 
