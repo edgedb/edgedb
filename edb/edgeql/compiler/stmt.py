@@ -236,13 +236,13 @@ def compile_insert_unless_conflict(
 
     if not cspec_res.rptr:
         raise errors.QueryError(
-            'ON CONFLICT argument must be a property',
+            'UNLESS CONFLICT argument must be a property',
             context=constraint_spec.context,
         )
 
     if cspec_res.rptr.source.path_id != stmt.subject.path_id:
         raise errors.QueryError(
-            'ON CONFLICT argument must be a property of the '
+            'UNLESS CONFLICT argument must be a property of the '
             'type being inserted',
             context=constraint_spec.context,
         )
@@ -253,14 +253,14 @@ def compile_insert_unless_conflict(
                                      schema=schema))
     if not isinstance(ptr, s_pointers.Pointer):
         raise errors.QueryError(
-            'ON CONFLICT property must be a property',
+            'UNLESS CONFLICT property must be a property',
             context=constraint_spec.context,
         )
 
     ptr = ptr.get_nearest_non_derived_parent(schema)
     if ptr.get_cardinality(schema) != qltypes.SchemaCardinality.One:
         raise errors.QueryError(
-            'ON CONFLICT property must be a SINGLE property',
+            'UNLESS CONFLICT property must be a SINGLE property',
             context=constraint_spec.context,
         )
 
@@ -270,7 +270,7 @@ def compile_insert_unless_conflict(
 
     if len(ex_cnstrs) != 1:
         raise errors.QueryError(
-            'ON CONFLICT property must have a single exclusive constraint',
+            'UNLESS CONFLICT property must have a single exclusive constraint',
             context=constraint_spec.context,
         )
 
@@ -287,7 +287,7 @@ def compile_insert_unless_conflict(
             break
     else:
         raise errors.QueryError(
-            'INSERT ON CONFLICT property requires matching shape',
+            'INSERT UNLESS CONFLICT property requires matching shape',
             context=constraint_spec.context,
         )
 
