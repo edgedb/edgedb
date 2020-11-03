@@ -1712,8 +1712,8 @@ class TestServerProto(tb.QueryTestCase):
 
                     SET ALIAS f3 AS MODULE std;
 
-                    DELETE (SELECT test::Tmp_tx_13
-                            FILTER test::Tmp_tx_13.tmp_tx_13_1 = 1);
+                    DELETE test::Tmp_tx_13
+                    FILTER test::Tmp_tx_13.tmp_tx_13_1 = 1;
 
                     SET ALIAS f4 AS MODULE std;
                 ''')
