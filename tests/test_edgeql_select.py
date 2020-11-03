@@ -1253,6 +1253,30 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 OFFSET <int64>User.<owner[IS Issue].number;
             """)
 
+    async def test_edgeql_select_limit_08(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'could not resolve partial path'):
+
+            await self.con.query("""
+                WITH MODULE test
+                SELECT
+                    User { name }
+                LIMIT <int64>.<owner[IS Issue].number;
+            """)
+
+    async def test_edgeql_select_limit_09(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'could not resolve partial path'):
+
+            await self.con.query("""
+                WITH MODULE test
+                SELECT
+                    User { name }
+                OFFSET <int64>.<owner[IS Issue].number;
+            """)
+
     async def test_edgeql_select_polymorphic_01(self):
         await self.assert_query_result(
             r'''
