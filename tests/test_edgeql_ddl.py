@@ -5850,19 +5850,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.UnsupportedFeatureError,
-                'altering enum composition is not supported'):
-            await self.con.execute('''
-                ALTER SCALAR TYPE test::my_enum_2
-                    EXTENDING enum<'foo', 'bar', 'baz'>;
-            ''')
-
-        # Recover.
-        await self.con.execute('ROLLBACK TO SAVEPOINT t1;')
-
-        await self.con.execute('DECLARE SAVEPOINT t2;')
-
-        with self.assertRaisesRegex(
-                edgedb.UnsupportedFeatureError,
                 'constraints cannot be defined on enumerated type.*'):
             await self.con.execute('''
                 CREATE SCALAR TYPE test::my_enum_3
@@ -5872,7 +5859,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ''')
 
         # Recover.
-        await self.con.execute('ROLLBACK TO SAVEPOINT t2;')
+        await self.con.execute('ROLLBACK TO SAVEPOINT t1;')
 
         await self.con.execute('''
             ALTER SCALAR TYPE test::my_enum_2
@@ -5911,6 +5898,131 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute('''
             DROP TYPE test::Obj;
             DROP SCALAR TYPE foo::my_enum_2;
+        ''')
+
+    async def test_edgeql_ddl_enum_03(self):
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                'enums cannot contain duplicate values'):
+            await self.con.execute('''
+                CREATE SCALAR TYPE test::Color
+                    EXTENDING enum<Red, Green, Blue, Red>;
+            ''')
+
+    async def test_edgeql_ddl_enum_04(self):
+        await self.con.execute('''
+            CREATE SCALAR TYPE test::Color
+                EXTENDING enum<Red, Green, Blue>;
+        ''')
+
+        await self.con.execute('DECLARE SAVEPOINT t0;')
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                'cannot DROP EXTENDING enum'):
+            await self.con.execute('''
+                ALTER SCALAR TYPE test::Color
+                    DROP EXTENDING enum<Red, Green, Blue>;
+            ''')
+
+        # Recover.
+        await self.con.execute('ROLLBACK TO SAVEPOINT t0;')
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                'enumeration must be the only supertype specified'):
+            await self.con.execute('''
+                ALTER SCALAR TYPE test::Color EXTENDING str FIRST;
+            ''')
+
+        # Recover.
+        await self.con.execute('ROLLBACK TO SAVEPOINT t0;')
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                'cannot add another enum as supertype, '
+                'use EXTENDING without position qualification'):
+            await self.con.execute('''
+                ALTER SCALAR TYPE test::Color
+                    EXTENDING enum<Bad> LAST;
+            ''')
+
+        # Recover.
+        await self.con.execute('ROLLBACK TO SAVEPOINT t0;')
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                'cannot set more than one enum as supertype'):
+            await self.con.execute('''
+                ALTER SCALAR TYPE test::Color
+                    EXTENDING enum<Bad>, enum<AlsoBad>;
+            ''')
+
+        # Recover.
+        await self.con.execute('ROLLBACK TO SAVEPOINT t0;')
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                'enums cannot contain duplicate values'):
+            await self.con.execute('''
+                ALTER SCALAR TYPE test::Color
+                    EXTENDING enum<Red, Green, Blue, Red>;
+            ''')
+
+        # Recover.
+        await self.con.execute('ROLLBACK TO SAVEPOINT t0;')
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                'cannot remove labels from an enumeration type'):
+            await self.con.execute('''
+                ALTER SCALAR TYPE test::Color
+                    EXTENDING enum<Red, Green>;
+            ''')
+
+        # Recover.
+        await self.con.execute('ROLLBACK TO SAVEPOINT t0;')
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                'only appending new labels is allowed'):
+            await self.con.execute('''
+                ALTER SCALAR TYPE test::Color
+                    EXTENDING enum<Blue, Red, Green>;
+            ''')
+
+        # Recover.
+        await self.con.execute('ROLLBACK TO SAVEPOINT t0;')
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                'only appending new labels is allowed'):
+            await self.con.execute('''
+                ALTER SCALAR TYPE test::Color
+                    EXTENDING enum<Red, Green, Bad, Blue>;
+            ''')
+
+        # Recover.
+        await self.con.execute('ROLLBACK TO SAVEPOINT t0;')
+
+        await self.con.execute(r'''
+            ALTER SCALAR TYPE test::Color
+                EXTENDING enum<Red, Green, Blue, Magic>;
+
+            # Commit the changes and start a new transaction for more testing.
+            COMMIT;
+            START TRANSACTION;
+        ''')
+        await self.assert_query_result(
+            r"""
+                SELECT <test::Color>'Magic' >
+                    <test::Color>'Red';
+            """,
+            [True],
+        )
+
+        await self.con.execute('''
+            DROP SCALAR TYPE test::Color;
         ''')
 
     async def test_edgeql_ddl_explicit_id(self):
