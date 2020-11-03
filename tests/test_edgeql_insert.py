@@ -2174,7 +2174,7 @@ class TestInsert(tb.QueryTestCase):
             WITH MODULE test
             SELECT (
                 INSERT Person {name := "Emmanuel Villip"} UNLESS CONFLICT
-                ON .name ELSE (UPDATE Person SET { tag := "redo" })
+                ON .name ELSE (UPDATE Person FILTER true SET { tag := "redo" })
             ) {name, tag};
         '''
 
@@ -2213,7 +2213,8 @@ class TestInsert(tb.QueryTestCase):
             SELECT (
                 FOR noob in {"Emmanuel Villip", "Madeline Hatch"} UNION (
                     INSERT Person {name := noob} UNLESS CONFLICT
-                    ON .name ELSE (UPDATE Person SET { tag := "redo" })
+                    ON .name ELSE (
+                        UPDATE Person FILTER true SET { tag := "redo" })
                 )
             ) {name, tag} ORDER BY .name;
         '''
@@ -2254,7 +2255,7 @@ class TestInsert(tb.QueryTestCase):
             WITH MODULE test
             SELECT (
                 INSERT Person UNLESS CONFLICT
-                ON .name ELSE (UPDATE Person SET { tag := "redo" })
+                ON .name ELSE (UPDATE Person FILTER true SET { tag := "redo" })
             ) {name};
         '''
 
