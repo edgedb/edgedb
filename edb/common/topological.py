@@ -36,7 +36,7 @@ class CycleError(Exception):
 
 
 K = TypeVar('K')
-V = TypeVar('V', contravariant=True)
+V = TypeVar('V')
 T = TypeVar('T')
 
 
@@ -144,12 +144,13 @@ def sort(
 if TYPE_CHECKING:
 
     class MergeFunction(Protocol[V]):
+
         def __call__(
             self,
             item: V,
             parent: V,
             **kwargs: Any,
-        ) -> None:
+        ) -> V:
             ...
 
 

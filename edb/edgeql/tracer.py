@@ -21,7 +21,7 @@ from __future__ import annotations
 
 # Import specific things to avoid name clashes
 from typing import (Dict, FrozenSet, Generator, List, Mapping, Optional,
-                    Union, Set)
+                    Union, Set, Tuple, Iterable, Generic, TypeVar)
 
 import functools
 
@@ -37,6 +37,9 @@ from edb.schema import types as s_types
 from edb.edgeql import ast as qlast
 
 
+NamedObject_T = TypeVar("NamedObject_T", bound="NamedObject")
+
+
 class NamedObject:
     '''Generic tracing object with an explicit name.'''
 
@@ -45,6 +48,12 @@ class NamedObject:
 
     def get_name(self, schema: s_schema.Schema) -> str:
         return self.name
+
+
+SentinelObject = NamedObject(name='__unresolved__')
+
+
+ObjectLike = Union[NamedObject, so.Object]
 
 
 class Function(NamedObject):
@@ -67,13 +76,32 @@ class Type(NamedObject):
     pass
 
 
-class Source:
+TypeLike = Union[Type, s_types.Type]
+
+
+T = TypeVar('T')
+
+
+class ObjectIndex(Generic[T]):
+
+    def __init__(self, items: Mapping[str, T]) -> None:
+        self._items = items
+
+    def items(
+        self,
+        schema: s_schema.Schema,
+    ) -> Iterable[Tuple[str, T]]:
+        return self._items.items()
+
+
+class Source(NamedObject):
+
+    pointers: Dict[str, Union[s_pointers.Pointer, Pointer]]
+
     '''Abstract type that mocks the s_sources.Source for tracing purposes.'''
-    def _init_pointers(self) -> None:
-        self.pointers: Dict[
-            str,
-            Union[s_pointers.Pointer, Pointer]
-        ] = {}
+    def __init__(self, name: str) -> None:
+        super().__init__(name)
+        self.pointers = {}
 
     def getptr(
         self,
@@ -82,18 +110,25 @@ class Source:
     ) -> Optional[Union[s_pointers.Pointer, Pointer]]:
         return self.pointers.get(name)
 
+    def get_pointers(
+        self,
+        schema: s_schema.Schema,
+    ) -> ObjectIndex[Union[s_pointers.Pointer, Pointer]]:
+        return ObjectIndex(self.pointers)
+
+
+Source_T = TypeVar("Source_T", bound="Source")
+SourceLike = Union[Source, s_sources.Source]
+SourceLike_T = TypeVar("SourceLike_T", bound="SourceLike")
+
 
 class ObjectType(Type, Source):
-
-    def __init__(self, name: str) -> None:
-        super().__init__(name)
-        self._init_pointers()
 
     def is_pointer(self) -> bool:
         return False
 
 
-class UnionType:
+class UnionType(Type):
 
     def __init__(
         self,
@@ -108,13 +143,12 @@ class Pointer(Source):
         self,
         name: str,
         *,
-        source: Optional[so.Object] = None,
-        target: Optional[s_types.Type] = None,
+        source: Optional[SourceLike] = None,
+        target: Optional[TypeLike] = None,
     ) -> None:
-        self.name = name
+        super().__init__(name)
         self.source = source
         self.target = target
-        self._init_pointers()
 
     def is_pointer(self) -> bool:
         return True
@@ -122,13 +156,13 @@ class Pointer(Source):
     def get_target(
         self,
         schema: s_schema.Schema,
-    ) -> Optional[s_types.Type]:
+    ) -> Optional[TypeLike]:
         return self.target
 
     def get_source(
         self,
         schema: s_schema.Schema,
-    ) -> Optional[so.Object]:
+    ) -> Optional[SourceLike]:
         return self.source
 
     def get_name(self, schema: s_schema.Schema) -> str:
@@ -143,8 +177,8 @@ def trace_refs(
     subject: Optional[sn.QualifiedName] = None,
     path_prefix: Optional[str] = None,
     module: Optional[str] = None,
-    objects: Dict[str, Optional[so.Object]],
-    params: Dict[str, sn.QualifiedName],
+    objects: Dict[str, ObjectLike],
+    params: Mapping[str, sn.QualifiedName],
 ) -> FrozenSet[str]:
 
     """Return a list of schema item names used in an expression."""
@@ -169,12 +203,12 @@ class TracerContext:
         *,
         schema: s_schema.Schema,
         module: Optional[str],
-        objects: Dict[str, Optional[so.Object]],
+        objects: Dict[str, ObjectLike],
         source: Optional[sn.QualifiedName],
         subject: Optional[sn.QualifiedName],
         path_prefix: Optional[str],
         modaliases: Mapping[Optional[str], str],
-        params: Dict[str, sn.QualifiedName],
+        params: Mapping[str, sn.QualifiedName],
     ) -> None:
         self.schema = schema
         self.refs: Set[str] = set()
@@ -247,7 +281,9 @@ def alias_context(
                 module = alias.module
 
         elif isinstance(alias, qlast.AliasedExpr):
-            objects[alias.alias] = trace(alias.expr, ctx=ctx)
+            obj = trace(alias.expr, ctx=ctx)
+            assert obj is not None
+            objects[alias.alias] = obj
 
     if module or modaliases:
         nctx = TracerContext(
@@ -273,8 +309,11 @@ def alias_context(
 
 
 @functools.singledispatch
-def trace(node: qlast.Base, *,
-          ctx: TracerContext) -> Optional[so.Object]:
+def trace(
+    node: qlast.Base,
+    *,
+    ctx: TracerContext,
+) -> Optional[ObjectLike]:
     raise NotImplementedError(f"do not know how to trace {node!r}")
 
 
@@ -328,7 +367,7 @@ def trace_Detached(
     node: qlast.DetachedExpr,
     *,
     ctx: TracerContext
-) -> Optional[so.Object]:
+) -> Optional[ObjectLike]:
     # DETACHED works with partial paths same as its inner expression.
     return trace(node.expr, ctx=ctx)
 
@@ -397,10 +436,11 @@ def trace_Slice(node: qlast.Slice, *, ctx: TracerContext) -> None:
 
 @trace.register
 def trace_Path(
-    node: qlast.Path, *,
+    node: qlast.Path,
+    *,
     ctx: TracerContext,
-) -> Optional[Union[Type, UnionType, so.Object]]:
-    tip: Optional[Union[Type, UnionType, so.Object]] = None
+) -> Optional[ObjectLike]:
+    tip: Optional[ObjectLike] = None
     ptr: Optional[Union[Pointer, s_pointers.Pointer]] = None
     plen = len(node.steps)
 
@@ -515,7 +555,7 @@ def trace_Path(
 
 
 @trace.register
-def trace_Source(node: qlast.Source, *, ctx: TracerContext) -> so.Object:
+def trace_Source(node: qlast.Source, *, ctx: TracerContext) -> ObjectLike:
     assert ctx.source is not None
     source = ctx.objects[ctx.source]
     assert source is not None
@@ -523,8 +563,11 @@ def trace_Source(node: qlast.Source, *, ctx: TracerContext) -> so.Object:
 
 
 @trace.register
-def trace_Subject(node: qlast.Subject, *,
-                  ctx: TracerContext) -> Optional[so.Object]:
+def trace_Subject(
+    node: qlast.Subject,
+    *,
+    ctx: TracerContext,
+) -> Optional[ObjectLike]:
     # Apparently for some paths (of length 1) ctx.subject may be None.
     if ctx.subject is not None:
         return ctx.objects[ctx.subject]
@@ -532,19 +575,23 @@ def trace_Subject(node: qlast.Subject, *,
 
 
 def _resolve_type_expr(
-    texpr: qlast.TypeExpr, *,
+    texpr: qlast.TypeExpr,
+    *,
     ctx: TracerContext
-) -> Union[Type, UnionType, so.Object]:
+) -> TypeLike:
 
     if isinstance(texpr, qlast.TypeName):
         if texpr.subtypes and isinstance(texpr.maintype, qlast.ObjectRef):
             return Type(name=texpr.maintype.name)
         else:
             refname = ctx.get_ref_name(texpr.maintype)
-            obj = ctx.objects.get(refname)
-            if obj is None:
-                obj = ctx.schema.get(refname)
+            local_obj = ctx.objects.get(refname)
+            obj: TypeLike
+            if local_obj is None:
+                obj = ctx.schema.get(refname, type=s_types.Type)
             else:
+                assert isinstance(local_obj, Type)
+                obj = local_obj
                 ctx.refs.add(refname)
 
             return obj
@@ -608,7 +655,7 @@ def trace_Shape(
     node: qlast.Shape,
     *,
     ctx: TracerContext
-) -> Optional[so.Object]:
+) -> Optional[ObjectLike]:
     tip = trace(node.expr, ctx=ctx)
     if isinstance(node.expr, qlast.Path):
         orig_prefix = ctx.path_prefix
@@ -646,7 +693,7 @@ def trace_Select(
     node: qlast.SelectQuery,
     *,
     ctx: TracerContext
-) -> Optional[so.Object]:
+) -> Optional[ObjectLike]:
     with alias_context(ctx, node.aliases) as ctx:
         tip = trace(node.result, ctx=ctx)
         if tip is not None:
@@ -684,7 +731,7 @@ def trace_UpdateQuery(
     node: qlast.UpdateQuery,
     *,
     ctx: TracerContext
-) -> Optional[so.Object]:
+) -> Optional[ObjectLike]:
     with alias_context(ctx, node.aliases) as ctx:
         tip = trace(node.subject, ctx=ctx)
 
@@ -706,7 +753,7 @@ def trace_DeleteQuery(
     node: qlast.DeleteQuery,
     *,
     ctx: TracerContext
-) -> Optional[so.Object]:
+) -> Optional[ObjectLike]:
     with alias_context(ctx, node.aliases) as ctx:
         tip = trace(node.subject, ctx=ctx)
         if tip is not None:
@@ -730,9 +777,12 @@ def trace_For(
     node: qlast.ForQuery,
     *,
     ctx: TracerContext
-) -> Optional[so.Object]:
+) -> Optional[ObjectLike]:
     with alias_context(ctx, node.aliases) as ctx:
-        ctx.objects[node.iterator_alias] = trace(node.iterator, ctx=ctx)
+        obj = trace(node.iterator, ctx=ctx)
+        if obj is None:
+            obj = SentinelObject
+        ctx.objects[node.iterator_alias] = obj
         tip = trace(node.result, ctx=ctx)
 
         return tip
