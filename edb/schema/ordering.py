@@ -38,6 +38,17 @@ if TYPE_CHECKING:
     from . import schema as s_schema
 
 
+class DepGraphEntryExtra(NamedTuple):
+    implicit_ancestors: List[str]
+
+
+DepGraphKey = Tuple[str, str]
+DepGraphEntry = topological.DepGraphEntry[
+    DepGraphKey, Tuple[sd.Command, ...], DepGraphEntryExtra,
+]
+DepGraph = Dict[DepGraphKey, DepGraphEntry]
+
+
 def linearize_delta(
     delta: sd.DeltaRoot,
     old_schema: Optional[s_schema.Schema],
@@ -71,7 +82,7 @@ def linearize_delta(
     for op in _get_sorted_subcommands(delta):
         _break_down(opmap, strongrefs, [delta, op])
 
-    depgraph: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    depgraph: DepGraph = {}
     renames: Dict[str, str] = {}
     renames_r: Dict[str, str] = {}
     deletions: Set[str] = set()
@@ -91,21 +102,21 @@ def linearize_delta(
                   renames_r, strongrefs, old_schema, new_schema)
 
     depgraph = dict(
-        filter(lambda i: i[1].get('item') is not None, depgraph.items()))
+        filter(lambda i: i[1].item != (), depgraph.items()))
 
     everything = set(depgraph)
     for item in depgraph.values():
-        item['deps'] = item['deps'] & everything
+        item.deps &= everything
 
-    sortedlist = [i[1] for i in topological.sort(depgraph, return_record=True)]
+    sortedlist = [i[1] for i in topological.sort_ex(depgraph)]
     reconstructed = reconstruct_tree(sortedlist, depgraph)
     delta.replace_all(reconstructed.get_subcommands())
     return delta
 
 
 def reconstruct_tree(
-    sortedlist: List[Dict[str, Any]],
-    depgraph: Dict[Tuple[str, str], Dict[str, Any]],
+    sortedlist: List[DepGraphEntry],
+    depgraph: DepGraph,
 ) -> sd.DeltaRoot:
 
     result = sd.DeltaRoot()
@@ -142,7 +153,7 @@ def reconstruct_tree(
         return all(offsets[dep][:tgt_offset_len] <= tgt_offset for dep in deps)
 
     def attach(
-        opbranch: List[sd.Command],
+        opbranch: Tuple[sd.Command, ...],
         new_parent: sd.Command,
         slice_start: int = 1,
         as_implicit: bool = False,
@@ -187,7 +198,7 @@ def reconstruct_tree(
             offsets[op] = parent_offset + op_offset
 
     def maybe_replace_preceding(
-        op: sd.ObjectCommand[so.Object],
+        op: sd.Command,
     ) -> bool:
         """Possibly merge and replace an earlier command with *op*.
 
@@ -250,7 +261,7 @@ def reconstruct_tree(
         return True
 
     def maybe_attach_to_preceding(
-        opbranch: List[sd.Command],
+        opbranch: Tuple[sd.Command, ...],
         parent_candidates: List[str],
         allowed_op_types: List[Type[sd.ObjectCommand[so.Object]]],
         as_implicit: bool = False,
@@ -292,18 +303,18 @@ def reconstruct_tree(
 
     # First, build parents and dependencies maps.
     for info in sortedlist:
-        opbranch = info['item']
+        opbranch = info.item
         op = opbranch[-1]
         for j, pop in enumerate(opbranch[1:]):
             parents[pop] = opbranch[j]
-        for dep in info['deps']:
+        for dep in info.deps:
             dep_item = depgraph[dep]
-            dep_stack = dep_item['item']
+            dep_stack = dep_item.item
             dep_op = dep_stack[-1]
             dependencies[op].add(dep_op)
 
     for info in sortedlist:
-        opbranch = info['item']
+        opbranch = info.item
         op = opbranch[-1]
         # Elide empty ALTER statements from output.
         if isinstance(op, sd.AlterObject) and not op.get_subcommands():
@@ -316,7 +327,8 @@ def reconstruct_tree(
         if (
             isinstance(op, sd.ObjectCommand)
             and not isinstance(op, sd.CreateObject)
-            and info['implicit_ancestors']
+            and info.extra is not None
+            and info.extra.implicit_ancestors
         ):
             # This command is deemed to be an implicit effect of another
             # command, such as when alteration is propagated through the
@@ -328,7 +340,7 @@ def reconstruct_tree(
 
             if maybe_attach_to_preceding(
                 opbranch,
-                info['implicit_ancestors'],
+                info.extra.implicit_ancestors,
                 allowed_ops,
                 as_implicit=True,
             ):
@@ -418,7 +430,7 @@ def _break_down(
 def _trace_op(
     op: sd.Command,
     opbranch: List[sd.Command],
-    depgraph: Dict[Tuple[str, str], Dict[str, Any]],
+    depgraph: DepGraph,
     renames: Dict[str, str],
     renames_r: Dict[str, str],
     strongrefs: Dict[str, str],
@@ -466,9 +478,11 @@ def _trace_op(
                 try:
                     ref_item = depgraph[('delete', ref_name)]
                 except KeyError:
-                    ref_item = depgraph[('delete', ref_name)] = {'deps': set()}
+                    ref_item = depgraph[('delete', ref_name)] = (
+                        DepGraphEntry(item=())
+                    )
 
-                ref_item['deps'].add((tag, op.classname))
+                ref_item.deps.add((tag, op.classname))
 
             elif (
                 isinstance(ref, referencing.ReferencedInheritingObject)
@@ -491,9 +505,11 @@ def _trace_op(
                 try:
                     ref_item = depgraph[('delete', ref_name)]
                 except KeyError:
-                    ref_item = depgraph[('delete', ref_name)] = {'deps': set()}
+                    ref_item = depgraph[('delete', ref_name)] = (
+                        DepGraphEntry(item=())
+                    )
 
-                ref_item['deps'].add((tag, op.classname))
+                ref_item.deps.add((tag, op.classname))
 
             elif (
                 isinstance(ref, referencing.ReferencedObject)
@@ -530,12 +546,11 @@ def _trace_op(
                         try:
                             anc_item = depgraph[('delete', ancestor_name)]
                         except KeyError:
-                            anc_item = {'deps': set()}
-                            depgraph[('delete', ancestor_name)] = anc_item
+                            anc_item = depgraph[('delete', ancestor_name)] = (
+                                DepGraphEntry(item=())
+                            )
 
-                        anc_item['deps'].add((
-                            'alterowned', op.classname,
-                        ))
+                        anc_item.deps.add(('alterowned', op.classname))
 
         graph_key = op.classname
 
@@ -561,9 +576,11 @@ def _trace_op(
                 try:
                     ov_item = depgraph[('delete', ovn)]
                 except KeyError:
-                    ov_item = depgraph[('delete', ovn)] = {'deps': set()}
+                    ov_item = depgraph[('delete', ovn)] = (
+                        DepGraphEntry(item=())
+                    )
 
-                ov_item['deps'].add((tag, graph_key))
+                ov_item.deps.add((tag, graph_key))
 
     elif isinstance(op, sd.ObjectCommand):
         # If the object was renamed, use the new name, else use regular.
@@ -601,45 +618,45 @@ def _trace_op(
             try:
                 item = depgraph[('create', ref_name)]
             except KeyError:
-                item = depgraph[('create', ref_name)] = {
-                    'deps': set(),
-                }
+                item = depgraph[('create', ref_name)] = (
+                    DepGraphEntry(item=())
+                )
 
-            item['deps'].add(('create', op.classname))
-            item['deps'].add(('alter', op.classname))
-            item['deps'].add(('rename', op.classname))
+            item.deps.add(('create', op.classname))
+            item.deps.add(('alter', op.classname))
+            item.deps.add(('rename', op.classname))
 
             try:
                 item = depgraph[('alter', ref_name)]
             except KeyError:
-                item = depgraph[('alter', ref_name)] = {
-                    'deps': set(),
-                }
+                item = depgraph[('alter', ref_name)] = (
+                    DepGraphEntry(item=())
+                )
 
-            item['deps'].add(('create', op.classname))
-            item['deps'].add(('alter', op.classname))
-            item['deps'].add(('rename', op.classname))
+            item.deps.add(('create', op.classname))
+            item.deps.add(('alter', op.classname))
+            item.deps.add(('rename', op.classname))
 
             try:
                 item = depgraph[('rebase', ref_name)]
             except KeyError:
-                item = depgraph[('rebase', ref_name)] = {
-                    'deps': set(),
-                }
+                item = depgraph[('rebase', ref_name)] = (
+                    DepGraphEntry(item=())
+                )
 
-            item['deps'].add(('create', op.classname))
-            item['deps'].add(('alter', op.classname))
-            item['deps'].add(('rename', op.classname))
+            item.deps.add(('create', op.classname))
+            item.deps.add(('alter', op.classname))
+            item.deps.add(('rename', op.classname))
 
             try:
                 item = depgraph[('rename', ref_name)]
             except KeyError:
-                item = depgraph[('rename', ref_name)] = {
-                    'deps': set(),
-                }
+                item = depgraph[('rename', ref_name)] = (
+                    DepGraphEntry(item=())
+                )
 
-            item['deps'].add(('create', op.classname))
-            item['deps'].add(('alter', op.classname))
+            item.deps.add(('create', op.classname))
+            item.deps.add(('alter', op.classname))
 
         if tag in ('create', 'alter'):
             # In a delete/create cycle, deletion must obviously
@@ -696,13 +713,15 @@ def _trace_op(
     try:
         item = depgraph[(tag, graph_key)]
     except KeyError:
-        item = depgraph[(tag, graph_key)] = {'deps': set()}
+        item = depgraph[(tag, graph_key)] = (
+            DepGraphEntry(item=())
+        )
 
-    item['item'] = opbranch
-    item['deps'].update(deps)
-    item['implicit_ancestors'] = [
-        renames_r.get(a, a) for a in implicit_ancestors
-    ]
+    item.item = tuple(opbranch)
+    item.deps |= deps
+    item.extra = DepGraphEntryExtra(
+        implicit_ancestors=[renames_r.get(a, a) for a in implicit_ancestors],
+    )
 
 
 def get_object(
