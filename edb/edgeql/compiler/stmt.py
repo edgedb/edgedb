@@ -420,47 +420,6 @@ def compile_InsertQuery(
     return result
 
 
-def allow_update_or_delete(
-        subject: irast.Set,
-        *,
-        ctx: context.ContextLevel) -> bool:
-    # Allow deleting (...).foo if we would allow deleting (...)
-    if subject.rptr and allow_update_or_delete(subject.rptr.source, ctx=ctx):
-        return True
-
-    # This is a bit of a hack, but allow deleting paths that are in
-    # the factoring_allowlist. This lets us delete FOR iterators and
-    # the INSERT set in INSERT ... ELSE.
-    if (ctx.path_scope.parent
-            and subject.path_id in ctx.path_scope.parent.factoring_allowlist):
-        return True
-
-    sexpr = subject.expr
-
-    if not sexpr:
-        return False
-
-    # Allow non SELECT and filtered things
-    if not isinstance(sexpr, irast.SelectStmt) or sexpr.where:
-        return True
-
-    return allow_update_or_delete(sexpr.result, ctx=ctx)
-
-
-def enforce_constrained_dml(
-        expr: qlast.Expr,
-        subject: irast.Set,
-        where: Optional[qlast.Expr],
-        *,
-        ctx: context.ContextLevel) -> None:
-    if not where and not allow_update_or_delete(subject, ctx=ctx):
-        typ = "DELETE" if isinstance(expr, qlast.DeleteQuery) else "UPDATE"
-        raise errors.QueryError(
-            f'{typ} statement requires a FILTER clause',
-            context=expr.context
-        )
-
-
 @dispatch.compile.register(qlast.UpdateQuery)
 def compile_UpdateQuery(
         expr: qlast.UpdateQuery, *, ctx: context.ContextLevel) -> irast.Set:
@@ -469,6 +428,12 @@ def compile_UpdateQuery(
         raise errors.QueryError(
             'UPDATE statements cannot be used inside conditional expressions',
             context=expr.context,
+        )
+
+    if not expr.where:
+        raise errors.QueryError(
+            f'UPDATE statement requires a FILTER clause',
+            context=expr.context
         )
 
     # Record this node in the list of potential DML expressions.
@@ -480,8 +445,6 @@ def compile_UpdateQuery(
 
         subject = dispatch.compile(expr.subject, ctx=ictx)
         assert isinstance(subject, irast.Set)
-
-        enforce_constrained_dml(expr, subject, where=expr.where, ctx=ictx)
 
         subj_type = inference.infer_type(subject, ictx.env)
         if not isinstance(subj_type, s_objtypes.ObjectType):
@@ -544,6 +507,12 @@ def compile_DeleteQuery(
             context=expr.context,
         )
 
+    if not expr.where:
+        raise errors.QueryError(
+            f'DELETE statement requires a FILTER clause',
+            context=expr.context
+        )
+
     # Record this node in the list of potential DML expressions.
     ctx.env.dml_exprs.append(expr)
 
@@ -551,7 +520,6 @@ def compile_DeleteQuery(
         stmt = irast.DeleteStmt(context=expr.context)
         # Expand the DELETE from sugar into full DELETE (SELECT ...)
         # form, if there's any additional clauses.
-        where = expr.where
         if any([expr.where, expr.orderby, expr.offset, expr.limit]):
             if expr.offset or expr.limit:
                 subjql = qlast.SelectQuery(
@@ -591,8 +559,6 @@ def compile_DeleteQuery(
             scopectx.implicit_limit = 0
             subject = setgen.scoped_set(
                 dispatch.compile(expr.subject, ctx=scopectx), ctx=scopectx)
-
-        enforce_constrained_dml(expr, subject, where=where, ctx=ictx)
 
         subj_type = inference.infer_type(subject, ictx.env)
         if not isinstance(subj_type, s_objtypes.ObjectType):
