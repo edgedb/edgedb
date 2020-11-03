@@ -324,6 +324,11 @@ class CreateScalarType(
 
                 shell = bases[0]
                 assert isinstance(shell, AnonymousEnumTypeShell)
+                if len(set(shell.elements)) != len(shell.elements):
+                    raise errors.SchemaDefinitionError(
+                        f'enums cannot contain duplicate values',
+                        context=astnode.bases[0].context,
+                    )
                 create_cmd.set_attribute_value('enum_values', shell.elements)
                 create_cmd.set_attribute_value('is_final', True)
                 create_cmd.set_attribute_value('bases', [
@@ -406,10 +411,53 @@ class RebaseScalarType(
         self.scls = scls
         assert isinstance(scls, ScalarType)
 
-        enum_values = scls.get_enum_values(schema)
-        if enum_values:
-            raise errors.UnsupportedFeatureError(
-                f'altering enum composition is not supported')
+        cur_labels = scls.get_enum_values(schema)
+
+        if cur_labels:
+
+            if self.removed_bases and not self.added_bases:
+                raise errors.SchemaError(
+                    f'cannot DROP EXTENDING enum')
+
+            all_bases = []
+
+            for bases, pos in self.added_bases:
+                # Check that there aren't any non-enum bases.
+                for base in bases:
+                    if isinstance(base, AnonymousEnumTypeShell):
+                        is_enum_base = True
+                    elif isinstance(base, s_types.TypeShell):
+                        is_enum_base = base.resolve(schema).is_enum(schema)
+                    else:
+                        is_enum_base = base.is_enum(schema)
+
+                    if not is_enum_base:
+                        raise errors.SchemaError(
+                            f'cannot add another type as supertype, '
+                            f'enumeration must be the only supertype specified'
+                        )
+
+                # Since all bases are enums at this point, error
+                # messages only mention about enums.
+                if pos:
+                    raise errors.SchemaError(
+                        f'cannot add another enum as supertype, '
+                        f'use EXTENDING without position qualification')
+
+                all_bases.extend(bases)
+
+            if len(all_bases) > 1:
+                raise errors.SchemaError(
+                    f'cannot set more than one enum as supertype')
+
+            new_base = all_bases[0]
+            new_labels = new_base.elements
+
+            schema = self._validate_enum_change(
+                scls, cur_labels, new_labels, schema, context)
+
+            return schema
+
         else:
             return super().apply(schema, context)
 
@@ -439,21 +487,21 @@ class RebaseScalarType(
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        if len(set(new_labels)) != len(new_labels):
+        new_set = set(new_labels)
+        if len(new_set) != len(new_labels):
             raise errors.SchemaError(
-                f'enum labels are not unique')
+                f'enums cannot contain duplicate values')
 
         cur_set = set(cur_labels)
-
-        if cur_set - set(new_labels):
+        if cur_set - new_set:
             raise errors.SchemaError(
                 f'cannot remove labels from an enumeration type')
 
-        existing = [label for label in new_labels if label in cur_set]
-        if existing != cur_labels:
-            raise errors.SchemaError(
-                f'cannot change the relative order of existing labels '
-                f'in an enumeration type')
+        for cur_label, new_label in zip(cur_labels, new_labels):
+            if cur_label != new_label:
+                raise errors.SchemaError(
+                    f'cannot change the existing labels in an enumeration '
+                    f'type, only appending new labels is allowed')
 
         self.set_attribute_value('enum_values', new_labels)
         schema = stype.set_field_value(schema, 'enum_values', new_labels)
