@@ -806,12 +806,13 @@ class TestTree(tb.QueryTestCase):
                     # update its first child node ('000')
                     TC := (
                         UPDATE (SELECT T00.children
-                        FILTER true
                         ORDER BY .val
                         LIMIT 1)
+                        FILTER true
                         SET {parent := T00.parent}
                     ),
                 UPDATE T00
+                FILTER true
                 SET {parent := TC};
             """
         )
@@ -976,6 +977,7 @@ class TestTree(tb.QueryTestCase):
                         SET {parent := .parent.parent}
                     )
                 UPDATE TP
+                FILTER true
                 SET {parent := T000};
             """
         )
@@ -1043,6 +1045,7 @@ class TestTree(tb.QueryTestCase):
                     # update the parent of '000'
                     TP := (
                         UPDATE (SELECT T000.parent)
+                        FILTER true
                         SET {
                             children := (
                                 SELECT _ := .children
@@ -1053,6 +1056,7 @@ class TestTree(tb.QueryTestCase):
                     # update the grand-parent of '000'
                     TPP := (
                         UPDATE (SELECT TP.parent)
+                        FILTER true
                         SET {
                             children := (
                                 SELECT _ := {.children, T000}
@@ -1062,6 +1066,7 @@ class TestTree(tb.QueryTestCase):
                     )
                 # update node '000'
                 UPDATE (SELECT _ := TPP.children FILTER _ = T000)
+                FILTER true
                 SET {
                     children := {.children, TP}
                 };

@@ -456,10 +456,8 @@ class TestUpdate(tb.QueryTestCase):
 
         finally:
             await self.con.execute(r"""
-                DELETE (
-                    SELECT test::UpdateTest
-                    FILTER .name LIKE '%ret5._'
-                );
+                DELETE test::UpdateTest
+                FILTER .name LIKE '%ret5._';
             """)
 
     async def test_edgeql_update_generic_01(self):
@@ -2588,14 +2586,3 @@ class TestUpdate(tb.QueryTestCase):
                 WITH X := test::UpdateTest
                 UPDATE X SET { comment := '' }
             ''')
-
-    async def test_edgeql_update_all_03(self):
-        await self.con.execute(r'''
-            FOR X IN {test::UpdateTest}
-            UNION (UPDATE X SET { comment := '' })
-        ''')
-
-        await self.assert_query_result(
-            r'''SELECT DISTINCT test::UpdateTest.comment''',
-            [''],
-        )

@@ -132,7 +132,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                     edgedb.ConstraintViolationError,
                     'deletion of test::Target1.* is prohibited by link'):
                 await self.con.execute("""
-                    DELETE (SELECT test::Target1 FILTER .name = 'Target1.1');
+                    DELETE test::Target1 FILTER .name = 'Target1.1';
                 """)
 
     async def test_link_on_target_delete_restrict_02(self):
@@ -155,8 +155,8 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                     edgedb.ConstraintViolationError,
                     'deletion of test::Target1.* is prohibited by link'):
                 await self.con.execute("""
-                    DELETE (SELECT test::Target1Child
-                            FILTER .name = 'Target1Child.1');
+                    DELETE test::Target1Child
+                    FILTER .name = 'Target1Child.1';
                 """)
 
     async def test_link_on_target_delete_restrict_03(self):
@@ -179,7 +179,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                     edgedb.ConstraintViolationError,
                     'deletion of test::Target1 .* is prohibited by link'):
                 await self.con.execute("""
-                    DELETE (SELECT test::Target1 FILTER .name = 'Target1.1');
+                    DELETE test::Target1 FILTER .name = 'Target1.1';
                 """)
 
     async def test_link_on_target_delete_restrict_04(self):
@@ -202,8 +202,8 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                     edgedb.ConstraintViolationError,
                     'deletion of test::Target1.* is prohibited by link'):
                 await self.con.execute("""
-                    DELETE (SELECT test::Target1Child
-                            FILTER .name = 'Target1Child.1');
+                    DELETE test::Target1Child
+                    FILTER .name = 'Target1Child.1';
                 """)
 
     async def test_link_on_target_delete_restrict_05(self):
@@ -304,8 +304,8 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                 """)
 
                 await self.con.execute("""
-                    DELETE (SELECT test::Target1
-                            FILTER .name = 'Target1.1');
+                    DELETE test::Target1
+                    FILTER .name = 'Target1.1';
                 """)
 
                 exception_is_deferred = True
@@ -335,8 +335,8 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                 """)
 
                 await self.con.execute("""
-                    DELETE (SELECT test::Target1
-                            FILTER .name = 'Target1.1');
+                    DELETE test::Target1
+                    FILTER .name = 'Target1.1';
                 """)
 
                 exception_is_deferred = True
@@ -388,8 +388,8 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                     };
 
                     # delete the target with deferred trigger
-                    DELETE (SELECT Target1
-                            FILTER .name = 'Target4.1');
+                    DELETE Target1
+                    FILTER .name = 'Target4.1';
 
                     # assign a new target to the `tgt1_deferred_restrict`
                     INSERT Target1 {
@@ -418,10 +418,10 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
         finally:
             # cleanup
             await self.con.execute("""
-                DELETE (SELECT test::Source1
-                        FILTER .name = 'Source4.1');
-                DELETE (SELECT test::Target1
-                        FILTER .name = 'Target4.2');
+                DELETE test::Source1
+                FILTER .name = 'Source4.1';
+                DELETE test::Target1
+                FILTER .name = 'Target4.2';
             """)
 
     async def test_link_on_target_delete_allow_01(self):
@@ -456,7 +456,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
             )
 
             await self.con.execute("""
-                DELETE (SELECT test::Target1 FILTER .name = 'Target1.1');
+                DELETE test::Target1 FILTER .name = 'Target1.1';
             """)
 
             await self.assert_query_result(
@@ -508,7 +508,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
             )
 
             await self.con.execute("""
-                DELETE (SELECT test::Target1 FILTER .name = 'Target1.1');
+                DELETE test::Target1 FILTER .name = 'Target1.1';
             """)
 
             await self.assert_query_result(
@@ -573,7 +573,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
             )
 
             await self.con.execute("""
-                DELETE (SELECT test::Target1 FILTER .name = 'Target1.1');
+                DELETE test::Target1 FILTER .name = 'Target1.1';
             """)
 
             await self.assert_query_result(
@@ -664,7 +664,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
             )
 
             await self.con.execute("""
-                DELETE (SELECT test::Target1 FILTER .name = 'Target1.1');
+                DELETE test::Target1 FILTER .name = 'Target1.1';
             """)
 
             await self.assert_query_result(
@@ -771,7 +771,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
             )
 
             await self.con.execute("""
-                DELETE (SELECT test::Target1 FILTER .name = 'Target1.1');
+                DELETE test::Target1 FILTER .name = 'Target1.1';
             """)
 
             await self.assert_query_result(
@@ -841,7 +841,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
             )
 
             await self.con.execute("""
-                DELETE (SELECT test::Target1 FILTER .name = 'Target1.1');
+                DELETE test::Target1 FILTER .name = 'Target1.1';
             """)
 
             await self.assert_query_result(
@@ -905,10 +905,8 @@ class TestLinkTargetDeleteMigrations(stb.DDLTestCase):
                     )
                 };
 
-                DELETE (
-                    SELECT test::AbstractObjectType
-                    FILTER .foo.name = 'Target1_migration_01'
-                );
+                DELETE test::AbstractObjectType
+                FILTER .foo.name = 'Target1_migration_01';
             ''')
 
     async def test_link_on_target_delete_migration_02(self):
@@ -942,5 +940,5 @@ class TestLinkTargetDeleteMigrations(stb.DDLTestCase):
                     edgedb.ConstraintViolationError,
                     'deletion of test::Target1 .* is prohibited by link'):
                 await self.con.execute("""
-                    DELETE (SELECT test::Target1 FILTER .name = 'Target1.m02');
+                    DELETE test::Target1 FILTER .name = 'Target1.m02';
                 """)

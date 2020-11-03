@@ -45,7 +45,7 @@ class TestDelete(tb.QueryTestCase):
                 r'cannot delete non-ObjectType object'):
 
             await self.con.execute('''\
-                DELETE 42;
+                DELETE 42 FILTER true;
             ''')
         pass
 
@@ -95,8 +95,8 @@ class TestDelete(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 WITH MODULE test
-                DELETE (SELECT DeleteTest
-                        FILTER DeleteTest.name = 'bad name');
+                DELETE DeleteTest
+                FILTER DeleteTest.name = 'bad name';
             """,
             [],
         )
@@ -112,8 +112,8 @@ class TestDelete(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 WITH MODULE test
-                SELECT (DELETE (SELECT DeleteTest
-                        FILTER DeleteTest.name = 'delete-test1'));
+                SELECT (DELETE DeleteTest
+                        FILTER DeleteTest.name = 'delete-test1');
             """,
             [{'id': id1}],
         )
@@ -129,8 +129,8 @@ class TestDelete(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 WITH MODULE test
-                SELECT (DELETE (SELECT DeleteTest
-                        FILTER DeleteTest.name = 'delete-test2'));
+                SELECT (DELETE DeleteTest
+                        FILTER DeleteTest.name = 'delete-test2');
             """,
             [{'id': id2}],
         )
@@ -409,7 +409,7 @@ class TestDelete(tb.QueryTestCase):
                     UNION
                     (SELECT DeleteTest2 FILTER .name ILIKE 'delete union%')
                 )
-            DELETE ToDelete;
+            DELETE ToDelete FILTER true;
         """)
 
         await self.assert_query_result(
@@ -508,15 +508,3 @@ class TestDelete(tb.QueryTestCase):
                 WITH X := test::DeleteTest
                 DELETE X
             ''')
-
-    async def test_edgeql_delete_all_03(self):
-        # We want to allow it for FOR ... UNION
-        await self.con.execute(r'''
-            FOR X IN {test::DeleteTest}
-            UNION (DELETE X)
-        ''')
-
-        await self.assert_query_result(
-            r'''SELECT test::DeleteTest''',
-            [],
-        )
