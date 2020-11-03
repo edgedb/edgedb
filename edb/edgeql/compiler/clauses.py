@@ -125,6 +125,10 @@ def compile_limit_offset_clause(
         ir_set = None
     else:
         with ctx.newscope(fenced=True) as subctx:
+            # Clear out the partial_path_prefix, since we aren't in
+            # the scope of the select subject
+            subctx.partial_path_prefix = None
+
             ir_expr = dispatch.compile(expr, ctx=subctx)
             int_t = ctx.env.get_track_schema_type('std::int64')
             ir_set = setgen.scoped_set(
