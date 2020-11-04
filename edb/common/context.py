@@ -201,6 +201,16 @@ def _get_context(items, *, reverse=False):
     return None
 
 
+def empty_context():
+    """Return a dummy context that points to an empty string."""
+    return ParserContext(
+        name='<empty>',
+        buffer='',
+        start=SourcePoint(0, 0, 0),
+        end=SourcePoint(0, 0, 0),
+    )
+
+
 def get_context(*kids):
     start_ctx = _get_context(kids)
     end_ctx = _get_context(kids, reverse=True)

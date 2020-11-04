@@ -373,7 +373,7 @@ class BaseSchemaTest(BaseDocTest):
                     last_migration_ref = None
 
                 create_migration = qlast.CreateMigration(
-                    commands=migration_script,
+                    body=qlast.MigrationBody(commands=migration_script),
                     auto_diff=migration_plan,
                     parent=last_migration_ref,
                 )

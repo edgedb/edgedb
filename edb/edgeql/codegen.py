@@ -1036,8 +1036,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             if node.parent is not None:
                 self.write(' ONTO ')
                 self.write(ident_to_str(node.parent.name))
-        if node.commands:
-            self._ddl_visit_body(node.commands)
+        if node.body.commands:
+            self._ddl_visit_body(node.body.commands)
 
     def visit_StartMigration(self, node: qlast.StartMigration) -> None:
         self.write('START MIGRATION TO {')
