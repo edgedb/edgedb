@@ -21,16 +21,9 @@ from __future__ import annotations
 
 from typing import *
 
-from . import parser as ql_parser
+from . import parser as qlparser
 from .. import ast as qlast
-
-if TYPE_CHECKING:
-    from edb import _edgeql_rust
-
-
-def parse_fragment(expr):
-    parser = ql_parser.EdgeQLExpressionParser()
-    return parser.parse(expr)
+from .. import tokenizer as qltokenizer
 
 
 def append_module_aliases(tree, aliases):
@@ -47,8 +40,18 @@ def append_module_aliases(tree, aliases):
     return tree
 
 
-def parse(expr, module_aliases=None):
-    tree = parse_fragment(expr)
+def parse_fragment(source: Union[qltokenizer.Source, str]):
+    if isinstance(source, str):
+        source = qltokenizer.Source.from_string(source)
+    parser = qlparser.EdgeQLExpressionParser()
+    return parser.parse(source)
+
+
+def parse(
+    source: Union[qltokenizer.Source, str],
+    module_aliases: Optional[Mapping[Optional[str], str]] = None,
+) -> qlast.Base:
+    tree = parse_fragment(source)
 
     if not isinstance(tree, qlast.Command):
         tree = qlast.SelectQuery(result=tree)
@@ -59,22 +62,19 @@ def parse(expr, module_aliases=None):
     return tree
 
 
-def parse_block_tokens(eql_tokens: List[_edgeql_rust.Token]):
-    parser = ql_parser.EdgeQLBlockParser()
-    return parser.parse(eql_tokens)
+def parse_block(source: Union[qltokenizer.Source, str]) -> List[qlast.Base]:
+    if isinstance(source, str):
+        source = qltokenizer.Source.from_string(source)
+    parser = qlparser.EdgeQLBlockParser()
+    return parser.parse(source)
 
 
-def parse_block(expr: str):
-    parser = ql_parser.EdgeQLBlockParser()
-    return parser.parse(expr)
-
-
-def parse_sdl(expr, module_aliases=None):
-    parser = ql_parser.EdgeSDLParser()
+def parse_sdl(expr: str):
+    parser = qlparser.EdgeSDLParser()
     return parser.parse(expr)
 
 
 def preload():
-    ql_parser.EdgeQLBlockParser().get_parser_spec()
-    ql_parser.EdgeQLExpressionParser().get_parser_spec()
-    ql_parser.EdgeSDLParser().get_parser_spec()
+    qlparser.EdgeQLBlockParser().get_parser_spec()
+    qlparser.EdgeQLExpressionParser().get_parser_spec()
+    qlparser.EdgeSDLParser().get_parser_spec()

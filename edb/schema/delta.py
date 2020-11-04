@@ -3071,7 +3071,7 @@ class AlterObjectProperty(Command):
         parent_cls = parent_op.get_schema_metaclass()
         has_shadow = parent_cls.has_field(f'orig_{field.name}')
 
-        if context.descriptive_mode:
+        if context.descriptive_mode and self.new_value.origtext is not None:
             # When generating AST for DESCRIBE AS TEXT, we want
             # to use the original user-specified and unmangled
             # expression to render the object definition.

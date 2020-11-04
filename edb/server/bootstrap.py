@@ -33,6 +33,7 @@ import psutil
 from edb import errors
 
 from edb import edgeql
+from edb.edgeql import ast as qlast
 
 from edb.common import context as parser_context
 from edb.common import debug
@@ -53,7 +54,6 @@ from edb.server import buildmeta
 from edb.server import config
 from edb.server import compiler as edbcompiler
 from edb.server import defines as edbdef
-from edb.server import tokenizer  # type: ignore
 
 from edb.pgsql import common as pg_common
 from edb.pgsql import dbops
@@ -101,6 +101,7 @@ async def _execute_edgeql_ddl(
     context = sd.CommandContext(stdmode=stdmode)
 
     for ddl_cmd in edgeql.parse_block(ddltext):
+        assert isinstance(ddl_cmd, qlast.DDLCommand)
         delta_command = s_ddl.delta_from_ddl(
             ddl_cmd, modaliases={}, schema=schema, stdmode=stdmode)
 
@@ -380,6 +381,7 @@ async def _make_stdlib(testmode: bool, global_ids) -> StdlibBits:
     std_plans: List[sd.Command] = []
 
     for ddl_cmd in edgeql.parse_block(ddl_text):
+        assert isinstance(ddl_cmd, qlast.DDLCommand)
         delta_command = s_ddl.delta_from_ddl(
             ddl_cmd, modaliases={}, schema=schema, stdmode=True)
 
@@ -458,8 +460,8 @@ async def _make_stdlib(testmode: bool, global_ids) -> StdlibBits:
     sql_introparts = []
 
     for intropart in introparts:
-        introtokens = tokenizer.tokenize(intropart.encode())
-        units = compiler._compile(ctx=compilerctx, tokens=introtokens)
+        intro_source = edgeql.Source.from_string(intropart)
+        units = compiler._compile(ctx=compilerctx, source=intro_source)
         assert len(units) == 1 and len(units[0].sql) == 1
         sql_intropart = units[0].sql[0].decode()
         sql_introparts.append(sql_intropart)
@@ -490,6 +492,7 @@ async def _amend_stdlib(
     context.stdmode = True
 
     for ddl_cmd in edgeql.parse_block(ddl_text):
+        assert isinstance(ddl_cmd, qlast.DDLCommand)
         delta_command = s_ddl.delta_from_ddl(
             ddl_cmd, modaliases={}, schema=schema, stdmode=True)
 

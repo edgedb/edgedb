@@ -23,13 +23,13 @@ import urllib.parse
 import immutables
 
 from edb import errors
+from edb import edgeql
 from edb.server.pgcon import errors as pgerrors
 
 from edb.common import debug
 from edb.common import markup
 
 from edb.server import compiler
-from edb.server import tokenizer
 from edb.server.compiler import IoFormat
 from edb.server.http import http
 from edb.server.http cimport http
@@ -129,9 +129,9 @@ cdef class Protocol(http.HttpProtocol):
         comp = await self.server.compilers.get()
         try:
             units = await comp.call(
-                'compile_eql_tokens',
+                'compile',
                 dbver,
-                tokenizer.tokenize(query),
+                edgeql.Source.from_string(query.decode('utf-8')),
                 None,           # modaliases
                 None,           # session config
                 IoFormat.JSON,  # json mode
@@ -139,7 +139,6 @@ cdef class Protocol(http.HttpProtocol):
                 0,              # no implicit limit
                 compiler.CompileStatementMode.SINGLE,
                 compiler.Capability.QUERY,
-                None,           # first_extracted_var
                 True,           # json parameters
             )
             return units[0]

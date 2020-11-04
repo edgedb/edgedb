@@ -29,8 +29,6 @@ import re
 
 import parsing
 
-from edb import errors
-
 from edb.common.exceptions import add_context, get_context
 from edb.common import context as pctx
 from edb.common import lexer
@@ -311,7 +309,10 @@ class Spec(parsing.Spec):
 
 
 def _derive_hint(
-        input: str, message: str, position: (int, int, int)) -> Optional[str]:
+    input: str,
+    message: str,
+    position: Tuple[int, int, int],
+) -> Optional[str]:
     _, _, off = position
     if message == r"invalid string literal: invalid escape sequence '\ '":
         if TRAILING_WS_IN_CONTINUATION.search(input[off:]):
@@ -420,13 +421,9 @@ class Parser:
         except lexer.LexError as e:
             raise self.get_exception(e, context=self.context(None)) from e
 
-        except errors.InvalidSyntaxError as e:
-            raise self.get_exception(
-                e, context=self.context(tok), token=tok) from e
-
         return self.parser.start[0].val
 
-    def context(self, tok=None, pos: (int, int, int) = None):
+    def context(self, tok=None, pos: Tuple[int, int, int] = None):
         lex = self.lexer
         name = lex.filename if lex.filename else '<string>'
 

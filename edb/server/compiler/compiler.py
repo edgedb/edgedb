@@ -31,10 +31,8 @@ import asyncpg
 import immutables
 
 from edb import errors
-from edb import _edgeql_rust
 
 from edb.server import defines
-from edb.server import tokenizer
 from edb.pgsql import compiler as pg_compiler
 
 from edb import edgeql
@@ -104,7 +102,7 @@ class CompileContext:
     schema_reflection_mode: bool = False
     implicit_limit: int = 0
     schema_object_ids: Optional[Mapping[str, uuid.UUID]] = None
-    first_extracted_var: Optional[int] = None
+    source: Optional[edgeql.Source] = None
     backend_instance_params: BackendInstanceParams = BackendInstanceParams()
     compat_ver: Optional[verutils.Version] = None
     bootstrap_mode: bool = False
@@ -539,8 +537,8 @@ class Compiler(BaseCompiler):
         eql: str,
     ) -> Tuple[str, Dict[str, int]]:
 
-        tokens = _edgeql_rust.tokenize(eql)
-        units = self._compile(ctx=ctx, tokens=tokens)
+        source = edgeql.Source.from_string(eql)
+        units = self._compile(ctx=ctx, source=source)
 
         sql_stmts = []
         for u in units:
@@ -649,8 +647,13 @@ class Compiler(BaseCompiler):
             if ir.params:
                 first_param = next(iter(ir.params))
                 named = not first_param.name.isdecimal()
-                if ctx.first_extracted_var is not None:
-                    user_params = ctx.first_extracted_var
+                if (src := ctx.source) is not None:
+                    first_extracted = src.first_extra()
+                else:
+                    first_extracted = None
+
+                if first_extracted is not None:
+                    user_params = first_extracted
                 else:
                     user_params = len(ir.params)
 
@@ -660,8 +663,7 @@ class Compiler(BaseCompiler):
                     sql_param = argmap[param.name]
 
                     idx = sql_param.index - 1
-                    if(ctx.first_extracted_var is not None and
-                            idx >= ctx.first_extracted_var):
+                    if first_extracted is not None and idx >= first_extracted:
                         continue
 
                     array_tid = None
@@ -1403,7 +1405,7 @@ class Compiler(BaseCompiler):
         self,
         *,
         ctx: CompileContext,
-        tokens: List[_edgeql_rust.Token],
+        source: edgeql.Source,
     ) -> List[dbstate.QueryUnit]:
 
         # When True it means that we're compiling for "connection.query()".
@@ -1412,7 +1414,7 @@ class Compiler(BaseCompiler):
         single_stmt_mode = ctx.stmt_mode is enums.CompileStatementMode.SINGLE
         default_cardinality = enums.ResultCardinality.NO_RESULT
 
-        statements = edgeql.parse_block_tokens(tokens)
+        statements = edgeql.parse_block(source)
         statements_len = len(statements)
 
         if ctx.stmt_mode is enums.CompileStatementMode.SKIP_FIRST:
@@ -1602,6 +1604,7 @@ class Compiler(BaseCompiler):
     async def _ctx_new_con_state(
         self,
         *,
+        source: Optional[edgeql.Source] = None,
         dbver: bytes,
         io_format: enums.IoFormat,
         expect_one: bool,
@@ -1613,7 +1616,6 @@ class Compiler(BaseCompiler):
         json_parameters: bool=False,
         schema: Optional[s_schema.Schema] = None,
         schema_object_ids: Optional[Mapping[str, uuid.UUID]] = None,
-        first_extracted_var: Optional[int] = None,
         compat_ver: Optional[verutils.Version] = None,
     ) -> CompileContext:
 
@@ -1652,17 +1654,21 @@ class Compiler(BaseCompiler):
             json_parameters=json_parameters,
             schema_object_ids=schema_object_ids,
             compat_ver=compat_ver,
-            first_extracted_var=first_extracted_var,
+            source=source,
         )
 
         return ctx
 
-    async def _ctx_from_con_state(self, *, txid: int,
-                                  io_format: enums.IoFormat,
-                                  expect_one: bool,
-                                  implicit_limit: int,
-                                  stmt_mode: enums.CompileStatementMode,
-                                  first_extracted_var: Optional[int]=None):
+    async def _ctx_from_con_state(
+        self,
+        *,
+        source: edgeql.Source,
+        txid: int,
+        io_format: enums.IoFormat,
+        expect_one: bool,
+        implicit_limit: int,
+        stmt_mode: enums.CompileStatementMode,
+    ):
         state = self._load_state(txid)
 
         ctx = CompileContext(
@@ -1671,7 +1677,8 @@ class Compiler(BaseCompiler):
             expected_cardinality_one=expect_one,
             implicit_limit=implicit_limit,
             stmt_mode=stmt_mode,
-            first_extracted_var=first_extracted_var)
+            source=source,
+        )
 
         return ctx
 
@@ -1753,17 +1760,19 @@ class Compiler(BaseCompiler):
         ] = []
 
         for query in queries:
-            ctx = await self._ctx_from_con_state(
-                txid=txid,
-                io_format=enums.IoFormat.BINARY,
-                expect_one=False,
-                implicit_limit=implicit_limit,
-                stmt_mode=enums.CompileStatementMode.SINGLE)
-
             try:
-                tokens = tokenizer.tokenize(query)
+                source = edgeql.Source.from_string(query)
+                ctx = await self._ctx_from_con_state(
+                    source=source,
+                    txid=txid,
+                    io_format=enums.IoFormat.BINARY,
+                    expect_one=False,
+                    implicit_limit=implicit_limit,
+                    stmt_mode=enums.CompileStatementMode.SINGLE,
+                )
+
                 result.append(
-                    (False, self._compile(ctx=ctx, tokens=tokens)[0]))
+                    (False, self._compile(ctx=ctx, source=source)[0]))
             except Exception as ex:
                 fields = {}
                 typename = 'Error'
@@ -1779,10 +1788,10 @@ class Compiler(BaseCompiler):
 
         return result
 
-    async def compile_eql_tokens(
+    async def compile(
         self,
         dbver: bytes,
-        eql_tokens: List[_edgeql_rust.Token],
+        source: edgeql.Source,
         sess_modaliases: Optional[immutables.Map],
         sess_config: Optional[immutables.Map],
         io_format: enums.IoFormat,
@@ -1790,11 +1799,11 @@ class Compiler(BaseCompiler):
         implicit_limit: int,
         stmt_mode: enums.CompileStatementMode,
         capability: enums.Capability,
-        first_extracted_var: Optional[int]=None,
         json_parameters: bool=False,
     ) -> List[dbstate.QueryUnit]:
 
         ctx = await self._ctx_new_con_state(
+            source=source,
             dbver=dbver,
             io_format=io_format,
             expect_one=expect_one,
@@ -1804,30 +1813,30 @@ class Compiler(BaseCompiler):
             stmt_mode=enums.CompileStatementMode(stmt_mode),
             capability=capability,
             json_parameters=json_parameters,
-            first_extracted_var=first_extracted_var)
+        )
 
-        return self._compile(ctx=ctx, tokens=eql_tokens)
+        return self._compile(ctx=ctx, source=source)
 
-    async def compile_eql_tokens_in_tx(
+    async def compile_in_tx(
         self,
         txid: int,
-        eql_tokens: List[_edgeql_rust.Token],
+        source: edgeql.Source,
         io_format: enums.IoFormat,
         expect_one: bool,
         implicit_limit: int,
         stmt_mode: enums.CompileStatementMode,
-        first_extracted_var: Optional[int]=None,
     ) -> List[dbstate.QueryUnit]:
 
         ctx = await self._ctx_from_con_state(
+            source=source,
             txid=txid,
             io_format=io_format,
             expect_one=expect_one,
             implicit_limit=implicit_limit,
             stmt_mode=enums.CompileStatementMode(stmt_mode),
-            first_extracted_var=first_extracted_var)
+        )
 
-        return self._compile(ctx=ctx, tokens=eql_tokens)
+        return self._compile(ctx=ctx, source=source)
 
     async def interpret_backend_error(self, dbver, fields):
         db = await self._get_database(dbver)
@@ -2064,10 +2073,8 @@ class Compiler(BaseCompiler):
         )
         ctx.state.start_tx()
 
-        units = self._compile(
-            ctx=ctx,
-            tokens=tokenizer.tokenize(schema_ddl),
-        )
+        ddl_source = edgeql.Source.from_string(schema_ddl.decode('utf-8'))
+        units = self._compile(ctx=ctx, source=ddl_source)
         schema = ctx.state.current_tx().get_schema()
 
         restore_blocks = []
