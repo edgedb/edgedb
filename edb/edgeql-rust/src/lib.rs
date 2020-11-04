@@ -3,6 +3,7 @@
 use cpython::PyString;
 
 mod errors;
+mod float;
 mod keywords;
 mod tokenizer;
 pub mod normalize;

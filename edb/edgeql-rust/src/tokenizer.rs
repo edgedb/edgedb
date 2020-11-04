@@ -17,6 +17,7 @@ use edgeql_parser::keywords::{FUTURE_RESERVED_KEYWORDS};
 use edgeql_parser::helpers::unquote_string;
 use crate::errors::TokenizerError;
 use crate::pynormalize::py_pos;
+use crate::float;
 
 static mut TOKENS: Option<Tokens> = None;
 
@@ -499,15 +500,9 @@ fn convert(py: Python, tokens: &Tokens, cache: &mut Cache,
                     (&value[..value.len()-1].replace("_", ""),), None)?))
         }
         FloatConst => {
-            let float_value = f64::from_str(&value.replace("_", ""))
-                .map_err(|e| TokenizerError::new(py,
-                    (format!("error reading std::float64: {}", e),
-                     py_pos(py, &token.start))))?;
-            if float_value == f64::INFINITY || float_value == -f64::INFINITY {
-                return Err(TokenizerError::new(py,
-                    (format!("number is out of range for std::float64"),
-                     py_pos(py, &token.start))))?;
-            }
+            let float_value = float::convert(value)
+                .map_err(|msg| TokenizerError::new(py,
+                    (&msg, py_pos(py, &token.start))))?;
             Ok((tokens.fconst.clone_ref(py),
                 PyString::new(py, value),
                 float_value.to_py_object(py).into_object()))
