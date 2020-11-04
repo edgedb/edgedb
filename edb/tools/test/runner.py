@@ -166,7 +166,14 @@ class ChannelingTestResultMeta(type):
                 error_text = self._exc_info_to_string(args[-1], args[0])
                 args[-1] = error_text
 
-            self._queue.put((meth, args, kwargs))
+            try:
+                self._queue.put((meth, args, kwargs))
+            except Exception:
+                print(
+                    f'!!! Test worker child process: '
+                    f'failed to serialize arguments for {meth}: '
+                    f'*args={args} **kwargs={kwargs} !!!')
+                raise
         return _wrapper
 
     def __new__(mcls, name, bases, dct):

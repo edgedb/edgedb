@@ -204,6 +204,29 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
                                 f'{expected_val!r})') from e
                 raise
 
+    def __getstate__(self):
+        # TestCases get pickled when run in in separate OS processes
+        # via `edb test -jN`. If they reference any unpickleable objects,
+        # the test engine crashes with no indication why and on what test.
+        # That said, most of the TestCases' guts are not needed for the
+        # test results renderer, so we only keep the essential attributes
+        # here.
+
+        outcome = self._outcome
+        if outcome is not None and outcome.errors:
+            # We don't use `test._outcome` to render errors in
+            # our renderers.
+            outcome.errors = []
+
+        return {
+            '_testMethodName': self._testMethodName,
+            '_outcome': outcome,
+            '_testMethodDoc': self._testMethodDoc,
+            '_subtest': self._subtest,
+            '_cleanups': [],
+            '_type_equality_funcs': self._type_equality_funcs,
+        }
+
 
 _default_cluster = None
 
