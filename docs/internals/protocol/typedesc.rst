@@ -278,6 +278,7 @@ Enumeration Type Descriptor
 Type Annotation Descriptor
 ==========================
 
+Drivers should ignore unknown type annotations.
 
 .. code-block:: c
 
