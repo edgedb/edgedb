@@ -644,7 +644,8 @@ class Compiler(BaseCompiler):
             if native_out_format:
                 out_type_data, out_type_id = sertypes.TypeSerializer.describe(
                     ir.schema, ir.stype,
-                    ir.view_shapes, ir.view_shapes_metadata)
+                    ir.view_shapes, ir.view_shapes_metadata,
+                    inline_typenames=ctx.inline_typenames)
             else:
                 out_type_data, out_type_id = \
                     sertypes.TypeSerializer.describe_json()

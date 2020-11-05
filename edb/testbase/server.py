@@ -396,11 +396,14 @@ class ConnectedTestCaseMixin:
             exp_result_binary = exp_result_json
 
         typenames = random.choice([True, False])
+        typeids = random.choice([True, False])
+
         try:
             res = await self.con._fetchall(
                 query,
                 *fetch_args,
                 __typenames__=typenames,
+                __typeids__=typeids,
                 **fetch_kw
             )
             res = serutils.serialize(res)
@@ -409,7 +412,9 @@ class ConnectedTestCaseMixin:
             self._assert_data_shape(res, exp_result_binary, message=msg)
         except Exception:
             self.add_fail_notes(
-                serialization='binary', __typenames__=typenames)
+                serialization='binary',
+                __typenames__=typenames,
+                __typeids__=typeids)
             raise
 
     def _sort_results(self, results, sort):
