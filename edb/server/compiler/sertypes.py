@@ -463,7 +463,7 @@ class TypeSerializer:
             return ArrayDesc(
                 tid=tid, dim_len=dim_len, subtype=codecs_list[pos])
 
-        elif (t >= 0x7f and t <= 0xff):
+        elif (t >= 0x80 and t <= 0xff):
             # Ignore all type annotations.
             desc.read_len32_prefixed_bytes()
 
