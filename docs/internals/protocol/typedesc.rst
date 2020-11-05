@@ -306,7 +306,7 @@ Drivers must ignore unknown type annotations.
     struct TypeAnnotationDescriptor {
         // Indicates that this is an
         // Type Annotation descriptor.
-        uint8        type = 0x7f..0xfe;
+        uint8        type = 0x80..0xfe;
 
         // ID of the descriptor the
         // annotation is for.
