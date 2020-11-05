@@ -3242,6 +3242,19 @@ aa';
         };
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected 'RENAME'", line=5, col=21)
+    def test_edgeql_syntax_ddl_constraint_11(self):
+        """
+        ALTER TYPE Foo {
+            ALTER LINK bar {
+                ALTER CONSTRAINT my_constraint ON (foo) {
+                    RENAME TO myconstraint;
+                };
+            };
+        };
+        """
+
     def test_edgeql_syntax_ddl_function_01(self):
         """
         CREATE FUNCTION std::strlen(string: std::str) -> std::int64
