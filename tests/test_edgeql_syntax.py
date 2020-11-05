@@ -110,6 +110,31 @@ class TestEdgeQLParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_float_number_too_large(self):
         """SELECT 2+1e999;"""
 
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=1, col=8)
+    def test_edgeql_syntax_float_number_too_small_01(self):
+        """SELECT 0.01e-322;"""
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=1, col=8)
+    def test_edgeql_syntax_float_number_too_small_02(self):
+        """SELECT 1e-324;"""
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=1, col=8)
+    def test_edgeql_syntax_float_number_too_small_03(self):
+        (
+            "SELECT 0."
+            "0000000000_0000000000_0000000000_0000000000"
+            "0000000000_0000000000_0000000000_0000000000"
+            "0000000000_0000000000_0000000000_0000000000"
+            "0000000000_0000000000_0000000000_0000000000"
+            "0000000000_0000000000_0000000000_0000000000"
+            "0000000000_0000000000_0000000000_0000000000"
+            "0000000000_0000000000_0000000000_0000000000"
+            "0000000000_0000000000_0000000000_0000000000"
+            "0000000000_0000000000_0000000000_0000000000"
+            "0000000000_0000000000_0000000000_0000000000"
+            "1;"
+        )
+
     def test_edgeql_syntax_constants_01(self):
         """
         SELECT 0;
@@ -157,6 +182,7 @@ class TestEdgeQLParser(EdgeQLSyntaxTest):
         SELECT 3.543_2e-20;
         SELECT 354.32e-20;
         SELECT 2_354.32e-20;
+        SELECT 0e-999;
 
 % OK %
 
@@ -169,6 +195,7 @@ class TestEdgeQLParser(EdgeQLSyntaxTest):
         SELECT 3.543_2e-20;
         SELECT 354.32e-20;
         SELECT 2_354.32e-20;
+        SELECT 0e-999;
         """
 
     def test_edgeql_syntax_constants_05(self):
