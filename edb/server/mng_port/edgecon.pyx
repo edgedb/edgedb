@@ -92,7 +92,7 @@ cdef object FMT_JSON_ELEMENTS = compiler.IoFormat.JSON_ELEMENTS
 cdef object FMT_SCRIPT = compiler.IoFormat.SCRIPT
 
 cdef tuple DUMP_VER_MIN = (0, 7)
-cdef tuple DUMP_VER_MAX = (0, 8)
+cdef tuple DUMP_VER_MAX = (0, 9)
 
 cdef object logger = logging.getLogger('edb.server')
 cdef object log_metrics = logging.getLogger('edb.server.metrics')
