@@ -373,7 +373,6 @@ Alter the definition of a concrete constraint on the specified schema item.
 
       SET DELEGATED
       DROP DELEGATED
-      RENAME TO <newname>
       SET errmessage := <error-message>
       CREATE ANNOTATION <annotation-name> := <value>
       ALTER ANNOTATION <annotation-name>

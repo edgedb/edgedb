@@ -635,7 +635,6 @@ class AlterConstraintOwned(Nonterm):
 
 commands_block(
     'AlterConcreteConstraint',
-    RenameStmt,
     SetFieldStmt,
     SetDelegatedStmt,
     AlterConstraintOwned,
