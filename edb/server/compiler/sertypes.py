@@ -466,6 +466,7 @@ class TypeSerializer:
         elif (t >= 0x80 and t <= 0xff):
             # Ignore all type annotations.
             desc.read_len32_prefixed_bytes()
+            return None
 
         else:
             raise NotImplementedError(
@@ -480,7 +481,9 @@ class TypeSerializer:
             desc = cls._parse(wrapped, codecs_list)
             if desc is not None:
                 codecs_list.append(desc)
-        return desc
+        if not codecs_list:
+            raise errors.InternalServerError('could not parse type descriptor')
+        return codecs_list[-1]
 
 
 @dataclasses.dataclass(frozen=True)
