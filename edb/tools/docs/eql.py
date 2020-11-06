@@ -685,6 +685,10 @@ class EQLFunctionDirective(BaseEQLDirective):
         if debug.flags.disable_docs_edgeql_validation:
             signode['eql-fullname'] = fullname = sig.split('(')[0]
             signode['eql-signature'] = sig
+            mod, name = fullname.split('::')
+            signode['eql-module'] = mod
+            signode['eql-name'] = name
+
             return fullname
 
         from edb.edgeql.parser import parser as edgeql_parser
@@ -758,6 +762,10 @@ class EQLConstraintDirective(BaseEQLDirective):
         if debug.flags.disable_docs_edgeql_validation:
             signode['eql-fullname'] = fullname = re.split(r'\(| ', sig)[0]
             signode['eql-signature'] = sig
+            mod, name = fullname.split('::')
+            signode['eql-module'] = mod
+            signode['eql-name'] = name
+
             return fullname
 
         from edb.edgeql.parser import parser as edgeql_parser
