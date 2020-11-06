@@ -53,6 +53,7 @@ cdef enum EdgeConnectionStatus:
 @cython.final
 cdef class QueryRequestInfo:
     cdef public object source  # edgeql.Source
+    cdef public str cache_key
     cdef public object io_format
     cdef public bint expect_one
     cdef public int implicit_limit

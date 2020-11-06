@@ -61,8 +61,8 @@ class Source:
 
 class NormalizedSource(Source):
 
-    def __init__(self, normalized: Entry) -> None:
-        self._text = normalized.key()
+    def __init__(self, normalized: Entry, text: str) -> None:
+        self._text = text
         self._tokens = normalized.tokens()
         self._variables = normalized.variables()
         self._first_extra = normalized.first_extra()
@@ -89,7 +89,13 @@ class NormalizedSource(Source):
 
     @classmethod
     def from_string(cls, text: str) -> NormalizedSource:
-        return cls(normalize(text))
+        return cls(normalize(text), text)
+
+    @classmethod
+    def from_string_with_cache_key(cls, text: str) -> (NormalizedSource, str):
+        """Returns a tuple of Source and canonical cache key for the query"""
+        normalized = normalize(text)
+        return cls(normalized, text), normalized.key()
 
 
 def tokenize(eql: str) -> List[Token]:
