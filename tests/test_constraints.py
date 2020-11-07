@@ -183,6 +183,21 @@ class TestConstraintsSchema(tb.QueryTestCase):
                 """)
 
         async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.ConstraintViolationError,
+                    'name violates exclusivity constraint'):
+
+                await self.con.execute("""
+                    INSERT test::UniqueNameInherited {
+                        name := 'exclusive_name_across'
+                    };
+
+                    INSERT test::UniqueName {
+                        name := 'exclusive_name_across'
+                    };
+                """)
+
+        async with self._run_and_rollback():
             await self.con.execute("""
                 INSERT test::UniqueName {
                     name := 'exclusive_name_ok'

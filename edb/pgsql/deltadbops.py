@@ -191,6 +191,7 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
             exprdata = expr['exprdata']
             origin_exprdata = origin_expr['exprdata']
 
+            schemaname, tablename = self.get_origin_table_name()
             text = '''
                 PERFORM
                     TRUE
@@ -201,8 +202,8 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
                 IF FOUND THEN
                   RAISE unique_violation
                       USING
-                          TABLE = '{table[1]}',
-                          SCHEMA = '{table[0]}',
+                          TABLE = '{tablename}',
+                          SCHEMA = '{schemaname}',
                           CONSTRAINT = '{constr}',
                           MESSAGE = '{errmsg}',
                           DETAIL = 'Key ({plain_expr}) already exists.';
@@ -210,7 +211,11 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
             '''.format(
                 plain_expr=origin_exprdata['plain'],
                 new_expr=exprdata['new'],
-                table=common.qname(*self.get_origin_table_name()),
+                table=common.qname(
+                    schemaname,
+                    tablename + "_" + common.get_aspect_suffix("inhview")),
+                schemaname=schemaname,
+                tablename=tablename,
                 constr=raw_constr_name,
                 errmsg=errmsg,
             )
@@ -226,13 +231,7 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
         return self._scope != 'row' and len(self._exprdata) > 1
 
     def requires_triggers(self):
-        return (
-            self._type != 'check'
-            and (
-                self.get_origin_table_name()
-                != self.get_subject_name(quote=False)
-            )
-        )
+        return self._type != 'check'
 
     def __repr__(self):
         return '<{}.{} {!r} at 0x{:x}>'.format(

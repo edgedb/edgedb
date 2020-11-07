@@ -272,11 +272,16 @@ class ConstraintMech:
         }
 
         if constraint_origin != constraint:
+            origin_path_prefix_anchor = (
+                qlast.Subject().name
+                if isinstance(origin_subject, s_types.Type) else None
+            )
             origin_ir = qlcompiler.compile_ast_to_ir(
                 constraint_origin.get_finalexpr(schema).qlast,
                 schema,
                 options=qlcompiler.CompilerOptions(
                     anchors={qlast.Subject().name: origin_subject},
+                    path_prefix_anchor=origin_path_prefix_anchor,
                     apply_query_rewrites=not context.stdmode,
                 ),
             )

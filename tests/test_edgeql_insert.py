@@ -2691,3 +2691,36 @@ class TestInsert(tb.QueryTestCase):
             ''',
             [2]
         )
+
+    async def test_edgeql_insert_and_update_01(self):
+        # INSERTing something that would violate a constraint while
+        # fixing the violation is still supposed to be an error.
+        await self.con.execute('''
+            INSERT test::Person { name := 'foo' };
+        ''')
+
+        with self.assertRaisesRegex(edgedb.ConstraintViolationError,
+                                    "violates exclusivity constraint"):
+            await self.con.execute('''
+                SELECT (
+                    (UPDATE test::Person FILTER .name = 'foo'
+                        SET { name := 'foo' }),
+                    (INSERT test::Person { name := 'foo' })
+                )
+            ''')
+
+    async def test_edgeql_insert_and_delete_01(self):
+        # INSERTing something that would violate a constraint while
+        # fixing the violation is still supposed to be an error.
+        await self.con.execute('''
+            INSERT test::Person { name := 'foo' };
+        ''')
+
+        with self.assertRaisesRegex(edgedb.ConstraintViolationError,
+                                    "violates exclusivity constraint"):
+            await self.con.execute('''
+                SELECT (
+                    (DELETE test::Person FILTER .name = 'foo'),
+                    (INSERT test::Person { name := 'foo' })
+                )
+            ''')

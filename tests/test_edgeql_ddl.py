@@ -5196,6 +5196,27 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     };
                 """)
 
+    async def test_edgeql_ddl_constraint_08(self):
+        # Test non-delegated object constraints on abstract types
+        await self.con.execute(r"""
+            CREATE TYPE test::Base {
+                CREATE PROPERTY x -> str {
+                    CREATE CONSTRAINT exclusive;
+                }
+            };
+            CREATE TYPE test::Foo EXTENDING test::Base;
+            CREATE TYPE test::Bar EXTENDING test::Base;
+
+            INSERT test::Foo { x := "a" };
+        """)
+
+        with self.assertRaisesRegex(
+                edgedb.ConstraintViolationError,
+                r'violates exclusivity constraint'):
+            await self.con.execute(r"""
+                INSERT test::Foo { x := "a" };
+            """)
+
     async def test_edgeql_ddl_constraint_alter_01(self):
         await self.con.execute(r"""
             CREATE TYPE test::ConTest01 {

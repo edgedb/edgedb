@@ -189,6 +189,15 @@ def get_scalar_backend_name(id, module_id, catenate=True, *, aspect=None):
     return convert_name(name, aspect, catenate)
 
 
+def get_aspect_suffix(aspect):
+    if aspect == 'table':
+        return ''
+    elif aspect == 'inhview':
+        return 't'
+    else:
+        return aspect
+
+
 def get_objtype_backend_name(id, module_id, *, catenate=True, aspect=None):
     if aspect is None:
         aspect = 'table'
@@ -199,13 +208,7 @@ def get_objtype_backend_name(id, module_id, *, catenate=True, aspect=None):
 
     name = s_name.Name(module=str(module_id), name=str(id))
 
-    if aspect == 'table':
-        suffix = ''
-    elif aspect == 'inhview':
-        suffix = 't'
-    else:
-        suffix = aspect
-
+    suffix = get_aspect_suffix(aspect)
     return convert_name(name, suffix=suffix, catenate=catenate)
 
 
@@ -219,13 +222,7 @@ def get_pointer_backend_name(id, module_id, *, catenate=False, aspect=None):
 
     name = s_name.Name(module=str(module_id), name=str(id))
 
-    if aspect == 'table':
-        suffix = ''
-    elif aspect == 'inhview':
-        suffix = 't'
-    else:
-        suffix = aspect
-
+    suffix = get_aspect_suffix(aspect)
     return convert_name(name, suffix=suffix, catenate=catenate)
 
 
