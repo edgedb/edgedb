@@ -49,6 +49,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 await tx.rollback()
 
             res = json.loads(res)
+            print("FUCK", res)
             self._assert_data_shape(res, exp_result_json, message=msg)
         except Exception:
             self.add_fail_notes(serialization='json')
@@ -2242,6 +2243,35 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 USING (SELECT x.name)
             }
         ''')
+
+    async def test_edgeql_migration_describe_type_rename_01(self):
+        await self.migrate('''
+            type Foo;
+            type Baz {
+                link l -> Foo;
+            };
+        ''')
+
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type Bar;
+                    type Baz {
+                        link l -> Bar;
+                    };
+                }
+            };
+            POPULATE MIGRATION;
+        ''')
+
+        await self.assert_describe_migration({
+            'complete': True,
+            'confirmed': [
+                'ALTER TYPE test::Foo RENAME TO test::Bar;'
+            ],
+        })
+
+        await self.fast_forward_describe_migration()
 
     async def test_edgeql_migration_eq_01(self):
         await self.migrate("""
