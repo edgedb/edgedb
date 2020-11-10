@@ -222,7 +222,45 @@ class ScalarTypeCommand(
     schema_metaclass=ScalarType,
     context_class=ScalarTypeCommandContext,
 ):
-    pass
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        v_ancestors = self.get_attribute_value('ancestors')
+        if v_ancestors:
+            if isinstance(v_ancestors, so.ObjectCollection):
+                rancestors = list(v_ancestors.objects(schema))
+            else:
+                ancestors = (
+                    v_ancestors.items
+                    if isinstance(v_ancestors, so.ObjectCollectionShell)
+                    else v_ancestors)
+                rancestors = [x.resolve(schema) for x in ancestors]
+            concrete_ancestors = {
+                ancestor for ancestor in rancestors
+                if not ancestor.get_is_abstract(schema)
+            }
+            # Filter out anything that has a subclass relation with
+            # every other concrete ancestor. This lets us allow chains
+            # of concrete scalar types while prohibiting diamonds (for
+            # example if X <: A, B <: int64 where A, B are concrete).
+            # (If we wanted to allow diamonds, we could instead filter out
+            # anything that has concrete bases.)
+            concrete_ancestors = {
+                c1 for c1 in concrete_ancestors
+                if not all(c1 == c2 or c1.issubclass(schema, c2)
+                           or c2.issubclass(schema, c1)
+                           for c2 in concrete_ancestors)
+            }
+
+            if len(concrete_ancestors) > 1:
+                raise errors.SchemaError(
+                    f'scalar type may not have more than '
+                    f'one concrete base type',
+                )
+
+        return super().apply(schema, context)
 
 
 class CreateScalarType(

@@ -2967,6 +2967,81 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             ''')
 
+    async def test_edgeql_ddl_scalar_01(self):
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                r'may not have more than one concrete base type'):
+            await self.con.execute('''
+                CREATE SCALAR TYPE test::myint EXTENDING std::int64, std::str;
+            ''')
+
+    async def test_edgeql_ddl_scalar_02(self):
+        await self.con.execute('''
+            CREATE ABSTRACT SCALAR TYPE test::a EXTENDING std::int64;
+            CREATE ABSTRACT SCALAR TYPE test::b EXTENDING std::str;
+        ''')
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                r'may not have more than one concrete base type'):
+            await self.con.execute('''
+                CREATE SCALAR TYPE test::myint EXTENDING test::a, test::b;
+            ''')
+
+    async def test_edgeql_ddl_scalar_03(self):
+        await self.con.execute('''
+            CREATE ABSTRACT SCALAR TYPE test::a EXTENDING std::int64;
+            CREATE ABSTRACT SCALAR TYPE test::b EXTENDING std::str;
+            CREATE SCALAR TYPE test::myint EXTENDING test::a;
+        ''')
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                r'may not have more than one concrete base type'):
+            await self.con.execute('''
+                ALTER SCALAR TYPE test::myint EXTENDING test::b;
+            ''')
+
+    async def test_edgeql_ddl_scalar_04(self):
+        await self.con.execute('''
+            CREATE ABSTRACT SCALAR TYPE test::a;
+            CREATE SCALAR TYPE test::myint EXTENDING int64, test::a;
+        ''')
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                r'may not have more than one concrete base type'):
+            await self.con.execute('''
+                ALTER SCALAR TYPE test::a EXTENDING str;
+            ''')
+
+    async def test_edgeql_ddl_scalar_05(self):
+        await self.con.execute('''
+            CREATE ABSTRACT SCALAR TYPE test::a EXTENDING std::int64;
+            CREATE ABSTRACT SCALAR TYPE test::b EXTENDING std::int64;
+            CREATE SCALAR TYPE test::myint EXTENDING test::a, test::b;
+        ''')
+
+    async def test_edgeql_ddl_scalar_06(self):
+        await self.con.execute('''
+            CREATE SCALAR TYPE test::myint EXTENDING int64;
+            CREATE SCALAR TYPE test::myint2 EXTENDING test::myint;
+        ''')
+
+    async def test_edgeql_ddl_scalar_07(self):
+        await self.con.execute('''
+            CREATE SCALAR TYPE test::a EXTENDING std::str;
+            CREATE SCALAR TYPE test::b EXTENDING std::str;
+        ''')
+
+        # I think we want to prohibit this kind of diamond pattern
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                r'may not have more than one concrete base type'):
+            await self.con.execute('''
+                CREATE SCALAR TYPE test::myint EXTENDING test::a, test::b;
+            ''')
+
     async def test_edgeql_ddl_cast_01(self):
         await self.con.execute('''
             CREATE SCALAR TYPE test::type_a EXTENDING std::str;
