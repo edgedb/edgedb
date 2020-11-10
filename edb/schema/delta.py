@@ -116,6 +116,17 @@ def delta_objects(
     seen_x = set()
     seen_y = set()
     comparison_map: Dict[so.Object_T, Tuple[float, so.Object_T]] = {}
+
+    # If there are any renames that are already decided on, honor those first
+    for y in old:
+        rename = context.renames.get((type(y), y.get_name(old_schema)))
+        if rename:
+            x = cast(so.Object_T, new_schema.get(rename.new_name))
+            comparison_map[x] = (0.99, y)
+            seen_x.add(x)
+            seen_y.add(y)
+
+    # Find the top similarity pairs
     for x, y, similarity in full_matrix:
         if x not in seen_x and y not in seen_y:
             comparison_map[x] = (similarity, y)
