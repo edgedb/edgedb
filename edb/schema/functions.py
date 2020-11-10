@@ -981,6 +981,9 @@ class AlterCallableObject(
             super()._get_ast(schema, context, parent_node=parent_node)
         )
 
+        if not node:
+            return None
+
         scls = self.get_object(schema, context)
         node.params = scls.get_params(schema).get_ast(schema)
 

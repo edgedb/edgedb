@@ -697,7 +697,8 @@ def _trace_op(
 
                     if not isinstance(op, sd.CreateObject):
                         assert old_schema is not None
-                        old_obj = get_object(old_schema, op)
+                        name = renames_r.get(op.classname, op.classname)
+                        old_obj = get_object(old_schema, op, name)
                         assert isinstance(
                             old_obj,
                             referencing.ReferencedInheritingObject,

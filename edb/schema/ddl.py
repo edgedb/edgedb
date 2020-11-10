@@ -230,16 +230,6 @@ def delta_schemas(
 
                 result.add(create)
 
-    objects = sd.DeltaRoot(canonical=True)
-
-    # FIXME: We (mostly accidentally) rely on the ordering of
-    # schemaclasses, which is totally implicit from our import
-    # structures but also deterministic.
-    # This is because in some cases involving renames, we need to
-    # process the rename before we process consumers of it.
-    # In particular, I think ObjectType needs to be processed pretty late.
-    #
-    # This should be explicit and not implicit.
     schemaclasses = [
         schemacls
         for schemacls in so.ObjectMeta.get_schema_metaclasses()
@@ -254,51 +244,62 @@ def delta_schemas(
         )
     ]
 
-    for sclass in schemaclasses:
-        filters: List[Callable[[s_schema.Schema, so.Object], bool]] = []
+    assert not context.renames
+    # We retry performing the diff until we stop finding new
+    # renames. This allows us to be agnostic to the order that we
+    # process schemaclasses.
+    old_count = -1
+    while old_count != len(context.renames):
+        old_count = len(context.renames)
+        context.deletions.clear()
 
-        if not issubclass(sclass, so.QualifiedObject):
-            # UnqualifiedObjects (like anonymous tuples and arrays)
-            # should not use an included_modules filter.
-            incl_modules = None
-        else:
-            if issubclass(sclass, so.DerivableObject):
-                def _only_generic(
-                    schema: s_schema.Schema,
-                    obj: so.Object,
-                ) -> bool:
-                    assert isinstance(obj, so.DerivableObject)
-                    return obj.generic(schema)
-                filters.append(_only_generic)
-            incl_modules = included_modules
+        objects = sd.DeltaRoot(canonical=True)
 
-        new = schema_b.get_objects(
-            type=sclass,
-            included_modules=incl_modules,
-            excluded_modules=excluded_modules,
-            included_items=included_items,
-            excluded_items=excluded_items,
-            extra_filters=filters + schema_b_filters,
-        )
-        old = schema_a.get_objects(
-            type=sclass,
-            included_modules=incl_modules,
-            excluded_modules=excluded_modules,
-            included_items=included_items,
-            excluded_items=excluded_items,
-            extra_filters=filters + schema_a_filters,
-        )
+        for sclass in schemaclasses:
+            filters: List[Callable[[s_schema.Schema, so.Object], bool]] = []
 
-        objects.add(
-            sd.delta_objects(
-                old,
-                new,
-                sclass=sclass,
-                old_schema=schema_a,
-                new_schema=schema_b,
-                context=context,
+            if not issubclass(sclass, so.QualifiedObject):
+                # UnqualifiedObjects (like anonymous tuples and arrays)
+                # should not use an included_modules filter.
+                incl_modules = None
+            else:
+                if issubclass(sclass, so.DerivableObject):
+                    def _only_generic(
+                        schema: s_schema.Schema,
+                        obj: so.Object,
+                    ) -> bool:
+                        assert isinstance(obj, so.DerivableObject)
+                        return obj.generic(schema)
+                    filters.append(_only_generic)
+                incl_modules = included_modules
+
+            new = schema_b.get_objects(
+                type=sclass,
+                included_modules=incl_modules,
+                excluded_modules=excluded_modules,
+                included_items=included_items,
+                excluded_items=excluded_items,
+                extra_filters=filters + schema_b_filters,
             )
-        )
+            old = schema_a.get_objects(
+                type=sclass,
+                included_modules=incl_modules,
+                excluded_modules=excluded_modules,
+                included_items=included_items,
+                excluded_items=excluded_items,
+                extra_filters=filters + schema_a_filters,
+            )
+
+            objects.add(
+                sd.delta_objects(
+                    old,
+                    new,
+                    sclass=sclass,
+                    old_schema=schema_a,
+                    new_schema=schema_b,
+                    context=context,
+                )
+            )
 
     if linearize_delta:
         objects = s_ordering.linearize_delta(
@@ -539,7 +540,6 @@ def ddlast_from_delta(
     sdlmode: bool = False,
     descriptive_mode: bool = False,
 ) -> Tuple[qlast.DDLOperation, ...]:
-
     context = sd.CommandContext(
         descriptive_mode=descriptive_mode,
         declarative=sdlmode,

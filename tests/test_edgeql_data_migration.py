@@ -49,7 +49,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 await tx.rollback()
 
             res = json.loads(res)
-            print("FUCK", res)
             self._assert_data_shape(res, exp_result_json, message=msg)
         except Exception:
             self.add_fail_notes(serialization='json')
