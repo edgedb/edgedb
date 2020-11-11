@@ -341,7 +341,7 @@ class GraphQLTranslator:
             self.visit(node.variable_definitions)
 
         # base Query needs to be configured specially
-        base = self._context.gqlcore.get('Query')
+        base = self._context.gqlcore.get('stdgraphql::Query')
 
         # special treatment of the selection_set, different from inner
         # recursion
@@ -370,7 +370,7 @@ class GraphQLTranslator:
             self.visit(node.variable_definitions)
 
         # base Mutation needs to be configured specially
-        base = self._context.gqlcore.get('Mutation')
+        base = self._context.gqlcore.get('stdgraphql::Mutation')
 
         # special treatment of the selection_set, different from inner
         # recursion

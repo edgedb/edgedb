@@ -35,6 +35,7 @@ from edb.edgeql import qltypes
 from edb.edgeql import compiler as qlcompiler
 
 from . import abc as s_abc
+from . import annos as s_anno
 from . import delta as sd
 from . import expr as s_expr
 from . import inheriting
@@ -73,6 +74,7 @@ CollectionExprAliasT = typing.TypeVar(
 
 class Type(
     so.SubclassableObject,
+    s_anno.AnnotationSubject,
     s_abc.Type,
 ):
     """A schema item that is a valid *type*."""
@@ -1812,8 +1814,12 @@ def type_name_from_id_and_displayname(id: uuid.UUID, displayname: str) -> str:
     return f'__id:{id}:{s_name.mangle_name(displayname)}'
 
 
+def is_type_id_name(name: str) -> bool:
+    return name.startswith('__id:')
+
+
 def type_id_from_name(name: str) -> Optional[uuid.UUID]:
-    if name.startswith('__id:'):
+    if is_type_id_name(name):
         parts = name.split(':', maxsplit=2)
         return uuid.UUID(parts[1])
     else:
@@ -1821,7 +1827,7 @@ def type_id_from_name(name: str) -> Optional[uuid.UUID]:
 
 
 def type_displayname_from_name(name: str) -> str:
-    if name.startswith('__id:'):
+    if is_type_id_name(name):
         parts = name.split(':', maxsplit=2)
         return s_name.unmangle_name(parts[2])
     else:

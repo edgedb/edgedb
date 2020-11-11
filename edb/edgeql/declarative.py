@@ -683,12 +683,9 @@ def trace_Function(
             and node.code.language is qlast.Language.EdgeQL
             and node.code.code):
         # Need to parse the actual code string and use that as the dependency.
-        deps.append(
-            FunctionDependency(
-                expr=qlparser.parse(node.code.code),
-                params=params,
-            ),
-        )
+        fcode = qlparser.parse(node.code.code)
+        assert isinstance(fcode, qlast.Expr)
+        deps.append(FunctionDependency(expr=fcode, params=params))
 
     # XXX: hard_dep_expr is used because it ultimately calls the
     # _get_hard_deps helper that extracts the proper dependency list

@@ -951,10 +951,10 @@ class CreateConstraint(
                 args.append(arg)
 
         subj_expr = parent.get_subjectexpr(schema)
-        if subj_expr is not None:
-            subj_expr_ql = edgeql.parse_fragment(subj_expr.text)
-        else:
+        if subj_expr is None:
             subj_expr_ql = None
+        else:
+            subj_expr_ql = edgeql.parse_fragment(subj_expr.text)
 
         astnode = astnode_cls(name=nref, args=args, subjectexpr=subj_expr_ql)
 

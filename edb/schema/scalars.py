@@ -44,7 +44,6 @@ from . import utils as s_utils
 class ScalarType(
     s_types.InheritingType,
     constraints.ConsistencySubject,
-    s_anno.AnnotationSubject,
     s_abc.ScalarType,
     qlkind=qltypes.SchemaObjectClass.SCALAR_TYPE,
 ):
