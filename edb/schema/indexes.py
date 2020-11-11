@@ -365,10 +365,10 @@ class CreateIndex(
         astnode_cls = cls.referenced_astnode
 
         expr = parent.get_expr(schema)
-        if expr is not None and expr.origtext is not None:
-            expr_ql = edgeql.parse_fragment(expr.origtext)
-        else:
+        if expr is None or expr.origtext is None:
             expr_ql = None
+        else:
+            expr_ql = edgeql.parse_fragment(expr.origtext)
 
         return astnode_cls(
             name=nref,

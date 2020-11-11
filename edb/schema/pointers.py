@@ -226,6 +226,9 @@ def merge_target(
     return target
 
 
+Pointer_T = TypeVar("Pointer_T", bound="Pointer")
+
+
 class Pointer(referencing.ReferencedInheritingObject,
               constraints.ConsistencySubject,
               s_anno.AnnotationSubject,
@@ -447,14 +450,14 @@ class Pointer(referencing.ReferencedInheritingObject,
             return schema, current_target
 
     def get_derived(
-        self,
+        self: Pointer_T,
         schema: s_schema.Schema,
         source: s_sources.Source,
         target: s_types.Type,
         *,
         derived_name_base: Optional[str] = None,
         **kwargs: Any
-    ) -> Tuple[s_schema.Schema, Pointer]:
+    ) -> Tuple[s_schema.Schema, Pointer_T]:
         fqname = self.derive_name(
             schema, source, derived_name_base=derived_name_base)
         ptr = schema.get(fqname, default=None)
@@ -468,8 +471,7 @@ class Pointer(referencing.ReferencedInheritingObject,
                 schema, ptr = self.derive_ref(
                     schema, source, target=target,
                     derived_name_base=derived_name_base, **kwargs)
-        assert isinstance(ptr, Pointer)
-        return schema, ptr
+        return schema, ptr  # type: ignore
 
     def get_derived_name_base(
         self,

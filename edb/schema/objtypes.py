@@ -48,7 +48,6 @@ class ObjectType(
     s_types.InheritingType,
     sources.Source,
     constraints.ConsistencySubject,
-    s_anno.AnnotationSubject,
     s_abc.ObjectType,
     qlkind=qltypes.SchemaObjectClass.TYPE,
 ):
