@@ -222,7 +222,51 @@ class ScalarTypeCommand(
     schema_metaclass=ScalarType,
     context_class=ScalarTypeCommandContext,
 ):
-    pass
+    def validate_scalar_ancestors(
+        self,
+        ancestors: Sequence[so.SubclassableObject],
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> None:
+        concrete_ancestors = {
+            ancestor for ancestor in ancestors
+            if not ancestor.get_is_abstract(schema)
+        }
+        # Filter out anything that has a subclass relation with
+        # every other concrete ancestor. This lets us allow chains
+        # of concrete scalar types while prohibiting diamonds (for
+        # example if X <: A, B <: int64 where A, B are concrete).
+        # (If we wanted to allow diamonds, we could instead filter out
+        # anything that has concrete bases.)
+        concrete_ancestors = {
+            c1 for c1 in concrete_ancestors
+            if not all(c1 == c2 or c1.issubclass(schema, c2)
+                       or c2.issubclass(schema, c1)
+                       for c2 in concrete_ancestors)
+        }
+
+        if len(concrete_ancestors) > 1:
+            raise errors.SchemaError(
+                f'scalar type may not have more than '
+                f'one concrete base type',
+                context=self.source_context,
+            )
+
+    def validate_scalar_bases(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> None:
+        bases = self.get_resolved_attribute_value(
+            'bases', schema=schema, context=context)
+
+        if bases:
+            ancestors = []
+            for base in bases.objects(schema):
+                ancestors.append(base)
+                ancestors.extend(base.get_ancestors(schema).objects(schema))
+
+            self.validate_scalar_ancestors(ancestors, schema, context)
 
 
 class CreateScalarType(
@@ -295,6 +339,14 @@ class CreateScalarType(
 
         return cmd
 
+    def validate_create(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> None:
+        super().validate_create(schema, context)
+        self.validate_scalar_bases(schema, context)
+
     def _get_ast_node(
         self,
         schema: s_schema.Schema,
@@ -361,6 +413,24 @@ class RebaseScalarType(
         else:
             return super().apply(schema, context)
 
+    def validate_scalar_bases(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> None:
+        super().validate_scalar_bases(schema, context)
+
+        bases = self.get_resolved_attribute_value(
+            'bases', schema=schema, context=context)
+        if bases:
+            obj = self.scls
+            # For each descendant, compute its new ancestors and check
+            # that they are valid for a scalar type.
+            new_schema = obj.set_field_value(schema, 'bases', bases)
+            for desc in obj.descendants(schema):
+                ancestors = so.compute_ancestors(new_schema, desc)
+                self.validate_scalar_ancestors(ancestors, schema, context)
+
     def _validate_enum_change(
         self,
         stype: s_types.Type,
@@ -395,6 +465,15 @@ class AlterScalarType(
     inheriting.AlterInheritingObject[ScalarType],
 ):
     astnode = qlast.AlterScalarType
+
+    def validate_alter(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> None:
+        super().validate_alter(schema, context)
+        for subcmd in self.get_subcommands(type=RebaseScalarType):
+            subcmd.validate_scalar_bases(schema, context)
 
 
 class DeleteScalarType(

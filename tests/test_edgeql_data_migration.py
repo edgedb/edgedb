@@ -7508,3 +7508,15 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
 
         await self.migrate("")
+
+    async def test_edgeql_migration_invalid_scalar_01(self):
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                r"may not have more than one concrete base type"):
+            await self.con.execute(r"""
+                START MIGRATION TO {
+                    abstract scalar type test::lol extending str;
+                    scalar type test::myint extending int64, test::lol;
+                };
+                POPULATE MIGRATION;
+            """)
