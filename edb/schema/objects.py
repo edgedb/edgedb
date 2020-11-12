@@ -436,10 +436,7 @@ class SchemaField(Field[Type_T]):
             if issubclass(self.type, ObjectCollection):
                 value = self.type.create_empty()
             else:
-                # The dance below is required to workaround a bug in mypy:
-                # Unsupported type Type["Type[T]"]
-                t = cast(type, self.type)
-                value = t()
+                value = self.type()  # type: ignore
         else:
             value = self.default
         return value
@@ -2496,7 +2493,7 @@ class ObjectSet(
                 else:
                     result._ids |= theirs._ids
 
-        return cast(ObjectSet[Object_T], result)
+        return result  # type: ignore
 
 
 class ObjectList(

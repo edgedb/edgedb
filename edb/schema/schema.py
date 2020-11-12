@@ -1219,7 +1219,7 @@ class FlatSchema(Schema):
             name = sn.UnqualName(name)
         obj_id = self._globalname_to_id.get((objtype, name))
         if obj_id is not None:
-            return cast(so.Object_T, self.get_by_id(obj_id))
+            return self.get_by_id(obj_id)  # type: ignore
         elif default is not so.NoDefault:
             return default
         else:
@@ -1255,7 +1255,7 @@ class FlatSchema(Schema):
                         default=default)
 
         if obj is not so.NoDefault:
-            return cast(so.Object_T, obj)
+            return obj  # type: ignore
         else:
             self._raise_bad_reference(
                 name=name,

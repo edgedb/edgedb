@@ -736,10 +736,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
     def get_context_class(
         cls: Type[Command_T],
     ) -> Optional[Type[CommandContextToken[Command_T]]]:
-        return cast(
-            Optional[Type[CommandContextToken[Command_T]]],
-            cls._context_class,
-        )
+        return cls._context_class  # type: ignore
 
     @classmethod
     def get_context_class_or_die(
@@ -1147,10 +1144,8 @@ class ObjectCommandMeta(CommandMeta):
         schema_metaclass: Type[so.Object],
     ) -> Optional[Type[Command_T]]:
         assert issubclass(cmdtype, ObjectCommand)
-        return cast(
-            Optional[Type[Command_T]],
-            mcls._schema_metaclasses.get(
-                (cmdtype._delta_action, schema_metaclass)),
+        return mcls._schema_metaclasses.get(  # type: ignore
+            (cmdtype._delta_action, schema_metaclass),
         )
 
     @classmethod
@@ -1871,11 +1866,9 @@ class ObjectCommand(
     ) -> CommandContextWrapper[ObjectCommand[so.Object_T]]:
         ctxcls = type(self).get_context_class()
         assert ctxcls is not None
-        obj_ctxcls = cast(
-            Type[ObjectCommandContext[so.Object_T]],
-            ctxcls,
+        return context(
+            ctxcls(schema=schema, op=self, scls=scls),  # type: ignore
         )
-        return context(obj_ctxcls(schema=schema, op=self, scls=scls))
 
     def get_ast(
         self,
@@ -2180,8 +2173,7 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         schema: s_schema.Schema,
         context: CommandContext,
     ) -> s_schema.Schema:
-        dummy = cast(so.Object_T, _dummy_object)
-        with self.new_context(schema, context, dummy):
+        with self.new_context(schema, context, _dummy_object):  # type: ignore
             if self.if_not_exists:
                 scls = self.get_object(schema, context, default=None)
 

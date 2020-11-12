@@ -374,7 +374,7 @@ class Struct(metaclass=StructMeta):
         field_name: str,
         field: Field[T],
     ) -> T:
-        ftype = cast(type, field.type)
+        ftype = field.type
         if field.default == ftype:
             value = field.default()  # type: ignore
         elif field.default is NoDefault:
