@@ -655,23 +655,20 @@ def put_path_rvar_if_not_exists(
 def get_path_rvar(
         stmt: pgast.Query, path_id: irast.PathId, *,
         aspect: str, env: context.Environment) -> pgast.PathRangeVar:
-    rvar = stmt.path_rvar_map.get((path_id, aspect))
+    rvar = maybe_get_path_rvar(stmt, path_id, aspect=aspect, env=env)
     if rvar is None:
-        if aspect == 'identity':
-            rvar = stmt.path_rvar_map.get((path_id, 'value'))
-        if rvar is None:
-            raise LookupError(
-                f'there is no range var for {path_id} {aspect} in {stmt}')
+        raise LookupError(
+            f'there is no range var for {path_id} {aspect} in {stmt}')
     return rvar
 
 
 def maybe_get_path_rvar(
         stmt: pgast.Query, path_id: irast.PathId, *, aspect: str,
         env: context.Environment) -> Optional[pgast.PathRangeVar]:
-    try:
-        return get_path_rvar(stmt, path_id, aspect=aspect, env=env)
-    except LookupError:
-        return None
+    rvar = stmt.path_rvar_map.get((path_id, aspect))
+    if rvar is None and aspect == 'identity':
+        rvar = stmt.path_rvar_map.get((path_id, 'value'))
+    return rvar
 
 
 def list_path_aspects(
