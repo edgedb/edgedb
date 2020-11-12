@@ -179,15 +179,20 @@ def mangle_name(name: str) -> str:
     )
 
 
+mangle_re_1 = re.compile(r'(?<![|])\|(?![|])')
+mangle_re_2 = re.compile(r'(?<![&])&(?![&])')
+
+
 def unmangle_name(name: str) -> str:
-    name = re.sub(r'(?<![|])\|(?![|])', '::', name)
-    name = re.sub(r'(?<![&])&(?![&])', '@', name)
+    name = mangle_re_1.sub('::', name)
+    name = mangle_re_2.sub('@', name)
     return name.replace('||', '|').replace('&&', '&')
 
 
+@functools.lru_cache(10240)
 def shortname_from_fullname(fullname: Name) -> Name:
     name = fullname.name
-    parts = str(name).split('@', 1)
+    parts = name.split('@', 1)
     if len(parts) == 2:
         return name_from_string(unmangle_name(parts[0]))
     else:
