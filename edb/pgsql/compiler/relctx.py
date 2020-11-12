@@ -245,10 +245,13 @@ def has_rvar(
     return False
 
 
-def _get_path_rvar(
-        stmt: pgast.Query, path_id: irast.PathId, *,
-        aspect: str, ctx: context.CompilerContextLevel,
-) -> Tuple[pgast.PathRangeVar, irast.PathId]:
+def _maybe_get_path_rvar(
+    stmt: pgast.Query,
+    path_id: irast.PathId,
+    *,
+    aspect: str,
+    ctx: context.CompilerContextLevel,
+) -> Optional[Tuple[pgast.PathRangeVar, irast.PathId]]:
     qry: Optional[pgast.Query] = stmt
     while qry is not None:
         rvar = pathctx.maybe_get_path_rvar(
@@ -264,15 +267,27 @@ def _get_path_rvar(
                 path_id, qry.view_path_id_map)
         qry = ctx.rel_hierarchy.get(qry)
 
-    raise LookupError(
-        f'there is no range var for {path_id} in {stmt}')
+    return None
+
+
+def _get_path_rvar(
+    stmt: pgast.Query,
+    path_id: irast.PathId,
+    *,
+    aspect: str,
+    ctx: context.CompilerContextLevel,
+) -> Tuple[pgast.PathRangeVar, irast.PathId]:
+    result = _maybe_get_path_rvar(stmt, path_id, aspect=aspect, ctx=ctx)
+    if result is None:
+        raise LookupError(f'there is no range var for {path_id} in {stmt}')
+    else:
+        return result
 
 
 def get_path_rvar(
         stmt: pgast.Query, path_id: irast.PathId, *,
         aspect: str, ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
-    rvar, _ = _get_path_rvar(stmt, path_id, aspect=aspect, ctx=ctx)
-    return rvar
+    return _get_path_rvar(stmt, path_id, aspect=aspect, ctx=ctx)[0]
 
 
 def get_path_var(
@@ -292,24 +307,21 @@ def maybe_get_path_rvar(
         stmt: pgast.Query, path_id: irast.PathId, *,
         aspect: str, ctx: context.CompilerContextLevel
 ) -> Optional[pgast.PathRangeVar]:
-    try:
-        return get_path_rvar(stmt, path_id, aspect=aspect, ctx=ctx)
-    except LookupError:
-        return None
+    result = _maybe_get_path_rvar(stmt, path_id, aspect=aspect, ctx=ctx)
+    return result[0] if result is not None else None
 
 
 def maybe_get_path_var(
         stmt: pgast.Query, path_id: irast.PathId, *,
         aspect: str, ctx: context.CompilerContextLevel
 ) -> Optional[pgast.OutputVar]:
-    try:
-        rvar, path_id = _get_path_rvar(stmt, path_id, aspect=aspect, ctx=ctx)
-    except LookupError:
+    result = _maybe_get_path_rvar(stmt, path_id, aspect=aspect, ctx=ctx)
+    if result is None:
         return None
     else:
         try:
             return pathctx.get_rvar_path_var(
-                rvar, path_id, aspect=aspect, env=ctx.env)
+                result[0], result[1], aspect=aspect, env=ctx.env)
         except LookupError:
             return None
 
@@ -717,25 +729,27 @@ def update_scope(
             stmt.path_id_mask.add(child_path)
 
 
-def get_scope_stmt(
-        path_id: irast.PathId, *,
-        ctx: context.CompilerContextLevel) -> pgast.SelectStmt:
+def maybe_get_scope_stmt(
+    path_id: irast.PathId,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> Optional[pgast.SelectStmt]:
     stmt = ctx.path_scope.get(path_id)
     if stmt is None and path_id.is_ptr_path():
         stmt = ctx.path_scope.get(path_id.tgt_path())
-    if stmt is None:
-        raise LookupError(f'cannot find scope statement for {path_id}')
     return stmt
 
 
-def maybe_get_scope_stmt(
-        path_id: irast.PathId, *,
-        ctx: context.CompilerContextLevel
-) -> Optional[pgast.SelectStmt]:
-    try:
-        return get_scope_stmt(path_id, ctx=ctx)
-    except LookupError:
-        return None
+def get_scope_stmt(
+    path_id: irast.PathId,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> pgast.SelectStmt:
+    stmt = maybe_get_scope_stmt(path_id, ctx=ctx)
+    if stmt is None:
+        raise LookupError(f'cannot find scope statement for {path_id}')
+    else:
+        return stmt
 
 
 def rel_join(
