@@ -291,25 +291,23 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
 
     _context_class: Optional[Type[CommandContextToken[Command]]] = None
 
-    ops: ordered.OrderedSet[Command]
-    before_ops: ordered.OrderedSet[Command]
+    ops: List[Command]
+    before_ops: List[Command]
 
     #: AlterObjectProperty lookup table for get|set_attribute_value
     _attrs: Dict[str, AlterObjectProperty]
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
-        self.ops = ordered.OrderedSet()
-        self.before_ops = ordered.OrderedSet()
+        self.ops = []
+        self.before_ops = []
         self.qlast: qlast.DDLOperation
         self._attrs = {}
 
     def copy(self: Command_T) -> Command_T:
         result = super().copy()
-        result.ops = ordered.OrderedSet(
-            op.copy() for op in self.ops)
-        result.before_ops = ordered.OrderedSet(
-            op.copy() for op in self.before_ops)
+        result.ops = [op.copy() for op in self.ops]
+        result.before_ops = [op.copy() for op in self.before_ops]
         return result
 
     @classmethod
@@ -557,13 +555,13 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
             for op in reversed(command.get_subcommands()):
                 self.prepend_prerequisite(op)
         else:
-            self.before_ops.add(command, last=False)
+            self.before_ops.insert(0, command)
 
     def add_prerequisite(self, command: Command) -> None:
         if isinstance(command, CommandGroup):
-            self.before_ops.update(command.get_subcommands())  # type: ignore
+            self.before_ops.extend(command.get_subcommands())
         else:
-            self.before_ops.add(command)
+            self.before_ops.append(command)
 
     def prepend(self, command: Command) -> None:
         if isinstance(command, CommandGroup):
@@ -572,7 +570,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         else:
             if isinstance(command, AlterObjectProperty):
                 self._attrs[command.property] = command
-            self.ops.add(command, last=False)
+            self.ops.insert(0, command)
 
     def add(self, command: Command) -> None:
         if isinstance(command, CommandGroup):
@@ -580,14 +578,15 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         else:
             if isinstance(command, AlterObjectProperty):
                 self._attrs[command.property] = command
-            self.ops.add(command)
+            self.ops.append(command)
 
     def update(self, commands: Iterable[Command]) -> None:  # type: ignore
         for command in commands:
             self.add(command)
 
     def replace(self, existing: Command, new: Command) -> None:  # type: ignore
-        self.ops.replace(existing, new)
+        i = self.ops.index(existing)
+        self.ops[i] = new
 
     def replace_all(self, commands: Iterable[Command]) -> None:
         self.ops.clear()
@@ -595,8 +594,14 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         self.update(commands)
 
     def discard(self, command: Command) -> None:
-        self.ops.discard(command)
-        self.before_ops.discard(command)
+        try:
+            self.ops.remove(command)
+        except ValueError:
+            pass
+        try:
+            self.before_ops.remove(command)
+        except ValueError:
+            pass
         if isinstance(command, AlterObjectProperty):
             self._attrs.pop(command.property)
 
