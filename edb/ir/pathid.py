@@ -63,7 +63,7 @@ class PathId:
     """
 
     __slots__ = ('_path', '_norm_path', '_namespace', '_prefix',
-                 '_is_ptr', '_is_linkprop')
+                 '_is_ptr', '_is_linkprop', '_hash')
 
     #: Actual path information.
     _path: Tuple[
@@ -125,6 +125,8 @@ class PathId:
             self._prefix = None
             self._is_ptr = False
             self._is_linkprop = False
+
+        self._hash = -1
 
     @classmethod
     def from_type(
@@ -207,9 +209,15 @@ class PathId:
         return pid
 
     def __hash__(self) -> int:
-        return hash((
-            self.__class__, self._norm_path,
-            self._namespace, self._prefix, self._is_ptr))
+        if self._hash == -1:
+            self._hash = hash((
+                self.__class__,
+                self._norm_path,
+                self._namespace,
+                self._prefix,
+                self._is_ptr,
+            ))
+        return self._hash
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, PathId):
