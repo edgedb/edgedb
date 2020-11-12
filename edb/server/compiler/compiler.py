@@ -110,6 +110,7 @@ class CompileContext:
     compat_ver: Optional[verutils.Version] = None
     bootstrap_mode: bool = False
     internal_schema_mode: bool = False
+    standalone_mode: bool = False
 
 
 EMPTY_MAP = immutables.Map()
@@ -172,6 +173,7 @@ def new_compiler_context(
     output_format: enums.IoFormat = enums.IoFormat.BINARY,
     bootstrap_mode: bool = False,
     internal_schema_mode: bool = False,
+    standalone_mode: bool = False,
 ) -> CompileContext:
     """Create and return an ad-hoc compiler context."""
 
@@ -192,6 +194,7 @@ def new_compiler_context(
         schema_reflection_mode=schema_reflection_mode,
         bootstrap_mode=bootstrap_mode,
         internal_schema_mode=internal_schema_mode,
+        standalone_mode=standalone_mode,
         stmt_mode=(
             enums.CompileStatementMode.SINGLE
             if single_statement else enums.CompileStatementMode.ALL
@@ -676,7 +679,10 @@ class Compiler(BaseCompiler):
                         continue
 
                     array_tid = None
-                    if param.schema_type.is_array():
+                    if (
+                        param.schema_type.is_array()
+                        and not ctx.standalone_mode
+                    ):
                         el_type = param.schema_type.get_element_type(ir.schema)
                         array_tid = el_type.get_backend_id(ir.schema)
                         if array_tid is None:
