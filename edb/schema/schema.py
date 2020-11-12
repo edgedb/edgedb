@@ -629,13 +629,11 @@ class FlatSchema(Schema):
         obj_id: uuid.UUID,
     ) -> Tuple[Any, ...]:
         try:
-            d = self._id_to_data[obj_id]
+            return self._id_to_data[obj_id]
         except KeyError:
             err = (f'cannot get item data: item {str(obj_id)!r} '
                    f'is not present in the schema {self!r}')
             raise errors.SchemaError(err) from None
-
-        return d
 
     def set_obj_field(
         self,

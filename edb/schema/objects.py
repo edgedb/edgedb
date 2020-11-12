@@ -949,12 +949,13 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         self.id = _private_id
 
     def __eq__(self, other: Any) -> bool:
-        if type(self) is not type(other):
+        if isinstance(other, Object):
+            return self.id == other.id
+        else:
             return NotImplemented
-        return self.id == other.id  # type: ignore
 
     def __hash__(self) -> int:
-        return hash((self.id, type(self)))
+        return hash(self.id)
 
     @classmethod
     def _prepare_id(
@@ -2629,8 +2630,7 @@ class InheritingObject(SubclassableObject):
         schema: s_schema.Schema
     ) -> InheritingObjectT:
         """Get the topmost non-abstract base."""
-        lineage = [self]
-        lineage.extend(self.get_ancestors(schema).objects(schema))
+        lineage = self.get_ancestors(schema).objects(schema)
         for ancestor in reversed(lineage):
             if not ancestor.get_is_abstract(schema):
                 return ancestor
@@ -2884,10 +2884,7 @@ class DerivableInheritingObject(DerivableObject, InheritingObject):
     ) -> DerivableInheritingObjectT:
         obj = self
         while obj.get_is_derived(schema):
-            obj = cast(
-                DerivableInheritingObjectT,
-                obj.get_bases(schema).first(schema),
-            )
+            obj = obj.get_bases(schema).first(schema)
         return obj
 
 
