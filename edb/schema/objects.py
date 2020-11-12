@@ -458,7 +458,7 @@ class SchemaField(Field[Type_T]):
             )
 
 
-class RefDict(struct.Struct):
+class RefDict(struct.RTStruct):
 
     attr = struct.Field(
         str, frozen=True)

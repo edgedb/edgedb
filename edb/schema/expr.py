@@ -40,7 +40,7 @@ if TYPE_CHECKING:
     from edb.ir import ast as irast_
 
 
-class Expression(struct.MixedStruct, so.ObjectContainer, s_abc.Expression):
+class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
 
     text = struct.Field(str, frozen=True)
     origtext = struct.Field(str, default=None, frozen=True)

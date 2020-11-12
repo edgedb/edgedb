@@ -1052,6 +1052,7 @@ class CreateReferencedInheritingObject(
                 # to postpone that check until the application time.
                 ref_create = ref_create_cmd.as_inherited_ref_cmd(
                     schema, context, astnode, [self.scls])
+                assert isinstance(ref_create, sd.CreateObject)
                 ref_create.if_not_exists = True
 
                 ref_create.set_attribute_value(refdict.backref_attr, child)

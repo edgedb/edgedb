@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-from edb.common.struct import Struct, StructMeta, Field
+from edb.common.struct import RTStruct, StructMeta, Field
 from edb.common import checked
 
 
@@ -51,19 +51,19 @@ class MarkupMeta(StructMeta):
         # and subclassof any Markup class.  This avoids errors when
         # they are being added to various CheckedList & CheckedDict
         # collections.
-        parent_check = type(Struct).__instancecheck__
+        parent_check = type(RTStruct).__instancecheck__
         if parent_check(cls, inst):
             return True
         return type(inst) in (OverflowBarier, SerializationError)
 
     def __subclasscheck__(cls, subcls):
-        parent_check = type(Struct).__subclasscheck__
+        parent_check = type(RTStruct).__subclasscheck__
         if parent_check(cls, subcls):
             return True
         return subcls in (OverflowBarier, SerializationError)
 
 
-class Markup(Struct, metaclass=MarkupMeta, use_slots=True):
+class Markup(RTStruct, metaclass=MarkupMeta, use_slots=True):
     """Base class for all markup elements."""
 
 

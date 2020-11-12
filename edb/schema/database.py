@@ -79,6 +79,7 @@ class CreateDatabase(DatabaseCommand, sd.CreateObject[Database]):
         context: sd.CommandContext,
     ) -> CreateDatabase:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        assert isinstance(cmd, CreateDatabase)
 
         assert isinstance(astnode, qlast.CreateDatabase)
         if astnode.template is not None:
@@ -89,7 +90,6 @@ class CreateDatabase(DatabaseCommand, sd.CreateObject[Database]):
                 )
             cmd.template = astnode.template.name
 
-        assert isinstance(cmd, CreateDatabase)
         return cmd
 
 

@@ -485,6 +485,7 @@ class SetTargetDeletePolicy(sd.Command):
     ) -> sd.Command:
         assert isinstance(astnode, qlast.OnTargetDelete)
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        assert isinstance(cmd, sd.AlterObjectProperty)
         cmd.new_value = astnode.cascade
         return cmd
 

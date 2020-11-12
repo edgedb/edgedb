@@ -20,7 +20,13 @@
 import pickle
 import unittest
 
-from edb.common.struct import Struct, MixedStruct, Field
+from edb.common.struct import (
+    Struct,
+    RTStruct,
+    MixedStruct,
+    MixedRTStruct,
+    Field,
+)
 
 
 class PickleTest(Struct):
@@ -50,7 +56,7 @@ class StructTests(unittest.TestCase):
         assert set(t) == {'field1', 'field2'}
 
     def test_common_struct_coercion(self):
-        class Test(Struct):
+        class Test(RTStruct):
             field = Field(int, coerce=True)
 
         assert Test(field=1).field == 1
@@ -58,7 +64,7 @@ class StructTests(unittest.TestCase):
         with self.assertRaisesRegex(TypeError, 'cannot coerce'):
             Test(field='42.2')
 
-        class Test(Struct):
+        class Test(RTStruct):
             field = Field(int)
 
         assert Test(field=1).field == 1
@@ -121,7 +127,7 @@ class StructTests(unittest.TestCase):
         assert s2.__class__.__name__ == 'PickleTestMixed'
 
     def test_common_struct_frozen(self):
-        class Test(MixedStruct):
+        class Test(MixedRTStruct):
             field1 = Field(str, default='42', frozen=True)
             field2 = Field(bool)
 

@@ -225,6 +225,7 @@ def delta_schemas(
                     schema=schema_b,
                     context=context,
                 )
+                assert isinstance(create, sd.CreateObject)
                 create.if_not_exists = True
 
                 result.add(create)
