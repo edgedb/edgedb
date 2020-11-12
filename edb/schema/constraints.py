@@ -137,7 +137,7 @@ class Constraint(referencing.ReferencedInheritingObject,
     @classmethod
     def _maybe_fix_name(
         cls,
-        name: sn.Name,
+        name: sn.QualName,
         *,
         schema: s_schema.Schema,
         context: so.ComparisonContext,
@@ -149,9 +149,9 @@ class Constraint(referencing.ReferencedInheritingObject,
             base_name = context.get_obj_name(schema, base)
 
             quals = list(sn.quals_from_fullname(name))
-            name = sn.Name(
+            name = sn.QualName(
                 name=sn.get_specialized_name(base_name, *quals),
-                module=sn.Name(name).module,
+                module=name.module,
             )
 
         return name
@@ -170,8 +170,8 @@ class Constraint(referencing.ReferencedInheritingObject,
         # When comparing names, patch up the names to take into
         # account renames of the base abstract constraints.
         if field.name == 'name':
-            assert isinstance(our_value, sn.Name)
-            assert isinstance(their_value, sn.Name)
+            assert isinstance(our_value, sn.QualName)
+            assert isinstance(their_value, sn.QualName)
             our_value = cls._maybe_fix_name(  # type: ignore
                 our_value, schema=our_schema, context=context)
             their_value = cls._maybe_fix_name(  # type: ignore
