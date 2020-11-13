@@ -492,6 +492,7 @@ class SetTargetDeletePolicy(sd.Command):
 
 class AlterLink(
     LinkCommand,
+    pointers.PointerAlterFragment,
     referencing.AlterReferencedInheritingObject[Link],
 ):
     astnode = [qlast.AlterConcreteLink, qlast.AlterLink]
@@ -512,21 +513,22 @@ class AlterLink(
             expr_cmd = qlast.get_ddl_field_command(astnode, 'expr')
             if expr_cmd is not None:
                 expr = expr_cmd.value
-                qlnorm.normalize(
-                    expr,
-                    schema=schema,
-                    modaliases=context.modaliases
-                )
-                target_ref = pointers.ComputableRef(expr)
+                if expr is not None:
+                    qlnorm.normalize(
+                        expr,
+                        schema=schema,
+                        modaliases=context.modaliases
+                    )
+                    target_ref = pointers.ComputableRef(expr)
 
-                slt = SetLinkType(classname=cmd.classname, type=target_ref)
-                slt.set_attribute_value(
-                    'target',
-                    target_ref,
-                    source_context=expr_cmd.value.context,
-                )
-                cmd.add(slt)
-                cmd.discard_attribute('expr')
+                    slt = SetLinkType(classname=cmd.classname, type=target_ref)
+                    slt.set_attribute_value(
+                        'target',
+                        target_ref,
+                        source_context=expr_cmd.value.context,
+                    )
+                    cmd.add(slt)
+                    cmd.discard_attribute('expr')
 
         assert isinstance(cmd, referencing.AlterReferencedInheritingObject)
         return cmd
@@ -560,6 +562,14 @@ class AlterLink(
                     value=op.new_value,
                 ),
             )
+        elif op.property == 'computable':
+            if not op.new_value:
+                node.commands.append(
+                    qlast.SetSpecialField(
+                        name='expr',
+                        value=None,
+                    ),
+                )
         else:
             super()._apply_field_ast(schema, context, node, op)
 

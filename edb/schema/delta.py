@@ -2854,6 +2854,7 @@ class AlterSpecialObjectProperty(Command):
         field = parent_cls.get_field(propname)
 
         new_value: Any = astnode.value
+        old_value: Any = None
 
         if field.type is s_expr.Expression:
             if parent_cls.has_field(f'orig_{field.name}'):
@@ -2861,17 +2862,20 @@ class AlterSpecialObjectProperty(Command):
                     schema, parent_op.qlast, field.name)
             else:
                 orig_text = None
-            new_value = s_expr.Expression.from_ast(
-                astnode.value,
-                schema,
-                context.modaliases,
-                context.localnames,
-                orig_text=orig_text,
-            )
+
+            if astnode.value is not None:
+                new_value = s_expr.Expression.from_ast(
+                    astnode.value,
+                    schema,
+                    context.modaliases,
+                    context.localnames,
+                    orig_text=orig_text,
+                )
 
         return AlterObjectProperty(
             property=astnode.name,
             new_value=new_value,
+            old_value=old_value,
             source_context=astnode.context,
         )
 
