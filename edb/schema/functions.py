@@ -412,6 +412,36 @@ class Parameter(
     def as_str(self, schema: s_schema.Schema) -> str:
         return param_as_str(schema, self)
 
+    @classmethod
+    def compare_field_value(
+        cls,
+        field: so.Field[Type[so.T]],
+        our_value: so.T,
+        their_value: so.T,
+        *,
+        our_schema: s_schema.Schema,
+        their_schema: s_schema.Schema,
+        context: so.ComparisonContext,
+    ) -> float:
+        # Only compare the actual param name, not the full name.
+        if field.name == 'name':
+            assert isinstance(our_value, sn.Name)
+            assert isinstance(their_value, sn.Name)
+            if (
+                cls.paramname_from_fullname(our_value) ==
+                cls.paramname_from_fullname(their_value)
+            ):
+                return 1.0
+
+        return super().compare_field_value(
+            field,
+            our_value,
+            their_value,
+            our_schema=our_schema,
+            their_schema=their_schema,
+            context=context,
+        )
+
     def get_ast(self, schema: s_schema.Schema) -> qlast.FuncParam:
         default = self.get_default(schema)
         type = utils.typeref_to_ast(schema, self.get_type(schema))
@@ -615,6 +645,34 @@ class FuncParameterList(so.ObjectList[Parameter], ParameterLikeList):
         for param in self.objects(schema):
             result.append(param.get_ast(schema))
         return result
+
+    @classmethod
+    def compare_values(
+        cls,
+        ours_o: so.ObjectCollection[Parameter],
+        theirs_o: so.ObjectCollection[Parameter],
+        *,
+        our_schema: s_schema.Schema,
+        their_schema: s_schema.Schema,
+        context: so.ComparisonContext,
+        compcoef: float,
+    ) -> float:
+        ours = list(ours_o.objects(our_schema))
+        theirs = list(theirs_o.objects(their_schema))
+
+        # Because parameter lists can't currently be ALTERed, any
+        # changes are catastrophic, so return compcoef on any mismatch
+        # at all.
+        if len(ours) != len(theirs):
+            return compcoef
+        for param1, param2 in zip(ours, theirs):
+            coef = param1.compare(
+                param2, our_schema=our_schema,
+                their_schema=their_schema, context=context)
+            if coef != 1.0:
+                return compcoef
+
+        return 1.0
 
 
 class VolatilitySubject(so.Object):
@@ -922,6 +980,9 @@ class AlterCallableObject(
             qlast.CallableObject,
             super()._get_ast(schema, context, parent_node=parent_node)
         )
+
+        if not node:
+            return None
 
         scls = self.get_object(schema, context)
         node.params = scls.get_params(schema).get_ast(schema)
