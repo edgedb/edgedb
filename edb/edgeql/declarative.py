@@ -624,6 +624,7 @@ def trace_ConcreteConstraint(
         deps=deps,
         hard_dep_exprs=exprs,
         loop_control=loop_control,
+        source=ctx.depstack[-1][1],
         subject=ctx.depstack[-1][1],
         ctx=ctx,
     )
@@ -892,32 +893,48 @@ def _register_item(
                     params=params,
                 )
 
+                pdeps: MutableSet[s_name.QualName] = set()
                 for dep in tdeps:
                     # ignore std module dependencies
                     if not STD_PREFIX_RE.match(str(dep)):
-                        deps.add(dep)
+                        # First check if the dep is a pointer that's
+                        # defined explicitly. If it's not explicitly
+                        # defined, check for ancestors and use them
+                        # instead.
+                        #
+                        # FIXME: Ideally we should use the closest
+                        # ancestor, instead of all of them, but
+                        # including all is still correct.
+                        if '@' in dep.name:
+                            pdeps |= _get_pointer_deps(dep, ctx=ctx)
+                        else:
+                            pdeps.add(dep)
 
-                        if isinstance(decl, qlast.CreateAlias):
-                            # If the declaration is a view, we need to be
-                            # dependent on all the types and their props
-                            # used in the view.
-                            vdeps = {dep} | ctx.ancestors.get(dep, set())
-                            for vdep in vdeps:
-                                deps |= ctx.defdeps.get(vdep, set())
+                # Handle the pre-processed deps now.
+                for dep in pdeps:
+                    deps.add(dep)
 
-                        elif (isinstance(decl, qlast.CreateConcretePointer)
-                              and isinstance(decl.target, qlast.Expr)):
-                            # If the declaration is a computable
-                            # pointer, we need to include the possible
-                            # constraints for every dependency that it
-                            # lists. This is so that any other
-                            # links/props that this computable uses
-                            # has all of their constraints defined
-                            # before the computable and the
-                            # cardinality can be inferred correctly.
-                            cdeps = {dep} | ctx.ancestors.get(dep, set())
-                            for cdep in cdeps:
-                                deps |= ctx.constraints.get(cdep, set())
+                    if isinstance(decl, qlast.CreateAlias):
+                        # If the declaration is a view, we need to be
+                        # dependent on all the types and their props
+                        # used in the view.
+                        vdeps = {dep} | ctx.ancestors.get(dep, set())
+                        for vdep in vdeps:
+                            deps |= ctx.defdeps.get(vdep, set())
+
+                    elif (isinstance(decl, qlast.CreateConcretePointer)
+                          and isinstance(decl.target, qlast.Expr)):
+                        # If the declaration is a computable
+                        # pointer, we need to include the possible
+                        # constraints for every dependency that it
+                        # lists. This is so that any other
+                        # links/props that this computable uses
+                        # has all of their constraints defined
+                        # before the computable and the
+                        # cardinality can be inferred correctly.
+                        cdeps = {dep} | ctx.ancestors.get(dep, set())
+                        for cdep in cdeps:
+                            deps |= ctx.constraints.get(cdep, set())
             else:
                 raise AssertionError(f'unexpected dependency type: {expr!r}')
 
@@ -928,6 +945,37 @@ def _register_item(
         parent_node.loop_control.add(fq_name)
 
     node.deps |= deps
+
+
+def _get_pointer_deps(
+    pointer: s_name.QualName,
+    *,
+    ctx: DepTraceContext,
+) -> MutableSet[s_name.QualName]:
+    result: MutableSet[s_name.QualName] = set()
+    owner_name, ptr_name = pointer.name.split('@', 1)
+    # For every ancestor of the type, where
+    # the pointer is defined, see if there are
+    # ancestors of the pointer itself defined.
+    for tansc in ctx.ancestors.get(
+            s_name.QualName(
+                module=pointer.module, name=owner_name
+            ), set()):
+        ptr_ansc = s_name.QualName(
+            module=tansc.module,
+            name=f'{tansc.name}@{ptr_name}',
+        )
+
+        # Only add the pointer's ancestor if
+        # it is explicitly defined.
+        if ptr_ansc in ctx.objects:
+            result.add(ptr_ansc)
+
+    # Only add the pointer if it is explicitly defined.
+    if pointer in ctx.objects:
+        result.add(pointer)
+
+    return result
 
 
 def _get_hard_deps(
