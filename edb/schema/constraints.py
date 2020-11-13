@@ -1119,9 +1119,17 @@ class CreateConstraint(
                     )
                 )
             return
-        elif op.property == 'args':
+        elif (
+            op.property == 'args'
+            and isinstance(node, qlast.CreateConcreteConstraint)
+        ):
             assert isinstance(op.new_value, s_expr.ExpressionList)
-            node.args = [arg.qlast for arg in op.new_value]
+            args = []
+            for arg in op.new_value:
+                exprast = arg.qlast
+                assert isinstance(exprast, qlast.Expr), "expected qlast.Expr"
+                args.append(exprast)
+            node.args = args
             return
 
         super()._apply_field_ast(schema, context, node, op)

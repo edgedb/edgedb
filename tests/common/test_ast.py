@@ -88,6 +88,10 @@ class ASTBaseTests(unittest.TestCase):
         'edb.common.ast.base._check_type',
         ast.base._check_type_real,
     )
+    @unittest.mock.patch(
+        'edb.common.ast.base.AST.__setattr__',
+        ast.base.AST._checked_setattr,
+    )
     def test_common_ast_typing(self):
         class Base(ast.AST):
             pass
