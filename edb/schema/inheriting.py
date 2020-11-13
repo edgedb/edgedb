@@ -441,7 +441,6 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         if rebase is not None:
             rebase_cmd = rebase(
                 classname=scls.get_name(schema),
-                metaclass=type(scls),
                 removed_bases=removed,
                 added_bases=added,
             )
@@ -593,8 +592,9 @@ class AlterInherit(sd.Command):
     # goal here is to encode the information in the subcommand stream,
     # so the positioning is maintained.
     added_bases = struct.Field(List[Tuple[
-        so.ObjectShell,
-        Optional[Union[str, Tuple[str, so.ObjectShell]]]]])
+        List[so.ObjectShell],
+        Optional[Union[str, Tuple[str, so.ObjectShell]]],
+    ]])
     dropped_bases = struct.Field(List[so.ObjectShell])
 
     @classmethod
@@ -928,7 +928,6 @@ class AlterInheritingObject(
             cmd.replace(
                 sub,
                 rebase_class(
-                    metaclass=parent_class,
                     classname=cmd.classname,
                     removed_bases=tuple(dropped_bases),
                     added_bases=tuple(added_bases)

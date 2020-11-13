@@ -26,6 +26,7 @@ from mypy import exprtotype
 import mypy.plugin as mypy_plugin
 from mypy import nodes
 from mypy import types
+from mypy import semanal
 from mypy.plugins import common as mypy_helpers
 from mypy.server import trigger as mypy_trigger
 
@@ -93,14 +94,29 @@ class Field(NamedTuple):
 
     name: str
     has_explicit_accessor: bool
+    has_default: bool
     line: int
     column: int
     type: types.Type
+
+    def to_argument(self) -> nodes.Argument:
+        result = nodes.Argument(
+            variable=self.to_var(),
+            type_annotation=self.type,
+            initializer=None,
+            kind=nodes.ARG_NAMED_OPT if self.has_default else nodes.ARG_NAMED,
+        )
+
+        return result
+
+    def to_var(self) -> nodes.Var:
+        return nodes.Var(self.name, self.type)
 
     def serialize(self) -> nodes.JsonDict:
         return {
             'name': self.name,
             'has_explicit_accessor': self.has_explicit_accessor,
+            'has_default': self.has_default,
             'line': self.line,
             'column': self.column,
             'type': self.type.serialize(),
@@ -115,6 +131,7 @@ class Field(NamedTuple):
         return cls(
             name=data['name'],
             has_explicit_accessor=data['has_explicit_accessor'],
+            has_default=data['has_default'],
             line=data['line'],
             column=data['column'],
             type=mypy_helpers.deserialize_and_fixup_type(data['type'], api),
@@ -168,6 +185,9 @@ class BaseStructTransformer:
             lhs = stmt.lvalues[0]
             rhs = stmt.rvalue
 
+            if isinstance(rhs, nodes.CastExpr):
+                rhs = rhs.expr
+
             if not isinstance(rhs, nodes.CallExpr):
                 continue
 
@@ -189,6 +209,7 @@ class BaseStructTransformer:
                     and ctor.fullname in self._field_makers):
                 field = self._field_from_field_def(stmt, lhs, rhs, ftype=ftype)
                 fields.append(field)
+                known_fields.add(field.name)
 
         all_fields = fields.copy()
         for ancestor_info in cls.info.mro[1:-1]:
@@ -227,6 +248,8 @@ class BaseStructTransformer:
         ctx = self._ctx
         type_arg = call.args[0]
 
+        deflt = self._get_default(call)
+
         if ftype is None:
             try:
                 un_type = exprtotype.expr_to_unanalyzed_type(type_arg)
@@ -237,7 +260,11 @@ class BaseStructTransformer:
             if ftype is None:
                 raise DeferException
 
-            if self._is_optional(call):
+            is_optional = (
+                isinstance(deflt, nodes.NameExpr)
+                and deflt.fullname == 'builtins.None'
+            )
+            if is_optional:
                 ftype = types.UnionType.make_union(
                     [ftype, types.NoneType()],
                     line=ftype.line,
@@ -249,6 +276,7 @@ class BaseStructTransformer:
         return Field(
             name=lhs.name,
             has_explicit_accessor=self._has_explicit_field_accessor(lhs.name),
+            has_default=deflt is not None,
             line=stmt.line,
             column=stmt.column,
             type=ftype,
@@ -259,14 +287,12 @@ class BaseStructTransformer:
         accessor = cls.info.names.get(f'get_{fieldname}')
         return accessor is not None and not accessor.plugin_generated
 
-    def _is_optional(self, call) -> bool:
+    def _get_default(self, call) -> Optional[nodes.Expression]:
         for (n, v) in zip(call.arg_names, call.args):
-            if (n == 'default'
-                    and (isinstance(v, nodes.NameExpr)
-                         and v.fullname == 'builtins.None')):
-                return True
+            if n == 'default':
+                return v
         else:
-            return False
+            return None
 
     def _get_metadata_key(self) -> str:
         return f'{METADATA_KEY}%%{type(self).__name__}'
@@ -294,6 +320,15 @@ class StructTransformer(BaseStructTransformer):
 
         cls_info = ctx.cls.info
 
+        # If our self type has placeholders (probably because of type
+        # var bounds), defer. If we skip deferring and stick something
+        # in our symbol table anyway, we'll get in trouble.  (Arguably
+        # plugins.common ought to help us with this, but oh well.)
+        self_type = mypy_helpers.fill_typevars(cls_info)
+        if semanal.has_placeholder(self_type):
+            ctx.api.defer()
+            return None
+
         for f in fields:
             finfo = cls_info.names.get(f.name)
             if finfo is None:
@@ -301,6 +336,20 @@ class StructTransformer(BaseStructTransformer):
 
             node = finfo.node
             node.is_initialized_in_class = False
+
+        if (
+            (
+                '__init__' not in cls_info.names
+                or cls_info.names['__init__'].plugin_generated
+            ) and fields
+        ):
+            mypy_helpers.add_method(
+                ctx,
+                '__init__',
+                self_type=self_type,
+                args=[field.to_argument() for field in fields],
+                return_type=types.NoneType(),
+            )
 
         metadata['fields'] = {f.name: f.serialize() for f in fields}
         metadata['processed'] = True

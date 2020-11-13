@@ -127,11 +127,10 @@ class ReferencedObject(so.DerivableObject):
         refcoll = referrer.get_field_value(schema, refdict.attr)
         existing = refcoll.get(schema, refname, default=None)
 
-        cmdcls: Type[sd.ObjectCommand[ReferencedT]]
         cmdcls = sd.AlterObject if existing is not None else sd.CreateObject
         cmd: sd.ObjectCommand[ReferencedT] = sd.get_object_delta_command(
             objtype=type(self),
-            cmdtype=cmdcls,
+            cmdtype=cmdcls,  # type: ignore[arg-type]
             schema=schema,
             name=derived_name,
         )
@@ -912,6 +911,7 @@ class ReferencedInheritingObjectCommand(
             alter_cmd: sd.ObjectCommand[so.Object],
             refname: sn.Name,
         ) -> None:
+            assert isinstance(alter_cmd, sd.QualifiedObjectCommand)
             s_t = type(self)(classname=alter_cmd.classname)
             orig_value = scls.get_explicit_field_value(
                 schema, field_name, default=None)
