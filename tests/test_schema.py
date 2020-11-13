@@ -1867,6 +1867,100 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
+    def test_schema_get_migration_36(self):
+        # Make sure that awkward order of computables and types
+        # extending each other doesn't affect the migraiton.
+        #
+        # Issue #1941.
+        schema = r'''
+        type Owner {
+            multi link professional_skills := .<user[IS Pencil];
+        };
+        abstract type Thing {
+            required link user -> Owner;
+        };
+        type Pencil extending Thing;
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_schema_get_migration_37(self):
+        # Make sure that awkward order of computables and types
+        # extending each other doesn't affect the migraiton.
+        #
+        # Issue #1941.
+        schema = r'''
+        type Owner {
+            multi link professional_skills := .<user[IS Pencil];
+        };
+        abstract type Thing {
+            required link user -> Owner;
+        };
+        type Pencil extending Thing;
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_schema_get_migration_38(self):
+        # Make sure that awkward order of computables and types
+        # extending each other doesn't affect the migraiton.
+        #
+        # Issue #1941.
+        schema = r'''
+        type Owner {
+            multi link professional_skills := .<user[IS Thing][IS Pencil];
+        };
+        abstract type Thing {
+            required link user -> Owner;
+        };
+        type Pencil extending Thing;
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_schema_get_migration_39(self):
+        # Make sure that awkward order of computables and types
+        # extending each other doesn't affect the migraiton.
+        #
+        # Issue #1941.
+        schema = r'''
+        type Owner {
+            multi link professional_skills := .<user[IS Thing][IS Pencil];
+        };
+        type Color {
+        };
+        abstract type Thing {
+            required link user -> Owner;
+            required link color -> Color;
+            required property enabled -> bool;
+        };
+        type Pencil extending Thing {
+            constraint exclusive on ((.user, .color));
+        };
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_schema_get_migration_40(self):
+        # Make sure that awkward order of computables and types
+        # extending each other doesn't affect the migraiton.
+        #
+        # Issue #1941.
+        schema = r'''
+        type Owner {
+            multi property notes := .<user[IS Pencil]@note;
+        };
+        abstract type Thing {
+            required link user extending base_user -> Owner;
+        };
+        type Pencil extending Thing;
+        abstract link base_user {
+            property note -> str;
+        };
+        '''
+
+        self._assert_migration_consistency(schema)
+
     def test_schema_get_migration_multi_module_01(self):
         schema = r'''
             # The two declared types declared are from different
