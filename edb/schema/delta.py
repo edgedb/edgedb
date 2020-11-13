@@ -1396,7 +1396,6 @@ class Query(Command):
     ) -> Command:
         return cls(
             source_context=astnode.context,
-            qlast=astnode,
             expr=s_expr.Expression.from_ast(
                 astnode,
                 schema=schema,
@@ -3236,7 +3235,6 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
         context.early_renames[parent_op.classname] = new_name
 
         return rename_class(
-            metaclass=parent_class,
             classname=parent_op.classname,
             new_name=new_name,
         )
@@ -3670,13 +3668,13 @@ class AlterObjectProperty(Command):
     astnode = qlast.SetField
 
     property = struct.Field(str)
-    old_value = struct.Field[Any](object, None)
-    new_value = struct.Field[Any](object, None)
-    old_inherited = struct.Field(bool, False)
-    new_inherited = struct.Field(bool, False)
-    new_computed = struct.Field(bool, False)
-    old_computed = struct.Field(bool, False)
-    from_default = struct.Field(bool, False)
+    old_value = struct.Field[Any](object, default=None)
+    new_value = struct.Field[Any](object, default=None)
+    old_inherited = struct.Field(bool, default=False)
+    new_inherited = struct.Field(bool, default=False)
+    new_computed = struct.Field(bool, default=False)
+    old_computed = struct.Field(bool, default=False)
+    from_default = struct.Field(bool, default=False)
 
     @classmethod
     def _cmd_tree_from_ast(
@@ -4100,7 +4098,7 @@ def get_object_delta_command(
 
     return cmdcls(
         classname=name,
-        ddl_identity=ddl_identity,
+        ddl_identity=dict(ddl_identity) if ddl_identity is not None else None,
         **kwargs,
     )
 

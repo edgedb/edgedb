@@ -3019,7 +3019,6 @@ class InheritingObject(SubclassableObject):
 
             rebase_cmd = rebase(
                 classname=other.get_name(other_schema),
-                metaclass=type(self),
                 removed_bases=removed,
                 added_bases=added,
             )
