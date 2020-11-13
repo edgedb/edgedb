@@ -230,36 +230,25 @@ class Struct(metaclass=StructMeta):
         AttributeError: 'S2' object has no attribute 'spam'
     """
 
-    __slots__ = ('_in_init_',)
-
     def __init__(self, **kwargs: Any) -> None:
         """
         :raises: TypeError if invalid field value was provided or a value was
                  not provided for a field without a default value.
         """
         self._check_init_argnames(kwargs)
-
-        self._in_init_ = True
-        try:
-            self._init_fields(kwargs)
-        finally:
-            self._in_init_ = False
+        self._init_fields(kwargs)
 
     def __setstate__(self, state: Mapping[str, Any]) -> None:
-        self._in_init_ = True
-        try:
-            if isinstance(state, tuple) and len(state) == 2:
-                state, slotstate = state
-            else:
-                slotstate = None
+        if isinstance(state, tuple) and len(state) == 2:
+            state, slotstate = state
+        else:
+            slotstate = None
 
-            if state:
-                self.update(**state)
+        if state:
+            self.update(**state)
 
-            if slotstate:
-                self.update(**slotstate)
-        finally:
-            self._in_init_ = False
+        if slotstate:
+            self.update(**slotstate)
 
     def update(self, *args: Any, **kwargs: Any) -> None:
         """Update the field values."""
@@ -403,6 +392,28 @@ class Struct(metaclass=StructMeta):
 
 class RTStruct(Struct):
     """A variant of Struct with runtime type validation"""
+
+    __slots__ = ('_in_init_',)
+
+    def __init__(self, **kwargs: Any) -> None:
+        """
+        :raises: TypeError if invalid field value was provided or a value was
+                 not provided for a field without a default value.
+        """
+        self._check_init_argnames(kwargs)
+
+        self._in_init_ = True
+        try:
+            self._init_fields(kwargs)
+        finally:
+            self._in_init_ = False
+
+    def __setstate__(self, state: Mapping[str, Any]) -> None:
+        self._in_init_ = True
+        try:
+            super().__setstate__(state)
+        finally:
+            self._in_init_ = False
 
     def __setattr__(self, name: str, value: Any) -> None:
         field = type(self)._fields.get(name)
