@@ -108,7 +108,6 @@ cdef class QueryRequestInfo:
     def __cinit__(
         self,
         source: edgeql.Source,
-        cache_key: str,
         io_format: object,
         expect_one: bint,
         implicit_limit: int,
@@ -116,7 +115,6 @@ cdef class QueryRequestInfo:
         inline_typenames: bint,
     ):
         self.source = source
-        self.cache_key = cache_key
         self.io_format = io_format
         self.expect_one = expect_one
         self.implicit_limit = implicit_limit
@@ -124,7 +122,7 @@ cdef class QueryRequestInfo:
         self.inline_typenames = inline_typenames
 
         self.cached_hash = hash((
-            self.cache_key,
+            self.source.cache_key(),
             self.io_format,
             self.expect_one,
             self.implicit_limit,
@@ -137,7 +135,7 @@ cdef class QueryRequestInfo:
 
     def __eq__(self, other: QueryRequestInfo) -> bool:
         return (
-            self.cache_key == other.cache_key and
+            self.source.cache_key() == other.source.cache_key() and
             self.io_format == other.io_format and
             self.expect_one == other.expect_one and
             self.implicit_limit == other.implicit_limit and
@@ -904,12 +902,12 @@ cdef class EdgeConnection:
 
         return query_unit
 
-    def _tokenize(self, eql: bytes) -> (edgeql.Source, str):
+    def _tokenize(self, eql: bytes) -> edgeql.Source:
         text = eql.decode('utf-8')
         if debug.flags.edgeql_disable_normalization:
-            return edgeql.Source.from_string(text), text
+            return edgeql.Source.from_string(text)
         else:
-            return edgeql.NormalizedSource.from_string_with_cache_key(text)
+            return edgeql.NormalizedSource.from_string(text)
 
     async def _parse(
         self,
@@ -1050,11 +1048,10 @@ cdef class EdgeConnection:
             raise errors.BinaryProtocolError('empty query')
 
         with self.timer.timed("Query normalization"):
-            source, cache_key = self._tokenize(eql)
+            source = self._tokenize(eql)
 
         query_req = QueryRequestInfo(
             source,
-            cache_key,
             io_format,
             expect_one,
             implicit_limit,

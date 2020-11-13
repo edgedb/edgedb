@@ -20,6 +20,7 @@ from __future__ import annotations
 from typing import *
 
 import re
+import hashlib
 
 from edb._edgeql_rust import tokenize as _tokenize, TokenizerError, Token
 from edb._edgeql_rust import normalize as _normalize, Entry
@@ -33,11 +34,15 @@ TRAILING_WS_IN_CONTINUATION = re.compile(r'\\ \s+\n')
 class Source:
 
     def __init__(self, text: str, tokens: List[Token]) -> None:
+        self._cache_key = hashlib.blake2b(text.encode('utf-8')).digest()
         self._text = text
         self._tokens = tokens
 
     def text(self) -> str:
         return self._text
+
+    def cache_key(self) -> bytes:
+        return self._cache_key
 
     def variables(self) -> Dict[str, Any]:
         return {}
@@ -63,6 +68,7 @@ class NormalizedSource(Source):
 
     def __init__(self, normalized: Entry, text: str) -> None:
         self._text = text
+        self._cache_key = normalized.key()
         self._tokens = normalized.tokens()
         self._variables = normalized.variables()
         self._first_extra = normalized.first_extra()
@@ -71,6 +77,9 @@ class NormalizedSource(Source):
 
     def text(self) -> str:
         return self._text
+
+    def cache_key(self) -> bytes:
+        return self._cache_key
 
     def variables(self) -> Dict[str, Any]:
         return self._variables
@@ -90,12 +99,6 @@ class NormalizedSource(Source):
     @classmethod
     def from_string(cls, text: str) -> NormalizedSource:
         return cls(normalize(text), text)
-
-    @classmethod
-    def from_string_with_cache_key(cls, text: str) -> (NormalizedSource, str):
-        """Returns a tuple of Source and canonical cache key for the query"""
-        normalized = normalize(text)
-        return cls(normalized, text), normalized.key()
 
 
 def tokenize(eql: str) -> List[Token]:
