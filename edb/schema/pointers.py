@@ -1468,6 +1468,9 @@ class SetPointerType(
         )
         return f'alter the type of {object_desc}'
 
+    def is_data_safe(self) -> bool:
+        return False
+
     def _alter_begin(
         self,
         schema: s_schema.Schema,
@@ -1563,6 +1566,17 @@ class AlterPointerUpperCardinality(
     PointerCommandOrFragment[Pointer_T],
 ):
     """Handler for the "cardinality" field changes."""
+
+    def is_data_safe(self) -> bool:
+        old_val = self.get_orig_attribute_value('cardinality')
+        new_val = self.get_attribute_value('cardinality')
+        if (
+            old_val is qltypes.SchemaCardinality.Many
+            and new_val is qltypes.SchemaCardinality.One
+        ):
+            return False
+        else:
+            return True
 
     def _alter_begin(
         self,

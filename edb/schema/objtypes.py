@@ -50,6 +50,7 @@ class ObjectType(
     constraints.ConsistencySubject,
     s_abc.ObjectType,
     qlkind=qltypes.SchemaObjectClass.TYPE,
+    data_safe=False,
 ):
 
     union_of = so.SchemaField(

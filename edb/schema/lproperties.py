@@ -42,8 +42,12 @@ if TYPE_CHECKING:
     from . import schema as s_schema
 
 
-class Property(pointers.Pointer, s_abc.Property,
-               qlkind=qltypes.SchemaObjectClass.PROPERTY):
+class Property(
+    pointers.Pointer,
+    s_abc.Property,
+    qlkind=qltypes.SchemaObjectClass.PROPERTY,
+    data_safe=False,
+):
 
     def derive_ref(
         self,

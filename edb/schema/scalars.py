@@ -46,6 +46,7 @@ class ScalarType(
     constraints.ConsistencySubject,
     s_abc.ScalarType,
     qlkind=qltypes.SchemaObjectClass.SCALAR_TYPE,
+    data_safe=True,
 ):
 
     default = so.SchemaField(

@@ -42,6 +42,7 @@ class Alias(
     so.QualifiedObject,
     s_anno.AnnotationSubject,
     qlkind=qltypes.SchemaObjectClass.ALIAS,
+    data_safe=True,
 ):
 
     expr = so.SchemaField(

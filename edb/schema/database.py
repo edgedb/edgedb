@@ -34,8 +34,13 @@ from . import objects as so
 from . import schema as s_schema
 
 
-class Database(so.GlobalObject, s_anno.AnnotationSubject, s_abc.Database,
-               qlkind=qltypes.SchemaObjectClass.DATABASE):
+class Database(
+    so.GlobalObject,
+    s_anno.AnnotationSubject,
+    s_abc.Database,
+    qlkind=qltypes.SchemaObjectClass.DATABASE,
+    data_safe=False,
+):
     pass
 
 

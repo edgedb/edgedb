@@ -45,6 +45,7 @@ class Migration(
     so.Object,
     s_abc.Migration,
     qlkind=qltypes.SchemaObjectClass.MIGRATION,
+    data_safe=False,
 ):
 
     parents = so.SchemaField(

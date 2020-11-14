@@ -339,6 +339,7 @@ class Parameter(
     so.ObjectFragment,
     ParameterLike,
     qlkind=ft.SchemaObjectClass.PARAMETER,
+    data_safe=True,
 ):
 
     num = so.SchemaField(
@@ -1104,8 +1105,13 @@ class DeleteCallableObject(
         return cmd
 
 
-class Function(CallableObject, VolatilitySubject, s_abc.Function,
-               qlkind=ft.SchemaObjectClass.FUNCTION):
+class Function(
+    CallableObject,
+    VolatilitySubject,
+    s_abc.Function,
+    qlkind=ft.SchemaObjectClass.FUNCTION,
+    data_safe=True,
+):
 
     # A backend_name that is shared between all overloads of the same
     # function, to make them independent from the actual name.

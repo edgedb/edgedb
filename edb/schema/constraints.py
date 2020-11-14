@@ -77,9 +77,12 @@ def merge_constraint_params(
         return supers[0].get_explicit_field_value(schema, field_name, None)
 
 
-class Constraint(referencing.ReferencedInheritingObject,
-                 s_func.CallableObject, s_abc.Constraint,
-                 qlkind=ft.SchemaObjectClass.CONSTRAINT):
+class Constraint(
+    referencing.ReferencedInheritingObject,
+    s_func.CallableObject, s_abc.Constraint,
+    qlkind=ft.SchemaObjectClass.CONSTRAINT,
+    data_safe=True,
+):
 
     params = so.SchemaField(
         s_func.FuncParameterList,
