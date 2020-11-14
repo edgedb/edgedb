@@ -301,7 +301,7 @@ class ReferencedInheritingObject(
         *,
         schema: s_schema.Schema,
         context: so.ComparisonContext,
-    ) -> sd.Command:
+    ) -> sd.ObjectCommand[ReferencedInheritingObjectT]:
         del_op = super().as_delete_delta(schema=schema, context=context)
 
         if (
@@ -318,13 +318,9 @@ class ReferencedInheritingObject(
             alter_op.add(owned_op)
             del_op.set_attribute_value('is_owned', None, orig_value=False)
 
-            group = sd.CommandGroup()
-            group.add(alter_op)
-            group.add(del_op)
+            del_op.add(alter_op)
 
-            return group
-        else:
-            return del_op
+        return del_op
 
     def record_field_alter_delta(
         self: ReferencedInheritingObjectT,

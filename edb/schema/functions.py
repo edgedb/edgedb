@@ -288,7 +288,7 @@ class ParameterDesc(ParameterLike):
         func_fqname: sn.QualName,
         *,
         context: sd.CommandContext,
-    ) -> sd.Command:
+    ) -> sd.CreateObject[Parameter]:
         CreateParameter = sd.ObjectCommandMeta.get_command_class_or_die(
             sd.CreateObject, Parameter)
 
@@ -309,7 +309,7 @@ class ParameterDesc(ParameterLike):
         func_fqname: sn.QualName,
         *,
         context: sd.CommandContext,
-    ) -> sd.Command:
+    ) -> sd.ObjectCommand[Parameter]:
         DeleteParameter = sd.ObjectCommandMeta.get_command_class_or_die(
             sd.DeleteObject, Parameter)
 
@@ -733,7 +733,7 @@ class CallableObject(
         self: CallableObjectT,
         schema: s_schema.Schema,
         context: so.ComparisonContext,
-    ) -> sd.Command:
+    ) -> sd.ObjectCommand[CallableObjectT]:
         delta = super().as_create_delta(schema, context)
 
         new_params = self.get_params(schema).objects(schema)
@@ -752,7 +752,7 @@ class CallableObject(
         self_schema: s_schema.Schema,
         other_schema: s_schema.Schema,
         context: so.ComparisonContext,
-    ) -> sd.Command:
+    ) -> sd.ObjectCommand[CallableObjectT]:
         delta = super().as_alter_delta(
             other,
             self_schema=self_schema,
@@ -790,7 +790,7 @@ class CallableObject(
         *,
         schema: s_schema.Schema,
         context: so.ComparisonContext,
-    ) -> sd.Command:
+    ) -> sd.ObjectCommand[CallableObjectT]:
         delta = super().as_delete_delta(schema=schema, context=context)
         old_params = self.get_params(schema).objects(schema)
         for p in old_params:
