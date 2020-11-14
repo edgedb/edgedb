@@ -1405,7 +1405,7 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         self: Object_T,
         schema: s_schema.Schema,
         context: ComparisonContext,
-    ) -> sd.Command:
+    ) -> sd.ObjectCommand[Object_T]:
         from . import delta as sd
 
         cls = type(self)
@@ -1458,7 +1458,7 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         self_schema: s_schema.Schema,
         other_schema: s_schema.Schema,
         context: ComparisonContext,
-    ) -> sd.Command:
+    ) -> sd.ObjectCommand[Object_T]:
         from . import delta as sd
 
         cls = type(self)
@@ -1561,7 +1561,7 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         *,
         schema: s_schema.Schema,
         context: ComparisonContext,
-    ) -> sd.Command:
+    ) -> sd.ObjectCommand[Object_T]:
         from . import delta as sd
 
         cls = type(self)
@@ -2726,7 +2726,7 @@ class InheritingObject(SubclassableObject):
         self_schema: s_schema.Schema,
         other_schema: s_schema.Schema,
         context: ComparisonContext,
-    ) -> sd.Command:
+    ) -> sd.ObjectCommand[InheritingObjectT]:
         from . import delta as sd
         from . import inheriting as s_inh
 
