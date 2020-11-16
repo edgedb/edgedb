@@ -220,6 +220,7 @@ def compile_FunctionCall(
         func_module_id=env.schema.get_global(
             s_mod.Module, func_name.module).id,
         func_shortname=func_name,
+        backend_name=func.get_backend_name(env.schema),
         func_polymorphic=is_polymorphic,
         func_sql_function=func.get_from_function(env.schema),
         force_return_cast=func.get_force_return_cast(env.schema),

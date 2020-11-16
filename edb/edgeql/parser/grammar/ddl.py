@@ -1639,6 +1639,7 @@ commands_block(
     'AlterFunction',
     commondl.FromFunction,
     SetFieldStmt,
+    RenameStmt,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     DropAnnotationValueStmt,

@@ -282,8 +282,10 @@ def get_cast_backend_name(name, module_id, catenate=False, *, aspect=None):
             f'unexpected aspect for cast backend name: {aspect!r}')
 
 
-def get_function_backend_name(name, module_id, catenate=False):
-    fullname = s_name.QualName(module=str(module_id), name=name.name)
+def get_function_backend_name(name, module_id, backend_name, catenate=False):
+    real_name = backend_name or name.name
+
+    fullname = s_name.QualName(module=str(module_id), name=real_name)
     schema, func_name = convert_name(fullname, catenate=False)
     if catenate:
         return qname(schema, func_name)
@@ -347,8 +349,9 @@ def get_backend_name(schema, obj, catenate=True, *, aspect=None):
     elif isinstance(obj, s_func.Function):
         name = obj.get_shortname(schema)
         module = schema.get_global(s_mod.Module, name.module)
+        backend_name = obj.get_backend_name(schema)
         return get_function_backend_name(
-            name, module.id, catenate)
+            name, module.id, backend_name, catenate)
 
     elif isinstance(obj, s_mod.Module):
         return get_module_backend_name(str(obj.id))

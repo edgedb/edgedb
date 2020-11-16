@@ -534,7 +534,8 @@ def _delta_from_ddl(
 
 
 def ddlast_from_delta(
-    schema: s_schema.Schema,
+    schema_a: Optional[s_schema.Schema],
+    schema_b: s_schema.Schema,
     delta: sd.DeltaRoot,
     *,
     sdlmode: bool = False,
@@ -545,9 +546,24 @@ def ddlast_from_delta(
         declarative=sdlmode,
     )
 
+    if schema_a is None:
+        schema = schema_b
+        update_schema = False
+    else:
+        schema = schema_a
+        update_schema = True
+
     stmts = []
     for command in delta.get_subcommands():
         with context(sd.DeltaRootContext(schema=schema, op=delta)):
+            # The reason we do this instead of just directly using the new
+            # schema is to populate the renames field of the context.
+            # We do this one part at a time to avoid referring to things
+            # that have not been renamed yet.
+            # XXX: Is this fine-grained enough, though?
+            if update_schema:
+                schema = command.apply(schema, context)
+
             ql_ast = command.get_ast(schema, context)
             if ql_ast:
                 stmts.append(ql_ast)
@@ -556,7 +572,8 @@ def ddlast_from_delta(
 
 
 def statements_from_delta(
-    schema: s_schema.Schema,
+    schema_a: Optional[s_schema.Schema],
+    schema_b: s_schema.Schema,
     delta: sd.DeltaRoot,
     *,
     sdlmode: bool = False,
@@ -565,7 +582,8 @@ def statements_from_delta(
 ) -> Tuple[str, ...]:
 
     stmts = ddlast_from_delta(
-        schema,
+        schema_a,
+        schema_b,
         delta,
         sdlmode=sdlmode,
         descriptive_mode=descriptive_mode,
@@ -591,7 +609,8 @@ def statements_from_delta(
 
 
 def text_from_delta(
-    schema: s_schema.Schema,
+    schema_a: Optional[s_schema.Schema],
+    schema_b: s_schema.Schema,
     delta: sd.DeltaRoot,
     *,
     sdlmode: bool = False,
@@ -599,7 +618,8 @@ def text_from_delta(
     limit_ref_classes: Iterable[so.ObjectMeta] = tuple(),
 ) -> str:
     stmts = statements_from_delta(
-        schema,
+        schema_a,
+        schema_b,
         delta,
         sdlmode=sdlmode,
         descriptive_mode=descriptive_mode,
@@ -609,13 +629,16 @@ def text_from_delta(
 
 
 def ddl_text_from_delta(
-    schema: s_schema.Schema,
+    schema_a: Optional[s_schema.Schema],
+    schema_b: s_schema.Schema,
     delta: sd.DeltaRoot,
 ) -> str:
     """Return DDL text corresponding to a delta plan.
 
     Args:
-        schema:
+        schema_a:
+            The original schema (or None if starting from empty/std)
+        schema_b:
             The schema to which the *delta* has **already** been
             applied.
         delta:
@@ -624,14 +647,20 @@ def ddl_text_from_delta(
     Returns:
         DDL text corresponding to *delta*.
     """
-    return text_from_delta(schema, delta, sdlmode=False)
+    return text_from_delta(schema_a, schema_b, delta, sdlmode=False)
 
 
-def sdl_text_from_delta(schema: s_schema.Schema, delta: sd.DeltaRoot) -> str:
+def sdl_text_from_delta(
+    schema_a: Optional[s_schema.Schema],
+    schema_b: s_schema.Schema,
+    delta: sd.DeltaRoot,
+) -> str:
     """Return SDL text corresponding to a delta plan.
 
     Args:
-        schema:
+        schema_a:
+            The original schema (or None if starting from empty/std)
+        schema_b:
             The schema to which the *delta* has **already** been
             applied.
         delta:
@@ -640,11 +669,12 @@ def sdl_text_from_delta(schema: s_schema.Schema, delta: sd.DeltaRoot) -> str:
     Returns:
         SDL text corresponding to *delta*.
     """
-    return text_from_delta(schema, delta, sdlmode=True)
+    return text_from_delta(schema_a, schema_b, delta, sdlmode=True)
 
 
 def descriptive_text_from_delta(
-    schema: s_schema.Schema,
+    schema_a: Optional[s_schema.Schema],
+    schema_b: s_schema.Schema,
     delta: sd.DeltaRoot,
     *,
     limit_ref_classes: Iterable[so.ObjectMeta]=tuple(),
@@ -652,7 +682,9 @@ def descriptive_text_from_delta(
     """Return descriptive text corresponding to a delta plan.
 
     Args:
-        schema:
+        schema_a:
+            The original schema (or None if starting from empty/std)
+        schema_b:
             The schema to which the *delta* has **already** been
             applied.
         delta:
@@ -665,7 +697,8 @@ def descriptive_text_from_delta(
         Descriptive text corresponding to *delta*.
     """
     return text_from_delta(
-        schema,
+        schema_a,
+        schema_b,
         delta,
         sdlmode=True,
         descriptive_mode=True,
@@ -694,7 +727,7 @@ def ddl_text_from_schema(
         include_std_diff=include_std_ddl,
         include_derived_types=False,
     )
-    return ddl_text_from_delta(schema, diff)
+    return ddl_text_from_delta(None, schema, diff)
 
 
 def sdl_text_from_schema(
@@ -719,7 +752,7 @@ def sdl_text_from_schema(
         include_derived_types=False,
         linearize_delta=False,
     )
-    return sdl_text_from_delta(schema, diff)
+    return sdl_text_from_delta(None, schema, diff)
 
 
 def descriptive_text_from_schema(
@@ -746,4 +779,4 @@ def descriptive_text_from_schema(
         linearize_delta=False,
     )
     return descriptive_text_from_delta(
-        schema, diff, limit_ref_classes=included_ref_classes)
+        None, schema, diff, limit_ref_classes=included_ref_classes)

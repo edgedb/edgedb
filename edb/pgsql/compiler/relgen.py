@@ -2034,6 +2034,19 @@ def _compile_func_args(
     return args
 
 
+def get_func_call_backend_name(
+        expr: irast.FunctionCall, *,
+        ctx: context.CompilerContextLevel) -> Tuple[str, ...]:
+    if expr.func_sql_function:
+        # The name might contain a "." if it's one of our
+        # metaschema helpers.
+        func_name = tuple(expr.func_sql_function.split('.', 1))
+    else:
+        func_name = common.get_function_backend_name(
+            expr.func_shortname, expr.func_module_id, expr.backend_name)
+    return func_name
+
+
 def process_set_as_func_enumerate(
         ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
@@ -2047,14 +2060,7 @@ def process_set_as_func_enumerate(
     with ctx.subrel() as newctx:
         newctx.expr_exposed = False
         args = _compile_func_args(inner_func_set, ctx=newctx)
-
-        if inner_func.func_sql_function:
-            # The name might contain a "." if it's one of our
-            # metaschema helpers.
-            func_name = tuple(inner_func.func_sql_function.split('.', 1))
-        else:
-            func_name = common.get_function_backend_name(
-                inner_func.func_shortname, inner_func.func_module_id)
+        func_name = get_func_call_backend_name(inner_func, ctx=newctx)
 
         set_expr = _process_set_func_with_ordinality(
             ir_set=inner_func_set,
@@ -2078,14 +2084,7 @@ def process_set_as_func_expr(
     with ctx.subrel() as newctx:
         newctx.expr_exposed = False
         args = _compile_func_args(ir_set, ctx=newctx)
-
-        if expr.func_sql_function:
-            # The name might contain a "." if it's one of our
-            # metaschema helpers.
-            name = tuple(expr.func_sql_function.split('.', 1))
-        else:
-            name = common.get_function_backend_name(
-                expr.func_shortname, expr.func_module_id)
+        name = get_func_call_backend_name(expr, ctx=newctx)
 
         if expr.typemod is qltypes.TypeModifier.SetOfType:
             set_expr = _process_set_func(
@@ -2245,13 +2244,7 @@ def process_set_as_agg_expr(
 
                 args.append(arg_ref)
 
-        if expr.func_sql_function:
-            # The name might contain a "." if it's one of our
-            # metaschema helpers.
-            name = tuple(expr.func_sql_function.split('.', 1))
-        else:
-            name = common.get_function_backend_name(expr.func_shortname,
-                                                    expr.func_module_id)
+        name = get_func_call_backend_name(expr, ctx=newctx)
 
         set_expr = pgast.FuncCall(
             name=name, args=args, agg_order=agg_sort, agg_filter=agg_filter,
