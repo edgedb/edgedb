@@ -1709,7 +1709,7 @@ class RenameFunction(RenameCallableObject[Function], FunctionCommand):
         if target:
             raise errors.SchemaError(
                 f"can not rename function to '{new_name!s}' because "
-                f"it already exists",
+                f"a function with the same name already exists, and renaming into an overload is not supported",
                 context=self.source_context)
 
 
