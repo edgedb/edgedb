@@ -7692,3 +7692,73 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 };
                 POPULATE MIGRATION;
             """)
+
+    async def test_edgeql_migration_force_alter(self):
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type Obj1 {
+                        property foo -> str;
+                        property bar -> str;
+                    }
+
+                    type Obj2 {
+                        property o -> int64;
+                        link o1 -> Obj1;
+                    }
+                };
+            };
+        ''')
+        await self.fast_forward_describe_migration()
+
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type Obj1 {
+                        property foo -> str;
+                        property bar -> str;
+                    }
+
+                    type NewObj2 {
+                        property name -> str;
+                        annotation title := 'Obj2';
+                    }
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text':
+                        'CREATE TYPE test::NewObj2 {\n'
+                        '    CREATE OPTIONAL SINGLE PROPERTY name'
+                        ' -> std::str;\n'
+                        "    CREATE ANNOTATION std::title := 'Obj2';\n"
+                        '};'
+                }],
+            },
+        })
+
+        await self.con.execute('''
+            ALTER CURRENT MIGRATION REJECT PROPOSED;
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text':
+                        'ALTER TYPE test::Obj2 {\n'
+                        '    RENAME TO test::NewObj2;\n'
+                        '    DROP LINK o1;\n'
+                        '    DROP PROPERTY o;\n'
+                        '    CREATE OPTIONAL SINGLE PROPERTY name -> std::str;'
+                        "\n    CREATE ANNOTATION std::title := 'Obj2';\n"
+                        '};'
+                }],
+            },
+        })
