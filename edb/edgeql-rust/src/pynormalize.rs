@@ -16,14 +16,15 @@ use crate::tokenizer::convert_tokens;
 
 
 py_class!(pub class Entry |py| {
-    data _key: PyString;
+    data _key: PyBytes;
+    data _processed_source: String;
     data _tokens: PyList;
     data _extra_blob: PyBytes;
     data _extra_named: bool;
     data _first_extra: Option<usize>;
     data _extra_count: usize;
     data _variables: Vec<Variable>;
-    def key(&self) -> PyResult<PyString> {
+    def key(&self) -> PyResult<PyBytes> {
         Ok(self._key(py).clone_ref(py))
     }
     def variables(&self) -> PyResult<PyDict> {
@@ -137,7 +138,8 @@ pub fn normalize(py: Python<'_>, text: &PyString)
                 .map_err(|e| PyErr::new::<AssertionError, _>(py, e))?;
 
             Ok(Entry::create_instance(py,
-                /* key: */ entry.key.to_py_object(py),
+                /* key: */ PyBytes::new(py, &entry.hash[..]),
+                /* processed_source: */ entry.processed_source,
                 /* tokens: */ convert_tokens(py, entry.tokens, entry.end_pos)?,
                 /* extra_blob: */ PyBytes::new(py, &blob),
                 /* extra_named: */ entry.named_args,

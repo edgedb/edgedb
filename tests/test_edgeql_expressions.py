@@ -4620,3 +4620,12 @@ aa \
             await self.con.execute("""
                 SELECT 1[1];
             """)
+
+    async def test_edgeql_expr_error_after_extraction_01(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                "Unexpected \"'1'\""):
+
+            await self.con.query("""
+                SELECT '''1''';
+            """)

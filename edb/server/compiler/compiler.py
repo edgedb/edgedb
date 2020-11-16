@@ -1422,6 +1422,32 @@ class Compiler(BaseCompiler):
         ctx: CompileContext,
         source: edgeql.Source,
     ) -> List[dbstate.QueryUnit]:
+        try:
+            return self._try_compile(ctx=ctx, source=source)
+        except errors.EdgeQLSyntaxError as original_err:
+            if isinstance(source, edgeql.NormalizedSource):
+                # try non-normalized source
+                try:
+                    original = edgeql.Source.from_string(source.text())
+                    ctx = dataclasses.replace(ctx, source=original)
+                    self._try_compile(ctx=ctx, source=original)
+                except errors.EdgeQLSyntaxError as denormalized_err:
+                    raise denormalized_err
+                except Exception:
+                    raise AssertionError(
+                        "Normalized and non-normalized query errors differ")
+                else:
+                    raise AssertionError(
+                        "Normalized query is broken while original is valid")
+            else:
+                raise original_err
+
+    def _try_compile(
+        self,
+        *,
+        ctx: CompileContext,
+        source: edgeql.Source,
+    ) -> List[dbstate.QueryUnit]:
 
         # When True it means that we're compiling for "connection.query()".
         # That means that the returned QueryUnit has to have the in/out codec

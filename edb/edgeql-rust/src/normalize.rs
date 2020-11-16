@@ -5,6 +5,7 @@ use edgeql_parser::position::Pos;
 use edgeql_parser::helpers::unquote_string;
 use num_bigint::{BigInt, ToBigInt};
 use bigdecimal::BigDecimal;
+use blake2::{Blake2b, Digest};
 use crate::tokenizer::{CowToken};
 use crate::float;
 
@@ -23,9 +24,9 @@ pub struct Variable {
     pub value: Value,
 }
 
-#[derive(Debug)]
 pub struct Entry<'a> {
-    pub key: String,
+    pub processed_source: String,
+    pub hash: [u8; 64],
     pub tokens: Vec<CowToken<'a>>,
     pub variables: Vec<Variable>,
     pub end_pos: Pos,
@@ -78,6 +79,12 @@ fn scan_vars<'x, 'y: 'x, I>(tokens: I) -> Option<(bool, usize)>
     }
 }
 
+fn hash(text: &str) -> [u8; 64] {
+    let mut result = [0u8; 64];
+    result.copy_from_slice(Blake2b::digest(text.as_bytes()).as_slice());
+    return result;
+}
+
 pub fn normalize<'x>(text: &'x str)
     -> Result<Entry<'x>, Error>
 {
@@ -102,8 +109,10 @@ pub fn normalize<'x>(text: &'x str)
         Some(pair) => pair,
         None => {
             // don't extract from invalid query, let python code do its work
+            let processed_source = serialize_tokens(&tokens);
             return Ok(Entry {
-                key: serialize_tokens(&tokens),
+                hash: hash(&processed_source),
+                processed_source,
                 tokens,
                 variables: Vec::new(),
                 end_pos,
@@ -204,8 +213,10 @@ pub fn normalize<'x>(text: &'x str)
             if (matches!(&(&tok.value[..].to_uppercase())[..],
                 "CONFIGURE"|"CREATE"|"ALTER"|"DROP"|"START"))
             => {
+                let processed_source = serialize_tokens(&tokens);
                 return Ok(Entry {
-                    key: serialize_tokens(&tokens),
+                    hash: hash(&processed_source),
+                    processed_source,
                     tokens,
                     variables: Vec::new(),
                     end_pos,
@@ -216,10 +227,12 @@ pub fn normalize<'x>(text: &'x str)
             _ => rewritten_tokens.push(tok.clone()),
         }
     }
+    let processed_source = serialize_tokens(&rewritten_tokens[..]);
     return Ok(Entry {
+        hash: hash(&processed_source),
+        processed_source,
         named_args,
         first_arg: if variables.is_empty() { None } else { Some(var_idx) },
-        key: serialize_tokens(&rewritten_tokens[..]),
         tokens: rewritten_tokens,
         variables,
         end_pos,

@@ -122,7 +122,7 @@ cdef class QueryRequestInfo:
         self.inline_typenames = inline_typenames
 
         self.cached_hash = hash((
-            self.source.text(),
+            self.source.cache_key(),
             self.io_format,
             self.expect_one,
             self.implicit_limit,
@@ -135,7 +135,7 @@ cdef class QueryRequestInfo:
 
     def __eq__(self, other: QueryRequestInfo) -> bool:
         return (
-            self.source.text() == other.source.text() and
+            self.source.cache_key() == other.source.cache_key() and
             self.io_format == other.io_format and
             self.expect_one == other.expect_one and
             self.implicit_limit == other.implicit_limit and
@@ -903,10 +903,11 @@ cdef class EdgeConnection:
         return query_unit
 
     def _tokenize(self, eql: bytes) -> edgeql.Source:
+        text = eql.decode('utf-8')
         if debug.flags.edgeql_disable_normalization:
-            return edgeql.Source.from_string(eql.decode('utf-8'))
+            return edgeql.Source.from_string(text)
         else:
-            return edgeql.NormalizedSource.from_string(eql.decode('utf-8'))
+            return edgeql.NormalizedSource.from_string(text)
 
     async def _parse(
         self,
