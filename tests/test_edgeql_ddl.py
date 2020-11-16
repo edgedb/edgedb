@@ -2682,7 +2682,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         with self.assertRaisesRegex(
                 edgedb.SchemaError,
                 r"can not rename function to 'test::foo' because "
-                r"it already exists"):
+                r"a function with the same name already exists"):
             await self.con.execute("""
                 ALTER FUNCTION test::bar(s: int64)
                 RENAME TO test::foo;
