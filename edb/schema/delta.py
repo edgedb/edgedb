@@ -86,22 +86,40 @@ def delta_objects(
 
     full_matrix: List[Tuple[so.Object_T, so.Object_T, float]] = []
 
+    if context.guidance is not None:
+        guidance = context.guidance
+
+        def can_create(name: sn.Name) -> bool:
+            return (sclass, name) not in guidance.banned_creations
+
+        def can_alter(old_name: sn.Name, new_name: sn.Name) -> bool:
+            return (sclass, (old_name, new_name)) not in guidance.banned_alters
+
+        def can_delete(name: sn.Name) -> bool:
+            return (sclass, name) not in guidance.banned_deletions
+    else:
+        def can_create(name: sn.Name) -> bool:
+            return True
+
+        def can_alter(old_name: sn.Name, new_name: sn.Name) -> bool:
+            return True
+
+        def can_delete(name: sn.Name) -> bool:
+            return True
+
     for x, y in pairs:
         x_name = x.get_name(new_schema)
         y_name = y.get_name(old_schema)
 
-        if (
-            context.guidance is not None
-            and (sclass, (y_name, x_name)) in context.guidance.banned_alters
-        ):
-            similarity = 0.0
-        else:
+        if can_alter(y_name, x_name):
             similarity = y.compare(
                 x,
                 our_schema=old_schema,
                 their_schema=new_schema,
                 context=context,
             )
+        else:
+            similarity = 0.0
 
         full_matrix.append((x, y, similarity))
 
@@ -115,6 +133,7 @@ def delta_objects(
 
     seen_x = set()
     seen_y = set()
+    x_counter: Dict[so.Object_T, int] = collections.defaultdict(int)
     comparison_map: Dict[so.Object_T, Tuple[float, so.Object_T]] = {}
 
     # If there are any renames that are already decided on, honor those first
@@ -132,6 +151,7 @@ def delta_objects(
             comparison_map[x] = (similarity, y)
             seen_x.add(x)
             seen_y.add(y)
+        x_counter[x] += 1
 
     alters = []
 
@@ -152,7 +172,13 @@ def delta_objects(
 
         for x in order_x:
             s, y = comparison_map[x]
-            if 0.6 < s < 1.0:
+            x_name = x.get_name(new_schema)
+            y_name = y.get_name(old_schema)
+            if (
+                0.6 < s < 1.0
+                or not can_create(x_name)
+                or not can_delete(y_name)
+            ):
                 alter = y.as_alter_delta(
                     other=x,
                     context=context,
@@ -165,19 +191,9 @@ def delta_objects(
     created = new - {x for x, (s, _) in comparison_map.items() if s > 0.6}
 
     for x in created:
-        if (
-            context.guidance is None
-            or (
-                (sclass, x.get_name(new_schema))
-                not in context.guidance.banned_creations
-            )
-        ):
-            delta.add(
-                x.as_create_delta(
-                    schema=new_schema,
-                    context=context,
-                ),
-            )
+        if can_create(x.get_name(new_schema)):
+            create = x.as_create_delta(schema=new_schema, context=context)
+            delta.add(create)
 
     delta.update(alters)
 
@@ -193,19 +209,9 @@ def delta_objects(
         deleted_order = deleted
 
     for obj in deleted_order:
-        if (
-            context.guidance is None
-            or (
-                (sclass, obj.get_name(old_schema))
-                not in context.guidance.banned_deletions
-            )
-        ):
-            delta.add(
-                obj.as_delete_delta(
-                    schema=old_schema,
-                    context=context,
-                ),
-            )
+        if can_delete(obj.get_name(old_schema)):
+            delete = obj.as_delete_delta(schema=old_schema, context=context)
+            delta.add(delete)
 
     return delta
 
