@@ -2043,7 +2043,7 @@ def get_func_call_backend_name(
         func_name = tuple(expr.func_sql_function.split('.', 1))
     else:
         func_name = common.get_function_backend_name(
-            expr.func_shortname, expr.func_module_id, expr.func_id)
+            expr.func_shortname, expr.func_module_id, expr.backend_name)
     return func_name
 
 

@@ -650,8 +650,8 @@ class FunctionCall(Call):
     # The underlying SQL function has OUT parameters.
     sql_func_has_out_params: bool = False
 
-    # func_id for the underlying function
-    func_id: typing.Optional[str] = None
+    # backend_name for the underlying function
+    backend_name: typing.Optional[str] = None
 
     # Error to raise if the underlying SQL function returns NULL.
     error_on_null_result: typing.Optional[str] = None

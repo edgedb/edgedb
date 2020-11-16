@@ -1101,9 +1101,9 @@ class DeleteCallableObject(
 class Function(CallableObject, VolatilitySubject, s_abc.Function,
                qlkind=ft.SchemaObjectClass.FUNCTION):
 
-    # A func_id that is shared between all overloads of the same
+    # A backend_name that is shared between all overloads of the same
     # function, to make them independent from the actual name.
-    func_id = so.SchemaField(
+    backend_name = so.SchemaField(
         uuid.UUID,
         default=None,
     )
@@ -1553,11 +1553,11 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
         shortname = sn.shortname_from_fullname(fullname)
         if others := schema.get_functions(
                 sn.QualName(fullname.module, shortname.name), ()):
-            func_id = others[0].get_func_id(schema)
+            backend_name = others[0].get_backend_name(schema)
         else:
-            func_id = uuidgen.uuid1mc()
+            backend_name = uuidgen.uuid1mc()
 
-        cmd.set_attribute_value('func_id', func_id)
+        cmd.set_attribute_value('backend_name', backend_name)
 
         assert isinstance(astnode, qlast.CreateFunction)
         if astnode.code is not None:
