@@ -1294,17 +1294,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             'foo02': None,
         }])
 
-    @test.xfail('''
-        In the final migration DESCRIBE generates "RENAME TO foo01;" twice.
-
-        Also, if the double RENAME validation is skipped, the
-        following error appears in the final (DROP) migration:
-
-        dgedb.errors.InternalServerError: cannot drop table
-        "edgedb_193fe3f0-fcad-11ea-9d53-39dd03c0a79a".
-        "1b16e5a3-fcad-11ea-a559-4f0a062303a6"
-        because other objects depend on it
-    ''')
     async def test_edgeql_migration_describe_link_03(self):
         # Migration that renames a link.
         await self.con.execute(r'''
@@ -1348,9 +1337,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             'proposed': {
                 'statements': [{
                     'text': (
-                        'ALTER ABSTRACT LINK test::foo3 {\n'
-                        '    RENAME TO test::foo03;\n'
-                        '};'
+                        'ALTER ABSTRACT LINK test::foo3 '
+                        'RENAME TO test::foo03;'
                     )
                 }],
                 'confidence': 1.0,
@@ -1372,7 +1360,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         ''')
 
         await self.assert_describe_migration({
-            'parent': 'm1wk3m67nkkglmcbx32wvjh75n4pqbqtz5bs2rwdgcoefiwveqpfcq',
+            'parent': 'm17h46d7r6h5rbxxsr2dlpowpklqze4iqhadkr6tlwedwguex5dbba',
             'confirmed': [],
             'complete': False,
             'proposed': {
