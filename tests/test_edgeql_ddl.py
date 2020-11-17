@@ -2753,10 +2753,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ["a"],
         )
 
-    @test.xfail('''
-        ISE: relation <whatever> does not exist
-        We change the schema of the function but don't update anything.
-    ''')
     async def test_edgeql_ddl_function_rename_06(self):
         await self.con.execute("""
             CREATE FUNCTION test::foo(s: str) -> str {
@@ -7598,10 +7594,6 @@ type test::Foo {
             type_refs=2,
         )
 
-    @test.xfail('''
-        ISE: relation <whatever> does not exist
-        We change the schema of the table but don't update anything.
-    ''')
     async def test_edgeql_ddl_rename_ref_function_04(self):
         await self._simple_rename_ref_tests(
             """

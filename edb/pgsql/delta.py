@@ -2711,8 +2711,8 @@ class PropertyMetaCommand(CompositeObjectMetaCommand, PointerMetaCommand):
             dbops.Column(
                 name='ptr_item_id', type='uuid', required=True))
 
-        index_name = common.convert_name(
-            prop.get_name(schema), 'idx0', catenate=True)
+        id = sn.QualName(module='', name=str(prop.get_id(schema)))
+        index_name = common.convert_name(id, 'idx0', catenate=True)
 
         pg_index = dbops.Index(
             name=index_name, table_name=new_table_name,
@@ -3719,22 +3719,7 @@ class CreateModule(ModuleMetaCommand, adapts=s_mod.CreateModule):
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         schema = CompositeObjectMetaCommand.apply(self, schema, context)
-        schema = s_mod.CreateModule.apply(self, schema, context)
-        module = self.scls
-
-        schema_name = common.get_backend_name(schema, module)
-        condition = dbops.SchemaExists(name=schema_name)
-
-        if self.if_not_exists:
-            cmd = dbops.CommandGroup(neg_conditions={condition})
-        else:
-            cmd = dbops.CommandGroup()
-
-        cmd.add_command(dbops.CreateSchema(name=schema_name))
-
-        self.pgops.add(cmd)
-
-        return schema
+        return s_mod.CreateModule.apply(self, schema, context)
 
 
 class AlterModule(ModuleMetaCommand, adapts=s_mod.AlterModule):
@@ -3753,21 +3738,8 @@ class DeleteModule(ModuleMetaCommand, adapts=s_mod.DeleteModule):
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        module = self.get_object(schema, context)
-        schema_name = common.get_backend_name(schema, module)
-
         schema = CompositeObjectMetaCommand.apply(self, schema, context)
-        schema = s_mod.DeleteModule.apply(self, schema, context)
-
-        condition = dbops.SchemaExists(name=schema_name)
-
-        cmd = dbops.CommandGroup(priority=4)
-        cmd.add_command(
-            dbops.DropSchema(
-                name=schema_name, conditions={condition}))
-        self.pgops.add(cmd)
-
-        return schema
+        return s_mod.DeleteModule.apply(self, schema, context)
 
 
 class CreateDatabase(ObjectMetaCommand, adapts=s_db.CreateDatabase):

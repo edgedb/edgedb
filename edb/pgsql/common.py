@@ -122,7 +122,9 @@ def quote_type(type_):
 
 
 def get_module_backend_name(module, prefix='edgedb_'):
-    return edgedb_name_to_pg_name(f'{prefix}{module}', len(prefix))
+    # We now put everything in the same schema, but haven't yet cleaned up
+    # all the call sites.
+    return "edgedb"
 
 
 @functools.lru_cache()
