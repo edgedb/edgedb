@@ -753,12 +753,14 @@ class CallableObject(
         *,
         self_schema: s_schema.Schema,
         other_schema: s_schema.Schema,
+        confidence: float,
         context: so.ComparisonContext,
     ) -> sd.ObjectCommand[CallableObjectT]:
         delta = super().as_alter_delta(
             other,
             self_schema=self_schema,
             other_schema=other_schema,
+            confidence=confidence,
             context=context,
         )
 

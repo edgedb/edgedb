@@ -276,7 +276,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 'statements': [{
                     'text': 'CREATE TYPE test::Type0;'
                 }],
-                'confidence': 1.0,
                 'operation_id': 'CREATE TYPE test::Type0',
                 'prompt': "did you create object type 'test::Type0'?",
             },
@@ -331,7 +330,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 'statements': [{
                     'text': 'ALTER TYPE other::Test RENAME TO other::Test3;',
                 }],
-                'confidence': 1.0,
                 'operation_id': 'ALTER TYPE other::Test',
                 'prompt': (
                     "did you rename object type 'other::Test' to "
@@ -351,7 +349,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 'statements': [{
                     'text': 'ALTER TYPE other::Test RENAME TO test::Test2;',
                 }],
-                'confidence': 1.0,
                 'operation_id': 'ALTER TYPE other::Test',
                 'prompt': (
                     "did you rename object type 'other::Test' to "
@@ -373,7 +370,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 'statements': [{
                     'text': 'ALTER TYPE test::Test RENAME TO other::Test3;',
                 }],
-                'confidence': 1.0,
                 'operation_id': 'ALTER TYPE test::Test',
                 'prompt': (
                     "did you rename object type 'test::Test' to "
@@ -395,7 +391,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 'statements': [{
                     'text': 'CREATE TYPE other::Test3;',
                 }],
-                'confidence': 1.0,
                 'operation_id': 'CREATE TYPE other::Test3',
                 'prompt': (
                     "did you create object type 'other::Test3'?"
@@ -444,7 +439,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         '};'
                     )
                 }],
-                'confidence': 1.0,
                 'operation_id': 'CREATE TYPE test::Type1',
                 'prompt': "did you create object type 'test::Type1'?",
             },
@@ -489,7 +483,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 'statements': [{
                     'text': 'CREATE MODULE new_module IF NOT EXISTS;'
                 }],
-                'confidence': 1.0,
             },
         })
 
@@ -511,7 +504,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 'statements': [{
                     'text': 'DROP TYPE new_module::Type0;'
                 }],
-                'confidence': 1.0,
             },
         })
         await self.con.execute('''
@@ -527,7 +519,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 'statements': [{
                     'text': 'DROP MODULE new_module;'
                 }],
-                'confidence': 1.0,
             },
         })
 
@@ -551,7 +542,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 'statements': [{
                     'text': 'CREATE MODULE new_module IF NOT EXISTS;'
                 }],
-                'confidence': 1.0,
             },
         })
         await self.con.execute('''
@@ -603,7 +593,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         'CREATE TYPE test::Type1;'
                     )
                 }],
-                'confidence': 1.0,
                 'operation_id': 'CREATE TYPE test::Type1',
                 'prompt': "did you create object type 'test::Type1'?",
             },
@@ -631,7 +620,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         'ALTER TYPE test::Type1 RENAME TO test::Type01;'
                     )
                 }],
-                'confidence': 1.0,
                 'operation_id': 'ALTER TYPE test::Type1',
                 'prompt': (
                     "did you rename object type 'test::Type1' to "
@@ -666,7 +654,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         'CREATE TYPE test::Type02;'
                     )
                 }],
-                'confidence': 1.0,
                 'operation_id': 'CREATE TYPE test::Type02',
                 'prompt': "did you create object type 'test::Type02'?",
             },
@@ -694,7 +681,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         'DROP TYPE test::Type02;'
                     )
                 }],
-                'confidence': 1.0,
                 'operation_id': 'DROP TYPE test::Type02',
                 'prompt': (
                     "did you drop object type 'test::Type02'?"
@@ -730,7 +716,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         'CREATE TYPE test::Type02;'
                     )
                 }],
-                'confidence': 1.0,
                 'operation_id': 'CREATE TYPE test::Type02',
                 'prompt': "did you create object type 'test::Type02'?",
             },
@@ -762,7 +747,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 'statements': [{
                     'text': "ALTER TYPE test::Type0 RENAME TO test::Type1;"
                 }],
-                'confidence': 1.0,
                 'operation_id': "ALTER TYPE test::Type0",
                 'prompt': (
                     "did you rename object type 'test::Type0' to "
@@ -810,7 +794,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 'statements': [{
                     'text': 'ALTER TYPE test::Test RENAME TO test::Test2;',
                 }],
-                'confidence': 1.0,
                 'operation_id': 'ALTER TYPE test::Test',
                 'prompt': (
                     "did you rename object type 'test::Test' to 'test::Test2'?"
@@ -830,7 +813,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 'statements': [{
                     'text': 'ALTER TYPE test::Test RENAME TO test::Test3;',
                 }],
-                'confidence': 1.0,
                 'operation_id': 'ALTER TYPE test::Test',
                 'prompt': (
                     "did you rename object type 'test::Test' to 'test::Test3'?"
@@ -850,7 +832,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 'statements': [{
                     'text': 'CREATE TYPE test::Test2;',
                 }],
-                'confidence': 1.0,
                 'operation_id': 'CREATE TYPE test::Test2',
                 'prompt': (
                     "did you create object type 'test::Test2'?"
@@ -883,7 +864,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         '};'
                     )
                 }],
-                'confidence': 1.0,
                 'operation_id': 'CREATE TYPE test::Type01',
                 'prompt': "did you create object type 'test::Type01'?",
             },
@@ -921,7 +901,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         '};'
                     )
                 }],
-                'confidence': 1.0,
                 'operation_id': 'ALTER TYPE test::Type01',
                 'prompt': (
                     "did you alter object type 'test::Type01'?"
@@ -962,7 +941,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         '};'
                     )
                 }],
-                'confidence': 1.0,
                 'operation_id': 'CREATE TYPE test::Type02',
                 'prompt': "did you create object type 'test::Type02'?",
             },
@@ -997,7 +975,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         '};'
                     )
                 }],
-                'confidence': 1.0,
                 'operation_id': 'ALTER TYPE test::Type02',
                 'prompt': (
                     "did you alter object type 'test::Type02'?"
@@ -1040,7 +1017,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         '};'
                     )
                 }],
-                'confidence': 1.0,
                 'operation_id': 'ALTER TYPE test::Type02',
                 'prompt': (
                     "did you alter object type 'test::Type02'?"
@@ -1089,7 +1065,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         '};'
                     )
                 }],
-                'confidence': 1.0,
                 'operation_id': 'CREATE TYPE test::Type01',
                 'prompt': "did you create object type 'test::Type01'?",
             },
@@ -1133,7 +1108,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         '};'
                     )
                 }],
-                'confidence': 1.0,
                 'operation_id': 'ALTER TYPE test::Type01',
                 'prompt': (
                     "did you alter object type 'test::Type01'?"
@@ -1180,7 +1154,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         '};'
                     )
                 }],
-                'confidence': 1.0,
                 'operation_id': 'CREATE TYPE test::Type02',
                 'prompt': "did you create object type 'test::Type02'?",
             },
@@ -1221,7 +1194,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         '};'
                     )
                 }],
-                'confidence': 1.0,
                 'operation_id': 'ALTER TYPE test::Type02',
                 'prompt': (
                     "did you alter object type 'test::Type02'?"
@@ -1272,7 +1244,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         '};'
                     )
                 }],
-                'confidence': 1.0,
                 'operation_id': 'ALTER TYPE test::Type02',
                 'prompt': (
                     "did you alter object type 'test::Type02'?"
@@ -1314,7 +1285,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         'CREATE ABSTRACT LINK test::foo3;'
                     )
                 }],
-                'confidence': 1.0,
                 'operation_id': 'CREATE LINK test::foo3',
                 'prompt': "did you create abstract link 'test::foo3'?",
             },
@@ -1341,7 +1311,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         'RENAME TO test::foo03;'
                     )
                 }],
-                'confidence': 1.0,
                 'operation_id': 'ALTER LINK test::foo3',
                 'prompt': (
                     "did you rename abstract link 'test::foo3' to "
@@ -1369,7 +1338,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         'DROP ABSTRACT LINK test::foo03;'
                     )
                 }],
-                'confidence': 1.0,
                 'operation_id': 'DROP LINK test::foo03',
                 'prompt': (
                     "did you drop abstract link 'test::foo03'?"
@@ -1400,7 +1368,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         ' EXTENDING std::int64;'
                     )
                 }],
-                'confidence': 1.0,
                 'operation_id': 'CREATE SCALAR TYPE test::ScalarType1',
                 'prompt': "did you create scalar type 'test::ScalarType1'?",
             },
@@ -1431,7 +1398,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         ' RENAME TO test::ScalarType01;'
                     )
                 }],
-                'confidence': 1.0,
                 'operation_id': 'ALTER SCALAR TYPE test::ScalarType1',
                 'prompt': (
                     "did you rename scalar type 'test::ScalarType1' to "
@@ -1467,7 +1433,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         ' EXTENDING std::str;'
                     )
                 }],
-                'confidence': 1.0,
                 'operation_id': 'CREATE SCALAR TYPE test::ScalarType02',
                 'prompt': "did you create scalar type 'test::ScalarType02'?",
             },
@@ -1497,7 +1462,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         'DROP SCALAR TYPE test::ScalarType02;'
                     )
                 }],
-                'confidence': 1.0,
                 'operation_id': 'DROP SCALAR TYPE test::ScalarType02',
                 'prompt': (
                     "did you drop scalar type 'test::ScalarType02'?"
@@ -1534,7 +1498,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         ' EXTENDING std::str;'
                     )
                 }],
-                'confidence': 1.0,
                 'operation_id': 'CREATE SCALAR TYPE test::ScalarType02',
                 'prompt': "did you create scalar type 'test::ScalarType02'?",
             },
@@ -1567,7 +1530,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         " EXTENDING enum<foo, bar>;"
                     )
                 }],
-                'confidence': 1.0,
                 'operation_id': 'CREATE SCALAR TYPE test::EnumType1',
                 'prompt': "did you create enumerated type 'test::EnumType1'?",
             },
@@ -1598,7 +1560,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         ' RENAME TO test::EnumType01;'
                     )
                 }],
-                'confidence': 1.0,
                 'operation_id': 'ALTER SCALAR TYPE test::EnumType1',
                 'prompt': (
                     "did you rename enumerated type 'test::EnumType1' to "
@@ -1634,7 +1595,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         " EXTENDING enum<foo, bar>;"
                     )
                 }],
-                'confidence': 1.0,
                 'operation_id': 'CREATE SCALAR TYPE test::EnumType02',
                 'prompt': "did you create enumerated type 'test::EnumType02'?",
             },
@@ -1664,7 +1624,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         'DROP SCALAR TYPE test::EnumType02;'
                     )
                 }],
-                'confidence': 1.0,
                 'operation_id': 'DROP SCALAR TYPE test::EnumType02',
                 'prompt': (
                     "did you drop enumerated type 'test::EnumType02'?"
@@ -1701,7 +1660,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         " EXTENDING enum<foo, bar>;"
                     )
                 }],
-                'confidence': 1.0,
                 'operation_id': 'CREATE SCALAR TYPE test::EnumType02',
                 'prompt': "did you create enumerated type 'test::EnumType02'?",
             },
@@ -1737,7 +1695,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         'RENAME TO test::renamed_anno1;'
                     )
                 }],
-                'confidence': 1.0,
             },
         })
 
@@ -1777,7 +1734,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         'CREATE ABSTRACT ANNOTATION test::my_anno2;'
                     )
                 }],
-                'confidence': 1.0,
             },
         })
         # Auto-complete migration
@@ -1803,7 +1759,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         '};'
                     )
                 }],
-                'confidence': 1.0,
             },
         })
         # Auto-complete migration
@@ -1849,7 +1804,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         'CREATE ABSTRACT ANNOTATION test::my_anno2;'
                     )
                 }],
-                'confidence': 1.0,
             },
         })
         # Auto-complete migration
@@ -1915,7 +1869,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         'RENAME TO test::my_one_of;'
                     )
                 }],
-                'confidence': 1.0,
             },
         })
 
@@ -1961,7 +1914,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         'RENAME TO test::myexclusive;'
                     )
                 }],
-                'confidence': 1.0,
             },
         })
 
@@ -2009,7 +1961,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         'RENAME TO test::my_one_of;'
                     )
                 }],
-                'confidence': 1.0,
             },
         })
 
@@ -2049,7 +2000,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         '};'
                     ),
                 }],
-                'confidence': 1.0,
             },
         })
         # Auto-complete migration
@@ -2094,7 +2044,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         "};"
                     ),
                 }],
-                'confidence': 1.0,
             },
         })
         # Auto-complete migration
@@ -2141,7 +2090,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         '};'
                     ),
                 }],
-                'confidence': 1.0,
                 'operation_id': 'CREATE CONSTRAINT test::my_one_of',
             },
         })
@@ -2184,7 +2132,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         'RENAME TO test::new_abs_link;'
                     )
                 }],
-                'confidence': 1.0,
             },
         })
 
@@ -2211,7 +2158,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         'RENAME TO test::bar;'
                     )
                 }],
-                'confidence': 1.0,
             },
         })
 
@@ -6485,7 +6431,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         'RENAME TO test::bar;'
                     )
                 }],
-                'confidence': 1.0,
             },
         })
 
@@ -7760,5 +7705,92 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         "\n    CREATE ANNOTATION std::title := 'Obj2';\n"
                         '};'
                 }],
+            },
+        })
+
+    async def test_edgeql_migration_confidence_01(self):
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type Obj1 {
+                        property foo -> str;
+                        property bar -> str;
+                    }
+                };
+            };
+        ''')
+        await self.fast_forward_describe_migration()
+
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type NewObj1 {
+                        property foo -> str;
+                        property bar -> str;
+                    }
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text':
+                        'ALTER TYPE test::Obj1 RENAME TO test::NewObj1;'
+                }],
+                'confidence': 0.636174,
+            },
+        })
+
+        await self.con.execute('''
+            ALTER CURRENT MIGRATION REJECT PROPOSED;
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text':
+                        'CREATE TYPE test::NewObj1 {\n'
+                        '    CREATE OPTIONAL SINGLE PROPERTY bar -> std::str;'
+                        '\n    CREATE OPTIONAL SINGLE PROPERTY foo '
+                        '-> std::str;'
+                        '\n};'
+                }],
+                'confidence': 1.0,
+            },
+        })
+
+    async def test_edgeql_migration_confidence_02(self):
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type Obj1;
+                };
+            };
+        ''')
+        await self.fast_forward_describe_migration()
+
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type Obj1;
+                    type Obj2;
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text':
+                        'CREATE TYPE test::Obj2;'
+                }],
+                'confidence': 1.0,
             },
         })

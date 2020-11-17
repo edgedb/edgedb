@@ -1457,6 +1457,7 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         *,
         self_schema: s_schema.Schema,
         other_schema: s_schema.Schema,
+        confidence: float,
         context: ComparisonContext,
     ) -> sd.ObjectCommand[Object_T]:
         from . import delta as sd
@@ -1467,6 +1468,8 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
             sd.AlterObject,
             canonical=True,
         )
+
+        delta.set_annotation('confidence', confidence)
 
         if context.generate_prompts:
             svn = self.get_verbosename(self_schema, with_parent=True)
@@ -1526,6 +1529,7 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
                         orig_value=old_v,
                         orig_schema=self_schema,
                         orig_object=self,
+                        confidence=confidence,
                     )
 
         for refdict in cls.get_refdicts():
@@ -1645,6 +1649,7 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         orig_value: Any,
         orig_schema: s_schema.Schema,
         orig_object: Object_T,
+        confidence: float,
     ) -> None:
         from . import delta as sd
 
@@ -1654,6 +1659,8 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
                 sd.RenameObject,
                 new_name=value,
             )
+
+            rename_op.set_annotation('confidence', confidence)
 
             self.record_simple_field_delta(
                 schema,
@@ -2725,6 +2732,7 @@ class InheritingObject(SubclassableObject):
         *,
         self_schema: s_schema.Schema,
         other_schema: s_schema.Schema,
+        confidence: float,
         context: ComparisonContext,
     ) -> sd.ObjectCommand[InheritingObjectT]:
         from . import delta as sd
@@ -2734,6 +2742,7 @@ class InheritingObject(SubclassableObject):
             other,
             self_schema=self_schema,
             other_schema=other_schema,
+            confidence=confidence,
             context=context,
         )
 

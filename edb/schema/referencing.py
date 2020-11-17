@@ -64,6 +64,7 @@ class ReferencedObject(so.DerivableObject):
         orig_value: Any,
         orig_schema: s_schema.Schema,
         orig_object: ReferencedT,
+        confidence: float,
     ) -> None:
         if fname == 'is_owned':
             owned_op = orig_object.init_delta_command(orig_schema, AlterOwned)
@@ -83,6 +84,7 @@ class ReferencedObject(so.DerivableObject):
                 orig_value=orig_value,
                 orig_schema=orig_schema,
                 orig_object=orig_object,
+                confidence=confidence,
             )
 
     def get_subject(self, schema: s_schema.Schema) -> Optional[so.Object]:
@@ -333,6 +335,7 @@ class ReferencedInheritingObject(
         orig_value: Any,
         orig_schema: s_schema.Schema,
         orig_object: ReferencedInheritingObjectT,
+        confidence: float,
     ) -> None:
         super().record_field_alter_delta(
             schema,
@@ -343,6 +346,7 @@ class ReferencedInheritingObject(
             orig_value=orig_value,
             orig_schema=orig_schema,
             orig_object=orig_object,
+            confidence=confidence,
         )
 
         if fname == 'name':

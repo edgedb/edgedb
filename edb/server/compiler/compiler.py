@@ -949,7 +949,7 @@ class Compiler(BaseCompiler):
                         'statements': [{
                             'text': proposed_ddl[0],
                         }],
-                        'confidence': 1.0,
+                        'confidence': top_op.get_annotation('confidence'),
                         'prompt': top_op.get_annotation('user_prompt'),
                         'operation_id': op_id,
                     }

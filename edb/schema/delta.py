@@ -86,6 +86,15 @@ def delta_objects(
 
     full_matrix: List[Tuple[so.Object_T, so.Object_T, float]] = []
 
+    # If there are any renames that are already decided on, honor those first
+    renames_x: Set[sn.Name] = set()
+    renames_y: Set[sn.Name] = set()
+    for y in old:
+        rename = context.renames.get((type(y), y.get_name(old_schema)))
+        if rename:
+            renames_x.add(rename.new_name)
+            renames_y.add(rename.classname)
+
     if context.guidance is not None:
         guidance = context.guidance
 
@@ -131,27 +140,37 @@ def delta_objects(
         ),
     )
 
+    full_matrix_x = {}
+    full_matrix_y = {}
+
     seen_x = set()
     seen_y = set()
-    x_counter: Dict[so.Object_T, int] = collections.defaultdict(int)
+    x_alter_variants: Dict[so.Object_T, int] = collections.defaultdict(int)
+    y_alter_variants: Dict[so.Object_T, int] = collections.defaultdict(int)
     comparison_map: Dict[so.Object_T, Tuple[float, so.Object_T]] = {}
-
-    # If there are any renames that are already decided on, honor those first
-    for y in old:
-        rename = context.renames.get((type(y), y.get_name(old_schema)))
-        if rename:
-            x = cast(so.Object_T, new_schema.get(rename.new_name))
-            comparison_map[x] = (0.99, y)
-            seen_x.add(x)
-            seen_y.add(y)
+    comparison_map_y: Dict[so.Object_T, Tuple[float, so.Object_T]] = {}
 
     # Find the top similarity pairs
     for x, y, similarity in full_matrix:
         if x not in seen_x and y not in seen_y:
             comparison_map[x] = (similarity, y)
+            comparison_map_y[y] = (similarity, x)
             seen_x.add(x)
             seen_y.add(y)
-        x_counter[x] += 1
+
+        if x not in full_matrix_x:
+            full_matrix_x[x] = (similarity, y)
+
+        if y not in full_matrix_y:
+            full_matrix_y[y] = (similarity, x)
+
+        if (
+            can_alter(y.get_name(old_schema), x.get_name(new_schema))
+            and full_matrix_x[x][0] != 1.0
+            and full_matrix_y[y][0] != 1.0
+        ):
+            x_alter_variants[x] += 1
+            y_alter_variants[y] += 1
 
     alters = []
 
@@ -178,39 +197,58 @@ def delta_objects(
                 0.6 < s < 1.0
                 or not can_create(x_name)
                 or not can_delete(y_name)
+                or x_name in renames_x
             ):
                 alter = y.as_alter_delta(
                     other=x,
                     context=context,
                     self_schema=old_schema,
                     other_schema=new_schema,
+                    confidence=s,
                 )
 
+                if x_alter_variants[x] > 1 or can_create(x_name):
+                    confidence = s
+                else:
+                    confidence = 1.0
+                alter.set_annotation('confidence', confidence)
                 alters.append(alter)
 
     created = new - {x for x, (s, _) in comparison_map.items() if s > 0.6}
 
     for x in created:
-        if can_create(x.get_name(new_schema)):
+        x_name = x.get_name(new_schema)
+        if can_create(x_name) and x_name not in renames_x:
             create = x.as_create_delta(schema=new_schema, context=context)
+            if x_alter_variants[x] > 0:
+                confidence = full_matrix_x[x][0]
+            else:
+                confidence = 1.0
+            create.set_annotation('confidence', confidence)
             delta.add(create)
 
     delta.update(alters)
 
-    deleted_order: Iterable[so.Object]
+    deleted_order: Iterable[so.Object_T]
     deleted = old - {y for _, (s, y) in comparison_map.items() if s > 0.6}
 
     if issubclass(sclass, so.InheritingObject):
-        deleted_order = _sort_by_inheritance(
+        deleted_order = _sort_by_inheritance(  # type: ignore
             old_schema,
             cast(Iterable[so.InheritingObject], deleted),
         )
     else:
         deleted_order = deleted
 
-    for obj in deleted_order:
-        if can_delete(obj.get_name(old_schema)):
-            delete = obj.as_delete_delta(schema=old_schema, context=context)
+    for y in deleted_order:
+        y_name = y.get_name(old_schema)
+        if can_delete(y_name) and y_name not in renames_y:
+            delete = y.as_delete_delta(schema=old_schema, context=context)
+            if y_alter_variants[y] > 0:
+                confidence = full_matrix_y[y][0]
+            else:
+                confidence = 1.0
+            delete.set_annotation('confidence', confidence)
             delta.add(delete)
 
     return delta
