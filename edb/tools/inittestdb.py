@@ -72,7 +72,7 @@ def die(msg):
                 'tests'),
     help='directory to start test discovery from')
 @click.option('-j', '--jobs', type=int,
-              default=lambda: round(os.cpu_count() * 0.75),
+              default=lambda: round((os.cpu_count() or 1) * 0.75),
               help='number of parallel processes to use')
 def inittestdb(*, data_dir, jobs, tests_dir):
     if os.path.exists(data_dir):

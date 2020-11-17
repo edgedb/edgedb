@@ -54,13 +54,13 @@ class ParametricTypeTests(unittest.TestCase):
             not_class_var: int
             t: ClassVar[Type[T]]
 
-        self.assertTrue(issubclass(P2[int].t, int))
+        self.assertTrue(issubclass(P2[int].t, int))  # type: ignore
 
         with self.assertRaisesRegex(
             TypeError,
             "type 'P2' expects 1 type parameter, got 2"
         ):
-            P2[int, str]
+            P2[int, str]  # type: ignore
 
         with self.assertRaisesRegex(
             TypeError,
@@ -72,7 +72,7 @@ class ParametricTypeTests(unittest.TestCase):
         class P4(P2[Z], Generic[K, Z]):
             pass
 
-        self.assertTrue(issubclass(P4[str, int].t, int))
+        self.assertTrue(issubclass(P4[str, int].t, int))  # type: ignore
 
         class Bar:
             pass
@@ -80,7 +80,7 @@ class ParametricTypeTests(unittest.TestCase):
         class P5(P4[A, B], Bar):
             pass
 
-        self.assertTrue(issubclass(P5[float, str].t, str))
+        self.assertTrue(issubclass(P5[float, str].t, str))  # type: ignore
 
         # Note the origin class error below is imperfect because we
         # rely on __orig_bases__ in the subclass check and that elides
@@ -95,4 +95,4 @@ class ParametricTypeTests(unittest.TestCase):
         class P7(P5[int, float]):
             pass
 
-        self.assertTrue(issubclass(P7.t, float))
+        self.assertTrue(issubclass(P7.t, float))  # type: ignore

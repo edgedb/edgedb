@@ -130,3 +130,4 @@ def _derive_hint(
     if message == r"invalid string literal: invalid escape sequence '\ '":
         if TRAILING_WS_IN_CONTINUATION.search(input[off:]):
             return "consider removing trailing whitespace"
+    return None

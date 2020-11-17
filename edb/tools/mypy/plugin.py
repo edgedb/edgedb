@@ -56,7 +56,8 @@ class EDBPlugin(mypy_plugin.Plugin):
         if not mcls:
             return
 
-        transformers = []
+        transformers: List[
+            Union[SchemaClassTransformer, StructTransformer]] = []
 
         if any(c.fullname in SCHEMA_BASE_METACLASSES for c in mcls.type.mro):
             transformers.append(
@@ -125,7 +126,7 @@ class BaseStructTransformer:
     def __init__(
         self,
         ctx: mypy_plugin.ClassDefContext,
-        field_makers: FrozenSet[str],
+        field_makers: AbstractSet[str],
     ) -> None:
         self._ctx = ctx
         self._field_makers = field_makers
@@ -172,12 +173,13 @@ class BaseStructTransformer:
 
             fdef = rhs.callee
 
+            ftype = None
             if (isinstance(fdef, nodes.IndexExpr)
                     and isinstance(fdef.analyzed, nodes.TypeApplication)):
                 # Explicitly typed Field declaration
                 ctor = fdef.analyzed.expr
                 if len(fdef.analyzed.types) > 1:
-                    ctx.api.fail('too many type arguments to Field')
+                    ctx.api.fail('too many type arguments to Field', fdef)
                 ftype = fdef.analyzed.types[0]
             else:
                 ctor = fdef
@@ -232,8 +234,8 @@ class BaseStructTransformer:
                 ctx.api.fail('Cannot resolve schema field type', type_arg)
             else:
                 ftype = ctx.api.anal_type(un_type)
-                if ftype is None:
-                    raise DeferException
+            if ftype is None:
+                raise DeferException
 
             if self._is_optional(call):
                 ftype = types.UnionType.make_union(

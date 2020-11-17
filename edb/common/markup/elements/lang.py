@@ -60,13 +60,15 @@ class Object(BaseObject):
 
 
 class List(BaseObject):
-    items = Field(base.MarkupList, default=base.MarkupList, coerce=True)
+    items = Field(  # type: ignore[assignment]
+        base.MarkupList, default=base.MarkupList, coerce=True)
     trimmed = Field(bool, default=False)
     brackets = Field(str, default="[]")
 
 
 class Dict(BaseObject):
-    items = Field(base.MarkupMapping, default=base.MarkupMapping, coerce=True)
+    items = Field(  # type: ignore[assignment]
+        base.MarkupMapping, default=base.MarkupMapping, coerce=True)
     trimmed = Field(bool, default=False)
 
 
@@ -151,7 +153,8 @@ TracebackPointList = checked.CheckedList[TracebackPoint]
 
 
 class Traceback(BaseObject):
-    items = Field(TracebackPointList, default=TracebackPointList, coerce=True)
+    items = Field(  # type: ignore[assignment]
+        TracebackPointList, default=TracebackPointList, coerce=True)
 
 
 class ExceptionContext(BaseObject):

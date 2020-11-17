@@ -54,7 +54,7 @@ from . import styles
 
 
 result: Optional[unittest.result.TestResult] = None
-coverage_run = None
+coverage_run: Optional[Any] = None
 
 
 def teardown_suite() -> None:
@@ -64,8 +64,8 @@ def teardown_suite() -> None:
     # references to tests being run, so we can think of
     # its methods as static.
     suite = StreamingTestSuite()
-    suite._tearDownPreviousClass(None, result)
-    suite._handleModuleTearDown(result)
+    suite._tearDownPreviousClass(None, result)  # type: ignore[attr-defined]
+    suite._handleModuleTearDown(result)  # type: ignore[attr-defined]
 
 
 def init_worker(status_queue: multiprocessing.SimpleQueue,

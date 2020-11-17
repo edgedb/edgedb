@@ -1,3 +1,5 @@
+# mypy: ignore-errors
+
 #
 # This source file is part of the EdgeDB open source project.
 #
@@ -656,6 +658,8 @@ class ConnectedTestCase(ClusterTestCase, ConnectedTestCaseMixin):
 
     BASE_TEST_CLASS = True
 
+    con: Any  # XXX: the real type?
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -675,9 +679,9 @@ class ConnectedTestCase(ClusterTestCase, ConnectedTestCaseMixin):
 
 class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
 
-    SETUP = None
-    TEARDOWN = None
-    SCHEMA = None
+    SETUP: Optional[Union[str, List[str]]] = None
+    TEARDOWN: Optional[str] = None
+    SCHEMA: Optional[Union[str, pathlib.Path]] = None
 
     SETUP_METHOD = None
     TEARDOWN_METHOD = None
@@ -706,6 +710,8 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
     INTERNAL_TESTMODE = True
 
     BASE_TEST_CLASS = True
+
+    con: Any  # XXX: the real type?
 
     def setUp(self):
         if self.INTERNAL_TESTMODE:

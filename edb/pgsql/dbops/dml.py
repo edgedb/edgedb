@@ -73,8 +73,8 @@ class Insert(DMLOperation):
             values_expr = 'VALUES\n' + ',\n'.join(placeholders)
 
         col_list = textwrap.indent(',\n'.join(qi(c[0]) for c in cols), '    ')
-        cols = f'(\n{col_list}\n)' if cols else ''
-        code = f'INSERT INTO {qn(*self.table.name)} {cols}\n{values_expr}'
+        cols_s = f'(\n{col_list}\n)' if cols else ''
+        code = f'INSERT INTO {qn(*self.table.name)} {cols_s}\n{values_expr}'
         if self.returning:
             code += ' RETURNING ' + ', '.join(self.returning)
 

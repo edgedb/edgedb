@@ -36,7 +36,7 @@ def die(msg):
 
 def main(*, stdout: bool):
     import edb
-    for p in edb.__path__:
+    for p in edb.__path__:  # type: ignore[attr-defined]
         ep = pathlib.Path(p) / 'api' / 'types.txt'
         if ep.exists():
             out_fn = pathlib.Path(p) / 'schema' / '_types.py'

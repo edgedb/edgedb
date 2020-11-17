@@ -49,7 +49,7 @@ def shadowed_typing_names(path: Path) -> Iterable[str]:
         yield f"(failed to import: {be})"
         return
     missing = object()
-    for name in sorted(typing.__all__):
+    for name in sorted(typing.__all__):  # type: ignore
         if getattr(mod, name, missing) is not missing:
             yield name
 

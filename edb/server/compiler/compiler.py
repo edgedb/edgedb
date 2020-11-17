@@ -1,3 +1,5 @@
+# mypy: ignore-errors
+
 #
 # This source file is part of the EdgeDB open source project.
 #
@@ -271,10 +273,11 @@ class BaseCompiler:
 
     def _wrap_schema(
         self,
-        dbver: int,
+        dbver: bytes,
         schema: s_schema.Schema,
         cached_reflection: immutables.Map[str, Tuple[str, ...]],
     ) -> CompilerDatabaseState:
+        assert isinstance(dbver, bytes)
         return CompilerDatabaseState(
             dbver=dbver,
             schema=schema,

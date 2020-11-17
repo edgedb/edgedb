@@ -43,8 +43,9 @@ class WindowedSum:
 
     def __init__(self) -> None:
         self._maxlen = 60
-        self._buckets = collections.deque([0], maxlen=self._maxlen)
-        self._last_shift_at = 0
+        init: float = 0
+        self._buckets = collections.deque([init], maxlen=self._maxlen)
+        self._last_shift_at = 0.0
 
     def __iadd__(self, val: float) -> WindowedSum:
         self.shift()

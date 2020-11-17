@@ -22,7 +22,7 @@ from __future__ import annotations
 from edb.server import http
 
 from . import compiler
-from . import protocol
+from . import protocol  # type: ignore
 
 
 class HttpGraphQLPort(http.BaseHttpPort):

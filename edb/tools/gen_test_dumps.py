@@ -106,7 +106,7 @@ def die(msg):
     "-j",
     "--jobs",
     type=int,
-    default=lambda: round(os.cpu_count() * 0.75),
+    default=lambda: round((os.cpu_count() or 1) * 0.75),
     help="number of parallel processes to use",
 )
 def gen_test_dumps(*, jobs, tests_dir):

@@ -1116,6 +1116,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
     by deparsed DDL via `GET MIGRATION foo` are identical.
     """
 
+    std_schema: s_schema.Schema
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

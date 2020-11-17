@@ -19,6 +19,8 @@
 
 from __future__ import annotations
 
+from typing import *
+
 from edb.tools.pygments.edgeql import EdgeQLLexer
 
 from sphinx import domains as s_domains
@@ -32,7 +34,7 @@ class CLISynopsisDirective(s_code.CodeBlock):
     has_content = True
     optional_arguments = 0
     required_arguments = 0
-    option_spec = {}
+    option_spec: Dict[str, Any] = {}
 
     def run(self):
         self.arguments = ['cli-synopsis']

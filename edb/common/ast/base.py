@@ -234,8 +234,8 @@ else:
 
 
 class AST(object, metaclass=MetaAST):
-    __fields = []
-    __ast_frozen_fields__ = frozenset()
+    __fields = []  # type: List[str]
+    __ast_frozen_fields__ = frozenset()  # type: AbstractSet[str]
 
     def __init__(self, **kwargs):
         if type(self).__abstract_node__:
@@ -306,7 +306,7 @@ class AST(object, metaclass=MetaAST):
 
 class ImmutableASTMixin:
     __frozen = False
-    __ast_mutable_fields__ = frozenset()
+    __ast_mutable_fields__ = frozenset()  # type: AbstractSet[str]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

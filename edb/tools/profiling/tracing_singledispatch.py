@@ -1,3 +1,5 @@
+# mypy: ignore-errors
+
 # Portions copyright 2019-present MagicStack Inc. and the EdgeDB authors.
 # Portions copyright 2001-2019 Python Software Foundation.
 # License: PSFL.

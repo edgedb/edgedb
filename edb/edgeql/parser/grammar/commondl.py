@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import sys
 import types
-from typing import *  # noqa
+import typing
 
 from edb.errors import EdgeQLSyntaxError
 
@@ -38,8 +38,8 @@ from .tokens import *  # NOQA
 from .expressions import *  # NOQA
 
 
-Nonterm = expressions.Nonterm
-ListNonterm = parsing.ListNonterm
+Nonterm = expressions.Nonterm  # type: ignore[misc]
+ListNonterm = parsing.ListNonterm  # type: ignore[misc]
 
 
 def _parse_language(node):
@@ -52,7 +52,8 @@ def _parse_language(node):
 
 
 def _validate_declarations(
-    declarations: Sequence[Union[qlast.ModuleDeclaration, qlast.DDLCommand]]
+    declarations: typing.Sequence[
+        typing.Union[qlast.ModuleDeclaration, qlast.NamedDDL]]
 ) -> None:
     # Check that top-level declarations either use fully-qualified
     # names or are module blocks.
@@ -332,7 +333,7 @@ class FromFunction(Nonterm):
 
 class ProcessFunctionBlockMixin:
     def _process_function_body(self, block, *, optional_using: bool=False):
-        props = {}
+        props: typing.Dict[str, typing.Any] = {}
 
         commands = []
         code = None
