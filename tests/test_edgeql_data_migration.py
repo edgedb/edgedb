@@ -1713,9 +1713,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             SELECT <test::EnumType02>'foo';
         ''', ['foo'])
 
-    @test.xfail('''
-        Abstract annotation doesn't offer renaming.
-    ''')
     async def test_edgeql_migration_describe_annotation_01(self):
         # Migration that renames an annotation.
         await self.migrate('''
