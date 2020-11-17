@@ -4036,6 +4036,33 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 ALTER ABSTRACT ANNOTATION test::anno13 RENAME TO bogus::anno13;
             """)
 
+    async def test_edgeql_ddl_annotation_14(self):
+        await self.con.execute("""
+            CREATE ABSTRACT ANNOTATION test::anno;
+            CREATE TYPE test::Foo {
+                CREATE ANNOTATION test::anno := "test";
+            };
+        """)
+
+        await self.con.execute("""
+            ALTER ABSTRACT ANNOTATION test::anno
+                RENAME TO test::anno_new_name;
+        """)
+
+        await self.assert_query_result(
+            "DESCRIBE MODULE test as sdl",
+            ["""
+abstract annotation test::anno_new_name;
+type test::Foo {
+    annotation test::anno_new_name := 'test';
+};
+            """.strip()]
+        )
+
+        await self.con.execute("""
+            DROP TYPE test::Foo;
+        """)
+
     async def test_edgeql_ddl_anytype_01(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidPropertyTargetError,

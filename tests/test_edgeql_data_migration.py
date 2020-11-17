@@ -6469,6 +6469,41 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
+    async def test_edgeql_migration_describe_annot_01(self):
+        await self.migrate('''
+            abstract annotation foo;
+
+            type Base {
+                annotation foo := "1";
+            };
+        ''')
+
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    abstract annotation bar;
+
+                    type Base {
+                        annotation bar := "1";
+                    };
+                }
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': (
+                        'ALTER ABSTRACT ANNOTATION test::foo '
+                        'RENAME TO test::bar;'
+                    )
+                }],
+                'confidence': 1.0,
+            },
+        })
+
     async def test_edgeql_migration_eq_index_01(self):
         await self.con.execute("""
             SET MODULE test;
