@@ -1,3 +1,5 @@
+# mypy: ignore-errors
+
 #
 # This source file is part of the EdgeDB open source project.
 #

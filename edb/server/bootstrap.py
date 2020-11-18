@@ -838,8 +838,7 @@ async def _configure(
         config_op_data = await conn.fetchval(sql)
         if config_op_data is not None and isinstance(config_op_data, str):
             config_op = config.Operation.from_json(config_op_data)
-            storage: Mapping[str, config.SettingValue] = immutables.Map()
-            settings = config_op.apply(config_spec, storage)
+            settings = config_op.apply(config_spec, immutables.Map())
 
     config_json = config.to_json(config_spec, settings, include_source=False)
     block = dbops.PLTopBlock()

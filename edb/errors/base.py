@@ -31,7 +31,7 @@ __all__ = (
 
 
 class EdgeDBErrorMeta(type):
-    _error_map = {}
+    _error_map: Dict[int, Type[EdgeDBError]] = {}
 
     def __new__(mcls, name, bases, dct):
         cls = super().__new__(mcls, name, bases, dct)
@@ -57,7 +57,7 @@ class EdgeDBErrorMeta(type):
 
 class EdgeDBMessage(Warning):
 
-    _code = None
+    _code: Optional[int] = None
 
     @classmethod
     def get_code(cls):
@@ -69,8 +69,8 @@ class EdgeDBMessage(Warning):
 
 class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
 
-    _code = None
-    _attrs: Mapping[str, str]
+    _code: Optional[int] = None
+    _attrs: Dict[int, str]
 
     def __init__(self, msg: str=None, *,
                  hint: str=None, details: str=None,

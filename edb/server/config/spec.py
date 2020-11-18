@@ -41,7 +41,7 @@ class Setting:
     system: bool = False
     internal: bool = False
     requires_restart: bool = False
-    backend_setting: str = None
+    backend_setting: Optional[str] = None
 
     def __post_init__(self):
         if (self.type not in {str, int, bool} and
@@ -83,7 +83,7 @@ class Spec(collections.abc.Mapping):
     def __init__(self, *settings: Setting):
         self._settings = tuple(settings)
         self._by_name = {s.name: s for s in self._settings}
-        self._types_by_name = {}
+        self._types_by_name: Dict[str, type] = {}
 
         for s in self._settings:
             if issubclass(s.type, types.CompositeConfigType):
@@ -109,7 +109,7 @@ class Spec(collections.abc.Mapping):
     def __getitem__(self, name: str) -> Setting:
         return self._by_name[name]
 
-    def __contains__(self, name: str):
+    def __contains__(self, name: object) -> bool:
         return name in self._by_name
 
     def __len__(self):

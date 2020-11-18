@@ -33,9 +33,9 @@ from .tokens import *  # NOQA
 from .commondl import *  # NOQA
 
 
-Nonterm = expressions.Nonterm
-OptSemicolons = commondl.OptSemicolons
-ListNonterm = parsing.ListNonterm
+Nonterm = expressions.Nonterm  # type: ignore[misc]
+OptSemicolons = commondl.OptSemicolons  # type: ignore[misc]
+ListNonterm = parsing.ListNonterm  # type: ignore[misc]
 
 
 sdl_nontem_helper = commondl.NewNontermHelper(__name__)

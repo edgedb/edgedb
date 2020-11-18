@@ -42,9 +42,9 @@ from .commondl import *  # NOQA
 from .sdl import *  # NOQA
 
 
-ListNonterm = parsing.ListNonterm
-Nonterm = expressions.Nonterm
-Semicolons = commondl.Semicolons
+ListNonterm = parsing.ListNonterm  # type: ignore[misc]
+Nonterm = expressions.Nonterm  # type: ignore[misc]
+Semicolons = commondl.Semicolons  # type: ignore[misc]
 
 
 sdl_nontem_helper = commondl.NewNontermHelper(__name__)
@@ -1786,7 +1786,7 @@ class CreateOperatorStmt(Nonterm):
         )
 
     def _process_operator_body(self, block, abstract: bool=False):
-        props = {}
+        props: typing.Dict[str, typing.Any] = {}
 
         commands = []
         from_operator = None

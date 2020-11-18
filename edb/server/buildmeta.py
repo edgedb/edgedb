@@ -99,12 +99,12 @@ def get_runstate_path(data_dir: pathlib.Path) -> pathlib.Path:
 
 def get_shared_data_dir_path() -> pathlib.Path:
     if devmode.is_in_dev_mode():
-        return devmode.get_dev_mode_cache_dir()
+        return devmode.get_dev_mode_cache_dir()  # type: ignore[return-value]
     else:
         return pathlib.Path(get_build_metadata_value('SHARED_DATA_DIR'))
 
 
-def hash_dirs(dirs: Tuple[str, str]) -> bytes:
+def hash_dirs(dirs: Sequence[Tuple[str, str]]) -> bytes:
     def hash_dir(dirname, ext, paths):
         with os.scandir(dirname) as it:
             for entry in it:
@@ -113,7 +113,7 @@ def hash_dirs(dirs: Tuple[str, str]) -> bytes:
                 elif entry.is_dir():
                     hash_dir(entry.path, ext, paths)
 
-    paths = []
+    paths: List[str] = []
     for dirname, ext in dirs:
         hash_dir(dirname, ext, paths)
 

@@ -1,3 +1,5 @@
+# mypy: ignore-errors
+
 #
 # This source file is part of the EdgeDB open source project.
 #
@@ -1719,7 +1721,7 @@ def translate_ast(
     document_ast: graphql.Document,
     *,
     operation_name: Optional[str]=None,
-    variables: Dict[str, Any]=None,
+    variables: Optional[Mapping[str, Any]]=None,
     substitutions: Optional[Dict[str, Tuple[str, int, int]]],
 ) -> TranspiledOperation:
 

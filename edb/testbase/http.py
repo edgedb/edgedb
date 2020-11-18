@@ -102,7 +102,8 @@ class BaseHttpTest:
     def http_con_send_request(self, con, params: dict, *, path=''):
         con.request(
             'GET',
-            f'{self.http_addr}/{path}?{urllib.parse.urlencode(params)}')
+            f'{self.http_addr}/{path}'  # type: ignore
+            f'?{urllib.parse.urlencode(params)}')
 
     def http_con_read_response(self, con):
         resp = con.getresponse()

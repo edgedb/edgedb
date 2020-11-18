@@ -39,7 +39,8 @@ class TestHttpNotebook(tb.BaseHttpTest, tb.server.QueryTestCase):
             'queries': queries
         }
 
-        req = urllib.request.Request(self.http_addr, method='POST')
+        req = urllib.request.Request(
+            self.http_addr, method='POST')  # type: ignore
         req.add_header('Content-Type', 'application/json')
         response = urllib.request.urlopen(
             req, json.dumps(req_data).encode())

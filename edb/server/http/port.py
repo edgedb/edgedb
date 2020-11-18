@@ -19,6 +19,8 @@
 
 from __future__ import annotations
 
+from typing import *
+
 import asyncio
 import logging
 
@@ -51,10 +53,10 @@ class BaseHttpPort(baseport.Port):
                 f'concurrency must be greater than 0 and '
                 f'less than {defines.HTTP_PORT_MAX_CONCURRENCY}')
 
-        self._compilers = asyncio.LifoQueue()
-        self._pgcons = asyncio.LifoQueue()
-        self._compilers_list = []
-        self._pgcons_list = []
+        self._compilers: asyncio.LifoQueue[Any] = asyncio.LifoQueue()
+        self._pgcons: asyncio.LifoQueue[Any] = asyncio.LifoQueue()
+        self._compilers_list: List[Any] = []
+        self._pgcons_list: List[Any] = []
 
         self._nethost = nethost
         self._netport = netport

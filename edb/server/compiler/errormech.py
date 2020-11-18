@@ -82,14 +82,14 @@ SCHEMA_CODES = frozenset({
 
 class ErrorDetails(NamedTuple):
     message: str
-    detail: str = None
-    detail_json: dict = None
-    code: PGErrorCode = None
-    schema_name: str = None
-    table_name: str = None
-    column_name: str = None
-    constraint_name: str = None
-    errcls: errors.EdgeDBError = None
+    detail: Optional[str] = None
+    detail_json: Optional[Dict[str, Any]] = None
+    code: Optional[PGErrorCode] = None
+    schema_name: Optional[str] = None
+    table_name: Optional[str] = None
+    column_name: Optional[str] = None
+    constraint_name: Optional[str] = None
+    errcls: Optional[errors.EdgeDBError] = None
 
 
 constraint_errors = frozenset({

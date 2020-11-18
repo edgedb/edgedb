@@ -26,6 +26,7 @@ import immutables
 
 from edb import errors
 from edb import graphql
+from graphql.language import lexer as gql_lexer
 
 from edb.common import debug
 from edb.edgeql import compiler as qlcompiler
@@ -48,7 +49,7 @@ class CompiledOperation:
     sql: bytes
     sql_hash: bytes
     sql_args: List[str]
-    dbver: int
+    dbver: bytes
     cacheable: bool
     cache_deps_vars: Optional[FrozenSet[str]]
     variables: Dict
@@ -58,7 +59,7 @@ class Compiler(compiler.BaseCompiler):
 
     def _wrap_schema(
         self,
-        dbver: int,
+        dbver: bytes,
         schema: s_schema.Schema,
         cached_reflection: immutables.Map[str, Tuple[str, ...]],
     ) -> CompilerDatabaseState:
@@ -72,9 +73,10 @@ class Compiler(compiler.BaseCompiler):
 
     async def compile_graphql(
         self,
-        dbver: int,
+        dbver: bytes,
         gql: str,
-        tokens: Optional[List[Tuple[int, int, int, str]]],
+        tokens: Optional[
+            List[Tuple[gql_lexer.TokenKind, int, int, int, int, str]]],
         substitutions: Optional[Dict[str, Tuple[str, int, int]]],
         operation_name: str=None,
         variables: Optional[Mapping[str, object]]=None,
@@ -87,7 +89,7 @@ class Compiler(compiler.BaseCompiler):
         else:
             ast = graphql.parse_tokens(gql, tokens)
         op = graphql.translate_ast(
-            db.gqlcore,
+            db.gqlcore,  # type: ignore[attr-defined]
             ast,
             variables=variables,
             substitutions=substitutions,
@@ -109,11 +111,11 @@ class Compiler(compiler.BaseCompiler):
 
         sql_text, argmap = pg_compiler.compile_ir_to_sql(
             ir,
-            pretty=debug.flags.edgeql_compile,
+            pretty=bool(debug.flags.edgeql_compile),
             expected_cardinality_one=True,
             output_format=pg_compiler.OutputFormat.JSON)
 
-        args = [None] * len(argmap)
+        args: List[Optional[str]] = [None] * len(argmap)
         for argname, param in argmap.items():
             args[param.index - 1] = argname
 
@@ -123,7 +125,7 @@ class Compiler(compiler.BaseCompiler):
         return CompiledOperation(
             sql=sql_bytes,
             sql_hash=sql_hash,
-            sql_args=args,
+            sql_args=args,  # type: ignore[arg-type]  # XXX: optional bug?
             dbver=dbver,
             cacheable=op.cacheable,
             cache_deps_vars=op.cache_deps_vars,

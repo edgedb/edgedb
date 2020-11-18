@@ -21,6 +21,8 @@
 
 from __future__ import annotations
 
+from typing import *
+
 import os
 import sys
 import fcntl
@@ -36,7 +38,7 @@ def isatty(fileno):
     return os.isatty(fileno)
 
 
-_COLORS = None
+_COLORS: Optional[int] = None
 
 _colorize = 'auto'
 
@@ -368,6 +370,14 @@ _MAP256 = {
 }
 
 
+def _is_opt_getter(name: str):
+    return lambda self: self._is_opt(name)
+
+
+def _set_opt_setter(name: str):
+    return lambda self, value: self._set_opt(name, value)
+
+
 class AbstractStyle:
     """Encapsulates information about text-style.
 
@@ -435,12 +445,9 @@ class AbstractStyle:
     def empty(self):
         return not bool(self._term_prefix)
 
-    def _is_opt(self, name):
+    def _is_opt(self, name: str) -> bool:
         assert name in self._opts_table
         return self._opts_table[name] in self._opts
-
-    def _is_opt_getter(name):
-        return lambda self: self._is_opt(name)
 
     def _set_opt(self, name, value):
         try:
@@ -454,9 +461,6 @@ class AbstractStyle:
             if tr_name in self._opts:
                 self._opts.discard(tr_name)
         self._recalc()
-
-    def _set_opt_setter(name):
-        return lambda self, value: self._set_opt(name, value)
 
     bold = property(_is_opt_getter('bold'), _set_opt_setter('bold'))
     faint = property(_is_opt_getter('faint'), _set_opt_setter('faint'))

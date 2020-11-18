@@ -10,7 +10,7 @@ from __future__ import annotations
 from edb.errors.base import *
 
 
-__all__ = base.__all__ + (
+__all__ = base.__all__ + (  # type: ignore
     'InternalServerError',
     'UnsupportedFeatureError',
     'ProtocolError',

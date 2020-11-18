@@ -239,7 +239,7 @@ class MigrationState(NamedTuple):
 class TransactionState(NamedTuple):
 
     id: int
-    name: str
+    name: Optional[str]
     schema: s_schema.Schema
     modaliases: immutables.Map
     config: immutables.Map

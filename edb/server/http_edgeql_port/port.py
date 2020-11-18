@@ -22,7 +22,7 @@ from __future__ import annotations
 from edb.server import compiler
 from edb.server import http
 
-from . import protocol
+from . import protocol  # type: ignore[attr-defined]
 
 
 class HttpEdgeQLPort(http.BaseHttpPort):

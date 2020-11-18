@@ -1,3 +1,5 @@
+# mypy: implicit-reexport
+
 #
 # This source file is part of the EdgeDB open source project.
 #

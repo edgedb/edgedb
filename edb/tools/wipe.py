@@ -163,7 +163,7 @@ async def do_wipe(
 
 
 async def _get_dbs_and_roles(pgconn) -> Tuple[List[str], List[str]]:
-    compiler = edbcompiler.Compiler(None)
+    compiler = edbcompiler.Compiler({})
     await compiler.ensure_initialized(pgconn)
     schema = compiler.get_std_schema()
     compilerctx = edbcompiler.new_compiler_context(
@@ -183,7 +183,7 @@ async def _get_dbs_and_roles(pgconn) -> Tuple[List[str], List[str]]:
         key=lambda dname: dname == edbdef.EDGEDB_TEMPLATE_DB,
     ))
 
-    schema, get_roles_sql = compiler.compile_edgeql_script(
+    schema, get_roles_sql = edbcompiler.compile_edgeql_script(
         compiler,
         compilerctx,
         '''SELECT sys::Role {

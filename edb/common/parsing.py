@@ -42,7 +42,7 @@ TRAILING_WS_IN_CONTINUATION = re.compile(r'\\ \s+\n')
 
 
 class TokenMeta(type):
-    token_map = {}
+    token_map: Dict[Tuple[Any, Any], Any] = {}
 
     def __new__(
             mcls, name, bases, dct, *, token=None, lextoken=None,
@@ -217,8 +217,8 @@ def precedence(precedence):
 
 
 class PrecedenceMeta(type):
-    token_prec_map = {}
-    last = {}
+    token_prec_map: Dict[Tuple[Any, Any], Any] = {}
+    last: Dict[Tuple[Any, Any], Any] = {}
 
     def __new__(
             mcls, name, bases, dct, *, assoc, tokens=None, prec_group=None,
@@ -317,6 +317,7 @@ def _derive_hint(
     if message == r"invalid string literal: invalid escape sequence '\ '":
         if TRAILING_WS_IN_CONTINUATION.search(input[off:]):
             return "consider removing trailing whitespace"
+    return None
 
 
 class Parser:

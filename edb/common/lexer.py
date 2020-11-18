@@ -19,6 +19,8 @@
 
 from __future__ import annotations
 
+from typing import *
+
 import collections
 import re
 import types
@@ -57,7 +59,7 @@ class UnknownTokenError(LexError):
 
 class Rule:
     _idx = 0
-    _map = {}
+    _map: Dict[int, Rule] = {}
 
     def __init__(self, *, token, next_state, regexp):
         cls = self.__class__
@@ -90,8 +92,8 @@ def group(*literals, _re_alpha=re.compile(r'^\w+$'), asbytes=False):
 
 class Lexer:
 
-    NL = frozenset()
-    MULTILINE_TOKENS = frozenset()
+    NL: Optional[str] = None
+    MULTILINE_TOKENS: AbstractSet[str] = frozenset()
     RE_FLAGS = re.X | re.M
     asbytes = False
     _NL = '\n'

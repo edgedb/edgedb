@@ -52,7 +52,7 @@ class SettingValue(NamedTuple):
 
 
 if TYPE_CHECKING:
-    Mapping_T = TypeVar("Mapping_T", bound=Mapping[str, SettingValue])
+    SettingsMap = immutables.Map[str, SettingValue]
 
 
 class Operation(NamedTuple):
@@ -60,7 +60,7 @@ class Operation(NamedTuple):
     opcode: OpCode
     scope: qltypes.ConfigScope
     setting_name: str
-    value: Union[str, int, bool, None]
+    value: Union[str, int, bool, Collection[Union[str, int, bool, None]], None]
 
     def get_setting(self, spec: spec.Spec):
         try:
@@ -86,13 +86,13 @@ class Operation(NamedTuple):
                     f'invalid value type for the '
                     f'{setting.name!r} setting')
             else:
-                for v in self.value:
+                for v in self.value:  # type: ignore
                     if not isinstance(v, setting.type):
                         raise errors.ConfigurationError(
                             f'invalid value type for the '
                             f'{setting.name!r} setting')
 
-                return frozenset(self.value)
+                return frozenset(self.value)  # type: ignore
         else:
             if isinstance(self.value, setting.type):
                 return self.value
@@ -102,7 +102,7 @@ class Operation(NamedTuple):
                 raise errors.ConfigurationError(
                     f'invalid value type for the {setting.name!r} setting')
 
-    def apply(self, spec: spec.Spec, storage: Mapping_T) -> Mapping_T:
+    def apply(self, spec: spec.Spec, storage: SettingsMap) -> SettingsMap:
 
         setting = self.get_setting(spec)
         allow_missing = (
@@ -153,12 +153,12 @@ class Operation(NamedTuple):
                         props.append(f.name)
 
                 if len(props) > 1:
-                    props = f' ({", ".join(props)}) violate'
+                    props_s = f' ({", ".join(props)}) violate'
                 else:
-                    props = f'.{props[0]} violates'
+                    props_s = f'.{props[0]} violates'
 
                 raise errors.ConstraintViolationError(
-                    f'{setting.type.__name__}{props} '
+                    f'{setting.type.__name__}{props_s} '
                     f'exclusivity constraint'
                 )
 
@@ -184,9 +184,9 @@ class Operation(NamedTuple):
 
     def _set_value(
         self,
-        storage: Mapping_T,
+        storage: SettingsMap,
         value: Any,
-    ) -> Mapping_T:
+    ) -> SettingsMap:
 
         if self.scope is qltypes.ConfigScope.SYSTEM:
             source = 'system override'
@@ -295,8 +295,9 @@ def to_json(
     return json.dumps(dct)
 
 
-def from_json(spec: spec.Spec, js: str) -> Mapping:
-    with immutables.Map().mutate() as mm:
+def from_json(spec: spec.Spec, js: str) -> SettingsMap:
+    base: SettingsMap = immutables.Map()
+    with base.mutate() as mm:
         dct = json.loads(js)
 
         if not isinstance(dct, dict):
@@ -324,7 +325,8 @@ def from_dict(
     source: str,
 ) -> Mapping[str, SettingValue]:
 
-    with immutables.Map().mutate() as mm:
+    base: SettingsMap = immutables.Map()
+    with base.mutate() as mm:
         for key, value in values.items():
             setting = spec.get(key)
             if setting is None:
@@ -341,11 +343,11 @@ def from_dict(
 
 
 def set_value(
-    storage: Mapping[str, SettingValue],
+    storage: SettingsMap,
     name: str,
     value: Any,
     source: str,
-) -> Mapping[str, SettingValue]:
+) -> SettingsMap:
 
     return storage.set(
         name,

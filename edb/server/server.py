@@ -32,6 +32,7 @@ from edb.edgeql import parser as ql_parser
 from edb.server import config
 from edb.server import compiler as edbcompiler
 from edb.server import defines
+from edb.server import http
 from edb.server import http_edgeql_port
 from edb.server import http_graphql_port
 from edb.server import notebook_port
@@ -55,7 +56,7 @@ class StartupScript(NamedTuple):
 class Server:
 
     _ports: List[baseport.Port]
-    _sys_conf_ports: Mapping[config.ConfigType, baseport.Port]
+    _sys_conf_ports: Dict[config.ConfigType, baseport.Port]
 
     def __init__(
         self,
@@ -94,7 +95,7 @@ class Server:
 
         self._ports = []
         self._sys_conf_ports = {}
-        self._sys_auth = tuple()
+        self._sys_auth: Tuple[Any, ...] = tuple()
 
         # Shutdown the server after the last management
         # connection has disconnected
@@ -188,13 +189,14 @@ class Server:
             self._mgmt_port_no = netport
             self._mgmt_port = new_mgmt_port
 
-    async def _start_portconf(self, portconf: config.ConfigType, *,
+    async def _start_portconf(self, portconf: Any, *,
                               suppress_errors=False):
         if portconf in self._sys_conf_ports:
             logging.info('port for config %r has been already started',
                          portconf)
             return
 
+        port_cls: Type[http.BaseHttpPort]
         if portconf.protocol == 'graphql+http':
             port_cls = http_graphql_port.HttpGraphQLPort
         elif portconf.protocol == 'edgeql+http':

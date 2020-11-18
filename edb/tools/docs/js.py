@@ -66,11 +66,11 @@ class JSTypedField(JSFieldMixin, docfields.TypedField):
 
 
 class JSCallableDirective(js.JSCallable):
-    doc_field_types = [
+    doc_field_types = [  # type: ignore
         JSTypedField('arguments', label=_('Arguments'),
                      names=('argument', 'arg', 'parameter', 'param'),
                      typerolename='func', typenames=('paramtype', 'type')),
-    ] + js.JSCallable.doc_field_types[1:]
+    ] + js.JSCallable.doc_field_types[1:]   # type: ignore
 
     def handle_signature(self, sig, signode):
         # if the function has a return type specified, clip it before

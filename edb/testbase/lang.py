@@ -1,3 +1,5 @@
+# mypy: ignore-errors
+
 #
 # This source file is part of the EdgeDB open source project.
 #
@@ -20,6 +22,7 @@
 from __future__ import annotations
 from typing import *
 
+import typing
 import functools
 import os
 import re
@@ -114,7 +117,7 @@ class DocTestMeta(type(unittest.TestCase)):
 
 class BaseDocTest(unittest.TestCase, metaclass=DocTestMeta):
     parser_debug_flag = ''
-    re_filter = None
+    re_filter: Optional[typing.Pattern[str]] = None
 
     def _run_test(self, *, source, spec=None, expected=None):
         if spec and 'must_fail' in spec:
@@ -170,8 +173,8 @@ class BaseDocTest(unittest.TestCase, metaclass=DocTestMeta):
 
 
 class BaseSyntaxTest(BaseDocTest):
-    ast_to_source = None
-    markup_dump_lexer = None
+    ast_to_source: Optional[Any] = None
+    markup_dump_lexer: Optional[str] = None
 
     def get_parser(self, *, spec):
         raise NotImplementedError
@@ -296,7 +299,9 @@ def new_compiler():
 
 
 class BaseSchemaTest(BaseDocTest):
-    SCHEMA = None
+    SCHEMA: Optional[str] = None
+
+    schema: s_schema.Schema
 
     @classmethod
     def setUpClass(cls):

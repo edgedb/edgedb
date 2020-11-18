@@ -73,7 +73,7 @@ def terminate_server(server, loop):
 def _ensure_runstate_dir(
     default_runstate_dir: pathlib.Path,
     specified_runstate_dir: Optional[pathlib.Path]
-) -> pathlib.Path:
+) -> Iterator[pathlib.Path]:
     temp_runstate_dir = None
 
     if specified_runstate_dir is None:
@@ -191,6 +191,7 @@ def _run_server(cluster, args: ServerConfig,
     # actually were run.
     from . import server
 
+    bootstrap_script_text: Optional[str]
     if args.bootstrap_script:
         with open(args.bootstrap_script) as f:
             bootstrap_script_text = f.read()
@@ -199,7 +200,9 @@ def _run_server(cluster, args: ServerConfig,
     else:
         bootstrap_script_text = None
 
-    if bootstrap_script_text is not None:
+    if bootstrap_script_text is None:
+        bootstrap_script = None
+    else:
         bootstrap_script = server.StartupScript(
             text=bootstrap_script_text,
             database=(
@@ -211,8 +214,6 @@ def _run_server(cluster, args: ServerConfig,
                 edgedb_defines.EDGEDB_SUPERUSER
             ),
         )
-    else:
-        bootstrap_script = None
 
     ss = server.Server(
         loop=loop,
@@ -267,6 +268,7 @@ def run_server(args: ServerConfig):
     pg_cluster_init_by_us = False
     pg_cluster_started_by_us = False
 
+    cluster: Union[pgcluster.Cluster, pgcluster.RemoteCluster]
     if args.data_dir:
         cluster = pgcluster.get_local_pg_cluster(args.data_dir)
         default_runstate_dir = cluster.get_data_dir()
@@ -466,8 +468,10 @@ def _get_runstate_dir_default() -> str:
 
 
 def _protocol_version(
-        ctx: click.Context, param: click.Param, value: str
-) -> str:
+    ctx: click.Context,
+    param: click.Param,  # type: ignore[name-defined]
+    value: str,
+) -> Tuple[int, int]:
     try:
         minor, major = map(int, value.split('.'))
         ver = minor, major

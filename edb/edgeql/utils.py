@@ -32,7 +32,7 @@ from . import ast as qlast
 
 class ParameterInliner(ast.NodeTransformer):
 
-    def __init__(self, args_map: Dict[str, qlast.Base]) -> None:
+    def __init__(self, args_map: Mapping[str, qlast.Base]) -> None:
         super().__init__()
         self.args_map = args_map
 
@@ -64,15 +64,17 @@ def inline_parameters(
 def index_parameters(
     ql_args: List[qlast.Base],
     *,
-    parameters: Union[Sequence[s_func.Parameter], s_func.ParameterLikeList],
+    parameters: s_func.ParameterLikeList,
     schema: s_schema.Schema
 ) -> Dict[str, qlast.Base]:
 
-    result = {}
-    varargs = None
+    result: Dict[str, qlast.Base] = {}
+    varargs: Optional[List[qlast.Base]] = None
     variadic = parameters.find_variadic(schema)
-    variadic_num = variadic.get_num(schema) if variadic else -1
+    variadic_num = variadic.get_num(schema) if variadic else -1  # type: ignore
 
+    e: qlast.Base
+    p: s_func.ParameterLike
     for (i, e), p in itertools.zip_longest(enumerate(ql_args),
                                            parameters.objects(schema),
                                            fillvalue=None):
@@ -107,9 +109,9 @@ class AnchorInliner(ast.NodeTransformer):
         step0 = node.steps[0]
 
         if isinstance(step0, qlast.Anchor):
-            node.steps[0] = self.anchors[step0.name]
+            node.steps[0] = self.anchors[step0.name]  # type: ignore
         elif isinstance(step0, qlast.ObjectRef) and step0.name in self.anchors:
-            node.steps[0] = self.anchors[step0.name]
+            node.steps[0] = self.anchors[step0.name]  # type: ignore
 
         return node
 

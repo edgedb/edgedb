@@ -207,6 +207,8 @@ import re
 import lxml.etree
 import pygments.lexers.special
 
+from typing import *
+
 from edb.common import debug
 
 from edb.tools.pygments.edgeql import EdgeQLLexer
@@ -583,7 +585,7 @@ class EQLSynopsisDirective(s_code.CodeBlock):
     has_content = True
     optional_arguments = 0
     required_arguments = 0
-    option_spec = {}
+    option_spec: Dict[str, Any] = {}
 
     def run(self):
         self.arguments = ['edgeql-synopsis']
@@ -986,7 +988,7 @@ class EdgeQLDomain(s_domains.Domain):
         'op-desc',
     }
 
-    initial_data = {
+    initial_data: Dict[str, Dict[str, Any]] = {
         'objects': {}  # fullname -> docname, objtype, description
     }
 

@@ -31,7 +31,7 @@ from edb.common import taskgroup
 from edb.server import baseport
 from edb.server import compiler
 
-from . import edgecon
+from . import edgecon  # type: ignore[attr-defined]
 
 
 logger = logging.getLogger('edb.server')
@@ -80,7 +80,7 @@ class ManagementPort(baseport.Port):
         self._num_connections = 0
 
         self._servers = []
-        self._backends = weakref.WeakSet()
+        self._backends = weakref.WeakSet()  # type: ignore[var-annotated]
 
         self._auto_shutdown = auto_shutdown
         self._accepting = False

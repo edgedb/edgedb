@@ -1,3 +1,5 @@
+# mypy: ignore-errors
+
 #
 # This source file is part of the EdgeDB open source project.
 #
@@ -367,7 +369,7 @@ class TypeSerializer:
         *,
         follow_links: bool = True,
         inline_typenames: bool = False,
-    ) -> bytes:
+    ) -> typing.Tuple[bytes, uuid.UUID]:
         builder = cls(
             schema,
             inline_typenames=inline_typenames,
@@ -387,7 +389,7 @@ class TypeSerializer:
         return cls._JSON_DESC
 
     @classmethod
-    def _describe_json(cls) -> bytes:
+    def _describe_json(cls) -> typing.Tuple[bytes, uuid.UUID]:
         json_id = s_obj.get_known_type_id('std::str')
 
         buf = []
