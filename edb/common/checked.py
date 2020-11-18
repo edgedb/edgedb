@@ -210,7 +210,8 @@ class CheckedList(
     ) -> None:
         ...
 
-    def __setitem__(self, index: Union[int, slice], value: Any) -> None:  # NoQA: F811
+    def __setitem__(  # NoQA: F811
+            self, index: Union[int, slice], value: Any) -> None:
         if isinstance(index, int):
             self._container[index] = self._check_type(value)
             return
