@@ -609,37 +609,6 @@ class ExtractJSONScalarFunction(dbops.Function):
             text=self.text)
 
 
-class DeriveUUIDFunction(dbops.Function):
-    text = '''
-        WITH
-            i AS (
-                SELECT uuid_send(id) AS id
-            ),
-            b AS (
-                SELECT
-                    (variant >> 8 & 255) AS hi_8,
-                    (variant & 255) AS low_8
-            )
-            SELECT
-                substr(set_byte(
-                    set_byte(
-                        set_byte(
-                            i.id, 6, (get_byte(i.id, 6) & 240)),
-                        7, b.hi_8),
-                    4, b.low_8)::text, 3)::uuid
-            FROM
-                i, b
-    '''
-
-    def __init__(self) -> None:
-        super().__init__(
-            name=('edgedb', '_derive_uuid'),
-            args=[('id', ('uuid',)), ('variant', ('smallint',))],
-            returns=('uuid',),
-            volatility='immutable',
-            text=self.text)
-
-
 class GetSchemaObjectNameFunction(dbops.Function):
     text = '''
         SELECT coalesce(
@@ -2400,7 +2369,6 @@ async def bootstrap(conn):
         dbops.CreateFunction(RaiseExceptionOnEmptyStringFunction()),
         dbops.CreateFunction(AssertJSONTypeFunction()),
         dbops.CreateFunction(ExtractJSONScalarFunction()),
-        dbops.CreateFunction(DeriveUUIDFunction()),
         dbops.CreateFunction(NormalizeNameFunction()),
         dbops.CreateFunction(NullIfArrayNullsFunction()),
         dbops.CreateCompositeType(IndexDescType()),
