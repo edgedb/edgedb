@@ -234,6 +234,8 @@ else:
 
 
 class AST(object, metaclass=MetaAST):
+    # These use type comments because type annotations are interpreted
+    # by the AST system and so annotating them would interfere!
     __fields = []  # type: List[str]
     __ast_frozen_fields__ = frozenset()  # type: AbstractSet[str]
 
@@ -306,6 +308,8 @@ class AST(object, metaclass=MetaAST):
 
 class ImmutableASTMixin:
     __frozen = False
+    # This uses type comments because type annotations are interpreted
+    # by the AST system and so annotating them would interfere!
     __ast_mutable_fields__ = frozenset()  # type: AbstractSet[str]
 
     def __init__(self, **kwargs):
