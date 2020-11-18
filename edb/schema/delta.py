@@ -3006,7 +3006,7 @@ class AlterObjectProperty(Command):
                 schema,
                 context.modaliases,
                 orig_text=orig_text,
-            )
+            ) if astnode.value else None
         else:
             if isinstance(astnode.value, qlast.Tuple):
                 new_value = tuple(
@@ -3030,7 +3030,7 @@ class AlterObjectProperty(Command):
 
             else:
                 new_value = qlcompiler.evaluate_ast_to_python_val(
-                    astnode.value, schema=schema)
+                    astnode.value, schema=schema) if astnode.value else None
 
         return cls(property=propname, new_value=new_value,
                    source_context=astnode.context)
@@ -3094,9 +3094,8 @@ class AlterObjectProperty(Command):
                 return None
 
         if new_value_empty:
-            return None
-
-        if issubclass(field.type, s_expr.Expression):
+            value = None
+        elif issubclass(field.type, s_expr.Expression):
             return self._get_expr_field_ast(
                 schema,
                 context,

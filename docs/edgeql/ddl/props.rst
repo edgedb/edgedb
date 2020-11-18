@@ -188,6 +188,7 @@ Change the definition of a :ref:`property <ref_datamodel_props>`.
     # where <subcommand> is one of
 
       SET default := <expression>
+      DROP default
       SET readonly := {true | false}
       RENAME TO <newname>
       EXTENDING ...
@@ -296,6 +297,9 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
 :eql:synopsis:`DROP CONSTRAINT <constraint-name>;`
     Remove a constraint from this property.  See
     :eql:stmt:`DROP CONSTRAINT` for details.
+
+:eql:synopsis:`DROP default`
+    Remove the default value from this property.
 
 All the subcommands allowed in the ``CREATE PROPERTY`` block are also
 valid subcommands for ``ALTER PROPERTY`` block.

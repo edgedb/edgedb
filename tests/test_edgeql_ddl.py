@@ -8133,3 +8133,112 @@ type test::Foo {
         """)
 
         self.assertEqual(await self.con.query_one(count_query), orig_count)
+
+    async def test_edgeql_ddl_drop_field_01(self):
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            CREATE TYPE Foo {
+                CREATE REQUIRED PROPERTY a -> str {
+                    SET default := "test";
+                }
+            };
+        """)
+
+        await self.con.execute(r"""
+            INSERT Foo;
+        """)
+
+        await self.con.execute(r"""
+            ALTER TYPE Foo {
+                ALTER PROPERTY a {
+                    DROP default;
+                }
+            };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.MissingRequiredError,
+            'missing value for required property test::Foo.a',
+        ):
+            await self.con.execute(r"""
+                INSERT Foo;
+            """)
+
+    async def test_edgeql_ddl_drop_field_02(self):
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            CREATE TYPE Foo {
+                CREATE REQUIRED PROPERTY a -> str {
+                    CREATE CONSTRAINT exclusive {
+                        SET errmessage := "whoops";
+                    }
+                }
+            };
+        """)
+
+        await self.con.execute(r"""
+            INSERT Foo { a := "x" };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            'whoops',
+        ):
+            await self.con.execute(r"""
+                INSERT Foo { a := "x" };
+            """)
+
+        await self.con.execute(r"""
+            ALTER TYPE Foo {
+                ALTER PROPERTY a {
+                    ALTER CONSTRAINT exclusive {
+                        DROP errmessage;
+                    }
+                }
+            };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            'a violates exclusivity constraint',
+        ):
+            await self.con.execute(r"""
+                INSERT Foo { a := "x" };
+            """)
+
+    async def test_edgeql_ddl_drop_field_03(self):
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            CREATE ABSTRACT CONSTRAINT bogus {
+                USING (false);
+                SET errmessage := "never!";
+            };
+
+            CREATE TYPE Foo {
+                CREATE CONSTRAINT bogus;
+            };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            'never!',
+        ):
+            await self.con.execute(r"""
+                INSERT Foo;
+            """)
+
+        await self.con.execute(r"""
+            ALTER ABSTRACT CONSTRAINT bogus
+            DROP errmessage;
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            'invalid Foo',
+        ):
+            await self.con.execute(r"""
+                INSERT Foo;
+            """)

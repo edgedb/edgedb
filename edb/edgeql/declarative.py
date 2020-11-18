@@ -175,6 +175,7 @@ class TraceContextBase:
 
             for cmd in decl.commands:
                 if isinstance(cmd, qlast.SetField) and cmd.name == "expr":
+                    assert cmd.value, "sdl SetField should always have value"
                     exprs.append(cmd.value)
 
             extra_name = '|'.join(qlcodegen.generate_source(e) for e in exprs)
@@ -576,6 +577,7 @@ def trace_SetField(
 ) -> None:
     deps = set()
 
+    assert node.value, "sdl SetField should always have value"
     for dep in qltracer.trace_refs(
         node.value,
         schema=ctx.schema,
@@ -608,6 +610,7 @@ def trace_ConcreteConstraint(
 
     for cmd in node.commands:
         if isinstance(cmd, qlast.SetField) and cmd.name == "expr":
+            assert cmd.value, "sdl SetField should always have value"
             exprs.append(ExprDependency(expr=cmd.value))
 
     loop_control: Optional[s_name.QualName]
@@ -681,6 +684,7 @@ def trace_Alias(
     for cmd in node.commands:
         # SetField or SetSpecialField are equivalent here
         if isinstance(cmd, qlast.BaseSetField) and cmd.name == "expr":
+            assert cmd.value, "sdl SetField should always have value"
             hard_dep_exprs.append(ExprDependency(expr=cmd.value))
             break
 

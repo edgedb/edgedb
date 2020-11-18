@@ -648,7 +648,7 @@ class OnTargetDelete(DDLOperation):
 class BaseSetField(DDLOperation):
     __abstract_node__ = True
     name: str
-    value: Expr
+    value: typing.Optional[Expr]
 
 
 class SetField(BaseSetField):

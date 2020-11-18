@@ -2927,6 +2927,14 @@ aa';
         };
         """
 
+    def test_edgeql_syntax_ddl_role_07(self):
+        """
+        ALTER ROLE username {
+            DROP password;
+            EXTENDING generic, morestuff;
+        };
+        """
+
     def test_edgeql_syntax_ddl_delta_02(self):
         """
         START MIGRATION TO {type test::Foo;};
@@ -3261,6 +3269,7 @@ aa';
             ALTER LINK bar {
                 ALTER CONSTRAINT my_constraint ON (foo) {
                     CREATE ANNOTATION title := 'special';
+                    DROP errmessage;
                 };
             };
             ALTER LINK baz {
@@ -3280,6 +3289,12 @@ aa';
                 };
             };
         };
+        """
+
+    def test_edgeql_syntax_ddl_constraint_12(self):
+        """
+        ALTER ABSTRACT CONSTRAINT my_constraint
+        DROP errmessage;
         """
 
     def test_edgeql_syntax_ddl_function_01(self):
@@ -3725,6 +3740,17 @@ aa';
         };
         """
 
+    def test_edgeql_syntax_ddl_property_06(self):
+        """
+        ALTER ABSTRACT PROPERTY prop {
+            DROP default;
+        };
+
+% OK %
+
+        ALTER ABSTRACT PROPERTY prop DROP default;
+        """
+
     def test_edgeql_syntax_ddl_module_01(self):
         """
         CREATE MODULE foo;
@@ -3912,6 +3938,7 @@ aa';
         ALTER TYPE Foo {
             ALTER PROPERTY bar {
                 DROP EXPRESSION;
+                DROP default;
             };
         };
         """
@@ -3921,6 +3948,7 @@ aa';
         ALTER TYPE Foo {
             ALTER LINK bar {
                 DROP EXPRESSION;
+                DROP default;
             };
         };
         """

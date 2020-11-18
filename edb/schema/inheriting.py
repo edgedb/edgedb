@@ -839,8 +839,6 @@ class AlterInheritingObject(
         if not context.canonical:
             props = self.enumerate_attributes()
             if props:
-                if context.enable_recursion:
-                    self._propagate_field_alter(schema, context, scls, props)
                 bases = scls.get_bases(schema).objects(schema)
                 schema = self.inherit_fields(
                     schema,
@@ -848,6 +846,8 @@ class AlterInheritingObject(
                     bases,
                     fields=props,
                 )
+                if context.enable_recursion:
+                    self._propagate_field_alter(schema, context, scls, props)
 
         return schema
 

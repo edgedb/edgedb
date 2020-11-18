@@ -216,6 +216,7 @@ Change the definition of a :ref:`link <ref_datamodel_links>`.
     # where <subcommand> is one of
 
       SET default := <expression>
+      DROP default
       SET readonly := {true | false}
       RENAME TO <newname>
       EXTENDING ...
@@ -329,6 +330,9 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
 :eql:synopsis:`DROP INDEX ON <index-expr>`
     Remove an :ref:`index <ref_datamodel_indexes>` defined on *index-expr*
     from this link.  See :eql:stmt:`DROP INDEX` for details.
+
+:eql:synopsis:`DROP default`
+    Remove the default value from this link.
 
 All the subcommands allowed in the ``CREATE LINK`` block are also
 valid subcommands for ``ALTER LINK`` block.

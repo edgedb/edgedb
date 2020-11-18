@@ -308,6 +308,21 @@ class SetFieldStmt(Nonterm):
         )
 
 
+class DropFieldStmt(Nonterm):
+    # DROP field
+    def reduce_DROP_IDENT(self, *kids):
+        self.val = qlast.SetField(
+            name=kids[1].val,
+            value=None,
+        )
+
+    def reduce_DROP_DEFAULT(self, *kids):
+        self.val = qlast.SetField(
+            name=kids[1].val,
+            value=None,
+        )
+
+
 class CreateAnnotationValueStmt(Nonterm):
     def reduce_CREATE_ANNOTATION_NodeName_ASSIGN_Expr(self, *kids):
         self.val = qlast.CreateAnnotationValue(
@@ -351,6 +366,7 @@ commands_block(
     DropUsingStmt,
     RenameStmt,
     SetFieldStmt,
+    DropFieldStmt,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     DropAnnotationValueStmt,
@@ -521,6 +537,7 @@ commands_block(
     'AlterRole',
     RenameStmt,
     SetFieldStmt,
+    DropFieldStmt,
     AlterRoleExtending,
     opt=False
 )
@@ -636,6 +653,7 @@ class AlterConstraintOwned(Nonterm):
 commands_block(
     'AlterConcreteConstraint',
     SetFieldStmt,
+    DropFieldStmt,
     SetDelegatedStmt,
     AlterConstraintOwned,
     CreateAnnotationValueStmt,
@@ -751,6 +769,7 @@ commands_block(
     'AlterScalarType',
     RenameStmt,
     SetFieldStmt,
+    DropFieldStmt,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     DropAnnotationValueStmt,
@@ -855,6 +874,7 @@ class AlterIndexOwned(Nonterm):
 commands_block(
     'AlterIndex',
     SetFieldStmt,
+    DropFieldStmt,
     AlterIndexOwned,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
@@ -938,6 +958,7 @@ commands_block(
     'AlterProperty',
     RenameStmt,
     SetFieldStmt,
+    DropFieldStmt,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     DropAnnotationValueStmt,
@@ -1090,6 +1111,7 @@ commands_block(
     DropUsingStmt,
     RenameStmt,
     SetFieldStmt,
+    DropFieldStmt,
     AlterPropertyOwned,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
@@ -1167,6 +1189,7 @@ commands_block(
     'AlterLink',
     RenameStmt,
     SetFieldStmt,
+    DropFieldStmt,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     DropAnnotationValueStmt,
@@ -1310,6 +1333,7 @@ commands_block(
     DropUsingStmt,
     RenameStmt,
     SetFieldStmt,
+    DropFieldStmt,
     AlterLinkOwned,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
@@ -1412,6 +1436,7 @@ commands_block(
     'AlterObjectType',
     RenameStmt,
     SetFieldStmt,
+    DropFieldStmt,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     DropAnnotationValueStmt,
@@ -1518,6 +1543,7 @@ commands_block(
     UsingStmt,
     RenameStmt,
     SetFieldStmt,
+    DropFieldStmt,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     DropAnnotationValueStmt,
@@ -1639,6 +1665,7 @@ commands_block(
     'AlterFunction',
     commondl.FromFunction,
     SetFieldStmt,
+    DropFieldStmt,
     RenameStmt,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
@@ -1866,6 +1893,7 @@ class CreateOperatorStmt(Nonterm):
 commands_block(
     'AlterOperator',
     SetFieldStmt,
+    DropFieldStmt,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     DropAnnotationValueStmt,
@@ -2091,6 +2119,7 @@ class CreateCastStmt(Nonterm):
 commands_block(
     'AlterCast',
     SetFieldStmt,
+    DropFieldStmt,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     DropAnnotationValueStmt,
@@ -2318,6 +2347,7 @@ class CommitMigrationStmt(Nonterm):
 commands_block(
     'AlterMigration',
     SetFieldStmt,
+    DropFieldStmt,
     opt=False,
 )
 
