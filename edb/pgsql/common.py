@@ -125,8 +125,6 @@ def quote_type(type_):
 
 def get_module_backend_name(module):
     # standard modules go into "edgedbstd", user ones into "edgedbpub"
-    assert isinstance(module, str) and "-" not in module, (
-        f"we need a name, not an id ({module})")
     return "edgedbstd" if module in s_schema.STD_MODULES else "edgedbpub"
 
 
