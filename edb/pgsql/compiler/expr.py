@@ -231,7 +231,7 @@ def compile_TypeCast(
 
         if expr.sql_expr:
             func_name = common.get_cast_backend_name(
-                expr.cast_name, expr.cast_module_id, aspect='function')
+                expr.cast_name, aspect='function')
         else:
             func_name = tuple(expr.sql_function.split('.'))
 
@@ -419,11 +419,11 @@ def compile_operator(
 
     elif expr.origin_name is not None:
         sql_oper = common.get_operator_backend_name(
-            expr.origin_name, expr.origin_module_id)[1]
+            expr.origin_name)[1]
 
     else:
         sql_oper = common.get_operator_backend_name(
-            expr.func_shortname, expr.func_module_id)[1]
+            expr.func_shortname)[1]
 
     # If result was not already computed, it's going to be a generic Expr.
     if result is None:

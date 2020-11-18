@@ -117,7 +117,7 @@ constraint_res = {
 pgtype_re = re.compile(
     '|'.join(fr'\b{key}\b' for key in types.base_type_name_map_r))
 enum_re = re.compile(
-    r'(?P<p>enum) (?P<v>"edgedb_([\w-]+)"."(?P<id>[\w-]+)_domain")')
+    r'(?P<p>enum) (?P<v>edgedb([\w-]+)."(?P<id>[\w-]+)_domain")')
 
 
 def translate_pgtype(schema, msg):

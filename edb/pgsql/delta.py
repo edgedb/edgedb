@@ -696,9 +696,8 @@ class OperatorCommand(FunctionCommand):
         schema,
         name: sn.QualName,
     ) -> Tuple[str, str]:
-        module = schema.get_global(s_mod.Module, name.module)
         return common.get_operator_backend_name(
-            name, module.id, catenate=False)
+            name, catenate=False)
 
     def get_pg_operands(self, schema, oper: s_opers.Operator):
         left_type = None
@@ -1745,9 +1744,9 @@ class CreateIndex(IndexCommand, CreateObject, adapts=s_indexes.CreateIndex):
             # list.
             sql_expr = sql_expr[1:-1]
 
-        module = schema.get_global(s_mod.Module, index.get_name(schema).module)
+        module_name = index.get_name(schema).module
         index_name = common.get_index_backend_name(
-            index.id, module.id, catenate=False)
+            index.id, module_name, catenate=False)
         pg_index = dbops.Index(
             name=index_name[1], table_name=table_name, expr=sql_expr,
             unique=False, inherit=True,
@@ -1803,10 +1802,9 @@ class DeleteIndex(IndexCommand, DeleteObject, adapts=s_indexes.DeleteIndex):
             #
             table_name = common.get_backend_name(
                 schema, source.scls, catenate=False)
-            module = schema.get_global(
-                s_mod.Module, index.get_name(orig_schema).module)
+            module_name = index.get_name(orig_schema).module
             orig_idx_name = common.get_index_backend_name(
-                index.id, module.id, catenate=False)
+                index.id, module_name, catenate=False)
             index = dbops.Index(
                 name=orig_idx_name[1], table_name=table_name, inherit=True)
             index_exists = dbops.IndexExists(
@@ -2713,8 +2711,9 @@ class PropertyMetaCommand(CompositeObjectMetaCommand, PointerMetaCommand):
             dbops.Column(
                 name='ptr_item_id', type='uuid', required=True))
 
-        index_name = common.convert_name(
-            prop.get_name(schema), 'idx0', catenate=True)
+        id = sn.QualName(
+            module=prop.get_name(schema).module, name=str(prop.id))
+        index_name = common.convert_name(id, 'idx0', catenate=True)
 
         pg_index = dbops.Index(
             name=index_name, table_name=new_table_name,
@@ -3721,22 +3720,7 @@ class CreateModule(ModuleMetaCommand, adapts=s_mod.CreateModule):
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         schema = CompositeObjectMetaCommand.apply(self, schema, context)
-        schema = s_mod.CreateModule.apply(self, schema, context)
-        module = self.scls
-
-        schema_name = common.get_backend_name(schema, module)
-        condition = dbops.SchemaExists(name=schema_name)
-
-        if self.if_not_exists:
-            cmd = dbops.CommandGroup(neg_conditions={condition})
-        else:
-            cmd = dbops.CommandGroup()
-
-        cmd.add_command(dbops.CreateSchema(name=schema_name))
-
-        self.pgops.add(cmd)
-
-        return schema
+        return s_mod.CreateModule.apply(self, schema, context)
 
 
 class AlterModule(ModuleMetaCommand, adapts=s_mod.AlterModule):
@@ -3755,21 +3739,8 @@ class DeleteModule(ModuleMetaCommand, adapts=s_mod.DeleteModule):
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        module = self.get_object(schema, context)
-        schema_name = common.get_backend_name(schema, module)
-
         schema = CompositeObjectMetaCommand.apply(self, schema, context)
-        schema = s_mod.DeleteModule.apply(self, schema, context)
-
-        condition = dbops.SchemaExists(name=schema_name)
-
-        cmd = dbops.CommandGroup(priority=4)
-        cmd.add_command(
-            dbops.DropSchema(
-                name=schema_name, conditions={condition}))
-        self.pgops.add(cmd)
-
-        return schema
+        return s_mod.DeleteModule.apply(self, schema, context)
 
 
 class CreateDatabase(ObjectMetaCommand, adapts=s_db.CreateDatabase):

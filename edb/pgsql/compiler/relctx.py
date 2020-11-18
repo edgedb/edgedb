@@ -838,7 +838,7 @@ def range_for_material_objtype(
     else:
         table_schema_name, table_name = common.get_objtype_backend_name(
             typeref.id,
-            typeref.module_id,
+            typeref.name_hint.module,
             aspect=(
                 'table' if for_mutation or not include_descendants else
                 'inhview'
@@ -1059,7 +1059,7 @@ def table_from_ptrref(
     """Return a Table corresponding to a given Link."""
     table_schema_name, table_name = common.get_pointer_backend_name(
         ptrref.id,
-        ptrref.module_id,
+        ptrref.name.module,
         aspect=(
             'table' if for_mutation or not include_descendants else 'inhview'
         ),
