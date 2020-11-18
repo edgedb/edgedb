@@ -694,9 +694,8 @@ class OperatorCommand(FunctionCommand):
         schema,
         name: sn.QualName,
     ) -> Tuple[str, str]:
-        module = schema.get_global(s_mod.Module, name.module)
         return common.get_operator_backend_name(
-            name, module.id, catenate=False)
+            name, catenate=False)
 
     def get_pg_operands(self, schema, oper: s_opers.Operator):
         left_type = None
@@ -1743,9 +1742,9 @@ class CreateIndex(IndexCommand, CreateObject, adapts=s_indexes.CreateIndex):
             # list.
             sql_expr = sql_expr[1:-1]
 
-        module = schema.get_global(s_mod.Module, index.get_name(schema).module)
+        module_name = index.get_name(schema).module
         index_name = common.get_index_backend_name(
-            index.id, module.id, catenate=False)
+            index.id, module_name, catenate=False)
         pg_index = dbops.Index(
             name=index_name[1], table_name=table_name, expr=sql_expr,
             unique=False, inherit=True,
@@ -1801,10 +1800,9 @@ class DeleteIndex(IndexCommand, DeleteObject, adapts=s_indexes.DeleteIndex):
             #
             table_name = common.get_backend_name(
                 schema, source.scls, catenate=False)
-            module = schema.get_global(
-                s_mod.Module, index.get_name(orig_schema).module)
+            module_name = index.get_name(orig_schema).module
             orig_idx_name = common.get_index_backend_name(
-                index.id, module.id, catenate=False)
+                index.id, module_name, catenate=False)
             index = dbops.Index(
                 name=orig_idx_name[1], table_name=table_name, inherit=True)
             index_exists = dbops.IndexExists(
@@ -2711,7 +2709,8 @@ class PropertyMetaCommand(CompositeObjectMetaCommand, PointerMetaCommand):
             dbops.Column(
                 name='ptr_item_id', type='uuid', required=True))
 
-        id = sn.QualName(module='', name=str(prop.get_id(schema)))
+        id = sn.QualName(
+            module=prop.get_name(schema).module, name=str(prop.id))
         index_name = common.convert_name(id, 'idx0', catenate=True)
 
         pg_index = dbops.Index(

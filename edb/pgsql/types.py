@@ -229,7 +229,7 @@ def pg_type_from_ir_typeref(
             if pg_type is None:
                 # User-defined scalar type
                 pg_type = common.get_scalar_backend_name(
-                    material.id, material.module_id, catenate=False)
+                    material.id, material.name_hint.module, catenate=False)
 
             return pg_type
 
@@ -417,7 +417,7 @@ def get_ptrref_storage_info(
         col_name = ptrref.shortname.name
 
     elif is_lprop:
-        table = common.get_pointer_backend_name(source.id, source.module_id)
+        table = common.get_pointer_backend_name(source.id, source.name.module)
         table_type = 'link'
         if ptrref.shortname.name == 'source':
             col_name = 'source'
@@ -432,7 +432,7 @@ def get_ptrref_storage_info(
 
         elif _storable_in_source(ptrref) and not link_bias:
             table = common.get_objtype_backend_name(
-                source.id, source.module_id)
+                source.id, source.name_hint.module)
             ptrname = ptrref.shortname.name
             if ptrname.startswith('__') or ptrname == 'id':
                 col_name = ptrname
@@ -442,7 +442,7 @@ def get_ptrref_storage_info(
 
         elif _storable_in_pointer(ptrref):
             table = common.get_pointer_backend_name(
-                ptrref.id, ptrref.module_id)
+                ptrref.id, ptrref.name.module)
             col_name = 'target'
             table_type = 'link'
 

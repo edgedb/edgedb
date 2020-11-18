@@ -38,6 +38,7 @@ from edb.schema import operators as s_opers
 from edb.schema import pointers as s_pointers
 from edb.schema import scalars as s_scalars
 from edb.schema import types as s_types
+from edb.schema import schema as s_schema
 
 from . import keywords as pg_keywords
 
@@ -91,6 +92,7 @@ def needs_quoting(string):
 
 
 def qname(*parts):
+    assert len(parts) <= 3, parts
     return '.'.join([quote_ident(q) for q in parts])
 
 
@@ -121,10 +123,11 @@ def quote_type(type_):
     return first + last
 
 
-def get_module_backend_name(module, prefix='edgedb_'):
-    # We now put everything in the same schema, but haven't yet cleaned up
-    # all the call sites.
-    return "edgedb"
+def get_module_backend_name(module):
+    # standard modules go into "edgedbstd", user ones into "edgedbpub"
+    assert isinstance(module, str) and "-" not in module, (
+        f"we need a name, not an id ({module})")
+    return "edgedbstd" if module in s_schema.STD_MODULES else "edgedbpub"
 
 
 @functools.lru_cache()
@@ -166,8 +169,8 @@ def edgedb_name_to_pg_name(name: str, prefix_length: int = 0) -> str:
     return _edgedb_name_to_pg_name(name, prefix_length)
 
 
-def convert_name(name, suffix='', catenate=True, prefix='edgedb_'):
-    schema = get_module_backend_name(name.module, prefix=prefix)
+def convert_name(name, suffix='', catenate=True):
+    schema = get_module_backend_name(name.module)
     if suffix:
         sname = f'{name.name}_{suffix}'
     else:
@@ -181,13 +184,13 @@ def convert_name(name, suffix='', catenate=True, prefix='edgedb_'):
         return schema, dbname
 
 
-def get_scalar_backend_name(id, module_id, catenate=True, *, aspect=None):
+def get_scalar_backend_name(id, module_name, catenate=True, *, aspect=None):
     if aspect is None:
         aspect = 'domain'
     if aspect not in ('domain', 'sequence', 'enum'):
         raise ValueError(
             f'unexpected aspect for scalar backend name: {aspect!r}')
-    name = s_name.QualName(module=str(module_id), name=str(id))
+    name = s_name.QualName(module=module_name, name=str(id))
     return convert_name(name, aspect, catenate)
 
 
@@ -200,7 +203,7 @@ def get_aspect_suffix(aspect):
         return aspect
 
 
-def get_objtype_backend_name(id, module_id, *, catenate=True, aspect=None):
+def get_objtype_backend_name(id, module_name, *, catenate=True, aspect=None):
     if aspect is None:
         aspect = 'table'
     if aspect not in {'table', 'inhview'} and not re.match(
@@ -208,13 +211,13 @@ def get_objtype_backend_name(id, module_id, *, catenate=True, aspect=None):
         raise ValueError(
             f'unexpected aspect for object type backend name: {aspect!r}')
 
-    name = s_name.QualName(module=str(module_id), name=str(id))
+    name = s_name.QualName(module=module_name, name=str(id))
 
     suffix = get_aspect_suffix(aspect)
     return convert_name(name, suffix=suffix, catenate=catenate)
 
 
-def get_pointer_backend_name(id, module_id, *, catenate=False, aspect=None):
+def get_pointer_backend_name(id, module_name, *, catenate=False, aspect=None):
     if aspect is None:
         aspect = 'table'
 
@@ -222,7 +225,7 @@ def get_pointer_backend_name(id, module_id, *, catenate=False, aspect=None):
         raise ValueError(
             f'unexpected aspect for pointer backend name: {aspect!r}')
 
-    name = s_name.QualName(module=str(module_id), name=str(id))
+    name = s_name.QualName(module=module_name, name=str(id))
 
     suffix = get_aspect_suffix(aspect)
     return convert_name(name, suffix=suffix, catenate=catenate)
@@ -240,13 +243,12 @@ _operator_map = {
 }
 
 
-def get_operator_backend_name(name, module_id, catenate=False, *, aspect=None):
+def get_operator_backend_name(name, catenate=False, *, aspect=None):
     if aspect is None:
         aspect = 'operator'
 
     if aspect == 'function':
-        fullname = s_name.QualName(module=str(module_id), name=name.name)
-        return convert_name(fullname, 'f', catenate=catenate)
+        return convert_name(name, 'f', catenate=catenate)
     elif aspect != 'operator':
         raise ValueError(
             f'unexpected aspect for operator backend name: {aspect!r}')
@@ -275,19 +277,18 @@ def get_operator_backend_name(name, module_id, catenate=False, *, aspect=None):
         return schema, oper_name
 
 
-def get_cast_backend_name(name, module_id, catenate=False, *, aspect=None):
+def get_cast_backend_name(fullname, catenate=False, *, aspect=None):
     if aspect == 'function':
-        fullname = s_name.QualName(module=str(module_id), name=name.name)
         return convert_name(fullname, 'f', catenate=catenate)
     else:
         raise ValueError(
             f'unexpected aspect for cast backend name: {aspect!r}')
 
 
-def get_function_backend_name(name, module_id, backend_name, catenate=False):
+def get_function_backend_name(name, backend_name, catenate=False):
     real_name = backend_name or name.name
 
-    fullname = s_name.QualName(module=str(module_id), name=real_name)
+    fullname = s_name.QualName(module=name.module, name=real_name)
     schema, func_name = convert_name(fullname, catenate=False)
     if catenate:
         return qname(schema, func_name)
@@ -295,74 +296,69 @@ def get_function_backend_name(name, module_id, backend_name, catenate=False):
         return schema, func_name
 
 
-def get_constraint_backend_name(id, module_id, catenate=True, *, aspect=None):
+def get_constraint_backend_name(
+        id, module_name, catenate=True, *, aspect=None):
     if aspect not in ('trigproc',):
         raise ValueError(
             f'unexpected aspect for constraint backend name: {aspect!r}')
 
-    name = s_name.QualName(module=str(module_id), name=str(id))
+    name = s_name.QualName(module=module_name, name=str(id))
     return convert_name(name, aspect, catenate)
 
 
-def get_index_backend_name(id, module_id, catenate=True, *, aspect=None):
+def get_index_backend_name(id, module_name, catenate=True, *, aspect=None):
     if aspect is None:
         aspect = 'index'
-    name = s_name.QualName(module=str(module_id), name=str(id))
+    name = s_name.QualName(module=module_name, name=str(id))
     return convert_name(name, aspect, catenate)
 
 
 def get_tuple_backend_name(id, catenate=True, *, aspect=None):
 
     name = s_name.QualName(module='edgedb', name=f'{id}_t')
-    return convert_name(name, aspect, catenate, prefix='')
+    return convert_name(name, aspect, catenate)
 
 
 def get_backend_name(schema, obj, catenate=True, *, aspect=None):
     if isinstance(obj, s_objtypes.ObjectType):
         name = obj.get_name(schema)
-        module = schema.get_global(s_mod.Module, name.module)
         return get_objtype_backend_name(
-            obj.id, module.id, catenate=catenate, aspect=aspect)
+            obj.id, name.module, catenate=catenate, aspect=aspect)
 
     elif isinstance(obj, s_abc.Pointer):
         name = obj.get_name(schema)
-        module = schema.get_global(s_mod.Module, name.module)
-        return get_pointer_backend_name(obj.id, module.id, catenate=catenate,
+        return get_pointer_backend_name(obj.id, name.module, catenate=catenate,
                                         aspect=aspect)
 
     elif isinstance(obj, s_scalars.ScalarType):
         name = obj.get_name(schema)
-        module = schema.get_global(s_mod.Module, name.module)
-        return get_scalar_backend_name(obj.id, module.id, catenate=catenate,
+        return get_scalar_backend_name(obj.id, name.module, catenate=catenate,
                                        aspect=aspect)
 
     elif isinstance(obj, s_opers.Operator):
         name = obj.get_shortname(schema)
-        module = schema.get_global(s_mod.Module, name.module)
         return get_operator_backend_name(
-            name, module.id, catenate, aspect=aspect)
+            name, catenate, aspect=aspect)
 
     elif isinstance(obj, s_casts.Cast):
         name = obj.get_name(schema)
-        module = schema.get_global(s_mod.Module, name.module)
         return get_cast_backend_name(
-            name, module.id, catenate, aspect=aspect)
+            name, catenate, aspect=aspect)
 
     elif isinstance(obj, s_func.Function):
         name = obj.get_shortname(schema)
-        module = schema.get_global(s_mod.Module, name.module)
         backend_name = obj.get_backend_name(schema)
         return get_function_backend_name(
-            name, module.id, backend_name, catenate)
+            name, backend_name, catenate)
 
     elif isinstance(obj, s_mod.Module):
-        return get_module_backend_name(str(obj.id))
+        name = obj.get_name(schema)
+        return get_module_backend_name(name.module)
 
     elif isinstance(obj, s_constr.Constraint):
         name = obj.get_name(schema)
-        module = schema.get_global(s_mod.Module, name.module)
         return get_constraint_backend_name(
-            obj.id, module.id, catenate, aspect=aspect)
+            obj.id, name.module, catenate, aspect=aspect)
 
     elif isinstance(obj, s_types.Tuple):
         return get_tuple_backend_name(

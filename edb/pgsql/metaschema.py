@@ -34,7 +34,6 @@ from edb.edgeql import qltypes
 from edb.edgeql import quote as qlquote
 
 from edb.schema import migrations  # NoQA
-from edb.schema import modules as s_mod
 from edb.schema import objtypes as s_objtypes
 from edb.schema import scalars as s_scalars
 from edb.schema import schema as s_schema
@@ -2499,6 +2498,8 @@ async def bootstrap(conn):
         dbops.DropSchema(name='public'),
         dbops.CreateSchema(name='edgedb'),
         dbops.CreateSchema(name='edgedbss'),
+        dbops.CreateSchema(name='edgedbpub'),
+        dbops.CreateSchema(name='edgedbstd'),
         dbops.CreateCompositeType(ExpressionType()),
         dbops.CreateTable(DBConfigTable()),
         dbops.CreateFunction(AlterCurrentDatabaseSetString()),
@@ -2929,9 +2930,8 @@ def _make_json_caster(schema, json_casts, stype, context):
     else:
         if cast.get_code(schema):
             cast_name = cast.get_name(schema)
-            cast_module = schema.get_global(s_mod.Module, cast_name.module)
             func_name = common.get_cast_backend_name(
-                cast_name, cast_module.id, aspect='function')
+                cast_name, aspect='function')
         else:
             func_name = cast.get_from_function(schema)
 
