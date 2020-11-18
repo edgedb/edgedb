@@ -665,87 +665,6 @@ class GetSchemaObjectNameFunction(dbops.Function):
         )
 
 
-class EdgeDBNameToPGNameFunction(dbops.Function):
-    text = '''
-        SELECT
-            CASE WHEN char_length(name) > 63 THEN
-                (SELECT
-                    hash.v || ':' ||
-                        substr(name, char_length(name) - (61 - hash.l))
-                FROM
-                    (SELECT
-                        q.v AS v,
-                        char_length(q.v) AS l
-                     FROM
-                        (SELECT
-                            rtrim(encode(decode(
-                                md5(name), 'hex'), 'base64'), '=')
-                            AS v
-                        ) AS q
-                    ) AS hash
-                )
-            ELSE
-                name
-            END;
-    '''
-
-    def __init__(self) -> None:
-        super().__init__(
-            name=('edgedb', 'edgedb_name_to_pg_name'),
-            args=[('name', 'text')],
-            returns='text',
-            volatility='immutable',
-            text=self.__class__.text)
-
-
-class ConvertNameFunction(dbops.Function):
-    text = '''
-        SELECT
-            quote_ident(edgedb.edgedb_name_to_pg_name(prefix || module))
-                || '.' ||
-                quote_ident(edgedb.edgedb_name_to_pg_name(name || suffix));
-    '''
-
-    def __init__(self) -> None:
-        super().__init__(
-            name=('edgedb', 'convert_name'),
-            args=[('module', 'text'), ('name', 'text'), ('suffix', 'text'),
-                  ('prefix', 'text', "'edgedb_'")],
-            returns='text',
-            volatility='immutable',
-            text=self.__class__.text)
-
-
-class ObjectTypeNameToTableNameFunction(dbops.Function):
-    text = '''
-        SELECT convert_name(module, name, '_data', prefix);
-    '''
-
-    def __init__(self) -> None:
-        super().__init__(
-            name=('edgedb', 'objtype_name_to_table_name'),
-            args=[('module', 'text'), ('name', 'text'),
-                  ('prefix', 'text', "'edgedb_'")],
-            returns='text',
-            volatility='immutable',
-            text=self.__class__.text)
-
-
-class LinkNameToTableNameFunction(dbops.Function):
-    text = '''
-        SELECT convert_name(module, name, '_link', prefix);
-    '''
-
-    def __init__(self) -> None:
-        super().__init__(
-            name=('edgedb', 'link_name_to_table_name'),
-            args=[('module', 'text'), ('name', 'text'),
-                  ('prefix', 'text', "'edgedb_'")],
-            returns='text',
-            volatility='immutable',
-            text=self.__class__.text)
-
-
 class IssubclassFunction(dbops.Function):
     text = '''
         SELECT
@@ -789,42 +708,6 @@ class IssubclassFunction2(dbops.Function):
             args=[('clsid', 'uuid'), ('pclsid', 'uuid')],
             returns='bool',
             volatility='stable',
-            text=self.__class__.text)
-
-
-class IsinstanceFunction(dbops.Function):
-    text = '''
-    DECLARE
-        ptabname text;
-        clsid uuid;
-    BEGIN
-        ptabname := (
-            SELECT
-                edgedb.objtype_name_to_table_name(split_part(name, '::', 1),
-                                                  split_part(name, '::', 2))
-            FROM
-                edgedb."_SchemaObjectType"
-            WHERE
-                id = pclsid
-        );
-
-        EXECUTE
-            'SELECT "__type__" FROM ' ||
-                ptabname || ' WHERE "id" = $1'
-            INTO clsid
-            USING objid;
-
-        RETURN clsid IS NOT NULL;
-    END;
-    '''
-
-    def __init__(self) -> None:
-        super().__init__(
-            name=('edgedb', 'isinstance'),
-            args=[('objid', 'uuid'), ('pclsid', 'uuid')],
-            returns='bool',
-            volatility='stable',
-            language='plpgsql',
             text=self.__class__.text)
 
 
@@ -2518,10 +2401,6 @@ async def bootstrap(conn):
         dbops.CreateFunction(AssertJSONTypeFunction()),
         dbops.CreateFunction(ExtractJSONScalarFunction()),
         dbops.CreateFunction(DeriveUUIDFunction()),
-        dbops.CreateFunction(EdgeDBNameToPGNameFunction()),
-        dbops.CreateFunction(ConvertNameFunction()),
-        dbops.CreateFunction(ObjectTypeNameToTableNameFunction()),
-        dbops.CreateFunction(LinkNameToTableNameFunction()),
         dbops.CreateFunction(NormalizeNameFunction()),
         dbops.CreateFunction(NullIfArrayNullsFunction()),
         dbops.CreateCompositeType(IndexDescType()),
@@ -3036,7 +2915,6 @@ async def generate_support_functions(conn, schema):
     commands.add_commands([
         dbops.CreateFunction(IssubclassFunction()),
         dbops.CreateFunction(IssubclassFunction2()),
-        dbops.CreateFunction(IsinstanceFunction()),
         dbops.CreateFunction(GetSchemaObjectNameFunction()),
         dbops.CreateFunction(QuoteIdentFunction()),
     ])
