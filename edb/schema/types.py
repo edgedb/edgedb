@@ -2204,8 +2204,14 @@ def materialize_type_in_attribute(
             schema = cc_cmd.apply(schema, context)
 
     if isinstance(type_ref, CollectionTypeShell):
+        # If the current command is a fragment, we want the collection
+        # creation to live in the parent operation, in order for the
+        # logic to skip it if the object already exists to work.
+        op = (cmd.get_parent_op(context)
+              if isinstance(cmd, sd.AlterObjectFragment) else cmd)
+
         make_coll = type_ref.as_create_delta(schema)
-        cmd.add_prerequisite(make_coll)
+        op.add_prerequisite(make_coll)
         schema = make_coll.apply(schema, context)
 
     if isinstance(type_ref, TypeShell):

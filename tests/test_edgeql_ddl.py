@@ -1509,6 +1509,21 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ALTER TYPE Base1 CREATE LINK foo -> A;
         ''')
 
+    async def test_edgeql_ddl_prop_target_alter_array_01(self):
+        await self.con.execute(r"""
+            CREATE TYPE test::Foo {
+                CREATE PROPERTY foo -> array<int32>;
+            };
+
+            ALTER TYPE test::Foo {
+                ALTER PROPERTY foo SET TYPE array<float32>;
+            };
+
+            ALTER TYPE test::Foo {
+                ALTER PROPERTY foo SET TYPE array<int32>;
+            };
+        """)
+
     async def test_edgeql_ddl_link_property_01(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidPropertyDefinitionError,
