@@ -2715,6 +2715,11 @@ class DeleteObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
     #: in the schema.
     if_unused = struct.Field(bool, default=False)
 
+    #: Potential references to this object that we know are being
+    #: deleted, which we use to resolve if_unused.
+    expiring_refs = struct.Field(AbstractSet[so.Object],
+                                 default=frozenset())
+
     def _delete_begin(
         self,
         schema: s_schema.Schema,
@@ -2833,7 +2838,7 @@ class DeleteObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
             if (
                 not self.canonical
                 and self.if_unused
-                and schema.get_referrers(scls)
+                and (schema.get_referrers(scls) - self.expiring_refs)
             ):
                 parent_ctx = context.parent()
                 if parent_ctx is not None:

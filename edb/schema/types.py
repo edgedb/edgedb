@@ -803,10 +803,14 @@ class Collection(Type, s_abc.Collection):
             else:
                 similarity = []
                 for i, st in enumerate(my_subtypes):
-                    similarity.append(
-                        st.compare(
-                            other_subtypes[i], our_schema=our_schema,
-                            their_schema=their_schema, context=context))
+                    ot = other_subtypes[i]
+                    if isinstance(st, type(ot)) or isinstance(ot, type(st)):
+                        similarity.append(
+                            st.compare(
+                                ot, our_schema=our_schema,
+                                their_schema=their_schema, context=context))
+                    else:
+                        similarity.append(0)
 
                 basecoef = sum(similarity) / len(similarity)
 
@@ -862,6 +866,7 @@ class Collection(Type, s_abc.Collection):
         self,
         schema: s_schema.Schema,
         *,
+        expiring_refs: AbstractSet[so.Object],
         view_name: Optional[s_name.QualName] = None,
     ) -> sd.Command:
         raise NotImplementedError
@@ -1152,18 +1157,19 @@ class Array(
         self,
         schema: s_schema.Schema,
         *,
+        expiring_refs: AbstractSet[so.Object] = frozenset(),
         view_name: Optional[s_name.QualName] = None,
     ) -> Union[DeleteArray, DeleteArrayExprAlias]:
         cmd: Union[DeleteArray, DeleteArrayExprAlias]
         if view_name is None:
-            cmd = DeleteArray(classname=self.get_name(schema), if_unused=True)
+            cmd = DeleteArray(classname=self.get_name(schema), if_unused=True,
+                              expiring_refs=expiring_refs)
         else:
             cmd = DeleteArrayExprAlias(classname=view_name)
 
         el = self.get_element_type(schema)
-        if (isinstance(el, Collection)
-                and list(schema.get_referrers(el))[0].id == self.id):
-            cmd.add(el.as_colltype_delete_delta(schema))
+        if isinstance(el, Collection):
+            cmd.add(el.as_colltype_delete_delta(schema, expiring_refs={self}))
 
         return cmd
 
@@ -1679,6 +1685,7 @@ class Tuple(
         self,
         schema: s_schema.Schema,
         *,
+        expiring_refs: AbstractSet[so.Object] = frozenset(),
         view_name: Optional[s_name.QualName] = None,
     ) -> Union[DeleteTuple, DeleteTupleExprAlias]:
         cmd: Union[DeleteTuple, DeleteTupleExprAlias]
@@ -1686,6 +1693,7 @@ class Tuple(
             cmd = DeleteTuple(
                 classname=self.get_name(schema),
                 if_unused=True,
+                expiring_refs=expiring_refs,
             )
         else:
             cmd = DeleteTupleExprAlias(
@@ -1694,9 +1702,8 @@ class Tuple(
 
         for el in self.get_subtypes(schema):
             if isinstance(el, Collection):
-                refs = schema.get_referrers(el)
-                if len(refs) == 1 and list(refs)[0].id == self.id:
-                    cmd.add(el.as_colltype_delete_delta(schema))
+                cmd.add(
+                    el.as_colltype_delete_delta(schema, expiring_refs={self}))
 
         return cmd
 

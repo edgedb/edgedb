@@ -1437,6 +1437,13 @@ class SetPointerType(
             schema, context, action=f'alter the type of {vn}')
 
         if not context.canonical:
+            if (
+                orig_target is not None
+                and isinstance(orig_target, s_types.Collection)
+            ):
+                self.add(orig_target.as_colltype_delete_delta(
+                    schema, expiring_refs={scls}))
+
             implicit_bases = scls.get_implicit_bases(schema)
             non_altered_bases = []
 
