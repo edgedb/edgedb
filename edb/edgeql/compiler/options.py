@@ -75,6 +75,10 @@ class GlobalCompilerOptions:
     #: to contain DML in the top-level shape computables.
     allow_top_level_shape_dml: bool = False
 
+    #: This is meant to be a temporary flag, needed while we iron out
+    #: multiplicity issues.
+    validate_multiplicity: bool = False
+
 
 @dataclass
 class CompilerOptions(GlobalCompilerOptions):

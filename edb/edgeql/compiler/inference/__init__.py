@@ -24,9 +24,13 @@ __all__ = (
     'infer_cardinality',
     'infer_type',
     'infer_volatility',
+    'infer_multiplicity',
+    'InfCtx',
     'make_ctx',
 )
 
-from .cardinality import infer_cardinality, make_ctx  # NOQA
+from .cardinality import infer_cardinality  # NOQA
+from .context import InfCtx, make_ctx  # NOQA
+from .multiplicity import infer_multiplicity  # NOQA
 from .types import amend_empty_set_type, infer_type  # NOQA
 from .volatility import infer_volatility  # NOQA

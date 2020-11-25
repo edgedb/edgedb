@@ -456,6 +456,7 @@ class Statement(Command):
     params: typing.List[Param]
     cardinality: qltypes.Cardinality
     volatility: qltypes.Volatility
+    multiplicity: typing.Optional[qltypes.Multiplicity]
     stype: s_types.Type
     view_shapes: typing.Dict[so.Object, typing.List[s_pointers.Pointer]]
     view_shapes_metadata: typing.Dict[so.Object, ViewShapeMetadata]
@@ -632,7 +633,7 @@ class Call(ImmutableExpr):
     # of tuple element path ids relative to the call set.
     tuple_path_ids: typing.List[PathId]
 
-    # Volatility of the funciton or operator.
+    # Volatility of the function or operator.
     volatility: qltypes.Volatility
 
 

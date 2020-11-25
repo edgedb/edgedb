@@ -120,12 +120,22 @@ def fini_expression(
 
     cardinality = qltypes.Cardinality.AT_MOST_ONE
     if ctx.path_scope is not None:
+        # The inference context object will be shared between
+        # cardinality and multiplicity inferrers.
+        inf_ctx = inference.make_ctx(env=ctx.env)
         # Simple expressions have no scope.
         cardinality = inference.infer_cardinality(
             ir,
             scope_tree=ctx.path_scope,
-            ctx=inference.make_ctx(env=ctx.env),
+            ctx=inf_ctx,
         )
+        multiplicity: Optional[qltypes.Multiplicity] = None
+        if ctx.env.options.validate_multiplicity:
+            multiplicity = inference.infer_multiplicity(
+                ir,
+                scope_tree=ctx.path_scope,
+                ctx=inf_ctx,
+            )
 
     # Strip weak namespaces
     for ir_set in ctx.env.set_types:
@@ -226,6 +236,7 @@ def fini_expression(
         scope_tree=ctx.path_scope,
         cardinality=cardinality,
         volatility=volatility,
+        multiplicity=multiplicity,
         stype=expr_type,
         view_shapes={
             src: [ptr for ptr, _ in ptrs]
