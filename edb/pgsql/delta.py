@@ -2151,13 +2151,15 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
 
         type_change_ok = False
 
-        if (old_target.get_name(schema) != new_target.get_name(schema) or
+        if (old_target.get_name(orig_schema) != new_target.get_name(schema) or
                 old_ptr_stor_info.table_type != new_ptr_stor_info.table_type):
 
             for op in self.get_subcommands(type=s_scalars.ScalarTypeCommand):
                 for rename in op(s_scalars.RenameScalarType):
-                    if (old_target.get_name(schema) == rename.classname and
-                            new_target.get_name(schema) == rename.new_name):
+                    if (
+                        old_target.get_name(orig_schema) == rename.classname
+                        and new_target.get_name(schema) == rename.new_name
+                    ):
                         # Our target alter is a mere rename
                         type_change_ok = True
 

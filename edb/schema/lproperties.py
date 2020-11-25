@@ -450,24 +450,21 @@ class DeleteProperty(
 
     referenced_astnode = qlast.DropConcreteProperty
 
-    @classmethod
-    def _cmd_tree_from_ast(
-        cls,
+    def _canonicalize(
+        self,
         schema: s_schema.Schema,
-        astnode: qlast.DDLOperation,
         context: sd.CommandContext,
-    ) -> sd.Command:
-        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
-        assert isinstance(cmd, DeleteProperty)
+        scls: so.Object,
+    ) -> Sequence[sd.Command]:
+        cmds = list(super()._canonicalize(schema, context, scls))
 
-        if isinstance(astnode, qlast.DropConcreteProperty):
-            prop = schema.get(cmd.classname, type=Property)
-            target = prop.get_target(schema)
+        assert isinstance(scls, Property)
+        target = scls.get_target(schema)
+        if target is not None and isinstance(target, s_types.Collection):
+            cmds.append(
+                target.as_colltype_delete_delta(schema, expiring_refs={scls}))
 
-            if target is not None and isinstance(target, s_types.Collection):
-                cmd.add(target.as_colltype_delete_delta(schema))
-
-        return cmd
+        return cmds
 
     def _get_ast(
         self,

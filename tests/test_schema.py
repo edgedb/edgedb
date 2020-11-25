@@ -3794,6 +3794,18 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
+    def test_schema_migrations_equivalence_collections_05b(self):
+        self._assert_migration_equivalence([r"""
+            type Base {
+                property foo -> array<float32>;
+            }
+        """, r"""
+            type Base {
+                # convert property type to array
+                property foo -> float32;
+            }
+        """])
+
     def test_schema_migrations_equivalence_collections_06(self):
         self._assert_migration_equivalence([r"""
             type Base {

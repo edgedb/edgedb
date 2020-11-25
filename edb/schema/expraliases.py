@@ -219,10 +219,18 @@ class AliasCommand(
                 )
 
         if prev_ir is not None:
+            assert old_schema
             for vt in prev_coll_expr_aliases:
                 dt = vt.as_colltype_delete_delta(
-                    prev_ir.schema,
+                    old_schema,
+                    expiring_refs=set(),
                     view_name=classname,
+                )
+                derived_delta.prepend(dt)
+            for vt in prev_ir.new_coll_types:
+                dt = vt.as_colltype_delete_delta(
+                    old_schema,
+                    expiring_refs=set(),
                 )
                 derived_delta.prepend(dt)
 
@@ -253,9 +261,19 @@ class AliasCommand(
                 break
 
         if real_cmd is None:
-            raise RuntimeError(
-                'view delta does not contain the expected '
-                'view Create/Alter command')
+            assert is_alter
+            for expr_alias in expr_aliases:
+                if expr_alias.get_name(new_schema) == classname:
+                    real_cmd = expr_alias.init_delta_command(
+                        new_schema,
+                        sd.AlterObject,
+                    )
+                    derived_delta.add(real_cmd)
+                    break
+            else:
+                raise RuntimeError(
+                    'view delta does not contain the expected '
+                    'view Create/Alter command')
 
         real_cmd.set_attribute_value('expr', expr)
 
