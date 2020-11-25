@@ -430,7 +430,14 @@ def _check_annotation(f_type, f_fullname, f_default):
                     f'invalid type annotation on {f_fullname}: '
                     f'default is defined for container type '
                     f'{f_type!r}')
-            f_default = f_type
+            # Make sure that we can actually construct an empty
+            # version of this type before we decide it is the default.
+            try:
+                f_type()
+            except TypeError:
+                pass
+            else:
+                f_default = f_type
 
     return f_default
 
