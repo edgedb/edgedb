@@ -375,6 +375,24 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
             result.add(mcls.adapt(op))
         return result
 
+    def resolve_obj_collection(
+        self,
+        value: Any,
+        schema: s_schema.Schema,
+    ) -> Sequence[so.Object]:
+        sequence: Sequence[so.Object]
+        if isinstance(value, so.ObjectCollection):
+            sequence = value.objects(schema)
+        else:
+            sequence = []
+            for v in value:
+                if isinstance(v, so.Shell):
+                    val = v.resolve(schema)
+                else:
+                    val = v
+                sequence.append(val)
+        return sequence
+
     def _resolve_attr_value(
         self,
         value: Any,
@@ -402,17 +420,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
                 value = ftype.create(schema, items)
 
             elif issubclass(ftype, so.ObjectCollection):
-                sequence: Sequence[so.Object]
-                if isinstance(value, so.ObjectCollection):
-                    sequence = value.objects(schema)
-                else:
-                    sequence = []
-                    for v in value:
-                        if isinstance(v, so.Shell):
-                            val = v.resolve(schema)
-                        else:
-                            val = v
-                        sequence.append(val)
+                sequence = self.resolve_obj_collection(value, schema)
                 value = ftype.create(schema, sequence)
 
             elif issubclass(ftype, s_expr.Expression):

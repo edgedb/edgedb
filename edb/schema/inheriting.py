@@ -240,13 +240,16 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
             ],
         ] = {}
 
-        for base in bases.objects(schema):
+        ancestors = set(self.scls.get_ancestors(schema).objects(schema))
+        for base in bases.objects(schema) + (self.scls,):
             base_refs: so.ObjectIndexBase[
                 s_referencing.ReferencedInheritingObject
             ] = base.get_field_value(schema, attr)
 
             for k, v in base_refs.items(schema):
                 if v.get_is_final(schema):
+                    continue
+                if base == self.scls and not v.get_is_owned(schema):
                     continue
 
                 mcls = type(v)
@@ -264,9 +267,33 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
                     schema, astnode, context)
 
                 if fqname not in refs:
-                    refs[fqname] = (create_cmd, astnode, [v])
-                else:
-                    refs[fqname][2].append(v)
+                    refs[fqname] = (create_cmd, astnode, [])
+
+                objs = refs[fqname][2]
+                if base != self.scls:
+                    objs.append(v)
+                elif not objs:
+                    # If we are looking at refs in the base object
+                    # itself, look at the bases of the ref. Any bases
+                    # that we haven't seen already while looking in
+                    # our object bases must be refs to into objects
+                    # that have been dropped from our bases.
+                    #
+                    # To find which bases to keep, we traverse the
+                    # base graph looking for objects with referrers in
+                    # our new ancestor set.
+                    work = list(reversed(v.get_bases(schema).objects(schema)))
+                    while work:
+                        vbase = work.pop()
+                        subj = vbase.get_referrer(schema)
+                        if vbase in objs:
+                            continue
+                        elif subj is None or subj in ancestors:
+                            objs.append(vbase)
+                        else:
+                            work.extend(
+                                reversed(
+                                    vbase.get_bases(schema).objects(schema)))
 
         return refs
 

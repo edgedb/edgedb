@@ -853,11 +853,12 @@ class ReferencedInheritingObjectCommand(
 
         return schema
 
-    def _drop_owned_refs(
+    def _set_owned_refs(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
         refdict: so.RefDict,
+        new_is_owned: bool,
     ) -> s_schema.Schema:
 
         scls = self.scls
@@ -865,14 +866,14 @@ class ReferencedInheritingObjectCommand(
 
         for ref in refs.objects(schema):
             inherited = ref.get_implicit_bases(schema)
-            if inherited and ref.get_is_owned(schema):
-                drop_owned = ref.init_delta_command(schema, AlterOwned)
-                drop_owned.set_attribute_value('is_owned', False)
+            if inherited and ref.get_is_owned(schema) != new_is_owned:
+                set_owned = ref.init_delta_command(schema, AlterOwned)
+                set_owned.set_attribute_value('is_owned', new_is_owned)
                 alter = ref.init_delta_command(schema, sd.AlterObject)
-                alter.add(drop_owned)
+                alter.add(set_owned)
                 schema = alter.apply(schema, context)
                 self.add(alter)
-            else:
+            elif not new_is_owned:
                 drop_ref = ref.init_delta_command(schema, sd.DeleteObject)
                 self.add(drop_ref)
 
@@ -964,10 +965,13 @@ class CreateReferencedInheritingObject(
                 if implicit_bases:
                     bases = self.get_attribute_value('bases')
                     if bases:
+                        res_bases = cast(
+                            List[ReferencedInheritingObjectT],
+                            self.resolve_obj_collection(bases, schema))
                         bases = so.ObjectList.create(
                             schema,
                             implicit_bases + [
-                                b for b in bases.objects(schema)
+                                b for b in res_bases
                                 if b not in implicit_bases
                             ],
                         )
@@ -1436,7 +1440,14 @@ class AlterOwned(
             )
 
             for refdict in type(scls).get_refdicts():
-                schema = self._drop_owned_refs(schema, context, refdict)
+                schema = self._set_owned_refs(schema, context, refdict, owned)
+        elif (
+            orig_owned != owned
+            and owned
+            and not context.canonical
+        ):
+            for refdict in type(scls).get_refdicts():
+                schema = self._set_owned_refs(schema, context, refdict, owned)
 
         return schema
 

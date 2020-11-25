@@ -1154,8 +1154,7 @@ class AlterConstraint(
         ConstraintCommand, AlterObject,
         adapts=s_constr.AlterConstraint):
     def apply(self, schema, context):
-        delta_root_ctx = context.top()
-        orig_schema = delta_root_ctx.original_schema
+        orig_schema = schema
         schema = super().apply(schema, context)
         constraint = self.scls
         if self.metadata_only:
@@ -1610,6 +1609,11 @@ class CompositeObjectMetaCommand(ObjectMetaCommand):
         update_ancestors: Optional[bool]=None,
         update_descendants: Optional[bool]=None,
     ):
+        self.pgops.add(
+            self.drop_inhview(
+                schema, context, obj, drop_ancestors=update_ancestors)
+        )
+
         root = context.get(sd.DeltaRootContext).op
         updates = root.update_inhviews.view_updates
         update = updates.get(obj)
