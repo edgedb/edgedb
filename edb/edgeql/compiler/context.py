@@ -171,6 +171,11 @@ class Environment:
         qltypes.Volatility]
     """A dictionary of expressions and their inferred volatility."""
 
+    inferred_multiplicity: Dict[
+        irast.Base,
+        qltypes.Multiplicity]
+    """A dictionary of expressions and their inferred multiplicity."""
+
     view_shapes: Dict[
         Union[s_types.Type, s_pointers.PointerLike],
         List[Tuple[s_pointers.Pointer, qlast.ShapeOp]]
@@ -232,6 +237,7 @@ class Environment:
         self.type_origins = {}
         self.inferred_types = {}
         self.inferred_volatility = {}
+        self.inferred_multiplicity = {}
         self.view_shapes = collections.defaultdict(list)
         self.view_shapes_metadata = collections.defaultdict(
             irast.ViewShapeMetadata)

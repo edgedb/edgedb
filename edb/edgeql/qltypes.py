@@ -166,6 +166,12 @@ class Volatility(s_enum.StrEnum):
         return cls(name.title())
 
 
+class Multiplicity(s_enum.StrEnum):
+    ZERO = 'ZERO'  # This is valid for empty sets
+    ONE = 'ONE'
+    MANY = 'MANY'
+
+
 class DescribeLanguage(s_enum.StrEnum):
     DDL = 'DDL'
     SDL = 'SDL'
