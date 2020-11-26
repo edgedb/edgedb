@@ -202,7 +202,10 @@ def _process_view(
 
             default_expr = ptrcls.get_default(ctx.env.schema)
             if not default_expr:
-                if ptrcls.get_required(ctx.env.schema):
+                if (
+                    ptrcls.get_required(ctx.env.schema)
+                    and ptrcls.get_shortname(ctx.env.schema).name != '__type__'
+                ):
                     if ptrcls.is_property(ctx.env.schema):
                         # If the target is a sequence, there's no need
                         # for an explicit value.

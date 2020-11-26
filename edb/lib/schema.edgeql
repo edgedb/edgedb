@@ -75,7 +75,7 @@ ALTER TYPE schema::Type {
 
 
 ALTER TYPE std::BaseObject {
-    CREATE LINK __type__ -> schema::Type {
+    CREATE REQUIRED LINK __type__ -> schema::Type {
         SET readonly := True;
     };
 };

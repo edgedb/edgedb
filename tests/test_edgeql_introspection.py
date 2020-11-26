@@ -1209,7 +1209,7 @@ class TestIntrospection(tb.QueryTestCase):
                 {
                     'name': 'test::Comment',
                     'links': [
-                        {'name': '__type__', 'required': False},
+                        {'name': '__type__', 'required': True},
                         {'name': 'issue', 'required': True},
                         {'name': 'owner', 'required': True},
                         {'name': 'parent', 'required': False},
@@ -1238,7 +1238,7 @@ class TestIntrospection(tb.QueryTestCase):
                 {
                     'name': 'schema::CallableObject',
                     'links': [
-                        {'name': '__type__', 'required': False},
+                        {'name': '__type__', 'required': True},
                         {'name': 'annotations', 'required': False},
                         {'name': 'params', 'required': False},
                         {'name': 'return_type', 'required': False},
@@ -1247,7 +1247,7 @@ class TestIntrospection(tb.QueryTestCase):
                 {
                     'name': 'schema::Parameter',
                     'links': [
-                        {'name': '__type__', 'required': False},
+                        {'name': '__type__', 'required': True},
                         {'name': 'type', 'required': True},
                     ]
                 }
