@@ -760,9 +760,13 @@ def generate_structure(
         str_objname = str(objname)
         if (
             not shape_els
+            # The CollectionExprAlias family needs to be excluded
+            # because TupleExprAlias and ArrayExprAlias inherit from
+            # concrete classes and so are picked up from those.
             or str_objname in {
+                'schema::CollectionExprAlias',
                 'schema::TupleExprAlias',
-                'schema::ArrayExprAlias'
+                'schema::ArrayExprAlias',
             }
         ):
             continue
