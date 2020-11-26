@@ -1084,6 +1084,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE TYPE Child EXTENDING Parent {
                 ALTER PROPERTY name {
                     SET OWNED;
+                    ALTER CONSTRAINT exclusive SET OWNED;
                 };
             };
         """)
@@ -1135,6 +1136,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE TYPE Child EXTENDING Parent {
                 ALTER PROPERTY name {
                     SET OWNED;
+                    ALTER CONSTRAINT exclusive SET OWNED;
                 };
             };
             CREATE TYPE Grandchild EXTENDING Child;
@@ -1161,11 +1163,13 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE TYPE Child EXTENDING Parent {
                 ALTER PROPERTY name {
                     SET OWNED;
+                    ALTER CONSTRAINT exclusive SET OWNED;
                 };
             };
             CREATE TYPE Grandchild EXTENDING Child {
                 ALTER PROPERTY name {
                     SET OWNED;
+                    ALTER CONSTRAINT exclusive SET OWNED;
                 };
             };
         """)
@@ -1188,6 +1192,32 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 INSERT Grandchild { name := "bar" };
                 INSERT Grandchild { name := "bar" };
             """)
+
+    async def test_edgeql_ddl_drop_extending_05(self):
+        await self.con.execute("""
+            SET MODULE test;
+
+            CREATE TYPE Parent {
+                CREATE PROPERTY name -> str {
+                    CREATE CONSTRAINT exclusive;
+                };
+            };
+            CREATE TYPE Child EXTENDING Parent {
+                ALTER PROPERTY name {
+                    SET OWNED;
+                };
+            };
+        """)
+
+        await self.con.execute("""
+            ALTER TYPE Child DROP EXTENDING Parent;
+        """)
+
+        # The constraint on Child should be dropped
+        await self.con.execute("""
+            INSERT Child { name := "foo" };
+            INSERT Child { name := "foo" };
+        """)
 
     async def test_edgeql_ddl_default_01(self):
         with self.assertRaisesRegex(
