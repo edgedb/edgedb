@@ -1821,7 +1821,7 @@ class TupleExprAlias(
     qlkind=qltypes.SchemaObjectClass.ALIAS,
 ):
     # N.B: Don't add any SchemaFields to this class, they won't be
-    # reflected properly (since this inherits from the concrete Array).
+    # reflected properly (since this inherits from the concrete Tuple).
     pass
 
 
@@ -2109,14 +2109,7 @@ class CreateCollectionExprAlias(
     CollectionExprAliasCommand[CollectionExprAliasT],
     sd.CreateObject[CollectionExprAliasT],
 ):
-    def canonicalize_attributes(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-    ) -> s_schema.Schema:
-        schema = super().canonicalize_attributes(schema, context)
-        self.set_attribute_value('internal', True)
-        return schema
+    pass
 
 
 class DeleteCollectionExprAlias(
