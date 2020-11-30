@@ -1043,6 +1043,182 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
+    async def test_edgeql_ddl_drop_extending_01(self):
+        await self.con.execute("""
+            SET MODULE test;
+
+            CREATE TYPE Parent {
+                CREATE PROPERTY name -> str {
+                    CREATE CONSTRAINT exclusive;
+                };
+            };
+            CREATE TYPE Child EXTENDING Parent;
+        """)
+
+        await self.con.execute("""
+            ALTER TYPE Child DROP EXTENDING Parent;
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            "object type 'test::Child' has no link or property 'name'",
+        ):
+            await self.con.execute("""
+                SELECT Child.name
+            """)
+
+        # Should be able to drop parent
+        await self.con.execute("""
+            DROP TYPE Parent;
+        """)
+
+    async def test_edgeql_ddl_drop_extending_02(self):
+        await self.con.execute("""
+            SET MODULE test;
+
+            CREATE TYPE Parent {
+                CREATE PROPERTY name -> str {
+                    CREATE CONSTRAINT exclusive;
+                };
+            };
+            CREATE TYPE Child EXTENDING Parent {
+                ALTER PROPERTY name {
+                    SET OWNED;
+                    ALTER CONSTRAINT exclusive SET OWNED;
+                };
+            };
+        """)
+
+        await self.con.execute("""
+            ALTER TYPE Child DROP EXTENDING Parent;
+        """)
+
+        # The constraint shouldn't be linked anymore
+        await self.con.execute("""
+            INSERT Child { name := "foo" };
+            INSERT Parent { name := "foo" };
+        """)
+        await self.con.execute("""
+            INSERT Parent { name := "bar" };
+            INSERT Child { name := "bar" };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            'name violates exclusivity constraint',
+        ):
+            await self.con.execute("""
+                INSERT Parent { name := "bar" };
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            'name violates exclusivity constraint',
+        ):
+            await self.con.execute("""
+                INSERT Child { name := "bar" };
+            """)
+
+        # Should be able to drop parent
+        await self.con.execute("""
+            DROP TYPE Parent;
+        """)
+
+    async def test_edgeql_ddl_drop_extending_03(self):
+        await self.con.execute("""
+            SET MODULE test;
+
+            CREATE TYPE Parent {
+                CREATE PROPERTY name -> str {
+                    CREATE CONSTRAINT exclusive;
+                };
+            };
+            CREATE TYPE Child EXTENDING Parent {
+                ALTER PROPERTY name {
+                    SET OWNED;
+                    ALTER CONSTRAINT exclusive SET OWNED;
+                };
+            };
+            CREATE TYPE Grandchild EXTENDING Child;
+        """)
+
+        await self.con.execute("""
+            ALTER TYPE Child DROP EXTENDING Parent;
+        """)
+
+        # Should be able to drop parent
+        await self.con.execute("""
+            DROP TYPE Parent;
+        """)
+
+    async def test_edgeql_ddl_drop_extending_04(self):
+        await self.con.execute("""
+            SET MODULE test;
+
+            CREATE TYPE Parent {
+                CREATE PROPERTY name -> str {
+                    CREATE CONSTRAINT exclusive;
+                };
+            };
+            CREATE TYPE Child EXTENDING Parent {
+                ALTER PROPERTY name {
+                    SET OWNED;
+                    ALTER CONSTRAINT exclusive SET OWNED;
+                };
+            };
+            CREATE TYPE Grandchild EXTENDING Child {
+                ALTER PROPERTY name {
+                    SET OWNED;
+                    ALTER CONSTRAINT exclusive SET OWNED;
+                };
+            };
+        """)
+
+        await self.con.execute("""
+            ALTER TYPE Grandchild DROP EXTENDING Child;
+        """)
+
+        # Should be able to drop parent
+        await self.con.execute("""
+            DROP TYPE Child;
+            DROP TYPE Parent;
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            'name violates exclusivity constraint',
+        ):
+            await self.con.execute("""
+                INSERT Grandchild { name := "bar" };
+                INSERT Grandchild { name := "bar" };
+            """)
+
+    async def test_edgeql_ddl_drop_extending_05(self):
+        await self.con.execute("""
+            SET MODULE test;
+
+            CREATE TYPE Parent {
+                CREATE PROPERTY name -> str {
+                    CREATE CONSTRAINT exclusive;
+                };
+            };
+            CREATE TYPE Child EXTENDING Parent {
+                ALTER PROPERTY name {
+                    SET OWNED;
+                };
+            };
+        """)
+
+        await self.con.execute("""
+            ALTER TYPE Child DROP EXTENDING Parent;
+        """)
+
+        # The constraint on Child should be dropped
+        await self.con.execute("""
+            INSERT Child { name := "foo" };
+            INSERT Child { name := "foo" };
+        """)
+
     async def test_edgeql_ddl_default_01(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,

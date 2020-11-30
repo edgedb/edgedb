@@ -271,6 +271,20 @@ class LinkCommand(lproperties.PropertySourceCommand,
                 node.is_required = True
         return node
 
+    def _reinherit_classref_dict(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        refdict: so.RefDict,
+    ) -> s_schema.Schema:
+        if self.scls.get_computable(schema) and refdict.attr != 'pointers':
+            # If the link is a computable, the inheritance would only
+            # happen in the case of aliasing, and in that case we only
+            # need to inherit the link properties and nothing else.
+            return schema
+
+        return super()._reinherit_classref_dict(schema, context, refdict)
+
 
 class CreateLink(
     LinkCommand,
