@@ -6865,12 +6865,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [{'a': 'hello', 'b': 42}],
         )
 
-    @test.xfail('''
-        The "complete" flag is not set even though the DDL from
-        "proposed" list is used.
-
-        This happens on the second migration.
-    ''')
     async def test_edgeql_migration_eq_collections_06(self):
         await self.migrate(r"""
             type Base {
@@ -6903,10 +6897,11 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         )
 
     @test.xfail('''
-        The "complete" flag is not set even though the DDL from
-        "proposed" list is used.
+        ISE: column <blah> cannot be cast automatically to type
+           <blah>
 
-        This happens on the second migration.
+        I think we ought to generate a DROP/CREATE and also reject the ALTER
+        with a real error message.
     ''')
     async def test_edgeql_migration_eq_collections_07(self):
         await self.con.execute("""
@@ -6950,10 +6945,9 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         )
 
     @test.xfail('''
-        The "complete" flag is not set even though the DDL from
-        "proposed" list is used.
+        ISE: cannot be cast automatically
 
-        This happens on the second migration.
+        The test case thinks this ought to work, at least.
     ''')
     async def test_edgeql_migration_eq_collections_08(self):
         await self.migrate(r"""
@@ -6987,10 +6981,9 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         )
 
     @test.xfail('''
-        The "complete" flag is not set even though the DDL from
-        "proposed" list is used.
+        ISE: cannot be cast automatically
 
-        This happens on the second migration.
+        The test case thinks this ought to work, at least.
     ''')
     async def test_edgeql_migration_eq_collections_09(self):
         await self.migrate(r"""
@@ -7022,15 +7015,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [{'a': 'test', 'b': 9}],
         )
 
-    @test.xfail('''
-        edgedb.errors.SchemaError: cannot drop scalar type
-        'test::CollAlias' because other objects in the schema depend
-        on it
-
-        Exception: Error while processing 'DROP SCALAR TYPE test::CollAlias;'
-
-        This happens on the second migration.
-    ''')
     async def test_edgeql_migration_eq_collections_13(self):
         await self.migrate(r"""
             type Base {
@@ -7079,18 +7063,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [[13.5]],
         )
 
-    @test.xfail('''
-        edgedb.errors.SchemaError: cannot drop scalar type
-        'test::CollAlias' because other objects in the schema depend
-        on it
-
-        DETAILS: alias 'test::CollAlias' depends on test::CollAlias
-
-        Exception: Error while processing
-        'DROP SCALAR TYPE test::CollAlias;'
-
-        This happens on the second migration.
-    ''')
     async def test_edgeql_migration_eq_collections_14(self):
         await self.migrate(r"""
             type Base {
@@ -7104,6 +7076,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
 
         await self.con.execute(r"""
+            SET MODULE test;
+
             INSERT Base {
                 name := 'coll_14',
                 foo := 14.5,
@@ -7140,16 +7114,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [['coll_14', 14.5]],
         )
 
-    @test.xfail('''
-        edgedb.errors.SchemaError: cannot drop scalar type
-        'test::CollAlias' because other objects in the schema depend
-        on it
-
-        Exception: Error while processing
-        'DROP SCALAR TYPE test::CollAlias;'
-
-        This happens on the second migration.
-    ''')
     async def test_edgeql_migration_eq_collections_15(self):
         await self.migrate(r"""
             type Base {
@@ -7206,16 +7170,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [['coll_15', 15, [15.5]]],
         )
 
-    @test.xfail('''
-        edgedb.errors.SchemaError: cannot drop scalar type
-        'test::CollAlias' because other objects in the schema depend
-        on it
-
-        Exception: Error while processing
-        'DROP SCALAR TYPE test::CollAlias;'
-
-        This happens on the second migration.
-    ''')
     async def test_edgeql_migration_eq_collections_16(self):
         await self.migrate(r"""
             type Base {
@@ -7269,15 +7223,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [{'a': 'coll_16', 'b': 16.5}],
         )
 
-    @test.xfail('''
-        edgedb.errors.InvalidReferenceError: schema item
-        'test::CollAlias' does not exist
-
-        Exception: Error while processing
-        'ALTER ALIAS test::CollAlias USING ([test::Base.foo]);'
-
-        This happens on the second migration.
-    ''')
     async def test_edgeql_migration_eq_collections_17(self):
         await self.migrate(r"""
             type Base {
@@ -7329,19 +7274,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [[17.5]],
         )
 
-    @test.xfail('''
-        edgedb.errors.InvalidReferenceError: schema item
-        'test::CollAlias' does not exist
-
-        Exception: Error while processing
-        'ALTER ALIAS test::CollAlias USING ((
-            test::Base.name,
-            test::Base.number,
-            test::Base.foo
-        ));'
-
-        This happens on the second migration.
-    ''')
     async def test_edgeql_migration_eq_collections_18(self):
         await self.migrate(r"""
             type Base {
@@ -7400,18 +7332,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [['coll_18', 18, 18.5]],
         )
 
-    @test.xfail('''
-        edgedb.errors.InvalidReferenceError: schema item
-        'test::CollAlias' does not exist
-
-        Exception: Error while processing
-        'ALTER ALIAS test::CollAlias USING ((
-            test::Base.name,
-            test::Base.foo
-        ));'
-
-        This happens on the second migration.
-    ''')
     async def test_edgeql_migration_eq_collections_20(self):
         await self.migrate(r"""
             type Base {
@@ -7470,18 +7390,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [['test20', 123.5]],
         )
 
-    @test.xfail('''
-        edgedb.errors.InvalidReferenceError: schema item
-        'test::CollAlias' does not exist
-
-        Exception: Error while processing
-        'ALTER ALIAS test::CollAlias USING ((
-            a := test::Base.name,
-            b := test::Base.foo
-        ));'
-
-        This happens on the second migration.
-    ''')
     async def test_edgeql_migration_eq_collections_21(self):
         await self.migrate(r"""
             type Base {

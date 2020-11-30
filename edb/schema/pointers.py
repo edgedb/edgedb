@@ -1441,7 +1441,9 @@ class SetPointerType(
                 orig_target is not None
                 and isinstance(orig_target, s_types.Collection)
             ):
-                self.add(orig_target.as_colltype_delete_delta(
+                parent_ctx = context.parent()
+                assert parent_ctx
+                parent_ctx.op.add(orig_target.as_colltype_delete_delta(
                     schema, expiring_refs={scls}))
 
             implicit_bases = scls.get_implicit_bases(schema)

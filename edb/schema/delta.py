@@ -2860,6 +2860,7 @@ class DeleteObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
             if refs:
                 for ref in refs:
                     if (not context.is_deleting(ref)
+                            and ref not in self.expiring_refs
                             and ref.is_blocking_ref(orig_schema, self.scls)):
                         ref_strs.append(
                             ref.get_verbosename(orig_schema, with_parent=True))

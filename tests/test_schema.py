@@ -4034,7 +4034,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 property bar -> int32;
             };
 
-            # aliases with array<flaot32>
+            # aliases with array<float32>
             alias BaseAlias := Base { data := [Base.foo] };
             alias CollAlias := [Base.foo];
         """])

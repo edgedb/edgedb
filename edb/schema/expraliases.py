@@ -223,14 +223,14 @@ class AliasCommand(
             for vt in prev_coll_expr_aliases:
                 dt = vt.as_colltype_delete_delta(
                     old_schema,
-                    expiring_refs=set(),
+                    expiring_refs={self.scls},
                     view_name=classname,
                 )
                 derived_delta.prepend(dt)
             for vt in prev_ir.new_coll_types:
                 dt = vt.as_colltype_delete_delta(
                     old_schema,
-                    expiring_refs=set(),
+                    expiring_refs={self.scls},
                 )
                 derived_delta.prepend(dt)
 
@@ -251,12 +251,15 @@ class AliasCommand(
             derived_delta.add(ct)
 
         derived_delta = s_ordering.linearize_delta(
-            derived_delta, old_schema=old_schema, new_schema=new_schema)
+            derived_delta, old_schema=schema, new_schema=new_schema)
 
         real_cmd = None
         for op in derived_delta.get_subcommands():
             assert isinstance(op, sd.ObjectCommand)
-            if op.classname == classname:
+            if (
+                op.classname == classname
+                and not isinstance(op, sd.DeleteObject)
+            ):
                 real_cmd = op
                 break
 
@@ -404,11 +407,10 @@ class AlterAlias(
 
                 self.set_attribute_value(
                     'type',
-                    s_utils.ast_objref_to_object_shell(
-                        s_utils.name_to_ast_ref(cmd.classname),
-                        metaclass=cmd.get_schema_metaclass(),
-                        modaliases={},
-                        schema=schema,
+                    so.ObjectShell(
+                        name=cmd.classname,
+                        origname=cmd.classname,
+                        schemaclass=cmd.get_schema_metaclass(),
                     )
                 )
 
