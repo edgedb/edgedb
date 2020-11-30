@@ -31,8 +31,30 @@ from edb.common import markup
 
 from edb.server import compiler
 from edb.server.compiler import IoFormat
+from edb.server.compiler import enums
 from edb.server.http import http
 from edb.server.http cimport http
+
+
+ALLOWED_CAPABILITIES = (
+    enums.Capability.QUERY |
+    enums.Capability.MODIFICATIONS |
+    enums.Capability.DDL
+)
+
+
+def capability_error(current: enums.Capability) -> Exception:
+    for item in enums.Capability:
+        if item & ALLOWED_CAPABILITIES:
+            continue
+        if current & item:
+            return errors.UnsupportedCapabilityError(
+                f"cannot execute {enums.CAPABILITY_TITLES[item]}"
+                f" for the current connection")
+    raise AssertionError(
+        f"extra capability not found in"
+        f" {current} allowed {ALLOWED_CAPABILITIES}"
+    )
 
 
 cdef class Protocol(http.HttpProtocol):
@@ -117,6 +139,7 @@ cdef class Protocol(http.HttpProtocol):
     async def compile(self, dbver, list queries):
         comp = await self.server.compilers.get()
         try:
+            # TODO(tailhook) check capabilities
             return await comp.call(
                 'compile_notebook',
                 dbver,
@@ -144,6 +167,8 @@ cdef class Protocol(http.HttpProtocol):
                     })
                 else:
                     query_unit = unit_or_error
+                    if query_unit.capabilities & ~ALLOWED_CAPABILITIES:
+                        raise capability_error(query_unit.capabilities)
 
                     try:
                         data = await pgcon.parse_execute_notebook(

@@ -60,6 +60,7 @@ from edb.server import buildmeta
 from edb.server import compiler
 from edb.server import defines as edbdef
 from edb.server.compiler import errormech
+from edb.server.compiler import enums
 from edb.server.pgcon cimport pgcon
 from edb.server.pgcon import errors as pgerror
 
@@ -80,8 +81,6 @@ DEF FLUSH_BUFFER_AFTER = 100_000
 cdef bytes ZERO_UUID = b'\x00' * 16
 cdef bytes EMPTY_TUPLE_UUID = s_obj.get_known_type_id('empty-tuple').bytes
 
-cdef object CAP_ALL = compiler.Capability.ALL
-
 cdef object CARD_NO_RESULT = compiler.ResultCardinality.NO_RESULT
 cdef object CARD_ONE = compiler.ResultCardinality.ONE
 cdef object CARD_MANY = compiler.ResultCardinality.MANY
@@ -100,6 +99,32 @@ cdef object log_metrics = logging.getLogger('edb.server.metrics')
 DEF QUERY_OPT_IMPLICIT_LIMIT = 0xFF01
 DEF QUERY_OPT_INLINE_TYPENAMES = 0xFF02
 DEF QUERY_OPT_INLINE_TYPEIDS = 0xFF03
+DEF QUERY_OPT_ALLOW_CAPABILITIES = 0xFF04
+
+DEF SERVER_HEADER_CAPABILITIES = 0x1001
+
+DEF ALL_CAPABILITIES = 0xFFFFFFFFFFFFFFFF
+
+cdef uint64_t ALWAYS_ALLOWED = (
+    enums.Capability.QUERY |
+    enums.Capability.SESSION_MODE
+)
+
+
+def capability_error(
+    current: enums.Capability,
+    allowed: enums.Capability,
+) -> Exception:
+    for item in enums.Capability:
+        if item & allowed:
+            continue
+        if current & item:
+            return errors.DisabledCapabilityError(
+                f"cannot execute {enums.CAPABILITY_TITLES[item]}")
+    raise AssertionError(
+        f"extra capability not found in"
+        f" {current} allowed {allowed}"
+    )
 
 
 @cython.final
@@ -113,6 +138,7 @@ cdef class QueryRequestInfo:
         implicit_limit: int,
         inline_typeids: bint,
         inline_typenames: bint,
+        allow_capabilities: uint64_t,
     ):
         self.source = source
         self.io_format = io_format
@@ -120,6 +146,7 @@ cdef class QueryRequestInfo:
         self.implicit_limit = implicit_limit
         self.inline_typeids = inline_typeids
         self.inline_typenames = inline_typenames
+        self.allow_capabilities = allow_capabilities
 
         self.cached_hash = hash((
             self.source.cache_key(),
@@ -445,7 +472,10 @@ cdef class EdgeConnection:
         conn = cls(server)
         await conn._start_connection(database, user)
         try:
-            await conn._simple_query(script.encode('utf-8'))
+            await conn._simple_query(
+                script.encode('utf-8'),
+                ALL_CAPABILITIES,
+            )
         except pgerror.BackendError as e:
             exc = await conn._interpret_backend_error(e)
             if isinstance(exc, errors.EdgeDBError):
@@ -735,7 +765,6 @@ cdef class EdgeConnection:
                 query_req.inline_typeids,
                 query_req.inline_typenames,
                 stmt_mode,
-                CAP_ALL,
             )
 
     async def _compile_script(
@@ -775,7 +804,6 @@ cdef class EdgeConnection:
                 False,
                 False,
                 stmt_mode,
-                CAP_ALL,
             )
 
     async def _compile_rollback(self, bytes eql):
@@ -812,8 +840,23 @@ cdef class EdgeConnection:
         cdef:
             WriteBuffer msg
             WriteBuffer packet
+            uint64_t allow_capabilities = ALL_CAPABILITIES
 
-        self.reject_headers()
+        headers = self.parse_headers()
+        if headers:
+            for k, v in headers.items():
+                if k == QUERY_OPT_ALLOW_CAPABILITIES:
+                    if v.len() != 8:
+                        raise errors.BinaryProtocolError(
+                            f'capabilities header must be exactly 8 bytes'
+                        )
+                    allow_capabilities = hton.unpack_uint64(
+                        cpython.PyBytes_AS_STRING(v))
+                    allow_capabilities |= ALWAYS_ALLOWED
+                else:
+                    raise errors.BinaryProtocolError(
+                        f'unexpected message header: {k}'
+                    )
 
         eql = self.buffer.read_len_prefixed_bytes()
         self.buffer.finish_message()
@@ -824,6 +867,10 @@ cdef class EdgeConnection:
             self.debug_print('SIMPLE QUERY', eql)
 
         if self.dbview.in_tx_error():
+            if not (allow_capabilities & enums.Capability.TRANSACTION):
+                raise errors.DisabledCapabilityError(
+                    f"Cannot recover transaction, disallowed capability"
+                )
             stmt_mode, query_unit = await self._recover_script_error(eql)
             if stmt_mode == 'done':
                 packet = WriteBuffer.new()
@@ -834,7 +881,7 @@ cdef class EdgeConnection:
                 self.flush()
                 return
 
-        query_unit = await self._simple_query(eql)
+        query_unit = await self._simple_query(eql, allow_capabilities)
 
         packet = WriteBuffer.new()
         packet.write_buffer(self.make_command_complete_msg(query_unit))
@@ -842,10 +889,17 @@ cdef class EdgeConnection:
         self.write(packet)
         self.flush()
 
-    async def _simple_query(self, eql: bytes):
+    async def _simple_query(self, eql: bytes, allow_capabilities: uint64_t):
         stmt_mode = 'all'
         with self.timer.timed("Query compilation"):
             units = await self._compile_script(eql, stmt_mode=stmt_mode)
+
+        for query_unit in units:
+            if query_unit.capabilities & ~allow_capabilities:
+                raise capability_error(
+                    query_unit.capabilities,
+                    allow_capabilities,
+                )
 
         new_type_ids = frozenset()
         for query_unit in units:
@@ -946,6 +1000,11 @@ cdef class EdgeConnection:
                         stmt_mode='single',
                     )
                 query_unit = query_unit[0]
+            if query_unit.capabilities & ~query_req.allow_capabilities:
+                raise capability_error(
+                    query_unit.capabilities,
+                    query_req.allow_capabilities,
+                )
         elif self.dbview.in_tx_error():
             # We have a cached QueryUnit for this 'eql', but the current
             # transaction is aborted.  We can only complete this Parse
@@ -1015,6 +1074,7 @@ cdef class EdgeConnection:
             dict headers
             uint64_t implicit_limit = 0
             bint inline_typeids = self.protocol_version <= (0, 8)
+            uint64_t allow_capabilities = ALL_CAPABILITIES
             bint inline_typenames = False
             bytes stmt_name = b''
 
@@ -1027,6 +1087,14 @@ cdef class EdgeConnection:
                     inline_typeids = v.lower() == b'true'
                 elif k == QUERY_OPT_INLINE_TYPENAMES:
                     inline_typenames = v.lower() == b'true'
+                elif k == QUERY_OPT_ALLOW_CAPABILITIES:
+                    if v.len() != 8:
+                        raise errors.BinaryProtocolError(
+                            f'capabilities header must be exactly 8 bytes'
+                        )
+                    allow_capabilities = hton.unpack_uint64(
+                        cpython.PyBytes_AS_STRING(v))
+                    allow_capabilities |= ALWAYS_ALLOWED
                 else:
                     raise errors.BinaryProtocolError(
                         f'unexpected message header: {k}'
@@ -1057,6 +1125,7 @@ cdef class EdgeConnection:
             implicit_limit,
             inline_typeids,
             inline_typenames,
+            allow_capabilities,
         )
 
         return eql, query_req, stmt_name
@@ -1352,8 +1421,24 @@ cdef class EdgeConnection:
         cdef:
             WriteBuffer bound_args_buf
             bint process_sync
+            uint64_t allow_capabilities = ALL_CAPABILITIES
 
-        self.reject_headers()
+        headers = self.parse_headers()
+        if headers:
+            for k, v in headers.items():
+                if k == QUERY_OPT_ALLOW_CAPABILITIES:
+                    if v.len() != 8:
+                        raise errors.BinaryProtocolError(
+                            f'capabilities header must be exactly 8 bytes'
+                        )
+                    allow_capabilities = hton.unpack_uint64(
+                        cpython.PyBytes_AS_STRING(v))
+                    allow_capabilities |= ALWAYS_ALLOWED
+                else:
+                    raise errors.BinaryProtocolError(
+                        f'unexpected message header: {k}'
+                    )
+
         stmt_name = self.buffer.read_len_prefixed_bytes()
         bind_args = self.buffer.read_len_prefixed_bytes()
         self.buffer.finish_message()
@@ -1371,6 +1456,12 @@ cdef class EdgeConnection:
                     'no prepared anonymous statement found')
 
             compiled = self._last_anon_compiled
+
+        if compiled.query_unit.capabilities & ~allow_capabilities:
+            raise capability_error(
+                compiled.query_unit.capabilities,
+                allow_capabilities,
+            )
 
         await self._execute(compiled, bind_args, False, False)
 
@@ -1409,6 +1500,12 @@ cdef class EdgeConnection:
                 first_extra=query_req.source.first_extra(),
                 extra_count=query_req.source.extra_count(),
                 extra_blob=query_req.source.extra_blob(),
+            )
+
+        if query_unit.capabilities & ~query_req.allow_capabilities:
+            raise capability_error(
+                query_unit.capabilities,
+                query_req.allow_capabilities,
             )
 
         if (query_unit.in_type_id != in_tid or

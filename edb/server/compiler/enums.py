@@ -46,14 +46,32 @@ class ResultCardinality(strenum.StrEnum):
     NO_RESULT = 'NO_RESULT'
 
 
-class Capability(enum.Flag):
+class Capability(enum.IntFlag):
 
-    DDL = enum.auto()
-    TRANSACTION = enum.auto()
-    SESSION = enum.auto()
-    QUERY = enum.auto()
+    MODIFICATIONS     = 0b00001         # noqa
+    SESSION_CONFIG    = 0b00010         # noqa
+    TRANSACTION       = 0b00100         # noqa
+    DDL               = 0b01000         # noqa
+    PERSISTENT_CONFIG = 0b10000         # noqa
 
-    ALL = DDL | TRANSACTION | SESSION | QUERY
+    QUERY             = 0b00001 << 32   # noqa
+    SESSION_MODE      = 0b00010 << 32   # noqa
+
+    PUBLIC = (
+        DDL | TRANSACTION | SESSION_CONFIG | PERSISTENT_CONFIG | MODIFICATIONS
+    )
+    PRIVATE = QUERY | SESSION_MODE
+
+
+CAPABILITY_TITLES = {
+    Capability.MODIFICATIONS: 'data modification queries',
+    Capability.SESSION_CONFIG: 'session configuration queries',
+    Capability.TRANSACTION: 'transaction control commands',
+    Capability.DDL: 'DDL commands',
+    Capability.PERSISTENT_CONFIG: 'configuration commands',
+    Capability.QUERY: 'read-only queries',
+    Capability.SESSION_MODE: 'session-mode functions',
+}
 
 
 class IoFormat(strenum.StrEnum):
