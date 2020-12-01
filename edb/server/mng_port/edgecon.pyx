@@ -1101,7 +1101,6 @@ cdef class EdgeConnection:
                     raise errors.BinaryProtocolError(
                         f'unexpected message header: {k}'
                     )
-        print("CAPABILITIES", bin(allow_capabilities))
 
         io_format = self.parse_io_format(self.buffer.read_byte())
         expect_one = (

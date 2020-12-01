@@ -119,7 +119,6 @@ _IO_FORMAT_MAP = {
     enums.IoFormat.SCRIPT: pg_compiler.OutputFormat.SCRIPT,
 }
 
-
 pg_ql = lambda o: pg_common.quote_literal(str(o))
 
 
@@ -1407,9 +1406,13 @@ class Compiler(BaseCompiler):
             )
 
         elif isinstance(ql, qlast.ConfigOp):
+            if ql.scope is qltypes.ConfigScope.SESSION:
+                capability = enums.Capability.SESSION_CONFIG
+            else:
+                capability = enums.Capability.PERSISTENT_CONFIG
             return (
                 self._compile_ql_config_op(ctx, ql),
-                enums.Capability.SESSION_MODE,
+                capability,
             )
 
         else:

@@ -2870,7 +2870,6 @@ class TestServerCapabilities(tb.QueryTestCase):
                 enums.Capability.DDL,
             )
 
-    @test.xfail('todo')
     async def test_server_capabilities_04(self):
         caps = enums.Capability.PUBLIC & ~enums.Capability.SESSION_CONFIG
         with self.assertRaises(edgedb.ProtocolError):
@@ -2879,7 +2878,6 @@ class TestServerCapabilities(tb.QueryTestCase):
                 __allow_capabilities__=caps,
             )
 
-    @test.xfail('todo')
     async def test_server_capabilities_05(self):
         caps = enums.Capability.PUBLIC & ~enums.Capability.PERSISTENT_CONFIG
         with self.assertRaises(edgedb.ProtocolError):
