@@ -109,6 +109,7 @@ cdef uint64_t ALWAYS_ALLOWED = (
     enums.Capability.QUERY |
     enums.Capability.SESSION_MODE
 )
+cdef uint64_t PUBLIC_CAPABILITIES = enums.Capability.PUBLIC
 
 
 def capability_error(
@@ -846,7 +847,7 @@ cdef class EdgeConnection:
         if headers:
             for k, v in headers.items():
                 if k == QUERY_OPT_ALLOW_CAPABILITIES:
-                    if v.len() != 8:
+                    if len(v) != 8:
                         raise errors.BinaryProtocolError(
                             f'capabilities header must be exactly 8 bytes'
                         )
@@ -1088,17 +1089,19 @@ cdef class EdgeConnection:
                 elif k == QUERY_OPT_INLINE_TYPENAMES:
                     inline_typenames = v.lower() == b'true'
                 elif k == QUERY_OPT_ALLOW_CAPABILITIES:
-                    if v.len() != 8:
+                    if len(v) != 8:
                         raise errors.BinaryProtocolError(
                             f'capabilities header must be exactly 8 bytes'
                         )
                     allow_capabilities = hton.unpack_uint64(
                         cpython.PyBytes_AS_STRING(v))
+                    allow_capabilities &= PUBLIC_CAPABILITIES
                     allow_capabilities |= ALWAYS_ALLOWED
                 else:
                     raise errors.BinaryProtocolError(
                         f'unexpected message header: {k}'
                     )
+        print("CAPABILITIES", bin(allow_capabilities))
 
         io_format = self.parse_io_format(self.buffer.read_byte())
         expect_one = (
@@ -1189,7 +1192,14 @@ cdef class EdgeConnection:
         compiled_query = await self._parse(eql, query_req)
 
         buf = WriteBuffer.new_message(b'1')  # ParseComplete
-        buf.write_int16(0)  # no headers
+
+        buf.write_int16(1)
+        buf.write_int16(SERVER_HEADER_CAPABILITIES)
+        buf.write_int32(sizeof(uint64_t))
+        buf.write_int64(<int64_t>(
+            PUBLIC_CAPABILITIES & compiled_query.query_unit.capabilities
+        ))
+
         buf.write_byte(self.render_cardinality(compiled_query.query_unit))
         buf.write_bytes(compiled_query.query_unit.in_type_id)
         buf.write_bytes(compiled_query.query_unit.out_type_id)
@@ -1226,7 +1236,14 @@ cdef class EdgeConnection:
             WriteBuffer msg
 
         msg = WriteBuffer.new_message(b'C')
-        msg.write_int16(0)  # no headers
+
+        msg.write_int16(1)
+        msg.write_int16(SERVER_HEADER_CAPABILITIES)
+        msg.write_int32(sizeof(uint64_t))
+        msg.write_int64(
+            <int64_t>(PUBLIC_CAPABILITIES & query_unit.capabilities)
+        )
+
         msg.write_len_prefixed_bytes(query_unit.status)
         return msg.end_message()
 
@@ -1427,7 +1444,7 @@ cdef class EdgeConnection:
         if headers:
             for k, v in headers.items():
                 if k == QUERY_OPT_ALLOW_CAPABILITIES:
-                    if v.len() != 8:
+                    if len(v) != 8:
                         raise errors.BinaryProtocolError(
                             f'capabilities header must be exactly 8 bytes'
                         )
