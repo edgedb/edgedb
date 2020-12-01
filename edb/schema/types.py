@@ -1279,6 +1279,8 @@ class ArrayExprAlias(
     Array,
     qlkind=qltypes.SchemaObjectClass.ALIAS,
 ):
+    # N.B: Don't add any SchemaFields to this class, they won't be
+    # reflected properly (since this inherits from the concrete Array).
     pass
 
 
@@ -1818,6 +1820,8 @@ class TupleExprAlias(
     Tuple,
     qlkind=qltypes.SchemaObjectClass.ALIAS,
 ):
+    # N.B: Don't add any SchemaFields to this class, they won't be
+    # reflected properly (since this inherits from the concrete Tuple).
     pass
 
 

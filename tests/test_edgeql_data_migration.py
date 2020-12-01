@@ -7794,3 +7794,27 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 'confidence': 1.0,
             },
         })
+
+
+class TestEdgeQLDataMigrationNonisolated(tb.DDLTestCase):
+    TRANSACTION_ISOLATION = False
+
+    async def test_edgeql_migration_eq_collections_25(self):
+        await self.con.execute(r"""
+            START MIGRATION TO {
+                module test {
+                    alias Foo := [20];
+                }
+            };
+            POPULATE MIGRATION;
+            COMMIT MIGRATION;
+        """)
+
+        await self.con.execute(r"""
+            START MIGRATION TO {
+                module test {
+                }
+            };
+            POPULATE MIGRATION;
+            COMMIT MIGRATION;
+        """)
