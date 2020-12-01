@@ -1337,3 +1337,34 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             r'''SELECT test::call40(Rectangle);''',
             [6],
         )
+
+    async def test_edgeql_calls_41(self):
+        await self.con.execute('''
+            CREATE FUNCTION test::call41(
+                a: int64, b: int64
+            ) -> SET OF int64
+                USING ({a, b});
+        ''')
+
+        await self.assert_query_result(
+            r'''SELECT test::call41(1, 2);''',
+            [1, 2],
+        )
+
+    async def test_edgeql_calls_42(self):
+        await self.con.execute('''
+            CREATE FUNCTION test::call42(
+                a: int64, b: int64
+            ) -> SET OF tuple<int64, str>
+                USING ({(a, '1'), (b, '2')});
+        ''')
+
+        await self.assert_query_result(
+            r'''SELECT test::call42(1, 2);''',
+            [[1, '1'], [2, '2']],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT test::call42(1, 2).0;''',
+            [1, 2],
+        )
