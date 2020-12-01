@@ -1165,7 +1165,8 @@ class Array(
             cmd = DeleteArray(classname=self.get_name(schema), if_unused=True,
                               expiring_refs=expiring_refs)
         else:
-            cmd = DeleteArrayExprAlias(classname=view_name)
+            cmd = DeleteArrayExprAlias(classname=view_name,
+                                       expiring_refs=expiring_refs)
 
         el = self.get_element_type(schema)
         if isinstance(el, Collection):
@@ -1700,6 +1701,7 @@ class Tuple(
         else:
             cmd = DeleteTupleExprAlias(
                 classname=view_name,
+                expiring_refs=expiring_refs,
             )
 
         for el in self.get_subtypes(schema):

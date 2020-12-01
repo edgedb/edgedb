@@ -7955,6 +7955,50 @@ type test::Foo {
 
         self.assertEqual(await self.con.query_one(count_query), orig_count)
 
+    async def test_edgeql_ddl_collection_cleanup_01b(self):
+        count_query = "SELECT count(schema::Array);"
+        orig_count = await self.con.query_one(count_query)
+
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            CREATE SCALAR TYPE a extending str;
+            CREATE SCALAR TYPE b extending str;
+            CREATE SCALAR TYPE c extending str;
+
+            CREATE TYPE TestArrays {
+                CREATE PROPERTY x -> array<a>;
+                CREATE PROPERTY y -> array<b>;
+                CREATE PROPERTY z -> array<b>;
+            };
+        """)
+
+        self.assertEqual(await self.con.query_one(count_query), orig_count + 2)
+
+        await self.con.execute(r"""
+            ALTER TYPE TestArrays {
+                DROP PROPERTY x;
+            };
+        """)
+
+        self.assertEqual(await self.con.query_one(count_query), orig_count + 1)
+
+        await self.con.execute(r"""
+            ALTER TYPE TestArrays {
+                ALTER PROPERTY y {
+                    SET TYPE array<c>;
+                }
+            };
+        """)
+
+        self.assertEqual(await self.con.query_one(count_query), orig_count + 2)
+
+        await self.con.execute(r"""
+            DROP TYPE TestArrays;
+        """)
+
+        self.assertEqual(await self.con.query_one(count_query), orig_count)
+
     async def test_edgeql_ddl_collection_cleanup_02(self):
         count_query = "SELECT count(schema::CollectionType);"
         orig_count = await self.con.query_one(count_query)
@@ -8064,31 +8108,6 @@ type test::Foo {
         self.assertEqual(await self.con.query_one(count_query), orig_count)
 
     async def test_edgeql_ddl_collection_cleanup_05(self):
-        count_query = "SELECT count(schema::CollectionType);"
-        orig_count = await self.con.query_one(count_query)
-
-        await self.con.execute(r"""
-            SET MODULE test;
-
-            CREATE SCALAR TYPE a extending str;
-            CREATE SCALAR TYPE b extending str;
-
-            CREATE ALIAS Bar := (<a>"", <b>"");
-        """)
-
-        self.assertEqual(await self.con.query_one(count_query), orig_count + 1)
-
-        await self.con.execute(r"""
-            DROP ALIAS Bar;
-        """)
-
-        self.assertEqual(await self.con.query_one(count_query), orig_count)
-
-    @test.xfail('''
-        fails because changing the definition of a tuple alias breaks
-    ''')
-    async def test_edgeql_ddl_collection_cleanup_05b(self):
-        # Once this is fixed it should just supersede the test above
         count_query = "SELECT count(schema::CollectionType);"
         orig_count = await self.con.query_one(count_query)
 
