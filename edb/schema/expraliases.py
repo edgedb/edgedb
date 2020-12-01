@@ -153,7 +153,7 @@ class AliasCommand(
         schema: s_schema.Schema,
         context: sd.CommandContext,
         is_alter: bool = False,
-    ) -> sd.Command:
+    ) -> Tuple[sd.Command, sd.ObjectCommand[Alias]]:
         from . import ordering as s_ordering
 
         ir = self._compile_alias_expr(expr.qlast, classname, schema, context)
@@ -253,7 +253,7 @@ class AliasCommand(
         derived_delta = s_ordering.linearize_delta(
             derived_delta, old_schema=old_schema, new_schema=new_schema)
 
-        real_cmd = None
+        real_cmd: Optional[sd.ObjectCommand[Alias]] = None
         for op in derived_delta.get_subcommands():
             assert isinstance(op, sd.ObjectCommand)
             if op.classname == classname:
@@ -279,8 +279,7 @@ class AliasCommand(
 
         result = sd.CommandGroup()
         result.update(derived_delta.get_subcommands())
-        result.canonical = True
-        return result
+        return result, real_cmd
 
 
 class CreateAlias(
@@ -298,22 +297,13 @@ class CreateAlias(
             alias_name = sn.shortname_from_fullname(self.classname)
             assert isinstance(alias_name, sn.QualName), \
                 "expected qualified name"
-            type_cmd = self._handle_alias_op(
+            type_cmd, cmd = self._handle_alias_op(
                 self.get_attribute_value('expr'),
                 alias_name,
                 schema,
                 context,
             )
             self.add_prerequisite(type_cmd)
-            for cmd in type_cmd.get_subcommands(type=sd.ObjectCommand):
-                if cmd.classname == alias_name:
-                    break
-            else:
-                raise AssertionError(
-                    '_handle_alias_op() did not return a command'
-                    ' for derived type'
-                )
-            assert isinstance(cmd, sd.ObjectCommand)
             self.set_attribute_value(
                 'expr',
                 cmd.get_attribute_value('expr'),
@@ -370,7 +360,7 @@ class AlterAlias(
                 alias_name = sn.shortname_from_fullname(self.classname)
                 assert isinstance(alias_name, sn.QualName), \
                     "expected qualified name"
-                type_cmd = self._handle_alias_op(
+                type_cmd, cmd = self._handle_alias_op(
                     expr,
                     alias_name,
                     schema,
@@ -378,24 +368,6 @@ class AlterAlias(
                     is_alter=True,
                 )
                 self.add_prerequisite(type_cmd)
-                for cmd in type_cmd.get_subcommands():
-                    if (
-                        isinstance(cmd, sd.CreateObject)
-                        and cmd.classname == alias_name
-                    ):
-                        break
-                else:
-                    for cmd in type_cmd.get_subcommands():
-                        if (
-                            isinstance(cmd, sd.AlterObject)
-                            and cmd.classname == alias_name
-                        ):
-                            break
-                    else:
-                        raise AssertionError(
-                            '_handle_alias_op() did not return a command'
-                            ' for derived type'
-                        )
 
                 self.set_attribute_value(
                     'expr',
