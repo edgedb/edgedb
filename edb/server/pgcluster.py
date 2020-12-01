@@ -20,6 +20,7 @@ from __future__ import annotations
 from typing import *
 
 import asyncio
+import enum
 import locale
 import logging
 import os
@@ -34,6 +35,8 @@ import time
 
 import asyncpg
 from asyncpg import serverversion
+
+from edb.common import uuidgen
 
 from edb.server import buildmeta
 from edb.server import defines
@@ -71,14 +74,67 @@ class ClusterError(Exception):
     pass
 
 
+class BackendCapabilities(enum.IntFlag):
+
+    NONE = 0
+    #: Whether CREATE ROLE .. SUPERUSER is allowed
+    SUPERUSER_ACCESS = 1 << 0
+    #: Whether reading PostgreSQL configuration files
+    #: via pg_file_settings is allowed
+    CONFIGFILE_ACCESS = 1 << 1
+    #: Whether the PostgreSQL server supports the C.UTF-8 locale
+    C_UTF8_LOCALE = 1 << 2
+
+
+ALL_BACKEND_CAPABILITIES = (
+    BackendCapabilities.SUPERUSER_ACCESS
+    | BackendCapabilities.CONFIGFILE_ACCESS
+    | BackendCapabilities.C_UTF8_LOCALE
+)
+
+
+class BackendInstanceParams(NamedTuple):
+
+    capabilities: BackendCapabilities
+    base_superuser: Optional[str] = None
+
+
+class BackendRuntimeParams(NamedTuple):
+
+    instance_params: BackendInstanceParams
+    session_authorization_role: Optional[str] = None
+
+
+def get_default_runtime_params() -> BackendRuntimeParams:
+    capabilities = ALL_BACKEND_CAPABILITIES
+    if not _is_c_utf8_locale_present():
+        capabilities &= ~BackendCapabilities.C_UTF8_LOCALE
+
+    return BackendRuntimeParams(
+        instance_params=BackendInstanceParams(
+            capabilities=capabilities,
+        ),
+    )
+
+
 class BaseCluster:
 
-    def __init__(self, *, pg_config_path=None):
+    def __init__(
+        self,
+        *,
+        pg_config_path=None,
+        instance_params: Optional[BackendInstanceParams] = None,
+    ) -> None:
         self._connection_addr = None
         self._connection_params = None
-        self._default_session_auth = None
+        self._default_session_auth: Optional[str] = None
         self._pg_config_path = pg_config_path
         self._pg_bin_dir = None
+        if instance_params is None:
+            self._instance_params = (
+                get_default_runtime_params().instance_params)
+        else:
+            self._instance_params = instance_params
         self._init_env()
 
     async def connect(self, loop=None, **kwargs):
@@ -93,13 +149,19 @@ class BaseCluster:
             # SESSION AUTHORIZATION is different from the user
             # used to connect.
             await conn.execute(
-                f'SET SESSION AUTHORIZATION {self._default_session_auth};'
+                f'SET ROLE {self._default_session_auth};'
             )
 
         return conn
 
-    def get_superuser_role(self) -> Optional[str]:
-        return None
+    def get_runtime_params(self) -> BackendRuntimeParams:
+        login_role: str = self.get_connection_params().user
+        return BackendRuntimeParams(
+            instance_params=self._instance_params,
+            session_authorization_role=(
+                None if login_role == defines.EDGEDB_SUPERUSER else login_role
+            ),
+        )
 
     def get_connection_addr(self):
         status = self.get_status()
@@ -126,6 +188,9 @@ class BaseCluster:
         for k in ('user', 'password', 'database', 'ssl', 'server_settings'):
             v = getattr(params, k)
             if v is not None:
+                if k == 'server_settings':
+                    v = dict(v)
+                    v['search_path'] = 'edgedb'
                 conn_dict[k] = v
 
         return conn_dict
@@ -246,16 +311,12 @@ class Cluster(BaseCluster):
         self._data_dir = data_dir
         self._daemon_pid = None
         self._daemon_process = None
-        self._use_c_utf8_locale = _is_c_utf8_locale_present()
 
     def get_pg_version(self):
         return self._pg_version
 
     def is_managed(self) -> bool:
         return True
-
-    def supports_c_utf8_locale(self) -> bool:
-        return self._use_c_utf8_locale
 
     def get_data_dir(self):
         return self._data_dir
@@ -290,9 +351,14 @@ class Cluster(BaseCluster):
         if cluster_status == 'not-initialized':
             logger.info(
                 'Initializing database cluster in %s', self._data_dir)
+
+            instance_params = self.get_runtime_params().instance_params
+            capabilities = instance_params.capabilities
+            have_c_utf8 = (
+                capabilities & BackendCapabilities.C_UTF8_LOCALE)
             initdb_output = self.init(
                 username='postgres',
-                locale='C.UTF-8' if self._use_c_utf8_locale else 'en_US.UTF-8',
+                locale='C.UTF-8' if have_c_utf8 else 'en_US.UTF-8',
                 lc_collate='C',
                 encoding='UTF8',
             )
@@ -707,13 +773,20 @@ class TempCluster(Cluster):
 
 
 class RemoteCluster(BaseCluster):
-    def __init__(self, addr, params, *, pg_config_path=None):
-        super().__init__(pg_config_path=pg_config_path)
+    def __init__(
+        self,
+        addr,
+        params,
+        *,
+        pg_config_path=None,
+        instance_params: Optional[BackendInstanceParams] = None,
+    ):
+        super().__init__(
+            pg_config_path=pg_config_path,
+            instance_params=instance_params,
+        )
         self._connection_addr = addr
         self._connection_params = params
-
-    def supports_c_utf8_locale(self) -> bool:
-        return True
 
     def ensure_initialized(self, **settings):
         return False
@@ -744,15 +817,6 @@ class RemoteCluster(BaseCluster):
         raise ClusterError('cannot modify HBA records of unmanaged cluster')
 
 
-class RDSCluster(RemoteCluster):
-
-    def get_superuser_role(self) -> Optional[str]:
-        return 'rds_superuser'
-
-    def supports_c_utf8_locale(self) -> bool:
-        return False
-
-
 def get_local_pg_cluster(data_dir: os.PathLike) -> Cluster:
     pg_config = buildmeta.get_pg_config_path()
     return Cluster(data_dir=data_dir, pg_config_path=str(pg_config))
@@ -767,24 +831,95 @@ def get_remote_pg_cluster(dsn: str) -> RemoteCluster:
 
     loop = asyncio.new_event_loop()
 
-    async def _is_rds():
-        conn = await rcluster.connect()
+    async def _get_cluster_type(
+        conn,
+    ) -> Tuple[Type[RemoteCluster], Optional[str]]:
+        managed_clouds = {
+            'rds_superuser': RemoteCluster,    # Amazon RDS
+        }
+
+        managed_cloud_super = await conn.fetchval(
+            """
+                SELECT
+                    rolname
+                FROM
+                    pg_roles
+                WHERE
+                    rolname = any($1::text[])
+                LIMIT
+                    1
+            """,
+            list(managed_clouds),
+        )
+
+        if managed_cloud_super is not None:
+            return managed_clouds[managed_cloud_super], managed_cloud_super
+        else:
+            return RemoteCluster, None
+
+    async def _detect_capabilities(conn) -> BackendCapabilities:
+        caps = BackendCapabilities.NONE
 
         try:
-            rds_super = await conn.fetch(
-                "SELECT * FROM pg_roles WHERE rolname = 'rds_superuser'"
+            await conn.execute(f'ALTER SYSTEM SET foo = 10')
+        except asyncpg.InsufficientPrivilegeError:
+            configfile_access = False
+        except asyncpg.UndefinedObjectError:
+            configfile_access = True
+        else:
+            configfile_access = True
+
+        if configfile_access:
+            caps |= BackendCapabilities.CONFIGFILE_ACCESS
+
+        tx = conn.transaction()
+        await tx.start()
+        rname = str(uuidgen.uuid1mc())
+
+        try:
+            await conn.execute(f'CREATE ROLE "{rname}" WITH SUPERUSER')
+        except asyncpg.InsufficientPrivilegeError:
+            can_make_superusers = False
+        else:
+            can_make_superusers = True
+        finally:
+            await tx.rollback()
+
+        if can_make_superusers:
+            caps |= BackendCapabilities.SUPERUSER_ACCESS
+
+        coll = await conn.fetchval('''
+            SELECT collname FROM pg_collation WHERE lower(collname) = 'c.utf8';
+        ''')
+
+        if coll is not None:
+            caps |= BackendCapabilities.C_UTF8_LOCALE
+
+        return caps
+
+    async def _get_cluster_info(
+    ) -> Tuple[Type[RemoteCluster], BackendInstanceParams]:
+        conn = await rcluster.connect()
+        try:
+            cluster_type, superuser_name = await _get_cluster_type(conn)
+            instance_params = BackendInstanceParams(
+                capabilities=await _detect_capabilities(conn),
+                base_superuser=superuser_name,
             )
+
+            return (cluster_type, instance_params)
         finally:
             await conn.close()
 
-        return bool(rds_super)
-
     try:
-        is_rds = loop.run_until_complete(_is_rds())
+        cluster_type, instance_params = (
+            loop.run_until_complete(_get_cluster_info()))
     finally:
         loop.close()
 
-    if is_rds:
-        return RDSCluster(addrs[0], params, pg_config_path=str(pg_config))
-    else:
-        return rcluster
+    return cluster_type(
+        addrs[0],
+        params,
+        pg_config_path=str(pg_config),
+        instance_params=instance_params,
+    )

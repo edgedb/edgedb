@@ -907,7 +907,7 @@ class CommandContext:
         schema_object_ids: Optional[
             Mapping[Tuple[sn.Name, Optional[str]], uuid.UUID]
         ] = None,
-        backend_superuser_role: Optional[str] = None,
+        backend_runtime_params: Optional[Any] = None,
         compat_ver: Optional[verutils.Version] = None,
     ) -> None:
         self.stack: List[CommandContextToken[Command]] = []
@@ -926,7 +926,7 @@ class CommandContext:
         self.renamed_objs: Set[so.Object] = set()
         self.altered_targets: Set[so.Object] = set()
         self.schema_object_ids = schema_object_ids
-        self.backend_superuser_role = backend_superuser_role
+        self.backend_runtime_params = backend_runtime_params
         self.affected_finalization: \
             Dict[Command, List[Tuple[DeltaRoot, Command, bool]]] = dict()
         self.compat_ver = compat_ver

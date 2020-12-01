@@ -61,8 +61,8 @@ class Port:
     def get_compiler_worker_args(self):
         return {
             'connect_args': self._pg_addr,
-            'backend_instance_params': (
-                self.get_server().get_backend_instance_params()
+            'backend_runtime_params': (
+                self.get_server().get_backend_runtime_params()
             ),
         }
 

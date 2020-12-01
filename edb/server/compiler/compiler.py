@@ -70,6 +70,7 @@ from edb.pgsql import common as pg_common
 from edb.pgsql import types as pg_types
 
 from edb.server import config
+from edb.server import pgcluster
 
 from . import dbstate
 from . import enums
@@ -87,14 +88,6 @@ class CompilerDatabaseState:
 
 
 @dataclasses.dataclass(frozen=True)
-class BackendInstanceParams:
-
-    #: Explicit superuser role for instances where
-    #: direct creation of SUPERUSER roles is not allowed.
-    explicit_superuser_role: Optional[str] = None
-
-
-@dataclasses.dataclass(frozen=True)
 class CompileContext:
 
     state: dbstate.CompilerConnectionState
@@ -108,7 +101,8 @@ class CompileContext:
     inline_typenames: bool = False
     schema_object_ids: Optional[Mapping[s_name.Name, uuid.UUID]] = None
     source: Optional[edgeql.Source] = None
-    backend_instance_params: BackendInstanceParams = BackendInstanceParams()
+    backend_runtime_params: Any = (
+        pgcluster.get_default_runtime_params())
     compat_ver: Optional[verutils.Version] = None
     bootstrap_mode: bool = False
     internal_schema_mode: bool = False
@@ -251,8 +245,7 @@ class BaseCompiler:
         self,
         connect_args: dict,
         *,
-        backend_instance_params: BackendInstanceParams = (
-            BackendInstanceParams()),
+        backend_runtime_params: Any = pgcluster.get_default_runtime_params(),
     ):
         self._connect_args = connect_args
         self._dbname = None
@@ -262,7 +255,7 @@ class BaseCompiler:
         self._config_spec = None
         self._schema_class_layout = None
         self._intro_query = None
-        self._backend_instance_params = backend_instance_params
+        self._backend_runtime_params = backend_runtime_params
 
     def _hash_sql(self, sql: bytes, **kwargs: bytes):
         h = hashlib.sha1(sql)
@@ -384,12 +377,11 @@ class Compiler(BaseCompiler):
         self,
         connect_args: dict,
         *,
-        backend_instance_params: BackendInstanceParams = (
-            BackendInstanceParams()),
+        backend_runtime_params: Any = pgcluster.get_default_runtime_params(),
     ):
         super().__init__(
             connect_args,
-            backend_instance_params=backend_instance_params,
+            backend_runtime_params=backend_runtime_params,
         )
 
         self._current_db_state = None
@@ -411,8 +403,7 @@ class Compiler(BaseCompiler):
         context.internal_schema_mode = ctx.internal_schema_mode
         context.schema_object_ids = ctx.schema_object_ids
         context.compat_ver = ctx.compat_ver
-        context.backend_superuser_role = (
-            self._backend_instance_params.explicit_superuser_role)
+        context.backend_runtime_params = self._backend_runtime_params
         return context
 
     def _process_delta(self, ctx: CompileContext, delta):
