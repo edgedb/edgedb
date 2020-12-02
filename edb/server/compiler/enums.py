@@ -57,10 +57,19 @@ class Capability(enum.IntFlag):
     QUERY             = 0b00001 << 32   # noqa
     SESSION_MODE      = 0b00010 << 32   # noqa
 
-    PUBLIC = (
-        DDL | TRANSACTION | SESSION_CONFIG | PERSISTENT_CONFIG | MODIFICATIONS
-    )
-    PRIVATE = QUERY | SESSION_MODE
+
+# Exposed to client as SERVER_HEADER_CAPABILITIES
+# and QUERY_OPT_ALLOW_CAPABILITIES
+Capability.PUBLIC = (
+        Capability.DDL |
+        Capabiliby.TRANSACTION |
+        Capability.SESSION_CONFIG |
+        Capability.PERSISTENT_CONFIG |
+        Capability.MODIFICATIONS
+)
+
+# Private to server (compiler and io process)
+Capability.PRIVATE = Capability.QUERY | Capability.SESSION_MODE
 
 
 CAPABILITY_TITLES = {
