@@ -18,6 +18,7 @@
 
 
 from __future__ import annotations
+from typing import *
 
 import enum
 
@@ -46,6 +47,10 @@ class ResultCardinality(strenum.StrEnum):
     NO_RESULT = 'NO_RESULT'
 
 
+if TYPE_CHECKING:
+    Error_T = TypeVar('Error_T')
+
+
 class Capability(enum.IntFlag):
 
     MODIFICATIONS     = 1 << 0    # noqa
@@ -56,6 +61,22 @@ class Capability(enum.IntFlag):
 
     QUERY             = 1 << 32   # noqa
     SESSION_MODE      = 1 << 33   # noqa
+
+    def make_error(
+        self,
+        allowed: Capability,
+        error_constructor: Callable[[str], Error_T],
+    ) -> Error_T:
+        for item in Capability:
+            if item & allowed:
+                continue
+            if self & item:
+                return error_constructor(
+                    f"cannot execute {CAPABILITY_TITLES[item]}")
+        raise AssertionError(
+            f"extra capability not found in"
+            f" {self} allowed {allowed}"
+        )
 
 
 # Exposed to client as SERVER_HEADER_CAPABILITIES
@@ -70,7 +91,6 @@ PUBLIC_CAPABILITIES = (
 
 # Private to server (compiler and io process)
 PRIVATE_CAPABILITIES = Capability.QUERY | Capability.SESSION_MODE
-
 
 CAPABILITY_TITLES = {
     Capability.MODIFICATIONS: 'data modification queries',

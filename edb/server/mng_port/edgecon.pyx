@@ -112,22 +112,6 @@ cdef uint64_t ALWAYS_ALLOWED = (
 cdef uint64_t PUBLIC_CAPABILITIES = enums.PUBLIC_CAPABILITIES
 
 
-def capability_error(
-    current: enums.Capability,
-    allowed: enums.Capability,
-) -> Exception:
-    for item in enums.Capability:
-        if item & allowed:
-            continue
-        if current & item:
-            return errors.DisabledCapabilityError(
-                f"cannot execute {enums.CAPABILITY_TITLES[item]}")
-    raise AssertionError(
-        f"extra capability not found in"
-        f" {current} allowed {allowed}"
-    )
-
-
 @cython.final
 cdef class QueryRequestInfo:
 
@@ -897,9 +881,9 @@ cdef class EdgeConnection:
 
         for query_unit in units:
             if query_unit.capabilities & ~allow_capabilities:
-                raise capability_error(
-                    query_unit.capabilities,
+                raise query_unit.capabilities.make_error(
                     allow_capabilities,
+                    errors.DisabledCapabilityError,
                 )
 
         new_type_ids = frozenset()
@@ -1002,9 +986,9 @@ cdef class EdgeConnection:
                     )
                 query_unit = query_unit[0]
             if query_unit.capabilities & ~query_req.allow_capabilities:
-                raise capability_error(
-                    query_unit.capabilities,
+                raise query_unit.capabilities.make_error(
                     query_req.allow_capabilities,
+                    errors.DisabledCapabilityError,
                 )
         elif self.dbview.in_tx_error():
             # We have a cached QueryUnit for this 'eql', but the current
@@ -1474,9 +1458,9 @@ cdef class EdgeConnection:
             compiled = self._last_anon_compiled
 
         if compiled.query_unit.capabilities & ~allow_capabilities:
-            raise capability_error(
-                compiled.query_unit.capabilities,
+            raise compiled.query_unit.capabilities.make_error(
                 allow_capabilities,
+                errors.DisabledCapabilityError,
             )
 
         await self._execute(compiled, bind_args, False, False)
@@ -1519,9 +1503,9 @@ cdef class EdgeConnection:
             )
 
         if query_unit.capabilities & ~query_req.allow_capabilities:
-            raise capability_error(
-                query_unit.capabilities,
+            raise query_unit.capabilities.make_error(
                 query_req.allow_capabilities,
+                errors.DisabledCapabilityError,
             )
 
         if (query_unit.in_type_id != in_tid or

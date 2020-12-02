@@ -43,20 +43,6 @@ ALLOWED_CAPABILITIES = (
 )
 
 
-def capability_error(current: enums.Capability) -> Exception:
-    for item in enums.Capability:
-        if item & ALLOWED_CAPABILITIES:
-            continue
-        if current & item:
-            return errors.UnsupportedCapabilityError(
-                f"cannot execute {enums.CAPABILITY_TITLES[item]}"
-                f" for the current connection")
-    raise AssertionError(
-        f"extra capability not found in"
-        f" {current} allowed {ALLOWED_CAPABILITIES}"
-    )
-
-
 cdef class Protocol(http.HttpProtocol):
 
     def __init__(self, loop, server, query_cache):
@@ -168,8 +154,10 @@ cdef class Protocol(http.HttpProtocol):
                 else:
                     query_unit = unit_or_error
                     if query_unit.capabilities & ~ALLOWED_CAPABILITIES:
-                        raise capability_error(query_unit.capabilities)
-
+                        raise query_unit.capabilities.make_error(
+                            ALLOWED_CAPABILITIES,
+                            errors.UnsupportedCapabilityError,
+                        )
                     try:
                         data = await pgcon.parse_execute_notebook(
                             query_unit.sql[0], query_unit.dbver)
