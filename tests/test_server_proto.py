@@ -2792,6 +2792,7 @@ class TestServerProtoDDL(tb.DDLTestCase):
         result = await self.con._fetchall_json_elements('''
             SELECT {"test1", "test2"}
         ''')
+        self.assertEqual(result, ['"test1"', '"test2"'])
 
 
 class TestServerCapabilities(tb.QueryTestCase):
