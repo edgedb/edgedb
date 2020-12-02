@@ -109,7 +109,7 @@ cdef uint64_t ALWAYS_ALLOWED = (
     enums.Capability.QUERY |
     enums.Capability.SESSION_MODE
 )
-cdef uint64_t PUBLIC_CAPABILITIES = enums.Capability.PUBLIC
+cdef uint64_t PUBLIC_CAPABILITIES = enums.PUBLIC_CAPABILITIES
 
 
 def capability_error(

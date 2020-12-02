@@ -48,28 +48,28 @@ class ResultCardinality(strenum.StrEnum):
 
 class Capability(enum.IntFlag):
 
-    MODIFICATIONS     = 0b00001         # noqa
-    SESSION_CONFIG    = 0b00010         # noqa
-    TRANSACTION       = 0b00100         # noqa
-    DDL               = 0b01000         # noqa
-    PERSISTENT_CONFIG = 0b10000         # noqa
+    MODIFICATIONS     = 1 << 0    # noqa
+    SESSION_CONFIG    = 1 << 1    # noqa
+    TRANSACTION       = 1 << 2    # noqa
+    DDL               = 1 << 3    # noqa
+    PERSISTENT_CONFIG = 1 << 4    # noqa
 
-    QUERY             = 0b00001 << 32   # noqa
-    SESSION_MODE      = 0b00010 << 32   # noqa
+    QUERY             = 1 << 32   # noqa
+    SESSION_MODE      = 1 << 33   # noqa
 
 
 # Exposed to client as SERVER_HEADER_CAPABILITIES
 # and QUERY_OPT_ALLOW_CAPABILITIES
-Capability.PUBLIC = (
-        Capability.DDL |
-        Capabiliby.TRANSACTION |
-        Capability.SESSION_CONFIG |
-        Capability.PERSISTENT_CONFIG |
-        Capability.MODIFICATIONS
+PUBLIC_CAPABILITIES = (
+    Capability.DDL |
+    Capability.TRANSACTION |
+    Capability.SESSION_CONFIG |
+    Capability.PERSISTENT_CONFIG |
+    Capability.MODIFICATIONS
 )
 
 # Private to server (compiler and io process)
-Capability.PRIVATE = Capability.QUERY | Capability.SESSION_MODE
+PRIVATE_CAPABILITIES = Capability.QUERY | Capability.SESSION_MODE
 
 
 CAPABILITY_TITLES = {
