@@ -67,6 +67,8 @@ from edb.ir import utils as irutils
 from edb.pgsql import common
 from edb.pgsql import dbops
 
+from edb.server import pgcluster
+
 from . import ast as pg_ast
 from .common import qname as q
 from .common import quote_literal as ql
@@ -3797,14 +3799,35 @@ class CreateRole(ObjectMetaCommand, adapts=s_roles.CreateRole):
         passwd = role.get_password(schema)
         superuser_flag = False
 
+        members = set()
+
+        ctx_backend_params = context.backend_runtime_params
+        if ctx_backend_params is not None:
+            backend_params = cast(
+                pgcluster.BackendRuntimeParams, ctx_backend_params)
+        else:
+            backend_params = pgcluster.get_default_runtime_params()
+
+        instance_params = backend_params.instance_params
+        capabilities = instance_params.capabilities
+
         if role.get_is_superuser(schema):
-            if context.backend_superuser_role:
+            if instance_params.base_superuser:
                 # If the cluster is exposing an explicit superuser role,
                 # become a member of that instead of creating a superuser
                 # role directly.
-                membership.append(context.backend_superuser_role)
+                membership.append(instance_params.base_superuser)
             else:
-                superuser_flag = True
+                superuser_flag = (
+                    capabilities
+                    & pgcluster.BackendCapabilities.SUPERUSER_ACCESS
+                )
+
+        if backend_params.session_authorization_role is not None:
+            # When we connect to the backend via a proxy role, we
+            # must ensure that role is a member of _every_ EdgeDB
+            # role so that `SET ROLE` can work properly.
+            members.add(backend_params.session_authorization_role)
 
         role = dbops.Role(
             name=str(role.get_name(schema)),
@@ -3842,13 +3865,23 @@ class AlterRole(ObjectMetaCommand, adapts=s_roles.AlterRole):
                 builtin=role.get_builtin(schema),
             )
         if self.has_attribute_value('is_superuser'):
+            ctx_backend_params = context.backend_runtime_params
+            if ctx_backend_params is not None:
+                backend_params = cast(
+                    pgcluster.BackendRuntimeParams, ctx_backend_params)
+            else:
+                backend_params = pgcluster.get_default_runtime_params()
+
+            instance_params = backend_params.instance_params
+            capabilities = instance_params.capabilities
+
             superuser_flag = False
-            if context.backend_superuser_role:
+            if instance_params.base_superuser:
                 # If the cluster is exposing an explicit superuser role,
                 # become a member of that instead of creating a superuser
                 # role directly.
                 membership = list(role.get_bases(schema).names(schema))
-                membership.append(context.backend_superuser_role)
+                membership.append(instance_params.base_superuser)
 
                 self.pgops.add(
                     dbops.AlterRoleAddMembership(
@@ -3857,7 +3890,10 @@ class AlterRole(ObjectMetaCommand, adapts=s_roles.AlterRole):
                     )
                 )
             else:
-                superuser_flag = True
+                superuser_flag = (
+                    capabilities
+                    & pgcluster.BackendCapabilities.SUPERUSER_ACCESS
+                )
 
             kwargs['is_superuser'] = superuser_flag
 

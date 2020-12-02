@@ -44,6 +44,7 @@ from edb.schema import types as s_types
 from edb.server import defines
 from edb.server import compiler as edbcompiler
 from edb.server import bootstrap as edbbootstrap
+from edb.server import pgcluster
 
 from . import common
 from . import dbops
@@ -1452,7 +1453,7 @@ class JSONSliceFunction(dbops.Function):
             (
                 SELECT array_agg(value)
                 FROM jsonb_array_elements(
-                    jsonb_assert_type(val, ARRAY['array']))
+                    edgedb.jsonb_assert_type(val, ARRAY['array']))
             ),
             start, stop
         ))
@@ -1990,7 +1991,7 @@ class SysConfigSourceType(dbops.Enum):
         )
 
 
-class SysConfigFunction(dbops.Function):
+class SysConfigFullFunction(dbops.Function):
 
     # This is a function because "_edgecon_state" is a temporary table
     # and therefore cannot be used in a view.
@@ -2222,6 +2223,254 @@ class SysConfigFunction(dbops.Function):
 
     def __init__(self) -> None:
         super().__init__(
+            name=('edgedb', '_read_sys_config_full'),
+            args=[
+                (
+                    'source_filter',
+                    ('edgedb', '_sys_config_source_t[]',),
+                    'NULL',
+                ),
+                (
+                    'max_source',
+                    ('edgedb', '_sys_config_source_t'),
+                    'NULL',
+                ),
+            ],
+            returns=('edgedb', '_sys_config_val_t'),
+            set_returning=True,
+            language='plpgsql',
+            volatility='volatile',
+            text=self.text,
+        )
+
+
+class SysConfigNoFileAccessFunction(dbops.Function):
+
+    text = f'''
+    BEGIN
+    RETURN QUERY EXECUTE $$
+
+    WITH
+
+    config_spec AS (
+        SELECT
+            s.key AS name,
+            s.value->'default' AS default,
+            (s.value->>'internal')::bool AS internal,
+            (s.value->>'system')::bool AS system,
+            (s.value->>'typeid')::uuid AS typeid,
+            (s.value->>'typemod') AS typemod,
+            (s.value->>'backend_setting') AS backend_setting
+        FROM
+            jsonb_each(
+                (SELECT json
+                 FROM edgedbinstdata.instdata
+                 WHERE key = 'configspec')
+            ) AS s
+    ),
+
+    config_defaults AS (
+        SELECT
+            s.name AS name,
+            s.default AS value,
+            'default' AS source
+        FROM
+            config_spec s
+    ),
+
+    config_sys AS (
+        SELECT
+            s.key AS name,
+            s.value AS value,
+            'system override' AS source
+        FROM
+            jsonb_each(
+                shobj_metadata(
+                    (SELECT oid FROM pg_database
+                    WHERE datname = {ql(defines.EDGEDB_TEMPLATE_DB)}),
+                    'pg_database'
+                ) -> 'sysconfig'
+            ) s
+    ),
+
+    config_db AS (
+        SELECT
+            s.name AS name,
+            s.value AS value,
+            'database' AS source
+        FROM
+            edgedb._db_config s
+    ),
+
+    config_sess AS (
+        SELECT
+            s.name AS name,
+            s.value::jsonb AS value,
+            'session' AS source
+        FROM
+            _edgecon_state s
+        WHERE
+            s.type = 'C'
+    ),
+
+    pg_db_setting AS (
+        SELECT
+            nameval.name,
+            to_jsonb(nameval.value) AS value,
+            'database' AS source
+        FROM
+            (SELECT
+                setconfig
+            FROM
+                pg_db_role_setting
+            WHERE
+                setdatabase = (
+                    SELECT oid
+                    FROM pg_database
+                    WHERE datname = current_database()
+                )
+                AND setrole = 0
+            ) AS cfg_array,
+            LATERAL unnest(cfg_array.setconfig) AS cfg_set(s),
+            LATERAL (
+                SELECT
+                    split_part(cfg_set.s, '=', 1) AS name,
+                    split_part(cfg_set.s, '=', 2) AS value
+            ) AS nameval,
+            LATERAL (
+                SELECT
+                    config_spec.name
+                FROM
+                    config_spec
+                WHERE
+                    nameval.name = config_spec.backend_setting
+            ) AS spec
+    ),
+
+    pg_config AS (
+        SELECT
+            spec.name,
+            to_jsonb(
+                CASE WHEN u.v[1] IS NOT NULL
+                THEN (settings.setting::int * (u.v[1])::int)::text || u.v[2]
+                ELSE settings.setting || COALESCE(settings.unit, '')
+                END
+            ) AS value,
+            source AS source
+        FROM
+            (
+                SELECT
+                    pg_settings.name AS name,
+                    pg_settings.unit AS unit,
+                    pg_settings.setting AS setting,
+                    (CASE
+                        WHEN pg_settings.source IN ('session', 'database') THEN
+                            pg_settings.source
+                        ELSE
+                            'postgres ' || pg_settings.source
+                    END) AS source
+                FROM
+                    pg_settings
+            ) AS settings,
+
+            LATERAL (
+                SELECT regexp_match(settings.unit, '(\\d+)(\\w+)') AS v
+            ) AS u,
+
+            LATERAL (
+                SELECT
+                    config_spec.name
+                FROM
+                    config_spec
+                WHERE
+                    settings.name = config_spec.backend_setting
+            ) AS spec
+        )
+
+    SELECT
+        q.name,
+        q.value,
+        q.source
+    FROM
+        (SELECT
+            u.name,
+            u.value,
+            u.source,
+            row_number() OVER (
+                PARTITION BY u.name
+                ORDER BY u.source::edgedb._sys_config_source_t DESC
+            ) AS n
+        FROM
+            (SELECT
+                *
+             FROM
+                (
+                    SELECT * FROM config_defaults UNION ALL
+                    SELECT * FROM config_sys UNION ALL
+                    SELECT * FROM config_db UNION ALL
+                    SELECT * FROM config_sess UNION ALL
+                    SELECT * FROM pg_db_setting UNION ALL
+                    SELECT * FROM pg_config
+                ) AS q
+             WHERE
+                ($1 IS NULL OR q.source::edgedb._sys_config_source_t = any($1))
+                AND ($2 IS NULL OR q.source::edgedb._sys_config_source_t <= $2)
+            ) AS u
+        ) AS q
+    WHERE
+        q.n = 1;
+    $$ USING source_filter, max_source;
+    END;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_read_sys_config_no_file_access'),
+            args=[
+                (
+                    'source_filter',
+                    ('edgedb', '_sys_config_source_t[]',),
+                    'NULL',
+                ),
+                (
+                    'max_source',
+                    ('edgedb', '_sys_config_source_t'),
+                    'NULL',
+                ),
+            ],
+            returns=('edgedb', '_sys_config_val_t'),
+            set_returning=True,
+            language='plpgsql',
+            volatility='volatile',
+            text=self.text,
+        )
+
+
+class SysConfigFunction(dbops.Function):
+
+    text = f'''
+    DECLARE
+        backend_caps bigint;
+    BEGIN
+
+    backend_caps := edgedb.get_backend_capabilities();
+    IF (backend_caps
+        & {int(pgcluster.BackendCapabilities.CONFIGFILE_ACCESS)}) != 0
+    THEN
+        RETURN QUERY
+        SELECT *
+        FROM edgedb._read_sys_config_full(source_filter, max_source);
+    ELSE
+        RETURN QUERY
+        SELECT *
+        FROM edgedb._read_sys_config_no_file_access(source_filter, max_source);
+    END IF;
+
+    END;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
             name=('edgedb', '_read_sys_config'),
             args=[
                 (
@@ -2239,6 +2488,28 @@ class SysConfigFunction(dbops.Function):
             set_returning=True,
             language='plpgsql',
             volatility='volatile',
+            text=self.text,
+        )
+
+
+class GetBackendCapabilitiesFunction(dbops.Function):
+
+    text = f'''
+        SELECT
+            (json ->> 'capabilities')::bigint
+        FROM
+            edgedbinstdata.instdata
+        WHERE
+            key = 'backend_instance_params'
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'get_backend_capabilities'),
+            args=[],
+            returns=('bigint',),
+            language='sql',
+            volatility='stable',
             text=self.text,
         )
 
@@ -2349,7 +2620,6 @@ class GetBaseScalarTypeMap(dbops.Function):
 async def bootstrap(conn):
     commands = dbops.CommandGroup()
     commands.add_commands([
-        dbops.DropSchema(name='public'),
         dbops.CreateSchema(name='edgedb'),
         dbops.CreateSchema(name='edgedbss'),
         dbops.CreateSchema(name='edgedbpub'),
@@ -2411,6 +2681,9 @@ async def bootstrap(conn):
         dbops.CreateFunction(BytesIndexWithBoundsFunction()),
         dbops.CreateEnum(SysConfigSourceType()),
         dbops.CreateCompositeType(SysConfigValueType()),
+        dbops.CreateFunction(GetBackendCapabilitiesFunction()),
+        dbops.CreateFunction(SysConfigFullFunction()),
+        dbops.CreateFunction(SysConfigNoFileAccessFunction()),
         dbops.CreateFunction(SysConfigFunction()),
         dbops.CreateFunction(SysVersionFunction()),
         dbops.CreateFunction(SysGetTransactionIsolation()),
@@ -2563,7 +2836,7 @@ def _generate_database_views(schema):
     return views
 
 
-def _generate_role_views(schema, *, superuser_role):
+def _generate_role_views(schema):
     Role = schema.get('sys::Role')
     member_of = Role.getptr(schema, 'member_of')
     bases = Role.getptr(schema, 'bases')
@@ -2571,23 +2844,18 @@ def _generate_role_views(schema, *, superuser_role):
     annos = Role.getptr(schema, 'annotations')
     int_annos = Role.getptr(schema, 'annotations__internal')
 
-    if superuser_role:
-        # If the cluster is exposing an explicit superuser role,
-        # check membership in that role that instead of rolsuper.
-        is_superuser = f'''
-            EXISTS (
-                SELECT
-                FROM
-                    pg_auth_members m
-                    INNER JOIN pg_catalog.pg_roles g
-                        ON (m.roleid = g.oid)
-                WHERE
-                    m.member = a.oid
-                    AND g.rolname = {ql(superuser_role)}
-            )
-        '''
-    else:
-        is_superuser = 'a.rolsuper'
+    is_superuser = f'''
+        a.rolsuper OR EXISTS (
+            SELECT
+            FROM
+                pg_auth_members m
+                INNER JOIN pg_catalog.pg_roles g
+                    ON (m.roleid = g.oid)
+            WHERE
+                m.member = a.oid
+                AND g.rolname = {ql(defines.EDGEDB_SUPERGROUP)}
+        )
+    '''
 
     view_query = f'''
         SELECT
@@ -2868,8 +3136,7 @@ async def generate_support_views(cluster, conn, schema):
     for dbview in _generate_database_views(schema):
         commands.add_command(dbops.CreateView(dbview, or_replace=True))
 
-    su_role = cluster.get_superuser_role()
-    for roleview in _generate_role_views(schema, superuser_role=su_role):
+    for roleview in _generate_role_views(schema):
         commands.add_command(dbops.CreateView(roleview, or_replace=True))
 
     block = dbops.PLTopBlock()

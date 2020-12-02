@@ -170,6 +170,7 @@ async def _get_dbs_and_roles(pgconn) -> Tuple[List[str], List[str]]:
         schema,
         expected_cardinality_one=False,
         single_statement=True,
+        output_format=edbcompiler.IoFormat.JSON,
     )
 
     schema, get_databases_sql = edbcompiler.compile_edgeql_script(

@@ -55,6 +55,7 @@ from edb.server import buildmeta
 from edb.server import config
 from edb.server import compiler as edbcompiler
 from edb.server import defines as edbdef
+from edb.server import pgcluster
 
 from edb.pgsql import common as pg_common
 from edb.pgsql import dbops
@@ -67,7 +68,6 @@ from edgedb import scram
 if TYPE_CHECKING:
     import uuid
 
-    from . import pgcluster
     from asyncpg import connection as asyncpg_con
 
 
@@ -111,40 +111,83 @@ async def _execute_edgeql_ddl(
     return schema
 
 
+async def _ensure_edgedb_supergroup(
+    cluster,
+    conn,
+    username,
+    *,
+    member_of=(),
+    members=(),
+) -> None:
+    member_of = set(member_of)
+    instance_params = cluster.get_runtime_params().instance_params
+    superuser_role = instance_params.base_superuser
+    if superuser_role:
+        # If the cluster is exposing an explicit superuser role,
+        # become a member of that instead of creating a superuser
+        # role directly.
+        member_of.add(superuser_role)
+
+    role = dbops.Role(
+        name=username,
+        is_superuser=bool(
+            instance_params.capabilities
+            & pgcluster.BackendCapabilities.SUPERUSER_ACCESS
+        ),
+        allow_login=False,
+        allow_createdb=True,
+        allow_createrole=True,
+        membership=member_of,
+        members=members,
+    )
+
+    create_role = dbops.CreateRole(
+        role,
+        neg_conditions=[dbops.RoleExists(username)],
+    )
+
+    block = dbops.PLTopBlock()
+    create_role.generate(block)
+
+    await _execute_block(conn, block)
+
+
 async def _ensure_edgedb_role(
     cluster,
     conn,
     username,
     *,
-    membership=(),
     is_superuser=False,
     builtin=False,
     objid=None,
 ) -> None:
-    membership = set(membership)
+    member_of = set()
     if is_superuser:
-        superuser_role = cluster.get_superuser_role()
-        if superuser_role:
-            # If the cluster is exposing an explicit superuser role,
-            # become a member of that instead of creating a superuser
-            # role directly.
-            membership.add(superuser_role)
-            superuser_flag = False
-        else:
-            superuser_flag = True
-    else:
-        superuser_flag = False
+        member_of.add(edbdef.EDGEDB_SUPERGROUP)
 
     if objid is None:
         objid = uuidgen.uuid1mc()
 
+    members = set()
+    login_role = cluster.get_connection_params().user
+    if login_role != edbdef.EDGEDB_SUPERUSER:
+        members.add(login_role)
+
+    instance_params = cluster.get_runtime_params().instance_params
     role = dbops.Role(
         name=username,
-        is_superuser=superuser_flag,
+        is_superuser=(
+            is_superuser
+            and bool(
+                instance_params.capabilities
+                & pgcluster.BackendCapabilities.SUPERUSER_ACCESS
+            )
+        ),
         allow_login=True,
         allow_createdb=True,
         allow_createrole=True,
-        membership=membership,
+        membership=member_of,
+        members=members,
         metadata=dict(
             id=str(objid),
             builtin=builtin,
@@ -185,6 +228,11 @@ async def _ensure_edgedb_template_database(cluster, conn):
     result = await _get_db_info(conn, edbdef.EDGEDB_TEMPLATE_DB)
 
     if not result:
+        instance_params = cluster.get_runtime_params().instance_params
+        capabilities = instance_params.capabilities
+        have_c_utf8 = (
+            capabilities & pgcluster.BackendCapabilities.C_UTF8_LOCALE)
+
         logger.info('Creating template database...')
         block = dbops.SQLBlock()
         dbid = uuidgen.uuid1mc()
@@ -194,8 +242,7 @@ async def _ensure_edgedb_template_database(cluster, conn):
             is_template=True,
             template='template0',
             lc_collate='C',
-            lc_ctype=('C.UTF-8' if cluster.supports_c_utf8_locale()
-                      else 'en_US.UTF-8'),
+            lc_ctype='C.UTF-8' if have_c_utf8 else 'en_US.UTF-8',
             encoding='UTF8',
             metadata=dict(
                 id=str(dbid),
@@ -293,16 +340,6 @@ async def _store_static_json_cache(cluster, key: str, data: str) -> None:
         await _execute(dbconn, text)
     finally:
         await dbconn.close()
-
-
-async def _ensure_extensions(conn):
-    logger.info('Creating the necessary PostgreSQL extensions...')
-    await metaschema.create_pg_extensions(conn)
-
-
-async def _ensure_meta_schema(conn):
-    logger.info('Bootstrapping meta schema...')
-    await metaschema.bootstrap(conn)
 
 
 def _process_delta(delta, schema):
@@ -546,7 +583,7 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
         cache_dir = None
 
     stdlib_cache = 'backend-stdlib.pickle'
-    tpldbdump_cache = 'backend-tpldbdump.sql'
+    tpldbdump_cache = f'backend-tpldbdump.sql'
     src_hash = buildmeta.hash_dirs(CACHE_SRC_DIRS)
     stdlib = buildmeta.read_data_cache(
         src_hash, stdlib_cache, source_dir=cache_dir)
@@ -559,10 +596,13 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
     else:
         cache_hit = True
 
-    await _ensure_extensions(conn)
+    logger.info('Creating the necessary PostgreSQL extensions...')
+    await metaschema.create_pg_extensions(conn)
 
     if tpldbdump is None:
-        await _ensure_meta_schema(conn)
+        logger.info('Populating internal SQL structures...')
+        await metaschema.bootstrap(conn)
+        logger.info('Building the standard library...')
         await _execute_ddl(conn, stdlib.sqltext)
 
         if in_dev_mode or specified_cache_dir:
@@ -590,6 +630,7 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
                 target_dir=cache_dir,
             )
     else:
+        logger.info('Initializing the standard library...')
         await metaschema._execute_sql_script(conn, tpldbdump.decode('utf-8'))
 
         # When we restore a database from a dump, OIDs for non-system
@@ -954,6 +995,13 @@ async def _populate_misc_instance_data(cluster, conn):
         json.dumps(json_instance_data),
     )
 
+    instance_params = cluster.get_runtime_params().instance_params
+    await _store_static_json_cache(
+        cluster,
+        'backend_instance_params',
+        json.dumps(instance_params._asdict()),
+    )
+
     return json_instance_data
 
 
@@ -1078,16 +1126,16 @@ async def _bootstrap(
     pgconn: asyncpg_con.Connection,
     args: Dict[str, Any],
 ) -> None:
-    membership = set()
-    session_user = cluster.get_connection_params().user
-    if session_user != edbdef.EDGEDB_SUPERUSER:
-        membership.add(session_user)
+    await _ensure_edgedb_supergroup(
+        cluster,
+        pgconn,
+        edbdef.EDGEDB_SUPERGROUP,
+    )
 
     superuser_uid = await _ensure_edgedb_role(
         cluster,
         pgconn,
         edbdef.EDGEDB_SUPERUSER,
-        membership=membership,
         is_superuser=True,
         builtin=True,
     )
@@ -1103,11 +1151,6 @@ async def _bootstrap(
 
     conn = await cluster.connect(database=edbdef.EDGEDB_TEMPLATE_DB)
     conn.add_log_listener(_pg_log_listener)
-
-    await _execute(
-        conn,
-        f'ALTER SCHEMA public OWNER TO {edbdef.EDGEDB_SUPERUSER}',
-    )
 
     try:
         conn.add_log_listener(_pg_log_listener)
@@ -1153,7 +1196,6 @@ async def _bootstrap(
             cluster,
             pgconn,
             args['default_database_user'],
-            membership=membership,
             is_superuser=True,
         )
 
