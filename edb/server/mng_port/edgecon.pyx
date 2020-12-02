@@ -112,6 +112,15 @@ cdef uint64_t ALWAYS_ALLOWED = (
 cdef uint64_t PUBLIC_CAPABILITIES = enums.PUBLIC_CAPABILITIES
 
 
+def parse_capabilities_header(value: bytes) -> uint64_t:
+    if len(value) != 8:
+        raise errors.BinaryProtocolError(
+            f'capabilities header must be exactly 8 bytes'
+        )
+    cdef uint64_t mask = hton.unpack_uint64(cpython.PyBytes_AS_STRING(value))
+    return mask & PUBLIC_CAPABILITIES | ALWAYS_ALLOWED
+
+
 @cython.final
 cdef class QueryRequestInfo:
 
@@ -838,13 +847,7 @@ cdef class EdgeConnection:
         if headers:
             for k, v in headers.items():
                 if k == QUERY_OPT_ALLOW_CAPABILITIES:
-                    if len(v) != 8:
-                        raise errors.BinaryProtocolError(
-                            f'capabilities header must be exactly 8 bytes'
-                        )
-                    allow_capabilities = hton.unpack_uint64(
-                        cpython.PyBytes_AS_STRING(v))
-                    allow_capabilities |= ALWAYS_ALLOWED
+                    allow_capabilities = parse_capabilities_header(v)
                 else:
                     raise errors.BinaryProtocolError(
                         f'unexpected message header: {k}'
@@ -1079,14 +1082,7 @@ cdef class EdgeConnection:
                 elif k == QUERY_OPT_INLINE_TYPENAMES:
                     inline_typenames = v.lower() == b'true'
                 elif k == QUERY_OPT_ALLOW_CAPABILITIES:
-                    if len(v) != 8:
-                        raise errors.BinaryProtocolError(
-                            f'capabilities header must be exactly 8 bytes'
-                        )
-                    allow_capabilities = hton.unpack_uint64(
-                        cpython.PyBytes_AS_STRING(v))
-                    allow_capabilities &= PUBLIC_CAPABILITIES
-                    allow_capabilities |= ALWAYS_ALLOWED
+                    allow_capabilities = parse_capabilities_header(v)
                 else:
                     raise errors.BinaryProtocolError(
                         f'unexpected message header: {k}'
