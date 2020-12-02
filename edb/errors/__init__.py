@@ -18,6 +18,7 @@ __all__ = base.__all__ + (  # type: ignore
     'UnexpectedMessageError',
     'InputDataError',
     'ResultCardinalityMismatchError',
+    'CapabilityError',
     'UnsupportedCapabilityError',
     'DisabledCapabilityError',
     'QueryError',
@@ -116,12 +117,16 @@ class ResultCardinalityMismatchError(ProtocolError):
     _code = 0x_03_03_00_00
 
 
-class UnsupportedCapabilityError(ProtocolError):
+class CapabilityError(ProtocolError):
     _code = 0x_03_04_00_00
 
 
-class DisabledCapabilityError(ProtocolError):
-    _code = 0x_03_05_00_00
+class UnsupportedCapabilityError(CapabilityError):
+    _code = 0x_03_04_01_00
+
+
+class DisabledCapabilityError(CapabilityError):
+    _code = 0x_03_04_02_00
 
 
 class QueryError(EdgeDBError):
