@@ -3048,6 +3048,10 @@ class AlterObjectProperty(Command):
         new_value_empty = \
             (value is None or
                 (isinstance(value, collections.abc.Container) and not value))
+        old_value_empty = \
+            (self.old_value is None or
+                (isinstance(self.old_value, collections.abc.Container)
+                 and not self.old_value))
 
         parent_ctx = context.current()
         parent_op = parent_ctx.op
@@ -3094,7 +3098,10 @@ class AlterObjectProperty(Command):
                 return None
 
         if new_value_empty:
-            value = None
+            if old_value_empty:
+                return None
+            else:
+                value = None
         elif issubclass(field.type, s_expr.Expression):
             return self._get_expr_field_ast(
                 schema,
