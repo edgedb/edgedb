@@ -172,8 +172,11 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
         ]
 
         for query in queries:
-            with self.assertRaisesRegex(edgedb.ProtocolError,
-                                        r'cannot execute.*connection'):
+            with self.assertRaisesRegex(
+                edgedb.ProtocolError,
+                # can fail on transaction commands or on session configuration
+                'cannot execute.*',
+            ):
                 self.edgeql_query(query)
 
     def test_http_edgeql_query_07(self):
