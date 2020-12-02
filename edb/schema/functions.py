@@ -1078,14 +1078,14 @@ class DeleteCallableObject(
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         assert isinstance(cmd, DeleteCallableObject)
 
+        # Don't do anything for concrete constraints
+        if isinstance(astnode, qlast.DropConcreteConstraint):
+            return cmd
+
         obj: CallableObject = schema.get(
             cmd.classname,
             type=cls.get_schema_metaclass(),
             sourcectx=astnode.context)
-
-        # Don't do anything for concrete constraints
-        if not isinstance(obj, Function) and not obj.get_is_abstract(schema):
-            return cmd
 
         # Pull the params from the schema instead of the AST so that
         # this works for constraints (which don't specify arguments in

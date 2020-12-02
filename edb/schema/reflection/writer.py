@@ -640,7 +640,8 @@ def write_meta_create_object(
                 }}
             '''
 
-            variables['__parent_classname'] = json.dumps(str(refop.classname))
+            ref_name = context.get_referrer_name(refctx)
+            variables['__parent_classname'] = json.dumps(str(ref_name))
             blocks.append((parent_update_query, variables))
 
     _descend(
@@ -796,9 +797,8 @@ def _update_lprops(
             }}
         '''
 
-        parent_variables['__parent_classname'] = (
-            json.dumps(str(refop.classname))
-        )
+        ref_name = context.get_referrer_name(refctx)
+        parent_variables['__parent_classname'] = json.dumps(str(ref_name))
 
         blocks.append((parent_update_query, parent_variables))
 
@@ -888,8 +888,9 @@ def write_meta_delete_object(
                 }}
             '''
 
+            ref_name = context.get_referrer_name(refctx)
             parent_variables['__parent_classname'] = (
-                json.dumps(str(refop.classname))
+                json.dumps(str(ref_name))
             )
 
             blocks.append((parent_update_query, parent_variables))
@@ -900,3 +901,28 @@ def write_meta_delete_object(
         '''
         variables = {'__classname': json.dumps(str(cmd.classname))}
         blocks.append((query, variables))
+
+
+@write_meta.register
+def write_meta_rename_object(
+    cmd: sd.RenameObject,  # type: ignore
+    *,
+    classlayout: Dict[Type[so.Object], sr_struct.SchemaTypeLayout],
+    schema: s_schema.Schema,
+    context: sd.CommandContext,
+    blocks: List[Tuple[str, Dict[str, Any]]],
+    internal_schema_mode: bool,
+    stdmode: bool,
+) -> None:
+    # Delegate to the more general function, and then record the rename.
+    write_meta_alter_object(  # type: ignore
+        cmd,  # type: ignore
+        classlayout=classlayout,
+        schema=schema,
+        context=context,
+        blocks=blocks,
+        internal_schema_mode=internal_schema_mode,
+        stdmode=stdmode,
+    )
+
+    context.early_renames[cmd.classname] = cmd.new_name

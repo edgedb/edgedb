@@ -3410,18 +3410,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-    @test.xfail('''
-        edgedb.errors.InvalidReferenceError: property 'name' does not exist
-
-        Exception: Error while processing
-        'ALTER TYPE test::Bar {
-            DROP EXTENDING test::Named;
-            ALTER PROPERTY name {
-                DROP OWNED;
-                SET TYPE std::str;
-            };
-        };'
-    ''')
     async def test_edgeql_migration_eq_27(self):
         await self.migrate(r"""
             abstract type Named {
@@ -7615,6 +7603,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 }],
             },
         })
+        await self.fast_forward_describe_migration()
 
     async def test_edgeql_migration_confidence_01(self):
         await self.con.execute('''

@@ -442,7 +442,8 @@ class Compiler(BaseCompiler):
 
         # Generate schema storage SQL (DML into schema storage tables).
         subblock = block.add_block()
-        self._compile_schema_storage_in_delta(ctx, delta, subblock)
+        self._compile_schema_storage_in_delta(
+            ctx, delta, subblock, context=context)
 
         return block, new_types
 
@@ -451,6 +452,7 @@ class Compiler(BaseCompiler):
         ctx: CompileContext,
         delta: s_delta.Command,
         block: pg_dbops.SQLBlock,
+        context: Optional[s_delta.CommandContext] = None,
     ):
 
         current_tx = ctx.state.current_tx()
@@ -458,11 +460,18 @@ class Compiler(BaseCompiler):
 
         meta_blocks: List[Tuple[str, Dict[str, Any]]] = []
 
+        # Use a provided context if one was passed in, which lets us
+        # used the cached values for resolved properties. (Which is
+        # important, since if there were renames we won't necessarily
+        # be able to resolve them just using the new schema.)
+        if not context:
+            context = s_delta.CommandContext()
+
         s_refl.write_meta(
             delta,
             classlayout=self._schema_class_layout,
             schema=schema,
-            context=s_delta.CommandContext(),
+            context=context,
             blocks=meta_blocks,
             internal_schema_mode=ctx.internal_schema_mode,
             stdmode=ctx.bootstrap_mode,
