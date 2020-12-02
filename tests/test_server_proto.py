@@ -2872,7 +2872,7 @@ class TestServerCapabilities(tb.QueryTestCase):
             )
 
     async def test_server_capabilities_04(self):
-        caps = enums.Capability.PUBLIC & ~enums.Capability.SESSION_CONFIG
+        caps = enums.PUBLIC_CAPABILITIES & ~enums.Capability.SESSION_CONFIG
         with self.assertRaises(edgedb.ProtocolError):
             await self.con._fetchall(
                 'CONFIGURE SESSION SET singleprop := "42"',
@@ -2880,7 +2880,7 @@ class TestServerCapabilities(tb.QueryTestCase):
             )
 
     async def test_server_capabilities_05(self):
-        caps = enums.Capability.PUBLIC & ~enums.Capability.PERSISTENT_CONFIG
+        caps = enums.PUBLIC_CAPABILITIES & ~enums.Capability.PERSISTENT_CONFIG
         with self.assertRaises(edgedb.ProtocolError):
             await self.con._fetchall(
                 'CONFIGURE SYSTEM SET singleprop := "42"',
