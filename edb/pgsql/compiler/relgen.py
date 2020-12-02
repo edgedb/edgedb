@@ -1929,10 +1929,13 @@ def _process_set_func(
         colnames = list(subtypes)
     else:
         colnames = [ctx.env.aliases.get('v')]
-        coldeflist = []
 
-    if expr.sql_func_has_out_params:
-        # SQL functions declared with OUT params reject column definitions.
+    if (
+        # SQL functions declared with OUT params or returning
+        # named composite types reject column definitions.
+        irtyputils.is_persistent_tuple(rtype)
+        or expr.sql_func_has_out_params
+    ):
         coldeflist = []
 
     fexpr = pgast.FuncCall(name=func_name, args=args, coldeflist=coldeflist)
@@ -1968,7 +1971,7 @@ def _process_set_func(
         )
 
         for element in set_expr.elements:
-            pathctx.put_path_value_var(
+            pathctx.put_path_value_var_if_not_exists(
                 ctx.rel, element.path_id, element.val, env=ctx.env)
 
     return set_expr
