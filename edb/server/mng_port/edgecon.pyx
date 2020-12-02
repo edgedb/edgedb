@@ -799,10 +799,17 @@ cdef class EdgeConnection:
         except Exception:
             self.dbview.raise_in_tx_error()
 
-    async def _recover_script_error(self, eql):
+    async def _recover_script_error(self, eql, allow_capabilities):
         assert self.dbview.in_tx_error()
 
         query_unit, num_remain = await self._compile_rollback(eql)
+
+        if not (allow_capabilities & enums.Capability.TRANSACTION):
+            raise errors.DisabledCapabilityError(
+                f"Cannot execute ROLLBACK command;"
+                f" the TRANSACTION capability is disabled"
+            )
+
         await self.get_backend().pgcon.simple_query(
             b';'.join(query_unit.sql), ignore_data=True)
 
@@ -852,11 +859,10 @@ cdef class EdgeConnection:
             self.debug_print('SIMPLE QUERY', eql)
 
         if self.dbview.in_tx_error():
-            if not (allow_capabilities & enums.Capability.TRANSACTION):
-                raise errors.DisabledCapabilityError(
-                    f"Cannot recover transaction, disallowed capability"
-                )
-            stmt_mode, query_unit = await self._recover_script_error(eql)
+            stmt_mode, query_unit = await self._recover_script_error(
+                eql,
+                allow_capabilities,
+            )
             if stmt_mode == 'done':
                 packet = WriteBuffer.new()
                 packet.write_buffer(
