@@ -1014,7 +1014,7 @@ cdef class EdgeConnection:
             bytes eql
             dict headers
             uint64_t implicit_limit = 0
-            bint inline_typeids = False
+            bint inline_typeids = self.protocol_version <= (0, 8)
             bint inline_typenames = False
             bytes stmt_name = b''
 
