@@ -4504,6 +4504,88 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
+    def test_schema_migrations_drop_parent_01(self):
+        self._assert_migration_equivalence([r"""
+            type Parent {
+                property name -> str {
+                    constraint exclusive;
+                }
+            }
+            type Child extending Parent {
+                overloaded property name -> str;
+            };
+        """, r"""
+            type Parent {
+                property name -> str {
+                    constraint exclusive;
+                }
+            }
+            type Child {
+                property name -> str;
+            };
+        """])
+
+    def test_schema_migrations_drop_parent_02(self):
+        self._assert_migration_equivalence([r"""
+            type Parent {
+                property name -> str {
+                    constraint exclusive;
+                }
+            }
+            type Child extending Parent;
+        """, r"""
+            type Parent {
+                property name -> str {
+                    constraint exclusive;
+                }
+            }
+            type Child {
+                property name -> str;
+            }
+        """])
+
+    def test_schema_migrations_drop_parent_03(self):
+        self._assert_migration_equivalence([r"""
+            type Parent {
+                property name -> str {
+                    delegated constraint exclusive;
+                }
+            }
+            type Child extending Parent;
+        """, r"""
+            type Parent {
+                property name -> str {
+                    delegated constraint exclusive;
+                }
+            }
+            type Child {
+                property name -> str {
+                    constraint exclusive;
+                }
+            }
+        """])
+
+    def test_schema_migrations_drop_parent_04(self):
+        self._assert_migration_equivalence([r"""
+            type Parent {
+                link foo -> Object {
+                    property x -> str;
+                }
+            }
+            type Child extending Parent;
+        """, r"""
+            type Parent {
+                link foo -> Object {
+                    property x -> str;
+                }
+            }
+            type Child {
+                link foo -> Object {
+                    property x -> str;
+                }
+            }
+        """])
+
 
 class TestDescribe(tb.BaseSchemaLoadTest):
     """Test the DESCRIBE command."""

@@ -601,15 +601,71 @@ def delta_bases(
 class AlterInherit(sd.Command):
     astnode = qlast.AlterAddInherit, qlast.AlterDropInherit
 
+    # We temporarily record information about inheritance alterations
+    # here, before converting these into Rebases in AlterObject.  The
+    # goal here is to encode the information in the subcommand stream,
+    # so the positioning is maintained.
+    added_bases = struct.Field(List[Tuple[
+        so.ObjectShell,
+        Optional[Union[str, Tuple[str, so.ObjectShell]]]]])
+    dropped_bases = struct.Field(List[so.ObjectShell])
+
     @classmethod
     def _cmd_tree_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: qlast.DDLOperation,
+        astcmd: qlast.DDLOperation,
         context: sd.CommandContext,
     ) -> Any:
-        # The base changes are handled by AlterNamedObject
-        return None
+        added_bases = []
+        dropped_bases: List[so.ObjectShell] = []
+
+        parent_op = context.current().op
+        assert isinstance(parent_op, sd.ObjectCommand)
+        parent_mcls = parent_op.get_schema_metaclass()
+
+        if isinstance(astcmd, qlast.AlterDropInherit):
+            dropped_bases.extend(
+                utils.ast_to_object_shell(
+                    b,
+                    metaclass=parent_mcls,
+                    modaliases=context.modaliases,
+                    schema=schema,
+                )
+                for b in astcmd.bases
+            )
+
+        elif isinstance(astcmd, qlast.AlterAddInherit):
+            bases = [
+                utils.ast_to_object_shell(
+                    b,
+                    metaclass=parent_mcls,
+                    modaliases=context.modaliases,
+                    schema=schema,
+                )
+                for b in astcmd.bases
+            ]
+
+            pos_node = astcmd.position
+            pos: Optional[Union[str, Tuple[str, so.ObjectShell]]]
+            if pos_node is not None:
+                if pos_node.ref is not None:
+                    ref = so.ObjectShell(
+                        name=utils.ast_ref_to_name(pos_node.ref),
+                        schemaclass=parent_mcls,
+                    )
+                    pos = (pos_node.position, ref)
+                else:
+                    pos = pos_node.position
+            else:
+                pos = None
+
+            added_bases.append((bases, pos))
+
+        # AlterInheritingObject will turn sequences of AlterInherit
+        # into proper RebaseWhatever commands.
+        return AlterInherit(
+            added_bases=added_bases, dropped_bases=dropped_bases)
 
 
 class CreateInheritingObject(
@@ -804,6 +860,46 @@ class AlterInheritingObject(
         assert isinstance(cmd, AlterInheritingObject)
         assert isinstance(astnode, qlast.ObjectDDL)
 
+        # Collect sequences of AlterInherit commands and transform them
+        # into real RebaseWhatever commands.
+        added_bases = []
+        dropped_bases = []
+        subcmds = cmd.get_subcommands()
+        for i, sub in enumerate(subcmds):
+            if not isinstance(sub, AlterInherit):
+                continue
+
+            dropped_bases.extend(sub.dropped_bases)
+            added_bases.extend(sub.added_bases)
+
+            if (
+                i + 1 < len(subcmds)
+                and isinstance(subcmds[i + 1], AlterInherit)
+            ):
+                cmd.discard(sub)
+                continue
+
+            # The next command is not an AlterInherit, so it's time to
+            # combine what we've seen and turn it into a rebase.
+
+            parent_class = cmd.get_schema_metaclass()
+            rebase_class = sd.ObjectCommandMeta.get_command_class_or_die(
+                RebaseInheritingObject, parent_class)
+
+            cmd.replace(
+                sub,
+                rebase_class(
+                    metaclass=parent_class,
+                    classname=cmd.classname,
+                    removed_bases=tuple(dropped_bases),
+                    added_bases=tuple(added_bases)
+                )
+            )
+
+            added_bases.clear()
+            dropped_bases.clear()
+
+        # XXX: I am not totally sure when this will come up?
         if getattr(astnode, 'bases', None):
             bases = cls._classbases_from_ast(schema, astnode, context)
             if bases is not None:

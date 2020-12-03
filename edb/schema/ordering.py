@@ -530,7 +530,24 @@ def _trace_op(
                 referrer_name: sn.Name = referrer.get_name(old_schema)
                 if referrer_name in renames_r:
                     referrer_name = renames_r[referrer_name]
-                deps.add(('rebase', str(referrer_name)))
+
+                # For SET OWNED, we need any rebase of the enclosing
+                # object to come *after*, because otherwise obj could
+                # get dropped before the SET OWNED takes effect.
+                # For DROP OWNED and DROP we want it after the rebase.
+                if (
+                    isinstance(op, referencing.AlterOwned)
+                    and op.get_attribute_value('is_owned')
+                ):
+                    gkey = ('rebase', str(referrer_name))
+                    try:
+                        ref_item = depgraph[gkey]
+                    except KeyError:
+                        ref_item = depgraph[gkey] = DepGraphEntry(item=())
+
+                    ref_item.deps.add(('alterowned', str(op.classname)))
+                else:
+                    deps.add(('rebase', str(referrer_name)))
 
                 if (
                     isinstance(obj, referencing.ReferencedInheritingObject)

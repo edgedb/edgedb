@@ -207,25 +207,23 @@ class LinkCommand(lproperties.PropertySourceCommand,
             'target', target_ref, source_context=astnode.target.context)
         self.add(slt)
 
-    def _apply_refs_fields_ast(
+    def _append_subcmd_ast(
         self,
         schema: s_schema.Schema,
-        context: sd.CommandContext,
         node: qlast.DDLOperation,
-        refdict: so.RefDict,
+        subcmd: sd.Command,
+        context: sd.CommandContext,
     ) -> None:
-        if issubclass(refdict.ref_cls, pointers.Pointer):
-            for op in self.get_subcommands(metaclass=refdict.ref_cls):
-                if (
-                    isinstance(op, pointers.PointerCommand)
-                    and op.classname != self.classname
+        if (
+            isinstance(subcmd, pointers.PointerCommand)
+            and subcmd.classname != self.classname
 
-                ):
-                    pname = sn.shortname_from_fullname(op.classname)
-                    if pname.name not in {'source', 'target'}:
-                        self._append_subcmd_ast(schema, node, op, context)
-        else:
-            super()._apply_refs_fields_ast(schema, context, node, refdict)
+        ):
+            pname = sn.shortname_from_fullname(subcmd.classname)
+            if pname.name in {'source', 'target'}:
+                return
+
+        super()._append_subcmd_ast(schema, node, subcmd, context)
 
     def _validate_pointer_def(
         self,
