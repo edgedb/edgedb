@@ -5561,7 +5561,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 CREATE OPTIONAL MULTI LINK intersection_of
                     -> schema::ObjectType;
                 CREATE OPTIONAL MULTI LINK union_of -> schema::ObjectType;
-                CREATE OPTIONAL SINGLE PROPERTY is_compound_type := (
+                CREATE REQUIRED SINGLE PROPERTY is_compound_type := (
                     (EXISTS (.union_of) OR EXISTS (.intersection_of))
                 );
                 CREATE OPTIONAL MULTI LINK links := (
@@ -5589,7 +5589,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                     .pointers[IS schema::Property]
                 );
                 optional multi link union_of -> schema::ObjectType;
-                optional single property is_compound_type := (
+                required single property is_compound_type := (
                     (EXISTS (.union_of) OR EXISTS (.intersection_of))
                 );
             };

@@ -748,7 +748,10 @@ def __infer_oper_call(
 
             return card
         else:
-            return AT_MOST_ONE
+            if ir.typemod is qltypes.TypeModifier.OptionalType:
+                return AT_MOST_ONE
+            else:
+                return ONE
 
 
 @_infer_cardinality.register
