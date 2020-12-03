@@ -481,3 +481,13 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 % OK %
         as_card: AT_MOST_ONE
         """
+
+    def test_edgeql_ir_card_inference_47(self):
+        """
+        WITH MODULE test
+        SELECT User {
+            foo := EXISTS(.friends)
+        }
+% OK %
+        foo: ONE
+        """
