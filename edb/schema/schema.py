@@ -170,14 +170,34 @@ class Schema(abc.ABC):
     ) -> FrozenSet[s_casts.Cast]:
         raise NotImplementedError
 
-    @abc.abstractmethod
+    @overload
     def get_referrers(
         self,
         scls: so.Object,
         *,
-        scls_type: Optional[Type[so.Object]] = None,
+        scls_type: Type[so.Object_T],
+        field_name: Optional[str] = None,
+    ) -> FrozenSet[so.Object_T]:
+        ...
+
+    @overload
+    def get_referrers(  # NoQA: F811
+        self,
+        scls: so.Object,
+        *,
+        scls_type: None = None,
         field_name: Optional[str] = None,
     ) -> FrozenSet[so.Object]:
+        ...
+
+    @abc.abstractmethod
+    def get_referrers(  # NoQA: F811
+        self,
+        scls: so.Object,
+        *,
+        scls_type: Optional[Type[so.Object_T]] = None,
+        field_name: Optional[str] = None,
+    ) -> FrozenSet[so.Object_T]:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -374,7 +394,7 @@ class Schema(abc.ABC):
     ) -> FrozenSet[so.Object_T]:
         # Ideally get_referrers needs to be made generic via
         # an overload on scls_type, but mypy crashes on that.
-        return self.get_referrers(  # type: ignore
+        return self.get_referrers(
             scls,
             scls_type=type(scls),
             field_name='bases',
@@ -384,7 +404,7 @@ class Schema(abc.ABC):
         self,
         scls: so.Object_T,
     ) -> FrozenSet[so.Object_T]:
-        return self.get_referrers(  # type: ignore
+        return self.get_referrers(
             scls, scls_type=type(scls), field_name='ancestors')
 
     @abc.abstractmethod
@@ -1073,14 +1093,24 @@ class FlatSchema(Schema):
         return self._get_casts(from_type, disposition='from_type',
                                implicit=implicit, assignment=assignment)
 
-    @functools.lru_cache()
     def get_referrers(
         self,
         scls: so.Object,
         *,
-        scls_type: Optional[Type[so.Object]] = None,
+        scls_type: Optional[Type[so.Object_T]] = None,
         field_name: Optional[str] = None,
-    ) -> FrozenSet[so.Object]:
+    ) -> FrozenSet[so.Object_T]:
+        return self._get_referrers(
+            scls, scls_type=scls_type, field_name=field_name)
+
+    @functools.lru_cache()
+    def _get_referrers(
+        self,
+        scls: so.Object,
+        *,
+        scls_type: Optional[Type[so.Object_T]] = None,
+        field_name: Optional[str] = None,
+    ) -> FrozenSet[so.Object_T]:
 
         try:
             refs = self._refs_to[scls.id]
@@ -1108,7 +1138,7 @@ class FlatSchema(Schema):
                 refids = itertools.chain.from_iterable(refs.values())
                 referrers.update(self.get_by_id(objid) for objid in refids)
 
-            return frozenset(referrers)
+            return frozenset(referrers)  # type: ignore
 
     @functools.lru_cache()
     def get_referrers_ex(
@@ -1594,9 +1624,9 @@ class ChainedSchema(Schema):
         self,
         scls: so.Object,
         *,
-        scls_type: Optional[Type[so.Object]] = None,
+        scls_type: Optional[Type[so.Object_T]] = None,
         field_name: Optional[str] = None,
-    ) -> FrozenSet[so.Object]:
+    ) -> FrozenSet[so.Object_T]:
         return (
             self._base_schema.get_referrers(
                 scls,

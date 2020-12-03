@@ -171,6 +171,12 @@ class ObjectType(
                 )
             )
 
+        unions = schema.get_referrers(
+            self, scls_type=ObjectType, field_name='union_of')
+
+        for union in unions:
+            ptrs.update(union.getrptrs(schema, name, sources=sources))
+
         return ptrs
 
     def implicitly_castable_to(
