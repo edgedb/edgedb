@@ -71,6 +71,12 @@ class ScalarType(
     def is_polymorphic(self, schema: s_schema.Schema) -> bool:
         return self.get_is_abstract(schema)
 
+    def contains_json(self, schema: s_schema.Schema) -> bool:
+        return self.issubclass(
+            schema,
+            schema.get(s_name.QualName('std', 'json'), type=ScalarType),
+        )
+
     def can_accept_constraints(self, schema: s_schema.Schema) -> bool:
         return not self.is_enum(schema)
 

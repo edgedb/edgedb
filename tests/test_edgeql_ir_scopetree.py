@@ -622,15 +622,14 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         "FENCE": {
             "(test::User)",
             "FENCE": {
-                "(__derived__::__derived__|x@w~1)": {
+                "(__derived__::__derived__|x@w~2)": {
                     "FENCE": {
                         "(test::User).>deck[IS test::Card]"
                     }
                 },
                 "(test::User).>deck[IS test::Card]",
                 "FENCE": {
-                    "(__derived__::__derived__|x@w~1)\
-.>name[IS std::str]"
+                    "(__derived__::__derived__|x@w~2).>name[IS std::str]"
                 }
             }
         }

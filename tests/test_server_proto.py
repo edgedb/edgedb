@@ -2731,7 +2731,7 @@ class TestServerProtoDDL(tb.DDLTestCase):
                     ORDER BY .n
                     LIMIT 3
                 """,
-                __limit__=2
+                __limit__=4
             )
 
             self.assertEqual(len(result), 3)
@@ -2746,6 +2746,28 @@ class TestServerProtoDDL(tb.DDLTestCase):
                     WITH a := {11, 12, 13}
                     SELECT _ := {9, 1, 13}
                     FILTER _ IN a;
+                """,
+                __limit__=1
+            )
+
+            self.assertEqual(result, edgedb.Set([13]))
+
+            # Check that things cast to JSON don't get limited.
+            result = await self.con._fetchall(
+                r"""
+                    WITH a := {11, 12, 13}
+                    SELECT <json>array_agg(a);
+                """,
+                __limit__=1
+            )
+
+            self.assertEqual(result, edgedb.Set(['[11, 12, 13]']))
+
+            # Check that non-array_agg calls don't get limited.
+            result = await self.con._fetchall(
+                r"""
+                    WITH a := {11, 12, 13}
+                    SELECT max(a);
                 """,
                 __limit__=1
             )

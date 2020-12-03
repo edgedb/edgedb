@@ -214,6 +214,9 @@ class Type(
     def contains_any(self, schema: s_schema.Schema) -> bool:
         return self.is_any(schema)
 
+    def contains_json(self, schema: s_schema.Schema) -> bool:
+        return False
+
     def is_scalar(self) -> bool:
         return False
 
@@ -675,6 +678,10 @@ class Collection(Type, s_abc.Collection):
 
     def contains_any(self, schema: s_schema.Schema) -> bool:
         return any(st.contains_any(schema) for st in self.get_subtypes(schema))
+
+    def contains_json(self, schema: s_schema.Schema) -> bool:
+        return any(
+            st.contains_json(schema) for st in self.get_subtypes(schema))
 
     def contains_object(self, schema: s_schema.Schema) -> bool:
         return any(

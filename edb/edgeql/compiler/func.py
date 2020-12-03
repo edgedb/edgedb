@@ -743,12 +743,26 @@ def finalize_args(
                     pathctx.assign_set_scope(arg, None, ctx=ctx)
         else:
             process_path_log(arg_ctx, arg_scope)
+            is_array_agg = (
+                isinstance(bound_call.func, s_func.Function)
+                and (
+                    bound_call.func.get_shortname(ctx.env.schema)
+                    == ('std', 'array_agg')
+                )
+            )
 
-            if (is_polymorphic
-                    and ctx.expr_exposed
-                    and ctx.implicit_limit
-                    and isinstance(arg.expr, irast.SelectStmt)
-                    and arg.expr.limit is None):
+            if (
+                # Ideally, we should implicitly slice all array values,
+                # but in practice, the vast majority of large arrays
+                # will come from array_agg, and so we only care about
+                # that.
+                is_array_agg
+                and ctx.expr_exposed
+                and ctx.implicit_limit
+                and isinstance(arg.expr, irast.SelectStmt)
+                and arg.expr.limit is None
+                and not ctx.inhibit_implicit_limit
+            ):
                 arg.expr.limit = setgen.ensure_set(
                     dispatch.compile(
                         qlast.IntegerConstant(value=str(ctx.implicit_limit)),
