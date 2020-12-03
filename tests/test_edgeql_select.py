@@ -6072,3 +6072,31 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     todo: { name: {bogus} }
                 }
             """)
+
+    async def test_edgeql_select_revlink_on_union(self):
+        await self.assert_query_result(
+            """
+                WITH MODULE test
+                SELECT
+                    File {
+                        referrers := (
+                            SELECT .<references[IS Issue] {
+                                name,
+                                number,
+                            } ORDER BY .number
+                        )
+                    }
+                FILTER
+                    .name = 'screenshot.png'
+            """,
+            [
+                {
+                    'referrers': [
+                        {
+                            'name': 'Improve EdgeDB repl output rendering.',
+                            'number': '2'
+                        }
+                    ]
+                }
+            ],
+        )
