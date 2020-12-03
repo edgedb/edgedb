@@ -455,10 +455,11 @@ class RebaseScalarType(
             schema = self._validate_enum_change(
                 scls, cur_labels, new_labels, schema, context)
 
-            return schema
-
         else:
-            return super().apply(schema, context)
+            schema = super().apply(schema, context)
+
+        self.validate_scalar_bases(schema, context)
+        return schema
 
     def validate_scalar_bases(
         self,
@@ -512,15 +513,6 @@ class AlterScalarType(
     inheriting.AlterInheritingObject[ScalarType],
 ):
     astnode = qlast.AlterScalarType
-
-    def validate_alter(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-    ) -> None:
-        super().validate_alter(schema, context)
-        for subcmd in self.get_subcommands(type=RebaseScalarType):
-            subcmd.validate_scalar_bases(schema, context)
 
 
 class DeleteScalarType(

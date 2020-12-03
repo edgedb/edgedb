@@ -273,7 +273,7 @@ class AnnotationValueCommand(
                             ) -> sn.QualName:
         parent_ctx = cls.get_referrer_context_or_die(context)
         assert isinstance(parent_ctx.op, sd.QualifiedObjectCommand)
-        referrer_name = parent_ctx.op.classname
+        referrer_name = context.get_referrer_name(parent_ctx)
         base_ref = utils.ast_to_object_shell(
             astnode.name,
             modaliases=context.modaliases,

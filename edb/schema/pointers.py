@@ -892,7 +892,7 @@ class PointerCommandOrFragment(
         # "source" attribute is set automatically as a refdict back-attr
         parent_ctx = self.get_referrer_context(context)
         assert parent_ctx is not None
-        source_name = parent_ctx.op.classname
+        source_name = context.get_referrer_name(parent_ctx)
         assert isinstance(source_name, sn.QualName)
 
         source = schema.get(source_name, type=s_objtypes.ObjectType)
@@ -1177,8 +1177,7 @@ class PointerCommand(
         referrer_ctx = cls.get_referrer_context(context)
         if referrer_ctx is not None:
 
-            referrer_name = referrer_ctx.op.classname
-            assert isinstance(referrer_name, sn.QualName)
+            referrer_name = context.get_referrer_name(referrer_ctx)
 
             shortname = sn.QualName(
                 module='__',
@@ -1243,7 +1242,7 @@ class PointerCommand(
             )
 
         parent_ctx = self.get_referrer_context_or_die(context)
-        source_name = parent_ctx.op.classname
+        source_name = context.get_referrer_name(parent_ctx)
         self.set_attribute_value('source', so.ObjectShell(name=source_name))
 
         # FIXME: this is an approximate solution

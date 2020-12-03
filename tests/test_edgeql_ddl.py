@@ -330,6 +330,217 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             }]
         )
 
+    async def test_edgeql_ddl_rename_type_and_add_01(self):
+        await self.con.execute("""
+            SET MODULE test;
+
+            CREATE TYPE Foo {
+                CREATE PROPERTY x -> str;
+            };
+        """)
+
+        await self.con.execute("""
+            ALTER TYPE Foo {
+                DROP PROPERTY x;
+                RENAME TO Bar;
+                CREATE PROPERTY a -> str;
+                CREATE LINK b -> Object;
+                CREATE CONSTRAINT expression ON (true);
+                CREATE ANNOTATION description := 'hello';
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+            SELECT schema::ObjectType {
+                links: {name} ORDER BY .name,
+                properties: {name} ORDER BY .name,
+                constraints: {name},
+                annotations: {name}
+            }
+            FILTER .name = 'test::Bar';
+            """,
+            [
+                {
+                    "annotations": [{"name": "std::description"}],
+                    "constraints": [{"name": "std::expression"}],
+                    "links": [{"name": "__type__"}, {"name": "b"}],
+                    "properties": [{"name": "a"}, {"name": "id"}],
+                }
+            ],
+        )
+
+        await self.con.execute("""
+            ALTER TYPE Bar {
+                DROP PROPERTY a;
+                DROP link b;
+                DROP CONSTRAINT expression ON (true);
+                DROP ANNOTATION description;
+            };
+        """)
+
+    async def test_edgeql_ddl_rename_type_and_add_02(self):
+        await self.con.execute("""
+            SET MODULE test;
+
+            CREATE TYPE Foo;
+        """)
+
+        await self.con.execute("""
+            ALTER TYPE Foo {
+                CREATE PROPERTY a -> str;
+                CREATE LINK b -> Object;
+                CREATE CONSTRAINT expression ON (true);
+                CREATE ANNOTATION description := 'hello';
+                RENAME TO Bar;
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+            SELECT schema::ObjectType {
+                links: {name} ORDER BY .name,
+                properties: {name} ORDER BY .name,
+                constraints: {name},
+                annotations: {name}
+            }
+            FILTER .name = 'test::Bar';
+            """,
+            [
+                {
+                    "annotations": [{"name": "std::description"}],
+                    "constraints": [{"name": "std::expression"}],
+                    "links": [{"name": "__type__"}, {"name": "b"}],
+                    "properties": [{"name": "a"}, {"name": "id"}],
+                }
+            ],
+        )
+
+        await self.con.execute("""
+            ALTER TYPE Bar {
+                DROP PROPERTY a;
+                DROP link b;
+                DROP CONSTRAINT expression ON (true);
+                DROP ANNOTATION description;
+            };
+        """)
+
+    async def test_edgeql_ddl_rename_type_and_drop_01(self):
+        await self.con.execute("""
+            SET MODULE test;
+
+            CREATE TYPE Foo {
+                CREATE PROPERTY a -> str;
+                CREATE LINK b -> Object;
+                CREATE CONSTRAINT expression ON (true);
+                CREATE ANNOTATION description := 'hello';
+            };
+        """)
+
+        await self.con.execute("""
+            ALTER TYPE Foo {
+                RENAME TO Bar;
+                DROP PROPERTY a;
+                DROP link b;
+                DROP CONSTRAINT expression ON (true);
+                DROP ANNOTATION description;
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+            SELECT schema::ObjectType {
+                links: {name} ORDER BY .name,
+                properties: {name} ORDER BY .name,
+                constraints: {name},
+                annotations: {name}
+            }
+            FILTER .name = 'test::Bar';
+            """,
+            [
+                {
+                    "annotations": [],
+                    "constraints": [],
+                    "links": [{"name": "__type__"}],
+                    "properties": [{"name": "id"}],
+                }
+            ],
+        )
+
+        await self.con.execute("""
+            DROP TYPE Bar;
+        """)
+
+    async def test_edgeql_ddl_rename_type_and_drop_02(self):
+        await self.con.execute("""
+            SET MODULE test;
+
+            CREATE TYPE Foo {
+                CREATE PROPERTY a -> str;
+                CREATE LINK b -> Object;
+                CREATE CONSTRAINT expression ON (true);
+                CREATE ANNOTATION description := 'hello';
+            };
+        """)
+
+        await self.con.execute("""
+            ALTER TYPE Foo {
+                DROP PROPERTY a;
+                DROP link b;
+                DROP CONSTRAINT expression ON (true);
+                DROP ANNOTATION description;
+                RENAME TO Bar;
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+            SELECT schema::ObjectType {
+                links: {name} ORDER BY .name,
+                properties: {name} ORDER BY .name,
+                constraints: {name},
+                annotations: {name}
+            }
+            FILTER .name = 'test::Bar';
+            """,
+            [
+                {
+                    "annotations": [],
+                    "constraints": [],
+                    "links": [{"name": "__type__"}],
+                    "properties": [{"name": "id"}],
+                }
+            ],
+        )
+        await self.con.execute("""
+            DROP TYPE Bar;
+        """)
+
+    async def test_edgeql_ddl_rename_type_and_prop_01(self):
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            CREATE TYPE Note {
+                CREATE PROPERTY note -> str;
+                CREATE LINK friend -> Object;
+            };
+        """)
+
+        await self.con.execute(r"""
+            ALTER TYPE Note {
+                RENAME TO Remark;
+                ALTER PROPERTY note RENAME TO remark;
+                ALTER LINK friend RENAME TO enemy;
+            };
+        """)
+
+        await self.con.execute(r"""
+            ALTER TYPE Remark {
+                DROP PROPERTY remark;
+                DROP LINK enemy;
+            };
+        """)
+
     async def test_edgeql_ddl_11(self):
         await self.con.execute(r"""
             CREATE TYPE test::TestContainerLinkObjectType {

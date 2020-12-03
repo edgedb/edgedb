@@ -1116,8 +1116,7 @@ class RenameConstraint(
         ConstraintCommand, RenameObject,
         adapts=s_constr.RenameConstraint):
     def apply(self, schema, context):
-        delta_root_ctx = context.top()
-        orig_schema = delta_root_ctx.original_schema
+        orig_schema = schema
         schema = super().apply(schema, context)
         constraint = self.scls
         if not self.constraint_is_effective(orig_schema, constraint):
@@ -1905,9 +1904,6 @@ class RenameObjectType(ObjectTypeMetaCommand,
         delta_ctx.op._renames[orig_name] = scls.get_name(schema)
 
         obj_has_table = has_table(scls, schema)
-
-        if obj_has_table:
-            objtype.op.attach_alter_table(context)
 
         self.rename(schema, objtype.original_schema, context, scls)
 

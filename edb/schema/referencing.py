@@ -461,7 +461,7 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase[ReferencedT]):
         parent_ctx = cls.get_referrer_context(context)
         if parent_ctx is not None:
             assert isinstance(parent_ctx.op, sd.QualifiedObjectCommand)
-            referrer_name = parent_ctx.op.classname
+            referrer_name = context.get_referrer_name(parent_ctx)
             name = cls._classname_from_ast_and_referrer(
                 schema, referrer_name, astnode, context
             )
@@ -545,7 +545,7 @@ class CreateReferencedObject(
 
             referrer_ctx = cls.get_referrer_context_or_die(context)
             referrer_class = referrer_ctx.op.get_schema_metaclass()
-            referrer_name = referrer_ctx.op.classname
+            referrer_name = context.get_referrer_name(referrer_ctx)
             refdict = referrer_class.get_refdict_for_class(objcls)
 
             cmd.set_attribute_value(
@@ -964,10 +964,13 @@ class CreateReferencedInheritingObject(
                 if implicit_bases:
                     bases = self.get_attribute_value('bases')
                     if bases:
+                        res_bases = cast(
+                            List[ReferencedInheritingObjectT],
+                            self.resolve_obj_collection(bases, schema))
                         bases = so.ObjectList.create(
                             schema,
                             implicit_bases + [
-                                b for b in bases.objects(schema)
+                                b for b in res_bases
                                 if b not in implicit_bases
                             ],
                         )

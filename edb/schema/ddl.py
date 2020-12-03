@@ -358,7 +358,9 @@ def cmd_from_ddl(
         context = sd.CommandContext(
             schema=schema, modaliases=modaliases, testmode=testmode)
 
-    return sd.compile_ddl(schema, ddl, context=context)
+    res = sd.compile_ddl(schema, ddl, context=context)
+    context.early_renames.clear()
+    return res
 
 
 def apply_sdl(

@@ -923,6 +923,7 @@ class CommandContext:
         self.descriptive_mode = descriptive_mode
         self.disable_dep_verification = disable_dep_verification
         self.renames: Dict[sn.Name, sn.Name] = {}
+        self.early_renames: Dict[sn.Name, sn.Name] = {}
         self.renamed_objs: Set[so.Object] = set()
         self.altered_targets: Set[so.Object] = set()
         self.schema_object_ids = schema_object_ids
@@ -1023,6 +1024,14 @@ class CommandContext:
 
     def pop(self) -> CommandContextToken[Command]:
         return self.stack.pop()
+
+    def get_referrer_name(
+        self, referrer_ctx: CommandContextToken[ObjectCommand[so.Object]],
+    ) -> sn.QualName:
+        referrer_name = referrer_ctx.op.classname
+        referrer_name = self.early_renames.get(referrer_name, referrer_name)
+        assert isinstance(referrer_name, sn.QualName)
+        return referrer_name
 
     def get(
         self,
@@ -2565,6 +2574,12 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
             RenameObject, parent_class)
 
         new_name = cls._classname_from_ast(schema, astnode, context)
+
+        # Populate the early_renames map of the context as we go, since
+        # in-flight renames will affect the generated names of later
+        # operations.
+        context.early_renames[parent_op.classname] = new_name
+
         return rename_class(
             metaclass=parent_class,
             classname=parent_op.classname,
@@ -2698,9 +2713,6 @@ class AlterObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         for op in self.get_prerequisites():
             schema = op.apply(schema, context)
 
-        for op in self.get_subcommands(type=AlterObjectFragment):
-            schema = op.apply(schema, context)
-
         if not context.canonical:
             schema = self.populate_ddl_identity(schema, context)
             schema = self.canonicalize_attributes(schema, context)
@@ -2716,7 +2728,7 @@ class AlterObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         context: CommandContext,
     ) -> s_schema.Schema:
         for op in self.get_subcommands(include_prerequisites=False):
-            if not isinstance(op, (AlterObjectFragment, AlterObjectProperty)):
+            if not isinstance(op, AlterObjectProperty):
                 schema = op.apply(schema, context=context)
 
         return schema
