@@ -539,7 +539,7 @@ class AlterLink(
                     slt.set_attribute_value(
                         'target',
                         target_ref,
-                        source_context=expr_cmd.value.context,
+                        source_context=expr.context,
                     )
                     cmd.add(slt)
                     cmd.discard_attribute('expr')

@@ -1108,10 +1108,13 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_DropObject(node, 'ALIAS')
 
     def visit_SetField(self, node: qlast.SetField) -> None:
-        if not self.sdlmode:
-            self.write('SET ')
-        self.write(f'{node.name} := ')
-        self.visit(node.value)
+        if node.value:
+            if not self.sdlmode:
+                self.write('SET ')
+            self.write(f'{node.name} := ')
+            self.visit(node.value)
+        elif not self.sdlmode:
+            self.write(f'DROP {node.name}')
 
     def visit_CreateAnnotation(self, node: qlast.CreateAnnotation) -> None:
         after_name = lambda: self._ddl_visit_bases(node)
