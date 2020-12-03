@@ -3519,12 +3519,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             # drop everything
         """)
 
-    @test.xfail('''
-        The "complete" flag is not set even though the DDL from
-        "proposed" list is used.
-
-        This happens on the third migration.
-    ''')
     async def test_edgeql_migration_eq_30(self):
         await self.migrate(r"""
             type Foo {
@@ -7575,9 +7569,9 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 'statements': [{
                     'text':
                         'CREATE TYPE test::NewObj2 {\n'
+                        "    CREATE ANNOTATION std::title := 'Obj2';\n"
                         '    CREATE OPTIONAL SINGLE PROPERTY name'
                         ' -> std::str;\n'
-                        "    CREATE ANNOTATION std::title := 'Obj2';\n"
                         '};'
                 }],
             },
@@ -7594,11 +7588,12 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 'statements': [{
                     'text':
                         'ALTER TYPE test::Obj2 {\n'
-                        '    RENAME TO test::NewObj2;\n'
                         '    DROP LINK o1;\n'
                         '    DROP PROPERTY o;\n'
+                        '    RENAME TO test::NewObj2;\n'
+                        "    CREATE ANNOTATION std::title := 'Obj2';\n"
                         '    CREATE OPTIONAL SINGLE PROPERTY name -> std::str;'
-                        "\n    CREATE ANNOTATION std::title := 'Obj2';\n"
+                        '\n'
                         '};'
                 }],
             },

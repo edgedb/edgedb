@@ -853,7 +853,7 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
 
     internal = SchemaField(
         bool,
-        inheritable=True,
+        inheritable=False,
     )
 
     # Schema source context for this object

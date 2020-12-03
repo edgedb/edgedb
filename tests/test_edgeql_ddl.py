@@ -1430,6 +1430,124 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             INSERT Child { name := "foo" };
         """)
 
+    async def test_edgeql_ddl_drop_extending_06(self):
+        await self.con.execute("""
+            SET MODULE test;
+
+            CREATE ABSTRACT TYPE Named {
+                CREATE OPTIONAL SINGLE PROPERTY name -> str;
+            };
+            CREATE TYPE Foo EXTENDING Named;
+        """)
+
+        await self.con.execute("""
+            INSERT Foo { name := "Phil Emarg" };
+        """)
+
+        await self.con.execute("""
+            ALTER TYPE Foo {
+                ALTER PROPERTY name {
+                    SET OWNED;
+                };
+                DROP EXTENDING Named;
+            };
+            DROP TYPE Named;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Foo.name;
+            """,
+            ["Phil Emarg"],
+        )
+
+    async def test_edgeql_ddl_drop_extending_07(self):
+        await self.con.execute("""
+            SET MODULE test;
+
+            CREATE ABSTRACT TYPE Named {
+                CREATE PROPERTY name -> str;
+            };
+            CREATE ABSTRACT TYPE Noted {
+                CREATE PROPERTY note -> str;
+            };
+            CREATE TYPE Foo EXTENDING Named {
+                CREATE PROPERTY note -> str;
+            };
+        """)
+
+        await self.con.execute("""
+            INSERT Foo { name := "Phil Emarg", note := "foo" };
+        """)
+
+        # swap parent from Named to Noted, and drop ownership of note
+        await self.con.execute("""
+            ALTER TYPE Foo {
+                ALTER PROPERTY name {
+                    SET OWNED;
+                };
+                DROP EXTENDING Named;
+                EXTENDING Noted LAST;
+                ALTER PROPERTY note {
+                    DROP OWNED;
+                };
+            };
+            DROP TYPE Named;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Foo { note, name };
+            """,
+            [{"name": "Phil Emarg", "note": "foo"}],
+        )
+
+        await self.con.execute("""
+            ALTER TYPE Foo {
+                DROP EXTENDING Noted;
+            };
+        """)
+
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                "has no link or property 'note'"):
+            await self.con.execute(r"""
+                SELECT Foo.note;
+            """)
+
+    async def test_edgeql_ddl_drop_extending_08(self):
+        await self.con.execute("""
+            SET MODULE test;
+
+            CREATE ABSTRACT TYPE Named {
+                CREATE OPTIONAL SINGLE PROPERTY name -> str;
+            };
+            CREATE ABSTRACT TYPE Named2 {
+                CREATE OPTIONAL SINGLE PROPERTY name -> str;
+            };
+            CREATE TYPE Foo EXTENDING Named;
+        """)
+
+        await self.con.execute("""
+            INSERT Foo { name := "Phil Emarg" };
+        """)
+
+        # swap parent from Named to Named2; this should preserve the name prop
+        await self.con.execute("""
+            ALTER TYPE Foo {
+                DROP EXTENDING Named;
+                EXTENDING Named2 LAST;
+            };
+            DROP TYPE Named;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Foo.name;
+            """,
+            ["Phil Emarg"],
+        )
+
     async def test_edgeql_ddl_default_01(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,

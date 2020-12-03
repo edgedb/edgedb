@@ -1638,9 +1638,6 @@ class ObjectCommand(
         context: CommandContext,
         node: qlast.DDLOperation,
     ) -> None:
-        for op in self.get_subcommands(type=AlterObjectFragment):
-            self._append_subcmd_ast(schema, node, op, context)
-
         mcls = self.get_schema_metaclass()
 
         if not isinstance(self, DeleteObject):
@@ -1709,18 +1706,20 @@ class ObjectCommand(
 
                     setattr(node, ast_attr, attr_val)
 
-            for refdict in mcls.get_refdicts():
-                self._apply_refs_fields_ast(schema, context, node, refdict)
+            # Keep subcommands from refdicts and alter fragments (like
+            # rename, rebase) in order when producing DDL asts
+            refdicts = tuple(x.ref_cls for x in mcls.get_refdicts())
+            for op in self.get_subcommands():
+                if (
+                    isinstance(op, AlterObjectFragment)
+                    or (isinstance(op, ObjectCommand)
+                        and issubclass(op.get_schema_metaclass(), refdicts))
+                ):
+                    self._append_subcmd_ast(schema, node, op, context)
 
-    def _apply_refs_fields_ast(
-        self,
-        schema: s_schema.Schema,
-        context: CommandContext,
-        node: qlast.DDLOperation,
-        refdict: so.RefDict,
-    ) -> None:
-        for op in self.get_subcommands(metaclass=refdict.ref_cls):
-            self._append_subcmd_ast(schema, node, op, context)
+        else:
+            for op in self.get_subcommands(type=AlterObjectFragment):
+                self._append_subcmd_ast(schema, node, op, context)
 
     def _apply_field_ast(
         self,
@@ -2625,65 +2624,6 @@ class AlterObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
 
         if getattr(astnode, 'is_abstract', False):
             cmd.set_attribute_value('is_abstract', True)
-
-        added_bases = []
-        dropped_bases: List[so.ObjectShell] = []
-
-        if getattr(astnode, 'commands', None):
-            for astcmd in astnode.commands:
-                if isinstance(astcmd, qlast.AlterDropInherit):
-                    dropped_bases.extend(
-                        utils.ast_to_object_shell(
-                            b,
-                            metaclass=cls.get_schema_metaclass(),
-                            modaliases=context.modaliases,
-                            schema=schema,
-                        )
-                        for b in astcmd.bases
-                    )
-
-                elif isinstance(astcmd, qlast.AlterAddInherit):
-                    bases = [
-                        utils.ast_to_object_shell(
-                            b,
-                            metaclass=cls.get_schema_metaclass(),
-                            modaliases=context.modaliases,
-                            schema=schema,
-                        )
-                        for b in astcmd.bases
-                    ]
-
-                    pos_node = astcmd.position
-                    pos: Optional[Union[str, Tuple[str, so.ObjectShell]]]
-                    if pos_node is not None:
-                        if pos_node.ref is not None:
-                            ref = so.ObjectShell(
-                                name=utils.ast_ref_to_name(pos_node.ref),
-                                schemaclass=cls.get_schema_metaclass(),
-                            )
-                            pos = (pos_node.position, ref)
-                        else:
-                            pos = pos_node.position
-                    else:
-                        pos = None
-
-                    added_bases.append((bases, pos))
-
-        if added_bases or dropped_bases:
-            from . import inheriting
-
-            parent_class = cmd.get_schema_metaclass()
-            rebase_class = ObjectCommandMeta.get_command_class_or_die(
-                inheriting.RebaseInheritingObject, parent_class)
-
-            cmd.add(
-                rebase_class(
-                    metaclass=parent_class,
-                    classname=cmd.classname,
-                    removed_bases=tuple(dropped_bases),
-                    added_bases=tuple(added_bases)
-                )
-            )
 
         return cmd
 
