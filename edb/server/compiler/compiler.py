@@ -1380,7 +1380,7 @@ class Compiler(BaseCompiler):
             if isinstance(query, dbstate.MigrationControlQuery):
                 return (query, enums.Capability.DDL)
             else:  # DESCRIBE CURRENT MIGRATION
-                return (query, enums.Capability.QUERY)
+                return (query, enums.Capability(0))
         elif isinstance(ql, qlast.Database):
             return (
                 self._compile_and_apply_ddl_stmt(ctx, ql),
@@ -1417,7 +1417,7 @@ class Compiler(BaseCompiler):
 
         else:
             query = self._compile_ql_query(ctx, ql)
-            caps = enums.Capability.QUERY
+            caps = enums.Capability(0)
             if query.has_dml:
                 caps |= enums.Capability.MODIFICATIONS
             return (query, caps)

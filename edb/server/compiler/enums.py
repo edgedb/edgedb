@@ -59,8 +59,6 @@ class Capability(enum.IntFlag):
     DDL               = 1 << 3    # noqa
     PERSISTENT_CONFIG = 1 << 4    # noqa
 
-    QUERY             = 1 << 32   # noqa
-
     def make_error(
         self,
         allowed: Capability,
@@ -78,26 +76,12 @@ class Capability(enum.IntFlag):
         )
 
 
-# Exposed to client as SERVER_HEADER_CAPABILITIES
-# and QUERY_OPT_ALLOW_CAPABILITIES
-PUBLIC_CAPABILITIES = (
-    Capability.DDL |
-    Capability.TRANSACTION |
-    Capability.SESSION_CONFIG |
-    Capability.PERSISTENT_CONFIG |
-    Capability.MODIFICATIONS
-)
-
-# Private to server (compiler and io process)
-PRIVATE_CAPABILITIES = Capability.QUERY
-
 CAPABILITY_TITLES = {
     Capability.MODIFICATIONS: 'data modification queries',
     Capability.SESSION_CONFIG: 'session configuration queries',
     Capability.TRANSACTION: 'transaction control commands',
     Capability.DDL: 'DDL commands',
     Capability.PERSISTENT_CONFIG: 'configuration commands',
-    Capability.QUERY: 'read-only queries',
 }
 
 

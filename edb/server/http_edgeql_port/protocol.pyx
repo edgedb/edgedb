@@ -37,7 +37,6 @@ from edb.server.http cimport http
 
 
 ALLOWED_CAPABILITIES = (
-    enums.Capability.QUERY |
     enums.Capability.MODIFICATIONS
 )
 

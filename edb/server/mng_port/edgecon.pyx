@@ -105,9 +105,6 @@ DEF SERVER_HEADER_CAPABILITIES = 0x1001
 
 DEF ALL_CAPABILITIES = 0xFFFFFFFFFFFFFFFF
 
-cdef uint64_t ALWAYS_ALLOWED = enums.Capability.QUERY
-cdef uint64_t PUBLIC_CAPABILITIES = enums.PUBLIC_CAPABILITIES
-
 
 def parse_capabilities_header(value: bytes) -> uint64_t:
     if len(value) != 8:
@@ -115,7 +112,7 @@ def parse_capabilities_header(value: bytes) -> uint64_t:
             f'capabilities header must be exactly 8 bytes'
         )
     cdef uint64_t mask = hton.unpack_uint64(cpython.PyBytes_AS_STRING(value))
-    return mask & PUBLIC_CAPABILITIES | ALWAYS_ALLOWED
+    return mask
 
 
 @cython.final
@@ -1179,7 +1176,7 @@ cdef class EdgeConnection:
         buf.write_int16(SERVER_HEADER_CAPABILITIES)
         buf.write_int32(sizeof(uint64_t))
         buf.write_int64(<int64_t>(
-            PUBLIC_CAPABILITIES & compiled_query.query_unit.capabilities
+            <uint64_t>compiled_query.query_unit.capabilities
         ))
 
         buf.write_byte(self.render_cardinality(compiled_query.query_unit))
@@ -1222,9 +1219,7 @@ cdef class EdgeConnection:
         msg.write_int16(1)
         msg.write_int16(SERVER_HEADER_CAPABILITIES)
         msg.write_int32(sizeof(uint64_t))
-        msg.write_int64(
-            <int64_t>(PUBLIC_CAPABILITIES & query_unit.capabilities)
-        )
+        msg.write_int64(<int64_t><uint64_t>query_unit.capabilities)
 
         msg.write_len_prefixed_bytes(query_unit.status)
         return msg.end_message()
