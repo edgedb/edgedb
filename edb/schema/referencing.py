@@ -318,13 +318,11 @@ class ReferencedInheritingObject(
                 for ancestor in self.get_implicit_ancestors(schema)
             )
         ):
-            alter_op = self.init_delta_command(schema, sd.AlterObject)
             owned_op = self.init_delta_command(schema, AlterOwned)
             owned_op.set_attribute_value('is_owned', False, orig_value=True)
-            alter_op.add(owned_op)
             del_op.set_attribute_value('is_owned', None, orig_value=False)
 
-            del_op.add(alter_op)
+            del_op.add(owned_op)
 
         return del_op
 
