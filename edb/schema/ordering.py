@@ -516,7 +516,8 @@ def _trace_op(
             else:
                 # Otherwise, things must be deleted _after_ their referrers
                 # have been deleted or altered.
-                deps.add(('delete', str(ref.get_name(old_schema))))
+                deps.add(('delete', ref_name_str))
+                deps.add(('rebase', ref_name_str))
 
         if isinstance(obj, referencing.ReferencedObject):
             referrer = obj.get_referrer(old_schema)
@@ -530,10 +531,11 @@ def _trace_op(
                 # object to come *after*, because otherwise obj could
                 # get dropped before the SET OWNED takes effect.
                 # For DROP OWNED and DROP we want it after the rebase.
-                if (
+                is_set_owned = (
                     isinstance(op, referencing.AlterOwned)
                     and op.get_attribute_value('is_owned')
-                ):
+                )
+                if is_set_owned:
                     ref_item = get_deps(('rebase', str(referrer_name)))
                     ref_item.deps.add(('alterowned', str(op.classname)))
                 else:
@@ -551,6 +553,12 @@ def _trace_op(
                         implicit_ancestors.append(ancestor_name)
                         anc_item = get_deps(('delete', str(ancestor_name)))
                         anc_item.deps.add(('alterowned', str(op.classname)))
+
+                        if is_set_owned:
+                            # SET OWNED must come before ancestor rebases too
+                            anc_item = get_deps(('rebase', str(ancestor_name)))
+                            anc_item.deps.add(
+                                ('alterowned', str(op.classname)))
 
         graph_key = str(op.classname)
 
