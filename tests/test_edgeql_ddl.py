@@ -1113,7 +1113,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                             required,
                             properties: {
                                 name,
-                            }
+                            } ORDER BY .name
                         }
                         FILTER .name = 'target'
                     };
@@ -1123,7 +1123,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     'links': [{
                         '@is_owned': False,
                         'required': False,
-                        'properties': [],
+                        'properties': [{"name": "source"}, {"name": "target"}],
                     }],
                 },
             ],
@@ -1546,6 +1546,48 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 SELECT Foo.name;
             """,
             ["Phil Emarg"],
+        )
+
+    async def test_edgeql_ddl_add_extending_01(self):
+        await self.con.execute("""
+            SET MODULE test;
+
+            CREATE TYPE Thing;
+
+            CREATE TYPE Foo {
+                CREATE LINK item -> Object {
+                    CREATE PROPERTY foo -> str;
+                };
+            };
+
+            INSERT Foo { item := (INSERT Thing { @foo := "test" }) };
+        """)
+
+        await self.con.execute("""
+            CREATE TYPE Base {
+                CREATE OPTIONAL SINGLE LINK item -> Object {
+                    CREATE OPTIONAL SINGLE PROPERTY foo -> str;
+                };
+            };
+        """)
+
+        await self.con.execute("""
+            ALTER TYPE Foo {
+                EXTENDING Base LAST;
+                ALTER LINK item {
+                    ALTER PROPERTY foo {
+                        DROP OWNED;
+                    };
+                    DROP OWNED;
+                };
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Foo { item: {@foo} };
+            """,
+            [{"item": {"@foo": "test"}}],
         )
 
     async def test_edgeql_ddl_default_01(self):

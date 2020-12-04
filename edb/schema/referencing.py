@@ -298,6 +298,10 @@ class ReferencedInheritingObject(
             if not b.generic(schema)
         ]
 
+    def is_endpoint_pointer(self, schema: s_schema.Schema) -> bool:
+        # overloaded by Pointer
+        return False
+
     def as_delete_delta(
         self: ReferencedInheritingObjectT,
         *,
@@ -863,6 +867,7 @@ class ReferencedInheritingObjectCommand(
         scls = self.scls
         refs = scls.get_field_value(schema, refdict.attr)
 
+        ref: ReferencedInheritingObject
         for ref in refs.objects(schema):
             inherited = ref.get_implicit_bases(schema)
             if inherited and ref.get_is_owned(schema):
@@ -872,7 +877,13 @@ class ReferencedInheritingObjectCommand(
                 alter.add(drop_owned)
                 schema = alter.apply(schema, context)
                 self.add(alter)
-            else:
+            elif (
+                # drop things that aren't owned and aren't inherited
+                not inherited
+                # endpoint pointers are special because they aren't marked as
+                # inherited even though they basically are
+                and not ref.is_endpoint_pointer(schema)
+            ):
                 drop_ref = ref.init_delta_command(schema, sd.DeleteObject)
                 self.add(drop_ref)
 

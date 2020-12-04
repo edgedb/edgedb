@@ -2922,12 +2922,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             'complete': True,
         })
 
-    @test.xfail('''
-        The "complete" flag is not set even though the DDL from
-        "proposed" list is used.
-
-        The second migration fails.
-    ''')
     async def test_edgeql_migration_eq_16(self):
         await self.migrate(r"""
             type Child;
@@ -5553,12 +5547,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-    @test.xfail('''
-        The "complete" flag is not set even though the DDL from
-        "proposed" list is used.
-
-        The second migration fails.
-    ''')
     async def test_edgeql_migration_eq_linkprops_07(self):
         await self.migrate(r"""
             type Child;
@@ -5680,12 +5668,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-    @test.xfail('''
-        The "complete" flag is not set even though the DDL from
-        "proposed" list is used.
-
-        The second migration fails.
-    ''')
     async def test_edgeql_migration_eq_linkprops_09(self):
         await self.migrate(r"""
             type Child;
@@ -5813,12 +5795,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-    @test.xfail('''
-        The "complete" flag is not set even though the DDL from
-        "proposed" list is used.
-
-        The second migration fails.
-    ''')
     async def test_edgeql_migration_eq_linkprops_11(self):
         # merging a link with the same properties
         await self.migrate(r"""
@@ -5900,25 +5876,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-    @test.xfail('''
-        edgedb.errors.SchemaError: cannot drop inherited property
-        'bar' of link 'item' of object type 'test::Owner'
-
-        DETAILS: property 'bar' of link 'item' of object type
-        'test::Owner' is inherited from:
-        - link 'item' of object type 'test::Base'
-
-        Exception: Error while processing
-        'ALTER TYPE test::Owner {
-            EXTENDING test::Base LAST;
-            ALTER LINK item {
-                DROP OWNED;
-                ALTER PROPERTY foo {
-                    DROP OWNED;
-                };
-            };
-        };'
-    ''')
     async def test_edgeql_migration_eq_linkprops_12(self):
         # merging a link with different properties
         await self.migrate(r"""
