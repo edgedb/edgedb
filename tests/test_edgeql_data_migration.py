@@ -39,7 +39,26 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
     should match for easy reference, even if it means skipping some.
     """
 
+    def cleanup_statement(self, s: str) -> str:
+        return textwrap.dedent(s.lstrip('\n')).rstrip('\n')
+
+    def cleanup_migration_exp_json(self, exp_result_json):
+        # Cleanup the expected values by dedenting/stripping them
+        if 'confirmed' in exp_result_json:
+            exp_result_json['confirmed'] = [
+                self.cleanup_statement(v) for v in exp_result_json['confirmed']
+            ]
+        if (
+            'proposed' in exp_result_json
+            and exp_result_json['proposed']
+            and 'statements' in exp_result_json['proposed']
+        ):
+            for stmt in exp_result_json['proposed']['statements']:
+                stmt['text'] = self.cleanup_statement(stmt['text'])
+
     async def assert_describe_migration(self, exp_result_json, *, msg=None):
+        self.cleanup_migration_exp_json(exp_result_json)
+
         try:
             tx = self.con.transaction()
             await tx.start()
@@ -2889,18 +2908,17 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """, populate=True)
 
         await self.assert_describe_migration({
-            'confirmed': [
-                textwrap.dedent("""\
-                    ALTER TYPE test::Base {
-                        CREATE OPTIONAL SINGLE PROPERTY foo -> std::str;
-                    };"""),
-                textwrap.dedent("""\
-                    ALTER TYPE test::Derived {
-                        ALTER PROPERTY foo {
-                            SET REQUIRED;
-                        };
-                    };"""),
-            ],
+            'confirmed': ["""
+                ALTER TYPE test::Base {
+                    CREATE OPTIONAL SINGLE PROPERTY foo -> std::str;
+                };
+            """, """
+                ALTER TYPE test::Derived {
+                    ALTER PROPERTY foo {
+                        SET REQUIRED;
+                    };
+                };
+            """],
             'complete': True,
         })
 
