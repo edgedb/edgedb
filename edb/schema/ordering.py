@@ -776,8 +776,18 @@ def _extract_op(stack: Sequence[sd.Command]) -> List[sd.Command]:
         parent_op = alter_delta
         new_stack.append(parent_op)
 
-    stack[-2].discard(stack[-1])
-    parent_op.add(stack[-1])
-    new_stack.append(stack[-1])
+    op = stack[-1]
+    # We don't want duplicate nested Alters on the same object (which
+    # can happen when an operation is transformed from a different
+    # type), so prune it away as necessary.
+    if (
+        isinstance(op, sd.AlterObject) and
+        isinstance(parent_op, sd.AlterObject) and
+        op.classname == parent_op.classname
+    ):
+        new_stack.pop()
+    stack[-2].discard(op)
+    new_stack[-1].add(op)
+    new_stack.append(op)
 
     return new_stack
