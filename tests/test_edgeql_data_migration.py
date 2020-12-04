@@ -20,6 +20,7 @@
 import json
 import os.path
 import uuid
+import textwrap
 
 import edgedb
 
@@ -38,7 +39,26 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
     should match for easy reference, even if it means skipping some.
     """
 
+    def cleanup_statement(self, s: str) -> str:
+        return textwrap.dedent(s.lstrip('\n')).rstrip('\n')
+
+    def cleanup_migration_exp_json(self, exp_result_json):
+        # Cleanup the expected values by dedenting/stripping them
+        if 'confirmed' in exp_result_json:
+            exp_result_json['confirmed'] = [
+                self.cleanup_statement(v) for v in exp_result_json['confirmed']
+            ]
+        if (
+            'proposed' in exp_result_json
+            and exp_result_json['proposed']
+            and 'statements' in exp_result_json['proposed']
+        ):
+            for stmt in exp_result_json['proposed']['statements']:
+                stmt['text'] = self.cleanup_statement(stmt['text'])
+
     async def assert_describe_migration(self, exp_result_json, *, msg=None):
+        self.cleanup_migration_exp_json(exp_result_json)
+
         try:
             tx = self.con.transaction()
             await tx.start()
@@ -98,19 +118,25 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             self.add_fail_notes(serialization='json')
             raise
 
+    async def start_migration(self, migration, *,
+                              populate: bool = False,
+                              module: str = 'test'):
+        mig = f"""
+            START MIGRATION TO {{
+                module {module} {{
+                    {migration}
+                }}
+            }};
+        """
+        await self.con.execute(mig)
+        if populate:
+            await self.con.execute('POPULATE MIGRATION;')
+
     async def migrate(self, migration, *,
                       populate: bool = False, module: str = 'test'):
         async with self.con.transaction():
-            mig = f"""
-                START MIGRATION TO {{
-                    module {module} {{
-                        {migration}
-                    }}
-                }};
-            """
-            await self.con.execute(mig)
-            if populate:
-                await self.con.execute('POPULATE MIGRATION;')
+            await self.start_migration(
+                migration, populate=populate, module=module)
             await self.fast_forward_describe_migration()
 
     async def test_edgeql_migration_simple_01(self):
@@ -2822,7 +2848,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-    async def test_edgeql_migration_eq_14(self):
+    async def test_edgeql_migration_eq_14a(self):
         await self.migrate(r"""
             type Base;
 
@@ -2859,6 +2885,42 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 'foo': 'derived_14',
             }],
         )
+
+    async def test_edgeql_migration_eq_14b(self):
+        # Same as above, except POPULATE and inspect the query
+        await self.migrate(r"""
+            type Base;
+
+            type Derived extending Base {
+                property foo -> str;
+            }
+        """)
+
+        await self.start_migration(r"""
+            type Base {
+                # move the property earlier in the inheritance
+                property foo -> str;
+            }
+
+            type Derived extending Base {
+                overloaded required property foo -> str;
+            }
+        """, populate=True)
+
+        await self.assert_describe_migration({
+            'confirmed': ["""
+                ALTER TYPE test::Base {
+                    CREATE OPTIONAL SINGLE PROPERTY foo -> std::str;
+                };
+            """, """
+                ALTER TYPE test::Derived {
+                    ALTER PROPERTY foo {
+                        SET REQUIRED;
+                    };
+                };
+            """],
+            'complete': True,
+        })
 
     @test.xfail('''
         The "complete" flag is not set even though the DDL from
@@ -3068,11 +3130,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-    @test.xfail('''
-        edgedb.errors.InvalidReferenceError: property 'foo' does not exist
-
-        This error happens in the last migration.
-    ''')
     async def test_edgeql_migration_eq_22(self):
         await self.migrate(r"""
             type Base {

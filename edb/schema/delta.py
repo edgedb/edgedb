@@ -1650,15 +1650,17 @@ class ObjectCommand(
                     new_value = field.get_default()
 
                 if (
-                    # For all properties other than cardinality, if they
-                    # are inherited and have the default value, skip them.
-                    # Cardinality is special and should be explicitly
-                    # included, though.
-                    fop.property == 'cardinality'
-                    or
                     (
-                        fop.source != 'inheritance'
-                        or context.descriptive_mode
+                        # For all properties other than cardinality, if they
+                        # are inherited and have the default value, skip them.
+                        # Cardinality is special and should be explicitly
+                        # included, though.
+                        fop.property == 'cardinality'
+                        or
+                        (
+                            fop.source != 'inheritance'
+                            or context.descriptive_mode
+                        )
                     )
                     and fop.old_value != new_value
                 ):
