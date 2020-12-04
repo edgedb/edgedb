@@ -5724,20 +5724,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-    @test.xfail('''
-        edgedb.errors.SchemaError: cannot drop abstract link
-        'test::base_child' because other objects in the schema depend
-        on it
-
-        DETAILS: link 'child' of object type 'test::Derived' depends
-        on test::base_child; link 'child' of object type 'test::Base'
-        depends on test::base_child
-
-        Exception: Error while processing
-        'DROP ABSTRACT LINK test::base_child {
-            DROP PROPERTY foo;
-        };'
-    ''')
     async def test_edgeql_migration_eq_linkprops_10(self):
         # reverse of the test_edgeql_migration_eq_linkprops_09 refactoring
         await self.migrate(r"""
@@ -5782,7 +5768,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self.assert_query_result(
             r"""
-                SELECT Base {
+                SELECT Derived {
                     child: {
                         @foo,
                     }
