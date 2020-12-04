@@ -465,6 +465,31 @@ class SetLinkType(pointers.SetPointerType,
 
     astnode = qlast.SetLinkType
 
+    def _alter_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super()._alter_begin(schema, context)
+        scls = self.scls
+
+        new_target = scls.get_target(schema)
+
+        if not context.canonical:
+            # We need to update the target link prop as well
+            s_name = sn.get_specialized_name(
+                sn.QualName('__', 'target'), str(self.classname))
+            tgt_prop_name = sn.QualName(
+                name=s_name, module=self.classname.module)
+            tgt_prop = lproperties.AlterProperty(
+                classname=tgt_prop_name,
+                metaclass=lproperties.Property
+            )
+            tgt_prop.set_attribute_value('target', new_target)
+            self.add(tgt_prop)
+
+        return schema
+
 
 class AlterLinkOwned(
     referencing.AlterOwned[Link],
