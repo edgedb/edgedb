@@ -607,6 +607,8 @@ class AlterLink(
                         value=None,
                     ),
                 )
+        elif op.property == 'on_target_delete':
+            node.commands.append(qlast.OnTargetDelete(cascade=op.new_value))
         else:
             super()._apply_field_ast(schema, context, node, op)
 
