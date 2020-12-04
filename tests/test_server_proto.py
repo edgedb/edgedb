@@ -730,7 +730,7 @@ class TestServerProto(tb.QueryTestCase):
         con2 = await self.connect(database=self.con.dbname)
 
         await self.con.query(
-            'select sys::advisory_lock(<int64>$0)', lock_key)
+            'select sys::_advisory_lock(<int64>$0)', lock_key)
 
         try:
             async with tg.TaskGroup() as g:
@@ -738,7 +738,7 @@ class TestServerProto(tb.QueryTestCase):
                 async def exec_to_fail():
                     with self.assertRaises(ConnectionAbortedError):
                         await con2.query(
-                            'select sys::advisory_lock(<int64>$0)', lock_key)
+                            'select sys::_advisory_lock(<int64>$0)', lock_key)
 
                 g.create_task(exec_to_fail())
 
@@ -748,7 +748,7 @@ class TestServerProto(tb.QueryTestCase):
         finally:
             self.assertEqual(
                 await self.con.query(
-                    'select sys::advisory_unlock(<int64>$0)', lock_key),
+                    'select sys::_advisory_unlock(<int64>$0)', lock_key),
                 [True])
 
     async def test_server_proto_log_message_01(self):

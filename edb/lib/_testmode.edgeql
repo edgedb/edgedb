@@ -139,7 +139,7 @@ std::_gen_series(
 
 
 CREATE FUNCTION
-sys::sleep(duration: std::float64) -> std::bool
+sys::_sleep(duration: std::float64) -> std::bool
 {
     CREATE ANNOTATION std::description :=
         'Make the current session sleep for *duration* time.';
@@ -151,7 +151,7 @@ sys::sleep(duration: std::float64) -> std::bool
 };
 
 CREATE FUNCTION
-sys::sleep(duration: std::duration) -> std::bool
+sys::_sleep(duration: std::duration) -> std::bool
 {
     CREATE ANNOTATION std::description :=
         'Make the current session sleep for *duration* time.';
@@ -164,7 +164,7 @@ sys::sleep(duration: std::duration) -> std::bool
 
 
 CREATE FUNCTION
-sys::advisory_lock(key: std::int64) -> std::bool
+sys::_advisory_lock(key: std::int64) -> std::bool
 {
     CREATE ANNOTATION std::description :=
         'Obtain an exclusive session-level advisory lock.';
@@ -181,7 +181,7 @@ sys::advisory_lock(key: std::int64) -> std::bool
 
 
 CREATE FUNCTION
-sys::advisory_unlock(key: std::int64) -> std::bool
+sys::_advisory_unlock(key: std::int64) -> std::bool
 {
     CREATE ANNOTATION std::description :=
         'Release an exclusive session-level advisory lock.';
@@ -198,7 +198,7 @@ sys::advisory_unlock(key: std::int64) -> std::bool
 
 
 CREATE FUNCTION
-sys::advisory_unlock_all() -> std::bool
+sys::_advisory_unlock_all() -> std::bool
 {
     CREATE ANNOTATION std::description :=
         'Release all session-level advisory locks held by the current session.';
