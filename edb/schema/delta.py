@@ -1708,16 +1708,18 @@ class ObjectCommand(
 
                     setattr(node, ast_attr, attr_val)
 
-            # Keep subcommands from refdicts and alter fragments (like
-            # rename, rebase) in order when producing DDL asts
-            refdicts = tuple(x.ref_cls for x in mcls.get_refdicts())
-            for op in self.get_subcommands():
-                if (
-                    isinstance(op, AlterObjectFragment)
-                    or (isinstance(op, ObjectCommand)
-                        and issubclass(op.get_schema_metaclass(), refdicts))
-                ):
-                    self._append_subcmd_ast(schema, node, op, context)
+            # No subcommands for delete are permitted
+            if not isinstance(self, DeleteObject):
+                # Keep subcommands from refdicts and alter fragments (like
+                # rename, rebase) in order when producing DDL asts
+                refdicts = tuple(x.ref_cls for x in mcls.get_refdicts())
+                for op in self.get_subcommands():
+                    if (
+                        isinstance(op, AlterObjectFragment)
+                        or (isinstance(op, ObjectCommand) and
+                            issubclass(op.get_schema_metaclass(), refdicts))
+                    ):
+                        self._append_subcmd_ast(schema, node, op, context)
 
         else:
             for op in self.get_subcommands(type=AlterObjectFragment):

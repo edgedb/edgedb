@@ -6095,6 +6095,62 @@ type test::Foo {
                 INSERT test::Foo { x := "a" };
             """)
 
+    async def test_edgeql_ddl_constraint_09(self):
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            CREATE ABSTRACT TYPE Text {
+                CREATE REQUIRED SINGLE PROPERTY body -> str {
+                    CREATE CONSTRAINT max_len_value(10000);
+                };
+            };
+            CREATE TYPE Comment EXTENDING Text;
+        """)
+
+        await self.con.execute("""
+            ALTER TYPE Text
+                ALTER PROPERTY body
+                    DROP CONSTRAINT max_len_value(10000);
+        """)
+
+    async def test_edgeql_ddl_constraint_10(self):
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            CREATE ABSTRACT TYPE Text {
+                CREATE REQUIRED SINGLE PROPERTY body -> str {
+                    CREATE CONSTRAINT max_len_value(10000);
+                };
+            };
+            CREATE TYPE Comment EXTENDING Text;
+        """)
+
+        await self.con.execute("""
+            ALTER TYPE Text
+                DROP PROPERTY body;
+        """)
+
+    async def test_edgeql_ddl_constraint_11(self):
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            CREATE ABSTRACT TYPE Text {
+                CREATE REQUIRED SINGLE PROPERTY body -> str {
+                    CREATE CONSTRAINT max_value(10000)
+                        ON (len(__subject__));
+                };
+            };
+            CREATE TYPE Comment EXTENDING Text;
+            CREATE TYPE Troll EXTENDING Comment;
+        """)
+
+        await self.con.execute("""
+            ALTER TYPE Text
+                ALTER PROPERTY body
+                    DROP CONSTRAINT max_value(10000)
+                        ON (len(__subject__));
+        """)
+
     async def test_edgeql_ddl_constraint_alter_01(self):
         await self.con.execute(r"""
             CREATE TYPE test::ConTest01 {
