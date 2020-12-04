@@ -51,9 +51,6 @@ class GlobalCompilerOptions:
     #: Force types of all parameters to std::json
     json_parameters: bool = False
 
-    #: Whether there is a specific session.
-    session_mode: bool = False
-
     #: Use material types for pointer targets in schema views.
     schema_view_mode: bool = False
 

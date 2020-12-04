@@ -614,7 +614,6 @@ class Compiler(BaseCompiler):
                 constant_folding=not disable_constant_folding,
                 json_parameters=ctx.json_parameters,
                 implicit_limit=ctx.implicit_limit,
-                session_mode=self._in_testmode(ctx),
                 allow_writing_protected_pointers=ctx.schema_reflection_mode,
                 apply_query_rewrites=(
                     not ctx.bootstrap_mode

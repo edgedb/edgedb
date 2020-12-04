@@ -60,7 +60,6 @@ class Capability(enum.IntFlag):
     PERSISTENT_CONFIG = 1 << 4    # noqa
 
     QUERY             = 1 << 32   # noqa
-    SESSION_MODE      = 1 << 33   # noqa
 
     def make_error(
         self,
@@ -90,7 +89,7 @@ PUBLIC_CAPABILITIES = (
 )
 
 # Private to server (compiler and io process)
-PRIVATE_CAPABILITIES = Capability.QUERY | Capability.SESSION_MODE
+PRIVATE_CAPABILITIES = Capability.QUERY
 
 CAPABILITY_TITLES = {
     Capability.MODIFICATIONS: 'data modification queries',
@@ -99,7 +98,6 @@ CAPABILITY_TITLES = {
     Capability.DDL: 'DDL commands',
     Capability.PERSISTENT_CONFIG: 'configuration commands',
     Capability.QUERY: 'read-only queries',
-    Capability.SESSION_MODE: 'session-mode functions',
 }
 
 
