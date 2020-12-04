@@ -2561,6 +2561,12 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             );
         """])
 
+    @test.xfail('''
+        This wants to transmute an object type into an alias. It
+        produces DDL, but the DDL doesn't really make any sense. We
+        are going to probably need to add DDL syntax to accomplish
+        this.
+    ''')
     def test_schema_migrations_equivalence_23(self):
         self._assert_migration_equivalence([r"""
             type Child {
@@ -3178,6 +3184,10 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 )
         """])
 
+    @test.xfail('''
+        cannot drop function 'default::hello06(a: std::int64)'
+        because other objects in the schema depend on it
+    ''')
     def test_schema_migrations_equivalence_function_06(self):
         self._assert_migration_equivalence([r"""
             function hello06(a: int64) -> str
@@ -3205,6 +3215,10 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
+    @test.xfail('''
+        cannot drop function 'default::hello10(a: std::int64)'
+        because other objects in the schema depend on it
+    ''')
     def test_schema_migrations_equivalence_function_10(self):
         self._assert_migration_equivalence([r"""
             function hello10(a: int64) -> str

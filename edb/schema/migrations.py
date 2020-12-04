@@ -165,7 +165,7 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
 
         if (
             astnode.auto_diff is not None
-            and not debug.flags.migrations_via_ddl
+            and debug.flags.legacy_migrations
         ):
             cmd.canonical = True
 
@@ -190,7 +190,7 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
 
         if (
             astnode.auto_diff is not None
-            and not debug.flags.migrations_via_ddl
+            and debug.flags.legacy_migrations
         ):
             for subcmd in list(cmd.get_subcommands()):
                 if not isinstance(subcmd, sd.AlterObjectProperty):
