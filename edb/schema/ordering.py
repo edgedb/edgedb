@@ -437,6 +437,13 @@ def _trace_op(
     old_schema: Optional[s_schema.Schema],
     new_schema: s_schema.Schema,
 ) -> None:
+    def get_deps(key: DepGraphKey) -> DepGraphEntry:
+        try:
+            item = depgraph[key]
+        except KeyError:
+            item = depgraph[key] = DepGraphEntry(item=())
+        return item
+
     deps: ordered.OrderedSet[Tuple[str, str]] = ordered.OrderedSet()
     graph_key: str
     implicit_ancestors: List[sn.Name] = []
@@ -475,13 +482,7 @@ def _trace_op(
                 # If the referrer is enclosing the object
                 # (i.e. the reference is a refdict reference),
                 # we sort the referrer operation first.
-                try:
-                    ref_item = depgraph[('delete', ref_name_str)]
-                except KeyError:
-                    ref_item = depgraph[('delete', ref_name_str)] = (
-                        DepGraphEntry(item=())
-                    )
-
+                ref_item = get_deps(('delete', ref_name_str))
                 ref_item.deps.add((tag, str(op.classname)))
 
             elif (
@@ -502,13 +503,7 @@ def _trace_op(
                 # we also sort it _after_ the parent, because we'll pull
                 # it as a child of the parent op at the time of tree
                 # reassembly.
-                try:
-                    ref_item = depgraph[('delete', ref_name_str)]
-                except KeyError:
-                    ref_item = depgraph[('delete', ref_name_str)] = (
-                        DepGraphEntry(item=())
-                    )
-
+                ref_item = get_deps(('delete', ref_name_str))
                 ref_item.deps.add((tag, str(op.classname)))
 
             elif (
@@ -539,12 +534,7 @@ def _trace_op(
                     isinstance(op, referencing.AlterOwned)
                     and op.get_attribute_value('is_owned')
                 ):
-                    gkey = ('rebase', str(referrer_name))
-                    try:
-                        ref_item = depgraph[gkey]
-                    except KeyError:
-                        ref_item = depgraph[gkey] = DepGraphEntry(item=())
-
+                    ref_item = get_deps(('rebase', str(referrer_name)))
                     ref_item.deps.add(('alterowned', str(op.classname)))
                 else:
                     deps.add(('rebase', str(referrer_name)))
@@ -559,13 +549,7 @@ def _trace_op(
                     for ancestor in obj.get_implicit_ancestors(old_schema):
                         ancestor_name = ancestor.get_name(old_schema)
                         implicit_ancestors.append(ancestor_name)
-                        gkey = ('delete', str(ancestor_name))
-
-                        try:
-                            anc_item = depgraph[gkey]
-                        except KeyError:
-                            anc_item = depgraph[gkey] = DepGraphEntry(item=())
-
+                        anc_item = get_deps(('delete', str(ancestor_name)))
                         anc_item.deps.add(('alterowned', str(op.classname)))
 
         graph_key = str(op.classname)
@@ -589,13 +573,7 @@ def _trace_op(
             ovn = op.old_value.get_name(old_schema)
             nvn = op.new_value.get_name(new_schema)
             if ovn != nvn:
-                try:
-                    ov_item = depgraph[('delete', str(ovn))]
-                except KeyError:
-                    ov_item = depgraph[('delete', str(ovn))] = (
-                        DepGraphEntry(item=())
-                    )
-
+                ov_item = get_deps(('delete', str(ovn)))
                 ov_item.deps.add((tag, graph_key))
 
     elif isinstance(op, sd.ObjectCommand):
@@ -642,46 +620,22 @@ def _trace_op(
 
                 continue
 
-            try:
-                item = depgraph[('create', ref_name_str)]
-            except KeyError:
-                item = depgraph[('create', ref_name_str)] = (
-                    DepGraphEntry(item=())
-                )
-
+            item = get_deps(('create', ref_name_str))
             item.deps.add(('create', this_name_str))
             item.deps.add(('alter', this_name_str))
             item.deps.add(('rename', this_name_str))
 
-            try:
-                item = depgraph[('alter', ref_name_str)]
-            except KeyError:
-                item = depgraph[('alter', ref_name_str)] = (
-                    DepGraphEntry(item=())
-                )
-
+            item = get_deps(('alter', ref_name_str))
             item.deps.add(('create', this_name_str))
             item.deps.add(('alter', this_name_str))
             item.deps.add(('rename', this_name_str))
 
-            try:
-                item = depgraph[('rebase', ref_name_str)]
-            except KeyError:
-                item = depgraph[('rebase', ref_name_str)] = (
-                    DepGraphEntry(item=())
-                )
-
+            item = get_deps(('rebase', ref_name_str))
             item.deps.add(('create', this_name_str))
             item.deps.add(('alter', this_name_str))
             item.deps.add(('rename', this_name_str))
 
-            try:
-                item = depgraph[('rename', ref_name_str)]
-            except KeyError:
-                item = depgraph[('rename', ref_name_str)] = (
-                    DepGraphEntry(item=())
-                )
-
+            item = get_deps(('rename', ref_name_str))
             item.deps.add(('create', this_name_str))
             item.deps.add(('alter', this_name_str))
 
@@ -739,12 +693,7 @@ def _trace_op(
     else:
         raise AssertionError(f'unexpected op type: {op!r}')
 
-    try:
-        item = depgraph[(tag, graph_key)]
-    except KeyError:
-        item = depgraph[(tag, graph_key)] = (
-            DepGraphEntry(item=())
-        )
+    item = get_deps((tag, graph_key))
 
     item.item = tuple(opbranch)
     item.deps |= deps
