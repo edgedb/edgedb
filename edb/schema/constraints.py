@@ -1259,7 +1259,12 @@ class AlterConstraint(
         op: sd.AlterObjectProperty,
     ) -> None:
         if op.property == 'delegated':
-            node.delegated = op.new_value
+            node.commands.append(
+                qlast.SetSpecialField(
+                    name='delegated',
+                    value=op.new_value,
+                )
+            )
         else:
             super()._apply_field_ast(schema, context, node, op)
 
