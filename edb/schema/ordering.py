@@ -555,7 +555,7 @@ def _trace_op(
                         anc_item.deps.add(('alterowned', str(op.classname)))
 
                         if is_set_owned:
-                            # SET OWNED needs to come before ancestor rebases too
+                            # SET OWNED must come before ancestor rebases too
                             anc_item = get_deps(('rebase', str(ancestor_name)))
                             anc_item.deps.add(
                                 ('alterowned', str(op.classname)))
