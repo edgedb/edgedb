@@ -3130,11 +3130,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-    @test.xfail('''
-        edgedb.errors.InvalidReferenceError: property 'foo' does not exist
-
-        This error happens in the last migration.
-    ''')
     async def test_edgeql_migration_eq_22(self):
         await self.migrate(r"""
             type Base {
