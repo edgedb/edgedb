@@ -292,9 +292,6 @@ ALTER TYPE schema::ObjectType {
 CREATE TYPE schema::Function
     EXTENDING schema::CallableObject, schema::VolatilitySubject
 {
-    CREATE PROPERTY session_only -> std::bool {
-        SET default := false;
-    };
 };
 
 

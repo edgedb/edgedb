@@ -749,21 +749,15 @@ class TestIntrospection(tb.QueryTestCase):
             r"""
                 WITH MODULE schema
                 SELECT Function {
-                    name,
-                    session_only
+                    name
                 }
-                FILTER .name IN {'std::count', 'sys::advisory_lock'}
+                FILTER .name = 'std::count'
                 ORDER BY .name;
             """,
             [
                 {
                     "name": "std::count",
-                    "session_only": False,
                 },
-                {
-                    "name": "sys::advisory_lock",
-                    "session_only": True,
-                }
             ]
         )
 

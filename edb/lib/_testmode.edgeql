@@ -145,7 +145,6 @@ sys::sleep(duration: std::float64) -> std::bool
         'Make the current session sleep for *duration* time.';
     # This function has side-effect.
     SET volatility := 'VOLATILE';
-    SET session_only := True;
     USING SQL $$
     SELECT pg_sleep("duration") IS NOT NULL;
     $$;
@@ -158,7 +157,6 @@ sys::sleep(duration: std::duration) -> std::bool
         'Make the current session sleep for *duration* time.';
     # This function has side-effect.
     SET volatility := 'VOLATILE';
-    SET session_only := True;
     USING SQL $$
     SELECT pg_sleep_for("duration") IS NOT NULL;
     $$;
@@ -172,7 +170,6 @@ sys::advisory_lock(key: std::int64) -> std::bool
         'Obtain an exclusive session-level advisory lock.';
     # This function has side-effect.
     SET volatility := 'VOLATILE';
-    SET session_only := True;
     USING SQL $$
     SELECT CASE WHEN "key" < 0 THEN
         edgedb._raise_exception('lock key cannot be negative', NULL::bool)
@@ -190,7 +187,6 @@ sys::advisory_unlock(key: std::int64) -> std::bool
         'Release an exclusive session-level advisory lock.';
     # This function has side-effect.
     SET volatility := 'VOLATILE';
-    SET session_only := True;
     USING SQL $$
     SELECT CASE WHEN "key" < 0 THEN
         edgedb._raise_exception('lock key cannot be negative', NULL::bool)
@@ -208,7 +204,6 @@ sys::advisory_unlock_all() -> std::bool
         'Release all session-level advisory locks held by the current session.';
     # This function has side-effect.
     SET volatility := 'VOLATILE';
-    SET session_only := True;
     USING SQL $$
     SELECT pg_advisory_unlock_all() IS NOT NULL;
     $$;
