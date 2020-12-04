@@ -1708,22 +1708,29 @@ class ObjectCommand(
 
                     setattr(node, ast_attr, attr_val)
 
-            # No subcommands for delete are permitted
-            if not isinstance(self, DeleteObject):
-                # Keep subcommands from refdicts and alter fragments (like
-                # rename, rebase) in order when producing DDL asts
-                refdicts = tuple(x.ref_cls for x in mcls.get_refdicts())
-                for op in self.get_subcommands():
-                    if (
-                        isinstance(op, AlterObjectFragment)
-                        or (isinstance(op, ObjectCommand) and
-                            issubclass(op.get_schema_metaclass(), refdicts))
-                    ):
-                        self._append_subcmd_ast(schema, node, op, context)
+            # Keep subcommands from refdicts and alter fragments (like
+            # rename, rebase) in order when producing DDL asts
+            refdicts = tuple(x.ref_cls for x in mcls.get_refdicts())
+            for op in self.get_subcommands():
+                if (
+                    isinstance(op, AlterObjectFragment)
+                    or (isinstance(op, ObjectCommand) and
+                        issubclass(op.get_schema_metaclass(), refdicts))
+                ):
+                    self._append_subcmd_ast(schema, node, op, context)
 
         else:
             for op in self.get_subcommands(type=AlterObjectFragment):
                 self._append_subcmd_ast(schema, node, op, context)
+
+        if isinstance(node, qlast.DropObject):
+            # Deletes in the AST shouldn't have subcommands, so we
+            # drop them.  To try to make sure we aren't papering
+            # over bugs by dropping things we dont expect, make
+            # sure every subcommand was also a delete.
+            assert all(
+                isinstance(sub, qlast.DropObject) for sub in node.commands)
+            node.commands = []
 
     def _apply_field_ast(
         self,
