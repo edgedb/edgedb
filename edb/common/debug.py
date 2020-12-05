@@ -126,9 +126,6 @@ class flags(metaclass=FlagsMeta):
     log_metrics = Flag(
         doc="Log verbose statistics on connections and compiler behavior.")
 
-    legacy_migrations = Flag(
-        doc="Use the legacy non-DDL mode when running migrations.")
-
     disable_docs_edgeql_validation = Flag(
         doc="Disable validation of edgeql in docs (for site build)")
 

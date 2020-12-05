@@ -318,7 +318,6 @@ class BaseSchemaTest(BaseDocTest):
         migration_schema = None
         migration_target = None
         migration_script = []
-        migration_plan = None
 
         for stmt in statements:
             if isinstance(stmt, qlast.StartMigration):
@@ -351,9 +350,6 @@ class BaseSchemaTest(BaseDocTest):
                     migration_target,
                 )
 
-                if not migration_script:
-                    migration_plan = migration_diff
-
                 migration_script.extend(
                     s_ddl.ddlast_from_delta(
                         migration_schema,
@@ -380,7 +376,6 @@ class BaseSchemaTest(BaseDocTest):
 
                 create_migration = qlast.CreateMigration(
                     body=qlast.MigrationBody(commands=migration_script),
-                    auto_diff=migration_plan,
                     parent=last_migration_ref,
                 )
 
@@ -394,7 +389,6 @@ class BaseSchemaTest(BaseDocTest):
                 migration_schema = None
                 migration_target = None
                 migration_script = []
-                migration_plan = None
 
             elif isinstance(stmt, qlast.DDL):
                 if migration_target is not None:

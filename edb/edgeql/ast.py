@@ -708,9 +708,6 @@ class CreateMigration(CreateObject, Migration):
     body: MigrationBody
     parent: typing.Optional[ObjectRef] = None
     message: typing.Optional[str] = None
-    # XXX: due to unresolved issues in DDL IR decompilation
-    # we have to carry the IR produced by schema diff for now.
-    auto_diff: typing.Optional[typing.Any] = None
 
 
 class StartMigration(DDLCommand, Migration):
