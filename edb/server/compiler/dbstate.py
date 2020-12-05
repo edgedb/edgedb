@@ -31,7 +31,6 @@ from edb import errors
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
-from edb.schema import delta as s_delta
 from edb.schema import migrations as s_migrations
 from edb.schema import objects as s_obj
 from edb.schema import schema as s_schema
@@ -233,7 +232,6 @@ class MigrationState(NamedTuple):
     target_schema: s_schema.Schema
     guidance: s_obj.DeltaGuidance
     current_ddl: Tuple[qlast.DDLOperation, ...]
-    auto_diff: Optional[s_delta.DeltaRoot] = None
 
 
 class TransactionState(NamedTuple):

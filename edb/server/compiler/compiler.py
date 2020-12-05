@@ -865,10 +865,7 @@ class Compiler(BaseCompiler):
             new_ddl = s_ddl.ddlast_from_delta(
                 schema, mstate.target_schema, diff)
             all_ddl = mstate.current_ddl + new_ddl
-            if not mstate.current_ddl:
-                mstate = mstate._replace(current_ddl=all_ddl, auto_diff=diff)
-            else:
-                mstate = mstate._replace(current_ddl=all_ddl)
+            mstate = mstate._replace(current_ddl=all_ddl)
             current_tx.update_migration_state(mstate)
 
             delta_context = self._new_delta_context(ctx)
@@ -1084,7 +1081,6 @@ class Compiler(BaseCompiler):
             create_migration = qlast.CreateMigration(
                 body=qlast.MigrationBody(commands=mstate.current_ddl),
                 parent=last_migration_ref,
-                auto_diff=mstate.auto_diff,
             )
 
             current_tx.update_schema(mstate.initial_schema)
