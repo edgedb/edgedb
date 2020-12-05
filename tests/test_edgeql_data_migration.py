@@ -3647,16 +3647,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             ],
         )
 
-    @test.xfail('''
-        edgedb.errors.EdgeQLSyntaxError: Unexpected '{'
-
-        Exception: Error while processing
-        'ALTER TYPE test::Text {
-            DROP PROPERTY body {
-                DROP CONSTRAINT std::max_len_value(10000);
-            };
-        };'
-    ''')
     async def test_edgeql_migration_eq_31(self):
         # Issue 727.
         #

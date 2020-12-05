@@ -829,7 +829,7 @@ class CreateConstraint(
         elif (base_subjectexpr is not None
                 and subjectexpr.text != base_subjectexpr.text):
             raise errors.InvalidConstraintDefinitionError(
-                f'subjectexpr is already defined for {name!r}'
+                f'subjectexpr is already defined for {name}'
             )
 
         if (isinstance(subject_obj, s_scalars.ScalarType)
@@ -848,7 +848,7 @@ class CreateConstraint(
         expr: s_expr.Expression = constr_base.get_field_value(schema, 'expr')
         if not expr:
             raise errors.InvalidConstraintDefinitionError(
-                f'missing constraint expression in {name!r}')
+                f'missing constraint expression in {name}')
 
         # Re-parse instead of using expr.qlast, because we mutate
         # the AST below.
@@ -1005,7 +1005,13 @@ class CreateConstraint(
                 args.append(arg)
 
         subj_expr = parent.get_subjectexpr(schema)
-        if subj_expr is None:
+        if (
+            subj_expr is None
+            # Don't include subjectexpr if it was inherited from an
+            # abstract constraint. (Constraints will view it as
+            # not-inherited if it was copied from an implicit base.)
+            or 'subjectexpr' in parent.get_inherited_fields(schema)
+        ):
             subj_expr_ql = None
         else:
             subj_expr_ql = edgeql.parse_fragment(subj_expr.text)
