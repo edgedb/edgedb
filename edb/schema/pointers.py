@@ -269,6 +269,9 @@ class Pointer(referencing.ReferencedInheritingObject,
         bool,
         default=None,
         compcoef=0.99,
+        # This value needs to be recorded in the delta commands
+        # to signal that we don't want to render this command in DDL.
+        aux_cmd_data=True,
     )
 
     # Computable pointers have this set to an expression
@@ -1033,7 +1036,7 @@ class PointerAlterFragment(
             if expr_cmd is not None:
                 expr = expr_cmd.value
                 if expr is None:
-                    # `DROP EXPRESSION` detected
+                    # `RESET EXPRESSION` detected
                     aop = sd.AlterObjectProperty(
                         property='expr',
                         new_value=None,
@@ -1052,8 +1055,8 @@ class PointerAlterFragment(
         schema = super().canonicalize_attributes(schema, context)
         expr_cmd = self.get_attribute_set_cmd('expr')
 
-        # Handle `DROP EXPRESSION` here
-        if expr_cmd is not None and expr_cmd.source != 'inheritance':
+        # Handle `RESET EXPRESSION` here
+        if expr_cmd is not None and not expr_cmd.new_inherited:
             if expr_cmd.new_value is None:
                 old_expr = expr_cmd.old_value
 
@@ -1066,7 +1069,7 @@ class PointerAlterFragment(
 
                 if old_expr is not None:
                     # If the expression was explicitly set to None,
-                    # that means that `DROP EXPRESSION` was executed
+                    # that means that `RESET EXPRESSION` was executed
                     # and this is no longer a computable.
                     self.set_attribute_value('computable', False)
 
@@ -1376,7 +1379,7 @@ class PointerCommand(
                 # Cardinality is special and should be explicitly
                 # included, though.
                 if (op.property != 'cardinality'
-                        and op.source == 'inheritance'
+                        and op.new_inherited
                         and op.new_value is dval):
                     return
 

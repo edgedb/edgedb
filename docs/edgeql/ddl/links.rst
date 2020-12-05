@@ -216,12 +216,12 @@ Change the definition of a :ref:`link <ref_datamodel_links>`.
     # where <subcommand> is one of
 
       SET default := <expression>
-      DROP default
+      RESET default
       SET readonly := {true | false}
       RENAME TO <newname>
       EXTENDING ...
       SET REQUIRED
-      DROP REQUIRED
+      SET OPTIONAL
       SET SINGLE
       SET MULTI
       SET TYPE <typename> [, ...]
@@ -284,7 +284,7 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
 :eql:synopsis:`SET REQUIRED`
     Make the link *required*.
 
-:eql:synopsis:`DROP REQUIRED`
+:eql:synopsis:`SET OPTIONAL`
     Make the link no longer *required* (i.e. make it *optional*).
 
 :eql:synopsis:`SET SINGLE`
@@ -331,7 +331,7 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
     Remove an :ref:`index <ref_datamodel_indexes>` defined on *index-expr*
     from this link.  See :eql:stmt:`DROP INDEX` for details.
 
-:eql:synopsis:`DROP default`
+:eql:synopsis:`RESET default`
     Remove the default value from this link.
 
 All the subcommands allowed in the ``CREATE LINK`` block are also

@@ -682,8 +682,7 @@ def trace_Alias(
     hard_dep_exprs = []
 
     for cmd in node.commands:
-        # SetField or SetSpecialField are equivalent here
-        if isinstance(cmd, qlast.BaseSetField) and cmd.name == "expr":
+        if isinstance(cmd, qlast.SetField) and cmd.name == "expr":
             assert cmd.value, "sdl SetField should always have value"
             hard_dep_exprs.append(ExprDependency(expr=cmd.value))
             break
@@ -829,6 +828,7 @@ def _register_item(
                     and not isinstance(decl, qlast.CreateFunction)):
                 subcmds.append(cmd)
             elif (isinstance(cmd, qlast.SetField)
+                  and not cmd.special_syntax
                   and not isinstance(cmd.value, qlast.BaseConstant)
                   and not isinstance(op, qlast.CreateAlias)):
                 subcmds.append(cmd)

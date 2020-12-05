@@ -265,9 +265,10 @@ def sdl_commands_block(parent, *commands, opt=True):
 
 class Using(Nonterm):
     def reduce_USING_ParenExpr(self, *kids):
-        self.val = qlast.SetSpecialField(
+        self.val = qlast.SetField(
             name='expr',
-            value=kids[1].val
+            value=kids[1].val,
+            special_syntax=True,
         )
 
 
@@ -981,9 +982,10 @@ class AliasDeclarationShort(Nonterm):
         self.val = qlast.CreateAlias(
             name=kids[1].val,
             commands=[
-                qlast.SetSpecialField(
+                qlast.SetField(
                     name='expr',
                     value=kids[3].val,
+                    special_syntax=True,
                 )
             ]
         )

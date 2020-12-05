@@ -188,12 +188,12 @@ Change the definition of a :ref:`property <ref_datamodel_props>`.
     # where <subcommand> is one of
 
       SET default := <expression>
-      DROP default
+      RESET default
       SET readonly := {true | false}
       RENAME TO <newname>
       EXTENDING ...
       SET REQUIRED
-      DROP REQUIRED
+      SET OPTIONAL
       SET SINGLE
       SET MULTI
       SET TYPE <typename> [, ...]
@@ -263,7 +263,7 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
 :eql:synopsis:`SET REQUIRED`
     Make the property *required*.
 
-:eql:synopsis:`DROP REQUIRED`
+:eql:synopsis:`SET OPTIONAL`
     Make the property no longer *required* (i.e. make it *optional*).
 
 :eql:synopsis:`SET SINGLE`
@@ -298,7 +298,7 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
     Remove a constraint from this property.  See
     :eql:stmt:`DROP CONSTRAINT` for details.
 
-:eql:synopsis:`DROP default`
+:eql:synopsis:`RESET default`
     Remove the default value from this property.
 
 All the subcommands allowed in the ``CREATE PROPERTY`` block are also

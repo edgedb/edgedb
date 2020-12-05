@@ -2930,7 +2930,7 @@ aa';
     def test_edgeql_syntax_ddl_role_07(self):
         """
         ALTER ROLE username {
-            DROP password;
+            RESET password;
             EXTENDING generic, morestuff;
         };
         """
@@ -3228,7 +3228,7 @@ aa';
 
         CREATE ABSTRACT CONSTRAINT test::len_fail(f: std::str) {
             USING ((__subject__ <= f));
-            SET subjectexpr := len(__subject__);
+            SET subjectexpr := (len(__subject__));
         };
         """
 
@@ -3269,7 +3269,7 @@ aa';
             ALTER LINK bar {
                 ALTER CONSTRAINT my_constraint ON (foo) {
                     CREATE ANNOTATION title := 'special';
-                    DROP errmessage;
+                    RESET errmessage;
                 };
             };
             ALTER LINK baz {
@@ -3294,7 +3294,7 @@ aa';
     def test_edgeql_syntax_ddl_constraint_12(self):
         """
         ALTER ABSTRACT CONSTRAINT my_constraint
-        DROP errmessage;
+        RESET errmessage;
         """
 
     def test_edgeql_syntax_ddl_function_01(self):
@@ -3743,12 +3743,12 @@ aa';
     def test_edgeql_syntax_ddl_property_06(self):
         """
         ALTER ABSTRACT PROPERTY prop {
-            DROP default;
+            RESET default;
         };
 
 % OK %
 
-        ALTER ABSTRACT PROPERTY prop DROP default;
+        ALTER ABSTRACT PROPERTY prop RESET default;
         """
 
     def test_edgeql_syntax_ddl_module_01(self):
@@ -3873,13 +3873,13 @@ aa';
         """
         ALTER TYPE mymod::Foo ALTER LINK foo {
             SET MULTI;
-            DROP REQUIRED;
+            SET OPTIONAL;
         };
 % OK %
         ALTER TYPE mymod::Foo {
             ALTER LINK foo {
                 SET MULTI;
-                DROP REQUIRED;
+                SET OPTIONAL;
             };
         };
         """
@@ -3889,7 +3889,7 @@ aa';
         """
         ALTER TYPE mymod::Foo ALTER LINK foo {
             SET MULTI;
-            DROP REQUIRED
+            SET OPTIONAL
         }
 
 % OK %
@@ -3897,7 +3897,7 @@ aa';
         ALTER TYPE mymod::Foo {
             ALTER LINK foo {
                 SET MULTI;
-                DROP REQUIRED;
+                SET OPTIONAL;
             };
         };
         """
@@ -3937,8 +3937,8 @@ aa';
         """
         ALTER TYPE Foo {
             ALTER PROPERTY bar {
-                DROP EXPRESSION;
-                DROP default;
+                RESET EXPRESSION;
+                RESET default;
             };
         };
         """
@@ -3947,8 +3947,8 @@ aa';
         """
         ALTER TYPE Foo {
             ALTER LINK bar {
-                DROP EXPRESSION;
-                DROP default;
+                RESET EXPRESSION;
+                RESET default;
             };
         };
         """

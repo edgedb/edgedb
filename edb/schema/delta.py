@@ -460,7 +460,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
     ) -> Any:
         """Return the new value of field, if not inherited."""
         op = self.get_attribute_set_cmd(attr_name)
-        if op is not None and op.source != 'inheritance':
+        if op is not None and not op.new_inherited:
             return op.new_value
         else:
             return None
@@ -492,6 +492,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         *,
         orig_value: Any = None,
         inherited: bool = False,
+        orig_inherited: Optional[bool] = None,
         source_context: Optional[parsing.ParserContext] = None,
     ) -> None:
         orig_op = op = self.get_attribute_set_cmd(attr_name)
@@ -500,8 +501,12 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         else:
             op.new_value = value
 
-        if inherited:
-            op.source = 'inheritance'
+        if orig_inherited is None:
+            orig_inherited = inherited
+
+        op.new_inherited = inherited
+        op.old_inherited = orig_inherited
+
         if source_context is not None:
             op.source_context = source_context
         if orig_value is not None:
@@ -791,7 +796,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
                 diff = markup.elements.doc.ValueDiff(
                     before=repr(dd.old_value), after=repr(dd.new_value))
 
-                if dd.source == 'inheritance':
+                if dd.new_inherited:
                     diff.comment = 'inherited'
 
                 node.add_child(label=dd.property, node=diff)
@@ -1260,6 +1265,12 @@ class ObjectCommand(
         dict,  # type: ignore
         default=None,
     )
+    #: Auxiliary object information that might be necessary to process
+    #: this command, derived from object fields.
+    aux_object_data = struct.Field(
+        dict,  # type: ignore
+        default=None,
+    )
 
     scls: so.Object_T
     _delta_action: ClassVar[str]
@@ -1658,11 +1669,14 @@ class ObjectCommand(
                         fop.property == 'cardinality'
                         or
                         (
-                            fop.source != 'inheritance'
+                            not fop.new_inherited
                             or context.descriptive_mode
                         )
                     )
-                    and fop.old_value != new_value
+                    and (
+                        fop.old_value != new_value
+                        or fop.old_inherited != fop.new_inherited
+                    )
                 ):
                     self._apply_field_ast(schema, context, node, fop)
 
@@ -1992,6 +2006,37 @@ class ObjectCommand(
             self.ddl_identity = {}
 
         self.ddl_identity[aspect] = value
+
+    def maybe_get_object_aux_data(self, field: str) -> Any:
+        if self.aux_object_data is None:
+            return None
+        else:
+            value = self.aux_object_data.get(field)
+            if value is None:
+                return None
+            else:
+                return value
+
+    def get_object_aux_data(self, field: str) -> Any:
+        if self.aux_object_data is None:
+            raise LookupError(f'{self!r} has no auxiliary object information')
+        value = self.aux_object_data.get(field)
+        if value is None:
+            raise LookupError(
+                f'{self!r} has no {field!r} in auxiliary object information')
+        return value
+
+    def has_object_aux_data(self, field: str) -> bool:
+        return (
+            self.aux_object_data is not None
+            and self.aux_object_data.get(field) is not None
+        )
+
+    def set_object_aux_data(self, field: str, value: Any) -> None:
+        if self.aux_object_data is None:
+            self.aux_object_data = {}
+
+        self.aux_object_data[field] = value
 
     def get_annotation(self, name: str) -> Any:
         if self.annotations is None:
@@ -2869,59 +2914,14 @@ class DeleteObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         return schema
 
 
-class AlterSpecialObjectProperty(Command):
-    astnode = qlast.SetSpecialField
-
-    @classmethod
-    def _cmd_tree_from_ast(
-        cls,
-        schema: s_schema.Schema,
-        astnode: qlast.DDLOperation,
-        context: CommandContext,
-    ) -> AlterObjectProperty:
-        assert isinstance(astnode, qlast.BaseSetField)
-
-        propname = astnode.name
-        parent_ctx = context.current()
-        parent_op = parent_ctx.op
-        assert isinstance(parent_op, ObjectCommand)
-        parent_cls = parent_op.get_schema_metaclass()
-        field = parent_cls.get_field(propname)
-
-        new_value: Any = astnode.value
-        old_value: Any = None
-
-        if field.type is s_expr.Expression:
-            if parent_cls.has_field(f'orig_{field.name}'):
-                orig_text = cls.get_orig_expr_text(
-                    schema, parent_op.qlast, field.name)
-            else:
-                orig_text = None
-
-            if astnode.value is not None:
-                new_value = s_expr.Expression.from_ast(
-                    astnode.value,
-                    schema,
-                    context.modaliases,
-                    context.localnames,
-                    orig_text=orig_text,
-                )
-
-        return AlterObjectProperty(
-            property=astnode.name,
-            new_value=new_value,
-            old_value=old_value,
-            source_context=astnode.context,
-        )
-
-
 class AlterObjectProperty(Command):
     astnode = qlast.SetField
 
     property = struct.Field(str)
     old_value = struct.Field[Any](object, None)
     new_value = struct.Field[Any](object, None)
-    source = struct.Field(str, None)
+    old_inherited = struct.Field(bool, False)
+    new_inherited = struct.Field(bool, False)
 
     @classmethod
     def _cmd_tree_from_ast(
@@ -2944,9 +2944,12 @@ class AlterObjectProperty(Command):
                 f'{propname!r} is not a valid field',
                 context=astnode.context)
 
-        if not (field.allow_ddl_set
-                or context.stdmode
-                or context.testmode):
+        if not (
+            astnode.special_syntax
+            or field.allow_ddl_set
+            or context.stdmode
+            or context.testmode
+        ):
             raise errors.SchemaDefinitionError(
                 f'{propname!r} is not a valid field',
                 context=astnode.context)
@@ -2968,6 +2971,7 @@ class AlterObjectProperty(Command):
                 astnode.value,
                 schema,
                 context.modaliases,
+                context.localnames,
                 orig_text=orig_text,
             ) if astnode.value else None
         else:
@@ -2994,9 +2998,14 @@ class AlterObjectProperty(Command):
             else:
                 new_value = qlcompiler.evaluate_ast_to_python_val(
                     astnode.value, schema=schema) if astnode.value else None
+                if new_value is not None:
+                    new_value = field.coerce_value(schema, new_value)
 
-        return cls(property=propname, new_value=new_value,
-                   source_context=astnode.context)
+        return cls(
+            property=propname,
+            new_value=new_value,
+            source_context=astnode.context,
+        )
 
     def _get_ast(
         self,
@@ -3006,7 +3015,6 @@ class AlterObjectProperty(Command):
         parent_node: Optional[qlast.DDLOperation] = None,
     ) -> Optional[qlast.DDLOperation]:
         value = self.new_value
-        astcls = qlast.SetField
 
         new_value_empty = \
             (value is None or
@@ -3043,7 +3051,15 @@ class AlterObjectProperty(Command):
             #   treated in parser and codegen.
             return None
 
-        if self.source == 'inheritance':
+        if self.new_inherited:
+            if not self.old_inherited:
+                # The field became inherited, in which case we should
+                # generate a RESET.
+                return qlast.SetField(
+                    name=self.property,
+                    value=None,
+                )
+
             # We don't want to show inherited properties unless
             # we are in "descriptive_mode" and ...
 
@@ -3091,7 +3107,7 @@ class AlterObjectProperty(Command):
         else:
             value = utils.const_ast_from_python(value)
 
-        return astcls(name=self.property, value=value)
+        return qlast.SetField(name=self.property, value=value,)
 
     def _get_expr_field_ast(
         self,
@@ -3105,17 +3121,10 @@ class AlterObjectProperty(Command):
     ) -> Optional[qlast.DDLOperation]:
         from edb import edgeql
 
-        astcls: Type[qlast.BaseSetField]
-
         assert isinstance(
             self.new_value,
             (s_expr.Expression, s_expr.ExpressionShell),
         )
-
-        if self.property == 'expr':
-            astcls = qlast.SetSpecialField
-        else:
-            astcls = qlast.SetField
 
         parent_cls = parent_op.get_schema_metaclass()
         has_shadow = parent_cls.has_field(f'orig_{field.name}')
@@ -3150,7 +3159,11 @@ class AlterObjectProperty(Command):
             setattr(parent_node, parent_node_attr, expr_ql)
             return None
         else:
-            return astcls(name=self.property, value=expr_ql)
+            return qlast.SetField(
+                name=self.property,
+                value=expr_ql,
+                special_syntax=(self.property == 'expr'),
+            )
 
     def __repr__(self) -> str:
         return '<%s.%s "%s":"%s"->"%s">' % (

@@ -1120,6 +1120,16 @@ class AlterReferencedInheritingObject(
         if (
             refctx is not None
             and not qlast.has_ddl_subcommand(astnode, qlast.AlterOwned)
+            and (
+                not cmd.get_subcommands()
+                or not all(
+                    (
+                        isinstance(scmd, sd.AlterObjectProperty)
+                        and scmd.new_value is None
+                    )
+                    for scmd in cmd.get_subcommands()
+                )
+            )
         ):
             cmd.set_attribute_value('is_owned', True)
 

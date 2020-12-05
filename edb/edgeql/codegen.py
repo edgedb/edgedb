@@ -44,6 +44,11 @@ _ESCAPES = {
 }
 
 
+if TYPE_CHECKING:
+    import enum
+    Enum_T = TypeVar('Enum_T', bound=enum.Enum)
+
+
 def _bytes_escape(match: Match[bytes]) -> bytes:
     char = match.group(0)
     try:
@@ -124,7 +129,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             node._parent is not None and (
                 not isinstance(node._parent, qlast.Base)
                 or not isinstance(node._parent, qlast.DDL)
-                or isinstance(node._parent, qlast.SetField)
             )
         )
 
@@ -948,50 +952,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write('RENAME TO ')
         self.visit(node.new_name)
 
-    def _process_SetSpecialField(
-        self,
-        node: qlast.SetSpecialField
-    ) -> List[str]:
-
-        keywords = []
-
-        if node.value:
-            keywords.append('SET')
-        else:
-            keywords.append('DROP')
-
-        fname = node.name
-
-        if fname == 'is_abstract':
-            keywords.append('ABSTRACT')
-        elif fname == 'delegated':
-            keywords.append('DELEGATED')
-        elif fname == 'is_final':
-            keywords.append('FINAL')
-        elif fname == 'required':
-            keywords.append('REQUIRED')
-        elif fname == 'cardinality':
-            if node.value:
-                keywords.append(node.value.as_ptr_qual().upper())
-        else:
-            raise EdgeQLSourceGeneratorError(
-                'unknown special field: {!r}'.format(fname))
-
-        return keywords
-
-    def visit_SetSpecialField(self, node: qlast.SetSpecialField) -> None:
-        if node.name == 'expr':
-            if node.value is None:
-                self._write_keywords('DROP', 'EXPRESSION')
-            else:
-                self._write_keywords('USING')
-                self.write(' (')
-                self.visit(node.value)
-                self.write(')')
-        else:
-            keywords = self._process_SetSpecialField(node)
-            self.write(*keywords, delimiter=' ')
-
     def visit_AlterAddInherit(self, node: qlast.AlterAddInherit) -> None:
         if node.bases:
             self.write('EXTENDING ')
@@ -1087,14 +1047,16 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_CreateAlias(self, node: qlast.CreateAlias) -> None:
         if (len(node.commands) == 1
-                and isinstance(node.commands[0], qlast.SetSpecialField)
+                and isinstance(node.commands[0], qlast.SetField)
                 and node.commands[0].name == 'expr'):
 
             self._visit_CreateObject(node, 'ALIAS', render_commands=False)
             self.write(' := (')
             self.new_lines = 1
             self.indentation += 1
-            self.visit(node.commands[0].value)
+            expr = node.commands[0].value
+            assert expr is not None
+            self.visit(expr)
             self.indentation -= 1
             self.new_lines = 1
             self.write(')')
@@ -1108,13 +1070,95 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_DropObject(node, 'ALIAS')
 
     def visit_SetField(self, node: qlast.SetField) -> None:
-        if node.value:
+        if node.special_syntax:
+            if node.name == 'expr':
+                if node.value is None:
+                    self._write_keywords('RESET', 'EXPRESSION')
+                else:
+                    self._write_keywords('USING')
+                    self.write(' (')
+                    self.visit(node.value)
+                    self.write(')')
+            else:
+                keywords = self._process_special_set(node)
+                self.write(*keywords, delimiter=' ')
+        elif node.value:
             if not self.sdlmode:
                 self.write('SET ')
             self.write(f'{node.name} := ')
+            if not isinstance(node.value, (qlast.BaseConstant, qlast.Set)):
+                self.write('(')
             self.visit(node.value)
+            if not isinstance(node.value, (qlast.BaseConstant, qlast.Set)):
+                self.write(')')
         elif not self.sdlmode:
-            self.write(f'DROP {node.name}')
+            self.write(f'RESET {node.name}')
+
+    def _eval_bool_expr(
+        self,
+        expr: qlast.Expr,
+    ) -> bool:
+        if not isinstance(expr, qlast.BooleanConstant):
+            raise AssertionError(f'expected BooleanConstant, got {expr!r}')
+        return expr.value == 'true'
+
+    def _eval_enum_expr(
+        self,
+        expr: qlast.Expr,
+        enum_type: Type[Enum_T],
+    ) -> Enum_T:
+        if not isinstance(expr, qlast.StringConstant):
+            raise AssertionError(f'expected StringConstant, got {expr!r}')
+        return enum_type(expr.value)
+
+    def _process_special_set(
+        self,
+        node: qlast.SetField
+    ) -> List[str]:
+
+        keywords: List[str] = []
+        fname = node.name
+
+        if fname == 'required':
+            if node.value is None:
+                keywords.extend(('RESET', 'REQUIRED'))
+            elif self._eval_bool_expr(node.value):
+                keywords.extend(('SET', 'REQUIRED'))
+            else:
+                keywords.extend(('SET', 'OPTIONAL'))
+        elif fname == 'is_abstract':
+            if node.value is None:
+                keywords.extend(('RESET', 'ABSTRACT'))
+            elif self._eval_bool_expr(node.value):
+                keywords.extend(('SET', 'ABSTRACT'))
+            else:
+                keywords.extend(('SET', 'NOT', 'ABSTRACT'))
+        elif fname == 'delegated':
+            if node.value is None:
+                keywords.extend(('RESET', 'DELEGATED'))
+            elif self._eval_bool_expr(node.value):
+                keywords.extend(('SET', 'DELEGATED'))
+            else:
+                keywords.extend(('SET', 'NOT', 'DELEGATED'))
+        elif fname == 'is_final':
+            if node.value is None:
+                keywords.extend(('RESET', 'FINAL'))
+            elif self._eval_bool_expr(node.value):
+                keywords.extend(('SET', 'FINAL'))
+            else:
+                keywords.extend(('SET', 'NOT', 'FINAL'))
+        elif fname == 'cardinality':
+            if node.value is None:
+                keywords.extend(('RESET', 'CARDINALITY'))
+            elif node.value:
+                value = self._eval_enum_expr(
+                    node.value, qltypes.SchemaCardinality)
+                keywords.extend(('SET', value.to_edgeql()))
+        else:
+            raise EdgeQLSourceGeneratorError(
+                'unknown special field: {!r}'.format(fname))
+
+        return keywords
 
     def visit_CreateAnnotation(self, node: qlast.CreateAnnotation) -> None:
         after_name = lambda: self._ddl_visit_bases(node)
@@ -1289,7 +1333,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             len(node.commands) == 0
             or (
                 len(node.commands) == 1
-                and isinstance(node.commands[0], qlast.SetSpecialField)
+                and isinstance(node.commands[0], qlast.SetField)
                 and node.commands[0].name == 'expr'
             )
         )
@@ -1318,18 +1362,11 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         specials = set()
 
         for command in node.commands:
-            if isinstance(command, qlast.SetSpecialField):
-                if command.name == "required":
-                    if command.value is True:
-                        keywords.append("REQUIRED")
-                    elif command.value is False:
-                        keywords.append("OPTIONAL")
-                    # else: command.value is None
-                else:
-                    kw = self._process_SetSpecialField(command)
-                    specials.add(command)
-                    if kw[0] == 'SET':
-                        keywords.append(kw[1])
+            if isinstance(command, qlast.SetField) and command.special_syntax:
+                kw = self._process_special_set(command)
+                specials.add(command)
+                if kw[0] == 'SET':
+                    keywords.append(kw[1])
 
         order = ['OPTIONAL', 'REQUIRED', 'SINGLE', 'MULTI']
         keywords.sort(key=lambda i: order.index(i))
@@ -1422,7 +1459,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             len(node.commands) == 0
             or (
                 len(node.commands) == 1
-                and isinstance(node.commands[0], qlast.SetSpecialField)
+                and isinstance(node.commands[0], qlast.SetField)
                 and node.commands[0].name == 'expr'
             )
         )

@@ -317,9 +317,10 @@ class CreateProperty(
                 node.is_required = bool(op.new_value)
             else:
                 node.commands.append(
-                    qlast.SetSpecialField(
+                    qlast.SetField(
                         name='required',
-                        value=op.new_value,
+                        value=qlast.BooleanConstant.from_python(op.new_value),
+                        special_syntax=True,
                     ),
                 )
         elif op.property == 'cardinality':
@@ -417,28 +418,45 @@ class AlterProperty(
                 )
         elif op.property == 'required':
             node.commands.append(
-                qlast.SetSpecialField(
+                qlast.SetField(
                     name='required',
-                    value=op.new_value,
+                    value=qlast.BooleanConstant.from_python(op.new_value),
+                    special_syntax=True,
                 ),
             )
         elif op.property == 'cardinality':
             node.commands.append(
-                qlast.SetSpecialField(
+                qlast.SetField(
                     name='cardinality',
-                    value=op.new_value,
+                    value=qlast.StringConstant.from_python(op.new_value),
+                    special_syntax=True,
                 ),
             )
         elif op.property == 'computable':
             if not op.new_value:
                 node.commands.append(
-                    qlast.SetSpecialField(
+                    qlast.SetField(
                         name='expr',
                         value=None,
+                        special_syntax=True,
                     ),
                 )
         else:
             super()._apply_field_ast(schema, context, node, op)
+
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
+        if self.maybe_get_object_aux_data('is_from_alias'):
+            # This is an alias type, appropriate DDL would be generated
+            # from the corresponding Alter/DeleteAlias node.
+            return None
+        else:
+            return super()._get_ast(schema, context, parent_node=parent_node)
 
 
 class DeleteProperty(
@@ -473,7 +491,7 @@ class DeleteProperty(
         *,
         parent_node: Optional[qlast.DDLOperation] = None,
     ) -> Optional[qlast.DDLOperation]:
-        if self.get_orig_attribute_value('is_from_alias'):
+        if self.maybe_get_object_aux_data('is_from_alias'):
             # This is an alias type, appropriate DDL would be generated
             # from the corresponding Alter/DeleteAlias node.
             return None

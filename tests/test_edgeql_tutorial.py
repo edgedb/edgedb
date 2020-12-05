@@ -173,7 +173,7 @@ class TestEdgeQLTutorial(tb.QueryTestCase):
         await self.con.execute(r'''
             ALTER TYPE Person {
                 ALTER PROPERTY first_name {
-                    DROP REQUIRED;
+                    SET OPTIONAL;
                 }
             };
         ''')
