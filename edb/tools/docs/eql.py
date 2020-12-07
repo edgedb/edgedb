@@ -604,6 +604,18 @@ class EQLReactElement(d_rst.Directive):
         return [node]
 
 
+class EQLSectionIntroPage(d_rst.Directive):
+
+    has_content = False
+    optional_arguments = 0
+    required_arguments = 1
+
+    def run(self):
+        node = d_nodes.container()
+        node['section-intro-page'] = self.arguments[0]
+        return [node]
+
+
 class EQLStructElement(d_rst.Directive):
 
     has_content = False
@@ -968,6 +980,7 @@ class EdgeQLDomain(s_domains.Domain):
         'operator': EQLOperatorDirective,
         'synopsis': EQLSynopsisDirective,
         'react-element': EQLReactElement,
+        'section-intro-page': EQLSectionIntroPage,
         'struct': EQLStructElement,
     }
 

@@ -1,3 +1,5 @@
+.. eql:section-intro-page:: megaphone
+
 Introduction
 ============
 
@@ -10,6 +12,8 @@ ACID compliance, performance, and reliability.
 .. eql:react-element:: DocsNavTable
 
 EdgeDB features:
+
+.. class:: ticklist
 
 - strict, strongly typed schema;
 - powerful and clean query language;
