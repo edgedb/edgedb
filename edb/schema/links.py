@@ -456,7 +456,21 @@ class RebaseLink(
     LinkCommand,
     referencing.RebaseReferencedInheritingObject[Link],
 ):
-    pass
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext
+    ) -> s_schema.Schema:
+        schema = super().apply(schema, context)
+
+        if not context.canonical:
+            new_target = self.get_attribute_value('target')
+            if new_target:
+                slt = SetLinkType(classname=self.classname, type=new_target)
+                schema = slt.apply(schema, context)
+                self.add(slt)
+
+        return schema
 
 
 class SetLinkType(pointers.SetPointerType,
