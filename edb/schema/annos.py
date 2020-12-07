@@ -407,6 +407,18 @@ class AlterAnnotationValue(
 
         return cmd
 
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
+        # Skip AlterObject's _get_ast, because we *don't* want to
+        # filter out things without subcommands!
+        return sd.ObjectCommand._get_ast(
+            self, schema, context, parent_node=parent_node)
+
     def _apply_field_ast(
         self,
         schema: s_schema.Schema,

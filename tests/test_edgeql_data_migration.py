@@ -1724,13 +1724,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             },
         })
 
-    @test.xfail('''
-        edgedb.errors.SchemaError: cannot get 'name' value: item
-        'bc6c9f68-049d-11eb-a183-c1f86eaf323b' is not present in the
-        schema <Schema gen:3708 at 0x7efef93f1430>
-
-        The error occurs on committing the second migration.
-    ''')
     async def test_edgeql_migration_describe_annotation_02(self):
         # Migration that creates an annotation.
         await self.con.execute('''
@@ -1849,7 +1842,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [{
                 'name': 'test::AnnoType2',
                 'annotations': [{
-                    'name': 'my_anno2',
+                    'name': 'test::my_anno2',
                     '@value': 'retest_my_anno2',
                 }]
             }],
@@ -6076,13 +6069,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-    @test.xfail('''
-        edgedb.errors.SchemaError: cannot get 'name' value: item
-        '4e2fe443-04a6-11eb-a38f-a315784c86dc' is not present in the
-        schema <Schema gen:3747 at 0x7fd78b613790>
-
-        This happens on the final migration.
-    ''')
     async def test_edgeql_migration_eq_annotation_02(self):
         await self.migrate(r"""
             type Base;
@@ -6184,13 +6170,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-    @test.xfail('''
-        edgedb.errors.SchemaError: cannot get 'name' value: item
-        '54615193-04a6-11eb-a05a-af5ecac7408d' is not present in the
-        schema <Schema gen:3751 at 0x7fd78bbe74c0>
-
-        This happens on the final migration.
-    ''')
     async def test_edgeql_migration_eq_annotation_03(self):
         await self.migrate(r"""
             type Base;
@@ -6295,14 +6274,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-    @test.xfail('''
-        The "complete" flag is not set even though the DDL from
-        "proposed" list is used.
-
-        This happens on the second migration.
-    ''')
     async def test_edgeql_migration_eq_annotation_04(self):
-        # Test migration of annotation value ano nothing else.
+        # Test migration of annotation value and nothing else.
         await self.migrate(r"""
             abstract annotation description;
 
