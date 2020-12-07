@@ -183,12 +183,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             ]
         )
 
-    @test.xfail('''
-        The "complete" flag is not set even though the DDL from
-        "proposed" list is used.
-
-        This happens on the first migration.
-    ''')
     async def test_edgeql_migration_link_inheritance(self):
         schema_f = os.path.join(os.path.dirname(__file__), 'schemas',
                                 'links_1.esdl')
