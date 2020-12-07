@@ -12,6 +12,8 @@ managing and using an EdgeDB instance.
 .. table::
 
     +---------------------------------+---------------------------------+
+    | :ref:`ref_cli_edgedb_install`   | EdgeDB CLI installation         |
+    +---------------------------------+---------------------------------+
     | :ref:`ref_cli_edgedb`           | EdgeDB interactive shell        |
     +---------------------------------+---------------------------------+
     | :ref:`ref_cli_edgedb_configure` | Configure an EdgeDB instance    |
