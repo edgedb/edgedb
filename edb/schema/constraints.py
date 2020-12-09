@@ -125,6 +125,7 @@ class Constraint(referencing.ReferencedInheritingObject,
         bool,
         default=False,
         inheritable=False,
+        special_ddl_syntax=True,
         compcoef=0.9,
     )
 
@@ -560,11 +561,20 @@ class ConstraintCommand(
             [b.get_name(schema) for b in new_bases],
         )
 
-    def get_ast_attr_for_field(self, field: str) -> Optional[str]:
+    def get_ast_attr_for_field(
+        self,
+        field: str,
+        astnode: Type[qlast.DDLOperation],
+    ) -> Optional[str]:
         if field in ('subjectexpr', 'args'):
             return field
+        elif (
+            field == 'delegated'
+            and astnode is qlast.CreateConcreteConstraint
+        ):
+            return field
         else:
-            return None
+            return super().get_ast_attr_for_field(field, astnode)
 
     def get_ddl_identity_fields(
         self,
@@ -1126,20 +1136,7 @@ class CreateConstraint(
         node: qlast.DDLOperation,
         op: sd.AlterObjectProperty,
     ) -> None:
-        if op.property == 'delegated':
-            if isinstance(node, qlast.CreateConcreteConstraint):
-                assert isinstance(op.new_value, bool)
-                node.delegated = op.new_value
-            else:
-                node.commands.append(
-                    qlast.SetField(
-                        name='delegated',
-                        value=qlast.BooleanConstant.from_python(op.new_value),
-                        special_syntax=True,
-                    )
-                )
-            return
-        elif (
+        if (
             op.property == 'args'
             and isinstance(node, qlast.CreateConcreteConstraint)
         ):
@@ -1257,24 +1254,6 @@ class AlterConstraint(
 
         cls._validate_subcommands(astnode)
         return cmd
-
-    def _apply_field_ast(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        node: qlast.DDLOperation,
-        op: sd.AlterObjectProperty,
-    ) -> None:
-        if op.property == 'delegated':
-            node.commands.append(
-                qlast.SetField(
-                    name='delegated',
-                    value=qlast.BooleanConstant.from_python(op.new_value),
-                    special_syntax=True,
-                )
-            )
-        else:
-            super()._apply_field_ast(schema, context, node, op)
 
     def validate_alter(
         self,

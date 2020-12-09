@@ -246,8 +246,11 @@ class Pointer(referencing.ReferencedInheritingObject,
 
     required = so.SchemaField(
         bool,
-        default=False, compcoef=0.909,
-        merge_fn=merge_required)
+        default=False,
+        compcoef=0.909,
+        special_ddl_syntax=True,
+        merge_fn=merge_required,
+    )
 
     readonly = so.SchemaField(
         bool,
@@ -287,8 +290,12 @@ class Pointer(referencing.ReferencedInheritingObject,
 
     cardinality = so.SchemaField(
         qltypes.SchemaCardinality,
-        default=None, compcoef=0.833, coerce=True,
-        merge_fn=merge_cardinality)
+        default=None,
+        compcoef=0.833,
+        coerce=True,
+        special_ddl_syntax=True,
+        merge_fn=merge_cardinality,
+    )
 
     union_of = so.SchemaField(
         so.ObjectSet['Pointer'],

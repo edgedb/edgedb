@@ -241,6 +241,9 @@ class Field(struct.ProtoField, Generic[T]):
     #: Whether the value of this field should be included in the
     #: aux_object_data for delta commands of objects containing the field.
     aux_cmd_data: bool
+    #: Whether this field is set using special DDL syntax or a generic
+    #: SET command.
+    special_ddl_syntax: bool
     #: Used for fields holding references to objects.  If True,
     #: the reference is considered "weak", i.e. not essential for
     #: object definition.  The schema and delta linearization
@@ -272,6 +275,7 @@ class Field(struct.ProtoField, Generic[T]):
         allow_ddl_set: bool = False,
         ddl_identity: bool = False,
         aux_cmd_data: bool = False,
+        special_ddl_syntax: bool = False,
         reflection_method: ReflectionMethod = ReflectionMethod.REGULAR,
         reflection_proxy: Optional[Tuple[str, str]] = None,
         **kwargs: Any,
@@ -288,6 +292,7 @@ class Field(struct.ProtoField, Generic[T]):
         self.allow_ddl_set = allow_ddl_set
         self.ddl_identity = ddl_identity
         self.aux_cmd_data = aux_cmd_data
+        self.special_ddl_syntax = special_ddl_syntax
 
         self.compcoef = compcoef
         self.inheritable = inheritable
@@ -2566,11 +2571,17 @@ class SubclassableObject(Object):
     is_abstract = SchemaField(
         bool,
         default=False,
-        inheritable=False, compcoef=0.909)
+        inheritable=False,
+        special_ddl_syntax=True,
+        compcoef=0.909,
+    )
 
     is_final = SchemaField(
         bool,
-        default=False, compcoef=0.909)
+        default=False,
+        special_ddl_syntax=True,
+        compcoef=0.909,
+    )
 
     def _issubclass(
         self, schema: s_schema.Schema, parent: SubclassableObject

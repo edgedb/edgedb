@@ -1700,7 +1700,7 @@ class ObjectCommand(
                             ),
                         )
 
-                ast_attr = self.get_ast_attr_for_field(field.name)
+                ast_attr = self.get_ast_attr_for_field(field.name, type(node))
                 if (
                     ast_attr is not None
                     and not getattr(node, ast_attr, None)
@@ -1758,7 +1758,11 @@ class ObjectCommand(
             if subnode is not None:
                 node.commands.append(subnode)
 
-    def get_ast_attr_for_field(self, field: str) -> Optional[str]:
+    def get_ast_attr_for_field(
+        self,
+        field: str,
+        astnode: Type[qlast.DDLOperation],
+    ) -> Optional[str]:
         return None
 
     def get_ddl_identity_fields(
@@ -3030,7 +3034,8 @@ class AlterObjectProperty(Command):
         assert parent_node is not None
         parent_cls = parent_op.get_schema_metaclass()
         field = parent_cls.get_field(self.property)
-        parent_node_attr = parent_op.get_ast_attr_for_field(field.name)
+        parent_node_attr = parent_op.get_ast_attr_for_field(
+            field.name, type(parent_node))
         if field is None:
             raise errors.SchemaDefinitionError(
                 f'{self.property!r} is not a valid field',
@@ -3039,9 +3044,12 @@ class AlterObjectProperty(Command):
         if self.property == 'id':
             return None
 
-        if (not field.allow_ddl_set
-                and self.property != 'expr'
-                and parent_node_attr is None):
+        if (
+            not field.allow_ddl_set
+            and not field.special_ddl_syntax
+            and self.property != 'expr'
+            and parent_node_attr is None
+        ):
             # Don't produce any AST if:
             #
             # * a field does not have the "allow_ddl_set" option, unless
@@ -3058,6 +3066,7 @@ class AlterObjectProperty(Command):
                 return qlast.SetField(
                     name=self.property,
                     value=None,
+                    special_syntax=field.special_ddl_syntax,
                 )
 
             # We don't want to show inherited properties unless
@@ -3090,6 +3099,9 @@ class AlterObjectProperty(Command):
                 parent_node=parent_node,
                 parent_node_attr=parent_node_attr,
             )
+        elif parent_node_attr is not None:
+            setattr(parent_node, parent_node_attr, value)
+            return None
         elif (v := utils.is_nontrivial_container(value)) and v is not None:
             value = qlast.Tuple(elements=[
                 utils.const_ast_from_python(el) for el in v
@@ -3107,7 +3119,11 @@ class AlterObjectProperty(Command):
         else:
             value = utils.const_ast_from_python(value)
 
-        return qlast.SetField(name=self.property, value=value,)
+        return qlast.SetField(
+            name=self.property,
+            value=value,
+            special_syntax=field.special_ddl_syntax,
+        )
 
     def _get_expr_field_ast(
         self,

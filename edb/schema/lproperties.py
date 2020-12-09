@@ -302,6 +302,24 @@ class CreateProperty(
 
         return cmd
 
+    def get_ast_attr_for_field(
+        self,
+        field: str,
+        astnode: Type[qlast.DDLOperation],
+    ) -> Optional[str]:
+        if (
+            field == 'required'
+            and issubclass(astnode, qlast.CreateConcreteProperty)
+        ):
+            return 'is_required'
+        elif (
+            field == 'cardinality'
+            and issubclass(astnode, qlast.CreateConcreteProperty)
+        ):
+            return 'cardinality'
+        else:
+            return super().get_ast_attr_for_field(field, astnode)
+
     def _apply_field_ast(
         self,
         schema: s_schema.Schema,
@@ -312,20 +330,7 @@ class CreateProperty(
         # type ignore below, because the class is used as mixin
         link = context.get(PropertySourceContext)  # type: ignore
 
-        if op.property == 'required':
-            if isinstance(node, qlast.CreateConcreteProperty):
-                node.is_required = bool(op.new_value)
-            else:
-                node.commands.append(
-                    qlast.SetField(
-                        name='required',
-                        value=qlast.BooleanConstant.from_python(op.new_value),
-                        special_syntax=True,
-                    ),
-                )
-        elif op.property == 'cardinality':
-            node.cardinality = op.new_value
-        elif op.property == 'target' and link:
+        if op.property == 'target' and link:
             if isinstance(node, qlast.CreateConcreteProperty):
                 expr = self.get_attribute_value('expr')
                 if expr is not None:
@@ -416,22 +421,6 @@ class AlterProperty(
                         type=utils.typeref_to_ast(schema, op.new_value),
                     ),
                 )
-        elif op.property == 'required':
-            node.commands.append(
-                qlast.SetField(
-                    name='required',
-                    value=qlast.BooleanConstant.from_python(op.new_value),
-                    special_syntax=True,
-                ),
-            )
-        elif op.property == 'cardinality':
-            node.commands.append(
-                qlast.SetField(
-                    name='cardinality',
-                    value=qlast.StringConstant.from_python(op.new_value),
-                    special_syntax=True,
-                ),
-            )
         elif op.property == 'computable':
             if not op.new_value:
                 node.commands.append(

@@ -259,11 +259,15 @@ class IndexCommand(
         )
         return cmd
 
-    def get_ast_attr_for_field(self, field: str) -> Optional[str]:
+    def get_ast_attr_for_field(
+        self,
+        field: str,
+        astnode: Type[qlast.DDLOperation],
+    ) -> Optional[str]:
         if field == 'expr':
             return 'expr'
         else:
-            return None
+            return super().get_ast_attr_for_field(field, astnode)
 
     def compile_expr_field(
         self,

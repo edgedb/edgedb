@@ -311,6 +311,24 @@ class CreateLink(
         assert isinstance(cmd, sd.Command)
         return cmd
 
+    def get_ast_attr_for_field(
+        self,
+        field: str,
+        astnode: Type[qlast.DDLOperation],
+    ) -> Optional[str]:
+        if (
+            field == 'required'
+            and issubclass(astnode, qlast.CreateConcreteLink)
+        ):
+            return 'is_required'
+        elif (
+            field == 'cardinality'
+            and issubclass(astnode, qlast.CreateConcreteLink)
+        ):
+            return 'cardinality'
+        else:
+            return super().get_ast_attr_for_field(field, astnode)
+
     def _apply_field_ast(
         self,
         schema: s_schema.Schema,
@@ -320,23 +338,7 @@ class CreateLink(
     ) -> None:
         objtype = self.get_referrer_context(context)
 
-        if op.property == 'required':
-            # Due to how SDL is processed the underlying AST may be an
-            # AlterConcreteLink, which requires different handling.
-            if isinstance(node, qlast.CreateConcreteLink):
-                assert isinstance(op.new_value, bool)
-                node.is_required = op.new_value
-            else:
-                node.commands.append(
-                    qlast.SetField(
-                        name='required',
-                        value=qlast.BooleanConstant.from_python(op.new_value),
-                        special_syntax=True,
-                    )
-                )
-        elif op.property == 'cardinality':
-            node.cardinality = op.new_value
-        elif op.property == 'target' and objtype:
+        if op.property == 'target' and objtype:
             # Due to how SDL is processed the underlying AST may be an
             # AlterConcreteLink, which requires different handling.
             if isinstance(node, qlast.CreateConcreteLink):
@@ -600,22 +602,6 @@ class AlterLink(
                         type=utils.typeref_to_ast(schema, op.new_value),
                     ),
                 )
-        elif op.property == 'required':
-            node.commands.append(
-                qlast.SetField(
-                    name='required',
-                    value=qlast.BooleanConstant.from_python(op.new_value),
-                    special_syntax=True,
-                ),
-            )
-        elif op.property == 'cardinality':
-            node.commands.append(
-                qlast.SetField(
-                    name='cardinality',
-                    value=qlast.StringConstant.from_python(op.new_value),
-                    special_syntax=True,
-                ),
-            )
         elif op.property == 'computable':
             if not op.new_value:
                 node.commands.append(

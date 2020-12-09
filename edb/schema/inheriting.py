@@ -514,26 +514,18 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
 
         return base_refs
 
-    def _apply_field_ast(
+    def get_ast_attr_for_field(
         self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        node: qlast.DDLOperation,
-        op: sd.AlterObjectProperty,
-    ) -> None:
+        field: str,
+        astnode: Type[qlast.DDLOperation],
+    ) -> Optional[str]:
         if (
-            op.property in {'is_abstract', 'is_final'}
-            and not isinstance(self, sd.DeleteObject)
+            field in {'is_abstract', 'is_final'}
+            and issubclass(astnode, qlast.CreateObject)
         ):
-            node.commands.append(
-                qlast.SetField(
-                    name=op.property,
-                    value=qlast.BooleanConstant.from_python(op.new_value),
-                    special_syntax=True,
-                )
-            )
+            return field
         else:
-            super()._apply_field_ast(schema, context, node, op)
+            return super().get_ast_attr_for_field(field, astnode)
 
 
 BaseDelta_T = Tuple[
@@ -782,10 +774,6 @@ class CreateInheritingObject(
                             ],
                         )
                     )
-        elif op.property == 'is_abstract':
-            node.is_abstract = op.new_value
-        elif op.property == 'is_final':
-            node.is_final = op.new_value
         else:
             super()._apply_field_ast(schema, context, node, op)
 

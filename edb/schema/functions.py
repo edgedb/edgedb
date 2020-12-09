@@ -1215,11 +1215,15 @@ class FunctionCommand(
 
         return cls.get_schema_metaclass().get_fqname(schema, name, params)
 
-    def get_ast_attr_for_field(self, field: str) -> Optional[str]:
+    def get_ast_attr_for_field(
+        self,
+        field: str,
+        astnode: Type[qlast.DDLOperation],
+    ) -> Optional[str]:
         if field == 'nativecode':
             return 'nativecode'
         else:
-            return None
+            return super().get_ast_attr_for_field(field, astnode)
 
     def compile_expr_field(
         self,

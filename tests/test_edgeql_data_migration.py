@@ -2873,7 +2873,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-    @test.xfail
     async def test_edgeql_migration_eq_14b(self):
         # Same as above, except POPULATE and inspect the query
         await self.migrate(r"""
@@ -2903,6 +2902,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             """, """
                 ALTER TYPE test::Derived {
                     ALTER PROPERTY foo {
+                        RESET CARDINALITY;
                         SET REQUIRED;
                     };
                 };

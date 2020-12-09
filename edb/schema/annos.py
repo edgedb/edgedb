@@ -162,7 +162,16 @@ class AnnotationCommandContext(sd.ObjectCommandContext[Annotation]):
 class AnnotationCommand(sd.QualifiedObjectCommand[Annotation],
                         schema_metaclass=Annotation,
                         context_class=AnnotationCommandContext):
-    pass
+
+    def get_ast_attr_for_field(
+        self,
+        field: str,
+        astnode: Type[qlast.DDLOperation],
+    ) -> Optional[str]:
+        if field in {'is_abstract', 'inheritable'}:
+            return field
+        else:
+            return super().get_ast_attr_for_field(field, astnode)
 
 
 class CreateAnnotation(AnnotationCommand, sd.CreateObject[Annotation]):
@@ -184,16 +193,6 @@ class CreateAnnotation(AnnotationCommand, sd.CreateObject[Annotation]):
 
         assert isinstance(cmd, CreateAnnotation)
         return cmd
-
-    def _apply_field_ast(self,
-                         schema: s_schema.Schema,
-                         context: sd.CommandContext,
-                         node: qlast.DDLOperation,
-                         op: sd.AlterObjectProperty) -> None:
-        if op.property == 'inheritable':
-            node.inheritable = op.new_value
-        else:
-            super()._apply_field_ast(schema, context, node, op)
 
 
 class RenameAnnotation(AnnotationCommand, sd.RenameObject[Annotation]):
