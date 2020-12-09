@@ -2941,29 +2941,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     USING EdgeQL $$ SELECT 1; SELECT f; $$;
             ''')
 
-    async def test_edgeql_ddl_function_21(self):
-        await self.con.execute(r'''
-            CREATE FUNCTION test::ddlf_21(str: str) -> int64
-                USING EdgeQL $$ SELECT 1$$;
-        ''')
-
-        with self.assertRaisesRegex(
-                edgedb.InvalidFunctionDefinitionError,
-                r'cannot create.*test::ddlf_21.*'
-                r'overloading.*different `session_only` flag'):
-
-            async with self.con.transaction():
-                await self.con.execute(r'''
-                    CREATE FUNCTION test::ddlf_21(str: int64) -> int64 {
-                        SET session_only := true;
-                        USING EdgeQL $$ SELECT 1$$;
-                    };
-                ''')
-
-        await self.con.execute("""
-            DROP FUNCTION test::ddlf_21(str: std::str);
-        """)
-
     async def test_edgeql_ddl_function_22(self):
         with self.assertRaisesRegex(
             edgedb.InvalidFunctionDefinitionError,

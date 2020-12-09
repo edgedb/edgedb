@@ -276,7 +276,10 @@ class ErrorsTree:
         lines = '\n\n\n'.join(lines)
 
         all_lines = '    ' + ',\n    '.join(repr(ln) for ln in all_lines) + ','
-        all_lines = f'__all__ = {extra_all} + (\n{all_lines}\n)'
+        all_lines = (
+            f'__all__ = {extra_all} + (  # type: ignore\n'
+            f'{all_lines}\n)'
+        )
 
         code = (
             f'{base_import}'

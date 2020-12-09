@@ -5,8 +5,6 @@
 # flake8: noqa
 
 
-from __future__ import annotations
-
 from edb.errors.base import *
 
 
@@ -20,6 +18,9 @@ __all__ = base.__all__ + (  # type: ignore
     'UnexpectedMessageError',
     'InputDataError',
     'ResultCardinalityMismatchError',
+    'CapabilityError',
+    'UnsupportedCapabilityError',
+    'DisabledCapabilityError',
     'QueryError',
     'InvalidSyntaxError',
     'EdgeQLSyntaxError',
@@ -114,6 +115,18 @@ class InputDataError(ProtocolError):
 
 class ResultCardinalityMismatchError(ProtocolError):
     _code = 0x_03_03_00_00
+
+
+class CapabilityError(ProtocolError):
+    _code = 0x_03_04_00_00
+
+
+class UnsupportedCapabilityError(CapabilityError):
+    _code = 0x_03_04_01_00
+
+
+class DisabledCapabilityError(CapabilityError):
+    _code = 0x_03_04_02_00
 
 
 class QueryError(EdgeDBError):

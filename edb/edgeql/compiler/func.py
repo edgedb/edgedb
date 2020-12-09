@@ -141,11 +141,6 @@ def compile_FunctionCall(
     assert isinstance(func, s_func.Function)
     func_name = func.get_shortname(env.schema)
 
-    if not ctx.env.options.session_mode and func.get_session_only(env.schema):
-        raise errors.QueryError(
-            f'{func_name}() cannot be called in a non-session context',
-            context=expr.context)
-
     matched_func_params = func.get_params(env.schema)
     variadic_param = matched_func_params.find_variadic(env.schema)
     variadic_param_type = None
@@ -224,7 +219,6 @@ def compile_FunctionCall(
         func_polymorphic=is_polymorphic,
         func_sql_function=func.get_from_function(env.schema),
         force_return_cast=func.get_force_return_cast(env.schema),
-        session_only=func.get_session_only(env.schema),
         volatility=func.get_volatility(env.schema),
         sql_func_has_out_params=func.get_sql_func_has_out_params(env.schema),
         error_on_null_result=func.get_error_on_null_result(env.schema),

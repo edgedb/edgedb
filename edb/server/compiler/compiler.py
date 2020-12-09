@@ -119,7 +119,6 @@ _IO_FORMAT_MAP = {
     enums.IoFormat.SCRIPT: pg_compiler.OutputFormat.SCRIPT,
 }
 
-
 pg_ql = lambda o: pg_common.quote_literal(str(o))
 
 
@@ -178,7 +177,6 @@ def new_compiler_context(
         schema,
         immutables.Map(modaliases) if modaliases else EMPTY_MAP,
         EMPTY_MAP,
-        enums.Capability.ALL,
         EMPTY_MAP,
     )
 
@@ -601,10 +599,6 @@ class Compiler(BaseCompiler):
             allow_unrecognized=True,
         )
 
-        # the capability to execute transaction or session control
-        # commands indicates that session mode is available
-        session_mode = ctx.state.capability & (enums.Capability.TRANSACTION |
-                                               enums.Capability.SESSION)
         ir = qlcompiler.compile_ast_to_ir(
             ql,
             schema=current_tx.get_schema(),
@@ -620,7 +614,6 @@ class Compiler(BaseCompiler):
                 constant_folding=not disable_constant_folding,
                 json_parameters=ctx.json_parameters,
                 implicit_limit=ctx.implicit_limit,
-                session_mode=session_mode,
                 allow_writing_protected_pointers=ctx.schema_reflection_mode,
                 apply_query_rewrites=(
                     not ctx.bootstrap_mode
@@ -726,6 +719,7 @@ class Compiler(BaseCompiler):
                 out_type_id=out_type_id.bytes,
                 out_type_data=out_type_data,
                 cacheable=cacheable,
+                has_dml=ir.dml_exprs,
             )
 
         else:
@@ -733,7 +727,10 @@ class Compiler(BaseCompiler):
                 raise errors.QueryError(
                     'EdgeQL script queries cannot accept parameters')
 
-            return dbstate.SimpleQuery(sql=(sql_bytes,))
+            return dbstate.SimpleQuery(
+                sql=(sql_bytes,),
+                has_dml=ir.dml_exprs,
+            )
 
     def _compile_and_apply_ddl_stmt(
         self,
@@ -1369,53 +1366,57 @@ class Compiler(BaseCompiler):
             config_op=config_op,
         )
 
-    def _compile_dispatch_ql(self, ctx: CompileContext, ql: qlast.Base):
-
+    def _compile_dispatch_ql(
+        self,
+        ctx: CompileContext,
+        ql: qlast.Base
+    ) -> (dbstate.BaseQuery, enums.Capability):
         if isinstance(ql, qlast.Migration):
-            if not (ctx.state.capability & enums.Capability.DDL):
-                raise errors.ProtocolError(
-                    f'cannot execute DDL commands for the current connection')
-            return self._compile_ql_migration(ctx, ql)
-
+            query = self._compile_ql_migration(ctx, ql)
+            if isinstance(query, dbstate.MigrationControlQuery):
+                return (query, enums.Capability.DDL)
+            else:  # DESCRIBE CURRENT MIGRATION
+                return (query, enums.Capability(0))
         elif isinstance(ql, qlast.Database):
-            if not (ctx.state.capability & enums.Capability.DDL):
-                raise errors.ProtocolError(
-                    f'cannot execute DDL commands for the current connection')
-            return self._compile_and_apply_ddl_stmt(ctx, ql)
+            return (
+                self._compile_and_apply_ddl_stmt(ctx, ql),
+                enums.Capability.DDL,
+            )
 
         elif isinstance(ql, qlast.DDL):
-            if not (ctx.state.capability & enums.Capability.DDL):
-                raise errors.ProtocolError(
-                    f'cannot execute DDL commands for the current connection')
-            return self._compile_and_apply_ddl_stmt(ctx, ql)
+            return (
+                self._compile_and_apply_ddl_stmt(ctx, ql),
+                enums.Capability.DDL,
+            )
 
         elif isinstance(ql, qlast.Transaction):
-            if not (ctx.state.capability & enums.Capability.TRANSACTION):
-                raise errors.ProtocolError(
-                    f'cannot execute transaction control commands '
-                    f'for the current connection')
-            return self._compile_ql_transaction(ctx, ql)
+            return (
+                self._compile_ql_transaction(ctx, ql),
+                enums.Capability.TRANSACTION,
+            )
 
         elif isinstance(ql, (qlast.BaseSessionSet, qlast.BaseSessionReset)):
-            if not (ctx.state.capability & enums.Capability.SESSION):
-                raise errors.ProtocolError(
-                    f'cannot execute session control commands '
-                    f'for the current connection')
-            return self._compile_ql_sess_state(ctx, ql)
+            return (
+                self._compile_ql_sess_state(ctx, ql),
+                enums.Capability.SESSION_CONFIG,
+            )
 
         elif isinstance(ql, qlast.ConfigOp):
-            if not (ctx.state.capability & enums.Capability.SESSION):
-                raise errors.ProtocolError(
-                    f'cannot execute session control commands '
-                    f'for the current connection')
-            return self._compile_ql_config_op(ctx, ql)
+            if ql.scope is qltypes.ConfigScope.SESSION:
+                capability = enums.Capability.SESSION_CONFIG
+            else:
+                capability = enums.Capability.PERSISTENT_CONFIG
+            return (
+                self._compile_ql_config_op(ctx, ql),
+                capability,
+            )
 
         else:
-            if not (ctx.state.capability & enums.Capability.QUERY):
-                raise errors.ProtocolError(
-                    f'cannot execute query/DML commands '
-                    f'for the current connection')
-            return self._compile_ql_query(ctx, ql)
+            query = self._compile_ql_query(ctx, ql)
+            caps = enums.Capability(0)
+            if query.has_dml:
+                caps |= enums.Capability.MODIFICATIONS
+            return (query, caps)
 
     def _compile(
         self,
@@ -1478,7 +1479,7 @@ class Compiler(BaseCompiler):
         unit = None
 
         for stmt in statements:
-            comp: dbstate.BaseQuery = self._compile_dispatch_ql(ctx, stmt)
+            comp, capabilities = self._compile_dispatch_ql(ctx, stmt)
 
             if unit is not None:
                 if comp.single_unit:
@@ -1493,6 +1494,8 @@ class Compiler(BaseCompiler):
                     cardinality=default_cardinality)
             else:
                 unit.status = status.get_status(stmt)
+
+            unit.capabilities |= capabilities
 
             if not comp.is_transactional:
                 if not comp.single_unit:
@@ -1526,7 +1529,6 @@ class Compiler(BaseCompiler):
 
             elif isinstance(comp, dbstate.DDLQuery):
                 unit.sql += comp.sql
-                unit.has_ddl = True
                 unit.new_types = comp.new_types
 
             elif isinstance(comp, dbstate.TxControlQuery):
@@ -1555,7 +1557,6 @@ class Compiler(BaseCompiler):
             elif isinstance(comp, dbstate.MigrationControlQuery):
                 unit.sql += comp.sql
                 unit.cacheable = comp.cacheable
-                unit.has_ddl = True
                 unit.new_types = comp.new_types
 
                 if comp.modaliases is not None:
@@ -1653,7 +1654,6 @@ class Compiler(BaseCompiler):
         modaliases: Mapping[Optional[str], str],
         session_config: Optional[immutables.Map],
         stmt_mode: Optional[enums.CompileStatementMode],
-        capability: enums.Capability,
         implicit_limit: int=0,
         inline_typeids: bool=False,
         inline_typenames: bool=False,
@@ -1683,7 +1683,6 @@ class Compiler(BaseCompiler):
             schema,
             modaliases,
             session_config,
-            capability,
             cached_reflection,
         )
 
@@ -1796,7 +1795,6 @@ class Compiler(BaseCompiler):
             modaliases=DEFAULT_MODULE_ALIASES_MAP,
             session_config=EMPTY_MAP,
             stmt_mode=enums.CompileStatementMode.SINGLE,
-            capability=enums.Capability.QUERY | enums.Capability.DDL,
             json_parameters=False,
         )
 
@@ -1823,7 +1821,6 @@ class Compiler(BaseCompiler):
                     inline_typenames=True,
                     stmt_mode=enums.CompileStatementMode.SINGLE,
                 )
-
                 result.append(
                     (False, self._compile(ctx=ctx, source=source)[0]))
             except Exception as ex:
@@ -1853,7 +1850,6 @@ class Compiler(BaseCompiler):
         inline_typeids: bool,
         inline_typenames: bool,
         stmt_mode: enums.CompileStatementMode,
-        capability: enums.Capability,
         json_parameters: bool=False,
     ) -> List[dbstate.QueryUnit]:
 
@@ -1868,7 +1864,6 @@ class Compiler(BaseCompiler):
             modaliases=sess_modaliases,
             session_config=sess_config,
             stmt_mode=enums.CompileStatementMode(stmt_mode),
-            capability=capability,
             json_parameters=json_parameters,
         )
 
@@ -2129,7 +2124,6 @@ class Compiler(BaseCompiler):
             modaliases=DEFAULT_MODULE_ALIASES_MAP,
             session_config=EMPTY_MAP,
             stmt_mode=enums.CompileStatementMode.ALL,
-            capability=enums.Capability.ALL,
             json_parameters=False,
             schema=schema,
             schema_object_ids=schema_object_ids,

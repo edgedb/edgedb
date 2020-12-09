@@ -38,7 +38,6 @@ commands <ref_eql_ddl_functions>`.
 
     function <name> ([ <argspec> ] [, ... ]) -> <returnspec>
     "{"
-        session_only := {true | false} ;
         [ <annotation-declarations> ]
         using ( <expr> ) ;
         using <language> <functionbody> ;

@@ -20,6 +20,7 @@ import asyncio
 import decimal
 import json
 import uuid
+import struct
 import subprocess
 import sys
 import tempfile
@@ -32,6 +33,16 @@ from edb.common import taskgroup as tg
 from edb.server import main as server_main
 from edb.testbase import server as tb
 from edb.tools import test
+from edb.server.compiler import enums
+
+
+SERVER_HEADER_CAPABILITIES = 0x1001
+ALL_CAPABILITIES = 0xFFFFFFFFFFFFFFFF
+
+
+def _capabilities(attrs):
+    bytes = attrs.pop(SERVER_HEADER_CAPABILITIES)
+    return enums.Capability(struct.unpack('>Q', bytes)[0])
 
 
 class TestServerProto(tb.QueryTestCase):
@@ -54,6 +65,7 @@ class TestServerProto(tb.QueryTestCase):
         # persist correctly when set inside and outside of (potentially
         # failing) transaction blocks.
         CONFIGURE SESSION SET __internal_testmode := true;
+
     '''
 
     TEARDOWN = '''
@@ -719,7 +731,7 @@ class TestServerProto(tb.QueryTestCase):
         con2 = await self.connect(database=self.con.dbname)
 
         await self.con.query(
-            'select sys::advisory_lock(<int64>$0)', lock_key)
+            'select sys::_advisory_lock(<int64>$0)', lock_key)
 
         try:
             async with tg.TaskGroup() as g:
@@ -727,7 +739,7 @@ class TestServerProto(tb.QueryTestCase):
                 async def exec_to_fail():
                     with self.assertRaises(ConnectionAbortedError):
                         await con2.query(
-                            'select sys::advisory_lock(<int64>$0)', lock_key)
+                            'select sys::_advisory_lock(<int64>$0)', lock_key)
 
                 g.create_task(exec_to_fail())
 
@@ -737,7 +749,7 @@ class TestServerProto(tb.QueryTestCase):
         finally:
             self.assertEqual(
                 await self.con.query(
-                    'select sys::advisory_unlock(<int64>$0)', lock_key),
+                    'select sys::_advisory_unlock(<int64>$0)', lock_key),
                 [True])
 
     async def test_server_proto_log_message_01(self):
@@ -2782,3 +2794,96 @@ class TestServerProtoDDL(tb.DDLTestCase):
             SELECT {"test1", "test2"}
         ''')
         self.assertEqual(result, ['"test1"', '"test2"'])
+
+
+class TestServerCapabilities(tb.QueryTestCase):
+
+    TRANSACTION_ISOLATION = False
+
+    SETUP = '''
+        CREATE TYPE test::Modify {
+            CREATE REQUIRED PROPERTY prop1 -> std::str;
+        };
+    '''
+
+    TEARDOWN = '''
+        DROP TYPE test::Modify;
+    '''
+
+    async def test_server_capabilities_01(self):
+        _, attrs = await self.con._fetchall_with_headers(
+            'SELECT {1, 2, 3}',
+        )
+        self.assertEqual(_capabilities(attrs), enums.Capability(0))
+
+        # selects are always allowed
+        _, attrs = await self.con._fetchall_with_headers(
+            'SELECT {1, 2, 3}',
+            __allow_capabilities__=0,
+        )
+        self.assertEqual(_capabilities(attrs), enums.Capability(0))
+
+        # as well as describes
+        _, attrs = await self.con._fetchall_with_headers(
+            'DESCRIBE OBJECT cfg::Config',
+            __allow_capabilities__=0,
+        )
+        self.assertEqual(_capabilities(attrs), enums.Capability(0))
+
+    async def test_server_capabilities_02(self):
+        _, attrs = await self.con._fetchall_with_headers(
+            'INSERT test::Modify { prop1 := "xx" }',
+        )
+        self.assertEqual(
+            _capabilities(attrs),
+            enums.Capability.MODIFICATIONS,
+        )
+        with self.assertRaises(edgedb.ProtocolError):
+            await self.con._fetchall(
+                'INSERT test::Modify { prop1 := "xx" }',
+                __allow_capabilities__=0,
+            )
+        await self.con._fetchall(
+            'INSERT test::Modify { prop1 := "xx" }',
+            __allow_capabilities__=enums.Capability.MODIFICATIONS,
+        )
+
+    async def test_server_capabilities_03(self):
+        with self.assertRaises(edgedb.ProtocolError):
+            await self.con._fetchall(
+                'CREATE TYPE test::Type1',
+                __allow_capabilities__=0,
+            )
+        try:
+            _, attrs = await self.con._fetchall_with_headers(
+                'CREATE TYPE test::Type1',
+                __allow_capabilities__=enums.Capability.DDL,
+            )
+            self.assertEqual(
+                _capabilities(attrs),
+                enums.Capability.DDL,
+            )
+        finally:
+            _, attrs = await self.con._fetchall_with_headers(
+                'DROP TYPE test::Type1',
+            )
+            self.assertEqual(
+                _capabilities(attrs),
+                enums.Capability.DDL,
+            )
+
+    async def test_server_capabilities_04(self):
+        caps = ALL_CAPABILITIES & ~enums.Capability.SESSION_CONFIG
+        with self.assertRaises(edgedb.ProtocolError):
+            await self.con._fetchall(
+                'CONFIGURE SESSION SET singleprop := "42"',
+                __allow_capabilities__=caps,
+            )
+
+    async def test_server_capabilities_05(self):
+        caps = ALL_CAPABILITIES & ~enums.Capability.PERSISTENT_CONFIG
+        with self.assertRaises(edgedb.ProtocolError):
+            await self.con._fetchall(
+                'CONFIGURE SYSTEM SET singleprop := "42"',
+                __allow_capabilities__=caps,
+            )

@@ -172,8 +172,11 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
         ]
 
         for query in queries:
-            with self.assertRaisesRegex(edgedb.ProtocolError,
-                                        r'cannot execute.*connection'):
+            with self.assertRaisesRegex(
+                edgedb.ProtocolError,
+                # can fail on transaction commands or on session configuration
+                'cannot execute.*',
+            ):
                 self.edgeql_query(query)
 
     def test_http_edgeql_query_07(self):
@@ -254,43 +257,3 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
                 r'''SELECT <str>$x ?? '-default' ''',
                 variables={'x': None},
             )
-
-    def test_http_edgeql_session_func_01(self):
-        with self.assertRaisesRegex(edgedb.QueryError,
-                                    r'sys::advisory_lock\(\) cannot be '
-                                    r'called in a non-session context'):
-            self.edgeql_query(r"SELECT sys::advisory_lock(1);")
-
-    def test_http_edgeql_session_func_02(self):
-        with self.assertRaisesRegex(edgedb.QueryError,
-                                    r'sys::advisory_unlock\(\) cannot be '
-                                    r'called in a non-session context'):
-            self.edgeql_query(r"SELECT sys::advisory_unlock(1);")
-
-    def test_http_edgeql_session_func_03(self):
-        with self.assertRaisesRegex(edgedb.QueryError,
-                                    r'sys::advisory_unlock_all\(\) cannot be '
-                                    r'called in a non-session context'):
-            self.edgeql_query(r"SELECT sys::advisory_unlock_all();")
-
-    def test_http_edgeql_session_func_04(self):
-        with self.assertRaisesRegex(edgedb.QueryError,
-                                    r'sys::sleep\(\) cannot be '
-                                    r'called in a non-session context'):
-            self.edgeql_query(r"SELECT sys::sleep(0);")
-
-    def test_http_edgeql_session_func_05(self):
-        with self.assertRaisesRegex(edgedb.QueryError,
-                                    r'sys::sleep\(\) cannot be '
-                                    r'called in a non-session context'):
-            self.edgeql_query(r"SELECT sys::sleep(<duration>'0s');")
-
-    def test_http_edgeql_session_func_06(self):
-        with self.assertRaisesRegex(edgedb.QueryError,
-                                    r'sys::sleep\(\) cannot be '
-                                    r'called in a non-session context'):
-            self.edgeql_query(r"""
-                SELECT Object {
-                    bad := sys::sleep(0)
-                };
-            """)

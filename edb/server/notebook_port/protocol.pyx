@@ -31,8 +31,15 @@ from edb.common import markup
 
 from edb.server import compiler
 from edb.server.compiler import IoFormat
+from edb.server.compiler import enums
 from edb.server.http import http
 from edb.server.http cimport http
+
+
+ALLOWED_CAPABILITIES = (
+    enums.Capability.MODIFICATIONS |
+    enums.Capability.DDL
+)
 
 
 cdef class Protocol(http.HttpProtocol):
@@ -117,6 +124,7 @@ cdef class Protocol(http.HttpProtocol):
     async def compile(self, dbver, list queries):
         comp = await self.server.compilers.get()
         try:
+            # TODO(tailhook) check capabilities
             return await comp.call(
                 'compile_notebook',
                 dbver,
@@ -144,7 +152,11 @@ cdef class Protocol(http.HttpProtocol):
                     })
                 else:
                     query_unit = unit_or_error
-
+                    if query_unit.capabilities & ~ALLOWED_CAPABILITIES:
+                        raise query_unit.capabilities.make_error(
+                            ALLOWED_CAPABILITIES,
+                            errors.UnsupportedCapabilityError,
+                        )
                     try:
                         data = await pgcon.parse_execute_notebook(
                             query_unit.sql[0], query_unit.dbver)

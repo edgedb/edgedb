@@ -1148,9 +1148,6 @@ class Function(CallableObject, VolatilitySubject, s_abc.Function,
     initial_value = so.SchemaField(
         expr.Expression, default=None, compcoef=0.4, coerce=True)
 
-    session_only = so.SchemaField(
-        bool, default=False, compcoef=0.4, coerce=True, allow_ddl_set=True)
-
     has_dml = so.SchemaField(
         bool, default=False, allow_ddl_set=True)
 
@@ -1283,8 +1280,6 @@ class FunctionCommand(
         from edb.ir import ast as irast
 
         params = self._get_params(schema, context)
-        session_only = self._get_attribute_value(
-            schema, context, 'session_only')
 
         language = self._get_attribute_value(schema, context, 'language')
         assert language is qlast.Language.EdgeQL
@@ -1303,9 +1298,6 @@ class FunctionCommand(
             options=qlcompiler.CompilerOptions(
                 anchors=param_anchors,
                 func_params=params,
-                # the body of a session_only function can contain calls to
-                # other session_only functions
-                session_mode=session_only,
                 apply_query_rewrites=not context.stdmode,
                 track_schema_ref_exprs=track_schema_ref_exprs,
             ),
@@ -1406,7 +1398,6 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
         has_polymorphic = params.has_polymorphic(schema)
         polymorphic_return_type = return_type.is_polymorphic(schema)
         named_only = params.find_named_only(schema)
-        session_only = self.scls.get_session_only(schema)
 
         # Certain syntax is only allowed in "EdgeDB developer" mode,
         # i.e. when populating std library, etc.
@@ -1465,13 +1456,6 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                     f'function: overloading another function with different '
                     f'return type {func_return_typemod.to_edgeql()} '
                     f'{func.get_return_type(schema).get_displayname(schema)}',
-                    context=self.source_context)
-
-            if session_only != func.get_session_only(schema):
-                raise errors.InvalidFunctionDefinitionError(
-                    f'cannot create `{signature}` function: '
-                    f'overloading another function with different '
-                    f'`session_only` flag',
                     context=self.source_context)
 
             if func_from_function:
