@@ -163,6 +163,34 @@ class DeltaGuidance(NamedTuple):
     ] = frozenset()
 
 
+class DescribeVisibilityFlags(enum.IntFlag):
+
+    #: Show the field if it is set explicitly, i.e. not inherited or computed.
+    SHOW_IF_EXPLICIT = 1 << 0
+    #: Show the field if it is inherited or computed.
+    SHOW_IF_DERIVED = 1 << 1
+    #: Show if the field value matches the default.
+    SHOW_IF_DEFAULT = 1 << 2
+
+
+class DescribeVisibilityPolicy(enum.IntEnum):
+
+    SHOW_IF_EXPLICIT = (
+        DescribeVisibilityFlags.SHOW_IF_EXPLICIT
+    )
+
+    SHOW_IF_EXPLICIT_OR_DERIVED = (
+        DescribeVisibilityFlags.SHOW_IF_EXPLICIT
+        | DescribeVisibilityFlags.SHOW_IF_DERIVED
+        | DescribeVisibilityFlags.SHOW_IF_DEFAULT
+    )
+
+    SHOW_IF_EXPLICIT_OR_DERIVED_NOT_DEFAULT = (
+        DescribeVisibilityFlags.SHOW_IF_EXPLICIT
+        | DescribeVisibilityFlags.SHOW_IF_DERIVED
+    )
+
+
 class ComparisonContext:
 
     renames: Dict[Tuple[Type[Object], sn.Name], sd.RenameObject[Object]]
@@ -173,9 +201,11 @@ class ComparisonContext:
         self,
         *,
         generate_prompts: bool = False,
+        descriptive_mode: bool = False,
         guidance: Optional[DeltaGuidance] = None,
     ) -> None:
         self.generate_prompts = generate_prompts
+        self.descriptive_mode = descriptive_mode
         self.guidance = guidance
         self.renames = {}
         self.deletions = {}
@@ -244,6 +274,9 @@ class Field(struct.ProtoField, Generic[T]):
     #: Whether this field is set using special DDL syntax or a generic
     #: SET command.
     special_ddl_syntax: bool
+    #: Determines when this field is shown in
+    #: DESCRIBE AS TEXT [VERBOSE].
+    describe_visibility: DescribeVisibilityPolicy
     #: Used for fields holding references to objects.  If True,
     #: the reference is considered "weak", i.e. not essential for
     #: object definition.  The schema and delta linearization
@@ -273,6 +306,8 @@ class Field(struct.ProtoField, Generic[T]):
         ephemeral: bool = False,
         weak_ref: bool = False,
         allow_ddl_set: bool = False,
+        describe_visibility: DescribeVisibilityPolicy = (
+            DescribeVisibilityPolicy.SHOW_IF_EXPLICIT),
         ddl_identity: bool = False,
         aux_cmd_data: bool = False,
         special_ddl_syntax: bool = False,
@@ -293,6 +328,7 @@ class Field(struct.ProtoField, Generic[T]):
         self.ddl_identity = ddl_identity
         self.aux_cmd_data = aux_cmd_data
         self.special_ddl_syntax = special_ddl_syntax
+        self.describe_visibility = describe_visibility
 
         self.compcoef = compcoef
         self.inheritable = inheritable
@@ -898,6 +934,16 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         ephemeral=True,
         default=None)
 
+    # Fields that have been computed by the system as opposed to
+    # set explicitly or inherited.
+    computed_fields = SchemaField(
+        checked.FrozenCheckedSet[str],
+        default=DEFAULT_CONSTRUCTOR,
+        coerce=True,
+        inheritable=False,
+        compcoef=0.999,
+    )
+
     _fields: Dict[str, SchemaField[Any]]
 
     def schema_reduce(self) -> Tuple[str, uuid.UUID]:
@@ -1244,7 +1290,7 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
             our_value = ours.get_field_value(our_schema, fname)
             their_value = theirs.get_field_value(their_schema, fname)
 
-        return cls.compare_field_value(
+        similarity = cls.compare_field_value(
             field,
             our_value,
             their_value,
@@ -1252,6 +1298,17 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
             their_schema=their_schema,
             context=context,
         )
+
+        # Check to see if this field's computed status has changed.
+        our_cfs = ours.get_computed_fields(our_schema)
+        their_cfs = theirs.get_computed_fields(their_schema)
+
+        fname = field.name
+        if (fname in our_cfs) != (fname in their_cfs):
+            # The change in computed status decreases the similarity.
+            similarity *= 0.95
+
+        return similarity
 
     @classmethod
     def compare_values(
@@ -1441,6 +1498,20 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         fields = {fn: f for fn, f in ff if f.simpledelta and not f.ephemeral}
         for fn, f in fields.items():
             value = self.get_explicit_field_value(schema, fn, None)
+
+            if (
+                value is None
+                and context.descriptive_mode
+                and (
+                    f.describe_visibility
+                    & DescribeVisibilityFlags.SHOW_IF_DERIVED
+                )
+            ):
+                value = self.get_field_value(schema, fn)
+                value_from_default = True
+            else:
+                value_from_default = False
+
             if f.aux_cmd_data:
                 delta.set_object_aux_data(fn, value)
             if value is not None:
@@ -1449,7 +1520,14 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
                     v = value.as_shell(schema)
                 else:
                     v = value
-                self.record_field_create_delta(schema, delta, context, fn, v)
+                self.record_field_create_delta(
+                    schema,
+                    delta,
+                    context=context,
+                    fname=fn,
+                    value=v,
+                    from_default=value_from_default,
+                )
 
         for refdict in cls.get_refdicts():
             refcoll: ObjectCollection[Object] = (
@@ -1636,16 +1714,35 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         orig_value: Any,
         orig_schema: Optional[s_schema.Schema],
         orig_object: Optional[Object_T],
+        from_default: bool = False,
     ) -> None:
-        delta.set_attribute_value(fname, value, orig_value=orig_value)
+        computed_fields = self.get_computed_fields(schema)
+        is_computed = fname in computed_fields
+        if orig_schema is not None and orig_object is not None:
+            orig_computed_fields = (
+                orig_object.get_computed_fields(orig_schema))
+            orig_is_computed = fname in orig_computed_fields
+        else:
+            orig_is_computed = is_computed
+
+        delta.set_attribute_value(
+            fname,
+            value,
+            orig_value=orig_value,
+            computed=is_computed,
+            orig_computed=orig_is_computed,
+            from_default=from_default,
+        )
 
     def record_field_create_delta(
         self: Object_T,
         schema: s_schema.Schema,
         delta: sd.ObjectCommand[Object_T],
         context: ComparisonContext,
+        *,
         fname: str,
         value: Any,
+        from_default: bool,
     ) -> None:
         self.record_simple_field_delta(
             schema,
@@ -1656,6 +1753,7 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
             orig_value=None,
             orig_schema=None,
             orig_object=None,
+            from_default=from_default,
         )
 
     def record_field_alter_delta(
@@ -2626,7 +2724,7 @@ class InheritingObject(SubclassableObject):
         compcoef=0.999,
     )
 
-    # Attributes that have been set locally as opposed to inherited.
+    # Fields that have been inherited as opposed to set explicitly.
     inherited_fields = SchemaField(
         checked.FrozenCheckedSet[str],
         default=DEFAULT_CONSTRUCTOR,
@@ -2822,6 +2920,7 @@ class InheritingObject(SubclassableObject):
         orig_value: Any,
         orig_schema: Optional[s_schema.Schema],
         orig_object: Optional[InheritingObjectT],
+        from_default: bool = False,
     ) -> None:
         inherited_fields = self.get_inherited_fields(schema)
         is_inherited = fname in inherited_fields
@@ -2832,12 +2931,24 @@ class InheritingObject(SubclassableObject):
         else:
             orig_is_inherited = is_inherited
 
+        computed_fields = self.get_computed_fields(schema)
+        is_computed = fname in computed_fields
+        if orig_schema is not None and orig_object is not None:
+            orig_computed_fields = (
+                orig_object.get_computed_fields(orig_schema))
+            orig_is_computed = fname in orig_computed_fields
+        else:
+            orig_is_computed = is_computed
+
         delta.set_attribute_value(
             fname,
             value=value,
             orig_value=orig_value,
             inherited=is_inherited,
             orig_inherited=orig_is_inherited,
+            computed=is_computed,
+            orig_computed=orig_is_computed,
+            from_default=from_default,
         )
 
     def get_field_create_delta(

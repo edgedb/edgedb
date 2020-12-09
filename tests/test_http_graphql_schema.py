@@ -2332,9 +2332,14 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                     {
                         "name": "of_group",
                         "type": {
-                            "kind": "OBJECT",
-                            "name": "_edb__SettingAliasAugmented__of_group",
-                            "ofType": None,
+                            "kind": "NON_NULL",
+                            "name": None,
+                            "ofType": {
+                                "kind": "OBJECT",
+                                "name":
+                                    "_edb__SettingAliasAugmented__of_group",
+                                "__typename": "__Type"
+                            },
                             "__typename": "__Type"
                         },
                         "__typename": "__Field",

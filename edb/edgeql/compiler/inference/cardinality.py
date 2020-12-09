@@ -475,12 +475,28 @@ def _infer_pointer_cardinality(
                     context=source_ctx
                 )
 
-    if ptrcls.get_cardinality(env.schema) is None:
+    ptrcls_schema_card = ptrcls.get_cardinality(env.schema)
+    if (
+        ptrcls_schema_card is None
+        or not ptrcls_schema_card.is_known()
+        or ptrcls in ctx.env.pointer_specified_info
+    ):
+        if ptrcls_schema_card is not None and ptrcls_schema_card.is_known():
+            # If we are overloading an existing pointer, take the _maximum_
+            # of the cardinalities.  In practice this only means that we might
+            # raise the lower bound, since the other redefinitions of bounds
+            # are prohibited above and in viewgen.
+            ptrcls_card = qltypes.Cardinality.from_schema_value(
+                ptrcls.get_required(env.schema),
+                ptrcls_schema_card,
+            )
+            if is_mut_assignment:
+                ptr_card = cartesian_cardinality((ptrcls_card, ptr_card))
+            else:
+                ptr_card = max_cardinality((ptrcls_card, ptr_card))
         required, card = ptr_card.to_schema_value()
-        env.schema = ptrcls.set_field_value(
-            env.schema, 'cardinality', card)
-        env.schema = ptrcls.set_field_value(
-            env.schema, 'required', required)
+        env.schema = ptrcls.set_field_value(env.schema, 'cardinality', card)
+        env.schema = ptrcls.set_field_value(env.schema, 'required', required)
         _update_cardinality_in_derived(ptrcls, env=ctx.env)
 
     out_card, dir_card = typeutils.cardinality_from_ptrcls(
@@ -498,6 +514,7 @@ def _update_cardinality_in_derived(
     children = env.pointer_derivation_map.get(ptrcls)
     if children:
         ptrcls_cardinality = ptrcls.get_cardinality(env.schema)
+        assert ptrcls_cardinality is not None and ptrcls_cardinality.is_known()
         for child in children:
             env.schema = child.set_field_value(
                 env.schema, 'cardinality', ptrcls_cardinality)

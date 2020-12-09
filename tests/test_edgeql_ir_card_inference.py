@@ -491,3 +491,29 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 % OK %
         foo: ONE
         """
+
+    def test_edgeql_ir_card_inference_48(self):
+        """
+        WITH
+            MODULE test
+        SELECT Card {
+            o_name := .owners.name,
+        }
+% OK %
+        o_name: MANY
+        """
+
+    def test_edgeql_ir_card_inference_49(self):
+        """
+        WITH MODULE test
+        SELECT User {
+            name,
+            fire_deck := (
+                SELECT User.deck {name, element}
+                FILTER .element = 'Fire'
+                ORDER BY .name
+            ).name
+        }
+% OK %
+        fire_deck: MANY
+        """

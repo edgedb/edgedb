@@ -64,6 +64,7 @@ def delta_schemas(
     include_derived_types: bool=True,
     include_migrations: bool=False,
     linearize_delta: bool=True,
+    descriptive_mode: bool=False,
     generate_prompts: bool=False,
     guidance: Optional[so.DeltaGuidance]=None,
 ) -> sd.DeltaRoot:
@@ -121,6 +122,9 @@ def delta_schemas(
             Whether the resulting diff should be properly ordered
             using the dependencies between objects.
 
+        descriptive_mode:
+            DESCRIBE AS TEXT mode.
+
         generate_prompts:
             Whether to generate prompts that can be used in
             DESCRIBE MIGRATION.
@@ -139,6 +143,7 @@ def delta_schemas(
     schema_b_filters = list(schema_b_filters)
     context = so.ComparisonContext(
         generate_prompts=generate_prompts,
+        descriptive_mode=descriptive_mode,
         guidance=guidance,
     )
 
@@ -779,6 +784,7 @@ def descriptive_text_from_schema(
         include_std_diff=include_std_ddl,
         include_derived_types=False,
         linearize_delta=False,
+        descriptive_mode=True,
     )
     return descriptive_text_from_delta(
         None, schema, diff, limit_ref_classes=included_ref_classes)

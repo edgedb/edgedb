@@ -709,7 +709,7 @@ def cardinality_from_ptrcls(
 
     out_card = ptrcls.get_cardinality(schema)
     required = ptrcls.get_required(schema)
-    if out_card is None:
+    if out_card is None or not out_card.is_known():
         # The cardinality is not yet known.
         out_cardinality = None
         dir_cardinality = None

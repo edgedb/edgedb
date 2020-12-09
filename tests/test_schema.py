@@ -229,26 +229,13 @@ _123456789_123456789_123456789 -> str
     @tb.must_fail(errors.SchemaDefinitionError,
                   "possibly more than one element returned by an expression "
                   "for the computable 'ham' declared as 'single'",
-                  line=5, col=29)
+                  line=5, col=36)
     def test_schema_computable_cardinality_inference_03(self):
         """
             type Spam {
                 required property title -> str;
                 multi link spams -> Spam;
-                link ham := .spams;
-            }
-        """
-
-    @tb.must_fail(errors.SchemaDefinitionError,
-                  "possibly more than one element returned by an expression "
-                  "for the computable 'hams' declared as 'single'",
-                  line=5, col=34)
-    def test_schema_computable_cardinality_inference_04(self):
-        """
-            type Spam {
-                required property title -> str;
-                multi link spams -> Spam;
-                property hams := .spams.title;
+                single link ham := .spams;
             }
         """
 
@@ -256,7 +243,7 @@ _123456789_123456789_123456789 -> str
                   "possibly more than one element returned by an expression "
                   "for the computable 'hams' declared as 'single'",
                   line=5, col=41)
-    def test_schema_computable_cardinality_inference_05(self):
+    def test_schema_computable_cardinality_inference_04(self):
         """
             type Spam {
                 required property title -> str;
@@ -269,7 +256,7 @@ _123456789_123456789_123456789 -> str
                   "possibly an empty set returned by an expression for "
                   "the computable 'hams' declared as 'required'",
                   line=5, col=43)
-    def test_schema_computable_cardinality_inference_06(self):
+    def test_schema_computable_cardinality_inference_05(self):
         """
             type Spam {
                 required property title -> str;
@@ -1255,7 +1242,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             if list(diff.get_subcommands()):
                 self.fail(
                     f'unexpected difference in schema produced by\n'
-                    f'alternative migration paths on step {i}:\n'
+                    f'alternative migration paths on step {i + 1}:\n'
                     f'{markup.dumps(diff)}\n'
                 )
 
@@ -4700,7 +4687,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             """
             type test::Child extending test::Parent, test::Parent2 {
                 annotation test::anno := 'annotated';
-                overloaded single link foo extending test::f -> test::Foo {
+                overloaded link foo extending test::f -> test::Foo {
                     annotation test::anno := 'annotated link';
                     constraint std::exclusive {
                         annotation test::anno := 'annotated constraint';
@@ -4812,12 +4799,12 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             [
                 """
                 type test::Spam {
-                    optional single link foobar -> (test::Foo | test::Bar);
+                    link foobar -> (test::Foo | test::Bar);
                 };
                 """,
                 """
                 type test::Spam {
-                    optional single link foobar -> (test::Bar | test::Foo);
+                    link foobar -> (test::Bar | test::Foo);
                 };
                 """,
             ]
@@ -4990,7 +4977,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             '''
             type test::User extending test::HasImage {
-                optional single property name -> std::str;
+                property name -> std::str;
             };
             ''',
 
@@ -5029,7 +5016,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             '''
             abstract type test::HasImage {
                 index on (__subject__.image);
-                required single property image -> std::str;
+                required property image -> std::str;
             };
             ''',
 
@@ -5037,7 +5024,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             '''
             CREATE ABSTRACT TYPE test::HasImage {
-                CREATE REQUIRED SINGLE PROPERTY image -> std::str;
+                CREATE REQUIRED PROPERTY image -> std::str;
                 CREATE INDEX ON (__subject__.image);
             };
             '''
@@ -5099,8 +5086,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             '''
             type test::UniqueName {
-                optional single link translated_label
-                extending test::translated_label
+                link translated_label extending test::translated_label
                         -> test::Label {
                     constraint std::exclusive on (__subject__@prop1);
                     constraint std::exclusive on (
@@ -5210,7 +5196,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             """
             CREATE TYPE test::Foo {
-                CREATE OPTIONAL SINGLE PROPERTY bar -> std::str {
+                CREATE PROPERTY bar -> std::str {
                     SET readonly := false;
                 };
             };
@@ -5219,7 +5205,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             """
             type test::Foo {
-                optional single property bar -> std::str {
+                property bar -> std::str {
                     readonly := false;
                 };
             };
@@ -5357,7 +5343,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             '''
             type test::Bar0 {
-                optional single link insert_foo -> test::Foo {
+                link insert_foo -> test::Foo {
                     default := (INSERT
                         test::Foo
                         {
@@ -5370,7 +5356,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             '''
             type test::Bar1 {
-                optional multi link update_foo -> test::Foo {
+                multi link update_foo -> test::Foo {
                     default := (UPDATE
                         test::Foo
                     FILTER
@@ -5385,7 +5371,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             '''
             type test::Bar2 {
-                optional multi link for_foo -> test::Foo {
+                multi link for_foo -> test::Foo {
                     default := (FOR x IN {2, 3}
                     UNION
                         (SELECT
@@ -5400,7 +5386,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             '''
             type test::Bar3 {
-                optional single property delete_foo -> std::int64 {
+                property delete_foo -> std::int64 {
                     default := (SELECT
                         ((DELETE
                             test::Foo
@@ -5429,7 +5415,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             """
             CREATE TYPE test::Foo {
-                CREATE OPTIONAL SINGLE PROPERTY name -> std::str;
+                CREATE PROPERTY name -> std::str;
             };
             CREATE ALIAS test::Bar := (
                 SELECT test::Foo {
@@ -5457,7 +5443,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             """
             CREATE TYPE test::Foo {
-                CREATE OPTIONAL SINGLE PROPERTY name -> std::str;
+                CREATE PROPERTY name -> std::str;
             };
             CREATE ALIAS test::Bar {
                 USING (
@@ -5523,7 +5509,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             """
             CREATE TYPE test::Foo {
-                CREATE OPTIONAL SINGLE PROPERTY name -> std::str;
+                CREATE PROPERTY name -> std::str;
             };
             CREATE ALIAS test::Bar := (
                 SELECT test::Foo {
@@ -5555,17 +5541,17 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             """
             CREATE TYPE test::Foo {
-                CREATE OPTIONAL SINGLE LINK annotated_link {
+                CREATE LINK annotated_link {
                     USING (SELECT test::Foo LIMIT 1);
                     CREATE ANNOTATION std::title := 'complink';
                 };
-                CREATE OPTIONAL SINGLE LINK complink :=
+                CREATE LINK complink :=
                     (SELECT test::Foo LIMIT 1);
-                CREATE OPTIONAL SINGLE PROPERTY annotated_compprop {
+                CREATE PROPERTY annotated_compprop {
                     USING ('foo');
                     CREATE ANNOTATION std::title := 'compprop';
                 };
-                CREATE REQUIRED SINGLE PROPERTY compprop := ('foo');
+                CREATE PROPERTY compprop := ('foo');
             };
             """
         )
@@ -5591,18 +5577,18 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             """
             CREATE TYPE test::Foo {
-                CREATE OPTIONAL SINGLE LINK annotated_link {
+                CREATE LINK annotated_link {
                     USING (SELECT test::Foo LIMIT 1);
                     CREATE ANNOTATION std::title := 'complink';
                 };
-                CREATE OPTIONAL SINGLE LINK complink := (
+                CREATE LINK complink := (
                     SELECT test::Foo LIMIT 1
                 );
-                CREATE OPTIONAL SINGLE PROPERTY annotated_compprop {
+                CREATE PROPERTY annotated_compprop {
                     USING ('foo');
                     CREATE ANNOTATION std::title := 'compprop';
                 };
-                CREATE REQUIRED SINGLE PROPERTY compprop := ('foo');
+                CREATE PROPERTY compprop := ('foo');
             };
             """
         )
@@ -5654,16 +5640,15 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                       schema::Type,
                       schema::Source
             {
-                CREATE OPTIONAL MULTI LINK intersection_of
-                    -> schema::ObjectType;
-                CREATE OPTIONAL MULTI LINK union_of -> schema::ObjectType;
-                CREATE REQUIRED SINGLE PROPERTY is_compound_type := (
+                CREATE MULTI LINK intersection_of -> schema::ObjectType;
+                CREATE MULTI LINK union_of -> schema::ObjectType;
+                CREATE PROPERTY is_compound_type := (
                     (EXISTS (.union_of) OR EXISTS (.intersection_of))
                 );
-                CREATE OPTIONAL MULTI LINK links := (
+                CREATE MULTI LINK links := (
                     .pointers[IS schema::Link]
                 );
-                CREATE OPTIONAL MULTI LINK properties := (
+                CREATE MULTI LINK properties := (
                     .pointers[IS schema::Property]
                 );
             };
@@ -5679,13 +5664,13 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                     schema::Type,
                     schema::Source
             {
-                optional multi link intersection_of -> schema::ObjectType;
-                optional multi link links := (.pointers[IS schema::Link]);
-                optional multi link properties := (
+                multi link intersection_of -> schema::ObjectType;
+                multi link links := (.pointers[IS schema::Link]);
+                multi link properties := (
                     .pointers[IS schema::Property]
                 );
-                optional multi link union_of -> schema::ObjectType;
-                required single property is_compound_type := (
+                multi link union_of -> schema::ObjectType;
+                property is_compound_type := (
                     (EXISTS (.union_of) OR EXISTS (.intersection_of))
                 );
             };
@@ -5721,7 +5706,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             """
             CREATE TYPE test::Foo {
-                CREATE OPTIONAL SINGLE LINK bar -> std::Object {
+                CREATE LINK bar -> std::Object {
                     ON TARGET DELETE ALLOW;
                 };
             };
@@ -5731,7 +5716,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             """
             type test::Foo {
-                optional single link bar -> std::Object {
+                link bar -> std::Object {
                     on target delete  allow;
                 };
             };
@@ -5842,13 +5827,12 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             """
             CREATE TYPE test::Tree {
-                CREATE OPTIONAL SINGLE LINK parent -> test::Tree;
-                CREATE OPTIONAL MULTI LINK children :=
-                    (.<parent[IS test::Tree]);
-                CREATE REQUIRED SINGLE PROPERTY val -> std::str {
+                CREATE LINK parent -> test::Tree;
+                CREATE MULTI LINK children := (.<parent[IS test::Tree]);
+                CREATE REQUIRED PROPERTY val -> std::str {
                     CREATE CONSTRAINT std::exclusive;
                 };
-                CREATE REQUIRED MULTI LINK test_comp := (
+                CREATE MULTI LINK test_comp := (
                     SELECT
                         test::Tree
                     FILTER

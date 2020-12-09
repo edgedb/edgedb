@@ -262,7 +262,8 @@ def compile_insert_unless_conflict(
         )
 
     ptr = ptr.get_nearest_non_derived_parent(schema)
-    if ptr.get_cardinality(schema) != qltypes.SchemaCardinality.One:
+    ptr_card = ptr.get_cardinality(schema)
+    if not ptr_card.is_single():
         raise errors.QueryError(
             'UNLESS CONFLICT property must be a SINGLE property',
             context=constraint_spec.context,
@@ -1128,6 +1129,11 @@ def compile_query_subject(
         and view_rptr.ptrcls_name is not None
         and expr_rptr is not None
         and expr_rptr.direction is s_pointers.PointerDirection.Outbound
+        and expr_rptr.source.rptr is None
+        and (
+            view_rptr.source.get_bases(ctx.env.schema).first(ctx.env.schema).id
+            == expr_rptr.source.typeref.id
+        )
         and (
             view_rptr.ptrcls_is_linkprop
             == (expr_rptr.ptrref.source_ptr is not None)

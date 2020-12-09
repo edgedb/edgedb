@@ -435,6 +435,9 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
     def enumerate_attributes(self) -> Tuple[str, ...]:
         return tuple(self._attrs)
 
+    def enumerate_attribute_cmds(self) -> Tuple[AlterObjectProperty, ...]:
+        return tuple(self._attrs.values())
+
     def has_attribute_value(self, attr_name: str) -> bool:
         return attr_name in self._attrs
 
@@ -493,6 +496,9 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         orig_value: Any = None,
         inherited: bool = False,
         orig_inherited: Optional[bool] = None,
+        computed: bool = False,
+        from_default: bool = False,
+        orig_computed: Optional[bool] = None,
         source_context: Optional[parsing.ParserContext] = None,
     ) -> None:
         orig_op = op = self.get_attribute_set_cmd(attr_name)
@@ -503,9 +509,14 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
 
         if orig_inherited is None:
             orig_inherited = inherited
-
         op.new_inherited = inherited
         op.old_inherited = orig_inherited
+
+        if orig_computed is None:
+            orig_computed = computed
+        op.new_computed = computed
+        op.old_computed = orig_computed
+        op.from_default = from_default
 
         if source_context is not None:
             op.source_context = source_context
@@ -798,6 +809,8 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
 
                 if dd.new_inherited:
                     diff.comment = 'inherited'
+                elif dd.new_computed:
+                    diff.comment = 'computed'
 
                 node.add_child(label=dd.property, node=diff)
             else:
@@ -1034,7 +1047,13 @@ class CommandContext:
         self, referrer_ctx: CommandContextToken[ObjectCommand[so.Object]],
     ) -> sn.QualName:
         referrer_name = referrer_ctx.op.classname
-        referrer_name = self.early_renames.get(referrer_name, referrer_name)
+        renamed = self.early_renames.get(referrer_name)
+        if renamed:
+            referrer_name = renamed
+        else:
+            renamed = self.renames.get(referrer_name)
+            if renamed:
+                referrer_name = renamed
         assert isinstance(referrer_name, sn.QualName)
         return referrer_name
 
@@ -1582,6 +1601,48 @@ class ObjectCommand(
 
         return schema
 
+    def _get_computed_status_of_fields(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> Dict[str, bool]:
+        result = {}
+        mcls = self.get_schema_metaclass()
+        for op in self.enumerate_attribute_cmds():
+            field = mcls.get_field(op.property)
+            if not field.ephemeral:
+                result[op.property] = op.new_computed
+
+        return result
+
+    def _update_computed_fields(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+        update: Mapping[str, bool],
+    ) -> None:
+        cur_comp_fields = self.scls.get_computed_fields(schema)
+        comp_fields = set(cur_comp_fields)
+        for fn, computed in update.items():
+            if computed:
+                comp_fields.add(fn)
+            else:
+                comp_fields.discard(fn)
+
+        if cur_comp_fields != comp_fields:
+            if comp_fields:
+                self.set_attribute_value(
+                    'computed_fields',
+                    frozenset(comp_fields),
+                    orig_value=cur_comp_fields if cur_comp_fields else None,
+                )
+            else:
+                self.set_attribute_value(
+                    'computed_fields',
+                    None,
+                    orig_value=cur_comp_fields if cur_comp_fields else None,
+                )
+
     def _append_subcmd_ast(
         self,
         schema: s_schema.Schema,
@@ -1662,20 +1723,15 @@ class ObjectCommand(
 
                 if (
                     (
-                        # For all properties other than cardinality, if they
-                        # are inherited and have the default value, skip them.
-                        # Cardinality is special and should be explicitly
-                        # included, though.
-                        fop.property == 'cardinality'
-                        or
-                        (
-                            not fop.new_inherited
-                            or context.descriptive_mode
-                        )
+                        # Only include fields that are not inherited
+                        # and that have their value actually changed.
+                        not fop.new_inherited
+                        or context.descriptive_mode
                     )
                     and (
                         fop.old_value != new_value
                         or fop.old_inherited != fop.new_inherited
+                        or fop.old_computed != fop.new_computed
                     )
                 ):
                     self._apply_field_ast(schema, context, node, fop)
@@ -2242,6 +2298,12 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
             schema = self.populate_ddl_identity(schema, context)
             schema = self.canonicalize_attributes(schema, context)
             self.validate_create(schema, context)
+            computed_status = self._get_computed_status_of_fields(
+                schema, context)
+            computed_fields = {n for n, v in computed_status.items() if v}
+            if computed_fields:
+                self.set_attribute_value(
+                    'computed_fields', frozenset(computed_fields))
 
         props = self.get_resolved_attributes(schema, context)
         metaclass = self.get_schema_metaclass()
@@ -2367,6 +2429,9 @@ class AlterObjectFragment(ObjectCommand[so.Object_T]):
         if not context.canonical:
             schema = self.populate_ddl_identity(schema, context)
             schema = self.canonicalize_attributes(schema, context)
+            computed_status = self._get_computed_status_of_fields(
+                schema, context)
+            self._update_computed_fields(schema, context, computed_status)
 
         props = self.get_resolved_attributes(schema, context)
         return self.scls.update(schema, props)
@@ -2716,6 +2781,9 @@ class AlterObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         if not context.canonical:
             schema = self.populate_ddl_identity(schema, context)
             schema = self.canonicalize_attributes(schema, context)
+            computed_status = self._get_computed_status_of_fields(
+                schema, context)
+            self._update_computed_fields(schema, context, computed_status)
             self.validate_alter(schema, context)
 
         props = self.get_resolved_attributes(schema, context)
@@ -2926,6 +2994,9 @@ class AlterObjectProperty(Command):
     new_value = struct.Field[Any](object, None)
     old_inherited = struct.Field(bool, False)
     new_inherited = struct.Field(bool, False)
+    new_computed = struct.Field(bool, False)
+    old_computed = struct.Field(bool, False)
+    from_default = struct.Field(bool, False)
 
     @classmethod
     def _cmd_tree_from_ast(
@@ -3034,8 +3105,6 @@ class AlterObjectProperty(Command):
         assert parent_node is not None
         parent_cls = parent_op.get_schema_metaclass()
         field = parent_cls.get_field(self.property)
-        parent_node_attr = parent_op.get_ast_attr_for_field(
-            field.name, type(parent_node))
         if field is None:
             raise errors.SchemaDefinitionError(
                 f'{self.property!r} is not a valid field',
@@ -3043,6 +3112,9 @@ class AlterObjectProperty(Command):
 
         if self.property == 'id':
             return None
+
+        parent_node_attr = parent_op.get_ast_attr_for_field(
+            field.name, type(parent_node))
 
         if (
             not field.allow_ddl_set
@@ -3059,30 +3131,63 @@ class AlterObjectProperty(Command):
             #   treated in parser and codegen.
             return None
 
-        if self.new_inherited:
-            if not self.old_inherited:
-                # The field became inherited, in which case we should
-                # generate a RESET.
-                return qlast.SetField(
-                    name=self.property,
-                    value=None,
-                    special_syntax=field.special_ddl_syntax,
-                )
+        if (
+            (self.new_inherited and not self.old_inherited)
+            or (
+                self.new_computed
+                and not self.old_computed
+                and not self.old_inherited
+                and not old_value_empty
+            )
+        ):
+            # The field became inherited or computed, in which case we should
+            # generate a RESET.
+            return qlast.SetField(
+                name=self.property,
+                value=None,
+                special_syntax=field.special_ddl_syntax,
+            )
 
-            # We don't want to show inherited properties unless
-            # we are in "descriptive_mode" and ...
+        if self.new_inherited or self.new_computed:
+            # We don't want to show inherited or computed properties unless
+            # we are in "descriptive_mode" ...
+            if not context.descriptive_mode:
+                return None
 
-            if ((not context.descriptive_mode
-                    or self.property not in {'default', 'readonly'})
-                    and parent_node_attr is None):
-                # If property isn't 'default' or 'readonly' --
-                # skip the AST for it.
+            if not (
+                field.describe_visibility
+                & so.DescribeVisibilityFlags.SHOW_IF_DERIVED
+            ):
+                # ... or if the field shouldn't be shown when inherited
+                # or computed.
+                return None
+
+            if (
+                not (
+                    field.describe_visibility
+                    & so.DescribeVisibilityFlags.SHOW_IF_DEFAULT
+                ) and field.default == value
+            ):
+                # ... or if the field should not be shown when the value
+                # mathdes the default.
                 return None
 
             parentop_sn = sn.shortname_from_fullname(parent_op.classname).name
             if self.property == 'default' and parentop_sn == 'id':
-                # If it's 'default' for the 'id' property --
-                # skip the AST for it.
+                # ... or if it's 'default' for the 'id' property
+                # (special case).
+                return None
+
+        if self.from_default:
+            if not context.descriptive_mode:
+                return None
+
+            if not (
+                field.describe_visibility
+                & so.DescribeVisibilityFlags.SHOW_IF_DEFAULT
+            ):
+                # ... or if the field should not be shown when the value
+                # mathdes the default.
                 return None
 
         if new_value_empty:

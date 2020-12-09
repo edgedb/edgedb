@@ -25,7 +25,6 @@ import json
 from typing import *
 
 from edb.edgeql import compiler as qlcompiler
-from edb.edgeql import qltypes
 from edb.ir import staeval
 
 from . import types
@@ -137,8 +136,8 @@ def load_spec_from_schema(schema):
             for a, v in p.get_annotations(schema).items(schema)
         }
 
-        set_of = p.get_cardinality(schema) is qltypes.SchemaCardinality.Many
-
+        ptr_card = p.get_cardinality(schema)
+        set_of = ptr_card.is_multi()
         deflt = p.get_default(schema)
         if deflt is not None:
             deflt = qlcompiler.evaluate_to_python_val(

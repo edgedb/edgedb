@@ -464,6 +464,9 @@ class Compiler(BaseCompiler):
         # be able to resolve them just using the new schema.)
         if not context:
             context = s_delta.CommandContext()
+        else:
+            context.renames.clear()
+            context.early_renames.clear()
 
         s_refl.write_meta(
             delta,

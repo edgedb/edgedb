@@ -39,8 +39,8 @@ from edb.schema import pointers as s_pointers
 from edb.schema import types as s_types
 
 from edb.edgeql import ast as qlast
-from edb.edgeql import qltypes
 from edb.edgeql import parser as qlparser
+from edb.edgeql import qltypes
 
 from . import astutils
 from . import context
@@ -446,8 +446,9 @@ def _normalize_view_ptr_expr(
             name=ptrcls.get_shortname(ctx.env.schema).name,
         )
 
-        base_cardinality = base_ptrcls.get_cardinality(ctx.env.schema)
-        base_is_singleton = base_cardinality is qltypes.SchemaCardinality.One
+        base_cardinality = _get_base_ptr_cardinality(base_ptrcls, ctx=ctx)
+        if base_cardinality is not None and base_cardinality.is_known():
+            base_is_singleton = base_cardinality.is_single()
 
         if (
             shape_el.where
@@ -506,10 +507,9 @@ def _normalize_view_ptr_expr(
             assert _ptr_target
             ptr_target = _ptr_target
 
-        ptr_cardinality = base_ptrcls.get_cardinality(ctx.env.schema)
-        if ptr_cardinality is None:
+        ptr_cardinality = base_cardinality
+        if ptr_cardinality is None or not ptr_cardinality.is_known():
             # We do not know the parent's pointer cardinality yet.
-            ptr_cardinality = None
             ctx.env.pointer_derivation_map[base_ptrcls].append(ptrcls)
             ctx.env.pointer_specified_info[ptrcls] = (
                 shape_el.cardinality, shape_el.required, shape_el.context)
@@ -604,7 +604,7 @@ def _normalize_view_ptr_expr(
                 base_ptrcls = ptrcls.get_bases(
                     ctx.env.schema).first(ctx.env.schema)
             except errors.InvalidReferenceError:
-                # This is a NEW compitable pointer, it's fine.
+                # This is a NEW computable pointer, it's fine.
                 pass
 
         qlexpr = astutils.ensure_qlstmt(compexpr)
@@ -889,10 +889,10 @@ def _normalize_view_ptr_expr(
         base_cardinality = None
         base_required = False
         if base_ptrcls is not None and not base_ptrcls_is_alias:
-            base_cardinality = base_ptrcls.get_cardinality(ctx.env.schema)
+            base_cardinality = _get_base_ptr_cardinality(base_ptrcls, ctx=ctx)
             base_required = base_ptrcls.get_required(ctx.env.schema)
 
-        if base_cardinality is None:
+        if base_cardinality is None or not base_cardinality.is_known():
             specified_cardinality = shape_el.cardinality
             specified_required = shape_el.required
         else:
@@ -919,7 +919,7 @@ def _normalize_view_ptr_expr(
             specified_cardinality, specified_required, shape_el.context)
 
         ctx.env.schema = ptrcls.set_field_value(
-            ctx.env.schema, 'cardinality', None)
+            ctx.env.schema, 'cardinality', qltypes.SchemaCardinality.Unknown)
 
     if (
         ptrcls.is_protected_pointer(ctx.env.schema)
@@ -1021,6 +1021,18 @@ def _link_has_shape(
     return False
 
 
+def _get_base_ptr_cardinality(
+    ptrcls: s_pointers.Pointer,
+    *,
+    ctx: context.ContextLevel,
+) -> Optional[qltypes.SchemaCardinality]:
+    ptr_name = ptrcls.get_name(ctx.env.schema)
+    if ptr_name in {('std', 'link'), ('std', 'property')}:
+        return None
+    else:
+        return ptrcls.get_cardinality(ctx.env.schema)
+
+
 def has_implicit_tid(
         stype: s_types.Type, *,
         is_mutation: bool,
@@ -1062,8 +1074,8 @@ def _inline_type_computable(
     compname: str,
     propname: str,
     *,
+    shape_ptrs: List[ShapePtr],
     ctx: context.ContextLevel,
-    shape_ptrs: List[ShapePtr]
 ) -> None:
     assert isinstance(stype, s_objtypes.ObjectType)
 

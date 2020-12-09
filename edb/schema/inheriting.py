@@ -156,54 +156,31 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
             else:
                 ours = None
 
-            inherited = self.is_field_inherited(
-                schema, field_name, bases, result, ours)
-
+            inherited = result is not None and ours is None
             inherited_fields_update[field_name] = inherited
 
-            if (result is not None or ours is not None) and (
-                    result != ours or inherited):
-                schema = self.inherit_field(
-                    schema,
-                    context,
-                    field=field,
-                    value=result,
-                    inherited=inherited,
+            if (
+                (
+                    (result is not None or ours is not None)
+                    and (result != ours or inherited)
+                ) or (
+                    result is None and ours is None and ignore_local
                 )
+            ):
+                if (
+                    inherited
+                    and not context.transient_derivation
+                    and isinstance(result, s_expr.Expression)
+                ):
+                    result = self.compile_expr_field(
+                        schema, context, field=field, value=result)
+                schema = self.scls.set_field_value(schema, field_name, result)
+                self.set_attribute_value(
+                    field_name, result, inherited=inherited)
 
         schema = self._update_inherited_fields(
             schema, context, inherited_fields_update)
 
-        return schema
-
-    def is_field_inherited(
-        self,
-        schema: s_schema.Schema,
-        field_name: str,
-        bases: Tuple[so.Object, ...],
-        merged_value: Any,
-        explicit_value: Any
-    ) -> bool:
-        return merged_value is not None and explicit_value is None
-
-    def inherit_field(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        *,
-        field: so.Field[Any],
-        value: Any,
-        inherited: bool,
-    ) -> s_schema.Schema:
-        if (
-            inherited
-            and not context.transient_derivation
-            and isinstance(value, s_expr.Expression)
-        ):
-            value = self.compile_expr_field(
-                schema, context, field=field, value=value)
-        schema = self.scls.set_field_value(schema, field.name, value)
-        self.set_attribute_value(field.name, value, inherited=inherited)
         return schema
 
     def get_inherited_ref_layout(

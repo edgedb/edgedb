@@ -81,12 +81,29 @@ class SchemaCardinality(s_enum.StrEnum):
     '''This enum is used to store cardinality in the schema.'''
     One = 'One'
     Many = 'Many'
+    Unknown = 'Unknown'
+
+    def is_multi(self) -> bool:
+        if self is SchemaCardinality.One:
+            return False
+        elif self is SchemaCardinality.Many:
+            return True
+        else:
+            raise ValueError('cardinality is unknown')
+
+    def is_single(self) -> bool:
+        return not self.is_multi()
+
+    def is_known(self) -> bool:
+        return self is not SchemaCardinality.Unknown
 
     def as_ptr_qual(self) -> str:
         if self is SchemaCardinality.One:
             return 'single'
-        else:
+        elif self is SchemaCardinality.Many:
             return 'multi'
+        else:
+            raise ValueError('cardinality is unknown')
 
     def to_edgeql(self) -> str:
         return self.as_ptr_qual().upper()
