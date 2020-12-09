@@ -414,6 +414,8 @@ class AlterAnnotationValue(
         *,
         parent_node: Optional[qlast.DDLOperation] = None,
     ) -> Optional[qlast.DDLOperation]:
+        if not self.has_attribute_value('value'):
+            return None
         # Skip AlterObject's _get_ast, because we *don't* want to
         # filter out things without subcommands!
         return sd.ObjectCommand._get_ast(
