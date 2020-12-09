@@ -5013,6 +5013,32 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 ''',
             )
 
+    async def test_edgeql_select_linkproperty_06(self):
+        # Test that nested computed link props survive DISTINCT.
+        await self.assert_query_result(
+            r'''
+            SELECT
+                User {
+                    todo := DISTINCT (
+                        FOR entry IN {("1", 10), ("1", 10)}
+                        UNION (
+                            SELECT Issue {
+                                @rank := entry.1
+                            } FILTER
+                                .number = entry.0
+                        )
+                    )
+                }
+            FILTER
+                .name = "Elvis"
+            ''',
+            [{
+                "todo": [{
+                    "@rank": 10,
+                }],
+            }],
+        )
+
     async def test_edgeql_select_if_else_01(self):
         await self.assert_query_result(
             r"""
