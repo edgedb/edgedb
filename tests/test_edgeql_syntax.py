@@ -529,6 +529,17 @@ aa';
         SELECT 1 n;
         """
 
+    def test_edgeql_syntax_constants_45(self):
+        """
+        SELECT 123e+100n;
+        SELECT 123e100n;
+
+% OK %
+
+        SELECT 123e+100n;
+        SELECT 123e100n;
+        """
+
     @tb.must_fail(errors.EdgeQLSyntaxError, line=1, col=12)
     def test_edgeql_syntax_ops_01(self):
         """SELECT 40 >> 2;"""

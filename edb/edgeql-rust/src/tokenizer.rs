@@ -8,6 +8,8 @@ use std::str::FromStr;
 use cpython::{PyString, PyBytes, PyResult, Python, PyClone, PythonObject};
 use cpython::{PyTuple, PyList, PyInt, PyObject, ToPyObject, ObjectProtocol};
 use cpython::{FromPyObject};
+use bigdecimal::BigDecimal;
+use num_bigint::ToBigInt;
 
 use edgeql_parser::tokenizer::{TokenStream, Kind, is_keyword, SpannedToken};
 use edgeql_parser::tokenizer::{MAX_KEYWORD_LENGTH};
@@ -125,6 +127,7 @@ pub struct Tokens {
 
     iconst: PyString,
     niconst: PyString,
+    i16: PyInt,
     fconst: PyString,
     nfconst: PyString,
     bconst: PyString,
@@ -290,6 +293,7 @@ impl Tokens {
 
             iconst: PyString::new(py, "ICONST"),
             niconst: PyString::new(py, "NICONST"),
+            i16: 16.to_py_object(py),
             fconst: PyString::new(py, "FCONST"),
             nfconst: PyString::new(py, "NFCONST"),
             bconst: PyString::new(py, "BCONST"),
@@ -519,10 +523,23 @@ fn convert(py: Python, tokens: &Tokens, cache: &mut Cache,
                .into_object()))
         }
         BigIntConst => {
+            let dec: BigDecimal = value[..value.len()-1]
+                    .replace("_", "").parse()
+                    .map_err(|e| TokenizerError::new(py,
+                        (format!("error reading bigint: {}", e),
+                         py_pos(py, &token.start))))?;
+            // this conversion to decimal and back to string
+            // fixes thing like `1e2n` which we support for bigints
+            let dec_str = dec.to_bigint()
+                .ok_or_else(|| TokenizerError::new(py,  // should never happen
+                    ("number is not integer",
+                     py_pos(py, &token.start))))?
+                .to_str_radix(16);
             Ok((tokens.niconst.clone_ref(py),
                 PyString::new(py, value),
-                py.get_type::<PyInt>().call(py,
-                    (&value[..value.len()-1].replace("_", ""),), None)?))
+                py.get_type::<PyInt>()
+                    .call(py, (dec_str, tokens.i16.clone_ref(py)), None)?
+            ))
         }
         BinStr => {
             Ok((tokens.bconst.clone_ref(py),
