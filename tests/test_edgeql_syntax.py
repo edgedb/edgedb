@@ -25,6 +25,7 @@ from edb import errors
 from edb.testbase import lang as tb
 from edb.edgeql import generate_source as edgeql_to_source
 from edb.edgeql.parser import parser as edgeql_parser
+from edb.tools import test
 
 
 class EdgeQLSyntaxTest(tb.BaseSyntaxTest):
@@ -527,6 +528,23 @@ aa';
     def test_edgeql_syntax_constants_44(self):
         """
         SELECT 1 n;
+        """
+
+    @test.xfail('''
+        Rust tokenizer apparently fails to correctly handle this bigint.
+
+        Since int cannot parse this directly it may need to first be
+        cast into a Decimal.
+    ''')
+    def test_edgeql_syntax_constants_45(self):
+        """
+        SELECT 123e+100n;
+        SELECT 123e100n;
+
+% OK %
+
+        SELECT 123e+100n;
+        SELECT 123e100n;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=1, col=12)
