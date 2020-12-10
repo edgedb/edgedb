@@ -25,7 +25,6 @@ from edb import errors
 from edb.testbase import lang as tb
 from edb.edgeql import generate_source as edgeql_to_source
 from edb.edgeql.parser import parser as edgeql_parser
-from edb.tools import test
 
 
 class EdgeQLSyntaxTest(tb.BaseSyntaxTest):
