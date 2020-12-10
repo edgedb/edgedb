@@ -530,12 +530,6 @@ aa';
         SELECT 1 n;
         """
 
-    @test.xfail('''
-        Rust tokenizer apparently fails to correctly handle this bigint.
-
-        Since int cannot parse this directly it may need to first be
-        cast into a Decimal.
-    ''')
     def test_edgeql_syntax_constants_45(self):
         """
         SELECT 123e+100n;
