@@ -96,10 +96,10 @@ cdef tuple DUMP_VER_MAX = (0, 9)
 cdef object logger = logging.getLogger('edb.server')
 cdef object log_metrics = logging.getLogger('edb.server.metrics')
 
-DEF QUERY_OPT_IMPLICIT_LIMIT = 0xFF01
-DEF QUERY_OPT_INLINE_TYPENAMES = 0xFF02
-DEF QUERY_OPT_INLINE_TYPEIDS = 0xFF03
-DEF QUERY_OPT_ALLOW_CAPABILITIES = 0xFF04
+DEF QUERY_HEADER_IMPLICIT_LIMIT = 0xFF01
+DEF QUERY_HEADER_INLINE_TYPENAMES = 0xFF02
+DEF QUERY_HEADER_INLINE_TYPEIDS = 0xFF03
+DEF QUERY_HEADER_ALLOW_CAPABILITIES = 0xFF04
 
 DEF SERVER_HEADER_CAPABILITIES = 0x1001
 
@@ -840,7 +840,7 @@ cdef class EdgeConnection:
         headers = self.parse_headers()
         if headers:
             for k, v in headers.items():
-                if k == QUERY_OPT_ALLOW_CAPABILITIES:
+                if k == QUERY_HEADER_ALLOW_CAPABILITIES:
                     allow_capabilities = parse_capabilities_header(v)
                 else:
                     raise errors.BinaryProtocolError(
@@ -1069,13 +1069,13 @@ cdef class EdgeConnection:
         headers = self.parse_headers()
         if headers:
             for k, v in headers.items():
-                if k == QUERY_OPT_IMPLICIT_LIMIT:
+                if k == QUERY_HEADER_IMPLICIT_LIMIT:
                     implicit_limit = self._parse_implicit_limit(v)
-                elif k == QUERY_OPT_INLINE_TYPEIDS:
+                elif k == QUERY_HEADER_INLINE_TYPEIDS:
                     inline_typeids = v.lower() == b'true'
-                elif k == QUERY_OPT_INLINE_TYPENAMES:
+                elif k == QUERY_HEADER_INLINE_TYPENAMES:
                     inline_typenames = v.lower() == b'true'
-                elif k == QUERY_OPT_ALLOW_CAPABILITIES:
+                elif k == QUERY_HEADER_ALLOW_CAPABILITIES:
                     allow_capabilities = parse_capabilities_header(v)
                 else:
                     raise errors.BinaryProtocolError(
@@ -1420,7 +1420,7 @@ cdef class EdgeConnection:
         headers = self.parse_headers()
         if headers:
             for k, v in headers.items():
-                if k == QUERY_OPT_ALLOW_CAPABILITIES:
+                if k == QUERY_HEADER_ALLOW_CAPABILITIES:
                     allow_capabilities = parse_capabilities_header(v)
                 else:
                     raise errors.BinaryProtocolError(
