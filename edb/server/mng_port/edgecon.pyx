@@ -97,8 +97,8 @@ cdef object logger = logging.getLogger('edb.server')
 cdef object log_metrics = logging.getLogger('edb.server.metrics')
 
 DEF QUERY_HEADER_IMPLICIT_LIMIT = 0xFF01
-DEF QUERY_HEADER_INLINE_TYPENAMES = 0xFF02
-DEF QUERY_HEADER_INLINE_TYPEIDS = 0xFF03
+DEF QUERY_HEADER_IMPLICIT_TYPENAMES = 0xFF02
+DEF QUERY_HEADER_IMPLICIT_TYPEIDS = 0xFF03
 DEF QUERY_HEADER_ALLOW_CAPABILITIES = 0xFF04
 
 DEF SERVER_HEADER_CAPABILITIES = 0x1001
@@ -1092,12 +1092,12 @@ cdef class EdgeConnection:
             for k, v in headers.items():
                 if k == QUERY_HEADER_IMPLICIT_LIMIT:
                     implicit_limit = self._parse_implicit_limit(v)
-                elif k == QUERY_HEADER_INLINE_TYPEIDS:
-                    self.version_check("INLINE_TYPEIDS header", (0, 9))
-                    inline_typeids = parse_boolean(v, "INLINE_TYPEIDS")
-                elif k == QUERY_HEADER_INLINE_TYPENAMES:
-                    self.version_check("INLINE_TYPENAMES header", (0, 9))
-                    inline_typenames = parse_boolean(v, "INLINE_TYPENAMES")
+                elif k == QUERY_HEADER_IMPLICIT_TYPEIDS:
+                    self.version_check("IMPLICIT_TYPEIDS header", (0, 9))
+                    inline_typeids = parse_boolean(v, "IMPLICIT_TYPEIDS")
+                elif k == QUERY_HEADER_IMPLICIT_TYPENAMES:
+                    self.version_check("IMPLICIT_TYPENAMES header", (0, 9))
+                    inline_typenames = parse_boolean(v, "IMPLICIT_TYPENAMES")
                 elif k == QUERY_HEADER_ALLOW_CAPABILITIES:
                     self.version_check("ALLOW_CAPABILITIES header", (0, 9))
                     allow_capabilities = parse_capabilities_header(v)
