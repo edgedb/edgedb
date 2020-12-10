@@ -29,7 +29,7 @@ import traceback
 cimport cython
 cimport cpython
 
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence, Tuple
 from . cimport cpythonx
 
 from libc.stdint cimport int8_t, uint8_t, int16_t, uint16_t, \
@@ -113,6 +113,18 @@ def parse_capabilities_header(value: bytes) -> uint64_t:
         )
     cdef uint64_t mask = hton.unpack_uint64(cpython.PyBytes_AS_STRING(value))
     return mask
+
+
+cdef inline bint parse_boolean(value: bytes, header: str):
+    cdef bytes lower = value.lower()
+    if lower == b'true':
+        return True
+    elif lower == b'false':
+        return False
+    else:
+        raise errors.BinaryProtocolError(
+            f'{header} header must equal "true" or "false"'
+        )
 
 
 @cython.final
@@ -831,6 +843,14 @@ cdef class EdgeConnection:
         else:
             return 'done', query_unit
 
+    def version_check(self, feature: str, minimum_version: Tuple[int, int]):
+        if self.protocol_version < minimum_version:
+            raise errors.BinaryProtocolError(
+                f'{feature} is supported since protocol '
+                f'{minimum_version[0].minimum_version[1]}, current is '
+                f'{self.protocol_version[0]}.{self.protocol_version[1]}'
+            )
+
     async def simple_query(self):
         cdef:
             WriteBuffer msg
@@ -841,6 +861,7 @@ cdef class EdgeConnection:
         if headers:
             for k, v in headers.items():
                 if k == QUERY_HEADER_ALLOW_CAPABILITIES:
+                    self.version_check("ALLOW_CAPABILITIES header", (0, 9))
                     allow_capabilities = parse_capabilities_header(v)
                 else:
                     raise errors.BinaryProtocolError(
@@ -1072,10 +1093,13 @@ cdef class EdgeConnection:
                 if k == QUERY_HEADER_IMPLICIT_LIMIT:
                     implicit_limit = self._parse_implicit_limit(v)
                 elif k == QUERY_HEADER_INLINE_TYPEIDS:
-                    inline_typeids = v.lower() == b'true'
+                    self.version_check("INLINE_TYPEIDS header", (0, 9))
+                    inline_typeids = parse_boolean(v, "INLINE_TYPEIDS")
                 elif k == QUERY_HEADER_INLINE_TYPENAMES:
-                    inline_typenames = v.lower() == b'true'
+                    self.version_check("INLINE_TYPENAMES header", (0, 9))
+                    inline_typenames = parse_boolean(v, "INLINE_TYPENAMES")
                 elif k == QUERY_HEADER_ALLOW_CAPABILITIES:
+                    self.version_check("ALLOW_CAPABILITIES header", (0, 9))
                     allow_capabilities = parse_capabilities_header(v)
                 else:
                     raise errors.BinaryProtocolError(
@@ -1172,12 +1196,15 @@ cdef class EdgeConnection:
 
         buf = WriteBuffer.new_message(b'1')  # ParseComplete
 
-        buf.write_int16(1)
-        buf.write_int16(SERVER_HEADER_CAPABILITIES)
-        buf.write_int32(sizeof(uint64_t))
-        buf.write_int64(<int64_t>(
-            <uint64_t>compiled_query.query_unit.capabilities
-        ))
+        if self.protocol_version >= (0, 9):
+            buf.write_int16(1)
+            buf.write_int16(SERVER_HEADER_CAPABILITIES)
+            buf.write_int32(sizeof(uint64_t))
+            buf.write_int64(<int64_t>(
+                <uint64_t>compiled_query.query_unit.capabilities
+            ))
+        else:
+            buf.write_int16(0)  # no headers
 
         buf.write_byte(self.render_cardinality(compiled_query.query_unit))
         buf.write_bytes(compiled_query.query_unit.in_type_id)
@@ -1216,10 +1243,13 @@ cdef class EdgeConnection:
 
         msg = WriteBuffer.new_message(b'C')
 
-        msg.write_int16(1)
-        msg.write_int16(SERVER_HEADER_CAPABILITIES)
-        msg.write_int32(sizeof(uint64_t))
-        msg.write_int64(<int64_t><uint64_t>query_unit.capabilities)
+        if self.protocol_version >= (0, 9):
+            msg.write_int16(1)
+            msg.write_int16(SERVER_HEADER_CAPABILITIES)
+            msg.write_int32(sizeof(uint64_t))
+            msg.write_int64(<int64_t><uint64_t>query_unit.capabilities)
+        else:
+            msg.write_int16(0)
 
         msg.write_len_prefixed_bytes(query_unit.status)
         return msg.end_message()
@@ -1421,6 +1451,7 @@ cdef class EdgeConnection:
         if headers:
             for k, v in headers.items():
                 if k == QUERY_HEADER_ALLOW_CAPABILITIES:
+                    self.version_check("ALLOW_CAPABILITIES header", (0, 9))
                     allow_capabilities = parse_capabilities_header(v)
                 else:
                     raise errors.BinaryProtocolError(
