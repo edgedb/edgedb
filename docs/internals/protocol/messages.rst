@@ -182,6 +182,12 @@ Format:
 
 .. eql:struct:: edb.testbase.protocol.CommandComplete
 
+Known headers:
+
+* 0x1001 ``CAPABILITIES``: ``uint64`` -- capabilities actually used in the
+  query.  See RFC1004_ for more information.
+
+Extra headers must be ignored.
 
 .. _ref_protocol_msg_execute_script:
 
@@ -193,6 +199,11 @@ Sent by: client.
 Format:
 
 .. eql:struct:: edb.testbase.protocol.ExecuteScript
+
+Known headers:
+
+* 0xFF04 ``ALLOW_CAPABILITIES``: ``uint64`` -- optional bitmask of
+  capabilities allowed for this query.  See RFC1004_ for more information.
 
 .. _ref_protocol_msg_prepare:
 
@@ -220,14 +231,17 @@ Known headers:
 * 0xFF01 ``IMPLICIT_LIMIT`` -- implicit limit for objects returned.
   Valid format: decimal number encoded as UTF-8 text. Not set by default.
 
-* 0xFF02 ``INLINE_TYPENAMES`` -- if set to "true" all returned objects have
+* 0xFF02 ``IMPLICIT_TYPENAMES`` -- if set to "true" all returned objects have
   a ``__tname__`` property set to their type name (equivalent to having
   an implicit "__tname__ := .__type__.name" computable.)  Note that specifying
   this header might slow down queries.
 
-* 0xFF03 ``INLINE_TYPEIDS`` -- if set to "true" all returned objects have
+* 0xFF03 ``IMPLICIT_TYPEIDS`` -- if set to "true" all returned objects have
   a ``__tid__`` property set to their type ID (equivalent to having
   an implicit "__tid__ := .__type__.id" computable.)
+
+* 0xFF04 ``ALLOW_CAPABILITIES``: ``uint64`` -- optional bitmask of
+  capabilities allowed for this query.  See RFC1004_ for more information.
 
 .. eql:struct:: edb.testbase.protocol.Cardinality
 
@@ -313,6 +327,10 @@ Format:
 
 .. eql:struct:: edb.testbase.protocol.Execute
 
+Known headers:
+
+* 0xFF04 ``ALLOW_CAPABILITIES``: ``uint64`` -- optional bitmask of
+  capabilities allowed for this query.  See RFC1004_ for more information.
 
 .. _ref_protocol_msg_restore:
 
@@ -374,6 +392,22 @@ The data in *arguments* must be encoded as a
 :ref:`tuple value <ref_protocol_fmt_tuple>` described by
 a type descriptor identified by *input_typedesc_id*.
 
+Known headers:
+
+* 0xFF01 ``IMPLICIT_LIMIT`` -- implicit limit for objects returned.
+  Valid format: decimal number encoded as UTF-8 text. Not set by default.
+
+* 0xFF02 ``IMPLICIT_TYPENAMES`` -- if set to "true" all returned objects have
+  a ``__tname__`` property set to their type name (equivalent to having
+  an implicit "__tname__ := .__type__.name" computable.)  Note that specifying
+  this header might slow down queries.
+
+* 0xFF03 ``IMPLICIT_TYPEIDS`` -- if set to "true" all returned objects have
+  a ``__tid__`` property set to their type ID (equivalent to having
+  an implicit "__tid__ := .__type__.id" computable.)
+
+* 0xFF04 ``ALLOW_CAPABILITIES``: ``uint64`` -- optional bitmask of
+  capabilities allowed for this query.  See RFC1004_ for more information.
 
 .. _ref_protocol_msg_data:
 
@@ -480,6 +514,13 @@ Format:
 .. eql:struct:: edb.testbase.protocol.PrepareComplete
 
 .. eql:struct:: edb.testbase.protocol.Cardinality
+
+Known headers:
+
+* 0x1001 ``CAPABILITIES``: ``uint64`` -- capabilities needed to execute the
+  query.  See RFC1004_ for more information.
+
+Extra headers must be ignored.
 
 
 .. _ref_protocol_msg_client_handshake:
@@ -635,3 +676,6 @@ Sent by: client.
 Format:
 
 .. eql:struct:: edb.testbase.protocol.Terminate
+
+.. _RFC1004:
+    https://github.com/edgedb/rfcs/blob/master/text/1004-transactions-api.rst
