@@ -53,5 +53,5 @@ respectively:
 
 .. code-block:: bash
 
-   $ edgedb server status --all
+   $ edgedb server status
    $ edgedb server list-versions --installed
