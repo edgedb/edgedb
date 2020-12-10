@@ -8,6 +8,11 @@ Various EdgeDB terminal tools such as :ref:`ref_cli_edgedb` repl,
 :ref:`ref_cli_edgedb_configure`, :ref:`ref_cli_edgedb_dump`,
 and :ref:`ref_cli_edgedb_restore` use the following connection options:
 
+:cli:synopsis:`-I <name>, --instance=<name>`
+    Specifies the named instance to connect too. The actual connection
+    parameters are stored in ``$HOME/.edgedb/credentials`` and are usually
+    created by ``edgedb server init`` or similar commands.
+
 :cli:synopsis:`-H <hostname>, --host=<hostname>`
     Specifies the host name of the machine on which the server is running.
     If :cli:synopsis:`<hostname>` begins with a slash (``/``), it is used
