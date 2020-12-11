@@ -158,8 +158,8 @@ All the subcommands allowed in the ``CREATE SCALAR TYPE`` block are also
 valid subcommands for ``ALTER SCALAR TYPE`` block.
 
 
-Exampls
--------
+Examples
+--------
 
 Define a new constraint on a scalar type:
 
@@ -168,6 +168,13 @@ Define a new constraint on a scalar type:
     ALTER SCALAR TYPE posint64 {
         CREATE CONSTRAINT max_value(100);
     };
+
+Add one more label to an enumerated type:
+
+.. code-block:: edgeql
+
+    ALTER SCALAR TYPE Color
+        EXTENDING enum<Black, White, Red, Green>;
 
 
 DROP SCALAR TYPE

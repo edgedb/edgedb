@@ -206,7 +206,7 @@ class TestDocSnippets(unittest.TestCase):
         snips = []
         for line in replblock.split('\n'):
             if not in_query:
-                m = re.match(r'(?P<p>[\w>]+>\s)(?P<l>.*)', line)
+                m = re.match(r'(?P<p>[\w\[:\]>]+>\s)(?P<l>.*)', line)
                 if m:
                     # >>> prompt
                     in_query = True
