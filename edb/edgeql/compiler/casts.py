@@ -601,6 +601,9 @@ def _cast_array(
                 ],
             )
 
+            if el_type.contains_json(subctx.env.schema):
+                subctx.inhibit_implicit_limit = True
+
             array_ir = dispatch.compile(elements, ctx=subctx)
             assert isinstance(array_ir, irast.Set)
 
