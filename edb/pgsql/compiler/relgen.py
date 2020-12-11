@@ -901,7 +901,12 @@ def process_set_as_path(
     if semi_join:
         with ctx.subrel() as srcctx:
             srcctx.expr_exposed = False
-            src_rvar = get_set_rvar(ir_source, ctx=srcctx)
+            get_set_rvar(ir_source, ctx=srcctx)
+            # semi_join needs a source rvar, so make sure we have one.
+            # (The returned one won't be a source rvar if it comes
+            # from a function, for example)
+            src_rvar = relctx.ensure_source_rvar(
+                ir_source, ctx.rel, ctx=srcctx)
             set_rvar = relctx.semi_join(stmt, ir_set, src_rvar, ctx=srcctx)
             rvars.append(SetRVar(set_rvar, ir_set.path_id,
                                  ['value', 'source']))
