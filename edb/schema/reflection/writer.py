@@ -874,7 +874,7 @@ def write_meta_delete_object(
             parent_variables = {}
 
             parent_variables[f'__{target_link}'] = (
-                json.dumps(str(target.get_name(schema)))
+                json.dumps(str(target.id))
             )
 
             parent_update_query = f'''
@@ -883,7 +883,7 @@ def write_meta_delete_object(
                 SET {{
                     {refdict.attr} -= (
                         SELECT DETACHED (schema::{target_field.type.__name__})
-                        FILTER .name__internal = <str>$__{target_link}
+                        FILTER .id = <uuid>$__{target_link}
                     )
                 }}
             '''
