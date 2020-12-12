@@ -6100,3 +6100,44 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 }
             ],
         )
+
+    async def test_edgeql_select_expr_objects_01(self):
+        await self.assert_query_result(
+            r'''
+                SELECT array_agg(test::Issue ORDER BY .body)[0].owner.name;
+            ''',
+            ["Elvis"],
+        )
+
+    async def test_edgeql_select_expr_objects_02(self):
+        await self.assert_query_result(
+            r'''
+                SELECT _ := array_unpack(array_agg(test::Issue)).owner.name
+                ORDER BY _;
+            ''',
+            ["Elvis", "Yury"],
+        )
+
+    async def test_edgeql_select_expr_objects_03(self):
+        await self.con.execute(
+            '''
+                CREATE FUNCTION test::issues() -> SET OF test::Issue
+                USING (test::Issue);
+            '''
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT _ := test::issues().owner.name ORDER BY _;
+            ''',
+            ["Elvis", "Yury"],
+        )
+
+    async def test_edgeql_select_expr_objects_04(self):
+        await self.assert_query_result(
+            r'''
+                WITH items := array_agg((SELECT test::Named ORDER BY .name))
+                SELECT items[0] IS test::Status;
+            ''',
+            [True],
+        )

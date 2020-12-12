@@ -184,7 +184,8 @@ def pg_type_from_ir_typeref(
 
     if irtyputils.is_array(ir_typeref):
         if (irtyputils.is_generic(ir_typeref)
-                or irtyputils.is_abstract(ir_typeref.subtypes[0])):
+                or (irtyputils.is_abstract(ir_typeref.subtypes[0])
+                    and irtyputils.is_scalar(ir_typeref.subtypes[0]))):
             return ('anyarray',)
         else:
             tp = pg_type_from_ir_typeref(
