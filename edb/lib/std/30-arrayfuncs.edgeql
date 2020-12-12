@@ -26,6 +26,7 @@ std::array_agg(s: SET OF anytype) -> array<anytype>
     CREATE ANNOTATION std::description :=
         'Return the array made from all of the input set elements.';
     SET volatility := 'IMMUTABLE';
+    SET initial_value := [];
     USING SQL FUNCTION 'array_agg';
 };
 

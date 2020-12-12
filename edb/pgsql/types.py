@@ -183,8 +183,7 @@ def pg_type_from_ir_typeref(
         persistent_tuples: bool = False) -> Tuple[str, ...]:
 
     if irtyputils.is_array(ir_typeref):
-        if (irtyputils.is_generic(ir_typeref)
-                or irtyputils.is_abstract(ir_typeref.subtypes[0])):
+        if irtyputils.is_generic(ir_typeref):
             return ('anyarray',)
         else:
             tp = pg_type_from_ir_typeref(
