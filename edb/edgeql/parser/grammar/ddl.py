@@ -312,7 +312,9 @@ class ResetFieldStmt(Nonterm):
             fname = 'is_abstract'
         elif fname == 'final':
             fname = 'is_final'
-        elif fname in ('delegated', 'required', 'cardinality'):
+        elif fname == 'optionality':
+            fname = 'required'
+        elif fname in ('delegated', 'cardinality'):
             pass
         else:
             special_syntax = False

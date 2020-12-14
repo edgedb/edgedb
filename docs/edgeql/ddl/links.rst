@@ -218,12 +218,15 @@ Change the definition of a :ref:`link <ref_datamodel_links>`.
       SET default := <expression>
       RESET default
       SET readonly := {true | false}
+      RESET readonly
       RENAME TO <newname>
       EXTENDING ...
       SET REQUIRED
       SET OPTIONAL
+      RESET OPTIONALITY
       SET SINGLE
       SET MULTI
+      RESET CARDINALITY
       SET TYPE <typename> [, ...]
       USING (<computable-expr>)
       CREATE ANNOTATION <annotation-name> := <value>
@@ -287,6 +290,11 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
 :eql:synopsis:`SET OPTIONAL`
     Make the link no longer *required* (i.e. make it *optional*).
 
+:eql:synopsis:`RESET OPTIONALITY`
+    Reset the optionality of the link to the default value (``OPTIONAL``),
+    or, if the link is inherited, to the value inherited from links in
+    supertypes.
+
 :eql:synopsis:`SET SINGLE`
     Change the maximum cardinality of the link set to *one*.  Only
     valid for concrete links.
@@ -294,6 +302,11 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
 :eql:synopsis:`SET MULTI`
     Change the maximum cardinality of the link set to *greater than one*.
     Only valid for concrete links;
+
+:eql:synopsis:`RESET CARDINALITY`
+    Reset the maximum cardinality of the link to the default value
+    (``SINGLE``), or, if the link is inherited, to the value inherited
+    from links in supertypes.
 
 :eql:synopsis:`SET TYPE <typename> [, ...]`
     Change the target type of the link to the specified type or
@@ -332,7 +345,12 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
     from this link.  See :eql:stmt:`DROP INDEX` for details.
 
 :eql:synopsis:`RESET default`
-    Remove the default value from this link.
+    Remove the default value from this link, or reset it to the value
+    inherited from a supertype, if the link is inherited.
+
+:eql:synopsis:`RESET readonly`
+    Set link writability to the default value (writable), or, if the link is
+    inherited, to the value inherited from links in supertypes.
 
 All the subcommands allowed in the ``CREATE LINK`` block are also
 valid subcommands for ``ALTER LINK`` block.

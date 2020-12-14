@@ -1121,7 +1121,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         if fname == 'required':
             if node.value is None:
-                keywords.extend(('RESET', 'REQUIRED'))
+                keywords.extend(('RESET', 'OPTIONALITY'))
             elif self._eval_bool_expr(node.value):
                 keywords.extend(('SET', 'REQUIRED'))
             else:
