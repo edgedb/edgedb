@@ -435,12 +435,15 @@ class ConstraintCommand(
 
         return args
 
-    def get_verbosename(self) -> str:
+    def get_verbosename(self, parent: Optional[str] = None) -> str:
         mcls = self.get_schema_metaclass()
         vname = mcls.get_verbosename_static(self.classname)
         if self.get_attribute_value('is_abstract'):
             vname = f'abstract {vname}'
-        return vname
+        if parent is not None:
+            return f'{vname} of {parent}'
+        else:
+            return vname
 
     def compile_expr_field(
         self,

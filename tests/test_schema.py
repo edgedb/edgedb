@@ -228,7 +228,8 @@ _123456789_123456789_123456789 -> str
 
     @tb.must_fail(errors.SchemaDefinitionError,
                   "possibly more than one element returned by an expression "
-                  "for the computable 'ham' declared as 'single'",
+                  "for the computable link 'ham' of object type 'test::Spam' "
+                  "explicitly declared as 'single'",
                   line=5, col=36)
     def test_schema_computable_cardinality_inference_03(self):
         """
@@ -241,7 +242,8 @@ _123456789_123456789_123456789 -> str
 
     @tb.must_fail(errors.SchemaDefinitionError,
                   "possibly more than one element returned by an expression "
-                  "for the computable 'hams' declared as 'single'",
+                  "for the computable property 'hams' of object type "
+                  "'test::Spam' explicitly declared as 'single'",
                   line=5, col=41)
     def test_schema_computable_cardinality_inference_04(self):
         """
@@ -254,7 +256,8 @@ _123456789_123456789_123456789 -> str
 
     @tb.must_fail(errors.SchemaDefinitionError,
                   "possibly an empty set returned by an expression for "
-                  "the computable 'hams' declared as 'required'",
+                  "the computable property 'hams' of object type "
+                  "'test::Spam' explicitly declared as 'required'",
                   line=5, col=43)
     def test_schema_computable_cardinality_inference_05(self):
         """
@@ -789,6 +792,68 @@ _123456789_123456789_123456789 -> str
                 }
             }
         """
+
+    def test_schema_property_cardinality_alter_01(self):
+        schema = self.load_schema('''
+            type Foo {
+                single property foo1 -> str;
+                single property bar1 := .foo1 ++ '!';
+
+                single property foo2 -> str;
+                property bar2 := .foo2 ++ '!';
+            }
+        ''')
+
+        with self.assertRaisesRegex(
+            errors.SchemaDefinitionError,
+            "cannot alter the cardinality of property 'foo1' of object type "
+            "'test::Foo' because this affects expression of property 'bar1' "
+            "of object type 'test::Foo'"
+        ):
+            self.run_ddl(schema, '''
+                ALTER TYPE Foo ALTER PROPERTY foo1 SET MULTI
+            ''', default_module='test')
+
+        # Altering foo2 is OK, because the computable bar2 was declared
+        # without explicit cardinality.
+        self.run_ddl(schema, '''
+            ALTER TYPE Foo ALTER PROPERTY foo2 SET MULTI
+        ''', default_module='test')
+
+    def test_schema_property_cardinality_alter_02(self):
+        schema = self.load_schema('''
+            type Foo {
+                single property foo1 -> str;
+            }
+
+            type Bar extending Foo;
+        ''')
+
+        with self.assertRaisesRegex(
+            errors.SchemaDefinitionError,
+            "cannot alter the cardinality of inherited property 'foo1' of "
+            "object type 'test::Bar'"
+        ):
+            self.run_ddl(schema, '''
+                ALTER TYPE Bar ALTER PROPERTY foo1 SET MULTI
+            ''', default_module='test')
+
+    def test_schema_property_cardinality_alter_03(self):
+        schema = self.load_schema('''
+            type Foo {
+                single property foo1 -> str;
+            }
+
+            type Bar extending Foo;
+        ''')
+
+        schema = self.run_ddl(schema, '''
+            ALTER TYPE Foo ALTER PROPERTY foo1 SET MULTI
+        ''', default_module='test')
+
+        Bar = schema.get('test::Bar', type=s_objtypes.ObjectType)
+        foo1 = Bar.getptr(schema, 'foo1')
+        self.assertEqual(str(foo1.get_cardinality(schema)), 'Many')
 
     def test_schema_ref_diamond_inheritance(self):
         schema = tb._load_std_schema()

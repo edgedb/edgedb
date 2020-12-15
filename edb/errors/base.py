@@ -90,9 +90,6 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
 
         self.set_hint_and_details(hint, details)
 
-        if details:
-            msg = f'{msg}\n\nDETAILS: {details}'
-
         super().__init__(msg)
 
     @classmethod

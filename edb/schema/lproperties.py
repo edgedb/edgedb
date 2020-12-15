@@ -378,6 +378,14 @@ class SetPropertyType(
     astnode = qlast.SetPropertyType
 
 
+class AlterPropertyUpperCardinality(
+    pointers.AlterPointerUpperCardinality[Property],
+    referrer_context_class=PropertySourceContext,
+    field='cardinality',
+):
+    pass
+
+
 class AlterPropertyOwned(
     referencing.AlterOwned[Property],
     referrer_context_class=PropertySourceContext,

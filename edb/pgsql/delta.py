@@ -2541,6 +2541,19 @@ class SetLinkType(LinkMetaCommand, adapts=s_links.SetLinkType):
         return LinkMetaCommand.apply(self, schema, context)
 
 
+class AlterLinkUpperCardinality(
+    LinkMetaCommand,
+    adapts=s_links.AlterLinkUpperCardinality,
+):
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = s_links.AlterLinkUpperCardinality.apply(self, schema, context)
+        return LinkMetaCommand.apply(self, schema, context)
+
+
 class AlterLinkOwned(
     LinkMetaCommand,
     AlterObject,
@@ -2873,6 +2886,20 @@ class SetPropertyType(
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         schema = s_props.SetPropertyType.apply(self, schema, context)
+        return PropertyMetaCommand.apply(self, schema, context)
+
+
+class AlterPropertyUpperCardinality(
+    PropertyMetaCommand,
+    adapts=s_props.AlterPropertyUpperCardinality,
+):
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = s_props.AlterPropertyUpperCardinality.apply(
+            self, schema, context)
         return PropertyMetaCommand.apply(self, schema, context)
 
 
