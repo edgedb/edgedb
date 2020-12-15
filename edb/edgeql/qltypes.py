@@ -88,6 +88,9 @@ class SchemaCardinality(s_enum.StrEnum):
         else:
             return 'multi'
 
+    def to_edgeql(self) -> str:
+        return self.as_ptr_qual().upper()
+
 
 class Cardinality(s_enum.StrEnum):
     '''This enum is used in cardinality inference internally.'''

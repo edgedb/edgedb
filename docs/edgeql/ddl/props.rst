@@ -188,14 +188,17 @@ Change the definition of a :ref:`property <ref_datamodel_props>`.
     # where <subcommand> is one of
 
       SET default := <expression>
-      DROP default
+      RESET default
       SET readonly := {true | false}
+      RESET readonly
       RENAME TO <newname>
       EXTENDING ...
       SET REQUIRED
-      DROP REQUIRED
+      SET OPTIONAL
+      RESET OPTIONALITY
       SET SINGLE
       SET MULTI
+      RESET CARDINALITY
       SET TYPE <typename> [, ...]
       USING (<computable-expr>)
       CREATE ANNOTATION <annotation-name> := <value>
@@ -263,8 +266,13 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
 :eql:synopsis:`SET REQUIRED`
     Make the property *required*.
 
-:eql:synopsis:`DROP REQUIRED`
+:eql:synopsis:`SET OPTIONAL`
     Make the property no longer *required* (i.e. make it *optional*).
+
+:eql:synopsis:`RESET OPTIONALITY`
+    Reset the optionality of the property to the default value (``OPTIONAL``),
+    or, if the property is inherited, to the value inherited from properties in
+    supertypes.
 
 :eql:synopsis:`SET SINGLE`
     Change the maximum cardinality of the property set to *one*.  Only
@@ -273,6 +281,11 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
 :eql:synopsis:`SET MULTI`
     Change the maximum cardinality of the property set to
     *greater than one*.  Only valid for concrete properties;
+
+:eql:synopsis:`RESET CARDINALITY`
+    Reset the maximum cardinality of the property to the default value
+    (``SINGLE``), or, if the property is inherited, to the value inherited
+    from properties in supertypes.
 
 :eql:synopsis:`SET TYPE <typename> [, ...]`
     Change the target type of the property to the specified type or
@@ -298,8 +311,14 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
     Remove a constraint from this property.  See
     :eql:stmt:`DROP CONSTRAINT` for details.
 
-:eql:synopsis:`DROP default`
-    Remove the default value from this property.
+:eql:synopsis:`RESET default`
+    Remove the default value from this property, or reset it to the value
+    inherited from a supertype, if the property is inherited.
+
+:eql:synopsis:`RESET readonly`
+    Set property writability to the default value (writable), or, if the
+    property is inherited, to the value inherited from properties in
+    supertypes.
 
 All the subcommands allowed in the ``CREATE PROPERTY`` block are also
 valid subcommands for ``ALTER PROPERTY`` block.

@@ -185,7 +185,7 @@ for brevity):
 
     tutorial> ALTER TYPE Person {
     .........     ALTER PROPERTY first_name {
-    .........         DROP REQUIRED;
+    .........         SET OPTIONAL;
     .........     }
     ......... };
     ALTER

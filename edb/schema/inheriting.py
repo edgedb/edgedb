@@ -105,7 +105,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         for op in self.get_subcommands(type=sd.AlterObjectProperty):
             field = mcls.get_field(op.property)
             if field.inheritable and not field.ephemeral:
-                result[op.property] = op.source == 'inheritance'
+                result[op.property] = op.new_inherited
 
         return result
 
@@ -526,9 +526,10 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
             and not isinstance(self, sd.DeleteObject)
         ):
             node.commands.append(
-                qlast.SetSpecialField(
+                qlast.SetField(
                     name=op.property,
-                    value=op.new_value
+                    value=qlast.BooleanConstant.from_python(op.new_value),
+                    special_syntax=True,
                 )
             )
         else:

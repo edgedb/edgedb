@@ -863,6 +863,11 @@ class Compiler(BaseCompiler):
                 schema, mstate.target_schema, diff)
             all_ddl = mstate.current_ddl + new_ddl
             mstate = mstate._replace(current_ddl=all_ddl)
+            if debug.flags.delta_plan:
+                debug.header('Populate Migration DDL AST')
+                for cmd in mstate.current_ddl:
+                    import edb.common.debug
+                    edb.common.debug.dump(cmd)
             current_tx.update_migration_state(mstate)
 
             delta_context = self._new_delta_context(ctx)

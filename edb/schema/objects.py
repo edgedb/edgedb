@@ -238,6 +238,9 @@ class Field(struct.ProtoField, Generic[T]):
     #: in DDL operations and schema reflection when object
     #: name is insufficient.
     ddl_identity: bool
+    #: Whether the value of this field should be included in the
+    #: aux_object_data for delta commands of objects containing the field.
+    aux_cmd_data: bool
     #: Used for fields holding references to objects.  If True,
     #: the reference is considered "weak", i.e. not essential for
     #: object definition.  The schema and delta linearization
@@ -268,6 +271,7 @@ class Field(struct.ProtoField, Generic[T]):
         weak_ref: bool = False,
         allow_ddl_set: bool = False,
         ddl_identity: bool = False,
+        aux_cmd_data: bool = False,
         reflection_method: ReflectionMethod = ReflectionMethod.REGULAR,
         reflection_proxy: Optional[Tuple[str, str]] = None,
         **kwargs: Any,
@@ -283,6 +287,7 @@ class Field(struct.ProtoField, Generic[T]):
         self.coerce = coerce
         self.allow_ddl_set = allow_ddl_set
         self.ddl_identity = ddl_identity
+        self.aux_cmd_data = aux_cmd_data
 
         self.compcoef = compcoef
         self.inheritable = inheritable
@@ -1431,6 +1436,8 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         fields = {fn: f for fn, f in ff if f.simpledelta and not f.ephemeral}
         for fn, f in fields.items():
             value = self.get_explicit_field_value(schema, fn, None)
+            if f.aux_cmd_data:
+                delta.set_object_aux_data(fn, value)
             if value is not None:
                 v: Any
                 if issubclass(f.type, ObjectContainer):
@@ -1491,6 +1498,8 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         for fn, f in fields.items():
             oldattr_v = self.get_explicit_field_value(self_schema, fn, None)
             newattr_v = other.get_explicit_field_value(other_schema, fn, None)
+            if f.aux_cmd_data:
+                delta.set_object_aux_data(fn, newattr_v)
 
             old_v: Any
             new_v: Any
@@ -1588,6 +1597,8 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         fields = {fn: f for fn, f in ff if f.simpledelta and not f.ephemeral}
         for fn, f in fields.items():
             value = self.get_explicit_field_value(schema, fn, None)
+            if f.aux_cmd_data:
+                delta.set_object_aux_data(fn, value)
             if value is not None:
                 if issubclass(f.type, ObjectContainer):
                     v = value.as_shell(schema)
@@ -1618,6 +1629,8 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         fname: str,
         value: Any,
         orig_value: Any,
+        orig_schema: Optional[s_schema.Schema],
+        orig_object: Optional[Object_T],
     ) -> None:
         delta.set_attribute_value(fname, value, orig_value=orig_value)
 
@@ -1636,6 +1649,8 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
             fname=fname,
             value=value,
             orig_value=None,
+            orig_schema=None,
+            orig_object=None,
         )
 
     def record_field_alter_delta(
@@ -1669,6 +1684,8 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
                 fname=fname,
                 value=value,
                 orig_value=orig_value,
+                orig_schema=orig_schema,
+                orig_object=orig_object,
             )
 
             delta.add(rename_op)
@@ -1682,6 +1699,8 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
                 fname=fname,
                 value=value,
                 orig_value=orig_value,
+                orig_schema=orig_schema,
+                orig_object=orig_object,
             )
 
     def record_field_delete_delta(
@@ -1699,6 +1718,8 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
             fname=fname,
             value=None,
             orig_value=orig_value,
+            orig_schema=None,
+            orig_object=None,
         )
 
     def dump(self, schema: s_schema.Schema) -> str:
@@ -2788,14 +2809,24 @@ class InheritingObject(SubclassableObject):
         fname: str,
         value: Any,
         orig_value: Any,
+        orig_schema: Optional[s_schema.Schema],
+        orig_object: Optional[InheritingObjectT],
     ) -> None:
         inherited_fields = self.get_inherited_fields(schema)
         is_inherited = fname in inherited_fields
+        if orig_schema is not None and orig_object is not None:
+            orig_inherited_fields = (
+                orig_object.get_inherited_fields(orig_schema))
+            orig_is_inherited = fname in orig_inherited_fields
+        else:
+            orig_is_inherited = is_inherited
+
         delta.set_attribute_value(
             fname,
             value=value,
             orig_value=orig_value,
             inherited=is_inherited,
+            orig_inherited=orig_is_inherited,
         )
 
     def get_field_create_delta(

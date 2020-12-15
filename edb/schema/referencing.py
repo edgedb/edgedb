@@ -1117,9 +1117,23 @@ class AlterReferencedInheritingObject(
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         refctx = cls.get_referrer_context(context)
+        # When a referenced object is altered it becomes "owned"
+        # by the referrer, _except_ when either an explicit
+        # SET OWNED/DROP OWNED subcommand is present, or
+        # _all_ subcommands are `RESET` subcommands.
         if (
             refctx is not None
             and not qlast.has_ddl_subcommand(astnode, qlast.AlterOwned)
+            and (
+                not cmd.get_subcommands()
+                or not all(
+                    (
+                        isinstance(scmd, sd.AlterObjectProperty)
+                        and scmd.new_value is None
+                    )
+                    for scmd in cmd.get_subcommands()
+                )
+            )
         ):
             cmd.set_attribute_value('is_owned', True)
 

@@ -328,9 +328,10 @@ class CreateLink(
                 node.is_required = op.new_value
             else:
                 node.commands.append(
-                    qlast.SetSpecialField(
+                    qlast.SetField(
                         name='required',
-                        value=op.new_value,
+                        value=qlast.BooleanConstant.from_python(op.new_value),
+                        special_syntax=True,
                     )
                 )
         elif op.property == 'cardinality':
@@ -601,24 +602,27 @@ class AlterLink(
                 )
         elif op.property == 'required':
             node.commands.append(
-                qlast.SetSpecialField(
+                qlast.SetField(
                     name='required',
-                    value=op.new_value,
+                    value=qlast.BooleanConstant.from_python(op.new_value),
+                    special_syntax=True,
                 ),
             )
         elif op.property == 'cardinality':
             node.commands.append(
-                qlast.SetSpecialField(
+                qlast.SetField(
                     name='cardinality',
-                    value=op.new_value,
+                    value=qlast.StringConstant.from_python(op.new_value),
+                    special_syntax=True,
                 ),
             )
         elif op.property == 'computable':
             if not op.new_value:
                 node.commands.append(
-                    qlast.SetSpecialField(
+                    qlast.SetField(
                         name='expr',
                         value=None,
+                        special_syntax=True,
                     ),
                 )
         elif op.property == 'on_target_delete':

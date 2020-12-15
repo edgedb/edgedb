@@ -1132,9 +1132,10 @@ class CreateConstraint(
                 node.delegated = op.new_value
             else:
                 node.commands.append(
-                    qlast.SetSpecialField(
+                    qlast.SetField(
                         name='delegated',
-                        value=op.new_value,
+                        value=qlast.BooleanConstant.from_python(op.new_value),
+                        special_syntax=True,
                     )
                 )
             return
@@ -1266,9 +1267,10 @@ class AlterConstraint(
     ) -> None:
         if op.property == 'delegated':
             node.commands.append(
-                qlast.SetSpecialField(
+                qlast.SetField(
                     name='delegated',
-                    value=op.new_value,
+                    value=qlast.BooleanConstant.from_python(op.new_value),
+                    special_syntax=True,
                 )
             )
         else:

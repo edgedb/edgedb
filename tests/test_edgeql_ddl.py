@@ -114,11 +114,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         await self.con.execute("""
             ALTER TYPE test::Object5 {
-                ALTER LINK a DROP REQUIRED;
+                ALTER LINK a SET OPTIONAL;
             };
 
             ALTER TYPE test::Object5 {
-                ALTER PROPERTY b DROP REQUIRED;
+                ALTER PROPERTY b SET OPTIONAL;
             };
         """)
 
@@ -3847,7 +3847,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute('''\
             ALTER TYPE test::CompProp {
                 ALTER PROPERTY prop {
-                    DROP EXPRESSION;
+                    RESET EXPRESSION;
                 };
             };
         ''')
@@ -3909,7 +3909,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute('''\
             ALTER TYPE test::CompLink {
                 ALTER LINK l {
-                    DROP EXPRESSION;
+                    RESET EXPRESSION;
                 };
             };
         ''')
@@ -7277,7 +7277,7 @@ type test::Foo {
                 CREATE TYPE Derived EXTENDING Base;
                 ALTER TYPE Derived {
                     ALTER PROPERTY foo {
-                        DROP REQUIRED;
+                        SET OPTIONAL;
                     };
                 };
             ''')
@@ -7297,7 +7297,7 @@ type test::Foo {
                 };
                 CREATE TYPE Derived EXTENDING Base {
                     ALTER PROPERTY foo {
-                        DROP REQUIRED;
+                        SET OPTIONAL;
                     };
                 };
             ''')
@@ -7318,7 +7318,7 @@ type test::Foo {
                 CREATE TYPE Derived EXTENDING Base;
                 ALTER TYPE Derived {
                     ALTER LINK foo {
-                        DROP REQUIRED;
+                        SET OPTIONAL;
                     };
                 };
             ''')
@@ -7338,7 +7338,7 @@ type test::Foo {
                 };
                 CREATE TYPE Derived EXTENDING Base {
                     ALTER LINK foo {
-                        DROP REQUIRED;
+                        SET OPTIONAL;
                     };
                 };
             ''')
@@ -7361,7 +7361,7 @@ type test::Foo {
                 };
                 CREATE TYPE Derived EXTENDING Base, Base2 {
                     ALTER LINK foo {
-                        DROP REQUIRED;
+                        SET OPTIONAL;
                     };
                 };
             ''')
@@ -7405,7 +7405,7 @@ type test::Foo {
         await self.con.execute("""
             ALTER TYPE Base {
                 ALTER PROPERTY foo {
-                    DROP REQUIRED;
+                    SET OPTIONAL;
                 };
             };
         """)
@@ -7432,7 +7432,7 @@ type test::Foo {
         await self.con.execute("""
             ALTER TYPE Derived {
                 ALTER PROPERTY foo {
-                    DROP REQUIRED;
+                    SET OPTIONAL;
                 };
             };
         """)
@@ -7496,7 +7496,7 @@ type test::Foo {
         await self.con.execute("""
             ALTER TYPE Derived {
                 ALTER PROPERTY foo {
-                    DROP REQUIRED;
+                    SET OPTIONAL;
                 };
             };
         """)
@@ -8556,7 +8556,7 @@ type test::Foo {
         await self.con.execute(r"""
             ALTER TYPE Foo {
                 ALTER PROPERTY a {
-                    DROP default;
+                    RESET default;
                 }
             };
         """)
@@ -8598,7 +8598,7 @@ type test::Foo {
             ALTER TYPE Foo {
                 ALTER PROPERTY a {
                     ALTER CONSTRAINT exclusive {
-                        DROP errmessage;
+                        RESET errmessage;
                     }
                 }
             };
@@ -8636,7 +8636,7 @@ type test::Foo {
 
         await self.con.execute(r"""
             ALTER ABSTRACT CONSTRAINT bogus
-            DROP errmessage;
+            RESET errmessage;
         """)
 
         async with self.assertRaisesRegexTx(

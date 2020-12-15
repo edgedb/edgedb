@@ -229,7 +229,7 @@ Change the definition of a function.
     # and <subcommand> is one of
 
       SET volatility := {'VOLATILE' | 'IMMUTABLE' | 'STABLE'} ;
-      DROP volatility
+      RESET volatility
       CREATE ANNOTATION <annotation-name> := <value> ;
       ALTER ANNOTATION <annotation-name> := <value> ;
       DROP ANNOTATION <annotation-name> ;
