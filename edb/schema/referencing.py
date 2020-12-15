@@ -374,8 +374,9 @@ class ReferencedObjectCommandBase(sd.QualifiedObjectCommand[ReferencedT]):
         referrer_context_class: Optional[
             Type[sd.ObjectCommandContext[so.Object]]
         ] = None,
+        **kwargs: Any,
     ) -> None:
-        super().__init_subclass__()
+        super().__init_subclass__(**kwargs)
         if referrer_context_class is not None:
             cls._referrer_context_class = referrer_context_class
 
@@ -983,10 +984,17 @@ class CreateReferencedInheritingObject(
                 if referrer.get_is_derived(schema):
                     self.set_attribute_value('is_derived', True)
 
-        schema = super()._create_begin(schema, context)
+        return super()._create_begin(schema, context)
 
-        if referrer_ctx is not None and not context.canonical:
-            self._validate(schema, context)
+    def _create_finalize(
+        self, schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super()._create_finalize(schema, context)
+        if not context.canonical:
+            referrer_ctx = self.get_referrer_context(context)
+            if referrer_ctx is not None:
+                self._validate(schema, context)
 
         return schema
 
@@ -1129,16 +1137,16 @@ class AlterReferencedInheritingObject(
         assert isinstance(cmd, AlterReferencedInheritingObject)
         return cmd
 
-    def _alter_begin(
+    def _alter_finalize(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
+        schema = super()._alter_finalize(schema, context)
         scls = self.scls
-        was_local = scls.get_is_owned(schema)
-        schema = super()._alter_begin(schema, context)
-        now_local = scls.get_is_owned(schema)
-        if not was_local and now_local:
+        was_owned = scls.get_is_owned(context.current().original_schema)
+        now_owned = scls.get_is_owned(schema)
+        if not was_owned and now_owned:
             self._validate(schema, context)
         return schema
 

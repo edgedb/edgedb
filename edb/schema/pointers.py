@@ -1178,32 +1178,33 @@ class PointerAlterFragment(
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         schema = super().canonicalize_attributes(schema, context)
-        expr_cmd = self.get_attribute_set_cmd('expr')
 
         # Handle `RESET EXPRESSION` here
-        if expr_cmd is not None and not expr_cmd.new_inherited:
-            if expr_cmd.new_value is None:
-                old_expr = expr_cmd.old_value
+        if (
+            self.has_attribute_value('expr')
+            and not self.is_attribute_inherited('expr')
+            and self.get_attribute_value('expr') is None
+        ):
+            old_expr = self.get_orig_attribute_value('expr')
+            pointer = schema.get(self.classname, type=Pointer)
+            if old_expr is None:
+                # Get the old value from the schema if the old_expr
+                # attribute isn't set.
+                old_expr = pointer.get_expr(schema)
 
-                pointer = schema.get(self.classname, type=Pointer)
-                if old_expr is None:
-                    # Get the old value from the schema if the old_expr
-                    # attribute isn't set.
-                    old_expr = pointer.get_expr(schema)
+            if old_expr is not None:
+                # If the expression was explicitly set to None,
+                # that means that `RESET EXPRESSION` was executed
+                # and this is no longer a computable.
+                self.set_attribute_value('computable', False)
+                computed_fields = pointer.get_computed_fields(schema)
+                if 'required' in computed_fields:
+                    self.set_attribute_value('required', None)
+                if 'cardinality' in computed_fields:
+                    self.set_attribute_value('cardinality', None)
 
-                if old_expr is not None:
-                    # If the expression was explicitly set to None,
-                    # that means that `RESET EXPRESSION` was executed
-                    # and this is no longer a computable.
-                    self.set_attribute_value('computable', False)
-                    computed_fields = pointer.get_computed_fields(schema)
-                    if 'required' in computed_fields:
-                        self.set_attribute_value('required', None)
-                    if 'cardinality' in computed_fields:
-                        self.set_attribute_value('cardinality', None)
-
-                # Clear the placeholder value for 'expr'.
-                self.set_attribute_value('expr', None)
+            # Clear the placeholder value for 'expr'.
+            self.set_attribute_value('expr', None)
 
         return schema
 

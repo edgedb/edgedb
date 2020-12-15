@@ -319,11 +319,12 @@ class CreateScalarType(
                         f' the only supertype specified',
                         context=astnode.bases[0].context,
                     )
-                deflt = create_cmd.get_attribute_set_cmd('default')
-                if deflt is not None:
+                if create_cmd.has_attribute_value('default'):
                     raise errors.UnsupportedFeatureError(
                         f'enumerated types do not support defaults',
-                        context=deflt.source_context,
+                        context=(
+                            create_cmd.get_attribute_source_context('default')
+                        ),
                     )
 
                 shell = bases[0]
