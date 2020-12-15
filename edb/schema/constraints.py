@@ -366,7 +366,6 @@ class ConstraintCommandContext(sd.ObjectCommandContext[Constraint],
 class ConstraintCommand(
     referencing.ReferencedInheritingObjectCommand[Constraint],
     s_func.CallableCommand[Constraint],
-    schema_metaclass=Constraint,
     context_class=ConstraintCommandContext,
     referrer_context_class=ConsistencySubjectCommandContext,
 ):
@@ -1216,7 +1215,6 @@ class RenameConstraint(
 
 class AlterConstraintOwned(
     referencing.AlterOwned[Constraint],
-    schema_metaclass=Constraint,
     referrer_context_class=ConsistencySubjectCommandContext,
 ):
     astnode = qlast.AlterConstraintOwned

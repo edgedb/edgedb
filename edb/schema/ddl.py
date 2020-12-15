@@ -36,6 +36,7 @@ from . import name as sn
 from . import objects as so
 from . import objtypes as s_objtypes
 from . import ordering as s_ordering
+from . import pseudo as s_pseudo
 from . import schema as s_schema
 
 
@@ -235,13 +236,19 @@ def delta_schemas(
 
                 result.add(create)
 
+    excluded_classes = (
+        so.GlobalObject,
+        s_mod.Module,
+        s_func.Parameter,
+        s_pseudo.PseudoType,
+    )
+
     schemaclasses = [
         schemacls
         for schemacls in so.ObjectMeta.get_schema_metaclasses()
         if (
-            not issubclass(schemacls, (so.GlobalObject, s_mod.Module,
-                                       s_func.Parameter))
-            and schemacls.get_ql_class() is not None
+            not issubclass(schemacls, excluded_classes)
+            and not schemacls.is_abstract()
             and (
                 include_migrations
                 or not issubclass(schemacls, s_migr.Migration)

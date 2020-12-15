@@ -219,7 +219,7 @@ def reconstruct_tree(
         ):
             return False
 
-        alter_cmd_cls = sd.ObjectCommandMeta.get_command_class(
+        alter_cmd_cls = sd.get_object_command_class(
             sd.AlterObject, op.get_schema_metaclass())
 
         if alter_cmd_cls is None:

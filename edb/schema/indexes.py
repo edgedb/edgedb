@@ -90,6 +90,9 @@ class Index(
         return shortname.name
 
 
+IndexableSubject_T = TypeVar('IndexableSubject_T', bound='IndexableSubject')
+
+
 class IndexableSubject(so.InheritingObject):
     indexes_refs = so.RefDict(
         attr='indexes',
@@ -112,7 +115,9 @@ class IndexSourceCommandContext:
     pass
 
 
-class IndexSourceCommand(inheriting.InheritingObjectCommand[Index]):
+class IndexSourceCommand(
+    inheriting.InheritingObjectCommand[IndexableSubject_T],
+):
     pass
 
 
@@ -123,7 +128,6 @@ class IndexCommandContext(sd.ObjectCommandContext[Index],
 
 class IndexCommand(
     referencing.ReferencedInheritingObjectCommand[Index],
-    schema_metaclass=Index,
     context_class=IndexCommandContext,
     referrer_context_class=IndexSourceCommandContext,
 ):

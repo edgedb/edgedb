@@ -113,6 +113,7 @@ class StructMeta(type):
         clsdict: Dict[str, Any],
         *,
         use_slots: bool = True,
+        **kwargs: Any,
     ) -> StructMeta_T:
         fields = {}
         myfields = {}
@@ -143,7 +144,8 @@ class StructMeta(type):
 
         cls = cast(
             StructMeta_T,
-            super().__new__(mcls, name, bases, clsdict),
+            super().__new__(
+                mcls, name, bases, clsdict, **kwargs),  # type: ignore
         )
 
         if use_slots:
@@ -472,8 +474,16 @@ class MixedStructMeta(StructMeta):
         clsdict: Dict[str, Any],
         *,
         use_slots: bool = False,
+        **kwargs: Any,
     ) -> MixedStructMeta:
-        return super().__new__(mcls, name, bases, clsdict, use_slots=use_slots)
+        return super().__new__(
+            mcls,
+            name,
+            bases,
+            clsdict,
+            use_slots=use_slots,
+            **kwargs,
+        )
 
 
 class MixedStruct(Struct, metaclass=MixedStructMeta):

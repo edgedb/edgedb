@@ -191,19 +191,22 @@ class PropertySourceContext(sources.SourceCommandContext):
     pass
 
 
-class PropertySourceCommand(inheriting.InheritingObjectCommand[Property]):
+class PropertySourceCommand(
+    inheriting.InheritingObjectCommand[sources.Source_T],
+):
     pass
 
 
-class PropertyCommandContext(pointers.PointerCommandContext,
+class PropertyCommandContext(pointers.PointerCommandContext[Property],
                              constraints.ConsistencySubjectCommandContext):
     pass
 
 
-class PropertyCommand(pointers.PointerCommand,
-                      schema_metaclass=Property,
-                      context_class=PropertyCommandContext,
-                      referrer_context_class=PropertySourceContext):
+class PropertyCommand(
+    pointers.PointerCommand[Property],
+    context_class=PropertyCommandContext,
+    referrer_context_class=PropertySourceContext,
+):
 
     def _set_pointer_type(
         self,
@@ -365,16 +368,15 @@ class RebaseProperty(
     pass
 
 
-class SetPropertyType(pointers.SetPointerType,
-                      schema_metaclass=Property,
-                      referrer_context_class=PropertySourceContext):
-
+class SetPropertyType(
+    pointers.SetPointerType[Property],
+    referrer_context_class=PropertySourceContext,
+):
     astnode = qlast.SetPropertyType
 
 
 class AlterPropertyOwned(
     referencing.AlterOwned[Property],
-    schema_metaclass=Property,
     referrer_context_class=PropertySourceContext,
 ):
     astnode = qlast.AlterPropertyOwned
@@ -382,7 +384,7 @@ class AlterPropertyOwned(
 
 class AlterProperty(
     PropertyCommand,
-    pointers.PointerAlterFragment,
+    pointers.PointerAlterFragment[Property],
     referencing.AlterReferencedInheritingObject[Property],
 ):
     astnode = [qlast.AlterConcreteProperty,

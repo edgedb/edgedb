@@ -391,11 +391,13 @@ class ObjectTypeCommandContext(sd.ObjectCommandContext[ObjectType],
     pass
 
 
-class ObjectTypeCommand(s_types.InheritingTypeCommand[ObjectType],
-                        constraints.ConsistencySubjectCommand[ObjectType],
-                        sources.SourceCommand, links.LinkSourceCommand,
-                        schema_metaclass=ObjectType,
-                        context_class=ObjectTypeCommandContext):
+class ObjectTypeCommand(
+    s_types.InheritingTypeCommand[ObjectType],
+    constraints.ConsistencySubjectCommand[ObjectType],
+    sources.SourceCommand[ObjectType],
+    links.LinkSourceCommand[ObjectType],
+    context_class=ObjectTypeCommandContext,
+):
     pass
 
 

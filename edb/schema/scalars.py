@@ -223,8 +223,7 @@ class ScalarTypeCommandContext(sd.ObjectCommandContext[ScalarType],
 class ScalarTypeCommand(
     s_types.InheritingTypeCommand[ScalarType],
     constraints.ConsistencySubjectCommand[ScalarType],
-    s_anno.AnnotationSubjectCommand,
-    schema_metaclass=ScalarType,
+    s_anno.AnnotationSubjectCommand[ScalarType],
     context_class=ScalarTypeCommandContext,
 ):
     def validate_scalar_ancestors(

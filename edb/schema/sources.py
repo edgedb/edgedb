@@ -30,12 +30,15 @@ if TYPE_CHECKING:
     from . import schema as s_schema
 
 
+Source_T = TypeVar('Source_T', bound='Source')
+
+
 class SourceCommandContext(indexes.IndexSourceCommandContext):
     # context mixin
     pass
 
 
-class SourceCommand(indexes.IndexSourceCommand):
+class SourceCommand(indexes.IndexSourceCommand[Source_T]):
     pass
 
 

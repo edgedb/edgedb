@@ -40,8 +40,10 @@ class ModuleCommandContext(sd.ObjectCommandContext[Module]):
     pass
 
 
-class ModuleCommand(sd.ObjectCommand[Module], schema_metaclass=Module,
-                    context_class=ModuleCommandContext):
+class ModuleCommand(
+    sd.ObjectCommand[Module],
+    context_class=ModuleCommandContext,
+):
 
     def _validate_legal_command(
         self,

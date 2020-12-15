@@ -110,7 +110,6 @@ class OperatorCommandContext(s_func.CallableCommandContext):
 
 class OperatorCommand(
     s_func.CallableCommand[Operator],
-    schema_metaclass=Operator,
     context_class=OperatorCommandContext,
 ):
 

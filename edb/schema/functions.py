@@ -289,7 +289,7 @@ class ParameterDesc(ParameterLike):
         *,
         context: sd.CommandContext,
     ) -> sd.CreateObject[Parameter]:
-        CreateParameter = sd.ObjectCommandMeta.get_command_class_or_die(
+        CreateParameter = sd.get_object_command_class_or_die(
             sd.CreateObject, Parameter)
 
         param_name = self.get_fqname(schema, func_fqname)
@@ -310,7 +310,7 @@ class ParameterDesc(ParameterLike):
         *,
         context: sd.CommandContext,
     ) -> sd.ObjectCommand[Parameter]:
-        DeleteParameter = sd.ObjectCommandMeta.get_command_class_or_die(
+        DeleteParameter = sd.get_object_command_class_or_die(
             sd.DeleteObject, Parameter)
 
         param_name = sn.QualName(
@@ -482,7 +482,6 @@ class ParameterCommandContext(sd.ObjectCommandContext[Parameter]):
 # a referencing.ReferencedObject breaks the code
 class ParameterCommand(
     referencing.StronglyReferencedObjectCommand[Parameter],  # type: ignore
-    schema_metaclass=Parameter,
     context_class=ParameterCommandContext,
     referrer_context_class=CallableCommandContext
 ):
@@ -1193,7 +1192,6 @@ class FunctionCommandContext(CallableCommandContext):
 
 class FunctionCommand(
     CallableCommand[Function],
-    schema_metaclass=Function,
     context_class=FunctionCommandContext,
 ):
 

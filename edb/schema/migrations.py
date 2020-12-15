@@ -67,9 +67,10 @@ class MigrationCommandContext(sd.ObjectCommandContext[Migration]):
     pass
 
 
-class MigrationCommand(sd.ObjectCommand[Migration],
-                       schema_metaclass=Migration,
-                       context_class=MigrationCommandContext):
+class MigrationCommand(
+    sd.ObjectCommand[Migration],
+    context_class=MigrationCommandContext,
+):
     pass
 
 
