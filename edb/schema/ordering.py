@@ -398,12 +398,14 @@ def _break_down(
 
     op = new_opbranch[-1]
 
+    breakable_commands = (
+        referencing.ReferencedObjectCommand,
+        sd.RenameObject,
+        inheriting.RebaseInheritingObject,
+    )
+
     for sub_op in _get_sorted_subcommands(op):
-        if isinstance(sub_op, (referencing.ReferencedObjectCommand,
-                               sd.RenameObject,
-                               inheriting.RebaseInheritingObject)):
-            _break_down(opmap, strongrefs, new_opbranch + [sub_op])
-        elif (
+        if (
             isinstance(sub_op, sd.AlterObjectProperty)
             and not isinstance(op, sd.DeleteObject)
         ):
@@ -420,6 +422,13 @@ def _break_down(
                 )
             ):
                 _break_down(opmap, strongrefs, new_opbranch + [sub_op])
+        elif (
+            isinstance(sub_op, sd.AlterSpecialObjectField)
+            and not isinstance(sub_op, referencing.AlterOwned)
+        ):
+            pass
+        elif isinstance(sub_op, breakable_commands):
+            _break_down(opmap, strongrefs, new_opbranch + [sub_op])
         elif isinstance(sub_op, referencing.StronglyReferencedObjectCommand):
             assert isinstance(op, sd.ObjectCommand)
             strongrefs[sub_op.classname] = op.classname
@@ -770,6 +779,7 @@ def _extract_op(stack: Sequence[sd.Command]) -> List[sd.Command]:
         alter_delta = alter_class(
             classname=stack_op.classname,
             ddl_identity=stack_op.ddl_identity,
+            aux_object_data=stack_op.aux_object_data,
             annotations=stack_op.annotations,
         )
         parent_op.add(alter_delta)

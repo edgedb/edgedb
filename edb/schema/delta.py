@@ -23,6 +23,7 @@ from typing import *
 import collections
 import collections.abc
 import contextlib
+import functools
 import itertools
 import uuid
 
@@ -353,6 +354,8 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
 
     #: AlterObjectProperty lookup table for get|set_attribute_value
     _attrs: Dict[str, AlterObjectProperty]
+    #: AlterSpecialObjectField lookup table
+    _special_attrs: Dict[str, AlterSpecialObjectField[so.Object]]
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
@@ -360,6 +363,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         self.before_ops = []
         self.qlast: qlast.DDLOperation
         self._attrs = {}
+        self._special_attrs = {}
 
     def copy(self: Command_T) -> Command_T:
         result = super().copy()
@@ -437,23 +441,34 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
     def enumerate_attributes(self) -> Tuple[str, ...]:
         return tuple(self._attrs)
 
-    def enumerate_attribute_cmds(self) -> Tuple[AlterObjectProperty, ...]:
+    def _enumerate_attribute_cmds(self) -> Tuple[AlterObjectProperty, ...]:
         return tuple(self._attrs.values())
 
     def has_attribute_value(self, attr_name: str) -> bool:
-        return attr_name in self._attrs
+        return attr_name in self._attrs or attr_name in self._special_attrs
 
-    def get_attribute_set_cmd(
+    def _get_simple_attribute_set_cmd(
         self,
         attr_name: str,
     ) -> Optional[AlterObjectProperty]:
         return self._attrs.get(attr_name)
 
+    def _get_attribute_set_cmd(
+        self,
+        attr_name: str,
+    ) -> Optional[AlterObjectProperty]:
+        cmd = self._get_simple_attribute_set_cmd(attr_name)
+        if cmd is None:
+            special_cmd = self._special_attrs.get(attr_name)
+            if special_cmd is not None:
+                cmd = special_cmd._get_attribute_set_cmd(attr_name)
+        return cmd
+
     def get_attribute_value(
         self,
         attr_name: str,
     ) -> Any:
-        op = self.get_attribute_set_cmd(attr_name)
+        op = self._get_attribute_set_cmd(attr_name)
         if op is not None:
             return op.new_value
         else:
@@ -464,7 +479,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         attr_name: str,
     ) -> Any:
         """Return the new value of field, if not inherited."""
-        op = self.get_attribute_set_cmd(attr_name)
+        op = self._get_attribute_set_cmd(attr_name)
         if op is not None and not op.new_inherited:
             return op.new_value
         else:
@@ -474,17 +489,27 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         self,
         attr_name: str,
     ) -> Any:
-        op = self.get_attribute_set_cmd(attr_name)
+        op = self._get_attribute_set_cmd(attr_name)
         if op is not None:
             return op.old_value
         else:
             return None
 
+    def is_attribute_inherited(
+        self,
+        attr_name: str,
+    ) -> bool:
+        op = self._get_attribute_set_cmd(attr_name)
+        if op is not None:
+            return op.new_inherited
+        else:
+            return False
+
     def get_attribute_source_context(
         self,
         attr_name: str,
     ) -> Optional[parsing.ParserContext]:
-        op = self.get_attribute_set_cmd(attr_name)
+        op = self._get_attribute_set_cmd(attr_name)
         if op is not None:
             return op.source_context
         else:
@@ -503,7 +528,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         orig_computed: Optional[bool] = None,
         source_context: Optional[parsing.ParserContext] = None,
     ) -> None:
-        orig_op = op = self.get_attribute_set_cmd(attr_name)
+        orig_op = op = self._get_simple_attribute_set_cmd(attr_name)
         if op is None:
             op = AlterObjectProperty(property=attr_name, new_value=value)
         else:
@@ -529,7 +554,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
             self.add(op)
 
     def discard_attribute(self, attr_name: str) -> None:
-        op = self.get_attribute_set_cmd(attr_name)
+        op = self._get_attribute_set_cmd(attr_name)
         if op is not None:
             self.discard(op)
 
@@ -623,11 +648,12 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
 
     def get_nonattr_subcommand_count(self) -> int:
         count = 0
+        attr_cmds = (AlterObjectProperty, AlterSpecialObjectField)
         for op in self.ops:
-            if not isinstance(op, AlterObjectProperty):
+            if not isinstance(op, attr_cmds):
                 count += 1
         for op in self.before_ops:
-            if not isinstance(op, AlterObjectProperty):
+            if not isinstance(op, attr_cmds):
                 count += 1
         return count
 
@@ -651,6 +677,8 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         else:
             if isinstance(command, AlterObjectProperty):
                 self._attrs[command.property] = command
+            elif isinstance(command, AlterSpecialObjectField):
+                self._special_attrs[command._field] = command
             self.ops.insert(0, command)
 
     def add(self, command: Command) -> None:
@@ -659,6 +687,8 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         else:
             if isinstance(command, AlterObjectProperty):
                 self._attrs[command.property] = command
+            elif isinstance(command, AlterSpecialObjectField):
+                self._special_attrs[command._field] = command
             self.ops.append(command)
 
     def update(self, commands: Iterable[Command]) -> None:  # type: ignore
@@ -672,6 +702,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
     def replace_all(self, commands: Iterable[Command]) -> None:
         self.ops.clear()
         self._attrs.clear()
+        self._special_attrs.clear()
         self.update(commands)
 
     def discard(self, command: Command) -> None:
@@ -685,6 +716,8 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
             pass
         if isinstance(command, AlterObjectProperty):
             self._attrs.pop(command.property)
+        elif isinstance(command, AlterSpecialObjectField):
+            self._special_attrs.pop(command._field)
 
     def apply(
         self,
@@ -1345,6 +1378,76 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         assert isinstance(op, ObjectCommand)
         return op
 
+    @classmethod
+    @functools.lru_cache()
+    def _get_special_handler(
+        cls,
+        field_name: str,
+    ) -> Optional[Type[AlterSpecialObjectField[so.Object]]]:
+        if issubclass(cls, AlterObject):
+            schema_cls = cls.get_schema_metaclass()
+            return get_special_field_alter_handler(field_name, schema_cls)
+        else:
+            return None
+
+    def set_attribute_value(
+        self,
+        attr_name: str,
+        value: Any,
+        *,
+        orig_value: Any = None,
+        inherited: bool = False,
+        orig_inherited: Optional[bool] = None,
+        computed: bool = False,
+        orig_computed: Optional[bool] = None,
+        from_default: bool = False,
+        source_context: Optional[parsing.ParserContext] = None,
+    ) -> None:
+        special = type(self)._get_special_handler(attr_name)
+        op = self._get_attribute_set_cmd(attr_name)
+        top_op: Optional[Command] = None
+
+        if orig_inherited is None:
+            orig_inherited = inherited
+
+        if orig_computed is None:
+            orig_computed = computed
+
+        if op is None:
+            op = AlterObjectProperty(
+                property=attr_name,
+                new_value=value,
+                old_value=orig_value,
+                new_inherited=inherited,
+                old_inherited=orig_inherited,
+                new_computed=computed,
+                old_computed=orig_computed,
+                from_default=from_default,
+                source_context=source_context,
+            )
+
+            if special is not None:
+                top_op = special(classname=self.classname)
+                top_op.add(op)
+            else:
+                top_op = op
+        else:
+            op.new_value = value
+            op.new_inherited = inherited
+            op.old_inherited = orig_inherited
+
+            op.new_computed = computed
+            op.old_computed = orig_computed
+            op.from_default = from_default
+
+            if source_context is not None:
+                op.source_context = source_context
+            if orig_value is not None:
+                op.old_value = orig_value
+
+        if top_op is not None:
+            self.add(top_op)
+
     def _propagate_if_expr_refs(
         self,
         schema: s_schema.Schema,
@@ -1624,7 +1727,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
     ) -> Dict[str, bool]:
         result = {}
         mcls = self.get_schema_metaclass()
-        for op in self.enumerate_attribute_cmds():
+        for op in self._enumerate_attribute_cmds():
             field = mcls.get_field(op.property)
             if not field.ephemeral:
                 result[op.property] = op.new_computed
@@ -3032,6 +3135,117 @@ class DeleteObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         return schema
 
 
+special_field_alter_handlers: Dict[
+    str,
+    Dict[Type[so.Object], Type[AlterSpecialObjectField[so.Object]]],
+] = {}
+
+
+class AlterSpecialObjectField(AlterObjectFragment[so.Object_T]):
+    """Base class for AlterObjectFragment implementations for special fields.
+
+    When the generic `AlterObjectProperty` handling of field value transitions
+    is insufficient, declare a subclass of this to implement custom handling.
+    """
+
+    _field: ClassVar[str]
+
+    def __init_subclass__(
+        cls,
+        *,
+        field: Optional[str] = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init_subclass__(**kwargs)
+
+        if field is None:
+            if any(
+                issubclass(b, AlterSpecialObjectField)
+                for b in cls.__mro__[1:]
+            ):
+                return
+            else:
+                raise TypeError(
+                    "AlterSpecialObjectField.__init_subclass__() missing "
+                    "1 required keyword-only argument: 'field'"
+                )
+
+        handlers = special_field_alter_handlers.get(field)
+        if handlers is None:
+            handlers = special_field_alter_handlers[field] = {}
+
+        schema_metaclass = cls.get_schema_metaclass()
+        handlers[schema_metaclass] = cls  # type: ignore
+        cls._field = field
+
+    @classmethod
+    def _cmd_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: CommandContext,
+    ) -> ObjectCommand[so.Object_T]:
+        this_op = context.current().op
+        assert isinstance(this_op, ObjectCommand)
+        return cls(classname=this_op.classname)
+
+    @classmethod
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: CommandContext,
+    ) -> Command:
+        assert isinstance(astnode, qlast.SetField)
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        cmd.add(AlterObjectProperty.regular_cmd_from_ast(
+            schema, astnode, context))
+        return cmd
+
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+        *,
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
+        attrs = self._enumerate_attribute_cmds()
+        assert len(attrs) == 1, "expected one attribute command"
+        return attrs[0]._get_ast(schema, context, parent_node=parent_node)
+
+
+def get_special_field_alter_handler(
+    field: str,
+    schema_cls: Type[so.Object],
+) -> Optional[Type[AlterSpecialObjectField[so.Object]]]:
+    """Return a custom handler for the field value transition, if any.
+
+    Returns a subclass of AlterSpecialObjectField, when in the context
+    of an AlterObject operation, and a special handler has been declared.
+    """
+    field_handlers = special_field_alter_handlers.get(field)
+    if field_handlers is None:
+        return None
+    return field_handlers.get(schema_cls)
+
+
+def get_special_field_alter_handler_for_context(
+    field: str,
+    context: CommandContext,
+) -> Optional[Type[AlterSpecialObjectField[so.Object]]]:
+    """Return a custom handler for the field value transition, if any.
+
+    Returns a subclass of AlterSpecialObjectField, when in the context
+    of an AlterObject operation, and a special handler has been declared.
+    """
+    this_op = context.current().op
+    if not isinstance(this_op, AlterObject):
+        return None
+    else:
+        mcls = this_op.get_schema_metaclass()
+        return get_special_field_alter_handler(field, mcls)
+
+
 class AlterObjectProperty(Command):
     astnode = qlast.SetField
 
@@ -3050,11 +3264,23 @@ class AlterObjectProperty(Command):
         schema: s_schema.Schema,
         astnode: qlast.DDLOperation,
         context: CommandContext,
+    ) -> Command:
+        assert isinstance(astnode, qlast.SetField)
+        handler = get_special_field_alter_handler_for_context(
+            astnode.name, context)
+        if handler is not None:
+            return handler._cmd_tree_from_ast(schema, astnode, context)
+        else:
+            return cls.regular_cmd_from_ast(schema, astnode, context)
+
+    @classmethod
+    def regular_cmd_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.SetField,
+        context: CommandContext,
     ) -> AlterObjectProperty:
-        assert isinstance(astnode, qlast.BaseSetField)
-
         propname = astnode.name
-
         parent_ctx = context.current()
         parent_op = parent_ctx.op
         assert isinstance(parent_op, ObjectCommand)
@@ -3164,7 +3390,10 @@ class AlterObjectProperty(Command):
 
         if (
             not field.allow_ddl_set
-            and not field.special_ddl_syntax
+            and not (
+                field.special_ddl_syntax
+                and isinstance(parent_node, qlast.AlterObject)
+            )
             and self.property != 'expr'
             and parent_node_attr is None
         ):
@@ -3178,8 +3407,11 @@ class AlterObjectProperty(Command):
             return None
 
         if (
-            (self.new_inherited and not self.old_inherited)
-            or (
+            (
+                self.new_inherited
+                and not self.old_inherited
+                and not old_value_empty
+            ) or (
                 self.new_computed
                 and not self.old_computed
                 and not self.old_inherited

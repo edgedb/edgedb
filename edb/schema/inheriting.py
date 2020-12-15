@@ -143,12 +143,8 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
                     schema=schema,
                 )
             except errors.SchemaDefinitionError as e:
-                field_op = self.get_attribute_set_cmd(field_name)
-                if (
-                    field_op is not None
-                    and field_op.source_context is not None
-                ):
-                    e.set_source_context(field_op.source_context)
+                if (srcctx := self.get_attribute_source_context(field_name)):
+                    e.set_source_context(srcctx)
                 raise
 
             if not ignore_local_field:
