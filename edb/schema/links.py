@@ -511,6 +511,14 @@ class SetLinkType(
         return schema
 
 
+class AlterLinkUpperCardinality(
+    pointers.AlterPointerUpperCardinality[Link],
+    referrer_context_class=LinkSourceCommandContext,
+    field='cardinality',
+):
+    pass
+
+
 class AlterLinkOwned(
     referencing.AlterOwned[Link],
     referrer_context_class=LinkSourceCommandContext,

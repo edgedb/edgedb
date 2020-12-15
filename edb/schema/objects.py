@@ -988,10 +988,18 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         return str(cls.get_shortname_static(name))
 
     @classmethod
-    def get_verbosename_static(cls, name: sn.Name) -> str:
+    def get_verbosename_static(
+        cls,
+        name: sn.Name,
+        *,
+        parent: Optional[str] = None,
+    ) -> str:
         clsname = cls.get_schema_class_displayname()
         dname = cls.get_displayname_static(name)
-        return f"{clsname} '{dname}'"
+        if parent is not None:
+            return f"{clsname} '{dname}' of {parent}"
+        else:
+            return f"{clsname} '{dname}'"
 
     def get_shortname(self, schema: s_schema.Schema) -> sn.Name:
         return type(self).get_shortname_static(self.get_name(schema))

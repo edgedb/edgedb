@@ -308,6 +308,8 @@ class BaseSchemaTest(BaseDocTest):
         script = cls.get_schema_script()
         if script is not None:
             cls.schema = cls.run_ddl(_load_std_schema(), script)
+        else:
+            cls.schema = _load_std_schema()
 
     @classmethod
     def run_ddl(cls, schema, ddl, default_module=defines.DEFAULT_MODULE_ALIAS):

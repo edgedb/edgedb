@@ -810,6 +810,77 @@ class ReferencedInheritingObjectCommand(
 
         return schema
 
+    def _propagate_ref_field_alter_in_inheritance(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        field_name: str,
+        require_inheritance_consistency: bool = True,
+    ) -> s_schema.Schema:
+        """Validate and propagate a field alteration to children.
+
+        This method also performs consistency checks against base objects
+        to ensure that the new value matches that of the parents.
+        """
+        scls = self.scls
+
+        currently_altered = context.change_log[type(scls), field_name]
+        currently_altered.add(scls)
+
+        if require_inheritance_consistency:
+            implicit_bases = scls.get_implicit_bases(schema)
+            non_altered_bases = []
+
+            value = scls.get_field_value(schema, field_name)
+            for base in set(implicit_bases) - currently_altered:
+                base_value = base.get_field_value(schema, field_name)
+
+                if isinstance(value, so.SubclassableObject):
+                    if not value.issubclass(schema, base_value):
+                        non_altered_bases.append(base)
+                else:
+                    if value != base_value:
+                        non_altered_bases.append(base)
+
+            # This object is inherited from one or more ancestors that
+            # are not altered in the same op, and this is an error.
+            if non_altered_bases:
+                bases_str = ', '.join(
+                    b.get_verbosename(schema, with_parent=True)
+                    for b in non_altered_bases
+                )
+
+                vn = scls.get_verbosename(schema, with_parent=True)
+                desc = self.get_friendly_description(
+                    schema,
+                    context,
+                    object_desc=f'inherited {vn}',
+                )
+
+                raise errors.SchemaDefinitionError(
+                    f'cannot {desc}',
+                    details=(
+                        f'{vn} is inherited from '
+                        f'{bases_str}'
+                    ),
+                    context=self.source_context,
+                )
+
+        value = self.get_attribute_value(field_name)
+
+        def _propagate(
+            alter_cmd: sd.ObjectCommand[so.Object],
+            refname: str,
+        ) -> None:
+            s_t = type(self)(classname=alter_cmd.classname)
+            s_t.set_attribute_value(field_name, value)
+            alter_cmd.add(s_t)
+
+        schema = self._propagate_ref_op(
+            schema, context, self.scls, cb=_propagate)
+
+        return schema
+
     def _drop_owned_refs(
         self,
         schema: s_schema.Schema,
