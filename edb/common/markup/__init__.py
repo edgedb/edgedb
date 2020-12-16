@@ -32,8 +32,8 @@ from .elements.base import Markup  # noqa
 
 class MarkupCapableMeta(type):
 
-    def __new__(mcls, name, bases, dct):
-        cls = super().__new__(mcls, name, bases, dct)
+    def __new__(mcls, name, bases, dct, **kwargs):
+        cls = super().__new__(mcls, name, bases, dct, **kwargs)
         if 'as_markup' in dct:
             serializer.serializer.register(cls)(cls.as_markup)
         return cls

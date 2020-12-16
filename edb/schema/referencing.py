@@ -362,33 +362,22 @@ class ReferencedInheritingObject(
                 rename.set_annotation('implicit_propagation', True)
 
 
-class ReferencedObjectCommandMeta(sd.ObjectCommandMeta):
-    _transparent_adapter_subclass: ClassVar[bool] = True
-    _referrer_context_class: Optional[
-        Type[sd.ObjectCommandContext[so.Object]]
-    ] = None
+class ReferencedObjectCommandBase(sd.QualifiedObjectCommand[ReferencedT]):
 
-    def __new__(mcls,
-                name: str,
-                bases: Tuple[type, ...],
-                clsdct: Dict[str, Any],
-                *,
-                referrer_context_class: Optional[
-                    Type[sd.ObjectCommandContext[so.Object]]
-                ] = None,
-                **kwargs: Any
-                ) -> ReferencedObjectCommandMeta:
-        cls = super().__new__(mcls, name, bases, clsdct, **kwargs)
-        assert isinstance(cls, ReferencedObjectCommandMeta)
+    _referrer_context_class: ClassVar[Optional[
+        Type[sd.ObjectCommandContext[so.Object]]
+    ]] = None
+
+    def __init_subclass__(
+        cls,
+        *,
+        referrer_context_class: Optional[
+            Type[sd.ObjectCommandContext[so.Object]]
+        ] = None,
+    ) -> None:
+        super().__init_subclass__()
         if referrer_context_class is not None:
             cls._referrer_context_class = referrer_context_class
-        return cls
-
-
-class ReferencedObjectCommandBase(
-    sd.QualifiedObjectCommand[ReferencedT],
-    metaclass=ReferencedObjectCommandMeta,
-):
 
     @classmethod
     def get_referrer_context_class(
@@ -574,7 +563,7 @@ class CreateReferencedObject(
         implicit_bases = scls.get_implicit_bases(schema)
         if implicit_bases and not context.declarative:
             mcls = self.get_schema_metaclass()
-            Alter = sd.ObjectCommandMeta.get_command_class_or_die(
+            Alter = sd.get_object_command_class_or_die(
                 sd.AlterObject, mcls)
             alter = Alter(classname=self.classname)
             return alter._get_ast_node(schema, context)
@@ -1027,7 +1016,7 @@ class CreateReferencedInheritingObject(
         referrer: so.InheritingObject,
     ) -> s_schema.Schema:
 
-        get_cmd = sd.ObjectCommandMeta.get_command_class_or_die
+        get_cmd = sd.get_object_command_class_or_die
 
         mcls = type(self.scls)
         referrer_cls = type(referrer)
@@ -1252,7 +1241,7 @@ class RenameReferencedInheritingObject(
                               context: sd.CommandContext,
                               scls: ReferencedInheritingObject
                               ) -> s_schema.Schema:
-        rename_cmdcls = sd.ObjectCommandMeta.get_command_class_or_die(
+        rename_cmdcls = sd.get_object_command_class_or_die(
             sd.RenameObject, type(scls))
 
         def _ref_rename(alter_cmd: sd.Command,

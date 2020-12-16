@@ -879,6 +879,11 @@ class ObjectMeta(type):
     def get_reflection_link(cls) -> Optional[str]:
         return cls._reflection_link
 
+    def is_abstract(cls) -> bool:
+        """Return True if this type does NOT represent a concrete schema class.
+        """
+        return cls.get_ql_class() is None
+
 
 class FieldValueNotFoundError(Exception):
     pass
@@ -1864,6 +1869,9 @@ class ObjectFragment(QualifiedObject):
 
 class GlobalObject(Object):
     pass
+
+
+GlobalObject_T = TypeVar('GlobalObject_T', bound='GlobalObject')
 
 
 class DerivableObject(QualifiedObject):
@@ -2876,7 +2884,7 @@ class InheritingObject(SubclassableObject):
             context=context,
         )
 
-        rebase = sd.ObjectCommandMeta.get_command_class(
+        rebase = sd.get_object_command_class(
             s_inh.RebaseInheritingObject, type(self))
 
         old_base_names = tuple(

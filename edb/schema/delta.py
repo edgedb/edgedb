@@ -26,6 +26,8 @@ import contextlib
 import itertools
 import uuid
 
+import typing_inspect
+
 from edb import errors
 
 from edb.common import adapter
@@ -1203,79 +1205,37 @@ class DeltaRoot(CommandGroup, context_class=DeltaRootContext):
         return schema
 
 
-class ObjectCommandMeta(CommandMeta):
-    _transparent_adapter_subclass: ClassVar[bool] = True
-    _schema_metaclasses: ClassVar[
-        Dict[Tuple[str, Type[so.Object]], Type[ObjectCommand[so.Object]]]
-    ] = {}
+_command_registry: Dict[
+    Tuple[str, Type[so.Object]],
+    Type[ObjectCommand[so.Object]]
+] = {}
 
-    def __new__(
-        mcls,
-        name: str,
-        bases: Tuple[type, ...],
-        dct: Dict[str, Any],
-        *,
-        schema_metaclass: Optional[Type[so.Object]] = None,
-        **kwargs: Any,
-    ) -> ObjectCommandMeta:
-        cls = cast(
-            Type["ObjectCommand[so.Object]"],
-            super().__new__(mcls, name, bases, dct, **kwargs),
-        )
-        if cls.has_adaptee():
-            # This is a command adapter rather than the actual
-            # command, so skip the registrations.
-            return cls
 
-        if (schema_metaclass is not None or
-                not hasattr(cls, '_schema_metaclass')):
-            cls._schema_metaclass = schema_metaclass
+def get_object_command_class(
+    cmdtype: Type[Command_T],
+    schema_metaclass: Type[so.Object],
+) -> Optional[Type[Command_T]]:
+    assert issubclass(cmdtype, ObjectCommand)
+    return _command_registry.get(  # type: ignore
+        (cmdtype._delta_action, schema_metaclass),
+    )
 
-        delta_action = getattr(cls, '_delta_action', None)
-        if cls._schema_metaclass is not None and delta_action is not None:
-            key = delta_action, cls._schema_metaclass
-            cmdcls = mcls._schema_metaclasses.get(key)
-            if cmdcls is not None:
-                raise TypeError(
-                    f'Action {cls._delta_action!r} for '
-                    f'{cls._schema_metaclass} is already claimed by {cmdcls}'
-                )
-            mcls._schema_metaclasses[key] = cls
 
-        return cls
-
-    @classmethod
-    def get_command_class(
-        mcls,
-        cmdtype: Type[Command_T],
-        schema_metaclass: Type[so.Object],
-    ) -> Optional[Type[Command_T]]:
-        assert issubclass(cmdtype, ObjectCommand)
-        return mcls._schema_metaclasses.get(  # type: ignore
-            (cmdtype._delta_action, schema_metaclass),
-        )
-
-    @classmethod
-    def get_command_class_or_die(
-        mcls,
-        cmdtype: Type[Command_T],
-        schema_metaclass: Type[so.Object],
-    ) -> Type[Command_T]:
-        cmdcls = mcls.get_command_class(cmdtype, schema_metaclass)
-        if cmdcls is None:
-            raise TypeError(f'missing {cmdtype.__name__} implementation '
-                            f'for {schema_metaclass.__name__}')
-        return cmdcls
+def get_object_command_class_or_die(
+    cmdtype: Type[Command_T],
+    schema_metaclass: Type[so.Object],
+) -> Type[Command_T]:
+    cmdcls = get_object_command_class(cmdtype, schema_metaclass)
+    if cmdcls is None:
+        raise TypeError(f'missing {cmdtype.__name__} implementation '
+                        f'for {schema_metaclass.__name__}')
+    return cmdcls
 
 
 ObjectCommand_T = TypeVar("ObjectCommand_T", bound='ObjectCommand[so.Object]')
 
 
-class ObjectCommand(
-    Command,
-    Generic[so.Object_T],
-    metaclass=ObjectCommandMeta,
-):
+class ObjectCommand(Command, Generic[so.Object_T]):
     """Base class for all Object-related commands."""
 
     #: Full name of the object this command operates on.
@@ -1299,9 +1259,60 @@ class ObjectCommand(
 
     scls: so.Object_T
     _delta_action: ClassVar[str]
-    _schema_metaclass: ClassVar[Optional[Type[so.Object_T]]]
+    _schema_metaclass: ClassVar[Optional[Type[so.Object_T]]] = None
     astnode: ClassVar[Union[Type[qlast.DDLOperation],
                             List[Type[qlast.DDLOperation]]]]
+
+    def __init_subclass__(cls, *args: Any, **kwargs: Any) -> None:
+        # Check if the command subclass has been parametrized with
+        # a concrete schema object class, and if so, record the
+        # argument to be made available via get_schema_metaclass().
+        super().__init_subclass__(*args, **kwargs)  # type: ignore
+        generic_bases = typing_inspect.get_generic_bases(cls)
+        mcls: Optional[Type[so.Object]] = None
+        for gb in generic_bases:
+            base_origin = typing_inspect.get_origin(gb)
+            # Find the <ObjectCommand>[Type] base, where ObjectCommand
+            # is any ObjectCommand subclass.
+            if (
+                base_origin is not None
+                and issubclass(base_origin, ObjectCommand)
+            ):
+                args = typing_inspect.get_args(gb)
+                if len(args) != 1:
+                    raise AssertionError(
+                        'expected only one argument to ObjectCommand generic')
+                arg_0 = args[0]
+                if not typing_inspect.is_typevar(arg_0):
+                    assert issubclass(arg_0, so.Object)
+                    if not arg_0.is_abstract():
+                        mcls = arg_0
+                        break
+
+        if mcls is not None:
+            existing = getattr(cls, '_schema_metaclass', None)
+            if existing is not None and existing is not mcls:
+                raise TypeError(
+                    f'cannot redefine schema class of {cls.__name__} to '
+                    f'{mcls.__name__}: a superclass has already defined it as '
+                    f'{existing.__name__}'
+                )
+            cls._schema_metaclass = mcls
+
+        # If this is a command adapter rather than the actual
+        # command, skip the command class registration.
+        if not cls.has_adaptee():
+            delta_action = getattr(cls, '_delta_action', None)
+            schema_metaclass = getattr(cls, '_schema_metaclass', None)
+            if schema_metaclass is not None and delta_action is not None:
+                key = delta_action, schema_metaclass
+                cmdcls = _command_registry.get(key)
+                if cmdcls is not None:
+                    raise TypeError(
+                        f'Action {cls._delta_action!r} for '
+                        f'{schema_metaclass} is already claimed by {cmdcls}'
+                    )
+                _command_registry[key] = cls  # type: ignore
 
     @classmethod
     def _classname_from_ast(
@@ -1849,7 +1860,7 @@ class ObjectCommand(
         cmdtype: Type[ObjectCommand_T],
     ) -> Type[ObjectCommand_T]:
         mcls = cls.get_schema_metaclass()
-        return ObjectCommandMeta.get_command_class_or_die(cmdtype, mcls)
+        return get_object_command_class_or_die(cmdtype, mcls)
 
     def _validate_legal_command(
         self,
@@ -2196,7 +2207,7 @@ class QualifiedObjectCommand(ObjectCommand[so.QualifiedObject_T]):
         )
 
 
-class GlobalObjectCommand(ObjectCommand[so.GlobalObject]):
+class GlobalObjectCommand(ObjectCommand[so.GlobalObject_T]):
     pass
 
 
@@ -2233,7 +2244,7 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
                 classname = cls._classname_from_ast(schema, astnode, context)
             mcls = cls.get_schema_metaclass()
             if schema.get(classname, default=None) is not None:
-                return ObjectCommandMeta.get_command_class_or_die(
+                return get_object_command_class_or_die(
                     AlterObject, mcls)
 
         return cls
@@ -2678,7 +2689,7 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
         parent_op = parent_ctx.op
         assert isinstance(parent_op, ObjectCommand)
         parent_class = parent_op.get_schema_metaclass()
-        rename_class = ObjectCommandMeta.get_command_class_or_die(
+        rename_class = get_object_command_class_or_die(
             RenameObject, parent_class)
         return rename_class._rename_cmd_from_ast(schema, astnode, context)
 
@@ -2695,7 +2706,7 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
         parent_op = parent_ctx.op
         assert isinstance(parent_op, ObjectCommand)
         parent_class = parent_op.get_schema_metaclass()
-        rename_class = ObjectCommandMeta.get_command_class_or_die(
+        rename_class = get_object_command_class_or_die(
             RenameObject, parent_class)
 
         new_name = cls._classname_from_ast(schema, astnode, context)
@@ -3344,7 +3355,7 @@ def get_object_delta_command(
 
     cmdcls = cast(
         Type[ObjectCommand_T],
-        ObjectCommandMeta.get_command_class_or_die(cmdtype, objtype),
+        get_object_command_class_or_die(cmdtype, objtype),
     )
 
     return cmdcls(

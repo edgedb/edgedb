@@ -872,13 +872,13 @@ class ComputableRef:
         self.expr = expr
 
 
-class PointerCommandContext(sd.ObjectCommandContext[Pointer],
+class PointerCommandContext(sd.ObjectCommandContext[Pointer_T],
                             s_anno.AnnotationSubjectCommandContext):
     pass
 
 
 class PointerCommandOrFragment(
-    referencing.ReferencedObjectCommandBase[Pointer]
+    referencing.ReferencedObjectCommandBase[Pointer_T]
 ):
 
     def canonicalize_attributes(
@@ -1076,7 +1076,7 @@ class PointerCommandOrFragment(
 
 
 class PointerAlterFragment(
-    referencing.ReferencedObjectCommandBase[Pointer]
+    referencing.ReferencedObjectCommandBase[Pointer_T]
 ):
     @classmethod
     def _cmd_tree_from_ast(
@@ -1142,10 +1142,10 @@ class PointerAlterFragment(
 
 
 class PointerCommand(
-    referencing.ReferencedInheritingObjectCommand[Pointer],
-    constraints.ConsistencySubjectCommand[Pointer],
-    s_anno.AnnotationSubjectCommand,
-    PointerCommandOrFragment,
+    referencing.ReferencedInheritingObjectCommand[Pointer_T],
+    constraints.ConsistencySubjectCommand[Pointer_T],
+    s_anno.AnnotationSubjectCommand[Pointer_T],
+    PointerCommandOrFragment[Pointer_T],
 ):
 
     def _set_pointer_type(
@@ -1410,9 +1410,9 @@ class PointerCommand(
 
 
 class SetPointerType(
-        referencing.ReferencedInheritingObjectCommand[Pointer],
-        inheriting.AlterInheritingObjectFragment[Pointer],
-        PointerCommandOrFragment):
+        referencing.ReferencedInheritingObjectCommand[Pointer_T],
+        inheriting.AlterInheritingObjectFragment[Pointer_T],
+        PointerCommandOrFragment[Pointer_T]):
 
     def _alter_begin(
         self,
@@ -1500,7 +1500,7 @@ class SetPointerType(
         schema: s_schema.Schema,
         astnode: qlast.DDLOperation,
         context: sd.CommandContext,
-    ) -> sd.ObjectCommand[Pointer]:
+    ) -> sd.ObjectCommand[Pointer_T]:
         this_op = context.current().op
         assert isinstance(this_op, sd.ObjectCommand)
         return cls(classname=this_op.classname)

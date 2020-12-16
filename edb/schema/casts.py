@@ -203,7 +203,6 @@ class CastCommandContext(sd.ObjectCommandContext[Cast],
 
 
 class CastCommand(sd.QualifiedObjectCommand[Cast],
-                  schema_metaclass=Cast,
                   context_class=CastCommandContext):
 
     @classmethod

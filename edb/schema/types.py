@@ -2128,12 +2128,11 @@ class DeleteCollectionExprAlias(
     pass
 
 
-class CreateTuple(CreateCollectionType[Tuple], schema_metaclass=Tuple):
+class CreateTuple(CreateCollectionType[Tuple]):
     pass
 
 
-class CreateTupleExprAlias(CreateCollectionExprAlias[TupleExprAlias],
-                           schema_metaclass=TupleExprAlias):
+class CreateTupleExprAlias(CreateCollectionExprAlias[TupleExprAlias]):
     def _get_ast_node(
         self, schema: s_schema.Schema, context: sd.CommandContext
     ) -> typing.Type[qlast.CreateAlias]:
@@ -2142,24 +2141,25 @@ class CreateTupleExprAlias(CreateCollectionExprAlias[TupleExprAlias],
         return qlast.CreateAlias
 
 
-class RenameTupleExprAlias(CollectionExprAliasCommand[TupleExprAlias],
-                           sd.RenameObject[TupleExprAlias],
-                           schema_metaclass=TupleExprAlias):
+class RenameTupleExprAlias(
+    CollectionExprAliasCommand[TupleExprAlias],
+    sd.RenameObject[TupleExprAlias],
+):
     pass
 
 
-class AlterTupleExprAlias(CollectionExprAliasCommand[TupleExprAlias],
-                          sd.AlterObject[TupleExprAlias],
-                          schema_metaclass=TupleExprAlias):
+class AlterTupleExprAlias(
+    CollectionExprAliasCommand[TupleExprAlias],
+    sd.AlterObject[TupleExprAlias],
+):
     pass
 
 
-class CreateArray(CreateCollectionType[Array], schema_metaclass=Array):
+class CreateArray(CreateCollectionType[Array]):
     pass
 
 
-class CreateArrayExprAlias(CreateCollectionExprAlias[TupleExprAlias],
-                           schema_metaclass=ArrayExprAlias):
+class CreateArrayExprAlias(CreateCollectionExprAlias[ArrayExprAlias]):
     def _get_ast_node(
         self, schema: s_schema.Schema, context: sd.CommandContext
     ) -> typing.Type[qlast.CreateAlias]:
@@ -2168,33 +2168,33 @@ class CreateArrayExprAlias(CreateCollectionExprAlias[TupleExprAlias],
         return qlast.CreateAlias
 
 
-class RenameArrayExprAlias(CollectionExprAliasCommand[ArrayExprAlias],
-                           sd.RenameObject[ArrayExprAlias],
-                           schema_metaclass=ArrayExprAlias):
+class RenameArrayExprAlias(
+    CollectionExprAliasCommand[ArrayExprAlias],
+    sd.RenameObject[ArrayExprAlias],
+):
     pass
 
 
-class AlterArrayExprAlias(CollectionExprAliasCommand[ArrayExprAlias],
-                          sd.AlterObject[ArrayExprAlias],
-                          schema_metaclass=ArrayExprAlias):
+class AlterArrayExprAlias(
+    CollectionExprAliasCommand[ArrayExprAlias],
+    sd.AlterObject[ArrayExprAlias],
+):
     pass
 
 
-class DeleteTuple(DeleteCollectionType[Tuple], schema_metaclass=Tuple):
+class DeleteTuple(DeleteCollectionType[Tuple]):
     pass
 
 
-class DeleteTupleExprAlias(DeleteCollectionExprAlias[TupleExprAlias],
-                           schema_metaclass=TupleExprAlias):
+class DeleteTupleExprAlias(DeleteCollectionExprAlias[TupleExprAlias]):
     pass
 
 
-class DeleteArray(DeleteCollectionType[Array], schema_metaclass=Array):
+class DeleteArray(DeleteCollectionType[Array]):
     pass
 
 
-class DeleteArrayExprAlias(DeleteCollectionExprAlias[ArrayExprAlias],
-                           schema_metaclass=ArrayExprAlias):
+class DeleteArrayExprAlias(DeleteCollectionExprAlias[ArrayExprAlias]):
     pass
 
 

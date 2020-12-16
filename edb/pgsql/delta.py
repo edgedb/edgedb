@@ -52,7 +52,6 @@ from edb.schema import name as sn
 from edb.schema import operators as s_opers
 from edb.schema import pointers as s_pointers
 from edb.schema import pseudo as s_pseudo
-from edb.schema import referencing as s_referencing
 from edb.schema import roles as s_roles
 from edb.schema import sources as s_sources
 from edb.schema import types as s_types
@@ -113,15 +112,6 @@ def has_table(obj, schema):
 
 class CommandMeta(sd.CommandMeta):
     pass
-
-
-class ObjectCommandMeta(sd.ObjectCommandMeta, CommandMeta):
-    _transparent_adapter_subclass = True
-
-
-class ReferencedObjectCommandMeta(
-        s_referencing.ReferencedObjectCommandMeta, ObjectCommandMeta):
-    _transparent_adapter_subclass = True
 
 
 class MetaCommand(sd.Command, metaclass=CommandMeta):
@@ -185,7 +175,7 @@ class Record:
 
 
 class ObjectMetaCommand(MetaCommand, sd.ObjectCommand,
-                        metaclass=ObjectCommandMeta):
+                        metaclass=CommandMeta):
     op_priority = 0
 
 
@@ -443,7 +433,7 @@ class DeleteArrayExprAlias(
 
 
 class ParameterCommand(sd.ObjectCommand,
-                       metaclass=ReferencedObjectCommandMeta):
+                       metaclass=CommandMeta):
     pass
 
 
@@ -1017,7 +1007,7 @@ class DeleteAnnotation(
 
 
 class AnnotationValueCommand(sd.ObjectCommand,
-                             metaclass=ReferencedObjectCommandMeta):
+                             metaclass=CommandMeta):
     op_priority = 4
 
 
@@ -1054,7 +1044,7 @@ class DeleteAnnotationValue(
 
 
 class ConstraintCommand(sd.ObjectCommand,
-                        metaclass=ReferencedObjectCommandMeta):
+                        metaclass=CommandMeta):
     op_priority = 3
 
     def constraint_is_effective(self, schema, constraint):
@@ -1694,7 +1684,7 @@ class CompositeObjectMetaCommand(ObjectMetaCommand):
         return cmd
 
 
-class IndexCommand(sd.ObjectCommand, metaclass=ReferencedObjectCommandMeta):
+class IndexCommand(sd.ObjectCommand, metaclass=CommandMeta):
     pass
 
 
@@ -1830,7 +1820,7 @@ class RebaseIndex(
 class CreateUnionType(
     MetaCommand,
     adapts=s_types.CreateUnionType,
-    metaclass=ObjectCommandMeta,
+    metaclass=CommandMeta,
 ):
 
     def apply(self, schema, context):
@@ -2014,7 +2004,7 @@ class CancelPointerCardinalityUpdate(MetaCommand):
 
 
 class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
-                         metaclass=ReferencedObjectCommandMeta):
+                         metaclass=CommandMeta):
     def get_host(self, schema, context):
         if context:
             link = context.get(s_links.LinkCommandContext)

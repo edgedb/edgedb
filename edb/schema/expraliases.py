@@ -67,7 +67,6 @@ class AliasCommandContext(
 class AliasCommand(
     sd.QualifiedObjectCommand[Alias],
     context_class=AliasCommandContext,
-    schema_metaclass=Alias,
 ):
 
     @classmethod

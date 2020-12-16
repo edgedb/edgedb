@@ -178,21 +178,23 @@ class LinkSourceCommandContext(sources.SourceCommandContext):
     pass
 
 
-class LinkSourceCommand(inheriting.InheritingObjectCommand[Link]):
+class LinkSourceCommand(inheriting.InheritingObjectCommand[sources.Source_T]):
     pass
 
 
-class LinkCommandContext(pointers.PointerCommandContext,
+class LinkCommandContext(pointers.PointerCommandContext[Link],
                          constraints.ConsistencySubjectCommandContext,
                          lproperties.PropertySourceContext,
                          indexes.IndexSourceCommandContext):
     pass
 
 
-class LinkCommand(lproperties.PropertySourceCommand,
-                  pointers.PointerCommand,
-                  schema_metaclass=Link, context_class=LinkCommandContext,
-                  referrer_context_class=LinkSourceCommandContext):
+class LinkCommand(
+    lproperties.PropertySourceCommand[Link],
+    pointers.PointerCommand[Link],
+    context_class=LinkCommandContext,
+    referrer_context_class=LinkSourceCommandContext,
+):
 
     def _set_pointer_type(
         self,
@@ -476,9 +478,10 @@ class RebaseLink(
         return schema
 
 
-class SetLinkType(pointers.SetPointerType,
-                  schema_metaclass=Link,
-                  referrer_context_class=LinkSourceCommandContext):
+class SetLinkType(
+    pointers.SetPointerType[Link],
+    referrer_context_class=LinkSourceCommandContext,
+):
 
     astnode = qlast.SetLinkType
 
@@ -510,7 +513,6 @@ class SetLinkType(pointers.SetPointerType,
 
 class AlterLinkOwned(
     referencing.AlterOwned[Link],
-    schema_metaclass=Link,
     referrer_context_class=LinkSourceCommandContext,
 ):
     astnode = qlast.AlterLinkOwned
@@ -546,7 +548,7 @@ class SetTargetDeletePolicy(sd.Command):
 
 class AlterLink(
     LinkCommand,
-    pointers.PointerAlterFragment,
+    pointers.PointerAlterFragment[Link],
     referencing.AlterReferencedInheritingObject[Link],
 ):
     astnode = [qlast.AlterConcreteLink, qlast.AlterLink]

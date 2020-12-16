@@ -64,11 +64,12 @@ class RoleCommandContext(
     pass
 
 
-class RoleCommand(sd.GlobalObjectCommand,
-                  inheriting.InheritingObjectCommand[Role],
-                  s_anno.AnnotationSubjectCommand,
-                  schema_metaclass=Role,
-                  context_class=RoleCommandContext):
+class RoleCommand(
+    sd.GlobalObjectCommand[Role],
+    inheriting.InheritingObjectCommand[Role],
+    s_anno.AnnotationSubjectCommand[Role],
+    context_class=RoleCommandContext,
+):
 
     @classmethod
     def _process_role_body(

@@ -22,6 +22,7 @@ from typing import *
 
 from edb import errors
 from edb.edgeql import ast as qlast
+from edb.edgeql import qltypes
 
 from . import delta as sd
 from . import name as sn
@@ -36,7 +37,11 @@ if TYPE_CHECKING:
 PseudoType_T = TypeVar("PseudoType_T", bound="PseudoType")
 
 
-class PseudoType(so.InheritingObject, s_types.Type):
+class PseudoType(
+    so.InheritingObject,
+    s_types.Type,
+    qlkind=qltypes.SchemaObjectClass.PSEUDO_TYPE,
+):
 
     @classmethod
     def get(
@@ -161,7 +166,6 @@ class PseudoTypeCommandContext(sd.ObjectCommandContext[PseudoType]):
 
 class PseudoTypeCommand(
     s_types.TypeCommand[PseudoType],
-    schema_metaclass=PseudoType,
     context_class=PseudoTypeCommandContext,
 ):
     pass

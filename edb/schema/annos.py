@@ -160,7 +160,6 @@ class AnnotationCommandContext(sd.ObjectCommandContext[Annotation]):
 
 
 class AnnotationCommand(sd.QualifiedObjectCommand[Annotation],
-                        schema_metaclass=Annotation,
                         context_class=AnnotationCommandContext):
 
     def get_ast_attr_for_field(
@@ -238,7 +237,7 @@ class AnnotationSubjectCommandContext:
     pass
 
 
-class AnnotationSubjectCommand(sd.ObjectCommand[so.Object]):
+class AnnotationSubjectCommand(sd.ObjectCommand[so.Object_T]):
     pass
 
 
@@ -248,7 +247,6 @@ class AnnotationValueCommandContext(sd.ObjectCommandContext[AnnotationValue]):
 
 class AnnotationValueCommand(
     referencing.ReferencedInheritingObjectCommand[AnnotationValue],
-    schema_metaclass=AnnotationValue,
     context_class=AnnotationValueCommandContext,
     referrer_context_class=AnnotationSubjectCommandContext,
 ):

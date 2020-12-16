@@ -230,7 +230,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
                     continue
 
                 mcls = type(v)
-                create_cmd = sd.ObjectCommandMeta.get_command_class_or_die(
+                create_cmd = sd.get_object_command_class_or_die(
                     sd.CreateObject, mcls)
                 assert issubclass(
                     create_cmd,
@@ -288,7 +288,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         for k, v in local_refs.items(schema):
             if not v.get_is_owned(schema):
                 mcls = type(v)
-                create_cmd = sd.ObjectCommandMeta.get_command_class_or_die(
+                create_cmd = sd.get_object_command_class_or_die(
                     sd.CreateObject, mcls)
                 assert issubclass(
                     create_cmd,
@@ -302,7 +302,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
                     schema, astnode, context)
 
                 if fqname not in present_refs:
-                    delete_cmd = sd.ObjectCommandMeta.get_command_class_or_die(
+                    delete_cmd = sd.get_object_command_class_or_die(
                         sd.DeleteObject, mcls)
                     dropped_refs[fqname] = delete_cmd
 
@@ -411,7 +411,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         removed, added = delta_bases(
             old_base_names, new_base_names)
 
-        rebase = sd.ObjectCommandMeta.get_command_class(
+        rebase = sd.get_object_command_class(
             RebaseInheritingObject, type(scls))
 
         alter_cmd = scls.init_delta_command(schema, sd.AlterObject)
@@ -849,7 +849,7 @@ class AlterInheritingObject(
             # combine what we've seen and turn it into a rebase.
 
             parent_class = cmd.get_schema_metaclass()
-            rebase_class = sd.ObjectCommandMeta.get_command_class_or_die(
+            rebase_class = sd.get_object_command_class_or_die(
                 RebaseInheritingObject, parent_class)
 
             cmd.replace(
@@ -874,7 +874,7 @@ class AlterInheritingObject(
                     [b.get_name(schema) for b in bases],
                 )
 
-                rebase = sd.ObjectCommandMeta.get_command_class_or_die(
+                rebase = sd.get_object_command_class_or_die(
                     RebaseInheritingObject, cmd.get_schema_metaclass())
 
                 rebase_cmd = rebase(
@@ -988,7 +988,7 @@ class RebaseInheritingObject(
             schema = self._recompute_inheritance(schema, context)
 
             if context.enable_recursion:
-                alter_cmd = sd.ObjectCommandMeta.get_command_class_or_die(
+                alter_cmd = sd.get_object_command_class_or_die(
                     sd.AlterObject, type(scls))
                 assert issubclass(alter_cmd, AlterInheritingObject)
 

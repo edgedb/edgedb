@@ -29,10 +29,10 @@ class AdapterError(Exception):
     pass
 
 
+_adapters: Dict[Any, Dict[type, Adapter]] = {}
+
+
 class Adapter(type):
-    adapters: ClassVar[Dict[Any, Dict[type, Adapter]]] = {}
-    instance_adapters: ClassVar[Dict[Any, Dict[type, Adapter]]] = {}
-    _transparent_adapter_subclass: ClassVar[bool] = False
     __edb_adaptee__: Optional[type]
 
     def __new__(
@@ -42,28 +42,13 @@ class Adapter(type):
         clsdict: Dict[str, Any],
         *,
         adapts: Optional[type] = None,
-        adapts_instances_of: Optional[type] = None,
-        pure: bool = False,
-        adapterargs: Optional[Dict[str, Any]] = None,
         **kwargs: Any,
     ) -> Adapter_T:
 
-        if adapts is not None and adapts_instances_of is not None:
-            msg = 'adapter class: adapts and adapts_instances_of args are ' + \
-                  'mutually exclusive'
-            raise AdapterError(msg)
-
-        collection = None
-
-        if adapts is not None and not pure:
+        if adapts is not None:
             bases = bases + (adapts, )
 
-        if adapts_instances_of is not None:
-            pure = True
-            adapts = adapts_instances_of
-            collection = Adapter.instance_adapters
-        else:
-            collection = Adapter.adapters
+        clsdict['__edb_adaptee__'] = adapts
 
         result = cast(
             Adapter_T,
@@ -79,17 +64,14 @@ class Adapter(type):
         if adapts is not None:
             assert issubclass(mcls, Adapter) and mcls is not Adapter
 
-            registry_key = mcls.get_registry_key(adapterargs)
-            adapters: Dict[Any, Adapter]
-
             try:
-                adapters = collection[registry_key]
+                adapters = _adapters[mcls]
             except KeyError:
-                adapters = collection[registry_key] = {}
+                adapters = _adapters[mcls] = {}
 
-            mcls.register_adapter(adapters, adapts, result)
+            assert adapts not in adapters
+            adapters[adapts] = result
 
-        result.__edb_adaptee__ = adapts
         return result
 
     def __init__(
@@ -99,22 +81,9 @@ class Adapter(type):
         clsdict: Dict[str, Any],
         *,
         adapts: Optional[type] = None,
-        adapts_instances_of: Optional[type] = None,
-        pure: bool = False,
-        adapterargs: Optional[Dict[str, Any]] = None,
         **kwargs: Any,
     ):
         super().__init__(name, bases, clsdict, **kwargs)  # type: ignore
-
-    @classmethod
-    def register_adapter(
-        mcls,
-        registry: Dict[type, Adapter],
-        adaptee: type,
-        adapter: Adapter,
-    ) -> None:
-        assert adaptee not in registry
-        registry[adaptee] = adapter
 
     @classmethod
     def _match_adapter(
@@ -135,12 +104,8 @@ class Adapter(type):
     def _get_adapter(
         mcls,
         reversed_mro: Tuple[type, ...],
-        collection: Dict[Any, Dict[type, Adapter]],
-        kwargs: Dict[str, Any],
     ) -> Optional[Adapter]:
-        registry_key = mcls.get_registry_key(kwargs)
-
-        adapters = collection.get(registry_key)
+        adapters = _adapters.get(mcls)
         if adapters is None:
             return None
 
@@ -157,22 +122,17 @@ class Adapter(type):
         return result
 
     @classmethod
-    def get_adapter(mcls, obj: Any, **kwargs: Any) -> Optional[Adapter]:
-        if isinstance(obj, type):
-            collection = Adapter.adapters
-            mro = obj.__mro__
-        else:
-            collection = Adapter.instance_adapters
-            mro = type(obj).__mro__
+    def get_adapter(mcls, obj: Any) -> Optional[Adapter]:
+        mro = obj.__mro__
 
         reversed_mro = tuple(reversed(mro))
 
-        result = mcls._get_adapter(reversed_mro, collection, kwargs)
+        result = mcls._get_adapter(reversed_mro)
         if result is not None:
             return result
 
         for mc in mcls.__subclasses__(mcls):
-            result = mc._get_adapter(reversed_mro, collection, kwargs)
+            result = mc._get_adapter(reversed_mro)
             if result is not None:
                 return result
 
@@ -189,29 +149,6 @@ class Adapter(type):
             return adapter.adapt(obj)
         else:
             return obj
-
-    @classmethod
-    def get_registry_key(
-        mcls,
-        adapterargs: Optional[Dict[str, Any]],
-    ) -> Tuple[Type[Adapter], Optional[FrozenSet[Tuple[str, Any]]]]:
-        if mcls._transparent_adapter_subclass:
-            for parent in mcls.__mro__[1:]:
-                if (issubclass(parent, Adapter) and
-                        not parent._transparent_adapter_subclass):
-                    registry_holder = parent
-                    break
-            else:
-                raise TypeError(
-                    'cannot find Adapter metaclass for mcls'
-                )
-        else:
-            registry_holder = mcls
-
-        if adapterargs:
-            return (registry_holder, frozenset(adapterargs.items()))
-        else:
-            return (registry_holder, None)
 
     def get_adaptee(cls) -> type:
         adaptee = cls.__edb_adaptee__

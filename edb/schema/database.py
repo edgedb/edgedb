@@ -43,8 +43,10 @@ class DatabaseCommandContext(sd.ObjectCommandContext[Database]):
     pass
 
 
-class DatabaseCommand(sd.GlobalObjectCommand, schema_metaclass=Database,
-                      context_class=DatabaseCommandContext):
+class DatabaseCommand(
+    sd.GlobalObjectCommand[Database],
+    context_class=DatabaseCommandContext,
+):
 
     def _create_begin(
         self,
