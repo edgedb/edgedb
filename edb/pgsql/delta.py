@@ -2976,15 +2976,20 @@ class DeleteProperty(
                 link_bias=prop.is_link_property(orig_schema),
             )
 
-            col = dbops.AlterTableDropColumn(
-                dbops.Column(name=ptr_stor_info.column_name,
-                             type=ptr_stor_info.column_type))
+            if ptr_stor_info.table_type == 'ObjectType':
+                col = dbops.AlterTableDropColumn(
+                    dbops.Column(name=ptr_stor_info.column_name,
+                                 type=ptr_stor_info.column_type))
 
-            alter_table.add_operation(col)
+                alter_table.add_operation(col)
 
         if has_table(prop, orig_schema):
+            self.pgops.add(
+                self.drop_inhview(
+                    orig_schema, context, prop, drop_ancestors=True)
+            )
             old_table_name = common.get_backend_name(
-                schema, prop, catenate=False)
+                orig_schema, prop, catenate=False)
             self.pgops.add(dbops.DropTable(name=old_table_name, priority=1))
             self.update_base_inhviews(orig_schema, context, prop)
             self.schedule_inhview_deletion(orig_schema, context, prop)

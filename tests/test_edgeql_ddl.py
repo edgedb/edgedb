@@ -8570,6 +8570,24 @@ type test::Foo {
             """DROP ALIAS Alias;""",
         )
 
+    async def test_edgeql_ddl_drop_multi_prop_01(self):
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            CREATE TYPE Test {
+                CREATE MULTI PROPERTY x -> str;
+                CREATE MULTI PROPERTY y := {1, 2, 3};
+            };
+        """)
+
+        await self.con.execute(r"""
+            ALTER TYPE Test DROP PROPERTY x;
+        """)
+
+        await self.con.execute(r"""
+            ALTER TYPE Test DROP PROPERTY y;
+        """)
+
     async def test_edgeql_ddl_collection_cleanup_01(self):
         count_query = "SELECT count(schema::Array);"
         orig_count = await self.con.query_one(count_query)
