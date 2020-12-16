@@ -59,3 +59,13 @@ type Łukasz {
         }
     };
 }
+
+type Tree {
+    required property val -> str {
+        constraint exclusive;
+    };
+
+    link parent -> Tree;
+    link children := .<parent[IS Tree];
+    property child_vals := .children.val;
+}

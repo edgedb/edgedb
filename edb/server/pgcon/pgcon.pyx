@@ -28,6 +28,8 @@ import weakref
 cimport cython
 cimport cpython
 
+from . cimport cpythonx
+
 from libc.stdint cimport int8_t, uint8_t, int16_t, uint16_t, \
                          int32_t, uint32_t, int64_t, uint64_t, \
                          UINT32_MAX
@@ -44,9 +46,11 @@ from edb.server.pgproto cimport pgproto
 from edb.server.pgproto.pgproto cimport (
     WriteBuffer,
     ReadBuffer,
+
     FRBuffer,
     frb_init,
     frb_read,
+    frb_get_len,
 )
 
 from edb.server import buildmeta
@@ -868,7 +872,7 @@ cdef class PGProto:
         finally:
             self.after_command()
 
-    async def _restore(self, sql, bytes data):
+    async def _restore(self, sql, bytes data, tuple elided_cols):
         cdef:
             WriteBuffer buf
             WriteBuffer qbuf
@@ -876,7 +880,7 @@ cdef class PGProto:
 
             char* cbuf
             ssize_t clen
-
+            ssize_t ncols
 
         qbuf = WriteBuffer.new_message(b'Q')
         qbuf.write_bytestring(sql)
@@ -893,6 +897,8 @@ cdef class PGProto:
 
             if mtype == b'G':
                 # CopyInResponse
+                self.buffer.read_byte()
+                ncols = self.buffer.read_int16()
                 self.buffer.discard_message()
                 break
 
@@ -909,18 +915,21 @@ cdef class PGProto:
         if er:
             raise pgerror.BackendError(fields=er)
 
-        cpython.PyBytes_AsStringAndSize(data, &cbuf, &clen)
-        if cbuf[0] != b'd':
-            raise RuntimeError('unexpected dump data message structure')
-        ln = <uint32_t>hton.unpack_int32(cbuf + 1)
-
         buf = WriteBuffer.new()
-        buf.write_byte(b'd')
-        buf.write_int32(ln + len(COPY_SIGNATURE) + 8)
-        buf.write_bytes(COPY_SIGNATURE)
-        buf.write_int32(0)
-        buf.write_int32(0)
-        buf.write_cstr(cbuf + 5, clen - 5)
+        cpython.PyBytes_AsStringAndSize(data, &cbuf, &clen)
+        if elided_cols:
+            self._elide_copy_cols(buf, cbuf, clen, ncols, elided_cols)
+        else:
+            if cbuf[0] != b'd':
+                raise RuntimeError('unexpected dump data message structure')
+            ln = <uint32_t>hton.unpack_int32(cbuf + 1)
+            buf.write_byte(b'd')
+            buf.write_int32(ln + len(COPY_SIGNATURE) + 8)
+            buf.write_bytes(COPY_SIGNATURE)
+            buf.write_int32(0)
+            buf.write_int32(0)
+            buf.write_cstr(cbuf + 5, clen - 5)
+
         self.write(buf)
 
         qbuf = WriteBuffer.new_message(b'c')
@@ -947,10 +956,90 @@ cdef class PGProto:
         if er:
             raise pgerror.BackendError(fields=er)
 
-    async def restore(self, sql, bytes data):
+    cdef _elide_copy_cols(
+        self,
+        WriteBuffer wbuf,
+        char* data,
+        ssize_t data_len,
+        ssize_t ncols,
+        tuple elided_cols,
+    ):
+        """Rewrite the binary COPY stream to exclude the specified columns."""
+        cdef:
+            FRBuffer rbuf
+            ssize_t i
+            ssize_t real_ncols
+            int8_t *elide
+            int8_t elided
+            int32_t datum_len
+            char copy_msg_byte
+            int16_t copy_msg_ncols
+            const char *datum
+            bint first = True
+            bint received_eof = False
+
+        real_ncols = ncols + len(elided_cols)
+        frb_init(&rbuf, data, data_len)
+
+        elide = <int8_t*>cpythonx.PyMem_Calloc(
+            <size_t>real_ncols, sizeof(int8_t))
+
+        try:
+            for col in elided_cols:
+                elide[col] = 1
+
+            mbuf = WriteBuffer.new()
+
+            while frb_get_len(&rbuf):
+                if received_eof:
+                    raise RuntimeError('received CopyData after EOF')
+                mbuf.start_message(b'd')
+
+                copy_msg_byte = frb_read(&rbuf, 1)[0]
+                if copy_msg_byte != b'd':
+                    raise RuntimeError(
+                        'unexpected dump data message structure')
+                frb_read(&rbuf, 4)
+
+                if first:
+                    mbuf.write_bytes(COPY_SIGNATURE)
+                    mbuf.write_int32(0)
+                    mbuf.write_int32(0)
+                    first = False
+
+                copy_msg_ncols = hton.unpack_int16(frb_read(&rbuf, 2))
+                if copy_msg_ncols == -1:
+                    # BINARY COPY EOF marker
+                    mbuf.write_int16(copy_msg_ncols)
+                    received_eof = True
+                    mbuf.end_message()
+                    wbuf.write_buffer(mbuf)
+                    mbuf.reset()
+                    continue
+                else:
+                    mbuf.write_int16(<int16_t>ncols)
+
+                # Tuple data
+                for i in range(real_ncols):
+                    datum_len = hton.unpack_int32(frb_read(&rbuf, 4))
+                    elided = elide[i]
+                    if not elided:
+                        mbuf.write_int32(datum_len)
+                    if datum_len != -1:
+                        datum = frb_read(&rbuf, datum_len)
+                        if not elided:
+                            mbuf.write_cstr(datum, datum_len)
+
+                mbuf.end_message()
+                wbuf.write_buffer(mbuf)
+                mbuf.reset()
+        finally:
+            cpython.PyMem_Free(elide)
+
+    async def restore(self, sql, bytes data, tuple elided_cols):
         self.before_command()
         try:
-            await self._restore(sql, data)
+            await self._restore(sql, data, elided_cols)
         finally:
             self.after_command()
 

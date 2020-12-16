@@ -646,12 +646,19 @@ class CLITestCaseMixin:
             else:
                 input = f"{conn_args['password']}\n"
         cmd_args += args
-        subprocess.run(
-            ['edgedb'] + cmd_args,
-            input=input.encode() if input else None,
-            check=True,
-            capture_output=True,
-        )
+        cmd = ['edgedb'] + cmd_args
+        try:
+            subprocess.run(
+                cmd,
+                input=input.encode() if input else None,
+                check=True,
+                capture_output=True,
+            )
+        except subprocess.CalledProcessError as e:
+            raise AssertionError(
+                f'command {cmd} returned non-zero exit status {e.returncode}'
+                f'\n{e.output}'
+            ) from e
 
 
 class ConnectedTestCase(ClusterTestCase, ConnectedTestCaseMixin):

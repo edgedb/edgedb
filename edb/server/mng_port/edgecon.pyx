@@ -2226,7 +2226,7 @@ cdef class EdgeConnection:
                         ignore_data=True)
 
             restore_blocks = {
-                b.schema_object_id: b.sql_copy_stmt
+                b.schema_object_id: b
                 for b in restore_blocks
             }
 
@@ -2282,8 +2282,12 @@ cdef class EdgeConnection:
                             or block_num is None or block_data is None):
                         raise errors.ProtocolError('incomplete data block')
 
+                    restore_block = restore_blocks[block_id]
                     await pgcon.restore(
-                        restore_blocks[block_id], block_data)
+                        restore_block.sql_copy_stmt,
+                        block_data,
+                        restore_block.compat_elided_cols,
+                    )
 
                 elif mtype == b'.':
                     self.buffer.finish_message()

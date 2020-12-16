@@ -102,3 +102,12 @@ cdef class PGProto:
 
     cdef make_clean_stmt_message(self, bytes stmt_name)
     cdef make_auth_password_md5_message(self, bytes salt)
+
+    cdef _elide_copy_cols(
+        self,
+        WriteBuffer wbuf,
+        char* data,
+        ssize_t data_len,
+        ssize_t ncols,
+        tuple elide_cols,
+    )
