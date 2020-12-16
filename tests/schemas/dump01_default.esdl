@@ -32,7 +32,7 @@ function user_func_1(x: array<int64>, y: str) -> str {
     using (
         SELECT array_join(<array<str>>x, y)
     );
-    volatility := 'IMMUTABLE';
+    volatility := 'STABLE';
 };
 
 function user_func_2(x: OPTIONAL int64, y: str = 'x') -> SET OF str {

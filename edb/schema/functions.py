@@ -26,6 +26,8 @@ from typing import *
 
 from edb import errors
 
+from edb.common import verutils
+
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes as ft
@@ -975,7 +977,7 @@ class AlterCallableObject(
     sd.AlterObject[CallableObjectT],
 ):
 
-    def get_ast(
+    def _get_ast(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
@@ -1274,6 +1276,34 @@ class FunctionCommand(
             )
         return val
 
+    def canonicalize_attributes(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super().canonicalize_attributes(schema, context)
+        # When volatility is altered, we need to force a
+        # reconsideration of nativecode if it exists in order to check
+        # it against the new volatility or compute the volatility on a
+        # RESET.  This is kind of unfortunate.
+        if (
+            isinstance(self, sd.AlterObject)
+            and self.has_attribute_value('volatility')
+            and not self.has_attribute_value('nativecode')
+            and (nativecode := self.scls.get_nativecode(schema)) is not None
+        ):
+            self.set_attribute_value(
+                'nativecode',
+                expr.Expression.not_compiled(nativecode)
+            )
+
+        # Resolving 'nativecode' has side effects on has_dml and
+        # volatility, so force it to happen as part of
+        # canonicalization of attributes.
+        super().get_resolved_attribute_value(
+            'nativecode', schema=schema, context=context)
+        return schema
+
     def compile_function(
         self,
         schema: s_schema.Schema,
@@ -1315,6 +1345,41 @@ class FunctionCommand(
             # DML inside function body detected. Right now is a good
             # opportunity to raise exceptions or give warnings.
             self.set_attribute_value('has_dml', True)
+
+        is_alter = isinstance(self, sd.AlterObject)
+
+        spec_volatility = self.get_attribute_value('volatility')
+        if is_alter:
+            cfs = self.scls.get_computed_fields(schema)
+            if (
+                spec_volatility is None
+                and not self.has_attribute_value('volatility')
+                and 'volatility' not in cfs
+            ):
+                spec_volatility = self.scls.get_explicit_field_value(
+                    schema, 'volatility', default=None)
+
+        if spec_volatility is None:
+            self.set_attribute_value('volatility', ir.volatility,
+                                     computed=True)
+
+        # If a volatility is specified, it can be more volatile than the
+        # inferred volatility but not less.
+        if spec_volatility is not None and spec_volatility < ir.volatility:
+            # When restoring from old versions, just ignore the problem
+            # and use the inferred volatility
+            if context.compat_ver_is_before(
+                (1, 0, verutils.VersionStage.ALPHA, 8)
+            ):
+                self.set_attribute_value('volatility', ir.volatility)
+            else:
+                raise errors.InvalidFunctionDefinitionError(
+                    f'volatility mismatch in function declared as '
+                    f'{str(spec_volatility).lower()}',
+                    details=f'Actual volatility is '
+                            f'{str(ir.volatility).lower()}',
+                    context=body.qlast.context,
+                )
 
         return_type = self._get_attribute_value(schema, context, 'return_type')
         if (not ir.stype.issubclass(schema, return_type)
@@ -1710,6 +1775,27 @@ class RenameFunction(RenameCallableObject[Function], FunctionCommand):
 class AlterFunction(AlterCallableObject[Function], FunctionCommand):
 
     astnode = qlast.AlterFunction
+
+    def _alter_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super()._alter_begin(schema, context)
+        scls = self.scls
+
+        # If volatilitiy changed, propagate that to referring exprs
+        if not self.has_attribute_value("volatility"):
+            return schema
+
+        context.altered_targets.add(scls)
+
+        vn = scls.get_verbosename(schema, with_parent=True)
+        schema = self._propagate_if_expr_refs(
+            schema, context, metadata_only=False,
+            action=f'alter the volatility of {vn}')
+
+        return schema
 
     @classmethod
     def _cmd_tree_from_ast(

@@ -947,7 +947,7 @@ class CommandContext:
         self.schema_object_ids = schema_object_ids
         self.backend_runtime_params = backend_runtime_params
         self.affected_finalization: \
-            Dict[Command, List[Tuple[DeltaRoot, Command, bool]]] = dict()
+            Dict[Command, List[Tuple[DeltaRoot, Command]]] = dict()
         self.compat_ver = compat_ver
 
     @property
@@ -1153,6 +1153,12 @@ class CommandContext:
     ) -> CommandContextWrapper[Command_T]:
         return CommandContextWrapper(self, token)
 
+    def compat_ver_is_before(
+        self,
+        ver: Tuple[int, int, verutils.VersionStage, int],
+    ) -> bool:
+        return self.compat_ver is not None and self.compat_ver < ver
+
 
 class DeltaRootContext(CommandContextToken["DeltaRoot"]):
     pass
@@ -1338,6 +1344,7 @@ class ObjectCommand(
                       CommandContext, s_expr.Expression],
                      s_expr.Expression]
         ]=None,
+        metadata_only: bool=True,
     ) -> s_schema.Schema:
         scls = self.scls
         expr_refs = s_expr.get_expr_referrers(schema, scls)
@@ -1345,8 +1352,6 @@ class ObjectCommand(
         if expr_refs:
             ref_desc = []
             for ref, fns in expr_refs.items():
-                really_apply = False
-
                 from . import functions as s_func
                 from . import indexes as s_indexes
                 from . import pointers as s_pointers
@@ -1379,8 +1384,9 @@ class ObjectCommand(
                     # Mark it metadata_only so that if it actually gets
                     # applied, only the metadata is changed but not
                     # the real underlying schema.
-                    cmd_drop.metadata_only = True
-                    cmd_create.metadata_only = True
+                    if metadata_only:
+                        cmd_drop.metadata_only = True
+                        cmd_create.metadata_only = True
 
                     # Compute a dummy value
                     dummy = None
@@ -1418,13 +1424,12 @@ class ObjectCommand(
                             with obj_cmd.new_context(schema, context, obj):
                                 value = fixer(
                                     schema, cmd_create, fn, context, value)
-                                really_apply = True
 
                         cmd_drop.set_attribute_value(fn, dummy)
                         cmd_create.set_attribute_value(fn, value)
 
                     context.affected_finalization.setdefault(self, []).append(
-                        (delta_create, cmd_create, really_apply)
+                        (delta_create, cmd_create)
                     )
                     schema = delta_drop.apply(schema, context)
                     continue
@@ -1581,14 +1586,14 @@ class ObjectCommand(
         schema: s_schema.Schema,
         context: CommandContext,
     ) -> s_schema.Schema:
-        for delta, cmd, really_apply in context.affected_finalization.get(
+        for delta, cmd in context.affected_finalization.get(
             self, []
         ):
             self._finalize_affected_refs_specialize(cmd, schema, context)
 
             schema = delta.apply(schema, context)
 
-            if not context.canonical and really_apply and delta:
+            if not context.canonical and delta:
                 # We need to force the attributes to be resolved so
                 # that expressions get compiled *now* under a schema
                 # where they are correct, and not later, when more
@@ -2279,12 +2284,8 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
                 qlclass = mcls.get_ql_class_or_die()
 
             objname = self.classname
-            if (
-                context.compat_ver is not None
-                and (
-                    context.compat_ver
-                    < (1, 0, verutils.VersionStage.ALPHA, 5)
-                )
+            if context.compat_ver_is_before(
+                (1, 0, verutils.VersionStage.ALPHA, 5)
             ):
                 # Pre alpha.5 used to have a different name mangling scheme.
                 objname = sn.compat_name_remangle(str(objname))
