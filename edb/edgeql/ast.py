@@ -624,26 +624,6 @@ class AlterDropInherit(DDLOperation, BasesMixin):
     pass
 
 
-class AlterOwned(DDLOperation):
-    owned: bool
-
-
-class AlterPropertyOwned(AlterOwned):
-    pass
-
-
-class AlterLinkOwned(AlterOwned):
-    pass
-
-
-class AlterConstraintOwned(AlterOwned):
-    pass
-
-
-class AlterIndexOwned(AlterOwned):
-    pass
-
-
 class OnTargetDelete(DDLOperation):
     cascade: qltypes.LinkTargetDeleteAction
 

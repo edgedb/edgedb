@@ -381,8 +381,9 @@ class SetPropertyType(
 class AlterPropertyOwned(
     referencing.AlterOwned[Property],
     referrer_context_class=PropertySourceContext,
+    field='is_owned',
 ):
-    astnode = qlast.AlterPropertyOwned
+    pass
 
 
 class AlterProperty(

@@ -1154,6 +1154,13 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 value = self._eval_enum_expr(
                     node.value, qltypes.SchemaCardinality)
                 keywords.extend(('SET', value.to_edgeql()))
+        elif fname == 'is_owned':
+            if node.value is None:
+                keywords.extend(('DROP', 'OWNED'))
+            elif self._eval_bool_expr(node.value):
+                keywords.extend(('SET', 'OWNED'))
+            else:
+                keywords.extend(('DROP', 'OWNED'))
         else:
             raise EdgeQLSourceGeneratorError(
                 'unknown special field: {!r}'.format(fname))
@@ -1518,21 +1525,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_SetLinkType(self, node: qlast.SetLinkType) -> None:
         self.write('SET TYPE ')
         self.visit(node.type)
-
-    def visit_AlterPropertyOwned(self, node: qlast.AlterPropertyOwned) -> None:
-        self.write('SET OWNED' if node.owned else 'DROP OWNED')
-
-    def visit_AlterLinkOwned(self, node: qlast.AlterLinkOwned) -> None:
-        self.write('SET OWNED' if node.owned else 'DROP OWNED')
-
-    def visit_AlterConstraintOwned(
-        self,
-        node: qlast.AlterConstraintOwned,
-    ) -> None:
-        self.write('SET OWNED' if node.owned else 'DROP OWNED')
-
-    def visit_AlterIndexOwned(self, node: qlast.AlterIndexOwned) -> None:
-        self.write('SET OWNED' if node.owned else 'DROP OWNED')
 
     def visit_OnTargetDelete(self, node: qlast.OnTargetDelete) -> None:
         self._write_keywords('ON TARGET DELETE ', node.cascade.to_edgeql())

@@ -471,6 +471,23 @@ class AlterExtending(Nonterm):
         self.val = kids[0].val
 
 
+class AlterOwnedStmt(Nonterm):
+
+    def reduce_DROP_OWNED(self, *kids):
+        self.val = qlast.SetField(
+            name='is_owned',
+            value=qlast.BooleanConstant(value='false'),
+            special_syntax=True,
+        )
+
+    def reduce_SET_OWNED(self, *kids):
+        self.val = qlast.SetField(
+            name='is_owned',
+            value=qlast.BooleanConstant(value='true'),
+            special_syntax=True,
+        )
+
+
 commands_block(
     'CreateDatabase',
     SetFieldStmt,
@@ -704,21 +721,12 @@ class SetDelegatedStmt(Nonterm):
         )
 
 
-class AlterConstraintOwned(Nonterm):
-
-    def reduce_DROP_OWNED(self, *kids):
-        self.val = qlast.AlterConstraintOwned(owned=False)
-
-    def reduce_SET_OWNED(self, *kids):
-        self.val = qlast.AlterConstraintOwned(owned=True)
-
-
 commands_block(
     'AlterConcreteConstraint',
     SetFieldStmt,
     ResetFieldStmt,
     SetDelegatedStmt,
-    AlterConstraintOwned,
+    AlterOwnedStmt,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     DropAnnotationValueStmt,
@@ -926,20 +934,11 @@ class DropAnnotationStmt(Nonterm):
         )
 
 
-class AlterIndexOwned(Nonterm):
-
-    def reduce_DROP_OWNED(self, *kids):
-        self.val = qlast.AlterIndexOwned(owned=False)
-
-    def reduce_SET_OWNED(self, *kids):
-        self.val = qlast.AlterIndexOwned(owned=True)
-
-
 commands_block(
     'AlterIndex',
     SetFieldStmt,
     ResetFieldStmt,
-    AlterIndexOwned,
+    AlterOwnedStmt,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     DropAnnotationValueStmt,
@@ -1175,22 +1174,13 @@ class SetRequiredStmt(Nonterm):
         )
 
 
-class AlterPropertyOwned(Nonterm):
-
-    def reduce_DROP_OWNED(self, *kids):
-        self.val = qlast.AlterPropertyOwned(owned=False)
-
-    def reduce_SET_OWNED(self, *kids):
-        self.val = qlast.AlterPropertyOwned(owned=True)
-
-
 commands_block(
     'AlterConcreteProperty',
     UsingStmt,
     RenameStmt,
     SetFieldStmt,
     ResetFieldStmt,
-    AlterPropertyOwned,
+    AlterOwnedStmt,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     DropAnnotationValueStmt,
@@ -1397,22 +1387,13 @@ class CreateConcreteLinkStmt(Nonterm):
         )
 
 
-class AlterLinkOwned(Nonterm):
-
-    def reduce_DROP_OWNED(self, *kids):
-        self.val = qlast.AlterLinkOwned(owned=False)
-
-    def reduce_SET_OWNED(self, *kids):
-        self.val = qlast.AlterLinkOwned(owned=True)
-
-
 commands_block(
     'AlterConcreteLink',
     UsingStmt,
     RenameStmt,
     SetFieldStmt,
     ResetFieldStmt,
-    AlterLinkOwned,
+    AlterOwnedStmt,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     DropAnnotationValueStmt,

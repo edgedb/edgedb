@@ -514,8 +514,9 @@ class SetLinkType(
 class AlterLinkOwned(
     referencing.AlterOwned[Link],
     referrer_context_class=LinkSourceCommandContext,
+    field='is_owned',
 ):
-    astnode = qlast.AlterLinkOwned
+    pass
 
 
 class SetTargetDeletePolicy(sd.Command):

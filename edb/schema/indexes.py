@@ -398,8 +398,12 @@ class RenameIndex(
         )
 
 
-class AlterIndexOwned(IndexCommand, referencing.AlterOwned[Index]):
-    astnode = qlast.AlterIndexOwned
+class AlterIndexOwned(
+    IndexCommand,
+    referencing.AlterOwned[Index],
+    field='is_owned',
+):
+    pass
 
 
 class AlterIndex(
