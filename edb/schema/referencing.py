@@ -51,41 +51,8 @@ class ReferencedObject(so.DerivableObject):
         inheritable=False,
         compcoef=0.909,
         reflection_method=so.ReflectionMethod.AS_LINK,
+        special_ddl_syntax=True,
     )
-
-    def record_field_alter_delta(
-        self: ReferencedT,
-        schema: s_schema.Schema,
-        delta: sd.ObjectCommand[ReferencedT],
-        context: so.ComparisonContext,
-        *,
-        fname: str,
-        value: Any,
-        orig_value: Any,
-        orig_schema: s_schema.Schema,
-        orig_object: ReferencedT,
-        confidence: float,
-    ) -> None:
-        if fname == 'is_owned':
-            owned_op = orig_object.init_delta_command(orig_schema, AlterOwned)
-            owned_op.set_attribute_value(
-                'is_owned',
-                value,
-                orig_value=orig_value,
-            )
-            delta.add(owned_op)
-        else:
-            super().record_field_alter_delta(
-                schema,
-                delta,
-                context,
-                fname=fname,
-                value=value,
-                orig_value=orig_value,
-                orig_schema=orig_schema,
-                orig_object=orig_object,
-                confidence=confidence,
-            )
 
     def get_subject(self, schema: s_schema.Schema) -> Optional[so.Object]:
         # NB: classes that inherit ReferencedObject define a `get_subject`
@@ -320,8 +287,6 @@ class ReferencedInheritingObject(
         ):
             owned_op = self.init_delta_command(schema, AlterOwned)
             owned_op.set_attribute_value('is_owned', False, orig_value=True)
-            del_op.set_attribute_value('is_owned', None, orig_value=False)
-
             del_op.add(owned_op)
 
         return del_op
@@ -859,10 +824,8 @@ class ReferencedInheritingObjectCommand(
         for ref in refs.objects(schema):
             inherited = ref.get_implicit_bases(schema)
             if inherited and ref.get_is_owned(schema):
-                drop_owned = ref.init_delta_command(schema, AlterOwned)
-                drop_owned.set_attribute_value('is_owned', False)
                 alter = ref.init_delta_command(schema, sd.AlterObject)
-                alter.add(drop_owned)
+                alter.set_attribute_value('is_owned', False, orig_value=True)
                 schema = alter.apply(schema, context)
                 self.add(alter)
             elif (
@@ -1120,7 +1083,7 @@ class AlterReferencedInheritingObject(
         # _all_ subcommands are `RESET` subcommands.
         if (
             refctx is not None
-            and not qlast.has_ddl_subcommand(astnode, qlast.AlterOwned)
+            and qlast.get_ddl_field_command(astnode, 'is_owned') is None
             and (
                 not cmd.get_subcommands()
                 or not all(
@@ -1416,6 +1379,7 @@ class DeleteReferencedInheritingObject(
 class AlterOwned(
     ReferencedInheritingObjectCommand[ReferencedInheritingObjectT],
     inheriting.AlterInheritingObjectFragment[ReferencedInheritingObjectT],
+    sd.AlterSpecialObjectField[ReferencedInheritingObjectT],
 ):
 
     _delta_action = 'alterowned'
@@ -1462,38 +1426,3 @@ class AlterOwned(
                 schema = self._drop_owned_refs(schema, context, refdict)
 
         return schema
-
-    @classmethod
-    def _cmd_from_ast(
-        cls,
-        schema: s_schema.Schema,
-        astnode: qlast.DDLOperation,
-        context: sd.CommandContext,
-    ) -> sd.ObjectCommand[ReferencedInheritingObjectT]:
-        this_op = context.current().op
-        assert isinstance(this_op, sd.ObjectCommand)
-        return cls(classname=this_op.classname)
-
-    @classmethod
-    def _cmd_tree_from_ast(
-        cls,
-        schema: s_schema.Schema,
-        astnode: qlast.DDLOperation,
-        context: sd.CommandContext,
-    ) -> sd.Command:
-        assert isinstance(astnode, qlast.AlterOwned)
-        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
-        cmd.set_attribute_value('is_owned', astnode.owned)
-        return cmd
-
-    def _apply_field_ast(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        node: qlast.DDLOperation,
-        op: sd.AlterObjectProperty,
-    ) -> None:
-        if op.property == 'is_owned':
-            node.owned = op.new_value
-        else:
-            super()._apply_field_ast(schema, context, node, op)

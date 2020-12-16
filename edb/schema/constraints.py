@@ -1215,9 +1215,10 @@ class RenameConstraint(
 
 class AlterConstraintOwned(
     referencing.AlterOwned[Constraint],
+    field='is_owned',
     referrer_context_class=ConsistencySubjectCommandContext,
 ):
-    astnode = qlast.AlterConstraintOwned
+    pass
 
 
 class AlterConstraint(
