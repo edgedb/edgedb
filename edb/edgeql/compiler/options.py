@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from edb.schema import objects as s_obj
     from edb.schema import name as s_name
     from edb.schema import types as s_types
+    from edb.schema import pointers as s_pointers
 
 
 @dataclass
@@ -107,4 +108,5 @@ class CompilerOptions(GlobalCompilerOptions):
 
     #: A set of schema types that should be treated
     #: as singletons in the context of this compilation.
-    singletons: FrozenSet[s_types.Type] = frozenset()
+    singletons: FrozenSet[Union[s_types.Type, s_pointers.Pointer]] = (
+        frozenset())

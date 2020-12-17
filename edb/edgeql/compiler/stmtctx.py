@@ -76,7 +76,9 @@ def init_context(
         # cardinality inference, so we set up the scope tree in
         # the necessary fashion.
         for singleton in options.singletons:
-            path_id = pathctx.get_path_id(singleton, ctx=ctx)
+            path_id = (pathctx.get_path_id(singleton, ctx=ctx)
+                       if isinstance(singleton, s_types.Type)
+                       else pathctx.get_pointer_path_id(singleton, ctx=ctx))
             ctx.env.path_scope.attach_path(path_id, context=None)
 
         ctx.path_scope = ctx.env.path_scope.attach_fence()
@@ -89,8 +91,8 @@ def init_context(
 
     if options.path_prefix_anchor is not None:
         path_prefix = options.anchors[options.path_prefix_anchor]
-        assert isinstance(path_prefix, s_types.Type)
-        ctx.partial_path_prefix = setgen.class_set(path_prefix, ctx=ctx)
+        ctx.partial_path_prefix = compile_anchor(
+            options.path_prefix_anchor, path_prefix, ctx=ctx)
         ctx.partial_path_prefix.anchor = options.path_prefix_anchor
         ctx.partial_path_prefix.show_as_anchor = options.path_prefix_anchor
 

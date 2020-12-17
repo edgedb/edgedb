@@ -963,7 +963,6 @@ class PointerCommandOrFragment(
         from edb.ir import ast as irast
         from edb.ir import typeutils as irtyputils
         from edb.ir import utils as irutils
-        from edb.schema import objtypes as s_objtypes
 
         # "source" attribute is set automatically as a refdict back-attr
         parent_ctx = self.get_referrer_context(context)
@@ -971,20 +970,13 @@ class PointerCommandOrFragment(
         source_name = context.get_referrer_name(parent_ctx)
         assert isinstance(source_name, sn.QualName)
 
-        source = schema.get(source_name, type=s_objtypes.ObjectType)
-
+        source = schema.get(source_name)
         ptr_name = self.get_displayname()
-        expression = s_expr.Expression.compiled(
-            s_expr.Expression.from_ast(expr, schema, context.modaliases),
-            schema=schema,
-            options=qlcompiler.CompilerOptions(
-                modaliases=context.modaliases,
-                anchors={qlast.Source().name: source},
-                path_prefix_anchor=qlast.Source().name,
-                singletons=frozenset([source]),
-                in_ddl_context_name=f'computable {ptr_name!r}',
-                apply_query_rewrites=not context.stdmode,
-            ),
+
+        expression = self.compile_expr_field(
+            schema, context,
+            field=Pointer.get_field('expr'),
+            value=s_expr.Expression.from_ast(expr, schema, context.modaliases),
         )
 
         assert isinstance(expression.irast, irast.Statement)
@@ -1065,6 +1057,74 @@ class PointerCommandOrFragment(
         self.set_attribute_value('computable', True)
 
         return schema, target_shell, base
+
+    def compile_expr_field(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        field: so.Field[Any],
+        value: s_expr.Expression,
+        track_schema_ref_exprs: bool=False,
+    ) -> s_expr.Expression:
+        if field.name in {'default', 'expr'}:
+            singletons: List[Union[s_types.Type, Pointer]] = []
+            path_prefix_anchor = None
+            anchors: Dict[str, Any] = {}
+            in_ddl_context_name: Optional[str] = None
+
+            if field.name == 'expr':
+                parent_ctx = self.get_referrer_context(context)
+                assert parent_ctx is not None
+                assert isinstance(parent_ctx.op, sd.ObjectCommand)
+                source = parent_ctx.op.get_object(schema, context)
+
+                if (
+                    isinstance(source, Pointer)
+                    and not source.get_source(schema)
+                ):
+                    # If the source is an abstract link, we need to
+                    # make up an object and graft the link onto it,
+                    # because the compiler really does not know what
+                    # to make of a link without a source or target.
+                    from edb.schema import objtypes as s_objtypes
+
+                    base_obj = schema.get(
+                        s_objtypes.ObjectType.get_default_base_name(),
+                        type=s_objtypes.ObjectType
+                    )
+                    schema, view = base_obj.derive_subtype(
+                        schema,
+                        name=sn.QualName("__derived__",
+                                         "FakeAbstractLinkBase"),
+                        mark_derived=True, transient=True)
+                    schema, source = source.derive_ref(
+                        schema, view, target=view,
+                        mark_derived=True, transient=True)
+
+                anchors[qlast.Source().name] = source
+                assert isinstance(source, (s_types.Type, Pointer))
+                singletons = [source]
+                path_prefix_anchor = qlast.Source().name
+
+                in_ddl_context_name = f'computable {self.get_displayname()!r}'
+
+            return type(value).compiled(
+                value,
+                schema=schema,
+                options=qlcompiler.CompilerOptions(
+                    modaliases=context.modaliases,
+                    schema_object_context=self.get_schema_metaclass(),
+                    anchors=anchors,
+                    path_prefix_anchor=path_prefix_anchor,
+                    singletons=frozenset(singletons),
+                    apply_query_rewrites=not context.stdmode,
+                    track_schema_ref_exprs=track_schema_ref_exprs,
+                    in_ddl_context_name=in_ddl_context_name,
+                ),
+            )
+        else:
+            return super().compile_expr_field(
+                schema, context, field, value, track_schema_ref_exprs)
 
     def _deparse_name(
         self,
@@ -1367,53 +1427,6 @@ class PointerCommand(
 
         elif target_ref is not None:
             self._set_pointer_type(schema, astnode, context, target_ref)
-
-    def compile_expr_field(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        field: so.Field[Any],
-        value: s_expr.Expression,
-        track_schema_ref_exprs: bool=False,
-    ) -> s_expr.Expression:
-        from . import sources as s_sources
-
-        if field.name in {'default', 'expr'}:
-            singletons: List[s_types.Type] = []
-            path_prefix_anchor = None
-            anchors: Dict[str, Any] = {}
-
-            if field.name == 'expr':
-                # type ignore below, because the class is used as mixin
-                parent_ctx = context.get_ancestor(
-                    s_sources.SourceCommandContext,  # type: ignore
-                    self
-                )
-                assert parent_ctx is not None
-                assert isinstance(parent_ctx.op, sd.ObjectCommand)
-                source = parent_ctx.op.get_object(schema, context)
-                anchors[qlast.Source().name] = source
-                if not isinstance(source, Pointer):
-                    assert source is not None
-                    singletons = [source]
-                    path_prefix_anchor = qlast.Source().name
-
-            return type(value).compiled(
-                value,
-                schema=schema,
-                options=qlcompiler.CompilerOptions(
-                    modaliases=context.modaliases,
-                    schema_object_context=self.get_schema_metaclass(),
-                    anchors=anchors,
-                    path_prefix_anchor=path_prefix_anchor,
-                    singletons=frozenset(singletons),
-                    apply_query_rewrites=not context.stdmode,
-                    track_schema_ref_exprs=track_schema_ref_exprs,
-                ),
-            )
-        else:
-            return super().compile_expr_field(
-                schema, context, field, value, track_schema_ref_exprs)
 
 
 class SetPointerType(

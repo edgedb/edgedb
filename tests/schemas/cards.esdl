@@ -25,7 +25,10 @@ abstract type Named {
 
 type User extending Named {
     multi link deck -> Card {
-        property count -> int64;
+        property count -> int64 {
+            default := 1;
+        };
+        property total_cost := @count * .cost;
     }
 
     property deck_cost := sum(.deck.cost);
@@ -42,6 +45,7 @@ type User extending Named {
 
     link avatar -> Card {
         property text -> str;
+        property tag := .name ++ (("-" ++ @text) ?? "");
     }
 }
 
