@@ -896,6 +896,22 @@ class PointerCommandOrFragment(
         target_ref = self.get_local_attribute_value('target')
         inf_target_ref: Optional[s_types.TypeShell]
 
+        # When cardinality/required is altered, we need to force a
+        # reconsideration of expr if it exists in order to check
+        # it against the new specifier or compute them on a
+        # RESET. This is kind of unfortunate.
+        if (
+            isinstance(self, sd.AlterObject)
+            and (self.has_attribute_value('cardinality')
+                 or self.has_attribute_value('required'))
+            and not self.has_attribute_value('expr')
+            and (expr := self.scls.get_expr(schema)) is not None
+        ):
+            self.set_attribute_value(
+                'expr',
+                s_expr.Expression.not_compiled(expr)
+            )
+
         if isinstance(target_ref, ComputableRef):
             schema, inf_target_ref, base = self._parse_computable(
                 target_ref.expr, schema, context)
@@ -1012,25 +1028,10 @@ class PointerCommandOrFragment(
         self.set_attribute_value('expr', expression)
         required, card = expression.irast.cardinality.to_schema_value()
 
-        is_alter = (
-            isinstance(self, sd.AlterObject)
-            or (
-                isinstance(self, sd.AlterObjectFragment)
-                and isinstance(self.get_parent_op(context), sd.AlterObject)
-            )
-        )
-
-        spec_required = self.get_attribute_value('required')
-        spec_card = self.get_attribute_value('cardinality')
-
-        if is_alter:
-            cfs = self.scls.get_computed_fields(schema)
-            if spec_required is None and 'required' not in cfs:
-                spec_required = self.scls.get_explicit_field_value(
-                    schema, 'required', default=None)
-            if spec_card is None and 'cardinality' not in cfs:
-                spec_card = self.scls.get_explicit_field_value(
-                    schema, 'cardinality', default=None)
+        spec_required: Optional[bool] = (
+            self.get_specified_attribute_value('required', schema, context))
+        spec_card: Optional[qltypes.SchemaCardinality] = (
+            self.get_specified_attribute_value('cardinality', schema, context))
 
         if spec_required and not required:
             srcctx = self.get_attribute_source_context('target')
@@ -1058,7 +1059,7 @@ class PointerCommandOrFragment(
         if spec_card is None:
             self.set_attribute_value('cardinality', card, computed=True)
 
-        if not spec_required and required != spec_required:
+        if spec_required is None:
             self.set_attribute_value('required', required, computed=True)
 
         self.set_attribute_value('computable', True)
