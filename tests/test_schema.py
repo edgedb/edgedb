@@ -3417,7 +3417,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-
     def test_schema_migrations_equivalence_computed_01(self):
         self._assert_migration_equivalence([r"""
             type Foo {
