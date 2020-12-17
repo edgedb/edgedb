@@ -8918,3 +8918,131 @@ type test::Foo {
             await self.con.execute(r"""
                 INSERT Foo;
             """)
+
+    async def test_edgeql_ddl_adjust_computed_01(self):
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            CREATE TYPE Foo {
+                CREATE PROPERTY foo := {1, 2, 3};
+            };
+        """)
+
+        await self.con.execute(r"""
+            ALTER TYPE Foo {
+                ALTER PROPERTY foo SET MULTI;
+            };
+        """)
+
+        await self.con.execute(r"""
+            ALTER TYPE Foo {
+                ALTER PROPERTY foo RESET CARDINALITY;
+            };
+        """)
+
+    async def test_edgeql_ddl_adjust_computed_02(self):
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            CREATE TYPE Foo {
+                CREATE PROPERTY foo := 1;
+            };
+        """)
+
+        await self.con.execute(r"""
+            INSERT Foo;
+        """)
+
+        await self.assert_query_result(
+            "SELECT Foo { foo }",
+            [{"foo": 1}],
+        )
+
+        await self.con.execute(r"""
+            ALTER TYPE Foo {
+                ALTER PROPERTY foo SET MULTI;
+            };
+        """)
+
+        await self.assert_query_result(
+            "SELECT Foo { foo }",
+            [{"foo": [1]}],
+        )
+
+        await self.con.execute(r"""
+            ALTER TYPE Foo {
+                ALTER PROPERTY foo RESET CARDINALITY;
+            };
+        """)
+
+        await self.assert_query_result(
+            "SELECT Foo { foo }",
+            [{"foo": 1}],
+        )
+
+    async def test_edgeql_ddl_adjust_computed_03(self):
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            CREATE TYPE Foo {
+                CREATE PROPERTY foo := 1;
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT schema::Pointer {
+                    required,
+                    has_required := contains(.computed_fields, "required")
+                } FILTER .name = "foo"
+            """,
+            [{"required": True, "has_required": True}]
+        )
+
+        await self.con.execute(r"""
+            ALTER TYPE Foo {
+                ALTER PROPERTY foo SET OPTIONAL;
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT schema::Pointer {
+                    required,
+                    has_required := contains(.computed_fields, "required")
+                } FILTER .name = "foo"
+            """,
+            [{"required": False, "has_required": False}]
+        )
+
+        await self.con.execute(r"""
+            ALTER TYPE Foo {
+                ALTER PROPERTY foo RESET OPTIONALITY;
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT schema::Pointer {
+                    required,
+                    has_required := contains(.computed_fields, "required")
+                } FILTER .name = "foo"
+            """,
+            [{"required": True, "has_required": True}]
+        )
+
+        await self.con.execute(r"""
+            ALTER TYPE Foo {
+                ALTER PROPERTY foo SET REQUIRED;
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT schema::Pointer {
+                    required,
+                    has_required := contains(.computed_fields, "required")
+                } FILTER .name = "foo"
+            """,
+            [{"required": True, "has_required": False}]
+        )

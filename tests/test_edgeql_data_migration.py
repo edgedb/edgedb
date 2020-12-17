@@ -4462,12 +4462,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 };
             """)
 
-    @test.xfail('''
-        edgedb.errors.InternalServerError: relation
-        "edgedb_fe4eeff4-..." does not exist
-
-        The error occurs at the second "migrate".
-    ''')
     async def test_edgeql_migration_eq_42(self):
         # testing schema alias
         await self.migrate(r"""

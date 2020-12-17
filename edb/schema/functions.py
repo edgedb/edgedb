@@ -1344,18 +1344,8 @@ class FunctionCommand(
             # opportunity to raise exceptions or give warnings.
             self.set_attribute_value('has_dml', True)
 
-        is_alter = isinstance(self, sd.AlterObject)
-
-        spec_volatility = self.get_attribute_value('volatility')
-        if is_alter:
-            cfs = self.scls.get_computed_fields(schema)
-            if (
-                spec_volatility is None
-                and not self.has_attribute_value('volatility')
-                and 'volatility' not in cfs
-            ):
-                spec_volatility = self.scls.get_explicit_field_value(
-                    schema, 'volatility', default=None)
+        spec_volatility: Optional[ft.Volatility] = (
+            self.get_specified_attribute_value('volatility', schema, context))
 
         if spec_volatility is None:
             self.set_attribute_value('volatility', ir.volatility,

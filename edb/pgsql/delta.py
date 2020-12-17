@@ -2907,6 +2907,9 @@ class AlterProperty(
         if self.metadata_only:
             return schema
 
+        if prop.is_pure_computable(orig_schema):
+            return schema
+
         with context(
                 s_props.PropertyCommandContext(schema, self, prop)) as ctx:
             ctx.original_schema = orig_schema

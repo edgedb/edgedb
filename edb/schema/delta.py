@@ -2016,6 +2016,40 @@ class ObjectCommand(Command, Generic[so.Object_T]):
 
         return result
 
+    def get_specified_attribute_value(
+        self,
+        field: str,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> Optional[Any]:
+        """Fetch the specified (not computed) value of a field.
+
+        If the command is an alter, it will fall back to the value in
+        the schema.
+
+        Return None if there is no specified value or if the specified
+        value is being reset.
+        """
+        spec = self.get_attribute_value(field)
+
+        is_alter = (
+            isinstance(self, AlterObject)
+            or (
+                isinstance(self, AlterObjectFragment)
+                and isinstance(self.get_parent_op(context), AlterObject)
+            )
+        )
+        if (
+            is_alter
+            and spec is None
+            and not self.has_attribute_value(field)
+            and field not in self.scls.get_computed_fields(schema)
+        ):
+            spec = self.scls.get_explicit_field_value(
+                schema, field, default=None)
+
+        return spec
+
     def compile_expr_field(
         self,
         schema: s_schema.Schema,
