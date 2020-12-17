@@ -3470,13 +3470,15 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         await self.assert_query_result(
             r'''
-            SELECT schema::Function {name, volatility}
+            SELECT schema::Function {name, volatility, computed_fields}
             FILTER .name LIKE 'test::%'
             ORDER BY .name;
             ''',
             [
-                {"name": "test::bar", "volatility": "Stable"},
-                {"name": "test::foo", "volatility": "Stable"},
+                {"name": "test::bar", "volatility": "Stable",
+                 "computed_fields": ["volatility"]},
+                {"name": "test::foo", "volatility": "Stable",
+                 "computed_fields": []},
             ]
         )
 
@@ -3488,13 +3490,15 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         await self.assert_query_result(
             r'''
-            SELECT schema::Function {name, volatility}
+            SELECT schema::Function {name, volatility, computed_fields}
             FILTER .name LIKE 'test::%'
             ORDER BY .name;
             ''',
             [
-                {"name": "test::bar", "volatility": "Immutable"},
-                {"name": "test::foo", "volatility": "Immutable"},
+                {"name": "test::bar", "volatility": "Immutable",
+                 "computed_fields": ["volatility"]},
+                {"name": "test::foo", "volatility": "Immutable",
+                 "computed_fields": ["volatility"]},
             ]
         )
 
