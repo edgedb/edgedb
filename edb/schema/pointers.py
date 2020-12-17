@@ -532,6 +532,15 @@ class Pointer(referencing.ReferencedInheritingObject,
     def is_protected_pointer(self, schema: s_schema.Schema) -> bool:
         return self.get_shortname(schema).name in {'id', '__type__'}
 
+    def is_dumpable(self, schema: s_schema.Schema) -> bool:
+        return (
+            not self.is_endpoint_pointer(schema)
+            and (
+                self.singular(schema)
+                or not self.is_pure_computable(schema)
+            )
+        )
+
     def generic(self, schema: s_schema.Schema) -> bool:
         return self.get_source(schema) is None
 
