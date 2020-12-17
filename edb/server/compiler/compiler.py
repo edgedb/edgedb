@@ -1990,7 +1990,6 @@ class Compiler(BaseCompiler):
                 {
                     'source': schema.get('std::uuid'),
                     'target': source.get_target(schema),
-                    'ptr_item_id': schema.get('std::uuid'),
                 },
                 {'named': True},
             )
@@ -2006,20 +2005,17 @@ class Compiler(BaseCompiler):
             cols.extend([
                 'source',
                 'target',
-                'ptr_item_id',
             ])
 
         elif isinstance(source, s_links.Link):
             props = {
                 'source': schema.get('std::uuid'),
                 'target': schema.get('std::uuid'),
-                'ptr_item_id': schema.get('std::uuid'),
             }
 
             cols.extend([
                 'source',
                 'target',
-                'ptr_item_id',
             ])
 
             for ptr in source.get_pointers(schema).objects(schema):
@@ -2146,6 +2142,8 @@ class Compiler(BaseCompiler):
             or dump_server_ver < (1, 0, verutils.VersionStage.ALPHA, 8)
         )
 
+        dump_with_ptr_item_id = dump_with_extraneous_computables
+
         ddl_source = edgeql.Source.from_string(schema_ddl.decode('utf-8'))
         units = self._compile(ctx=ctx, source=ddl_source)
         schema = ctx.state.current_tx().get_schema()
@@ -2161,14 +2159,17 @@ class Compiler(BaseCompiler):
             if isinstance(obj, s_props.Property):
                 assert isinstance(desc, sertypes.NamedTupleDesc)
                 desc_ptrs = list(desc.fields.keys())
-                if set(desc_ptrs) != {'source', 'target', 'ptr_item_id'}:
-                    raise RuntimeError(
-                        'Property table dump data has extra fields')
                 cols = {
                     'source': 'source',
                     'target': 'target',
-                    'ptr_item_id': 'ptr_item_id',
                 }
+
+                if dump_with_ptr_item_id:
+                    elided_col_set.add('ptr_item_id')
+
+                if set(desc_ptrs) != set(cols) | elided_col_set:
+                    raise RuntimeError(
+                        'Property table dump data has extra fields')
 
             elif isinstance(obj, s_links.Link):
                 assert isinstance(desc, sertypes.NamedTupleDesc)
@@ -2176,8 +2177,10 @@ class Compiler(BaseCompiler):
                 cols = {
                     'source': 'source',
                     'target': 'target',
-                    'ptr_item_id': 'ptr_item_id',
                 }
+
+                if dump_with_ptr_item_id:
+                    elided_col_set.add('ptr_item_id')
 
                 for ptr in obj.get_pointers(schema).objects(schema):
                     ptr_name = ptr.get_shortname(schema).name
