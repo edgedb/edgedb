@@ -2015,7 +2015,7 @@ class Compiler(BaseCompiler):
             ])
 
             for ptr in source.get_pointers(schema).objects(schema):
-                if ptr.is_endpoint_pointer(schema):
+                if not ptr.is_dumpable(schema):
                     continue
 
                 stor_info = pg_types.get_pointer_storage_info(
@@ -2045,7 +2045,7 @@ class Compiler(BaseCompiler):
 
         else:
             for ptr in source.get_pointers(schema).objects(schema):
-                if ptr.is_endpoint_pointer(schema):
+                if not ptr.is_dumpable(schema):
                     continue
 
                 stor_info = pg_types.get_pointer_storage_info(
@@ -2164,7 +2164,7 @@ class Compiler(BaseCompiler):
                 }
 
                 for ptr in obj.get_pointers(schema).objects(schema):
-                    if ptr.is_endpoint_pointer(schema):
+                    if not ptr.is_dumpable(schema):
                         continue
                     stor_info = pg_types.get_pointer_storage_info(
                         ptr,
@@ -2186,7 +2186,7 @@ class Compiler(BaseCompiler):
 
                 cols = {}
                 for ptr in obj.get_pointers(schema).objects(schema):
-                    if ptr.is_endpoint_pointer(schema):
+                    if not ptr.is_dumpable(schema):
                         continue
 
                     stor_info = pg_types.get_pointer_storage_info(
