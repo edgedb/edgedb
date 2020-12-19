@@ -587,13 +587,12 @@ class TestTaskGroup(tb.TestCase):
 
         async def do_job(delay):
             await asyncio.sleep(delay)
-            return 1
 
-        async with TaskGroup() as tg:
+        async with taskgroup.TaskGroup() as g:
             for count in range(10):
                 await asyncio.sleep(0.1)
-                tg.create_task(do_job(0.3))
+                g.create_task(do_job(0.3))
                 if count == 5:
-                    self.assertLess(len(tg._tasks), 5)
+                    self.assertLess(len(g._tasks), 5)
             await asyncio.sleep(1.35)
-            self.assertEqual(len(tg._tasks), 0)
+            self.assertEqual(len(g._tasks), 0)
