@@ -33,14 +33,15 @@ class TestDatabase(tb.ConnectedTestCase):
             dbname = await conn.query('SELECT sys::get_current_database();')
             self.assertEqual(dbname, ['mytestdb'])
 
-            with self.assertRaisesRegex(edgedb.ExecutionError,
-                                        r'cannot drop the currently open '
-                                        r'database'):
+            with self.assertRaisesRegex(
+                    edgedb.ExecutionError,
+                    r'cannot drop the currently open database'):
                 await conn.execute('DROP DATABASE mytestdb;')
 
-            with self.assertRaisesRegex(edgedb.ExecutionError,
-                                        r'database "mytestdb" is being '
-                                        r'accessed by other users'):
+            with self.assertRaisesRegex(
+                    edgedb.ExecutionError,
+                    r'''database ["']mytestdb["'] is being '''
+                    r'''accessed by other users'''):
                 await self.con.execute('DROP DATABASE mytestdb;')
 
             await conn.aclose()
@@ -48,8 +49,9 @@ class TestDatabase(tb.ConnectedTestCase):
             await self.con.execute('DROP DATABASE mytestdb;')
 
     async def test_database_create_02(self):
-        with self.assertRaisesRegex(edgedb.SchemaDefinitionError,
-                                    r'Database names longer than \d+ '
-                                    r'characters are not supported'):
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                r'Database names longer than \d+ '
+                r'characters are not supported'):
             await self.con.execute(
                 f'CREATE DATABASE mytestdb_{"x" * s_def.MAX_NAME_LENGTH};')

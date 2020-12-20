@@ -56,7 +56,7 @@ cdef enum PGAuthenticationState:
 
 
 @cython.final
-cdef class PGProto:
+cdef class PGConnection:
 
     cdef:
         ReadBuffer buffer
@@ -82,7 +82,7 @@ cdef class PGProto:
         bint debug
 
         object pgaddr
-        object edgecon_ref
+        object server
 
         bint idle
 

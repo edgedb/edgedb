@@ -25,7 +25,7 @@ from edb.edgeql.qltypes import ConfigScope
 
 from .ops import OpCode, Operation, SettingValue
 from .ops import spec_to_json, to_json, from_json, from_dict, set_value
-from .ops import value_from_json
+from .ops import value_from_json, value_to_json_value
 from .spec import Spec, Setting, load_spec_from_schema
 from .types import ConfigType
 
@@ -35,7 +35,7 @@ __all__ = (
     'lookup',
     'Spec', 'Setting', 'SettingValue',
     'spec_to_json', 'to_json', 'from_json', 'from_dict', 'set_value',
-    'value_from_json',
+    'value_from_json', 'value_to_json_value',
     'ConfigScope', 'OpCode', 'Operation',
     'ConfigType',
     'load_spec_from_schema',

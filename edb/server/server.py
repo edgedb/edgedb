@@ -20,6 +20,7 @@
 from __future__ import annotations
 from typing import *
 
+import asyncio
 import json
 import logging
 
@@ -30,6 +31,7 @@ from edb.common import taskgroup
 from edb.edgeql import parser as ql_parser
 
 from edb.server import config
+from edb.server import connpool
 from edb.server import defines
 from edb.server import http
 from edb.server import http_edgeql_port
@@ -56,6 +58,7 @@ class Server:
 
     _ports: List[baseport.Port]
     _sys_conf_ports: Dict[config.ConfigType, baseport.Port]
+    _sys_pgcon: Optional[pgcon.PGConnection]
 
     def __init__(
         self,
@@ -79,6 +82,14 @@ class Server:
 
         self._cluster = cluster
         self._pg_addr = self._get_pgaddr()
+
+        # 1 connection is reserved for the system DB
+        pool_capacity = max_backend_connections - 1
+        self._pg_pool = connpool.Pool(
+            connect=self._pg_connect,
+            disconnect=self._pg_disconnect,
+            max_capacity=pool_capacity,
+        )
 
         # DB state will be initialized in init().
         self._dbindex = None
@@ -104,8 +115,25 @@ class Server:
 
         self._startup_script = startup_script
 
+        # Never use `self.__sys_pgcon` directly; get it via
+        # `await self._acquire_sys_pgcon()`.
+        self.__sys_pgcon = None
+        self._sys_pgcon_waiters = None
+
+    async def _pg_connect(self, dbname):
+        return await pgcon.connect(self._get_pgaddr(), dbname)
+
+    async def _pg_disconnect(self, conn):
+        conn.terminate()
+
     async def init(self):
+        self.__sys_pgcon = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)
+        await self.__sys_pgcon.set_server(self)
+        self._sys_pgcon_waiters = asyncio.Queue()
+        self._sys_pgcon_waiters.put_nowait(self.__sys_pgcon)
+
         self._dbindex = await dbview.DatabaseIndex.init(self)
+
         self._populate_sys_auth()
 
         cfg = self._dbindex.get_sys_config()
@@ -135,8 +163,13 @@ class Server:
     def _get_pgaddr(self):
         return self._cluster.get_connection_spec()
 
-    async def new_pgcon(self, dbname):
-        return await pgcon.connect(self._get_pgaddr(), dbname)
+    async def acquire_pgcon(self, dbname):
+        return await self._pg_pool.acquire(dbname)
+
+    def release_pgcon(self, dbname, conn, *, discard=False):
+        if not conn.is_connected() or conn.in_tx():
+            discard = True
+        self._pg_pool.release(dbname, conn, discard=discard)
 
     async def new_compiler(self, dbname, dbver):
         compiler_worker = await self._compiler_manager.spawn_worker()
@@ -246,6 +279,23 @@ class Server:
         else:
             logging.info('stopped port for config: %r', portconf)
 
+    async def _on_drop_db(self, dbname: str, current_dbname: str) -> None:
+        assert self._dbindex is not None
+
+        if current_dbname == dbname:
+            raise errors.ExecutionError(
+                f'cannot drop the currently open database {dbname!r}')
+
+        if self._dbindex.count_connections(dbname):
+            # If there are open EdgeDB connections to the `dbname` DB
+            # just raise the error Postgres would have raised itself.
+            raise errors.ExecutionError(
+                f'database {dbname!r} is being accessed by other users')
+        else:
+            # If, however, there are no open EdgeDB connections, prune
+            # all non-active postgres connection to the `dbname` DB.
+            await self._pg_pool.prune_inactive_connections(dbname)
+
     async def _on_system_config_add(self, setting_name, value):
         # CONFIGURE SYSTEM INSERT ConfigObject;
         if setting_name == 'ports':
@@ -292,6 +342,36 @@ class Server:
         # CONFIGURE SYSTEM RESET setting_name;
         pass
 
+    async def _acquire_sys_pgcon(self):
+        if self._sys_pgcon_waiters is None:
+            raise RuntimeError('invalid request to acquire a system pgcon')
+        return await self._sys_pgcon_waiters.get()
+
+    def _release_sys_pgcon(self):
+        self._sys_pgcon_waiters.put_nowait(self.__sys_pgcon)
+
+    async def _signal_sysevent(self, event, **kwargs):
+        pgcon = await self._acquire_sys_pgcon()
+        try:
+            await pgcon.signal_sysevent(event, **kwargs)
+        finally:
+            self._release_sys_pgcon()
+
+    def _on_remote_ddl(self, dbname, dbver):
+        # Triggered by a postgres notification event 'schema-changes'
+        # on the __edgedb_sysevent__ channel
+        self._dbindex._on_remote_ddl(dbname, dbver)
+
+    def _on_remote_database_config_change(self, dbname):
+        # Triggered by a postgres notification event 'database-config-changes'
+        # on the __edgedb_sysevent__ channel
+        self._dbindex._on_remote_database_config_change(dbname)
+
+    def _on_remote_system_config_change(self):
+        # Triggered by a postgres notification event 'ystem-config-changes'
+        # on the __edgedb_sysevent__ channel
+        self._dbindex._on_remote_system_config_change()
+
     def add_port(self, portcls, **kwargs):
         if self._serving:
             raise RuntimeError(
@@ -336,19 +416,25 @@ class Server:
             print(f'\nEDGEDB_SERVER_DATA:{json.dumps(ri)}\n', flush=True)
 
     async def stop(self):
-        self._serving = False
+        try:
+            self._serving = False
 
-        async with taskgroup.TaskGroup() as g:
-            for port in self._ports:
-                g.create_task(port.stop())
-            self._ports.clear()
-            for port in self._sys_conf_ports.values():
-                g.create_task(port.stop())
-            self._sys_conf_ports.clear()
-            g.create_task(self._mgmt_port.stop())
-            self._mgmt_port = None
+            async with taskgroup.TaskGroup() as g:
+                for port in self._ports:
+                    g.create_task(port.stop())
+                self._ports.clear()
+                for port in self._sys_conf_ports.values():
+                    g.create_task(port.stop())
+                self._sys_conf_ports.clear()
+                g.create_task(self._mgmt_port.stop())
+                self._mgmt_port = None
+        finally:
+            pgcon = await self._acquire_sys_pgcon()
+            self._sys_pgcon_waiters = None
+            self.__sys_pgcon = None
+            pgcon.terminate()
 
-    async def get_auth_method(self, user, conn):
+    async def get_auth_method(self, user):
         authlist = self._sys_auth
 
         if not authlist:

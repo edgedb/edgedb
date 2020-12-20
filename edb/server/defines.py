@@ -22,10 +22,13 @@ from __future__ import annotations
 EDGEDB_PORT = 5656
 EDGEDB_SUPERGROUP = 'edgedb_supergroup'
 EDGEDB_SUPERUSER = 'edgedb'
-EDGEDB_TEMPLATE_DB = 'edgedb0'
+EDGEDB_TEMPLATE_DB = '__edgedbtpl__'
 EDGEDB_SUPERUSER_DB = 'edgedb'
+EDGEDB_SYSTEM_DB = '__edgedbsys__'
 EDGEDB_ENCODING = 'utf-8'
 EDGEDB_VISIBLE_METADATA_PREFIX = r'EdgeDB metadata follows, do not modify.\n'
+
+EDGEDB_SPECIAL_DBS = {EDGEDB_TEMPLATE_DB, EDGEDB_SYSTEM_DB}
 
 # Increment this whenever the database layout or stdlib changes.
 EDGEDB_CATALOG_VERSION = 2020_12_17_00_00

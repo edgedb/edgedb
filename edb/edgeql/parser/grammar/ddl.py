@@ -477,18 +477,47 @@ commands_block(
 )
 
 
+class DatabaseName(Nonterm):
+
+    def reduce_Identifier(self, kid):
+        self.val = qlast.ObjectRef(
+            module=None,
+            name=kid.val
+        )
+
+    def reduce_ReservedKeyword(self, *kids):
+        name = kids[0].val
+        if (
+            name[:2] == '__' and name[-2:] == '__' and
+            name not in {'__edgedbsys__', '__edgedbtpl__'}
+        ):
+            # There are a few reserved keywords like __std__ and __subject__
+            # that can be used in paths but are prohibited to be used
+            # anywhere else. So just as the tokenizer prohibits using
+            # __names__ in general, we enforce the rule here for the
+            # few remaining reserved __keywords__.
+            raise EdgeQLSyntaxError(
+                "identifiers surrounded by double underscores are forbidden",
+                context=kids[0].context)
+
+        self.val = qlast.ObjectRef(
+            module=None,
+            name=name
+        )
+
+
 #
 # CREATE DATABASE
 #
 class CreateDatabaseStmt(Nonterm):
     def reduce_CREATE_DATABASE_regular(self, *kids):
-        """%reduce CREATE DATABASE AnyNodeName OptCreateDatabaseCommandsBlock
+        """%reduce CREATE DATABASE DatabaseName OptCreateDatabaseCommandsBlock
         """
         self.val = qlast.CreateDatabase(name=kids[2].val, commands=kids[3].val)
 
     def reduce_CREATE_DATABASE_from_template(self, *kids):
         """%reduce
-            CREATE DATABASE AnyNodeName FROM AnyNodeName
+            CREATE DATABASE DatabaseName FROM AnyNodeName
             OptCreateDatabaseCommandsBlock
         """
         self.val = qlast.CreateDatabase(
@@ -502,7 +531,7 @@ class CreateDatabaseStmt(Nonterm):
 # DROP DATABASE
 #
 class DropDatabaseStmt(Nonterm):
-    def reduce_DROP_DATABASE_AnyNodeName(self, *kids):
+    def reduce_DROP_DATABASE_DatabaseName(self, *kids):
         self.val = qlast.DropDatabase(name=kids[2].val)
 
 
