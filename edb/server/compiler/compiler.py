@@ -2099,6 +2099,27 @@ class Compiler(BaseCompiler):
             sql_copy_stmt=stmt,
         )] + ptrdesc
 
+    def _check_dump_layout(
+        self,
+        dump_els: AbstractSet[str],
+        schema_els: AbstractSet[str],
+        elided_els: AbstractSet[str],
+        label: str,
+    ) -> None:
+        extra_els = dump_els - (schema_els | elided_els)
+        if extra_els:
+            raise RuntimeError(
+                f'dump data tuple of {label} has extraneous elements: '
+                f'{", ".join(extra_els)}'
+            )
+
+        missing_els = schema_els - dump_els
+        if missing_els:
+            raise RuntimeError(
+                f'dump data tuple of {label} has missing elements: '
+                f'{", ".join(missing_els)}'
+            )
+
     async def describe_database_restore(
         self,
         tx_snapshot_id: str,
@@ -2167,10 +2188,6 @@ class Compiler(BaseCompiler):
                 if dump_with_ptr_item_id:
                     elided_col_set.add('ptr_item_id')
 
-                if set(desc_ptrs) != set(cols) | elided_col_set:
-                    raise RuntimeError(
-                        'Property table dump data has extra fields')
-
             elif isinstance(obj, s_links.Link):
                 assert isinstance(desc, sertypes.NamedTupleDesc)
                 desc_ptrs = list(desc.fields.keys())
@@ -2201,10 +2218,6 @@ class Compiler(BaseCompiler):
 
                     cols[ptr_name] = stor_info.column_name
 
-                if set(desc_ptrs) != set(cols) | elided_col_set:
-                    raise RuntimeError(
-                        'Link table dump data has extra fields')
-
             elif isinstance(obj, s_objtypes.ObjectType):
                 assert isinstance(desc, sertypes.ShapeDesc)
                 desc_ptrs = list(desc.fields.keys())
@@ -2231,15 +2244,18 @@ class Compiler(BaseCompiler):
                         ptr_name = ptr.get_shortname(schema).name
                         cols[ptr_name] = stor_info.column_name
 
-                if set(desc_ptrs) != set(cols) | elided_col_set:
-                    raise RuntimeError(
-                        'Object table dump data has extra fields')
-
             else:
                 raise AssertionError(
                     f'unexpected object type in restore '
                     f'type descriptor: {obj!r}'
                 )
+
+            self._check_dump_layout(
+                frozenset(desc_ptrs),
+                frozenset(cols),
+                elided_col_set,
+                label=obj.get_verbosename(schema, with_parent=True),
+            )
 
             table_name = pg_common.get_backend_name(
                 schema, obj, catenate=True)
