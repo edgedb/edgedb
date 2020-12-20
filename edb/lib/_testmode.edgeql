@@ -65,6 +65,12 @@ ALTER TYPE cfg::AbstractConfig {
         SET default := 0;
     };
 
+    CREATE PROPERTY __internal_sess_testvalue -> std::int64 {
+        CREATE ANNOTATION cfg::internal := 'true';
+        SET default := 0;
+    };
+
+
     CREATE PROPERTY __internal_no_const_folding -> std::bool {
         CREATE ANNOTATION cfg::internal := 'true';
         SET default := false;

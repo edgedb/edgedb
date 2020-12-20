@@ -115,11 +115,12 @@ cdef class Protocol(http.HttpProtocol):
             response.body = b'{"kind": "results", "results":' + result + b'}'
 
     async def heartbeat_check(self):
-        pgcon = await self.server.pgcons.get()
+        pgcon = await self.server.get_server().acquire_pgcon(
+            self.server.database)
         try:
             await pgcon.simple_query(b"SELECT 'OK';", True)
         finally:
-            self.server.pgcons.put_nowait(pgcon)
+            self.server.get_server().release_pgcon(self.server.database, pgcon)
 
     async def compile(self, dbver, list queries):
         comp = await self.server.compilers.get()
@@ -140,7 +141,8 @@ cdef class Protocol(http.HttpProtocol):
         units = await self.compile(dbver, queries)
         result = []
 
-        pgcon = await self.server.pgcons.get()
+        pgcon = await self.server.get_server().acquire_pgcon(
+            self.server.database)
         try:
             await pgcon.simple_query(b'START TRANSACTION;', True)
 
@@ -192,8 +194,10 @@ cdef class Protocol(http.HttpProtocol):
                         })
 
         finally:
-            await pgcon.simple_query(b'ROLLBACK;', True)
-
-            self.server.pgcons.put_nowait(pgcon)
+            try:
+                await pgcon.simple_query(b'ROLLBACK;', True)
+            finally:
+                self.server.get_server().release_pgcon(
+                    self.server.database, pgcon)
 
         return json.dumps(result).encode()

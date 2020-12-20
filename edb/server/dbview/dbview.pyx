@@ -16,11 +16,11 @@
 # limitations under the License.
 #
 
-
 import json
 import os.path
 import pickle
 import typing
+import weakref
 
 import immutables
 
@@ -33,6 +33,13 @@ from edb.pgsql import dbops
 
 __all__ = ('DatabaseIndex', 'DatabaseConnectionView', 'SideEffects')
 
+cdef DEFAULT_MODALIASES = immutables.Map({None: defines.DEFAULT_MODULE_ALIAS})
+cdef DEFAULT_CONFIG = immutables.Map()
+cdef DEFAULT_STATE = json.dumps([
+    {"name": n or '', "value": v, "type": "A"}
+    for n, v in DEFAULT_MODALIASES.items()
+]).encode('utf-8')
+
 
 cdef class Database:
 
@@ -44,6 +51,7 @@ cdef class Database:
         self._dbver = uuidgen.uuid1mc().bytes
 
         self._index = index
+        self._views = weakref.WeakSet()
 
         self._eql_to_compiled = lru.LRUMapping(
             maxsize=defines._MAX_QUERIES_CACHE)
@@ -69,8 +77,9 @@ cdef class Database:
         self._eql_to_compiled[key] = compiled
 
     cdef _new_view(self, user, query_cache):
-        return DatabaseConnectionView(self, user=user, query_cache=query_cache)
-
+        view = DatabaseConnectionView(self, user=user, query_cache=query_cache)
+        self._views.add(view)
+        return view
 
 cdef class DatabaseConnectionView:
 
@@ -83,10 +92,11 @@ cdef class DatabaseConnectionView:
 
         self._user = user
 
-        self._config = immutables.Map()
+        self._modaliases = DEFAULT_MODALIASES
+        self._in_tx_modaliases = None
+        self._config = DEFAULT_CONFIG
+        self._session_state_cache = None
         self._in_tx_config = None
-
-        self._modaliases = immutables.Map({None: defines.DEFAULT_MODULE_ALIAS})
 
         # Whenever we are in a transaction that had executed a
         # DDL command, we use this cache for compiled queries.
@@ -102,6 +112,7 @@ cdef class DatabaseConnectionView:
         self._txid = None
         self._in_tx = False
         self._in_tx_config = None
+        self._in_tx_modaliases = None
         self._in_tx_with_ddl = False
         self._in_tx_with_sysconfig = False
         self._in_tx_with_dbconfig = False
@@ -109,26 +120,17 @@ cdef class DatabaseConnectionView:
         self._tx_error = False
         self._invalidate_local_cache()
 
-    cdef on_remote_ddl(self, bytes new_dbver):
-        """Called when a DDL operation was performed by another client."""
-        if new_dbver != self._db._dbver:
-            self._db._signal_ddl(new_dbver)
-
-    cdef on_remote_config_change(self):
-        """Called when a CONFIGURE opration was performed by anoterh client."""
-        pass
-
     cdef rollback_tx_to_savepoint(self, spid, modaliases, config):
         self._tx_error = False
         # See also CompilerConnectionState.rollback_to_savepoint().
         self._txid = spid
-        self._modaliases = modaliases
+        self.set_modaliases(modaliases)
         self.set_session_config(config)
         self._invalidate_local_cache()
 
     cdef recover_aliases_and_config(self, modaliases, config):
         assert not self._in_tx
-        self._modaliases = modaliases
+        self.set_modaliases(modaliases)
         self.set_session_config(config)
 
     cdef abort_tx(self):
@@ -148,9 +150,55 @@ cdef class DatabaseConnectionView:
         else:
             self._config = new_conf
 
-    property modaliases:
-        def __get__(self):
+    cdef set_modaliases(self, new_aliases):
+        if self._in_tx:
+            self._in_tx_modaliases = new_aliases
+        else:
+            self._modaliases = new_aliases
+
+    cdef get_modaliases(self):
+        if self._in_tx:
+            return self._in_tx_modaliases
+        else:
             return self._modaliases
+
+    cdef bytes serialize_state(self):
+        cdef list state
+        if self._in_tx:
+            raise errors.InternalServerError(
+                'no need to serialize state while in transaction')
+        if (
+            self._config == DEFAULT_CONFIG and
+            self._modaliases == DEFAULT_MODALIASES
+        ):
+            return DEFAULT_STATE
+
+        if self._session_state_cache is not None:
+            if (
+                self._session_state_cache[0] == self._config and
+                self._session_state_cache[1] == self._modaliases
+            ):
+                return self._session_state_cache[2]
+
+        state = []
+        for key, val in self._modaliases.items():
+            state.append(
+                {"name": key or '', "value": val, "type": "A"}
+            )
+        if self._config:
+            settings = config.get_settings()
+            for sval in self._config.values():
+                setting = settings[sval.name]
+                if setting.backend_setting:
+                    # We don't store PostgreSQL config settings in
+                    # the _edgecon_state temp table.
+                    continue
+                jval = config.value_to_json_value(setting, sval.value)
+                state.append({"name": sval.name, "value": jval, "type": "C"})
+
+        spec = json.dumps(state).encode('utf-8')
+        self._session_state_cache = (self._config, self._modaliases, spec)
+        return spec
 
     property txid:
         def __get__(self):
@@ -177,7 +225,7 @@ cdef class DatabaseConnectionView:
     cdef cache_compiled_query(self, object key, object query_unit):
         assert query_unit.cacheable
 
-        key = (key, self._modaliases, self._config)
+        key = (key, self.get_modaliases(), self.get_session_config())
 
         if self._in_tx_with_ddl:
             self._eql_to_compiled[key] = query_unit
@@ -190,7 +238,7 @@ cdef class DatabaseConnectionView:
                 self._in_tx_with_ddl):
             return None
 
-        key = (key, self._modaliases, self._config)
+        key = (key, self.get_modaliases(), self.get_session_config())
 
         if self._in_tx_with_ddl or self._in_tx_with_set:
             query_unit = self._eql_to_compiled.get(key)
@@ -213,6 +261,7 @@ cdef class DatabaseConnectionView:
             self._in_tx = True
             self._txid = query_unit.tx_id
             self._in_tx_config = self._config
+            self._in_tx_modaliases = self._modaliases
 
         if self._in_tx and not self._txid:
             raise errors.InternalServerError('unset txid in transaction')
@@ -248,7 +297,7 @@ cdef class DatabaseConnectionView:
                 side_effects |= SideEffects.DatabaseConfigChanges
 
         if query_unit.modaliases is not None:
-            self._modaliases = query_unit.modaliases
+            self.set_modaliases(query_unit.modaliases)
 
         if query_unit.tx_commit:
             if not self._in_tx:
@@ -257,6 +306,7 @@ cdef class DatabaseConnectionView:
                 raise errors.InternalServerError(
                     '"commit" outside of a transaction')
             self._config = self._in_tx_config
+            self._modaliases = self._in_tx_modaliases
             if self._in_tx_with_ddl:
                 self._db._signal_ddl(None)
                 side_effects |= SideEffects.SchemaChanges
@@ -279,7 +329,7 @@ cdef class DatabaseConnectionView:
         for op in ops:
             if op.scope is config.ConfigScope.SYSTEM:
                 await self._db._index.apply_system_config_op(conn, op)
-            else:
+            elif op.scope is config.ConfigScope.SESSION:
                 self.set_session_config(
                     op.apply(
                         config.get_settings(),
@@ -308,6 +358,14 @@ cdef class DatabaseIndex:
         self._instance_data = None
         self._sys_config = None
 
+    def count_connections(self, dbname: str):
+        try:
+            db = self._dbs[dbname]
+        except KeyError:
+            return 0
+
+        return len((<Database>db)._views)
+
     async def get_sys_query(self, conn, key: str) -> bytes:
         if self._sys_queries is None:
             result = await conn.simple_query(b'''\
@@ -330,13 +388,12 @@ cdef class DatabaseIndex:
         return self._instance_data[key]
 
     async def reload_config(self):
-        conn = await self._server.new_pgcon(defines.EDGEDB_TEMPLATE_DB)
-
-        query = await self.get_sys_query(conn, 'config')
+        pgcon = await self._server._acquire_sys_pgcon()
         try:
-            result = await conn.simple_query(query, ignore_data=False)
+            query = await self.get_sys_query(pgcon, 'config')
+            result = await pgcon.simple_query(query, ignore_data=False)
         finally:
-            conn.terminate()
+            self._server._release_sys_pgcon()
 
         config_json = result[0][0].decode('utf-8')
         self._sys_config = config.from_json(config.get_settings(), config_json)
@@ -413,3 +470,19 @@ cdef class DatabaseIndex:
     def new_view(self, dbname: str, *, user: str, query_cache: bool):
         db = self._get_db(dbname)
         return (<Database>db)._new_view(user, query_cache)
+
+    def _on_remote_ddl(self, dbname, dbver):
+        """Called when a DDL operation was performed by another client."""
+        cdef Database db
+        try:
+            db = <Database>(self._dbs[dbname])
+        except KeyError:
+            return
+        if db._dbver != dbver:
+            db._signal_ddl(dbver)
+
+    def _on_remote_database_config_change(self, dbname):
+        """Called when a CONFIGURE opration was performed by another client."""
+
+    def _on_remote_system_config_change(self):
+        """Called when a CONFIGURE opration was performed by another client."""

@@ -54,9 +54,7 @@ class BaseHttpPort(baseport.Port):
                 f'less than {defines.HTTP_PORT_MAX_CONCURRENCY}')
 
         self._compilers: asyncio.LifoQueue[Any] = asyncio.LifoQueue()
-        self._pgcons: asyncio.LifoQueue[Any] = asyncio.LifoQueue()
         self._compilers_list: List[Any] = []
-        self._pgcons_list: List[Any] = []
 
         self._nethost = nethost
         self._netport = netport
@@ -74,10 +72,6 @@ class BaseHttpPort(baseport.Port):
     @property
     def compilers(self):
         return self._compilers
-
-    @property
-    def pgcons(self):
-        return self._pgcons
 
     @classmethod
     def get_proto_name(cls):
@@ -97,8 +91,6 @@ class BaseHttpPort(baseport.Port):
 
     async def start(self):
         compilers = []
-        pgcons = []
-
         await super().start()
 
         async with taskgroup.TaskGroup() as g:
@@ -106,16 +98,10 @@ class BaseHttpPort(baseport.Port):
                 compilers.append(
                     g.create_task(self.new_compiler(
                         self.database, self.get_dbver())))
-                pgcons.append(
-                    g.create_task(self.get_server().new_pgcon(self.database)))
 
         for com_task in compilers:
             self._compilers.put_nowait(com_task.result())
             self._compilers_list.append(com_task.result())
-
-        for con_task in pgcons:
-            self._pgcons.put_nowait(con_task.result())
-            self._pgcons_list.append(con_task.result())
 
         nethost = await self._fix_localhost(self._nethost, self._netport)
         self._http_proto_server = await self._loop.create_server(
@@ -139,9 +125,6 @@ class BaseHttpPort(baseport.Port):
                         g.create_task(cmp.close())
                     self._compilers_list.clear()
 
-                for pgcon in self._pgcons_list:
-                    pgcon.terminate()
-                self._pgcons_list.clear()
                 if self._http_request_logger is not None:
                     self._http_request_logger.cancel()
                     await self._http_request_logger

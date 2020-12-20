@@ -104,7 +104,11 @@ def get_shared_data_dir_path() -> pathlib.Path:
         return pathlib.Path(get_build_metadata_value('SHARED_DATA_DIR'))
 
 
-def hash_dirs(dirs: Sequence[Tuple[str, str]]) -> bytes:
+def hash_dirs(
+    dirs: Sequence[Tuple[str, str]],
+    *,
+    extra_files: Optional[Sequence[str]]=None
+) -> bytes:
     def hash_dir(dirname, ext, paths):
         with os.scandir(dirname) as it:
             for entry in it:
@@ -116,6 +120,9 @@ def hash_dirs(dirs: Sequence[Tuple[str, str]]) -> bytes:
     paths: List[str] = []
     for dirname, ext in dirs:
         hash_dir(dirname, ext, paths)
+
+    if extra_files:
+        paths.extend(extra_files)
 
     h = hashlib.sha1()  # sha1 is the fastest one.
     for path in sorted(paths):

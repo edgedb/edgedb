@@ -202,8 +202,6 @@ cdef class EdgeConnection:
         self._transport = None
         self.buffer = ReadBuffer()
 
-        self._parsing = True
-        self._reading_messages = False
 
         self._main_task = None
         self._msg_take_waiter = None
@@ -217,27 +215,49 @@ cdef class EdgeConnection:
         self.query_cache_enabled = not (debug.flags.disable_qcache or
                                         debug.flags.edgeql_compile)
 
-        self.server = server
         self.authed = False
 
         self.protocol_version = max_protocol
         self.max_protocol = max_protocol
         self.timer = Timer()
 
-    def on_remote_ddl(self, dbver):
-        if not self.dbview:
-            return
-        self.dbview.on_remote_ddl(dbver)
+        self._pinned_pgcon = None
+        self._intx_pgcon = False
+        self._get_pgcon_cc = 0
 
-    def on_remote_config_change(self):
-        if not self.dbview:
-            return
-        self.write_log(
-            EdgeSeverity.EDGE_SEVERITY_DEBUG,
-            errors.LogMessage.get_code(),
-            'received configuration reload request',
-        )
-        self.dbview.on_remote_config_change()
+    async def get_pgcon(self) -> pgcon.PGConnection:
+        self._get_pgcon_cc += 1
+        if self._get_pgcon_cc > 1:
+            raise RuntimeError('nested get_pgcon() calls are prohibited')
+        if self.dbview.in_tx():
+            if not self._intx_pgcon or self._pinned_pgcon is None:
+                raise RuntimeError(
+                    'get_pgcon(): in dbview transaction, but self._intx_pgcon '
+                    'is None')
+            return self._pinned_pgcon
+        if self._pinned_pgcon is not None:
+            raise RuntimeError('there is already a pinned pgcon')
+        conn = await self.port.get_server().acquire_pgcon(
+            self.dbview.dbname)
+        self._pinned_pgcon = conn
+        return conn
+
+    def maybe_release_pgcon(self, pgcon.PGConnection conn):
+        self._get_pgcon_cc -= 1
+        if self._get_pgcon_cc < 0:
+            raise RuntimeError(
+                'maybe_release_pgcon() called more times than get_pgcon()')
+
+        if self._pinned_pgcon is not conn:
+            raise RuntimeError('mismatched released connection')
+
+        if self.dbview.in_tx():
+            self._intx_pgcon = True
+        else:
+            self._intx_pgcon = False
+            self._pinned_pgcon = None
+            self.port.get_server().release_pgcon(
+                self.dbview.dbname, conn)
 
     cdef get_backend(self):
         if self._con_status is EDGECON_BAD:
@@ -345,12 +365,12 @@ cdef class EdgeConnection:
         logger.debug('received connection request by %s to database %s',
                      user, database)
 
-        if database == edbdef.EDGEDB_TEMPLATE_DB:
+        if database in edbdef.EDGEDB_SPECIAL_DBS:
             # Prevent connections to the system template database,
             # which only purpose is to serve as a template for new
             # databases.
             raise errors.AccessError(
-                f'database {edbdef.EDGEDB_TEMPLATE_DB!r} does not '
+                f'database {database!r} does not '
                 f'accept connections'
             )
 
@@ -361,17 +381,20 @@ cdef class EdgeConnection:
         if self._external_auth:
             authmethod_name = 'Trust'
         else:
-            authmethod = await self.port.get_server().get_auth_method(
-                user, self._transport)
+            authmethod = await self.port.get_server().get_auth_method(user)
             authmethod_name = type(authmethod).__name__
 
-        if authmethod_name == 'SCRAM':
-            await self._auth_scram(user)
-        elif authmethod_name == 'Trust':
-            await self._auth_trust(user)
-        else:
-            raise errors.InternalServerError(
-                f'unimplemented auth method: {authmethod_name}')
+        conn = await self.get_pgcon()
+        try:
+            if authmethod_name == 'SCRAM':
+                await self._auth_scram(user, conn)
+            elif authmethod_name == 'Trust':
+                await self._auth_trust(user, conn)
+            else:
+                raise errors.InternalServerError(
+                    f'unimplemented auth method: {authmethod_name}')
+        finally:
+            self.maybe_release_pgcon(conn)
 
         logger.debug('successfully authenticated %s in database %s',
                      user, database)
@@ -390,9 +413,10 @@ cdef class EdgeConnection:
         buf.write_buffer(msg_buf)
 
         if self.port.in_dev_mode():
-            pgaddr = dict(self.get_backend().pgcon.get_pgaddr())
+            pgaddr = dict(self.port.get_server()._get_pgaddr())
             if pgaddr.get('password'):
                 pgaddr['password'] = '********'
+            pgaddr['database'] = self.dbview.dbname
             msg_buf = WriteBuffer.new_message(b'S')
             msg_buf.write_len_prefixed_bytes(b'pgaddr')
             msg_buf.write_len_prefixed_utf8(json.dumps(pgaddr))
@@ -496,11 +520,9 @@ cdef class EdgeConnection:
 
         self._backend = await self.port.new_backend(
             dbname=database, dbver=self.dbview.dbver)
-        self._backend.pgcon.set_edgecon(self)
         self._con_status = EDGECON_STARTED
 
-    async def _get_role_record(self, user):
-        conn = self.get_backend().pgcon
+    async def _get_role_record(self, user, conn):
         server = self.port.get_server()
         role_query = await server.get_sys_query(conn, 'role')
         json_data = await conn.parse_execute_json(
@@ -513,12 +535,12 @@ cdef class EdgeConnection:
         else:
             return None
 
-    async def _auth_trust(self, user):
-        rolerec = await self._get_role_record(user)
+    async def _auth_trust(self, user, conn):
+        rolerec = await self._get_role_record(user, conn)
         if rolerec is None:
             raise errors.AuthenticationError('authentication failed')
 
-    async def _auth_scram(self, user):
+    async def _auth_scram(self, user, conn):
         # Tell the client that we require SASL SCRAM auth.
         msg_buf = WriteBuffer.new_message(b'R')
         msg_buf.write_int32(10)
@@ -554,7 +576,8 @@ cdef class EdgeConnection:
                         f'client selected an invalid SASL authentication '
                         f'mechanism')
 
-                verifier, mock_auth = await self._get_scram_verifier(user)
+                verifier, mock_auth = await self._get_scram_verifier(
+                    user, conn)
                 client_first = self.buffer.read_len_prefixed_bytes()
                 self.buffer.finish_message()
 
@@ -654,8 +677,8 @@ cdef class EdgeConnection:
 
                 done = True
 
-    async def _get_scram_verifier(self, user):
-        rolerec = await self._get_role_record(user)
+    async def _get_scram_verifier(self, user, conn):
+        rolerec = await self._get_role_record(user, conn)
         if rolerec is not None:
             verifier_string = rolerec['password']
             if verifier_string is None:
@@ -675,8 +698,7 @@ cdef class EdgeConnection:
             # received user name and the cluster mock auth nonce.
             # The same approach is taken by Postgres.
             server = self.port.get_server()
-            nonce = await server.get_instance_data(
-                self.get_backend().pgcon, 'mock_auth_nonce')
+            nonce = await server.get_instance_data(conn, 'mock_auth_nonce')
             salt = hashlib.sha256(nonce.encode() + user.encode()).digest()
 
             verifier = scram.SCRAMVerifier(
@@ -691,8 +713,8 @@ cdef class EdgeConnection:
 
         return verifier, is_mock
 
-    async def recover_current_tx_info(self):
-        ret = await self.get_backend().pgcon.simple_query(b'''
+    async def recover_current_tx_info(self, pgcon.PGConnection conn):
+        ret = await conn.simple_query(b'''
             SELECT s1.name AS n, s1.value AS v, s1.type AS t
                 FROM _edgecon_state s1
             UNION ALL
@@ -757,7 +779,7 @@ cdef class EdgeConnection:
                 'compile',
                 self.dbview.dbver,
                 query_req.source,
-                self.dbview.modaliases,
+                self.dbview.get_modaliases(),
                 self.dbview.get_session_config(),
                 query_req.io_format,
                 query_req.expect_one,
@@ -796,7 +818,7 @@ cdef class EdgeConnection:
                 'compile',
                 self.dbview.dbver,
                 source,
-                self.dbview.modaliases,
+                self.dbview.get_modaliases(),
                 self.dbview.get_session_config(),
                 FMT_SCRIPT,
                 False,
@@ -814,7 +836,7 @@ cdef class EdgeConnection:
         except Exception:
             self.dbview.raise_in_tx_error()
 
-    async def _recover_script_error(self, eql, allow_capabilities):
+    async def _recover_script_error(self, eql: bytes, allow_capabilities):
         assert self.dbview.in_tx_error()
 
         query_unit, num_remain = await self._compile_rollback(eql)
@@ -825,18 +847,22 @@ cdef class EdgeConnection:
                 f" the TRANSACTION capability is disabled"
             )
 
-        await self.get_backend().pgcon.simple_query(
-            b';'.join(query_unit.sql), ignore_data=True)
+        conn = await self.get_pgcon()
+        try:
+            await conn.simple_query(
+                b';'.join(query_unit.sql), ignore_data=True)
 
-        if query_unit.tx_savepoint_rollback:
-            if self.debug:
-                self.debug_print(f'== RECOVERY: ROLLBACK TO SP')
-            await self.recover_current_tx_info()
-        else:
-            if self.debug:
-                self.debug_print('== RECOVERY: ROLLBACK')
-            assert query_unit.tx_rollback
-            self.dbview.abort_tx()
+            if query_unit.tx_savepoint_rollback:
+                if self.debug:
+                    self.debug_print(f'== RECOVERY: ROLLBACK TO SP')
+                await self.recover_current_tx_info(conn)
+            else:
+                if self.debug:
+                    self.debug_print('== RECOVERY: ROLLBACK')
+                assert query_unit.tx_rollback
+                self.dbview.abort_tx()
+        finally:
+            self.maybe_release_pgcon(conn)
 
         if num_remain:
             return 'skip_first', query_unit
@@ -885,7 +911,7 @@ cdef class EdgeConnection:
                 packet = WriteBuffer.new()
                 packet.write_buffer(
                     self.make_command_complete_msg(query_unit))
-                packet.write_buffer(self.pgcon_last_sync_status())
+                packet.write_buffer(self.sync_status())
                 self.write(packet)
                 self.flush()
                 return
@@ -894,11 +920,15 @@ cdef class EdgeConnection:
 
         packet = WriteBuffer.new()
         packet.write_buffer(self.make_command_complete_msg(query_unit))
-        packet.write_buffer(self.pgcon_last_sync_status())
+        packet.write_buffer(self.sync_status())
         self.write(packet)
         self.flush()
 
     async def _simple_query(self, eql: bytes, allow_capabilities: uint64_t):
+        cdef:
+            bytes state = None
+            int i
+
         stmt_mode = 'all'
         with self.timer.timed("Query compilation"):
             units = await self._compile_script(eql, stmt_mode=stmt_mode)
@@ -910,58 +940,80 @@ cdef class EdgeConnection:
                     errors.DisabledCapabilityError,
                 )
 
-        new_type_ids = frozenset()
-        for query_unit in units:
-            self.dbview.start(query_unit)
-            try:
-                if query_unit.system_config:
-                    await self._execute_system_config(query_unit)
-                else:
-                    if query_unit.is_transactional:
-                        await self.get_backend().pgcon.simple_query(
-                            b';'.join(query_unit.sql), ignore_data=True)
+        conn = await self.get_pgcon()
+        if not self.dbview.in_tx():
+            state = self.dbview.serialize_state()
+        try:
+            new_type_ids = frozenset()
+            for query_unit in units:
+                self.dbview.start(query_unit)
+                try:
+                    if query_unit.drop_db:
+                        await self.port.get_server()._on_drop_db(
+                            query_unit.drop_db, self.dbview.dbname)
+
+                    if query_unit.system_config:
+                        await self._execute_system_config(query_unit, conn)
                     else:
-                        for sql in query_unit.sql:
-                            await self.get_backend().pgcon.simple_query(
-                                sql, ignore_data=True)
+                        if query_unit.is_transactional:
+                            await conn.simple_query(
+                                b';'.join(query_unit.sql),
+                                ignore_data=True,
+                                state=state)
+                        else:
+                            i = 0
+                            for sql in query_unit.sql:
+                                await conn.simple_query(
+                                    sql,
+                                    ignore_data=True,
+                                    state=state if i == 0 else None)
+                                # only apply state to the first query.
+                                i += 1
 
-                    if query_unit.config_ops:
-                        await self.dbview.apply_config_ops(
-                            self.get_backend().pgcon,
-                            query_unit.config_ops)
-            except ConnectionAbortedError:
-                raise
-            except Exception:
-                self.dbview.on_error(query_unit)
-                if (not self.get_backend().pgcon.in_tx() and
-                        self.dbview.in_tx()):
-                    # COMMIT command can fail, in which case the
-                    # transaction is aborted.  This check workarounds
-                    # that (until a better solution is found.)
-                    self.dbview.abort_tx()
-                    await self.recover_current_tx_info()
-                raise
-            else:
-                side_effects = self.dbview.on_success(query_unit)
-                if side_effects & dbview.SideEffects.SchemaChanges:
-                    await self.get_backend().pgcon.signal_sysevent(
-                        'schema-changes', dbver=self.dbview.dbver.hex())
-                if side_effects & dbview.SideEffects.DatabaseConfigChanges:
-                    await self.get_backend().pgcon.signal_sysevent(
-                        'database-config-changes', dbname=self.dbview.dbname)
-                if side_effects & dbview.SideEffects.SystemConfigChanges:
-                    await self.get_backend().pgcon.signal_sysevent(
-                        'system-config-changes')
-                if query_unit.new_types:
-                    new_type_ids |= query_unit.new_types
+                        if query_unit.config_ops:
+                            await self.dbview.apply_config_ops(
+                                conn,
+                                query_unit.config_ops)
+                except ConnectionAbortedError:
+                    raise
+                except Exception:
+                    self.dbview.on_error(query_unit)
+                    if not conn.in_tx() and self.dbview.in_tx():
+                        # COMMIT command can fail, in which case the
+                        # transaction is aborted.  This check workarounds
+                        # that (until a better solution is found.)
+                        self.dbview.abort_tx()
+                        await self.recover_current_tx_info(conn)
+                    raise
+                else:
+                    side_effects = self.dbview.on_success(query_unit)
+                    if side_effects & dbview.SideEffects.SchemaChanges:
+                        await self.port.get_server()._signal_sysevent(
+                            'schema-changes',
+                            dbname=self.dbview.dbname,
+                            dbver=self.dbview.dbver.hex(),
+                        )
+                    if side_effects & dbview.SideEffects.DatabaseConfigChanges:
+                        await self.port.get_server()._signal_sysevent(
+                            'database-config-changes',
+                            dbname=self.dbview.dbname,
+                        )
+                    if side_effects & dbview.SideEffects.SystemConfigChanges:
+                        await self.port.get_server()._signal_sysevent(
+                            'system-config-changes',
+                        )
+                    if query_unit.new_types:
+                        new_type_ids |= query_unit.new_types
 
-        if new_type_ids and self.dbview.in_tx():
-            # This is a single script, potentially containing multiple
-            # transactions (each of which would consist of multiple
-            # query units).  In the end, if we're still in transaction
-            # after executing the script and there were new types added
-            # we want to update type IDs in the linked compiler.
-            await self._update_type_ids(new_type_ids)
+            if new_type_ids and self.dbview.in_tx():
+                # This is a single script, potentially containing multiple
+                # transactions (each of which would consist of multiple
+                # query units).  In the end, if we're still in transaction
+                # after executing the script and there were new types added
+                # we want to update type IDs in the linked compiler.
+                await self._update_type_ids(new_type_ids, conn)
+        finally:
+            self.maybe_release_pgcon(conn)
 
         return query_unit
 
@@ -1021,16 +1073,6 @@ cdef class EdgeConnection:
             # 'ROLLBACK TO SAVEPOINT' command.
             if not (query_unit.tx_rollback or query_unit.tx_savepoint_rollback):
                 self.dbview.raise_in_tx_error()
-
-        await self.get_backend().pgcon.parse_execute(
-            1,           # =parse
-            0,           # =execute
-            query_unit,  # =query
-            self,        # =edgecon
-            None,        # =bind_data
-            0,           # =send_sync
-            0,           # =use_prep_stmt
-        )
 
         if not cached and query_unit.cacheable:
             self.dbview.cache_compiled_query(query_req, query_unit)
@@ -1281,8 +1323,8 @@ cdef class EdgeConnection:
             raise errors.BinaryProtocolError(
                 f'unsupported "describe" message mode {chr(rtype)!r}')
 
-    async def _execute_system_config(self, query_unit):
-        data = await self.get_backend().pgcon.simple_query(
+    async def _execute_system_config(self, query_unit, conn):
+        data = await conn.simple_query(
             b';'.join(query_unit.sql), ignore_data=False)
         if data:
             # Prefer encoded op produced by the SQL command.
@@ -1290,13 +1332,12 @@ cdef class EdgeConnection:
         else:
             # Otherwise, fall back to staticly evaluated op.
             config_ops = query_unit.config_ops
-        await self.dbview.apply_config_ops(
-            self.get_backend().pgcon, config_ops)
+        await self.dbview.apply_config_ops(conn, config_ops)
 
         # If this is a backend configuration setting we also
         # need to make sure it has been loaded.
         if query_unit.backend_config:
-            await self.get_backend().pgcon.simple_query(
+            await conn.simple_query(
                 b'SELECT pg_reload_conf()', ignore_data=True)
 
         if query_unit.config_requires_restart:
@@ -1308,103 +1349,93 @@ cdef class EdgeConnection:
 
     async def _execute(self, compiled: CompiledQuery, bind_args,
                        bint parse, bint use_prep_stmt):
+        cdef:
+            bytes state = None
+
         query_unit = compiled.query_unit
         if self.dbview.in_tx_error():
             if not (query_unit.tx_savepoint_rollback or query_unit.tx_rollback):
                 self.dbview.raise_in_tx_error()
 
-            await self.get_backend().pgcon.simple_query(
-                b';'.join(query_unit.sql), ignore_data=True)
+            conn = await self.get_pgcon()
+            try:
+                await conn.simple_query(
+                    b';'.join(query_unit.sql), ignore_data=True)
 
-            if query_unit.tx_savepoint_rollback:
-                await self.recover_current_tx_info()
-            else:
-                assert query_unit.tx_rollback
-                self.dbview.abort_tx()
+                if query_unit.tx_savepoint_rollback:
+                    await self.recover_current_tx_info(conn)
+                else:
+                    assert query_unit.tx_rollback
+                    self.dbview.abort_tx()
 
-            self.write(self.make_command_complete_msg(query_unit))
+                self.write(self.make_command_complete_msg(query_unit))
+            finally:
+                self.maybe_release_pgcon(conn)
             return
 
+        bound_args_buf = self.recode_bind_args(bind_args, compiled)
 
-        process_sync = False
-        if self.buffer.take_message_type(b'S'):
-            # A "Sync" message follows this "Execute" message;
-            # send it right away.
-            process_sync = True
-
+        conn = await self.get_pgcon()
+        if not self.dbview.in_tx():
+            state = self.dbview.serialize_state()
         try:
-            bound_args_buf = self.recode_bind_args(bind_args, compiled)
-
             self.dbview.start(query_unit)
-            try:
-                if query_unit.system_config:
-                    await self._execute_system_config(query_unit)
-                else:
-                    await self.get_backend().pgcon.parse_execute(
-                        parse,              # =parse
-                        1,                  # =execute
-                        query_unit,         # =query
-                        self,               # =edgecon
-                        bound_args_buf,     # =bind_data
-                        process_sync,       # =send_sync
-                        use_prep_stmt,      # =use_prep_stmt
-                    )
-                    if query_unit.config_ops:
-                        await self.dbview.apply_config_ops(
-                            self.get_backend().pgcon,
-                            query_unit.config_ops)
-            except ConnectionAbortedError:
-                raise
-            except Exception:
-                self.dbview.on_error(query_unit)
-
-                if not process_sync and self.dbview.in_tx():
-                    # An exception occurred while in transaction.
-                    # This "execute" command is not immediately followed by
-                    # a "sync" command, so we don't know the current tx
-                    # status of the Postgres connection.  Query it to
-                    # be able to figure out the tx status of this EdgeDB
-                    # connection with the next "if" block.
-                    await self.get_backend().pgcon.sync()
-
-                if (not self.get_backend().pgcon.in_tx() and
-                        self.dbview.in_tx()):
-                    # COMMIT command can fail, in which case the
-                    # transaction is finished.  This check workarounds
-                    # that (until a better solution is found.)
-                    self.dbview.abort_tx()
-                    await self.recover_current_tx_info()
-                raise
+            if query_unit.drop_db:
+                await self.port.get_server()._on_drop_db(
+                    query_unit.drop_db, self.dbview.dbname)
+            if query_unit.system_config:
+                await self._execute_system_config(query_unit, conn)
             else:
-                side_effects = self.dbview.on_success(query_unit)
-                if side_effects & dbview.SideEffects.SchemaChanges:
-                    await self.get_backend().pgcon.signal_sysevent(
-                        'schema-changes', dbver=self.dbview.dbver.hex())
-                if side_effects & dbview.SideEffects.DatabaseConfigChanges:
-                    await self.get_backend().pgcon.signal_sysevent(
-                        'database-config-changes', dbname=self.dbview.dbname)
-                if side_effects & dbview.SideEffects.SystemConfigChanges:
-                    await self.get_backend().pgcon.signal_sysevent(
-                        'system-config-changes')
+                await conn.parse_execute(
+                    parse,              # =parse
+                    1,                  # =execute
+                    query_unit,         # =query
+                    self,               # =edgecon
+                    bound_args_buf,     # =bind_data
+                    use_prep_stmt,      # =use_prep_stmt
+                    state,              # =state
+                )
+                if query_unit.config_ops:
+                    await self.dbview.apply_config_ops(
+                        conn,
+                        query_unit.config_ops)
+        except ConnectionAbortedError:
+            raise
+        except Exception:
+            self.dbview.on_error(query_unit)
+
+            if not conn.in_tx() and self.dbview.in_tx():
+                # COMMIT command can fail, in which case the
+                # transaction is finished.  This check workarounds
+                # that (until a better solution is found.)
+                self.dbview.abort_tx()
+                await self.recover_current_tx_info(conn)
+            raise
+        else:
+            side_effects = self.dbview.on_success(query_unit)
+            if side_effects & dbview.SideEffects.SchemaChanges:
+                await self.port.get_server()._signal_sysevent(
+                    'schema-changes',
+                    dbname=self.dbview.dbname,
+                    dbver=self.dbview.dbver.hex()
+                )
+            if side_effects & dbview.SideEffects.DatabaseConfigChanges:
+                await self.port.get_server()._signal_sysevent(
+                    'database-config-changes',
+                    dbname=self.dbview.dbname
+                )
+            if side_effects & dbview.SideEffects.SystemConfigChanges:
+                await self.port.get_server()._signal_sysevent(
+                    'system-config-changes')
 
             self.write(self.make_command_complete_msg(query_unit))
 
-            if process_sync:
-                self.write(self.pgcon_last_sync_status())
-                self.flush()
-        except Exception:
-            if process_sync:
-                self.buffer.put_message()
-            raise
-        else:
-            if process_sync:
-                self.buffer.finish_message()
-
             if query_unit.new_types and self.dbview.in_tx():
-                await self._update_type_ids(query_unit.new_types)
+                await self._update_type_ids(query_unit.new_types, conn)
+        finally:
+            self.maybe_release_pgcon(conn)
 
-    async def _get_backend_tids(self, tids):
-        conn = self.get_backend().pgcon
+    async def _get_backend_tids(self, tids, conn):
         server = self.port.get_server()
         query = await server.get_sys_query(conn, 'backend_tids')
         json_data = await conn.parse_execute_json(
@@ -1417,14 +1448,14 @@ cdef class EdgeConnection:
         else:
             return None
 
-    async def _update_type_ids(self, new_types):
+    async def _update_type_ids(self, new_types, conn):
         # Inform the compiler process about the newly
         # appearing types, so type descriptors contain
         # the necessary backend data.  We only do this
         # when in a transaction, since otherwise the entire
         # schema will reload anyway due to a bumped dbver.
         try:
-            ret = await self._get_backend_tids(new_types)
+            ret = await self._get_backend_tids(new_types, conn)
         except Exception:
             if self.dbview.in_tx():
                 self.dbview.abort_tx()
@@ -1444,7 +1475,6 @@ cdef class EdgeConnection:
     async def execute(self):
         cdef:
             WriteBuffer bound_args_buf
-            bint process_sync
             uint64_t allow_capabilities = ALL_CAPABILITIES
 
         headers = self.parse_headers()
@@ -1482,7 +1512,7 @@ cdef class EdgeConnection:
                 errors.DisabledCapabilityError,
             )
 
-        await self._execute(compiled, bind_args, False, False)
+        await self._execute(compiled, bind_args, True, False)
 
     async def optimistic_execute(self):
         cdef:
@@ -1491,7 +1521,6 @@ cdef class EdgeConnection:
             bytes query
             QueryRequestInfo query_req
 
-            bint process_sync
             bytes in_tid
             bytes out_tid
             bytes bound_args
@@ -1553,15 +1582,10 @@ cdef class EdgeConnection:
 
     async def sync(self):
         self.buffer.consume_message()
-
-        await self.get_backend().pgcon.sync()
-        self.write(self.pgcon_last_sync_status())
+        self.write(self.sync_status())
 
         if self.debug:
-            self.debug_print(
-                'SYNC',
-                (<pgcon.PGProto>(self.get_backend().pgcon)).xact_status,
-            )
+            self.debug_print('SYNC')
 
         self.flush()
 
@@ -1597,7 +1621,7 @@ cdef class EdgeConnection:
             return
 
         self.authed = True
-        self.server.on_client_authed()
+        self.port.on_client_authed()
 
         try:
             while True:
@@ -1673,7 +1697,7 @@ cdef class EdgeConnection:
                             raise
 
                     if flush_sync_on_error:
-                        self.write(self.pgcon_last_sync_status())
+                        self.write(self.sync_status())
                         self.flush()
                     else:
                         await self.recover_from_error()
@@ -1730,6 +1754,9 @@ cdef class EdgeConnection:
             WriteBuffer buf
             int16_t fields_len
 
+        if self.debug:
+            self.debug_print('EXCEPTION', type(exc).__name__, exc)
+
         if debug.flags.server:
             self.loop.call_exception_handler({
                 'message': (
@@ -1738,7 +1765,7 @@ cdef class EdgeConnection:
                 'exception': exc,
                 'protocol': self,
                 'transport': self._transport,
-            })
+        })
 
         exc_code = None
 
@@ -1808,9 +1835,10 @@ cdef class EdgeConnection:
             else:
                 exc = static_exc
 
-        except Exception as ex:
+        except Exception:
             exc = RuntimeError(
-                'unhandled error while calling interpret_backend_error()')
+                'unhandled error while calling interpret_backend_error(); '
+                'run with EDGEDB_DEBUG_SERVER to debug.')
 
         return exc
 
@@ -1832,25 +1860,25 @@ cdef class EdgeConnection:
 
         self.write(buf)
 
-    cdef pgcon_last_sync_status(self):
-        cdef:
-            pgcon.PGTransactionStatus xact_status
-            WriteBuffer buf
-
-        xact_status = <pgcon.PGTransactionStatus>(
-            (<pgcon.PGProto>self.get_backend().pgcon).xact_status)
+    cdef sync_status(self):
+        cdef WriteBuffer buf
 
         buf = WriteBuffer.new_message(b'Z')
         buf.write_int16(0)  # no headers
-        if xact_status == pgcon.PQTRANS_IDLE:
-            buf.write_byte(b'I')
-        elif xact_status == pgcon.PQTRANS_INTRANS:
-            buf.write_byte(b'T')
-        elif xact_status == pgcon.PQTRANS_INERROR:
+
+        # NOTE: EdgeDB and PostgreSQL current statuses can disagree.
+        # For example, Postres can be "PQTRANS_INTRANS" whereas EdgeDB
+        # would be "PQTRANS_INERROR". This can happen becuase some of
+        # EdgeDB errors can happen at the compile stage, not even
+        # reaching Postgres.
+
+        if self.dbview.in_tx_error():
             buf.write_byte(b'E')
+        elif self.dbview.in_tx():
+            buf.write_byte(b'T')
         else:
-            raise errors.InternalServerError(
-                'unknown postgres connection status')
+            buf.write_byte(b'I')
+
         return buf.end_message()
 
     cdef fallthrough(self):
@@ -1944,7 +1972,7 @@ cdef class EdgeConnection:
         return out_buf
 
     def connection_made(self, transport):
-        if not self.server._accepting:
+        if not self.port._accepting:
             transport.abort()
             return
 
@@ -1955,8 +1983,13 @@ cdef class EdgeConnection:
         self._main_task = self.loop.create_task(self.main())
 
     def connection_lost(self, exc):
+        if self._pinned_pgcon is not None:
+            self.port.get_server().release_pgcon(
+                self.dbview.dbname, self._pinned_pgcon, discard=True)
+            self._pinned_pgcon = None
+
         if self.authed:
-            self.server.on_client_disconnected()
+            self.port.on_client_disconnected()
 
         if (self._msg_take_waiter is not None and
                 not self._msg_take_waiter.done()):
@@ -1965,6 +1998,9 @@ cdef class EdgeConnection:
 
         if self._write_waiter and not self._write_waiter.done():
             self._write_waiter.set_exception(ConnectionAbortedError())
+
+        if self._main_task is not None and not self._main_task.done():
+            self._main_task.cancel()
 
         self.abort()
 
@@ -1987,21 +2023,6 @@ cdef class EdgeConnection:
             return
         self._write_waiter.set_result(True)
 
-    async def _init_dump_pgcon(self, pgcon, tx_snapshot_id, bint ro):
-        query = b'START TRANSACTION ISOLATION LEVEL SERIALIZABLE'
-        if ro:
-            query += b' READ ONLY'
-
-        await pgcon.simple_query(
-            query,
-            True
-        )
-
-        await pgcon.simple_query(
-            f"SET TRANSACTION SNAPSHOT '{tx_snapshot_id}';".encode(),
-            True
-        )
-
     async def dump(self):
         cdef:
             WriteBuffer msg_buf
@@ -2015,30 +2036,31 @@ cdef class EdgeConnection:
             )
 
         dbname = self.dbview.dbname
-        pgcon = await self.port.new_pgcon(dbname)
+        pgcon = await self.port.get_server().acquire_pgcon(dbname)
 
-        # To avoid having races, we want to:
-        #
-        #   1. start a transaction;
-        #
-        #   2. in the compiler process we connect to that transaction
-        #      and re-introspect the schema in it.
-        #
-        #   3. all dump worker pg connection would work on the same
-        #      connection.
-        #
-        # This guarantees that every pg connection and the compiler work
-        # with the same DB state.
-
-        await pgcon.simple_query(
-            b'''START TRANSACTION
-                    ISOLATION LEVEL SERIALIZABLE
-                    READ ONLY
-                    DEFERRABLE;
-            ''',
-            True
-        )
         try:
+            # To avoid having races, we want to:
+            #
+            #   1. start a transaction;
+            #
+            #   2. in the compiler process we connect to that transaction
+            #      and re-introspect the schema in it.
+            #
+            #   3. all dump worker pg connection would work on the same
+            #      connection.
+            #
+            # This guarantees that every pg connection and the compiler work
+            # with the same DB state.
+
+            await pgcon.simple_query(
+                b'''START TRANSACTION
+                        ISOLATION LEVEL SERIALIZABLE
+                        READ ONLY
+                        DEFERRABLE;
+                ''',
+                True
+            )
+
             tx_snapshot_id = await pgcon.simple_query(
                 b'SELECT pg_export_snapshot();', False)
             tx_snapshot_id = tx_snapshot_id[0][0].decode()
@@ -2125,7 +2147,7 @@ cdef class EdgeConnection:
                             await self._write_waiter
 
         finally:
-            pgcon.terminate()
+            self.port.get_server().release_pgcon(dbname, pgcon)
 
         msg_buf = WriteBuffer.new_message(b'C')
         msg_buf.write_int16(0)  # no headers
@@ -2188,7 +2210,7 @@ cdef class EdgeConnection:
 
         self.buffer.finish_message()
         dbname = self.dbview.dbname
-        pgcon = await self.port.new_pgcon(dbname)
+        pgcon = await self.port.get_server().acquire_pgcon(dbname)
 
         try:
             await pgcon.simple_query(
@@ -2302,7 +2324,7 @@ cdef class EdgeConnection:
             )
 
         finally:
-            pgcon.terminate()
+            self.port.get_server().release_pgcon(dbname, pgcon)
 
         msg = WriteBuffer.new_message(b'C')
         msg.write_int16(0)  # no headers
@@ -2333,7 +2355,9 @@ cdef class Timer:
     def maybe_log_stats(
         self, operation: str, *, series: Sequence[float] = ()
     ) -> None:
-        since_last_report = time.monotonic() - self._last_report_timestamp.get(operation, 0)
+        since_last_report = (
+            time.monotonic() - self._last_report_timestamp.get(operation, 0)
+        )
         if since_last_report < self._threshold_seconds:
             return
 

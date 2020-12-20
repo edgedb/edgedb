@@ -113,6 +113,7 @@ class DDLQuery(BaseQuery):
     new_types: FrozenSet[str] = frozenset()
     is_transactional: bool = True
     single_unit: bool = False
+    drop_db: Optional[str] = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -197,6 +198,11 @@ class QueryUnit:
 
     # True if it is safe to cache this unit.
     cacheable: bool = False
+
+    # If non-None, contains a name of the DB that is about to be
+    # deleted. The server should close all inactive unused pooled
+    # connections to it.
+    drop_db: Optional[str] = None
 
     # Cardinality of the result set.  Set to NO_RESULT if the
     # unit represents multiple queries compiled as one script.

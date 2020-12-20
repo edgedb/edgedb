@@ -40,20 +40,14 @@ log_metrics = logging.getLogger('edb.server.metrics')
 
 class Backend:
 
-    def __init__(self, pgcon, compiler):
-        self._pgcon = pgcon
+    def __init__(self, compiler):
         self._compiler = compiler
-
-    @property
-    def pgcon(self):
-        return self._pgcon
 
     @property
     def compiler(self):
         return self._compiler
 
     async def close(self):
-        self._pgcon.terminate()
         await self._compiler.close()
 
 
@@ -98,29 +92,13 @@ class ManagementPort(baseport.Port):
         return 'compiler-mng'
 
     async def new_backend(self, *, dbname: str, dbver: int):
-        try:
-            async with taskgroup.TaskGroup() as g:
-                new_pgcon_task = g.create_task(self.new_pgcon(dbname))
-                compiler_task = g.create_task(self.new_compiler(dbname, dbver))
-        except taskgroup.MultiError as ex:
-            # Errors like "database ??? does not exist" should
-            # not be obfuscated by a MultiError.
-            raise ex.__errors__[0]
-
-        backend = Backend(
-            new_pgcon_task.result(),
-            compiler_task.result())
-
+        backend = Backend(await self.new_compiler(dbname, dbver))
         self._backends.add(backend)
         return backend
 
     def on_client_connected(self) -> str:
         self._edgecon_id += 1
         return str(self._edgecon_id)
-
-    async def new_pgcon(self, dbname):
-        server = self.get_server()
-        return await server.new_pgcon(dbname)
 
     def on_client_authed(self):
         self._num_connections += 1

@@ -111,21 +111,25 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
     };
 
     CREATE PROPERTY query_work_mem -> std::str {
+        CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"work_mem"';
         SET default := '-1';
     };
 
     CREATE PROPERTY effective_cache_size -> std::str {
+        CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"effective_cache_size"';
         SET default := '-1';
     };
 
     CREATE PROPERTY effective_io_concurrency -> std::str {
+        CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"effective_io_concurrency"';
         SET default := '50';
     };
 
     CREATE PROPERTY default_statistics_target -> std::str {
+        CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"default_statistics_target"';
         SET default := '100';
     };

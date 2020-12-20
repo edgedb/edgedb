@@ -432,6 +432,36 @@ class TestServerProto(tb.QueryTestCase):
                 "function 'foo::min' does not exist"):
             await self.con.query('SELECT foo::min({3})')
 
+    async def test_server_proto_set_reset_alias_05(self):
+        # A regression test.
+        # The "DECLARE SAVEPOINT a1; ROLLBACK TO SAVEPOINT a1;" commands
+        # used to propagate the 'foo -> std' alias to the connection state
+        # which the failed to correctly revert it back on ROLLBACK.
+
+        await self.con.execute('''
+            START TRANSACTION;
+        ''')
+
+        await self.con.execute('''
+            SET ALIAS foo AS MODULE std;
+            DECLARE SAVEPOINT a1;
+            ROLLBACK TO SAVEPOINT a1;
+        ''')
+
+        with self.assertRaises(edgedb.DivisionByZeroError):
+            await self.con.execute('''
+                SELECT 1/0;
+            ''')
+
+        await self.con.execute('''
+            ROLLBACK;
+        ''')
+
+        with self.assertRaises(edgedb.InvalidReferenceError):
+            await self.con.execute('''
+                SELECT foo::len('aaa')
+            ''')
+
     async def test_server_proto_basic_datatypes_01(self):
         for _ in range(10):
             self.assertEqual(
@@ -730,6 +760,7 @@ class TestServerProto(tb.QueryTestCase):
 
         con2 = await self.connect(database=self.con.dbname)
 
+        await self.con.query('START TRANSACTION')
         await self.con.query(
             'select sys::_advisory_lock(<int64>$0)', lock_key)
 
@@ -747,10 +778,10 @@ class TestServerProto(tb.QueryTestCase):
                 await con2.aclose()
 
         finally:
-            self.assertEqual(
-                await self.con.query(
-                    'select sys::_advisory_unlock(<int64>$0)', lock_key),
-                [True])
+            k = await self.con.query(
+                'select sys::_advisory_unlock(<int64>$0)', lock_key)
+            await self.con.query('ROLLBACK')
+            self.assertEqual(k, [True])
 
     async def test_server_proto_log_message_01(self):
         msgs = []
