@@ -88,7 +88,7 @@ class Spec(collections.abc.Mapping):
             if issubclass(s.type, types.CompositeConfigType):
                 self._register_type(s.type)
 
-    def _register_type(self, t: type):
+    def _register_type(self, t: type) -> None:
         self._types_by_name[t.__name__] = t
         for subclass in t.__subclasses__():
             self._types_by_name[subclass.__name__] = subclass
@@ -111,7 +111,7 @@ class Spec(collections.abc.Mapping):
     def __contains__(self, name: object) -> bool:
         return name in self._by_name
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._settings)
 
 

@@ -25,6 +25,8 @@ import textwrap
 from ..common import quote_ident as qi
 from ..common import quote_literal as ql
 
+from edb.server import defines
+
 from . import base
 from . import ddl
 
@@ -49,7 +51,7 @@ class Database(base.DBObject):
         self.encoding = encoding
         self.lc_collate = lc_collate
         self.lc_ctype = lc_ctype
-        self.template = template or 'edgedb0'
+        self.template = template or defines.EDGEDB_TEMPLATE_DB
 
     def get_type(self):
         return 'DATABASE'

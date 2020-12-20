@@ -2167,13 +2167,13 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidValueError,
-                r'expected json number, null; got json string'):
+                r'expected json number or null; got json string'):
             await self.con.query_one(
                 r"SELECT <array<int64>><json>['asdf']")
 
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidValueError,
-                r'expected json number, null; got json string'):
+                r'expected json number or null; got json string'):
             await self.con.query_one(
                 r"SELECT <array<int64>>to_json('[1, 2, \"asdf\"]')")
 
@@ -2283,7 +2283,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidValueError,
-                r'expected json number, null; got json string'):
+                r'expected json number or null; got json string'):
             await self.con.query(
                 r"""
                     SELECT <tuple<a: int64, b: int64>>

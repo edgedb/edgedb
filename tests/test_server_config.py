@@ -707,92 +707,79 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
             ''')
 
     async def test_server_proto_configure_05(self):
-        try:
-            await self.con.execute('''
-                CONFIGURE SESSION SET effective_cache_size := '1GB';
-            ''')
+        await self.con.execute('''
+            CONFIGURE SESSION SET __internal_sess_testvalue := 1;
+        ''')
 
-            await self.assert_query_result(
-                '''
-                SELECT cfg::Config.effective_cache_size
-                ''',
-                [
-                    '1048576kB'
-                ],
-            )
+        await self.assert_query_result(
+            '''
+            SELECT cfg::Config.__internal_sess_testvalue
+            ''',
+            [
+                1
+            ],
+        )
 
-            await self.con.execute('''
-                CONFIGURE CURRENT DATABASE SET effective_cache_size := '3GB';
-            ''')
+        await self.con.execute('''
+            CONFIGURE CURRENT DATABASE SET __internal_sess_testvalue := 3;
+        ''')
 
-            await self.con.execute('''
-                CONFIGURE SYSTEM SET effective_cache_size := '2GB';
-            ''')
+        await self.con.execute('''
+            CONFIGURE SYSTEM SET __internal_sess_testvalue := 2;
+        ''')
 
-            await self.assert_query_result(
-                '''
-                SELECT cfg::Config.effective_cache_size
-                ''',
-                [
-                    '1048576kB'
-                ],
-            )
+        await self.assert_query_result(
+            '''
+            SELECT cfg::Config.__internal_sess_testvalue
+            ''',
+            [
+                1  # fail
+            ],
+        )
 
-            await self.assert_query_result(
-                '''
-                SELECT cfg::SystemConfig.effective_cache_size
-                ''',
-                [
-                    '2GB'
-                ],
-            )
+        await self.assert_query_result(
+            '''
+            SELECT cfg::SystemConfig.__internal_sess_testvalue
+            ''',
+            [
+                2
+            ],
+        )
 
-            await self.assert_query_result(
-                '''
-                SELECT cfg::DatabaseConfig.effective_cache_size
-                ''',
-                [
-                    '3GB'
-                ],
-            )
+        await self.assert_query_result(
+            '''
+            SELECT cfg::DatabaseConfig.__internal_sess_testvalue
+            ''',
+            [
+                3
+            ],
+        )
 
-            await self.con.execute('''
-                CONFIGURE SESSION RESET effective_cache_size;
-            ''')
+        await self.con.execute('''
+            CONFIGURE SESSION RESET __internal_sess_testvalue;
+        ''')
 
-            await self.assert_query_result(
-                '''
-                SELECT cfg::Config.effective_cache_size
-                ''',
-                [
-                    '3GB'
-                ],
-            )
+        await self.assert_query_result(
+            '''
+            SELECT cfg::Config.__internal_sess_testvalue
+            ''',
+            [
+                3
+            ],
+        )
 
-            await self.con.execute('''
-                CONFIGURE CURRENT DATABASE RESET effective_cache_size;
-            ''')
+        await self.con.execute('''
+            CONFIGURE CURRENT DATABASE RESET __internal_sess_testvalue;
+        ''')
 
-            await self.assert_query_result(
-                '''
-                SELECT cfg::Config.effective_cache_size
-                ''',
-                [
-                    '2GB'
-                ],
-            )
-        finally:
-            await self.con.execute('''
-                CONFIGURE SESSION RESET effective_cache_size;
-            ''')
-
-            await self.con.execute('''
-                CONFIGURE CURRENT DATABASE RESET effective_cache_size;
-            ''')
-
-            await self.con.execute('''
-                CONFIGURE SYSTEM RESET effective_cache_size;
-            ''')
+        await self.assert_query_result(
+            '''
+            SELECT cfg::Config.__internal_sess_testvalue
+            ''',
+            [
+                2
+            ],
+        )
 
     async def test_server_proto_configure_06(self):
         try:
@@ -956,35 +943,6 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
             await self.con.execute('''
                 CONFIGURE CURRENT DATABASE RESET singleprop;
             ''')
-
-    async def test_server_proto_configure_msg(self):
-        msgs = []
-
-        def on_log(con, msg):
-            msgs.append(msg)
-
-        conn2 = await self.connect(database=self.get_database_name())
-
-        try:
-            conn2.add_log_listener(on_log)
-
-            await self.con.execute('''
-                CONFIGURE SYSTEM SET __internal_testvalue := 1;
-            ''')
-
-            await conn2.execute('SELECT 1')
-        finally:
-            await conn2.aclose()
-            await self.con.execute('''
-                CONFIGURE SYSTEM RESET __internal_testvalue;
-            ''')
-
-        for msg in msgs:
-            if (msg.get_severity_name() == 'DEBUG' and
-                    'received configuration reload request' in str(msg)):
-                break
-        else:
-            self.fail('a notice message was not delivered')
 
     async def test_server_version(self):
         srv_ver = await self.con.query_one(r"""

@@ -29,7 +29,7 @@ from edb.server.pgproto.pgproto cimport (
 )
 
 from edb.server.dbview cimport dbview
-
+from edb.server.pgcon cimport pgcon
 from edb.server.pgproto.debug cimport PG_DEBUG
 
 
@@ -76,9 +76,6 @@ cdef class EdgeConnection:
 
     cdef:
         EdgeConnectionStatus _con_status
-        bint _awaiting
-        bint _parsing
-        bint _reading_messages
         bint _external_auth
         str _id
         object _transport
@@ -103,14 +100,16 @@ cdef class EdgeConnection:
         bint debug
         bint query_cache_enabled
 
-        object server
         bint authed
 
         tuple protocol_version
         tuple max_protocol
         object timer
 
-        object __weakref__
+        pgcon.PGConnection _pinned_pgcon
+        bint _pinned_pgcon_in_tx
+
+        int _get_pgcon_cc
 
     cdef parse_io_format(self, bytes mode)
     cdef parse_cardinality(self, bytes card)
@@ -123,7 +122,7 @@ cdef class EdgeConnection:
 
     cdef fallthrough(self)
 
-    cdef pgcon_last_sync_status(self)
+    cdef sync_status(self)
 
     cdef WriteBuffer recode_bind_args(self,
         bytes bind_args, CompiledQuery compiled)

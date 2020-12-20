@@ -185,13 +185,14 @@ cdef class Protocol(http.HttpProtocol):
                             f'parameter ${param.name} is required')
                     args.append(value)
 
-        pgcon = await self.server.pgcons.get()
+        pgcon = await self.server.get_server().acquire_pgcon(
+            self.server.database)
         try:
             data = await pgcon.parse_execute_json(
                 query_unit.sql[0], query_unit.sql_hash, query_unit.dbver,
                 use_prep_stmt, args)
         finally:
-            self.server.pgcons.put_nowait(pgcon)
+            self.server.get_server().release_pgcon(self.server.database, pgcon)
 
         if data is None:
             raise errors.InternalServerError(

@@ -1166,12 +1166,24 @@ async def _setup_database(dbname, setup_script, conn_args):
 
     default_args.update(conn_args)
 
-    admin_conn = await edgedb.async_connect(
-        database=edgedb_defines.EDGEDB_SUPERUSER_DB,
-        **default_args)
+    try:
+        admin_conn = await edgedb.async_connect(
+            database=edgedb_defines.EDGEDB_SUPERUSER_DB,
+            **default_args)
+    except Exception as ex:
+        raise RuntimeError(
+            f'exception during creation of {dbname!r} test DB; '
+            f'could not connect to the {edgedb_defines.EDGEDB_SUPERUSER_DB} '
+            f'db; {type(ex).__name__}({ex})'
+        ) from ex
 
     try:
         await admin_conn.execute(f'CREATE DATABASE {dbname};')
+    except Exception as ex:
+        raise RuntimeError(
+            f'exception during creation of {dbname!r} test DB: '
+            f'{type(ex).__name__}({ex})'
+        ) from ex
     finally:
         await admin_conn.aclose()
 
@@ -1181,7 +1193,8 @@ async def _setup_database(dbname, setup_script, conn_args):
             await dbconn.execute(setup_script)
     except Exception as ex:
         raise RuntimeError(
-            f'exception during initialization of {dbname!r} test DB: {ex}'
+            f'exception during initialization of {dbname!r} test DB: '
+            f'{type(ex).__name__}({ex})'
         ) from ex
     finally:
         await dbconn.aclose()

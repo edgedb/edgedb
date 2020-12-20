@@ -224,62 +224,32 @@ async def _get_db_info(conn, dbname):
     return result
 
 
-async def _ensure_edgedb_template_database(cluster, conn):
-    result = await _get_db_info(conn, edbdef.EDGEDB_TEMPLATE_DB)
+async def _create_edgedb_template_database(cluster, conn):
+    instance_params = cluster.get_runtime_params().instance_params
+    capabilities = instance_params.capabilities
+    have_c_utf8 = (
+        capabilities & pgcluster.BackendCapabilities.C_UTF8_LOCALE)
 
-    if not result:
-        instance_params = cluster.get_runtime_params().instance_params
-        capabilities = instance_params.capabilities
-        have_c_utf8 = (
-            capabilities & pgcluster.BackendCapabilities.C_UTF8_LOCALE)
+    logger.info('Creating template database...')
+    block = dbops.SQLBlock()
+    dbid = uuidgen.uuid1mc()
+    db = dbops.Database(
+        edbdef.EDGEDB_TEMPLATE_DB,
+        owner=edbdef.EDGEDB_SUPERUSER,
+        is_template=True,
+        template='template0',
+        lc_collate='C',
+        lc_ctype='C.UTF-8' if have_c_utf8 else 'en_US.UTF-8',
+        encoding='UTF8',
+        metadata=dict(
+            id=str(dbid),
+            builtin=True,
+        ),
+    )
 
-        logger.info('Creating template database...')
-        block = dbops.SQLBlock()
-        dbid = uuidgen.uuid1mc()
-        db = dbops.Database(
-            edbdef.EDGEDB_TEMPLATE_DB,
-            owner=edbdef.EDGEDB_SUPERUSER,
-            is_template=True,
-            template='template0',
-            lc_collate='C',
-            lc_ctype='C.UTF-8' if have_c_utf8 else 'en_US.UTF-8',
-            encoding='UTF8',
-            metadata=dict(
-                id=str(dbid),
-                builtin=True,
-            ),
-        )
-        dbops.CreateDatabase(db).generate(block)
-        await _execute_block(conn, block)
-
-        return dbid
-    else:
-        alter = []
-        alter_owner = False
-
-        if not result['datistemplate']:
-            alter.append('IS_TEMPLATE = true')
-
-        if result['rolname'] != edbdef.EDGEDB_SUPERUSER:
-            alter_owner = True
-
-        if alter or alter_owner:
-            logger.info('Altering template database parameters...')
-            if alter:
-                await _execute(
-                    conn,
-                    'ALTER DATABASE {} WITH {}'.format(
-                        edbdef.EDGEDB_TEMPLATE_DB,
-                        ' '.join(alter)))
-
-            if alter_owner:
-                await _execute(
-                    conn,
-                    'ALTER DATABASE {} OWNER TO {}'.format(
-                        edbdef.EDGEDB_TEMPLATE_DB,
-                        edbdef.EDGEDB_SUPERUSER))
-
-        return None
+    dbops.CreateDatabase(db).generate(block)
+    await _execute_block(conn, block)
+    return dbid
 
 
 async def _store_static_bin_cache(cluster, key: str, data: bytes) -> None:
@@ -445,6 +415,7 @@ async def _make_stdlib(testmode: bool, global_ids) -> StdlibBits:
         f'''CREATE DATABASE {edbdef.EDGEDB_TEMPLATE_DB} {{
             SET id := <uuid>'{global_ids[edbdef.EDGEDB_TEMPLATE_DB]}'
         }};''',
+        f'''CREATE DATABASE {edbdef.EDGEDB_SYSTEM_DB};'''
     ])
 
     schema = await _execute_edgeql_ddl(schema, stdglobals)
@@ -583,8 +554,9 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
         cache_dir = None
 
     stdlib_cache = 'backend-stdlib.pickle'
-    tpldbdump_cache = f'backend-tpldbdump.sql'
-    src_hash = buildmeta.hash_dirs(CACHE_SRC_DIRS)
+    tpldbdump_cache = 'backend-tpldbdump.sql'
+    src_hash = buildmeta.hash_dirs(CACHE_SRC_DIRS, extra_files=[__file__])
+
     stdlib = buildmeta.read_data_cache(
         src_hash, stdlib_cache, source_dir=cache_dir)
     tpldbdump = buildmeta.read_data_cache(
@@ -1005,7 +977,7 @@ async def _populate_misc_instance_data(cluster, conn):
     return json_instance_data
 
 
-async def _ensure_edgedb_database(
+async def _create_edgedb_database(
     conn,
     database,
     owner,
@@ -1013,26 +985,22 @@ async def _ensure_edgedb_database(
     cluster,
     builtin: bool = False,
     objid: Optional[uuid.UUID] = None,
-):
-    result = await _get_db_info(conn, database)
-    if not result:
-        logger.info(
-            f'Creating database: '
-            f'{database}')
-
-        block = dbops.SQLBlock()
-        if objid is None:
-            objid = uuidgen.uuid1mc()
-        db = dbops.Database(
-            database,
-            owner=owner,
-            metadata=dict(
-                id=str(objid),
-                builtin=builtin,
-            ),
-        )
-        dbops.CreateDatabase(db).generate(block)
-        await _execute_block(conn, block)
+) -> uuid.UUID:
+    logger.info(f'Creating database: {database}')
+    block = dbops.SQLBlock()
+    if objid is None:
+        objid = uuidgen.uuid1mc()
+    db = dbops.Database(
+        database,
+        owner=owner,
+        metadata=dict(
+            id=str(objid),
+            builtin=builtin,
+        ),
+    )
+    dbops.CreateDatabase(db).generate(block)
+    await _execute_block(conn, block)
+    return objid
 
 
 async def _bootstrap_config_spec(schema, cluster):
@@ -1146,7 +1114,7 @@ async def _bootstrap(
     )
     cluster.set_default_session_authorization(edbdef.EDGEDB_SUPERUSER)
 
-    new_template_db_id = await _ensure_edgedb_template_database(
+    new_template_db_id = await _create_edgedb_template_database(
         cluster, pgconn)
 
     conn = await cluster.connect(database=edbdef.EDGEDB_TEMPLATE_DB)
@@ -1175,23 +1143,27 @@ async def _bootstrap(
     finally:
         await conn.close()
 
-    schema = await _execute_edgeql_ddl(
-        schema,
-        f'CREATE DATABASE {edbdef.EDGEDB_SUPERUSER_DB}',
-        stdmode=False,
+    system_db = schema.get_global(s_db.Database, edbdef.EDGEDB_SYSTEM_DB)
+    await _create_edgedb_database(
+        pgconn,
+        edbdef.EDGEDB_SYSTEM_DB,
+        edbdef.EDGEDB_SUPERUSER,
+        cluster=cluster,
+        builtin=True,
+        objid=system_db.id,
     )
 
-    superuser_db = schema.get_global(
-        s_db.Database, edbdef.EDGEDB_SUPERUSER_DB)
-
-    await _ensure_edgedb_database(
+    await _create_edgedb_database(
         pgconn,
         edbdef.EDGEDB_SUPERUSER_DB,
         edbdef.EDGEDB_SUPERUSER,
         cluster=cluster,
-        objid=superuser_db.id,
     )
-    if args['default_database_user']:
+
+    if (
+        args['default_database_user']
+        and args['default_database_user'] != edbdef.EDGEDB_SUPERUSER
+    ):
         await _ensure_edgedb_role(
             cluster,
             pgconn,
@@ -1204,8 +1176,11 @@ async def _bootstrap(
             f"SET ROLE {qi(args['default_database_user'])};",
         )
 
-    if args['default_database']:
-        await _ensure_edgedb_database(
+    if (
+        args['default_database']
+        and args['default_database'] != edbdef.EDGEDB_SUPERUSER_DB
+    ):
+        await _create_edgedb_database(
             pgconn,
             args['default_database'],
             args['default_database_user'] or edbdef.EDGEDB_SUPERUSER,

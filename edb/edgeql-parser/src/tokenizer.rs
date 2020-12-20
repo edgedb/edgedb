@@ -810,6 +810,8 @@ pub fn is_keyword(s: &str) -> bool {
         | "__subject__"
         | "__type__"
         | "__std__"
+        | "__edgedbsys__"
+        | "__edgedbtpl__"
         | "abort"
         | "alter"
         | "and"
