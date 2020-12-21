@@ -212,8 +212,6 @@ def compile_FunctionCall(
 
     fcall = irast.FunctionCall(
         args=final_args,
-        func_module_id=env.schema.get_global(
-            s_mod.Module, func_name.module).id,
         func_shortname=func_name,
         backend_name=func.get_backend_name(env.schema),
         func_polymorphic=is_polymorphic,
@@ -536,8 +534,6 @@ def compile_operator(
 
     node = irast.OperatorCall(
         args=final_args,
-        func_module_id=env.schema.get_global(
-            s_mod.Module, oper_name.module).id,
         func_shortname=oper_name,
         func_polymorphic=is_polymorphic,
         origin_name=origin_name,

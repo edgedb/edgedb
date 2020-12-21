@@ -607,9 +607,6 @@ class Call(ImmutableExpr):
     # Bound callable's name.
     func_shortname: sn.QualName
 
-    # The id of the module in which the callable is defined.
-    func_module_id: uuid.UUID
-
     # If the bound callable is a "USING SQL" callable, this
     # attribute will be set to the name of the SQL function.
     func_sql_function: typing.Optional[str]
