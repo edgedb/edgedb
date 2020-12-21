@@ -71,10 +71,10 @@ def init_context(
     _ = context.CompilerContext(initial=ctx)
 
     if options.singletons:
-        # The caller wants us to treat these type references
-        # as singletons for the purposes of the overall expression
-        # cardinality inference, so we set up the scope tree in
-        # the necessary fashion.
+        # The caller wants us to treat these type and pointer
+        # references as singletons for the purposes of the overall
+        # expression cardinality inference, so we set up the scope
+        # tree in the necessary fashion.
         for singleton in options.singletons:
             path_id = (pathctx.get_path_id(singleton, ctx=ctx)
                        if isinstance(singleton, s_types.Type)

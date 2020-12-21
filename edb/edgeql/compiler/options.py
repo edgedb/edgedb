@@ -106,7 +106,7 @@ class CompilerOptions(GlobalCompilerOptions):
     #: Include __tname__ computable (.__type__.name) in every shape implicitly.
     implicit_tname_in_shapes: bool = False
 
-    #: A set of schema types that should be treated
+    #: A set of schema types and links that should be treated
     #: as singletons in the context of this compilation.
     singletons: FrozenSet[Union[s_types.Type, s_pointers.Pointer]] = (
         frozenset())
