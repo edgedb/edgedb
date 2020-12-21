@@ -361,6 +361,7 @@ class BasePool(typing.Generic[C]):
         return block
 
     def _drop_block(self, block: Block[C]) -> None:
+        assert not block.conn_acquired_num
         assert not block.count_waiters()
         assert not block.count_conns()
         assert not block.quota
