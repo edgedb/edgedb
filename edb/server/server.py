@@ -83,10 +83,12 @@ class Server:
         self._cluster = cluster
         self._pg_addr = self._get_pgaddr()
 
+        # 1 connection is reserved for the system DB
+        pool_capacity = max_backend_connections - 1
         self._pg_pool = connpool.Pool(
             connect=self._pg_connect,
             disconnect=self._pg_disconnect,
-            max_capacity=50,
+            max_capacity=pool_capacity,
         )
 
         # DB state will be initialized in init().
