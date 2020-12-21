@@ -236,7 +236,10 @@ class PropertyCommand(
         if scls.is_special_pointer(schema):
             return
 
-        if scls.is_link_property(schema):
+        if (
+            scls.is_link_property(schema)
+            and not scls.is_pure_computable(schema)
+        ):
             # link properties cannot be required or multi
             if self.get_attribute_value('required'):
                 raise errors.InvalidPropertyDefinitionError(

@@ -27,33 +27,6 @@ from edb.tools import test
 
 class TestEdgeQLDDL(tb.DDLTestCase):
 
-    async def test_edgeql_ddl_01(self):
-        await self.con.execute("""
-            CREATE ABSTRACT LINK test::test_link;
-        """)
-
-    async def test_edgeql_ddl_02(self):
-        await self.con.execute("""
-            CREATE ABSTRACT LINK test::test_object_link {
-                CREATE PROPERTY test_link_prop -> std::int64;
-            };
-
-            CREATE TYPE test::TestObjectType {
-                CREATE LINK test_object_link -> std::Object {
-                    CREATE PROPERTY test_link_prop -> std::int64 {
-                        CREATE ANNOTATION title := 'Test Property';
-                    };
-                };
-            };
-        """)
-
-    async def test_edgeql_ddl_03(self):
-        await self.con.execute("""
-            CREATE ABSTRACT LINK test::test_object_link_prop {
-                CREATE PROPERTY link_prop1 -> std::str;
-            };
-        """)
-
     async def test_edgeql_ddl_04(self):
         await self.con.execute("""
             CREATE TYPE test::A;
@@ -1253,6 +1226,63 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 CREATE PROPERTY `link` -> str;
             };
         """)
+
+    async def test_edgeql_ddl_abstract_link_01(self):
+        await self.con.execute("""
+            CREATE ABSTRACT LINK test::test_link;
+        """)
+
+    async def test_edgeql_ddl_abstract_link_02(self):
+        await self.con.execute("""
+            CREATE ABSTRACT LINK test::test_object_link {
+                CREATE PROPERTY test_link_prop -> std::int64;
+            };
+
+            CREATE TYPE test::TestObjectType {
+                CREATE LINK test_object_link -> std::Object {
+                    CREATE PROPERTY test_link_prop -> std::int64 {
+                        CREATE ANNOTATION title := 'Test Property';
+                    };
+                };
+            };
+        """)
+
+    async def test_edgeql_ddl_abstract_link_03(self):
+        await self.con.execute("""
+            CREATE ABSTRACT LINK test::test_object_link_prop {
+                CREATE PROPERTY link_prop1 -> std::str;
+            };
+        """)
+
+    async def test_edgeql_ddl_abstract_link_04(self):
+        await self.con.execute("""
+            SET MODULE test;
+
+            CREATE ABSTRACT LINK test_object_link {
+                CREATE PROPERTY test_link_prop -> int64;
+                CREATE PROPERTY computed_prop := @test_link_prop * 2;
+            };
+
+            CREATE TYPE Target;
+            CREATE TYPE TestObjectType {
+                CREATE LINK test_object_link EXTENDING test_object_link
+                   -> Target;
+            };
+
+            INSERT TestObjectType {
+                test_object_link := (INSERT Target { @test_link_prop := 42 })
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT TestObjectType {
+                    test_object_link: { @test_link_prop, @computed_prop },
+                };
+            """,
+            [{"test_object_link":
+              {"@computed_prop": 84, "@test_link_prop": 42}}]
+        )
 
     async def test_edgeql_ddl_drop_extending_01(self):
         await self.con.execute("""

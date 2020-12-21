@@ -155,6 +155,16 @@ class Pointer(Source):
     def is_pointer(self) -> bool:
         return True
 
+    def getptr(
+        self,
+        schema: s_schema.Schema,
+        name: str,
+    ) -> Optional[Union[s_pointers.Pointer, Pointer]]:
+        if (not (res := super().getptr(schema, name))
+                and isinstance(self.target, (Source, s_sources.Source))):
+            res = self.target.getptr(schema, name)
+        return res
+
     def get_target(
         self,
         schema: s_schema.Schema,
