@@ -724,7 +724,6 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
             CONFIGURE CURRENT DATABASE SET __internal_sess_testvalue := 3;
         ''')
 
-
         await self.con.execute('''
             CONFIGURE SYSTEM SET __internal_sess_testvalue := 2;
         ''')
