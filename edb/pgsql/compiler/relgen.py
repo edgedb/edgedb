@@ -266,8 +266,18 @@ def _get_set_rvar(
 
     elif isinstance(ir_set.expr, irast.FunctionCall):
         if str(ir_set.expr.func_shortname) == 'std::enumerate':
-            if isinstance(irutils.unwrap_set(ir_set.expr.args[0].expr).expr,
-                          irast.FunctionCall):
+            arg_set = ir_set.expr.args[0].expr
+            arg_expr = arg_set.expr
+            if (
+                isinstance(irutils.unwrap_set(arg_set).expr,
+                           irast.FunctionCall)
+                and not (
+                    isinstance(arg_expr, irast.SelectStmt) and (
+                        arg_expr.where or arg_expr.orderby
+                        or arg_expr.limit or arg_expr.offset
+                    )
+                )
+            ):
                 # Enumeration of a SET-returning function
                 rvars = process_set_as_func_enumerate(ir_set, stmt, ctx=ctx)
             else:
@@ -1748,8 +1758,6 @@ def process_set_as_enumerate(
     assert isinstance(expr, irast.FunctionCall)
 
     with ctx.subrel() as newctx:
-        newctx.expr_exposed = False
-
         ir_arg = expr.args[0].expr
         arg_ref = dispatch.compile(ir_arg, ctx=newctx)
         arg_val = output.output_as_value(arg_ref, env=newctx.env)
@@ -1788,10 +1796,17 @@ def process_set_as_enumerate(
             pathctx.put_path_value_var(
                 newctx.rel, element.path_id, element.val, env=newctx.env)
 
+        var = pathctx.maybe_get_path_var(
+            newctx.rel, ir_arg.path_id,
+            aspect='serialized', env=newctx.env)
+        if var is not None:
+            pathctx.put_path_var(newctx.rel, set_expr.elements[1].path_id, var,
+                                 aspect='serialized', env=newctx.env)
+
         pathctx.put_path_var_if_not_exists(
             newctx.rel, ir_set.path_id, set_expr, aspect='value', env=ctx.env)
 
-    aspects = ('value',)
+    aspects = ('value', 'source')
 
     func_rvar = relctx.new_rel_rvar(ir_set, newctx.rel, ctx=ctx)
     relctx.include_rvar(stmt, func_rvar, ir_set.path_id,
