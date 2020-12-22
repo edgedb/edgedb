@@ -33,7 +33,7 @@ from graphql import (
     GraphQLInputObjectType,
     GraphQLResolveInfo,
     GraphQLField,
-    GraphQLInputField as GraphQLInputObjectField,
+    GraphQLInputField,
     GraphQLArgument,
     GraphQLList,
     GraphQLNonNull,
@@ -285,9 +285,14 @@ class GQLCoreSchema:
         GraphQLInterfaceType,
     ]
 
+    _gql_objtypes_from_alias: Dict[
+        s_name.QualName,
+        GraphQLObjectType,
+    ]
+
     _gql_objtypes: Dict[
         s_name.QualName,
-        Union[GraphQLInterfaceType, GraphQLObjectType],
+        GraphQLObjectType,
     ]
 
     _gql_inobjtypes: Dict[
@@ -316,6 +321,7 @@ class GQLCoreSchema:
         } - HIDDEN_MODULES))
 
         self._gql_interfaces = {}
+        self._gql_objtypes_from_alias = {}
         self._gql_objtypes = {}
         self._gql_inobjtypes = {}
         self._gql_ordertypes = {}
@@ -578,8 +584,12 @@ class GQLCoreSchema:
         fields = {}
 
         if str(typename) == 'stdgraphql::Query':
-            for name, gqliface in sorted(self._gql_interfaces.items(),
-                                         key=lambda x: x[1].name):
+            # The fields here will come from abstract types and aliases.
+            queryable: List[Tuple[s_name.QualName, GraphQLNamedType]] = []
+            queryable.extend(self._gql_interfaces.items())
+            queryable.extend(self._gql_objtypes_from_alias.items())
+            queryable.sort(key=lambda x: x[1].name)
+            for name, gqliface in queryable:
                 # '_edb' prefix indicates an internally generated type
                 # (e.g. nested aliased type), which should not be
                 # exposed as a top-level query option.
@@ -609,17 +619,17 @@ class GQLCoreSchema:
                         args=args,
                     )
 
-            for name, gqltype in sorted(self._gql_interfaces.items(),
-                                        key=lambda x: x[1].name):
+            for name, gqliface in sorted(self._gql_interfaces.items(),
+                                         key=lambda x: x[1].name):
                 if (name in TOP_LEVEL_TYPES or
-                    gqltype.name.startswith('_edb') or
+                    gqliface.name.startswith('_edb') or
                         f'Update{name}' not in self._gql_inobjtypes):
                     continue
                 gname = self.get_gql_name(name)
                 args = self._get_update_args(name)
                 if args:
                     fields[f'update_{gname}'] = GraphQLField(
-                        GraphQLList(GraphQLNonNull(gqltype)),
+                        GraphQLList(GraphQLNonNull(gqliface)),
                         args=args,
                     )
         else:
@@ -674,19 +684,19 @@ class GQLCoreSchema:
         self,
         typename: s_name.QualName,
         nested: bool = False,
-    ) -> Dict[str, GraphQLInputObjectField]:
+    ) -> Dict[str, GraphQLInputField]:
         selftype = self._gql_inobjtypes[str(typename)]
         fields = {}
 
         if not nested:
-            fields['and'] = GraphQLInputObjectField(
+            fields['and'] = GraphQLInputField(
                 GraphQLList(GraphQLNonNull(selftype)))
-            fields['or'] = GraphQLInputObjectField(
+            fields['or'] = GraphQLInputField(
                 GraphQLList(GraphQLNonNull(selftype)))
-            fields['not'] = GraphQLInputObjectField(selftype)
+            fields['not'] = GraphQLInputField(selftype)
         else:
             # Always include the 'exists' operation
-            fields['exists'] = GraphQLInputObjectField(GraphQLBoolean)
+            fields['exists'] = GraphQLInputField(GraphQLBoolean)
 
         edb_type = self.edb_schema.get(typename, type=s_objtypes.ObjectType)
         pointers = edb_type.get_pointers(self.edb_schema)
@@ -736,14 +746,14 @@ class GQLCoreSchema:
                     )
 
             if intype:
-                fields[name] = GraphQLInputObjectField(intype)
+                fields[name] = GraphQLInputField(intype)
 
         return fields
 
     def get_insert_fields(
         self,
         typename: s_name.QualName,
-    ) -> Dict[str, GraphQLInputObjectField]:
+    ) -> Dict[str, GraphQLInputField]:
         fields = {}
 
         edb_type = self.edb_schema.get(typename, type=s_objtypes.ObjectType)
@@ -769,7 +779,7 @@ class GQLCoreSchema:
                     intype = self._make_generic_nested_insert_type(edb_target)
 
                 intype = self._wrap_input_type(ptr, intype)
-                fields[name] = GraphQLInputObjectField(intype)
+                fields[name] = GraphQLInputField(intype)
 
             elif (
                 isinstance(edb_target, s_scalars.ScalarType)
@@ -807,7 +817,7 @@ class GQLCoreSchema:
                 intype = self._wrap_input_type(ptr, intype)
 
                 if intype:
-                    fields[name] = GraphQLInputObjectField(intype)
+                    fields[name] = GraphQLInputField(intype)
 
             else:
                 continue
@@ -817,7 +827,7 @@ class GQLCoreSchema:
     def get_update_fields(
         self,
         typename: s_name.QualName,
-    ) -> Dict[str, GraphQLInputObjectField]:
+    ) -> Dict[str, GraphQLInputField]:
         fields = {}
 
         edb_type = self.edb_schema.get(typename, type=s_objtypes.ObjectType)
@@ -856,7 +866,7 @@ class GQLCoreSchema:
                     intype = self._make_generic_update_op_type(
                         ptr, name, edb_type, intype)
 
-                fields[name] = GraphQLInputObjectField(intype)
+                fields[name] = GraphQLInputField(intype)
 
             elif (
                 isinstance(edb_target, s_scalars.ScalarType)
@@ -892,7 +902,7 @@ class GQLCoreSchema:
                     )
 
                 if intype:
-                    fields[name] = GraphQLInputObjectField(intype)
+                    fields[name] = GraphQLInputField(intype)
 
             else:
                 continue
@@ -912,12 +922,12 @@ class GQLCoreSchema:
         edb_target = ptr.get_target(self.edb_schema)
 
         fields = {
-            'set': GraphQLInputObjectField(target)
+            'set': GraphQLInputField(target)
         }
 
         # get additional commands based on the pointer type
         if not ptr.get_required(self.edb_schema):
-            fields['clear'] = GraphQLInputObjectField(GraphQLBoolean)
+            fields['clear'] = GraphQLInputField(GraphQLBoolean)
 
         bt_name: Optional[s_name.QualName]
         if isinstance(edb_target, s_scalars.ScalarType):
@@ -928,23 +938,23 @@ class GQLCoreSchema:
 
         # first check for this being a multi-link
         if not ptr.singular(self.edb_schema):
-            fields['add'] = GraphQLInputObjectField(target)
-            fields['remove'] = GraphQLInputObjectField(target)
+            fields['add'] = GraphQLInputField(target)
+            fields['remove'] = GraphQLInputField(target)
         elif target in {GraphQLInt, GraphQLInt64, GraphQLBigint,
                         GraphQLFloat, GraphQLDecimal}:
             # anything that maps onto the numeric types is a fair game
-            fields['increment'] = GraphQLInputObjectField(target)
-            fields['decrement'] = GraphQLInputObjectField(target)
+            fields['increment'] = GraphQLInputField(target)
+            fields['decrement'] = GraphQLInputField(target)
         elif (
             bt_name == s_name.QualName(module='std', name='str')
             or isinstance(edb_target, s_types.Array)
         ):
             # only actual strings and arrays have append, prepend and
             # slice ops
-            fields['prepend'] = GraphQLInputObjectField(target)
-            fields['append'] = GraphQLInputObjectField(target)
+            fields['prepend'] = GraphQLInputField(target)
+            fields['append'] = GraphQLInputField(target)
             # slice [from, to]
-            fields['slice'] = GraphQLInputObjectField(
+            fields['slice'] = GraphQLInputField(
                 GraphQLList(GraphQLNonNull(GraphQLInt))
             )
 
@@ -969,16 +979,16 @@ class GQLCoreSchema:
             name=self.get_input_name(
                 'NestedUpdate', self.get_gql_name(typename)),
             fields={
-                'filter': GraphQLInputObjectField(
+                'filter': GraphQLInputField(
                     self._gql_inobjtypes[str(typename)]),
-                'order': GraphQLInputObjectField(
+                'order': GraphQLInputField(
                     self._gql_ordertypes[str(typename)]),
-                'first': GraphQLInputObjectField(GraphQLInt),
-                'last': GraphQLInputObjectField(GraphQLInt),
+                'first': GraphQLInputField(GraphQLInt),
+                'last': GraphQLInputField(GraphQLInt),
                 # before and after are supposed to be opaque values
                 # serialized to string
-                'before': GraphQLInputObjectField(GraphQLString),
-                'after': GraphQLInputObjectField(GraphQLString),
+                'before': GraphQLInputField(GraphQLString),
+                'after': GraphQLInputField(GraphQLString),
             },
         )
 
@@ -993,16 +1003,16 @@ class GQLCoreSchema:
         typename = edb_base.get_name(self.edb_schema)
         name = f'NestedInsert{typename}'
         fields = {
-            'filter': GraphQLInputObjectField(
+            'filter': GraphQLInputField(
                 self._gql_inobjtypes[str(typename)]),
-            'order': GraphQLInputObjectField(
+            'order': GraphQLInputField(
                 self._gql_ordertypes[str(typename)]),
-            'first': GraphQLInputObjectField(GraphQLInt),
-            'last': GraphQLInputObjectField(GraphQLInt),
+            'first': GraphQLInputField(GraphQLInt),
+            'last': GraphQLInputField(GraphQLInt),
             # before and after are supposed to be opaque values
             # serialized to string
-            'before': GraphQLInputObjectField(GraphQLString),
-            'after': GraphQLInputObjectField(GraphQLString),
+            'before': GraphQLInputField(GraphQLString),
+            'after': GraphQLInputField(GraphQLString),
         }
 
         # The data can only be a specific non-interface type, if no
@@ -1011,7 +1021,7 @@ class GQLCoreSchema:
         # data.
         data_t = self._gql_inobjtypes.get(f'Insert{typename}')
         if data_t:
-            fields['data'] = GraphQLInputObjectField(data_t)
+            fields['data'] = GraphQLInputField(data_t)
 
         nitype = GraphQLInputObjectType(
             name=self.get_input_name(
@@ -1085,9 +1095,9 @@ class GQLCoreSchema:
         fields = {}
 
         # Always include the 'exists' operation
-        fields['exists'] = GraphQLInputObjectField(GraphQLBoolean)
+        fields['exists'] = GraphQLInputField(GraphQLBoolean)
         for op in ops:
-            fields[op] = GraphQLInputObjectField(base)
+            fields[op] = GraphQLInputField(base)
 
         self._gql_inobjtypes[name] = GraphQLInputObjectType(
             name=name,
@@ -1108,10 +1118,10 @@ class GQLCoreSchema:
         self._gql_ordertypes['Ordering'] = GraphQLInputObjectType(
             'Ordering',
             fields=dict(
-                dir=GraphQLInputObjectField(
+                dir=GraphQLInputField(
                     GraphQLNonNull(self._gql_enums['directionEnum']),
                 ),
-                nulls=GraphQLInputObjectField(
+                nulls=GraphQLInputField(
                     self._gql_enums['nullsOrderingEnum'],
                     default_value='SMALLEST',
                 ),
@@ -1121,8 +1131,8 @@ class GQLCoreSchema:
     def get_order_fields(
         self,
         typename: s_name.QualName,
-    ) -> Dict[str, GraphQLInputObjectField]:
-        fields: Dict[str, GraphQLInputObjectField] = {}
+    ) -> Dict[str, GraphQLInputField]:
+        fields: Dict[str, GraphQLInputField] = {}
 
         edb_type = self.edb_schema.get(typename, type=s_objtypes.ObjectType)
         pointers = edb_type.get_pointers(self.edb_schema)
@@ -1153,15 +1163,14 @@ class GQLCoreSchema:
                 intype = self._gql_inobjtypes.get(f'Filter{target.name}')
 
                 if intype:
-                    fields[name] = GraphQLInputObjectField(
+                    fields[name] = GraphQLInputField(
                         self._gql_ordertypes['Ordering']
                     )
             elif isinstance(t, s_objtypes.ObjectType):
                 # It's a link so we need the link's type order input
                 t_name = t.get_name(self.edb_schema)
-                # XXX: why is below not a GraphQLField?
-                fields[name] = (
-                    self._gql_ordertypes[str(t_name)]  # type: ignore
+                fields[name] = GraphQLInputField(
+                    self._gql_ordertypes[str(t_name)]
                 )
             else:
                 # We ignore pointers that aren't scalars or objects.
@@ -1192,12 +1201,11 @@ class GQLCoreSchema:
             t_name = t.get_name(self.edb_schema)
             gql_name = self.get_gql_name(t_name)
 
-            gqltype: Union[GraphQLObjectType, GraphQLInterfaceType]
             if t.is_view(self.edb_schema):
                 # The aliased types actually only reflect as an object
                 # type, but the rest of the processing is identical to
                 # interfaces.
-                gqltype = GraphQLObjectType(
+                self._gql_objtypes_from_alias[t_name] = GraphQLObjectType(
                     name=gql_name,
                     fields=partial(self.get_fields, t_name),
                     description=self._get_description(t),
@@ -1209,16 +1217,12 @@ class GQLCoreSchema:
                     _t: GraphQLAbstractType,
                 ) -> GraphQLObjectType:
                     return obj
-                gqltype = GraphQLInterfaceType(
+                self._gql_interfaces[t_name] = GraphQLInterfaceType(
                     name=gql_name,
                     fields=partial(self.get_fields, t_name),
                     resolve_type=_type_resolver,
                     description=self._get_description(t),
                 )
-            # XXX: graphql-core typing annotations don't
-            #      seem to indicate that it is fine to mix
-            #      GraphQLObjectType with GraphQLInterfaceType
-            self._gql_interfaces[t_name] = gqltype  # type: ignore
 
             # input object types corresponding to this interface
             gqlfiltertype = GraphQLInputObjectType(
@@ -1252,10 +1256,12 @@ class GQLCoreSchema:
         for t in obj_types:
             interfaces = []
             t_name = t.get_name(self.edb_schema)
+            gql_name = self.get_gql_name(t_name)
 
             if t.is_view(self.edb_schema):
-                # Just copy the object type from "interfaces".
-                self._gql_objtypes[t_name] = self._gql_interfaces[t_name]
+                # Just copy previously computed type.
+                self._gql_objtypes[t_name] = \
+                    self._gql_objtypes_from_alias[t_name]
                 continue
 
             if t_name in self._gql_interfaces:
@@ -1269,7 +1275,6 @@ class GQLCoreSchema:
                     interfaces.append(
                         self._gql_interfaces[st.get_name(self.edb_schema)])
 
-            gql_name = self.get_gql_name(t_name)
             gqltype = GraphQLObjectType(
                 name=f'{gql_name}_Type',
                 fields=partial(self.get_fields, t_name),
