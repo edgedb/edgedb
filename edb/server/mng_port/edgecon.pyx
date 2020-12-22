@@ -1348,7 +1348,7 @@ cdef class EdgeConnection:
                 'change to take effect')
 
     async def _execute(self, compiled: CompiledQuery, bind_args,
-                       bint parse, bint use_prep_stmt):
+                       bint use_prep_stmt):
         cdef:
             bytes state = None
 
@@ -1387,8 +1387,6 @@ cdef class EdgeConnection:
                 await self._execute_system_config(query_unit, conn)
             else:
                 await conn.parse_execute(
-                    parse,              # =parse
-                    1,                  # =execute
                     query_unit,         # =query
                     self,               # =edgecon
                     bound_args_buf,     # =bind_data
@@ -1512,7 +1510,7 @@ cdef class EdgeConnection:
                 errors.DisabledCapabilityError,
             )
 
-        await self._execute(compiled, bind_args, True, False)
+        await self._execute(compiled, bind_args, False)
 
     async def optimistic_execute(self):
         cdef:
@@ -1578,7 +1576,7 @@ cdef class EdgeConnection:
         self._last_anon_compiled = compiled
 
         await self._execute(
-            compiled, bind_args, True, bool(query_unit.sql_hash))
+            compiled, bind_args, bool(query_unit.sql_hash))
 
     async def sync(self):
         self.buffer.consume_message()
