@@ -577,8 +577,6 @@ cdef class PGConnection:
 
     async def _parse_execute(
         self,
-        bint parse,
-        bint execute,
         object query,
         edgecon.EdgeConnection edgecon,
         WriteBuffer bind_data,
@@ -590,24 +588,20 @@ cdef class PGConnection:
             WriteBuffer buf
             bytes stmt_name
             bint store_stmt = 0
+            bint parse = 1
 
             bint has_result = query.cardinality is not CARD_NO_RESULT
 
             uint64_t msgs_num = <uint64_t>(len(query.sql))
-            uint64_t msgs_parsed = 0
             uint64_t msgs_executed = 0
             uint64_t i
 
-        if not parse and not execute:
-            raise RuntimeError('invalid parse/execute call')
-
         out = WriteBuffer.new()
 
-        if state is not None and execute:
+        if state is not None:
             self._build_apply_state_req(state, out)
 
         if use_prep_stmt:
-            assert parse and execute
             stmt_name = query.sql_hash
             parse, store_stmt = self.before_prepare(
                 stmt_name, query.dbver, out)
@@ -644,26 +638,12 @@ cdef class PGConnection:
                 buf.write_int16(0)
                 out.write_buffer(buf.end_message())
 
-        if execute:
-            assert bind_data is not None
-
-            if stmt_name == b'' and msgs_num > 1:
-                for s in self.last_parse_prep_stmts:
-                    buf = WriteBuffer.new_message(b'B')
-                    buf.write_bytestring(b'')  # portal name
-                    buf.write_bytestring(s)  # statement name
-                    buf.write_buffer(bind_data)
-                    out.write_buffer(buf.end_message())
-
-                    buf = WriteBuffer.new_message(b'E')
-                    buf.write_bytestring(b'')  # portal name
-                    buf.write_int32(0)  # limit: 0 - return all rows
-                    out.write_buffer(buf.end_message())
-
-            else:
+        assert bind_data is not None
+        if stmt_name == b'' and msgs_num > 1:
+            for s in self.last_parse_prep_stmts:
                 buf = WriteBuffer.new_message(b'B')
                 buf.write_bytestring(b'')  # portal name
-                buf.write_bytestring(stmt_name)  # statement name
+                buf.write_bytestring(s)  # statement name
                 buf.write_buffer(bind_data)
                 out.write_buffer(buf.end_message())
 
@@ -671,13 +651,24 @@ cdef class PGConnection:
                 buf.write_bytestring(b'')  # portal name
                 buf.write_int32(0)  # limit: 0 - return all rows
                 out.write_buffer(buf.end_message())
+        else:
+            buf = WriteBuffer.new_message(b'B')
+            buf.write_bytestring(b'')  # portal name
+            buf.write_bytestring(stmt_name)  # statement name
+            buf.write_buffer(bind_data)
+            out.write_buffer(buf.end_message())
+
+            buf = WriteBuffer.new_message(b'E')
+            buf.write_bytestring(b'')  # portal name
+            buf.write_int32(0)  # limit: 0 - return all rows
+            out.write_buffer(buf.end_message())
 
         out.write_bytes(SYNC_MESSAGE)
         self.waiting_for_sync = True
         self.write(out)
 
         try:
-            if state is not None and execute:
+            if state is not None:
                 await self._parse_apply_state_resp(state)
 
             buf = None
@@ -687,7 +678,7 @@ cdef class PGConnection:
                 mtype = self.buffer.get_message_type()
 
                 try:
-                    if mtype == b'D' and execute:
+                    if mtype == b'D':
                         # DataRow
                         if not has_result:
                             raise errors.InternalServerError(
@@ -703,7 +694,7 @@ cdef class PGConnection:
                             edgecon.write(buf)
                             buf = None
 
-                    elif mtype == b'C' and execute:  ## result
+                    elif mtype == b'C':  ## result
                         # CommandComplete
                         self.buffer.discard_message()
                         if buf is not None:
@@ -718,29 +709,26 @@ cdef class PGConnection:
                         self.buffer.discard_message()
                         if store_stmt:
                             self.prep_stmts[stmt_name] = query.dbver
-                        msgs_parsed += 1
-                        if not execute and msgs_parsed == msgs_num:
-                            return
 
                     elif mtype == b'E':  ## result
                         # ErrorResponse
                         er = self.parse_error_message()
                         raise pgerror.BackendError(fields=er)
 
-                    elif mtype == b'n' and execute:
+                    elif mtype == b'n':
                         # NoData
                         self.buffer.discard_message()
 
-                    elif mtype == b's' and execute:  ## result
+                    elif mtype == b's':  ## result
                         # PortalSuspended
                         self.buffer.discard_message()
                         return
 
-                    elif mtype == b'2' and execute:
+                    elif mtype == b'2':
                         # BindComplete
                         self.buffer.discard_message()
 
-                    elif mtype == b'I' and execute:  ## result
+                    elif mtype == b'I':  ## result
                         # EmptyQueryResponse
                         self.buffer.discard_message()
                         return
@@ -759,8 +747,6 @@ cdef class PGConnection:
 
     async def parse_execute(
         self,
-        bint parse,
-        bint execute,
         object query,
         edgecon.EdgeConnection edgecon,
         WriteBuffer bind_data,
@@ -770,8 +756,6 @@ cdef class PGConnection:
         self.before_command()
         try:
             return await self._parse_execute(
-                parse,
-                execute,
                 query,
                 edgecon,
                 bind_data,
