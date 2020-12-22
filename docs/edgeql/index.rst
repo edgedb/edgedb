@@ -4,7 +4,8 @@
 EdgeQL
 ======
 
-EdgeQL is the primary language of EdgeDB. It is used to define, mutate, and query data.
+EdgeQL is the primary language of EdgeDB. It is used to define, mutate, and
+query data.
 
 
 .. toctree::
