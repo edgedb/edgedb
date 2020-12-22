@@ -207,16 +207,6 @@ class TypeSerializer:
             raise errors.SchemaError(f'unsupported collection type {t!r}')
 
         elif isinstance(t, s_objtypes.ObjectType):
-            if t not in view_shapes:
-                # If we have an object type that isn't attached to a view,
-                # it must be the case that it doesn't actually appear in
-                # the output, so just return *something* that is well
-                # formed.
-                return self._describe_type(
-                    self.schema.get('std::uuid'), view_shapes,
-                    view_shapes_metadata,
-                )
-
             # This is a view
             self.schema, mt = t.material_type(self.schema)
             base_type_id = mt.id
@@ -229,7 +219,7 @@ class TypeSerializer:
             metadata = view_shapes_metadata.get(t)
             implicit_id = metadata is not None and metadata.has_implicit_id
 
-            for ptr in view_shapes[t]:
+            for ptr in view_shapes.get(t, ()):
                 if ptr.singular(self.schema):
                     if isinstance(ptr, s_links.Link) and not follow_links:
                         subtype_id = self._describe_type(
