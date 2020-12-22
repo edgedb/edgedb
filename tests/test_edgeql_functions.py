@@ -536,20 +536,8 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             ["Elvis", "Yury"],
         )
 
-    async def test_edgeql_functions_enumerate_05(self):
-        await self.assert_query_result(
-            r'''SELECT enumerate(test::User { name } ORDER BY .name);''',
-            [[0, {"name": "Elvis"}],
-             [1, {"name": "Yury"}]],
-        )
-
-        await self.assert_query_result(
-            r'''SELECT enumerate(test::User ORDER BY .name).1.name;''',
-            ["Elvis", "Yury"],
-        )
-
     async def test_edgeql_functions_enumerate_06(self):
-                await self.assert_query_result(
+        await self.assert_query_result(
             r'''SELECT enumerate(_gen_series(0, 99) FILTER FALSE);''',
             [],
         )
