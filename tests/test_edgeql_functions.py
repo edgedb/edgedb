@@ -524,6 +524,24 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 'select <json>enumerate({(1, 2), (3, 4)})'),
             '[[0, [1, 2]], [1, [3, 4]]]')
 
+    async def test_edgeql_functions_enumerate_05(self):
+        await self.assert_query_result(
+            r'''SELECT enumerate(test::User { name } ORDER BY .name);''',
+            [[0, {"name": "Elvis"}],
+             [1, {"name": "Yury"}]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT enumerate(test::User ORDER BY .name).1.name;''',
+            ["Elvis", "Yury"],
+        )
+
+    async def test_edgeql_functions_enumerate_06(self):
+        await self.assert_query_result(
+            r'''SELECT enumerate(_gen_series(0, 99) FILTER FALSE);''',
+            [],
+        )
+
     async def test_edgeql_functions_array_get_01(self):
         await self.assert_query_result(
             r'''SELECT array_get([1, 2, 3], 2);''',
