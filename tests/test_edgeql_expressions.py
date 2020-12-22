@@ -4629,3 +4629,13 @@ aa \
             await self.con.query("""
                 SELECT '''1''';
             """)
+
+    async def test_edgeql_expr_invalid_object_scalar_op_01(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"operator '\?\?' cannot be applied to operands of type"
+                r" 'std::Object' and 'std::str'"):
+
+            await self.con.query("""
+                SELECT Object ?? '';
+            """)
