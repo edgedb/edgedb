@@ -15,11 +15,11 @@ Welcome to the EdgeDB |version| documentation.
 
     intro
     tutorial/index
-    cheatsheet/__toc__
-    datamodel/__toc__
-    edgeql/__toc__
-    clients/__toc__
+    cheatsheet/index
+    datamodel/index
+    edgeql/index
+    clients/index
     admin/index
     cli/__toc__
-    changelog/__toc__
-    internals/__toc__
+    changelog/index
+    internals/index

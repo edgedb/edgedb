@@ -1,3 +1,5 @@
+.. eql:section-intro-page:: terminal
+
 .. _ref_cli_overview:
 
 ========

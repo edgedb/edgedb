@@ -1,3 +1,5 @@
+.. eql:section-intro-page:: rocket
+
 ===============
 Getting Started
 ===============
