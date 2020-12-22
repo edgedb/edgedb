@@ -33,6 +33,7 @@ from edb.common import uuidgen
 
 from edb.schema import links as s_links
 from edb.schema import objects as s_obj
+from edb.schema import objtypes as s_objtypes
 from edb.schema import scalars as s_scalars
 from edb.schema import types as s_types
 
@@ -205,7 +206,17 @@ class TypeSerializer:
         elif isinstance(t, s_types.Collection):
             raise errors.SchemaError(f'unsupported collection type {t!r}')
 
-        elif view_shapes.get(t):
+        elif isinstance(t, s_objtypes.ObjectType):
+            if t not in view_shapes:
+                # If we have an object type that isn't attached to a view,
+                # it must be the case that it doesn't actually appear in
+                # the output, so just return *something* that is well
+                # formed.
+                return self._describe_type(
+                    self.schema.get('std::uuid'), view_shapes,
+                    view_shapes_metadata,
+                )
+
             # This is a view
             self.schema, mt = t.material_type(self.schema)
             base_type_id = mt.id

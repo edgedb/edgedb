@@ -2464,3 +2464,11 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 r"SELECT <array<tuple<int64, str>>>$0;",
                 [(0, 'zero'), (1, 'one')],
             )
+
+    async def test_edgeql_cast_empty_set_to_array_01(self):
+        await self.assert_query_result(
+            r'''
+                SELECT <array<Object>>{};
+            ''',
+            [],
+        )
