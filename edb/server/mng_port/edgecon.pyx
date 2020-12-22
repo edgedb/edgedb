@@ -225,6 +225,8 @@ cdef class EdgeConnection:
         self._intx_pgcon = False
         self._get_pgcon_cc = 0
 
+        self._d = False
+
     async def get_pgcon(self) -> pgcon.PGConnection:
         self._get_pgcon_cc += 1
         if self._get_pgcon_cc > 1:
@@ -895,6 +897,11 @@ cdef class EdgeConnection:
                     )
 
         eql = self.buffer.read_len_prefixed_bytes()
+        if b'YYYYY' in eql:
+            self._d = True
+        else:
+            self._d = False
+
         self.buffer.finish_message()
         if not eql:
             raise errors.BinaryProtocolError('empty query')
@@ -918,11 +925,18 @@ cdef class EdgeConnection:
 
         query_unit = await self._simple_query(eql, allow_capabilities)
 
+        if self._d:
+            print(self, 'after self._simple_query')
+
         packet = WriteBuffer.new()
         packet.write_buffer(self.make_command_complete_msg(query_unit))
         packet.write_buffer(self.sync_status())
+        if self._d:
+            await asyncio.sleep(0.01)
         self.write(packet)
         self.flush()
+        if self._d:
+            print(self, 'self._simple_query DATA SENT')
 
     async def _simple_query(self, eql: bytes, allow_capabilities: uint64_t):
         cdef:
@@ -940,7 +954,11 @@ cdef class EdgeConnection:
                     errors.DisabledCapabilityError,
                 )
 
+        if self._d:
+            print(self, 'before get_pgcon')
         conn = await self.get_pgcon()
+        if self._d:
+            print(self, conn, 'after get_pgcon')
         if not self.dbview.in_tx():
             state = self.dbview.serialize_state()
         try:
@@ -971,19 +989,26 @@ cdef class EdgeConnection:
                                 i += 1
 
                         if query_unit.config_ops:
+                            if self._d: print(self, 'before apply con ops')
                             await self.dbview.apply_config_ops(
                                 conn,
                                 query_unit.config_ops)
                 except ConnectionAbortedError:
+                    if self._d: print(self, 'conn abort')
                     raise
-                except Exception:
+                except Exception as e:
+                    if self._d:
+                        from edb.common import markup
+                        markup.dump(e)
                     self.dbview.on_error(query_unit)
                     if not conn.in_tx() and self.dbview.in_tx():
                         # COMMIT command can fail, in which case the
                         # transaction is aborted.  This check workarounds
                         # that (until a better solution is found.)
                         self.dbview.abort_tx()
+                        if self._d: print(self, 'before recover current tx')
                         await self.recover_current_tx_info(conn)
+                        if self._d: print(self, 'after recover current tx')
                     raise
                 else:
                     side_effects = self.dbview.on_success(query_unit)
@@ -1011,10 +1036,15 @@ cdef class EdgeConnection:
                 # query units).  In the end, if we're still in transaction
                 # after executing the script and there were new types added
                 # we want to update type IDs in the linked compiler.
+                if self._d: print(self, 'before update type ids')
                 await self._update_type_ids(new_type_ids, conn)
+                if self._d: print(self, 'after update type ids')
         finally:
+            if self._d:
+                print(self, conn, '_simple_query: finally')
             self.maybe_release_pgcon(conn)
-
+            if self._d:
+                print(self, conn, '_simple_query: released pgcon')
         return query_unit
 
     def _tokenize(self, eql: bytes) -> edgeql.Source:
@@ -1674,21 +1704,29 @@ cdef class EdgeConnection:
                     raise
 
                 except Exception as ex:
+                    if self._d: print(self, 'ERROR', type(ex), ex)
                     if self._backend is None:
+                        if self._d: print(self, '_backend is None')
                         # The connection has been aborted; there's nothing
                         # we can do except shutting this down.
                         if self._con_status == EDGECON_BAD:
+                            if self._d: print(self, '_backend is None: BAD')
                             return
                         else:
                             raise
 
                     self.dbview.tx_error()
+                    if self._d: print(self, '=== after tx_error()')
                     self.buffer.finish_message()
+                    if self._d: print(self, '=== after finish_mess()')
 
                     await self.write_error(ex)
+                    if self._d: print(self, '=== after write_err()')
                     self.flush()
+                    if self._d: print(self, '=== after flush()')
 
                     if self._backend is None:
+                        if self._d: print(self, 'backend is NONE222')
                         # The connection was aborted while we were
                         # interpreting the error (via compiler/errmech.py).
                         if self._con_status == EDGECON_BAD:
@@ -1697,9 +1735,12 @@ cdef class EdgeConnection:
                             raise
 
                     if flush_sync_on_error:
+                        if self._d: print(self, 'FLUSH SYNC ON ERR')
                         self.write(self.sync_status())
                         self.flush()
+                        if self._d: print(self, 'FLUSH SYNC ON ERR DONE')
                     else:
+                        if self._d: print(self, 'recover frome rror')
                         await self.recover_from_error()
 
                 else:

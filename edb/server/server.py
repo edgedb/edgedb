@@ -88,7 +88,7 @@ class Server:
         self._pg_pool = connpool.Pool(
             connect=self._pg_connect,
             disconnect=self._pg_disconnect,
-            max_capacity=pool_capacity,
+            max_capacity=50,
         )
 
         # DB state will be initialized in init().

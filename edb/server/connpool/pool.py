@@ -480,10 +480,24 @@ class Pool(BasePool[C]):
         self._first_tick = True
         self._to_drop = []
 
+    async def spinner(self) -> None:
+        while True:
+            await asyncio.sleep(5)
+            print('SPIN', self._nacquires)
+            for block in self._blocks.values():
+                print(
+                    'dbname=', block.dbname,
+                    'nwaiters=', block.count_waiters(),
+                    'nconns=', block.count_conns(),
+                    'quota=', block.quota,
+                    'nacq=', block.conn_acquired_num,
+                )
+
     def _maybe_schedule_tick(self) -> None:
         if self._first_tick:
             self._first_tick = False
             self._capture_snapshot(now=time.monotonic())
+            asyncio.create_task(self.spinner())
 
         if not self._nacquires or self._htick is not None:
             return

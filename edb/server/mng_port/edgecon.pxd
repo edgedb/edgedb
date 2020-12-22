@@ -110,6 +110,8 @@ cdef class EdgeConnection:
         bint _intx_pgcon
         int _get_pgcon_cc
 
+        object _d
+
     cdef parse_io_format(self, bytes mode)
     cdef parse_cardinality(self, bytes card)
     cdef parse_prepare_query_part(self, bint account_for_stmt_name)

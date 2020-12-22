@@ -2452,6 +2452,7 @@ class TestServerProtoDDL(tb.DDLTestCase):
         typename_prefix = 'CacheInvMulti_'
         ntasks = 5
 
+        print('connect')
         async with tg.TaskGroup() as g:
             cons_tasks = [
                 g.create_task(self.connect(database=self.con.dbname))
@@ -2459,11 +2460,14 @@ class TestServerProtoDDL(tb.DDLTestCase):
             ]
 
         cons = [c.result() for c in cons_tasks]
+        print('done connect')
 
         try:
+            print('ddl')
             async with tg.TaskGroup() as g:
                 for i, con in enumerate(cons):
                     g.create_task(con.execute(f'''
+                        # YYYYY
                         CREATE TYPE test::{typename_prefix}{i} {{
                             CREATE REQUIRED PROPERTY prop1 -> std::int64;
                         }};
@@ -2472,16 +2476,21 @@ class TestServerProtoDDL(tb.DDLTestCase):
                             prop1 := {i}
                         }};
                     '''))
+            print('done ddl')
 
+            print('query')
             for i, con in enumerate(cons):
                 ret = await con.query(
                     f'SELECT test::{typename_prefix}{i}.prop1')
                 self.assertEqual(ret, i)
+            print('done query')
 
         finally:
+            print('close')
             async with tg.TaskGroup() as g:
                 for con in cons:
                     g.create_task(con.aclose())
+            print('done close')
 
     async def test_server_proto_query_cache_invalidate_09(self):
         typename = 'CacheInv_09'
