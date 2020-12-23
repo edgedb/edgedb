@@ -595,7 +595,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_array_get_03(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'could not find a function variant array_get'):
+                r'function "array_get.+" does not exist'):
 
             await self.con.query(r'''
                 SELECT array_get([1, 2, 3], 2^40);

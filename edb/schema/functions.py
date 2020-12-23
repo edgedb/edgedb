@@ -703,6 +703,9 @@ class CallableLike:
     def get_return_typemod(self, schema: s_schema.Schema) -> ft.TypeModifier:
         raise NotImplementedError
 
+    def get_signature_as_str(self, schema: s_schema.Schema) -> str:
+        raise NotImplementedError
+
     def get_verbosename(self, schema: s_schema.Schema) -> str:
         raise NotImplementedError
 
@@ -1156,15 +1159,21 @@ class Function(
         return bool(self.get_language(schema) is qlast.Language.EdgeQL and
                     self.get_params(schema).find_named_only(schema))
 
+    def get_signature_as_str(
+        self,
+        schema: s_schema.Schema,
+    ) -> str:
+        params = self.get_params(schema)
+        sn = self.get_shortname(schema)
+        return f"{sn}{params.as_str(schema)}"
+
     def get_verbosename(
         self,
         schema: s_schema.Schema,
         *,
         with_parent: bool=False,
     ) -> str:
-        params = self.get_params(schema)
-        sn = self.get_shortname(schema)
-        return f"function '{sn}{params.as_str(schema)}'"
+        return f"function '{self.get_signature_as_str(schema)}'"
 
     def get_dummy_body(self, schema: s_schema.Schema) -> expr.Expression:
         """Return a minimal function body that satisfies its return type."""
@@ -1496,8 +1505,7 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                     f'cannot create `{signature}` function: '
                     f'overloading another function with different '
                     f'named only parameters: '
-                    f'"{func.get_shortname(schema)}'
-                    f'{func_params.as_str(schema)}"',
+                    f'"{func.get_signature_as_str(schema)}"',
                     context=self.source_context)
 
             if ((has_polymorphic or func_params.has_polymorphic(schema)) and (
