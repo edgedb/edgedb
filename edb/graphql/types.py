@@ -173,7 +173,10 @@ def coerce_bigint(value: Any) -> int:
     return num
 
 
-def parse_int_literal(ast: gql_ast.Node) -> Optional[int]:
+def parse_int_literal(
+    ast: gql_ast.Node,
+    _variables: Optional[Dict[str, Any]] = None,
+) -> Optional[int]:
     if isinstance(ast, gql_ast.IntValueNode):
         return int(ast.value)
     else:
@@ -201,7 +204,10 @@ GraphQLBigint = GraphQLScalarType(
 )
 
 
-def parse_decimal_literal(ast: gql_ast.Node) -> Optional[float]:
+def parse_decimal_literal(
+    ast: gql_ast.Node,
+    _variables: Optional[Dict[str, Any]] = None,
+) -> Optional[float]:
     if isinstance(ast, (gql_ast.FloatValueNode, gql_ast.IntValueNode)):
         return float(ast.value)
     else:
