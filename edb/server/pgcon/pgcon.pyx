@@ -1277,6 +1277,8 @@ cdef class PGConnection:
                     self.server._on_remote_database_config_change(dbname)
                 elif event == 'system-config-changes':
                     self.server._on_remote_system_config_change()
+                elif event == 'role-changes':
+                    self.server._on_role_change()
                 else:
                     raise AssertionError(f'unexpected system event: {event!r}')
 

@@ -65,6 +65,7 @@ class TestServerOps(tb.TestCase):
             '--temp-dir',
             '--auto-shutdown',
             '--echo-runtime-info',
+            '--max-backend-connections', '5',
             f'--bootstrap-command={bootstrap_command}',
         ]
 
@@ -136,6 +137,7 @@ class TestServerOps(tb.TestCase):
             '--temp-dir',
             '--bootstrap-command=SELECT 1',
             '--bootstrap-only',
+            '--max-backend-connections', '5',
         ]
 
         # Note: for debug comment "stderr=subprocess.PIPE".

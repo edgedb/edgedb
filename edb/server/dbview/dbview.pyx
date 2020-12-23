@@ -114,6 +114,7 @@ cdef class DatabaseConnectionView:
         self._in_tx_config = None
         self._in_tx_modaliases = None
         self._in_tx_with_ddl = False
+        self._in_tx_with_role_ddl = False
         self._in_tx_with_sysconfig = False
         self._in_tx_with_dbconfig = False
         self._in_tx_with_set = False
@@ -275,6 +276,8 @@ cdef class DatabaseConnectionView:
                 self._in_tx_with_dbconfig = True
             if query_unit.has_set:
                 self._in_tx_with_set = True
+            if query_unit.has_role_ddl:
+                self._in_tx_with_role_ddl = True
 
     cdef on_error(self, query_unit):
         self.tx_error()
@@ -295,6 +298,8 @@ cdef class DatabaseConnectionView:
                 side_effects |= SideEffects.SystemConfigChanges
             if query_unit.database_config:
                 side_effects |= SideEffects.DatabaseConfigChanges
+            if query_unit.has_role_ddl:
+                side_effects |= SideEffects.RoleChanges
 
         if query_unit.modaliases is not None:
             self.set_modaliases(query_unit.modaliases)
@@ -314,6 +319,9 @@ cdef class DatabaseConnectionView:
                 side_effects |= SideEffects.SystemConfigChanges
             if self._in_tx_with_dbconfig:
                 side_effects |= SideEffects.DatabaseConfigChanges
+            if self._in_tx_with_role_ddl:
+                side_effects |= SideEffects.RoleChanges
+
             self._reset_tx_state()
 
         elif query_unit.tx_rollback:
@@ -352,10 +360,7 @@ cdef class DatabaseIndex:
 
     def __init__(self, server):
         self._dbs = {}
-
         self._server = server
-        self._sys_queries = None
-        self._instance_data = None
         self._sys_config = None
 
     def count_connections(self, dbname: str):
@@ -366,31 +371,10 @@ cdef class DatabaseIndex:
 
         return len((<Database>db)._views)
 
-    async def get_sys_query(self, conn, key: str) -> bytes:
-        if self._sys_queries is None:
-            result = await conn.simple_query(b'''\
-                SELECT json FROM edgedbinstdata.instdata
-                WHERE key = 'sysqueries';
-            ''', ignore_data=False)
-            queries = json.loads(result[0][0].decode('utf-8'))
-            self._sys_queries = {k: q.encode() for k, q in queries.items()}
-
-        return self._sys_queries[key]
-
-    async def get_instance_data(self, conn, key: str) -> object:
-        if self._instance_data is None:
-            result = await conn.simple_query(b'''\
-                SELECT json FROM edgedbinstdata.instdata
-                WHERE key = 'instancedata';
-            ''', ignore_data=False)
-            self._instance_data = json.loads(result[0][0].decode('utf-8'))
-
-        return self._instance_data[key]
-
     async def reload_config(self):
         pgcon = await self._server._acquire_sys_pgcon()
         try:
-            query = await self.get_sys_query(pgcon, 'config')
+            query = self._server.get_sys_query('config')
             result = await pgcon.simple_query(query, ignore_data=False)
         finally:
             self._server._release_sys_pgcon()

@@ -24,6 +24,8 @@ import asyncio
 import json
 import logging
 
+import immutables
+
 from edb import errors
 
 from edb.common import taskgroup
@@ -54,11 +56,21 @@ class StartupScript(NamedTuple):
     user: str
 
 
+class RoleDescriptor(TypedDict):
+    is_superuser: bool
+    name: str
+    password: str
+
+
 class Server:
 
     _ports: List[baseport.Port]
     _sys_conf_ports: Dict[config.ConfigType, baseport.Port]
     _sys_pgcon: Optional[pgcon.PGConnection]
+
+    _roles: Mapping[str, RoleDescriptor]
+    _instance_data: Mapping[str, str]
+    _sys_queries: Mapping[str, str]
 
     def __init__(
         self,
@@ -120,6 +132,10 @@ class Server:
         self.__sys_pgcon = None
         self._sys_pgcon_waiters = None
 
+        self._roles = immutables.Map()
+        self._instance_data = immutables.Map()
+        self._sys_queries = immutables.Map()
+
     async def _pg_connect(self, dbname):
         return await pgcon.connect(self._get_pgaddr(), dbname)
 
@@ -132,6 +148,9 @@ class Server:
         self._sys_pgcon_waiters = asyncio.Queue()
         self._sys_pgcon_waiters.put_nowait(self.__sys_pgcon)
 
+        await self._load_instance_data()
+        await self._load_sys_queries()
+        await self._fetch_roles()
         self._dbindex = await dbview.DatabaseIndex.init(self)
 
         self._populate_sys_auth()
@@ -170,6 +189,47 @@ class Server:
         if not conn.is_connected() or conn.in_tx():
             discard = True
         self._pg_pool.release(dbname, conn, discard=discard)
+
+    async def _fetch_roles(self):
+        syscon = await self._acquire_sys_pgcon()
+        try:
+            role_query = self.get_sys_query('roles')
+            json_data = await syscon.parse_execute_json(
+                role_query, b'__sys_role',
+                dbver=b'', use_prep_stmt=True, args=(),
+            )
+            roles = json.loads(json_data)
+            self._roles = immutables.Map([(r['name'], r) for r in roles])
+        finally:
+            self._release_sys_pgcon()
+
+    async def _load_instance_data(self):
+        syscon = await self._acquire_sys_pgcon()
+        try:
+            result = await syscon.simple_query(b'''\
+                SELECT json FROM edgedbinstdata.instdata
+                WHERE key = 'instancedata';
+            ''', ignore_data=False)
+            self._instance_data = immutables.Map(
+                json.loads(result[0][0].decode('utf-8')))
+        finally:
+            self._release_sys_pgcon()
+
+    async def _load_sys_queries(self):
+        syscon = await self._acquire_sys_pgcon()
+        try:
+            result = await syscon.simple_query(b'''\
+                SELECT json FROM edgedbinstdata.instdata
+                WHERE key = 'sysqueries';
+            ''', ignore_data=False)
+            queries = json.loads(result[0][0].decode('utf-8'))
+            self._sys_queries = immutables.Map(
+                {k: q.encode() for k, q in queries.items()})
+        finally:
+            self._release_sys_pgcon()
+
+    def get_roles(self):
+        return self._roles
 
     async def new_compiler(self, dbname, dbver):
         compiler_worker = await self._compiler_manager.spawn_worker()
@@ -372,6 +432,9 @@ class Server:
         # on the __edgedb_sysevent__ channel
         self._dbindex._on_remote_system_config_change()
 
+    def _on_role_change(self):
+        self._loop.create_task(self._fetch_roles())
+
     def add_port(self, portcls, **kwargs):
         if self._serving:
             raise RuntimeError(
@@ -449,11 +512,11 @@ class Server:
                 if match:
                     return auth.method
 
-    async def get_sys_query(self, conn, key):
-        return await self._dbindex.get_sys_query(conn, key)
+    def get_sys_query(self, key):
+        return self._sys_queries[key]
 
-    async def get_instance_data(self, conn, key):
-        return await self._dbindex.get_instance_data(conn, key)
+    def get_instance_data(self, key):
+        return self._instance_data[key]
 
     def get_backend_runtime_params(self) -> Any:
         return self._cluster.get_runtime_params()

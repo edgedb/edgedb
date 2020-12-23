@@ -803,7 +803,8 @@ class Compiler(BaseCompiler):
             is_transactional=is_transactional,
             single_unit=(not is_transactional) or (drop_db is not None),
             new_types=new_types,
-            drop_db=drop_db
+            drop_db=drop_db,
+            has_role_ddl=isinstance(stmt, qlast.Role),
         )
 
     def _compile_ql_migration(self, ctx: CompileContext, ql: qlast.Migration):
@@ -1383,7 +1384,7 @@ class Compiler(BaseCompiler):
         self,
         ctx: CompileContext,
         ql: qlast.Base
-    ) -> (dbstate.BaseQuery, enums.Capability):
+    ) -> Tuple[dbstate.BaseQuery, enums.Capability]:
         if isinstance(ql, qlast.Migration):
             query = self._compile_ql_migration(ctx, ql)
             if isinstance(query, dbstate.MigrationControlQuery):
@@ -1545,6 +1546,7 @@ class Compiler(BaseCompiler):
                 unit.sql += comp.sql
                 unit.new_types = comp.new_types
                 unit.drop_db = comp.drop_db
+                unit.has_role_ddl = comp.has_role_ddl
                 if comp.drop_db:
                     units.append(unit)
                     unit = None

@@ -881,17 +881,16 @@ async def _compile_sys_queries(schema, compiler, cluster):
             name,
             is_superuser,
             password,
-        } FILTER .name = <str>$name;
+        };
     '''
     schema, sql = compile_bootstrap_script(
         compiler,
         schema,
         role_query,
-        expected_cardinality_one=True,
+        expected_cardinality_one=False,
         single_statement=True,
     )
-
-    queries['role'] = sql
+    queries['roles'] = sql
 
     tids_query = '''
         SELECT schema::ScalarType {

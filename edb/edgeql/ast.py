@@ -778,15 +778,19 @@ class DropModule(DropObject):
     pass
 
 
-class CreateRole(CreateObject, BasesMixin):
+class Role:
+    __abstract_node__ = True
+
+
+class CreateRole(CreateObject, BasesMixin, Role):
     superuser: bool = False
 
 
-class AlterRole(AlterObject):
+class AlterRole(AlterObject, Role):
     pass
 
 
-class DropRole(DropObject):
+class DropRole(DropObject, Role):
     pass
 
 
