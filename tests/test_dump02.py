@@ -254,3 +254,10 @@ class TestDump02(tb.QueryTestCase, tb.CLITestCaseMixin):
                 {'Ł🤞': '你好🤞'},
             ]
         )
+
+        await self.assert_query_result(
+            r'''
+                SELECT count(schema::Migration)
+            ''',
+            [2],
+        )

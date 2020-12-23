@@ -29,6 +29,7 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import codegen as qlcodegen
 from edb.edgeql import qltypes
 from edb.edgeql import hasher as qlhasher
+from edb.edgeql import parser as qlparser
 
 from . import abc as s_abc
 from . import delta as sd
@@ -135,7 +136,10 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
             # This is an explicitly specified CREATE MIGRATION
             src_start = astnode.body.context.start.pointer
             src_end = astnode.body.context.end.pointer
-            ddl_text = astnode.context.buffer[src_start:src_end]
+            # XXX: Workaround the rust lexer issue of returning
+            # byte token offsets instead of character offsets.
+            buffer = astnode.context.buffer.encode('utf-8')
+            ddl_text = buffer[src_start:src_end].decode('utf-8')
         elif astnode.body.commands:
             # An implicit CREATE MIGRATION produced by START MIGRATION
             ddl_text = ';\n'.join(
@@ -176,7 +180,7 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
 
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
-        if astnode.body.commands:
+        if astnode.body.commands and not astnode.metadata_only:
             for subastnode in astnode.body.commands:
                 subcmd = sd.compile_ddl(schema, subastnode, context=context)
                 if subcmd is not None:
@@ -185,6 +189,38 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
         assert isinstance(cmd, CreateMigration)
 
         return cmd
+
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
+        node = super()._get_ast(schema, context, parent_node=parent_node)
+        assert isinstance(node, qlast.CreateMigration)
+        node.metadata_only = True
+        return node
+
+    def _apply_field_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        node: qlast.DDLOperation,
+        op: sd.AlterObjectProperty,
+    ) -> None:
+        assert isinstance(node, qlast.CreateMigration)
+        if op.property == 'script':
+            node.body = qlast.MigrationBody(
+                commands=qlparser.parse_block(op.new_value)
+            )
+        elif op.property == 'parents':
+            if op.new_value and (items := op.new_value.items):
+                assert len(items) == 1
+                parent = next(iter(items))
+                node.parent = s_utils.name_to_ast_ref(parent.get_name(schema))
+        else:
+            super()._apply_field_ast(schema, context, node, op)
 
 
 class AlterMigration(MigrationCommand, sd.AlterObject[Migration]):

@@ -1941,7 +1941,8 @@ class Compiler(BaseCompiler):
     ) -> DumpDescriptor:
         schema = await self._introspect_schema_in_snapshot(tx_snapshot_id)
 
-        schema_ddl = s_ddl.ddl_text_from_schema(schema)
+        schema_ddl = s_ddl.ddl_text_from_schema(
+            schema, include_migrations=True)
 
         all_objects = schema.get_objects(exclude_stdlib=True)
         ids = []

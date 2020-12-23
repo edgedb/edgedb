@@ -52,3 +52,8 @@ INSERT Łukasz {
         LIMIT 1
     )
 };
+
+CREATE MIGRATION m1bkvqo5h2o6zptgch4m3tg27xszrprq2mu2qdboe4g7jh5wi5nyfa
+ONTO m1n3v3eqsjlwqi7ebltfrdykhlzgoxvfi46o7mt443z6urwzetayka {
+    CREATE TYPE default::Migrated;
+};
