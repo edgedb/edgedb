@@ -390,7 +390,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_query_11(self):
         # Test that parse error marshal from the compiler correctly.
         with self.assertRaisesRegex(edgedb.QueryError,
-                                    r'Expected Name, found \}',
+                                    r"Expected Name, found '}'",
                                     _line=4, _col=21):
             self.graphql_query(r"""
                 query {
@@ -1296,7 +1296,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_arguments_21(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'Expected type Boolean, found 0\.',
+                r'Expected type Boolean, found 0',
                 _line=3, _col=48):
             self.graphql_query(r"""
                 query {
@@ -2529,7 +2529,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_12(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'Expected type Boolean, found 1\.',
+                r'Boolean cannot represent a non boolean value: 1',
                 _line=2, _col=39):
             self.graphql_query(r"""
                 query($val: Boolean = 1) {
@@ -2543,7 +2543,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_13(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'Expected type Boolean, found "1"\.',
+                r'Boolean cannot represent a non boolean value: "1"',
                 _line=2, _col=39):
             self.graphql_query(r"""
                 query($val: Boolean = "1") {
@@ -2557,7 +2557,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_14(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'Expected type Boolean, found 1\.3\.',
+                r'Boolean cannot represent a non boolean value: 1\.3',
                 _line=2, _col=39):
             self.graphql_query(r"""
                 query($val: Boolean = 1.3) {
@@ -2571,7 +2571,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_15(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'Expected type String, found 1\.',
+                r'String cannot represent a non string value: 1',
                 _line=2, _col=38):
             self.graphql_query(r"""
                 query($val: String = 1) {
@@ -2584,7 +2584,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_16(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'Expected type String, found 1\.1\.',
+                r'String cannot represent a non string value: 1\.1',
                 _line=2, _col=38):
             self.graphql_query(r"""
                 query($val: String = 1.1) {
@@ -2597,7 +2597,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_17(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'Expected type String, found true\.',
+                r'String cannot represent a non string value: true',
                 _line=2, _col=38):
             self.graphql_query(r"""
                 query($val: String = true) {
@@ -2610,7 +2610,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_18(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'Expected type Int, found 1\.1\.',
+                r'Int cannot represent non-integer value: 1\.1',
                 _line=2, _col=35):
             self.graphql_query(r"""
                 query($val: Int = 1.1) {
@@ -2623,7 +2623,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_19(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'Expected type Int, found "1".',
+                r'Int cannot represent non-integer value: "1"',
                 _line=2, _col=35):
             self.graphql_query(r"""
                 query($val: Int = "1") {
@@ -2636,7 +2636,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_20(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'Expected type Int, found true.',
+                r'Int cannot represent non-integer value: true',
                 _line=2, _col=35):
             self.graphql_query(r"""
                 query($val: Int = true) {
@@ -2649,7 +2649,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_21(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'Expected type Float, found "1".',
+                r'Float cannot represent non numeric value: "1"',
                 _line=2, _col=37):
             self.graphql_query(r"""
                 query($val: Float = "1") {
@@ -2662,7 +2662,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_22(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'Expected type Float, found true.',
+                r'Float cannot represent non numeric value: true',
                 _line=2, _col=37):
             self.graphql_query(r"""
                 query($val: Float = true) {
@@ -2686,7 +2686,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_25(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'Expected type ID, found 1\.1\.',
+                r'ID cannot represent a non-string and non-integer.+: 1\.1',
                 _line=2, _col=34):
             self.graphql_query(r"""
                 query($val: ID = 1.1) {
@@ -2699,7 +2699,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_26(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'Expected type ID, found true\.',
+                r'ID cannot represent a non-string and non-integer.+: true',
                 _line=2, _col=34):
             self.graphql_query(r"""
                 query($val: ID = true) {
@@ -2763,7 +2763,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_31(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r"Expected type String, found 123\.",
+                r"String cannot represent a non string value: 123",
                 _line=2, _col=48):
             self.graphql_query(r"""
                 query($val: [String] = ["Foo", 123]) {
@@ -2996,7 +2996,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_enum_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'Expected type String, found admin\.',
+                r'String cannot represent a non string value: admin',
                 _line=4, _col=51):
             self.graphql_query(r"""
                 query {

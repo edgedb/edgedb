@@ -58,7 +58,7 @@ RUNTIME_DEPS = [
     'uvloop~=0.14.0',
     'wcwidth~=0.2.5',
 
-    'graphql-core~=3.0.3',
+    'graphql-core~=3.1.2',
     'promise~=2.2.0',
 
     'edgedb>=0.13.0a1',
