@@ -2009,6 +2009,7 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
                 '--postgres-dsn', pgdsn,
                 '--runstate-dir', tmp,
                 '--port', str(other_port),
+                '--max-backend-connections', '5',
             ]
 
             # Note: for debug comment "stderr=subprocess.PIPE".
@@ -2038,30 +2039,69 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
                     else:
                         break
 
-                self.assertEqual(
-                    await con2.query_one('SELECT Test.foo LIMIT 1'),
-                    123
-                )
+                try:
+                    self.assertEqual(
+                        await con2.query_one('SELECT Test.foo LIMIT 1'),
+                        123
+                    )
+
+                    await self.con.execute('''
+                        CREATE TYPE Test2 {
+                            CREATE PROPERTY foo -> str;
+                        };
+
+                        INSERT Test2 { foo := 'text' };
+                    ''')
+
+                    self.assertEqual(
+                        await self.con.query_one('SELECT Test2.foo LIMIT 1'),
+                        'text'
+                    )
+
+                    self.assertEqual(
+                        await con2.query_one('SELECT Test2.foo LIMIT 1'),
+                        'text'
+                    )
+                finally:
+                    await con2.aclose()
 
                 await self.con.execute('''
-                    CREATE TYPE Test2 {
-                        CREATE PROPERTY foo -> str;
-                    };
-
-                    INSERT Test2 { foo := 'text' };
+                    CREATE SUPERUSER ROLE ddlprop01 {
+                        SET password := 'aaaa';
+                    }
                 ''')
 
-                self.assertEqual(
-                    await self.con.query_one('SELECT Test2.foo LIMIT 1'),
-                    'text'
-                )
+                attempt = 0
+                while True:
+                    attempt += 1
+                    try:
+                        con3 = await edgedb.async_connect(
+                            host=tmp,
+                            port=other_port,
+                            user='ddlprop01',
+                            password='aaaa',
+                            database=self.get_database_name(),
+                        )
+                    except (ConnectionError, edgedb.ClientConnectionError,
+                            edgedb.AuthenticationError):
+                        if attempt >= 100:
+                            raise
+                        await asyncio.sleep(0.1)
+                        continue
+                    else:
+                        break
+                try:
+                    self.assertEqual(
+                        await con3.query_one('SELECT 42'),
+                        42
+                    )
+                finally:
+                    await con3.aclose()
 
-                self.assertEqual(
-                    await con2.query_one('SELECT Test2.foo LIMIT 1'),
-                    'text'
-                )
+                    await self.con.execute('''
+                        DROP ROLE ddlprop01;
+                    ''')
 
-                await con2.aclose()
             finally:
                 if proc.returncode is None:
                     proc.terminate()

@@ -22,6 +22,7 @@ cpdef enum SideEffects:
     SchemaChanges = 1 << 0
     DatabaseConfigChanges = 1 << 1
     SystemConfigChanges = 1 << 2
+    RoleChanges = 1 << 3
 
 
 cdef class DatabaseIndex:
@@ -31,8 +32,6 @@ cdef class DatabaseIndex:
         object _server
 
         object _sys_config
-        object _sys_queries
-        object _instance_data
 
 
 cdef class Database:
@@ -68,6 +67,7 @@ cdef class DatabaseConnectionView:
         object _in_tx_config
         bint _in_tx
         bint _in_tx_with_ddl
+        bint _in_tx_with_role_ddl
         bint _in_tx_with_sysconfig
         bint _in_tx_with_dbconfig
         bint _in_tx_with_set

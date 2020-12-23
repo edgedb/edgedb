@@ -384,17 +384,13 @@ cdef class EdgeConnection:
             authmethod = await self.port.get_server().get_auth_method(user)
             authmethod_name = type(authmethod).__name__
 
-        conn = await self.get_pgcon()
-        try:
-            if authmethod_name == 'SCRAM':
-                await self._auth_scram(user, conn)
-            elif authmethod_name == 'Trust':
-                await self._auth_trust(user, conn)
-            else:
-                raise errors.InternalServerError(
-                    f'unimplemented auth method: {authmethod_name}')
-        finally:
-            self.maybe_release_pgcon(conn)
+        if authmethod_name == 'SCRAM':
+            await self._auth_scram(user)
+        elif authmethod_name == 'Trust':
+            await self._auth_trust(user)
+        else:
+            raise errors.InternalServerError(
+                f'unimplemented auth method: {authmethod_name}')
 
         logger.debug('successfully authenticated %s in database %s',
                      user, database)
@@ -522,25 +518,13 @@ cdef class EdgeConnection:
             dbname=database, dbver=self.dbview.dbver)
         self._con_status = EDGECON_STARTED
 
-    async def _get_role_record(self, user, conn):
+    async def _auth_trust(self, user):
         server = self.port.get_server()
-        role_query = await server.get_sys_query(conn, 'role')
-        json_data = await conn.parse_execute_json(
-            role_query, b'__sys_role',
-            dbver=b'', use_prep_stmt=True, args=(user,),
-        )
-
-        if json_data is not None:
-            return json.loads(json_data.decode('utf-8'))
-        else:
-            return None
-
-    async def _auth_trust(self, user, conn):
-        rolerec = await self._get_role_record(user, conn)
-        if rolerec is None:
+        roles = server.get_roles()
+        if user not in roles:
             raise errors.AuthenticationError('authentication failed')
 
-    async def _auth_scram(self, user, conn):
+    async def _auth_scram(self, user):
         # Tell the client that we require SASL SCRAM auth.
         msg_buf = WriteBuffer.new_message(b'R')
         msg_buf.write_int32(10)
@@ -576,8 +560,7 @@ cdef class EdgeConnection:
                         f'client selected an invalid SASL authentication '
                         f'mechanism')
 
-                verifier, mock_auth = await self._get_scram_verifier(
-                    user, conn)
+                verifier, mock_auth = self._get_scram_verifier(user)
                 client_first = self.buffer.read_len_prefixed_bytes()
                 self.buffer.finish_message()
 
@@ -677,8 +660,11 @@ cdef class EdgeConnection:
 
                 done = True
 
-    async def _get_scram_verifier(self, user, conn):
-        rolerec = await self._get_role_record(user, conn)
+    def _get_scram_verifier(self, user):
+        server = self.port.get_server()
+        roles = server.get_roles()
+
+        rolerec = roles.get(user)
         if rolerec is not None:
             verifier_string = rolerec['password']
             if verifier_string is None:
@@ -697,8 +683,7 @@ cdef class EdgeConnection:
             # generate a mock verifier using a salt derived from the
             # received user name and the cluster mock auth nonce.
             # The same approach is taken by Postgres.
-            server = self.port.get_server()
-            nonce = await server.get_instance_data(conn, 'mock_auth_nonce')
+            nonce = server.get_instance_data('mock_auth_nonce')
             salt = hashlib.sha256(nonce.encode() + user.encode()).digest()
 
             verifier = scram.SCRAMVerifier(
@@ -987,21 +972,9 @@ cdef class EdgeConnection:
                     raise
                 else:
                     side_effects = self.dbview.on_success(query_unit)
-                    if side_effects & dbview.SideEffects.SchemaChanges:
-                        await self.port.get_server()._signal_sysevent(
-                            'schema-changes',
-                            dbname=self.dbview.dbname,
-                            dbver=self.dbview.dbver.hex(),
-                        )
-                    if side_effects & dbview.SideEffects.DatabaseConfigChanges:
-                        await self.port.get_server()._signal_sysevent(
-                            'database-config-changes',
-                            dbname=self.dbview.dbname,
-                        )
-                    if side_effects & dbview.SideEffects.SystemConfigChanges:
-                        await self.port.get_server()._signal_sysevent(
-                            'system-config-changes',
-                        )
+                    if side_effects:
+                        await self.signal_side_effects(side_effects)
+
                     if query_unit.new_types:
                         new_type_ids |= query_unit.new_types
 
@@ -1016,6 +989,27 @@ cdef class EdgeConnection:
             self.maybe_release_pgcon(conn)
 
         return query_unit
+
+    async def signal_side_effects(self, side_effects):
+        if side_effects & dbview.SideEffects.SchemaChanges:
+            await self.port.get_server()._signal_sysevent(
+                'schema-changes',
+                dbname=self.dbview.dbname,
+                dbver=self.dbview.dbver.hex(),
+            )
+        if side_effects & dbview.SideEffects.DatabaseConfigChanges:
+            await self.port.get_server()._signal_sysevent(
+                'database-config-changes',
+                dbname=self.dbview.dbname,
+            )
+        if side_effects & dbview.SideEffects.SystemConfigChanges:
+            await self.port.get_server()._signal_sysevent(
+                'system-config-changes',
+            )
+        if side_effects & dbview.SideEffects.RoleChanges:
+            await self.port.get_server()._signal_sysevent(
+                'role-changes',
+            )
 
     def _tokenize(self, eql: bytes) -> edgeql.Source:
         text = eql.decode('utf-8')
@@ -1411,20 +1405,8 @@ cdef class EdgeConnection:
             raise
         else:
             side_effects = self.dbview.on_success(query_unit)
-            if side_effects & dbview.SideEffects.SchemaChanges:
-                await self.port.get_server()._signal_sysevent(
-                    'schema-changes',
-                    dbname=self.dbview.dbname,
-                    dbver=self.dbview.dbver.hex()
-                )
-            if side_effects & dbview.SideEffects.DatabaseConfigChanges:
-                await self.port.get_server()._signal_sysevent(
-                    'database-config-changes',
-                    dbname=self.dbview.dbname
-                )
-            if side_effects & dbview.SideEffects.SystemConfigChanges:
-                await self.port.get_server()._signal_sysevent(
-                    'system-config-changes')
+            if side_effects:
+                await self.signal_side_effects(side_effects)
 
             self.write(self.make_command_complete_msg(query_unit))
 
@@ -1435,7 +1417,7 @@ cdef class EdgeConnection:
 
     async def _get_backend_tids(self, tids, conn):
         server = self.port.get_server()
-        query = await server.get_sys_query(conn, 'backend_tids')
+        query = server.get_sys_query('backend_tids')
         json_data = await conn.parse_execute_json(
             query, b'__sys_backend_tids',
             dbver=b'', use_prep_stmt=True, args=(list(tids),),

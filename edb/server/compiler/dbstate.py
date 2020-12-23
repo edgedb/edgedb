@@ -114,6 +114,7 @@ class DDLQuery(BaseQuery):
     is_transactional: bool = True
     single_unit: bool = False
     drop_db: Optional[str] = None
+    has_role_ddl: bool = False
 
 
 @dataclasses.dataclass(frozen=True)
@@ -179,6 +180,9 @@ class QueryUnit:
 
     # True if this unit contains SET commands.
     has_set: bool = False
+
+    # True if this unit contains ALTER/DROP/CREATE ROLE commands.
+    has_role_ddl: bool = False
 
     # If tx_id is set, it means that the unit
     # starts a new transaction.
