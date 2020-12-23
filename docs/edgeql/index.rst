@@ -1,10 +1,15 @@
+.. eql:section-intro-page:: origami
+
+======
 EdgeQL
 ======
+
+EdgeQL is the primary language of EdgeDB. It is used to define, mutate, and
+query data.
 
 
 .. toctree::
     :maxdepth: 3
-    :hidden:
 
     overview
     expressions/__toc__

@@ -1,3 +1,5 @@
+.. eql:section-intro-page:: toolbox
+
 ==============
 Administration
 ==============
