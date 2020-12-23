@@ -5011,7 +5011,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         # make sure that the old one is gone
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'could not find a function variant hello11'):
+                r'function "hello11\(arg0: std::int64\)" does not exist'):
             await self.con.execute(
                 r"""SELECT hello11(1);"""
             )
@@ -5099,7 +5099,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         # make sure that the other one is gone
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'could not find a function variant hello13'):
+                r'function "hello13\(arg0: std::str\)" does not exist'):
             await self.con.execute(
                 r"""SELECT hello13(' world');"""
             )
@@ -5137,7 +5137,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         # make sure that the old one is gone
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'could not find a function variant hello14'):
+                r'function "hello14\(arg0: std::str, arg1: std::str\)" '
+                r'does not exist'):
             await self.assert_query_result(
                 r"""SELECT hello14('hello', '14');""",
                 ['hello14'],
@@ -5176,7 +5177,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         # make sure that the old one is gone
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'could not find a function variant hello15'):
+                r'function "hello15\(arg0: std::str, arg1: std::str\)" '
+                r'does not exist'):
             await self.assert_query_result(
                 r"""SELECT hello15('hello', '15');""",
                 ['hello15'],

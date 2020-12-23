@@ -97,15 +97,49 @@ def compile_FunctionCall(
     args, kwargs, arg_ctxs = compile_call_args(expr, funcname, ctx=ctx)
     matched = polyres.find_callable(funcs, args=args, kwargs=kwargs, ctx=ctx)
     if not matched:
+        alts = [f.get_signature_as_str(env.schema) for f in funcs]
+        sig: List[str] = []
+        # This is used to generate unique arg names.
+        argnum = 0
+        for argtype, _ in args:
+            # Skip any name colliding with kwargs.
+            while f'arg{argnum}' in kwargs:
+                argnum += 1
+            sig.append(
+                f'arg{argnum}: {argtype.get_displayname(env.schema)}'
+            )
+            argnum += 1
+        for kwname, (kwtype, _) in kwargs.items():
+            sig.append(
+                f'NAMED ONLY {kwname}: {kwtype.get_displayname(env.schema)}'
+            )
+
+        signature = f'{funcname}({", ".join(sig)})'
+
+        if not funcs:
+            hint = None
+        elif len(alts) == 1:
+            hint = f'Did you want "{alts[0]}"?'
+        else:  # Multiple alternatives
+            hint = (
+                f'Did you want one of the following functions instead:\n' +
+                ('\n'.join(alts))
+            )
+
         raise errors.QueryError(
-            f'could not find a function variant {funcname}',
+            f'function "{signature}" does not exist',
+            hint=hint,
             context=expr.context)
     elif len(matched) > 1:
         if in_abstract_constraint:
             matched_call = matched[0]
         else:
+            alts = [m.func.get_signature_as_str(env.schema) for m in matched]
             raise errors.QueryError(
                 f'function {funcname} is not unique',
+                hint=f'Please disambiguate between the following '
+                     f'alternatives:\n' +
+                     ('\n'.join(alts)),
                 context=expr.context)
     else:
         matched_call = matched[0]

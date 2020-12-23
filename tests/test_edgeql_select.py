@@ -2742,8 +2742,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]}]
         )
 
-        with self.assertRaisesRegex(edgedb.QueryError,
-                                    'could not find a function variant'):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'function .+ does not exist'):
             async with self.con.transaction():
                 await self.con.query(
                     "SELECT test::concat1('aaa', 'bbb', 2);")
@@ -2758,8 +2759,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 USING SQL FUNCTION 'concat';
         ''')
 
-        with self.assertRaisesRegex(edgedb.QueryError,
-                                    'could not find a function'):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'function .+ does not exist'):
             await self.con.execute(r'SELECT test::concat2(123);')
 
     async def test_edgeql_select_func_07(self):
@@ -2826,13 +2828,15 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }]
         )
 
-        with self.assertRaisesRegex(edgedb.QueryError,
-                                    'could not find a function'):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'function .+ does not exist'):
             async with self.con.transaction():
                 await self.con.query(r'SELECT test::concat3(123);')
 
-        with self.assertRaisesRegex(edgedb.QueryError,
-                                    'could not find a function'):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'function .+ does not exist'):
             async with self.con.transaction():
                 await self.con.query(r'SELECT test::concat3("a", 123);')
 

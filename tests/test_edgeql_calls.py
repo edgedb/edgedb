@@ -139,7 +139,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         for c in cases:
             with self.assertRaisesRegex(
                     edgedb.QueryError,
-                    r'could not find a function variant'):
+                    r'function .+ does not exist'):
                 async with self.con.transaction():
                     await self.con.execute(c)
 
@@ -315,7 +315,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         for c in cases:
             with self.assertRaisesRegex(
                     edgedb.QueryError,
-                    r'could not find a function variant'):
+                    r'function .+ does not exist'):
                 async with self.con.transaction():
                     await self.con.execute(c)
 
@@ -507,7 +507,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         for c in cases:
             with self.assertRaisesRegex(
                     edgedb.QueryError,
-                    r'could not find a function variant'):
+                    r'function .+ does not exist'):
                 async with self.con.transaction():
                     await self.con.execute(c)
 
@@ -766,7 +766,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'could not find a function variant'):
+                r'function .+ does not exist'):
 
             async with self.con.transaction():
                 await self.con.execute('SELECT test::call18(1, 2, "a");')
@@ -826,7 +826,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'could not find a function variant'):
+                r'function .+ does not exist'):
             async with self.con.transaction():
                 await self.con.execute('SELECT test::call20_1(1, "1");')
 
@@ -974,7 +974,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'could not find a function variant'):
+                r'function .+ does not exist'):
             async with self.con.transaction():
                 await self.con.execute('SELECT test::call26([(1, 2)]);')
 
@@ -1008,7 +1008,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         for c in cases:
             with self.assertRaisesRegex(
                     edgedb.QueryError,
-                    r'could not find a function variant'):
+                    r'function .+ does not exist'):
                 async with self.con.transaction():
                     await self.con.execute(c)
 
