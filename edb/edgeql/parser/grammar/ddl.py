@@ -2356,7 +2356,7 @@ class OptMigrationNameParentName(Nonterm):
 
 class CreateMigrationStmt(Nonterm):
 
-    def reduce_CreateMigration_Commands(self, *kids):
+    def reduce_CreateMigration(self, *kids):
         r"""%reduce
             CREATE MIGRATION OptMigrationNameParentName OptCreateMigrationBody
         """
@@ -2365,6 +2365,19 @@ class CreateMigrationStmt(Nonterm):
             parent=kids[2].val.parent,
             message=kids[3].val.message,
             body=kids[3].val.body,
+        )
+
+    def reduce_CreateAppliedMigration(self, *kids):
+        r"""%reduce
+            CREATE APPLIED MIGRATION
+            OptMigrationNameParentName OptCreateMigrationBody
+        """
+        self.val = qlast.CreateMigration(
+            name=kids[3].val.name,
+            parent=kids[3].val.parent,
+            message=kids[4].val.message,
+            body=kids[4].val.body,
+            metadata_only=True,
         )
 
 

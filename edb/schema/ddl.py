@@ -729,6 +729,7 @@ def ddl_text_from_schema(
     included_ref_classes: Iterable[so.ObjectMeta]=tuple(),
     include_module_ddl: bool=True,
     include_std_ddl: bool=False,
+    include_migrations: bool=False,
 ) -> str:
     diff = delta_schemas(
         schema_a=None,
@@ -740,6 +741,7 @@ def ddl_text_from_schema(
         include_module_diff=include_module_ddl,
         include_std_diff=include_std_ddl,
         include_derived_types=False,
+        include_migrations=include_migrations,
     )
     return ddl_text_from_delta(None, schema, diff)
 

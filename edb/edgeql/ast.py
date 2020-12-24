@@ -693,6 +693,7 @@ class CreateMigration(CreateObject, Migration):
     body: MigrationBody
     parent: typing.Optional[ObjectRef] = None
     message: typing.Optional[str] = None
+    metadata_only: bool = False
 
 
 class StartMigration(DDLCommand, Migration):
