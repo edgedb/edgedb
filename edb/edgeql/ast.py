@@ -703,6 +703,7 @@ class CreateMigration(CreateObject, Migration):
     # XXX: due to unresolved issues in DDL IR decompilation
     # we have to carry the IR produced by schema diff for now.
     auto_diff: typing.Optional[typing.Any] = None
+    metadata_only: bool = False
 
 
 class StartMigration(DDLCommand, Migration):

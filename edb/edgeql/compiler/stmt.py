@@ -744,6 +744,7 @@ def compile_DescribeStmt(
 
             verbose = ql.options.get_flag('VERBOSE')
 
+            method: Any
             if ql.language is qltypes.DescribeLanguage.DDL:
                 method = s_ddl.ddl_text_from_schema
             elif ql.language is qltypes.DescribeLanguage.SDL:

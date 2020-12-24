@@ -2205,7 +2205,7 @@ class OptMigrationNameParentName(Nonterm):
 
 class CreateMigrationStmt(Nonterm):
 
-    def reduce_CreateMigration_Commands(self, *kids):
+    def reduce_CreateMigration(self, *kids):
         r"""%reduce
             CREATE MIGRATION OptMigrationNameParentName OptCreateMigrationBody
         """
@@ -2229,6 +2229,34 @@ class CreateMigrationStmt(Nonterm):
             parent=kids[2].val.parent,
             message=message,
             commands=body,
+        )
+
+    def reduce_CreateAppliedMigration(self, *kids):
+        r"""%reduce
+            CREATE APPLIED MIGRATION
+            OptMigrationNameParentName OptCreateMigrationBody
+        """
+        message = None
+
+        body = []
+        for stmt in kids[4].val:
+            if isinstance(stmt, qlast.SetField):
+                if stmt.name == 'message':
+                    message = stmt.value
+                else:
+                    raise errors.InvalidSyntaxError(
+                        f'unexpected field: {stmt.name!r}',
+                        context=stmt.context,
+                    )
+            else:
+                body.append(stmt)
+
+        self.val = qlast.CreateMigration(
+            name=kids[3].val.name,
+            parent=kids[3].val.parent,
+            message=message,
+            commands=body,
+            metadata_only=True,
         )
 
 

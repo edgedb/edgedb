@@ -2983,11 +2983,22 @@ aa';
         CREATE MIGRATION m123123123 {
             CREATE TYPE Foo;
         };
+% OK %
+        CREATE MIGRATION m123123123 ONTO initial {
+            CREATE TYPE Foo;
+        };
         """
 
     def test_edgeql_syntax_ddl_create_migration_05(self):
         """
         CREATE MIGRATION m123123123 ONTO m134134134 {
+            CREATE TYPE Foo;
+        };
+        """
+
+    def test_edgeql_syntax_ddl_create_migration_06(self):
+        """
+        CREATE APPLIED MIGRATION m123123123 ONTO m134134134 {
             CREATE TYPE Foo;
         };
         """

@@ -33,6 +33,7 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import codegen as qlcodegen
 from edb.edgeql import qltypes
 from edb._edgeql_rust import tokenize as qltokenize
+from edb.edgeql import parser as qlparser
 
 from . import abc as s_abc
 from . import delta as sd
@@ -194,10 +195,44 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
                     cmd.discard(subcmd)
             for subcmd in astnode.auto_diff.get_subcommands():
                 cmd.add(subcmd)
+        elif astnode.metadata_only:
+            for subcmd in list(cmd.get_subcommands()):
+                if not isinstance(subcmd, sd.AlterObjectProperty):
+                    cmd.discard(subcmd)
 
         assert isinstance(cmd, CreateMigration)
 
         return cmd
+
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
+        node = super()._get_ast(schema, context, parent_node=parent_node)
+        assert isinstance(node, qlast.CreateMigration)
+        node.metadata_only = True
+        return node
+
+    def _apply_field_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        node: qlast.DDLOperation,
+        op: sd.AlterObjectProperty,
+    ) -> None:
+        assert isinstance(node, qlast.CreateMigration)
+        if op.property == 'script':
+            node.commands.extend(qlparser.parse_block(op.new_value))
+        elif op.property == 'parents':
+            if op.new_value and (items := op.new_value.items):
+                assert len(items) == 1
+                parent = next(iter(items))
+                node.parent = s_utils.name_to_ast_ref(parent.get_name(schema))
+        else:
+            super()._apply_field_ast(schema, context, node, op)
 
 
 class AlterMigration(MigrationCommand, sd.AlterObject[Migration]):
