@@ -1029,13 +1029,18 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_DropObject(node, 'ROLE')
 
     def visit_CreateMigration(self, node: qlast.CreateMigration) -> None:
-        self.write('CREATE MIGRATION')
+        self.write('CREATE')
+        if node.metadata_only:
+            self.write(' APPLIED')
+        self.write(' MIGRATION')
         if node.name is not None:
             self.write(' ')
             self.write(ident_to_str(node.name.name))
+            self.write(' ONTO ')
             if node.parent is not None:
-                self.write(' ONTO ')
                 self.write(ident_to_str(node.parent.name))
+            else:
+                self.write('initial')
         if node.body.commands:
             self._ddl_visit_body(node.body.commands)
 

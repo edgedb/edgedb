@@ -46,6 +46,11 @@ class SourcePoint:
         self.column = column
         self.pointer = pointer
 
+    def __repr__(self):
+        return f'source@({self.line}:{self.column}:{self.pointer})'
+
+    __str__ = __repr__
+
 
 class ParserContext(markup.MarkupExceptionContext):
     title = 'Source Context'

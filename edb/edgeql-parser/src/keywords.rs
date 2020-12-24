@@ -5,6 +5,7 @@ pub const UNRESERVED_KEYWORDS: &[&str] = &[
     "allow",
     "all",
     "annotation",
+    "applied",
     "as",
     "asc",
     "assignment",
