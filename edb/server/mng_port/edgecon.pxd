@@ -108,6 +108,7 @@ cdef class EdgeConnection:
 
         pgcon.PGConnection _pinned_pgcon
         bint _pinned_pgcon_in_tx
+        bint _ddl_locked
 
         int _get_pgcon_cc
 

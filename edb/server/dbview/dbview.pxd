@@ -84,6 +84,7 @@ cdef class DatabaseConnectionView:
 
     cdef in_tx(self)
     cdef in_tx_error(self)
+    cdef in_tx_ddl(self)
 
     cdef cache_compiled_query(self, object key, object query_unit)
     cdef lookup_compiled_query(self, object key)

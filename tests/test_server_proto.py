@@ -2487,9 +2487,8 @@ class TestServerProtoDDL(tb.DDLTestCase):
         finally:
             await con2.aclose()
 
-    @test.xfail("concurrent DDL isn't yet supported")
     async def test_server_proto_query_cache_invalidate_08(self):
-        typename_prefix = 'CacheInvMulti_'
+        typename_prefix = 'CacheInvMulti_0_'
         ntasks = 5
 
         async with tg.TaskGroup() as g:
@@ -2516,7 +2515,7 @@ class TestServerProtoDDL(tb.DDLTestCase):
             for i, con in enumerate(cons):
                 ret = await con.query(
                     f'SELECT test::{typename_prefix}{i}.prop1')
-                self.assertEqual(ret, i)
+                self.assertEqual(ret, [i])
 
         finally:
             async with tg.TaskGroup() as g:
@@ -2524,6 +2523,44 @@ class TestServerProtoDDL(tb.DDLTestCase):
                     g.create_task(con.aclose())
 
     async def test_server_proto_query_cache_invalidate_09(self):
+        typename_prefix = 'CacheInvMulti_1_'
+        ntasks = 5
+
+        async with tg.TaskGroup() as g:
+            cons_tasks = [
+                g.create_task(self.connect(database=self.con.dbname))
+                for _ in range(ntasks)
+            ]
+
+        cons = [c.result() for c in cons_tasks]
+
+        try:
+            async with tg.TaskGroup() as g:
+                for i, con in enumerate(cons):
+                    g.create_task(con.query(f'''
+                        CREATE TYPE test::{typename_prefix}{i} {{
+                            CREATE REQUIRED PROPERTY prop1 -> std::int64;
+                        }};
+                    '''))
+
+            for i, con in enumerate(cons):
+                await con.query(f'''
+                    INSERT test::{typename_prefix}{i} {{
+                        prop1 := {i}
+                    }};
+                ''')
+
+                ret = await con.query(
+                    f'SELECT test::{typename_prefix}{i}.prop1')
+
+                self.assertEqual(ret, [i])
+
+        finally:
+            async with tg.TaskGroup() as g:
+                for con in cons:
+                    g.create_task(con.aclose())
+
+    async def test_server_proto_query_cache_invalidate_10(self):
         typename = 'CacheInv_09'
 
         await self.con.execute('START TRANSACTION')

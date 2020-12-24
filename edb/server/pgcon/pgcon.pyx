@@ -65,6 +65,8 @@ from . import errors as pgerror
 DEF DATA_BUFFER_SIZE = 100_000
 DEF PREP_STMTS_CACHE = 100
 
+DEF DDL_LOCK_ID = 0xDD1_10C8
+
 DEF COPY_SIGNATURE = b"PGCOPY\n\377\r\n\0"
 
 
@@ -1121,6 +1123,28 @@ cdef class PGConnection:
             await self._restore(sql, data, elided_cols)
         finally:
             self.after_command()
+
+    async def acquire_ddl_lock(self):
+        await self.parse_execute_json(
+            f'''
+            SELECT pg_advisory_lock({DDL_LOCK_ID});
+            '''.encode(),
+            b'acquire_ddl_lock',
+            dbver=b'',
+            use_prep_stmt=True,
+            args=()
+        )
+
+    async def release_ddl_lock(self):
+        await self.parse_execute_json(
+            f'''
+            SELECT pg_advisory_unlock({DDL_LOCK_ID});
+            '''.encode(),
+            b'release_ddl_lock',
+            dbver=b'',
+            use_prep_stmt=True,
+            args=()
+        )
 
     async def connect(self):
         cdef:

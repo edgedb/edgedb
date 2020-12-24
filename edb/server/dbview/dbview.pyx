@@ -223,6 +223,9 @@ cdef class DatabaseConnectionView:
     cdef in_tx_error(self):
         return self._tx_error
 
+    cdef in_tx_ddl(self):
+        return self._in_tx_with_ddl
+
     cdef cache_compiled_query(self, object key, object query_unit):
         assert query_unit.cacheable
 

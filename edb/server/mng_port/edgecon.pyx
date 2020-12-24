@@ -223,6 +223,7 @@ cdef class EdgeConnection:
 
         self._pinned_pgcon = None
         self._pinned_pgcon_in_tx = False
+        self._ddl_locked = False
         self._get_pgcon_cc = 0
 
     async def get_pgcon(self) -> pgcon.PGConnection:
@@ -242,7 +243,7 @@ cdef class EdgeConnection:
         self._pinned_pgcon = conn
         return conn
 
-    def maybe_release_pgcon(self, pgcon.PGConnection conn):
+    def maybe_release_pgcon(self, pgcon.PGConnection conn, bint errored):
         self._get_pgcon_cc -= 1
         if self._get_pgcon_cc < 0:
             raise RuntimeError(
@@ -257,7 +258,19 @@ cdef class EdgeConnection:
             self._pinned_pgcon_in_tx = False
             self._pinned_pgcon = None
             self.port.get_server().release_pgcon(
-                self.dbview.dbname, conn)
+                self.dbview.dbname, conn, discard=errored)
+
+    async def acquire_ddl_lock(self, pgcon.PGConnection conn):
+        if self._ddl_locked:
+            raise RuntimeError('DDL lock has been already acquired')
+        await conn.acquire_ddl_lock()
+        self._ddl_locked = True
+
+    async def release_ddl_lock(self, pgcon.PGConnection conn):
+        if not self._ddl_locked:
+            raise RuntimeError('DDL lock has not yet been acquired')
+        await conn.release_ddl_lock()
+        self._ddl_locked = False
 
     cdef get_backend(self):
         if self._con_status is EDGECON_BAD:
@@ -822,6 +835,8 @@ cdef class EdgeConnection:
             self.dbview.raise_in_tx_error()
 
     async def _recover_script_error(self, eql: bytes, allow_capabilities):
+        cdef bint errored
+
         assert self.dbview.in_tx_error()
 
         query_unit, num_remain = await self._compile_rollback(eql)
@@ -833,6 +848,7 @@ cdef class EdgeConnection:
             )
 
         conn = await self.get_pgcon()
+        errored = False
         try:
             await conn.simple_query(
                 b';'.join(query_unit.sql), ignore_data=True)
@@ -846,8 +862,13 @@ cdef class EdgeConnection:
                     self.debug_print('== RECOVERY: ROLLBACK')
                 assert query_unit.tx_rollback
                 self.dbview.abort_tx()
+        except Exception:
+            errored = True
+            raise
         finally:
-            self.maybe_release_pgcon(conn)
+            if not self.dbview.in_tx_ddl() and self._ddl_locked:
+                await self.release_ddl_lock(conn)
+            self.maybe_release_pgcon(conn, errored)
 
         if num_remain:
             return 'skip_first', query_unit
@@ -913,6 +934,7 @@ cdef class EdgeConnection:
         cdef:
             bytes state = None
             int i
+            bint errored
 
         stmt_mode = 'all'
         with self.timer.timed("Query compilation"):
@@ -926,12 +948,15 @@ cdef class EdgeConnection:
                 )
 
         conn = await self.get_pgcon()
-        if not self.dbview.in_tx():
-            state = self.dbview.serialize_state()
+        errored = False
         try:
+            if not self.dbview.in_tx():
+                state = self.dbview.serialize_state()
             new_type_ids = frozenset()
             for query_unit in units:
                 self.dbview.start(query_unit)
+                if query_unit.has_ddl and not self._ddl_locked:
+                    await self.acquire_ddl_lock(conn)
                 try:
                     if query_unit.drop_db:
                         await self.port.get_server()._on_drop_db(
@@ -977,6 +1002,9 @@ cdef class EdgeConnection:
 
                     if query_unit.new_types:
                         new_type_ids |= query_unit.new_types
+                finally:
+                    if not self.dbview.in_tx_ddl() and self._ddl_locked:
+                        await self.release_ddl_lock(conn)
 
             if new_type_ids and self.dbview.in_tx():
                 # This is a single script, potentially containing multiple
@@ -985,8 +1013,11 @@ cdef class EdgeConnection:
                 # after executing the script and there were new types added
                 # we want to update type IDs in the linked compiler.
                 await self._update_type_ids(new_type_ids, conn)
+        except Exception:
+            errored = True
+            raise
         finally:
-            self.maybe_release_pgcon(conn)
+            self.maybe_release_pgcon(conn, errored)
 
         return query_unit
 
@@ -1345,6 +1376,7 @@ cdef class EdgeConnection:
                        bint use_prep_stmt):
         cdef:
             bytes state = None
+            bint errored
 
         query_unit = compiled.query_unit
         if self.dbview.in_tx_error():
@@ -1352,6 +1384,7 @@ cdef class EdgeConnection:
                 self.dbview.raise_in_tx_error()
 
             conn = await self.get_pgcon()
+            errored = False
             try:
                 await conn.simple_query(
                     b';'.join(query_unit.sql), ignore_data=True)
@@ -1363,17 +1396,25 @@ cdef class EdgeConnection:
                     self.dbview.abort_tx()
 
                 self.write(self.make_command_complete_msg(query_unit))
+            except Exception:
+                errored = True
+                raise
             finally:
-                self.maybe_release_pgcon(conn)
+                if not self.dbview.in_tx_ddl() and self._ddl_locked:
+                    await self.release_ddl_lock(conn)
+                self.maybe_release_pgcon(conn, errored)
             return
 
         bound_args_buf = self.recode_bind_args(bind_args, compiled)
 
         conn = await self.get_pgcon()
-        if not self.dbview.in_tx():
-            state = self.dbview.serialize_state()
+        errored = False
         try:
+            if not self.dbview.in_tx():
+                state = self.dbview.serialize_state()
             self.dbview.start(query_unit)
+            if query_unit.has_ddl and not self._ddl_locked:
+                await self.acquire_ddl_lock(conn)
             if query_unit.drop_db:
                 await self.port.get_server()._on_drop_db(
                     query_unit.drop_db, self.dbview.dbname)
@@ -1392,8 +1433,10 @@ cdef class EdgeConnection:
                         conn,
                         query_unit.config_ops)
         except ConnectionAbortedError:
+            errored = True
             raise
         except Exception:
+            errored = True
             self.dbview.on_error(query_unit)
 
             if not conn.in_tx() and self.dbview.in_tx():
@@ -1413,7 +1456,9 @@ cdef class EdgeConnection:
             if query_unit.new_types and self.dbview.in_tx():
                 await self._update_type_ids(query_unit.new_types, conn)
         finally:
-            self.maybe_release_pgcon(conn)
+            if not self.dbview.in_tx_ddl() and self._ddl_locked:
+                await self.release_ddl_lock(conn)
+            self.maybe_release_pgcon(conn, errored)
 
     async def _get_backend_tids(self, tids, conn):
         server = self.port.get_server()
