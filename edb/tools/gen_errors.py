@@ -145,8 +145,9 @@ class ErrorsTree:
 
         self._all_codes = set()
         self._all_names = set()
+        self._all_tags = dict()
 
-    def add(self, b1, b2, b3, b4, name):
+    def add(self, b1, b2, b3, b4, name, tags):
         if name in self._all_names:
             raise ValueError(f'duplicate error name {name!r}')
 
@@ -168,6 +169,7 @@ class ErrorsTree:
             .setdefault(b2, SparseArray) \
             .setdefault(b3, SparseArray) \
             .setdefault(b4, lambda: name)
+        self._all_tags[name] = tags
 
     def load(self, ep):
         with open(ep, 'rt') as f:
@@ -194,6 +196,7 @@ class ErrorsTree:
 
                     \s+
                     (?P<name>[A-Z][a-zA-Z]+(?:Error|Message))
+                    (?P<tags>(?:\s+\#[A-Z_]+)*)
                     \s*
                 $''',
                 line
@@ -207,8 +210,16 @@ class ErrorsTree:
             b3 = int(m.group('b3'), 16)
             b4 = int(m.group('b4'), 16)
             name = m.group('name')
+            if m.group('tags').strip():
+                tags = set(
+                    map(lambda s: s.lstrip('#'),
+                        map(str.strip,
+                            m.group('tags').split()))
+                )
+            else:
+                tags = set()
 
-            self.add(b1, b2, b3, b4, name)
+            self.add(b1, b2, b3, b4, name, tags)
 
     def generate_classes(self, *, message_base_class, base_class, client):
         classes = []
@@ -253,7 +264,8 @@ class ErrorsTree:
                             else:
                                 base = message_base_class
 
-                        classes.append((b4, base, i1, i2, i3, i4))
+                        classes.append((b4, base, i1, i2, i3, i4,
+                                        list(self._all_tags[b4])))
 
         return classes
 
@@ -266,12 +278,15 @@ class ErrorsTree:
 
         lines = []
         all_lines = []
-        for name, base, i1, i2, i3, i4 in classes:
+        for name, base, i1, i2, i3, i4, tags in classes:
             all_lines.append(name)
-            lines.append(
+            klass = (
                 f'class {name}({base}):\n'
                 f'    _code = 0x_{i1:0>2X}_{i2:0>2X}_{i3:0>2X}_{i4:0>2X}'
             )
+            if tags:
+                klass += f'\n    tags = frozenset({{{", ".join(tags)}}})'
+            lines.append(klass)
 
         lines = '\n\n\n'.join(lines)
 
@@ -325,7 +340,7 @@ def main(*, base_class, message_base_class,
         cmd_line += \
             f' \\\n#        --message-base-class "{message_base_class}"'
     if base_import != ErrorsTree.DEFAULT_BASE_IMPORT:
-        cmd_line += f' \\\n#        --import "{base_import}"'
+        cmd_line += f' \\\n#        --import {repr(base_import)}'
     if extra_all != ErrorsTree.DEFAULT_EXTRA_ALL:
         cmd_line += f' \\\n#        --extra-all "{extra_all}"'
     if stdout:
