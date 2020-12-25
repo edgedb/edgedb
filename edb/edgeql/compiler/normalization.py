@@ -26,9 +26,12 @@ from typing import *
 import functools
 
 from edb.common.ast import base
+
 from edb.edgeql import ast as qlast
-from edb.schema import schema as s_schema
+from edb.edgeql import parser as qlparser
+
 from edb.schema import name as sn
+from edb.schema import schema as s_schema
 
 
 @functools.singledispatch
@@ -40,6 +43,53 @@ def normalize(
     localnames: AbstractSet[str] = frozenset(),
 ) -> None:
     raise AssertionError(f'normalize: cannot handle {node!r}')
+
+
+def renormalize_compat(
+    norm_qltree: qlast.Base,
+    orig_text: str,
+    *,
+    schema: s_schema.Schema,
+    localnames: AbstractSet[str] = frozenset(),
+) -> qlast.Base:
+    """Renormalize an expression normalized with imprint_expr_context().
+
+    This helper takes the original, unmangled expression, an EdgeQL AST
+    tree of the same expression mangled with `imprint_expr_context()`
+    (which injects extra WITH MODULE clauses), and produces a normalized
+    expression with explicitly qualified identifiers instead.  Old dumps
+    are the main user of this facility.
+    """
+    orig_qltree = qlparser.parse_fragment(orig_text)
+
+    norm_aliases: Dict[Optional[str], str] = {}
+    assert isinstance(norm_qltree, qlast.Command)
+    for alias in norm_qltree.aliases:
+        if isinstance(alias, qlast.ModuleAliasDecl):
+            norm_aliases[alias.alias] = alias.module
+
+    if isinstance(orig_qltree, qlast.Command):
+        orig_aliases: Dict[Optional[str], str] = {}
+        for alias in orig_qltree.aliases:
+            if isinstance(alias, qlast.ModuleAliasDecl):
+                orig_aliases[alias.alias] = alias.module
+
+        modaliases = {
+            k: v
+            for k, v in norm_aliases.items()
+            if k not in orig_aliases
+        }
+    else:
+        modaliases = norm_aliases
+
+    normalize(
+        orig_qltree,
+        schema=schema,
+        modaliases=modaliases,
+        localnames=localnames,
+    )
+
+    return orig_qltree
 
 
 def _normalize_recursively(

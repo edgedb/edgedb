@@ -80,7 +80,7 @@ def param_as_str(
     ret.append(paramt.get_displayname(schema))
 
     if default is not None:
-        ret.append(f'={default.origtext}')
+        ret.append(f'={default.text}')
 
     return ''.join(ret)
 
@@ -1119,14 +1119,6 @@ class Function(CallableObject, VolatilitySubject, s_abc.Function,
 
     nativecode = so.SchemaField(
         expr.Expression, default=None, compcoef=0.4)
-
-    orig_nativecode = so.SchemaField(
-        str,
-        default=None,
-        coerce=True,
-        allow_ddl_set=True,
-        ephemeral=True,
-    )
 
     language = so.SchemaField(
         qlast.Language, default=None, compcoef=0.4, coerce=True)

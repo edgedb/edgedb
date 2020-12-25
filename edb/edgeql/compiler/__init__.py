@@ -153,6 +153,7 @@ if TYPE_CHECKING:
 
     from . import dispatch as dispatch_mod
     from . import inference as inference_mod
+    from . import normalization as norm_mod
     from . import stmtctx as stmtctx_mod
 else:
     # Modules will be loaded lazily in _load().
@@ -160,6 +161,7 @@ else:
     inference_mod = None
     irast = None
     ireval = None
+    norm_mod = None
     stmtctx_mod = None
 
 
@@ -414,11 +416,60 @@ def compile_constant_tree_to_ir(
     return result
 
 
+@compiler_entrypoint
+def normalize(
+    tree: qlast.Base,
+    *,
+    schema: s_schema.Schema,
+    modaliases: Mapping[Optional[str], str],
+    localnames: AbstractSet[str] = frozenset(),
+) -> None:
+    """Normalize the given AST *tree* by explicitly qualifying identifiers.
+
+    This helper takes an arbitrary EdgeQL AST tree together with the current
+    module alias mapping and produces an equivalent expression, in which
+    all identifiers representing schema object references are properly
+    qualified with the module name.
+
+    NOTE: the tree is mutated *in-place*.
+    """
+    return norm_mod.normalize(
+        tree,
+        schema=schema,
+        modaliases=modaliases,
+        localnames=localnames,
+    )
+
+
+@compiler_entrypoint
+def renormalize_compat(
+    tree: qlast.Base,
+    orig_text: str,
+    *,
+    schema: s_schema.Schema,
+    localnames: AbstractSet[str] = frozenset(),
+) -> qlast.Base:
+    """Renormalize an expression normalized with imprint_expr_context().
+
+    This helper takes the original, unmangled expression, an EdgeQL AST
+    tree of the same expression mangled with `imprint_expr_context()`
+    (which injects extra WITH MODULE clauses), and produces a normalized
+    expression with explicitly qualified identifiers instead.  Old dumps
+    are the main user of this facility.
+    """
+    return norm_mod.renormalize_compat(
+        tree,
+        orig_text,
+        schema=schema,
+        localnames=localnames,
+    )
+
+
 def _load() -> None:
     """Load the compiler modules.  This is done once per process."""
 
     global _LOADED
-    global dispatch_mod, inference_mod, irast, ireval, stmtctx_mod
+    global dispatch_mod, inference_mod, irast, ireval, norm_mod, stmtctx_mod
 
     from edb.ir import ast as _irast
     from edb.ir import staeval as _ireval
@@ -429,11 +480,13 @@ def _load() -> None:
 
     from . import dispatch
     from . import inference
+    from . import normalization
     from . import stmtctx
 
     dispatch_mod = dispatch
     inference_mod = inference
     irast = _irast
     ireval = _ireval
+    norm_mod = normalization
     stmtctx_mod = stmtctx
     _LOADED = True

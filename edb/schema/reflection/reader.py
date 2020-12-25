@@ -254,7 +254,6 @@ def _parse_expression(val: Dict[str, Any]) -> s_expr.Expression:
     )
     return s_expr.Expression(
         text=val['text'],
-        origtext=val['origtext'],
         refs=s_obj.ObjectSet(
             refids,
             _private_init=True,

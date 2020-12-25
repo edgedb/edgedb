@@ -43,7 +43,6 @@ if TYPE_CHECKING:
 class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
 
     text = struct.Field(str, frozen=True)
-    origtext = struct.Field(str, default=None, frozen=True)
     # mypy wants an argument to the ObjectSet generic, but
     # that wouldn't work for struct.Field, since subscripted
     # generics are not types.
@@ -68,7 +67,6 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
     def __getstate__(self) -> Dict[str, Any]:
         return {
             'text': self.text,
-            'origtext': self.origtext,
             'refs': self.refs,
             '_qlast': None,
             '_irast': None,
@@ -116,12 +114,10 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
         as_fragment: bool = False,
         orig_text: Optional[str] = None,
     ) -> Expression:
-        from edb.edgeql.compiler import normalization as qlnorm
-
         if orig_text is None:
             orig_text = qlcodegen.generate_source(qltree, pretty=False)
         if not as_fragment:
-            qlnorm.normalize(
+            qlcompiler.normalize(
                 qltree,
                 schema=schema,
                 modaliases=modaliases,
@@ -132,13 +128,12 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
 
         return cls(
             text=norm_text,
-            origtext=orig_text,
             _qlast=qltree,
         )
 
     @classmethod
     def not_compiled(cls: Type[Expression], expr: Expression) -> Expression:
-        return Expression(text=expr.text, origtext=expr.origtext)
+        return Expression(text=expr.text)
 
     @classmethod
     def compiled(
@@ -169,7 +164,6 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
 
         return cls(
             text=expr.text,
-            origtext=expr.origtext,
             refs=so.ObjectSet.create(schema, ir.schema_refs),
             _qlast=expr.qlast,
             _irast=ir,
@@ -182,7 +176,6 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
                 schema: s_schema.Schema) -> Expression:
         return cls(
             text=expr.text,
-            origtext=expr.origtext,
             refs=so.ObjectSet.create(schema, ir.schema_refs),
             _qlast=expr.qlast,
             _irast=ir,
@@ -194,7 +187,6 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
                   schema: s_schema.Schema) -> Expression:
         return cls(
             text=expr.text,
-            origtext=expr.origtext,
             refs=(
                 so.ObjectSet.create(schema, expr.refs.objects(schema))
                 if expr.refs is not None else None
@@ -206,7 +198,6 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
     def as_shell(self, schema: s_schema.Schema) -> ExpressionShell:
         return ExpressionShell(
             text=self.text,
-            origtext=self.origtext,
             refs=(
                 r.as_shell(schema) for r in self.refs.objects(schema)
             ) if self.refs is not None else None,
@@ -217,7 +208,6 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
         self,
     ) -> Tuple[
         str,
-        Optional[str],
         Tuple[
             str,
             Optional[Union[Tuple[type, ...], type]],
@@ -228,7 +218,6 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
         assert self.refs is not None, 'expected expression to be compiled'
         return (
             self.text,
-            self.origtext,
             self.refs.schema_reduce(),
         )
 
@@ -237,7 +226,6 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
         cls,
         data: Tuple[
             str,
-            Optional[str],
             Tuple[
                 str,
                 Optional[Union[Tuple[type, ...], type]],
@@ -246,10 +234,9 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
             ],
         ],
     ) -> Expression:
-        text, origtext, refs_data = data
+        text, refs_data = data
         return Expression(
             text=text,
-            origtext=origtext,
             refs=so.ObjectCollection.schema_restore(refs_data),
         )
 
@@ -258,7 +245,6 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
         cls,
         data: Tuple[
             str,
-            Optional[str],
             Tuple[
                 str,
                 Optional[Union[Tuple[type, ...], type]],
@@ -267,7 +253,7 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
             ],
         ],
     ) -> FrozenSet[uuid.UUID]:
-        return so.ObjectCollection.schema_refs_from_data(data[2])
+        return so.ObjectCollection.schema_refs_from_data(data[1])
 
 
 class ExpressionShell(so.Shell):
@@ -276,13 +262,11 @@ class ExpressionShell(so.Shell):
         self,
         *,
         text: str,
-        origtext: Optional[str],
         refs: Optional[Iterable[so.ObjectShell]],
         _qlast: Optional[qlast_.Base] = None,
         _irast: Optional[irast_.Command] = None,
     ) -> None:
         self.text = text
-        self.origtext = origtext
         self.refs = tuple(refs) if refs is not None else None
         self._qlast = _qlast
         self._irast = _irast
@@ -290,7 +274,6 @@ class ExpressionShell(so.Shell):
     def resolve(self, schema: s_schema.Schema) -> Expression:
         return Expression(
             text=self.text,
-            origtext=self.origtext,
             refs=so.ObjectSet.create(
                 schema,
                 (s.resolve(schema) for s in self.refs),
@@ -310,7 +293,7 @@ class ExpressionShell(so.Shell):
             refs = 'N/A'
         else:
             refs = ', '.join(repr(obj) for obj in self.refs)
-        return f'<ExpressionShell {self.origtext} refs=({refs})>'
+        return f'<ExpressionShell {self.text} refs=({refs})>'
 
 
 class ExpressionList(checked.FrozenCheckedList[Expression]):

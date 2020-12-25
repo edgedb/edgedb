@@ -844,24 +844,11 @@ def _register_item(
             # indexes need to preserve their "on" expression
             if isinstance(decl, qlast.CreateIndex):
                 alter_cmd.expr = decl.expr
-                for sub in decl.commands:
-                    if (
-                        isinstance(sub, qlast.SetField)
-                        and sub.name == 'orig_expr'
-                    ):
-                        alter_cmd.commands.append(sub)
-                        break
+
             # constraints need to preserve their "on" expression
-            elif isinstance(decl, qlast.CreateConcreteConstraint):
+            if isinstance(decl, qlast.CreateConcreteConstraint):
                 alter_cmd.subjectexpr = decl.subjectexpr
                 alter_cmd.args = decl.args
-                for sub in orig_op.commands:
-                    if (
-                        isinstance(sub, qlast.SetField)
-                        and sub.name == 'orig_subjectexpr'
-                    ):
-                        alter_cmd.commands.append(sub)
-                        break
 
             if not ctx.depstack:
                 alter_cmd.aliases = [

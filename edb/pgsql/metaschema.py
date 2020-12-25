@@ -90,7 +90,6 @@ class ExpressionType(dbops.CompositeType):
 
         self.add_columns([
             dbops.Column(name='text', type='text'),
-            dbops.Column(name='origtext', type='text'),
             dbops.Column(name='refs', type='uuid[]'),
         ])
 

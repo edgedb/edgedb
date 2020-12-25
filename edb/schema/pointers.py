@@ -30,7 +30,6 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
 from edb.edgeql import quote as qlquote
-from edb.edgeql.compiler import normalization as qlnorm
 
 from . import abc as s_abc
 from . import annos as s_anno
@@ -1425,7 +1424,7 @@ class PointerCommand(
                 )
             else:
                 # computable
-                qlnorm.normalize(
+                qlcompiler.normalize(
                     target_expr,
                     schema=schema,
                     modaliases=context.modaliases

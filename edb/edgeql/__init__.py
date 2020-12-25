@@ -24,4 +24,3 @@ from .tokenizer import Source, NormalizedSource  # NOQA
 from .codegen import generate_source  # NOQA
 from .parser import parse, parse_fragment, parse_block  # NOQA
 from .parser.grammar import keywords  # NOQA
-from .rewriter import rewrite_refs  # NOQA
