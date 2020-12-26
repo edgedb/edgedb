@@ -23,6 +23,7 @@ from typing import *
 from edb import edgeql
 from edb import errors
 from edb.common import ast
+from edb.common import verutils
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
@@ -55,16 +56,6 @@ class Index(
         coerce=True,
         compcoef=0.909,
         ddl_identity=True,
-    )
-
-    # Text representation of the original expression that's been
-    # parsed and re-generated, but not normalized.
-    orig_expr = so.SchemaField(
-        str,
-        default=None,
-        coerce=True,
-        allow_ddl_set=True,
-        ephemeral=True,
     )
 
     def __repr__(self) -> str:
@@ -238,7 +229,7 @@ class IndexCommand(
             referrer = referrer_ctx.scls
             expr = self.get_ddl_identity('expr')
             raise errors.InvalidReferenceError(
-                f"index on ({expr.origtext}) does not exist on "
+                f"index on ({expr.text}) does not exist on "
                 f"{referrer.get_verbosename(schema)}"
             ) from None
 
@@ -348,10 +339,29 @@ class CreateIndex(
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         assert isinstance(astnode, qlast.CreateIndex)
         orig_text = cls.get_orig_expr_text(schema, astnode, 'expr')
+
+        if (
+            orig_text is not None
+            and context.compat_ver_is_before(
+                (1, 0, verutils.VersionStage.ALPHA, 6)
+            )
+        ):
+            # Versions prior to a6 used a different expression
+            # normalization strategy, so we must renormalize the
+            # expression.
+            expr_ql = qlcompiler.renormalize_compat(
+                astnode.expr,
+                orig_text,
+                schema=schema,
+                localnames=context.localnames,
+            )
+        else:
+            expr_ql = astnode.expr
+
         cmd.set_attribute_value(
             'expr',
             s_expr.Expression.from_ast(
-                astnode.expr,
+                expr_ql,
                 schema,
                 context.modaliases,
                 orig_text=orig_text,
@@ -372,10 +382,10 @@ class CreateIndex(
         astnode_cls = cls.referenced_astnode
 
         expr = parent.get_expr(schema)
-        if expr is None or expr.origtext is None:
+        if expr is None:
             expr_ql = None
         else:
-            expr_ql = edgeql.parse_fragment(expr.origtext)
+            expr_ql = edgeql.parse_fragment(expr.text)
 
         return astnode_cls(name=qlast.ObjectRef(name='idx'), expr=expr_ql)
 

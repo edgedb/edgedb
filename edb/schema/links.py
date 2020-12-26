@@ -22,8 +22,8 @@ from __future__ import annotations
 from typing import *
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
-from edb.edgeql.compiler import normalization as qlnorm
 
 from edb import errors
 
@@ -579,7 +579,7 @@ class AlterLink(
             if expr_cmd is not None:
                 expr = expr_cmd.value
                 if expr is not None:
-                    qlnorm.normalize(
+                    qlcompiler.normalize(
                         expr,
                         schema=schema,
                         modaliases=context.modaliases

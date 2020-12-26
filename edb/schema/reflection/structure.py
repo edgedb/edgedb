@@ -124,7 +124,7 @@ def _classify_object_field(field: s_obj.Field[Any]) -> FieldStorage:
 
     elif issubclass(ftype, s_expr.Expression):
         shadow_ptr_kind = 'property'
-        shadow_ptr_type = 'tuple<text: str, origtext: str, refs: array<uuid>>'
+        shadow_ptr_type = 'tuple<text: str, refs: array<uuid>>'
         ptr_kind = 'property'
         ptr_type = 'str'
         fieldtype = FieldType.EXPR
@@ -132,7 +132,7 @@ def _classify_object_field(field: s_obj.Field[Any]) -> FieldStorage:
     elif issubclass(ftype, s_expr.ExpressionList):
         shadow_ptr_kind = 'property'
         shadow_ptr_type = (
-            'array<tuple<text: str, origtext: str, refs: array<uuid>>>'
+            'array<tuple<text: str, refs: array<uuid>>>'
         )
         ptr_kind = 'property'
         ptr_type = 'array<str>'
@@ -271,11 +271,10 @@ def generate_structure(
 
             CREATE FUNCTION sys::_expr_from_json(
                 data: json
-            ) -> OPTIONAL tuple<text: str, origtext: str, refs: array<uuid>> {
+            ) -> OPTIONAL tuple<text: str, refs: array<uuid>> {
                 USING SQL $$
                     SELECT
                         "data"->>'text'                     AS text,
-                        "data"->>'origtext'                 AS origtext,
                         coalesce(r.refs, ARRAY[]::uuid[])   AS refs
                     FROM
                         (SELECT

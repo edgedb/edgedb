@@ -1,4 +1,3 @@
-#
 # This source file is part of the EdgeDB open source project.
 #
 # Copyright 2008-present MagicStack Inc. and the EdgeDB authors.
@@ -882,6 +881,10 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         if ctxcls is None:
             raise RuntimeError(f'context class not defined for {cls}')
         return ctxcls
+
+
+class Nop(Command):
+    pass
 
 
 # Similarly to _dummy_object, we use _dummy_command for places where
@@ -1884,24 +1887,6 @@ class ObjectCommand(Command, Generic[so.Object_T]):
 
         if not isinstance(self, AlterObjectFragment):
             for field in self.get_ddl_identity_fields(context):
-                if (
-                    issubclass(field.type, s_expr.Expression)
-                    and mcls.has_field(f'orig_{field.name}')
-                    and not qlast.get_ddl_field_value(
-                        node, f'orig_{field.name}'
-                    )
-                ):
-                    expr = self.get_ddl_identity(field.name)
-                    if expr.origtext != expr.text:
-                        node.commands.append(
-                            qlast.SetField(
-                                name=f'orig_{field.name}',
-                                value=qlast.StringConstant.from_python(
-                                    expr.origtext,
-                                ),
-                            ),
-                        )
-
                 ast_attr = self.get_ast_attr_for_field(field.name, type(node))
                 if (
                     ast_attr is not None
@@ -3407,17 +3392,23 @@ class AlterObjectProperty(Command):
         schema: s_schema.Schema,
         astnode: qlast.SetField,
         context: CommandContext,
-    ) -> AlterObjectProperty:
+    ) -> Command:
         propname = astnode.name
         parent_ctx = context.current()
         parent_op = parent_ctx.op
         assert isinstance(parent_op, ObjectCommand)
         parent_cls = parent_op.get_schema_metaclass()
-        field = parent_cls.get_field(propname)
-        if field is None:
-            raise errors.SchemaDefinitionError(
-                f'{propname!r} is not a valid field',
-                context=astnode.context)
+
+        if (
+            propname.startswith('orig_')
+            and context.compat_ver_is_before(
+                (1, 0, verutils.VersionStage.ALPHA, 8)
+            )
+            and not parent_cls.has_field(propname)
+        ):
+            return Nop()
+        else:
+            field = parent_cls.get_field(propname)
 
         if not (
             astnode.special_syntax
@@ -3437,18 +3428,36 @@ class AlterObjectProperty(Command):
         new_value: Any
 
         if field.type is s_expr.Expression:
-            if parent_cls.has_field(f'orig_{field.name}'):
+            if astnode.value is None:
+                new_value = None
+            else:
                 orig_text = cls.get_orig_expr_text(
                     schema, parent_op.qlast, field.name)
-            else:
-                orig_text = None
-            new_value = s_expr.Expression.from_ast(
-                astnode.value,
-                schema,
-                context.modaliases,
-                context.localnames,
-                orig_text=orig_text,
-            ) if astnode.value else None
+
+                if (
+                    orig_text is not None
+                    and context.compat_ver_is_before(
+                        (1, 0, verutils.VersionStage.ALPHA, 6)
+                    )
+                ):
+                    # Versions prior to a6 used a different expression
+                    # normalization strategy, so we must renormalize the
+                    # expression.
+                    expr_ql = qlcompiler.renormalize_compat(
+                        astnode.value,
+                        orig_text,
+                        schema=schema,
+                        localnames=context.localnames,
+                    )
+                else:
+                    expr_ql = astnode.value
+
+                new_value = s_expr.Expression.from_ast(
+                    expr_ql,
+                    schema,
+                    context.modaliases,
+                    context.localnames,
+                )
         else:
             if isinstance(astnode.value, qlast.Tuple):
                 new_value = tuple(
@@ -3653,34 +3662,7 @@ class AlterObjectProperty(Command):
             (s_expr.Expression, s_expr.ExpressionShell),
         )
 
-        parent_cls = parent_op.get_schema_metaclass()
-        has_shadow = parent_cls.has_field(f'orig_{field.name}')
-
-        if context.descriptive_mode and self.new_value.origtext is not None:
-            # When generating AST for DESCRIBE AS TEXT, we want
-            # to use the original user-specified and unmangled
-            # expression to render the object definition.
-            expr_ql = edgeql.parse_fragment(self.new_value.origtext)
-        else:
-            # In all other DESCRIBE modes we want the original expression
-            # to be there as a 'SET orig_<expr> := ...' command.
-            # The mangled expression should be the main expression that
-            # the object is defined with.
-            expr_ql = self.new_value.qlast
-            orig_fname = f'orig_{field.name}'
-            assert self.new_value.origtext is not None
-            if (
-                has_shadow
-                and not qlast.get_ddl_field_value(parent_node, orig_fname)
-                and self.new_value.text != self.new_value.origtext
-            ):
-                parent_node.commands.append(
-                    qlast.SetField(
-                        name=orig_fname,
-                        value=qlast.StringConstant.from_python(
-                            self.new_value.origtext),
-                    )
-                )
+        expr_ql = edgeql.parse_fragment(self.new_value.text)
 
         if parent_node is not None and parent_node_attr is not None:
             setattr(parent_node, parent_node_attr, expr_ql)

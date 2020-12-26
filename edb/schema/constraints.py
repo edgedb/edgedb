@@ -21,6 +21,7 @@ from __future__ import annotations
 from typing import *
 
 from edb import errors
+from edb.common import verutils
 
 from edb import edgeql
 from edb.edgeql import ast as qlast
@@ -93,21 +94,10 @@ class Constraint(referencing.ReferencedInheritingObject,
         s_expr.Expression, default=None, compcoef=0.909,
         coerce=True)
 
-    orig_expr = so.SchemaField(
-        str, default=None, coerce=True, allow_ddl_set=True,
-        ephemeral=True,
-    )
-
     subjectexpr = so.SchemaField(
         s_expr.Expression,
         default=None, compcoef=0.833, coerce=True,
         ddl_identity=True)
-
-    orig_subjectexpr = so.SchemaField(
-        str, default=None, coerce=True,
-        allow_ddl_set=True,
-        ephemeral=True,
-    )
 
     finalexpr = so.SchemaField(
         s_expr.Expression,
@@ -1084,12 +1074,29 @@ class CreateConstraint(
         if astnode.subjectexpr:
             orig_text = cls.get_orig_expr_text(schema, astnode, 'subjectexpr')
 
+            if (
+                orig_text is not None
+                and context.compat_ver_is_before(
+                    (1, 0, verutils.VersionStage.ALPHA, 6)
+                )
+            ):
+                # Versions prior to a6 used a different expression
+                # normalization strategy, so we must renormalize the
+                # expression.
+                expr_ql = qlcompiler.renormalize_compat(
+                    astnode.subjectexpr,
+                    orig_text,
+                    schema=schema,
+                    localnames=context.localnames,
+                )
+            else:
+                expr_ql = astnode.subjectexpr
+
             subjectexpr = s_expr.Expression.from_ast(
-                astnode.subjectexpr,
+                expr_ql,
                 schema,
                 context.modaliases,
                 context.localnames,
-                orig_text=orig_text,
             )
 
             cmd.set_attribute_value(

@@ -254,10 +254,10 @@ def _build_object_mutation_shape(
                         else:
                             pkind = param.get_kind(schema)
                             if pkind is qltypes.ParameterKind.VariadicParam:
-                                rest = [arg.origtext for arg in args[i - 1:]]
+                                rest = [arg.text for arg in args[i - 1:]]
                                 arg_expr = f'[{",".join(rest)}]'
                             else:
-                                arg_expr = arg.origtext
+                                arg_expr = arg.text
 
                     target_value.append((str(param.id), arg_expr))
 
@@ -320,7 +320,7 @@ def _build_object_mutation_shape(
         elif ftype is sr_struct.FieldType.EXPR:
             target_expr = f'<str>${var_n}'
             if v is not None:
-                target_value = v.origtext
+                target_value = v.text
             else:
                 target_value = None
 
@@ -332,20 +332,19 @@ def _build_object_mutation_shape(
             if v is not None:
                 ids = [str(i) for i in v.refs.ids(schema)]
                 variables[f'{var_n}_expr'] = json.dumps(
-                    {'text': v.text, 'origtext': v.origtext, 'refs': ids}
+                    {'text': v.text, 'refs': ids}
                 )
             else:
                 variables[f'{var_n}_expr'] = json.dumps(None)
 
         elif ftype is sr_struct.FieldType.EXPR_LIST:
             target_expr = f'''
-                array_agg(<str>json_array_unpack(<json>${var_n})["origtext"])
+                array_agg(<str>json_array_unpack(<json>${var_n})["text"])
             '''
             if v is not None:
                 target_value = [
                     {
                         'text': ex.text,
-                        'origtext': ex.origtext,
                         'refs': (
                             [str(i) for i in ex.refs.ids(schema)]
                             if ex.refs else []
@@ -926,3 +925,17 @@ def write_meta_rename_object(
     )
 
     context.early_renames[cmd.classname] = cmd.new_name
+
+
+@write_meta.register
+def write_meta_nop(
+    cmd: sd.Nop,
+    *,
+    classlayout: Dict[Type[so.Object], sr_struct.SchemaTypeLayout],
+    schema: s_schema.Schema,
+    context: sd.CommandContext,
+    blocks: List[Tuple[str, Dict[str, Any]]],
+    internal_schema_mode: bool,
+    stdmode: bool,
+) -> None:
+    pass

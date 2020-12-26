@@ -313,6 +313,7 @@ class Field(struct.ProtoField, Generic[T]):
         special_ddl_syntax: bool = False,
         reflection_method: ReflectionMethod = ReflectionMethod.REGULAR,
         reflection_proxy: Optional[Tuple[str, str]] = None,
+        name: Optional[str] = None,
         **kwargs: Any,
     ) -> None:
         """Schema item core attribute definition.
@@ -337,6 +338,9 @@ class Field(struct.ProtoField, Generic[T]):
         self.reflection_method = reflection_method
         self.reflection_proxy = reflection_proxy
         self.is_reducible = issubclass(type_, s_abc.Reducible)
+
+        if name is not None:
+            self.name = name
 
         if (
             merge_fn is default_field_merge

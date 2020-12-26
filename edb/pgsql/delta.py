@@ -229,6 +229,10 @@ class DeleteObject(ObjectMetaCommand):
         return ObjectMetaCommand.apply(self, schema, context)
 
 
+class Nop(MetaCommand, adapts=sd.Nop):
+    pass
+
+
 class AlterObjectProperty(MetaCommand, adapts=sd.AlterObjectProperty):
     pass
 

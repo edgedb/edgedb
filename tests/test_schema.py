@@ -5309,7 +5309,8 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             'DESCRIBE OBJECT std::len_value AS TEXT',
 
             '''
-            abstract constraint std::len_value on (len(<std::str>__subject__))
+            abstract constraint std::len_value
+            on (std::len(<std::str>__subject__))
             {
                 errmessage := 'invalid {__subject__}';
             };
@@ -5318,7 +5319,8 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             'DESCRIBE OBJECT std::len_value AS TEXT VERBOSE',
 
             '''
-            abstract constraint std::len_value on (len(<std::str>__subject__))
+            abstract constraint std::len_value
+            on (std::len(<std::str>__subject__))
             {
                 errmessage := 'invalid {__subject__}';
             };

@@ -643,7 +643,7 @@ class TestIntrospection(tb.QueryTestCase):
                 'constraints': [
                     {
                         'name': 'std::one_of',
-                        'expr': 'contains(vals, __subject__)',
+                        'expr': 'std::contains(vals, __subject__)',
                         'annotations': {},
                         'subject': {'name': 'test::EmulatedEnum'},
                         'params': [
