@@ -211,6 +211,7 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
     ) -> None:
         assert isinstance(node, qlast.CreateMigration)
         if op.property == 'script':
+            node.script = op.new_value
             node.body = qlast.MigrationBody(
                 commands=qlparser.parse_block(op.new_value)
             )

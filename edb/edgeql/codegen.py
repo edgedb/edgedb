@@ -1001,7 +1001,13 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.write(ident_to_str(node.parent.name))
             else:
                 self.write('initial')
-        if node.body.commands:
+        if node.script is not None:
+            self.write(' {')
+            self._block_ws(1)
+            self.write(self.indent_text(node.script))
+            self._block_ws(-1)
+            self.write('}')
+        elif node.body.commands:
             self._ddl_visit_body(node.body.commands)
 
     def visit_StartMigration(self, node: qlast.StartMigration) -> None:
