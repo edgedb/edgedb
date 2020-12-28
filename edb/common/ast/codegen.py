@@ -21,6 +21,7 @@ from __future__ import annotations
 from typing import *
 
 import itertools
+import textwrap
 
 from . import base
 from .visitor import NodeVisitor
@@ -120,3 +121,6 @@ class SourceGenerator(NodeVisitor):
                         pretty=pretty, **kwargs)
         generator.visit(node)
         return ''.join(generator.result)
+
+    def indent_text(self, text: str) -> str:
+        return textwrap.indent(text, self.indent_with * self.indentation)
