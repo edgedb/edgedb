@@ -691,6 +691,7 @@ class MigrationBody(DDL):
 class CreateMigration(CreateObject, Migration):
 
     body: MigrationBody
+    script: typing.Optional[str] = None
     parent: typing.Optional[ObjectRef] = None
     message: typing.Optional[str] = None
     metadata_only: bool = False
