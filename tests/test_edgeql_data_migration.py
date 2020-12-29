@@ -2249,8 +2249,10 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         # Try altering the schema to a state inconsistent with current
         # data.
         with self.assertRaisesRegex(
-                edgedb.MissingRequiredError,
-                r"missing value for required property test::Base.name"):
+            edgedb.MissingRequiredError,
+            r"missing value for required property 'name' "
+            r"of object type 'test::Base'"
+        ):
             await self.migrate("""
                 type Base {
                     required property name -> str;
@@ -2503,12 +2505,11 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self.migrate(r"""
             type Base {
-                # change property type (can't preserve value)
-                property foo -> str;
+                property foo -> float64;
             }
 
             type Derived extending Base {
-                overloaded required property foo -> str;
+                overloaded required property foo -> float64;
             }
         """)
 
@@ -2521,7 +2522,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             """,
             [{
                 '__type__': {'name': 'test::Base'},
-                'foo': '6',
+                'foo': 6.0,
             }],
         )
 
@@ -3349,6 +3350,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
+    @test.xfail('needs SET TYPE guidance')
     async def test_edgeql_migration_eq_26(self):
         await self.migrate(r"""
             type Child;
@@ -3804,6 +3806,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             ],
         )
 
+    @test.xfail('needs SET TYPE guidance')
     async def test_edgeql_migration_eq_33(self):
         await self.migrate(r"""
             type Child;
@@ -5331,7 +5334,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Base {
                 link foo -> Child {
                     # change the link property type
-                    property bar -> str
+                    property bar -> int32
                 }
             };
         """)
@@ -5342,7 +5345,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                     foo: { @bar }
                 };
             """,
-            [{'foo': {'@bar': '3'}}],
+            [{'foo': {'@bar': 3}}],
         )
 
     @test.xfail('''
@@ -6532,7 +6535,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.migrate(r"""
             type Base {
                 # change the indexed property type
-                property name -> str;
+                property name -> int32;
                 index on (.name);
             }
         """)
@@ -6793,13 +6796,13 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self.migrate(r"""
             type Base {
-                property foo -> array<float32>;
+                property foo -> array<float64>;
             }
         """)
 
         await self.assert_query_result(
             r"""SELECT Base.foo;""",
-            [[1, 2]],
+            [[1.0, 2.0]],
         )
 
     @test.xfail('''

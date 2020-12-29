@@ -246,6 +246,7 @@ class PLBlock(SQLBlock):
 class PLTopBlock(PLBlock):
     def __init__(self):
         super().__init__(top_block=None, level=0)
+        self.declare_var('text', var_name='_dummy_text', shared=True)
 
     def add_block(self):
         block = PLBlock(top_block=self, level=self.level + 1)

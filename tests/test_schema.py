@@ -2312,11 +2312,11 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         """, r"""
             type Base {
                 # change property type
-                property foo -> str;
+                property foo -> int32;
             }
 
             type Derived extending Base {
-                overloaded required property foo -> str;
+                overloaded required property foo -> int32;
             }
         """])
 
@@ -2713,18 +2713,18 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             # derive a type
             type DerivedParent extending Parent;
         """, r"""
-            type Child;
+            type GenericChild;
 
-            type DerivedChild extending Child;
+            type Child extending GenericChild;
 
-            type Parent {
-                link bar -> Child;
+            type GenericParent {
+                link bar -> GenericChild;
             }
 
-            # derive a type with a more restrictive link
-            type DerivedParent extending Parent {
-                overloaded link bar -> DerivedChild;
+            type Parent extending GenericParent {
+                overloaded link bar -> Child;
             }
+
         """])
 
     def test_schema_migrations_equivalence_27(self):
@@ -2936,23 +2936,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """, r"""
             # empty schema
-        """])
-
-    def test_schema_migrations_equivalence_33(self):
-        self._assert_migration_equivalence([r"""
-            type Child;
-
-            type Base {
-                link foo -> Child;
-            }
-        """, r"""
-            type Child;
-            type Child2;
-
-            type Base {
-                # change link type
-                link foo -> Child2;
-            }
         """])
 
     def test_schema_migrations_equivalence_34(self):
@@ -3395,7 +3378,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 )
         """, r"""
             type Foo {
-                property bar -> str;
+                property bar -> array<float64>;
             };
 
             function hello16() -> int64
@@ -3421,7 +3404,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 )
         """, r"""
             type Foo {
-                property bar -> str;
+                property bar -> array<float64>;
             };
 
             type Bar;
@@ -3527,7 +3510,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Base {
                 link foo -> Child {
                     # change the link property type
-                    property bar -> str
+                    property bar -> int32
                 }
             };
         """])
@@ -3819,7 +3802,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         """, r"""
             type Base {
                 # change the indexed property type
-                property name -> str;
+                property name -> int32;
                 index on (.name);
             }
         """])
@@ -3926,30 +3909,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    def test_schema_migrations_equivalence_collections_05(self):
-        self._assert_migration_equivalence([r"""
-            type Base {
-                property foo -> float32;
-            }
-        """, r"""
-            type Base {
-                # convert property type to array
-                property foo -> array<float32>;
-            }
-        """])
-
-    def test_schema_migrations_equivalence_collections_05b(self):
-        self._assert_migration_equivalence([r"""
-            type Base {
-                property foo -> array<float32>;
-            }
-        """, r"""
-            type Base {
-                # convert property type to array
-                property foo -> float32;
-            }
-        """])
-
     def test_schema_migrations_equivalence_collections_06(self):
         self._assert_migration_equivalence([r"""
             type Base {
@@ -3958,20 +3917,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         """, r"""
             type Base {
                 # change the array type (old type is castable into new)
-                property foo -> array<float32>;
-            }
-        """])
-
-    def test_schema_migrations_equivalence_collections_07(self):
-        self._assert_migration_equivalence([r"""
-            type Base {
-                # convert property type to tuple
-                property foo -> tuple<str, int32>;
-            }
-        """, r"""
-            type Base {
-                # convert property type to a bigger tuple
-                property foo -> tuple<str, int32, int32>;
+                property foo -> array<float64>;
             }
         """])
 
@@ -3984,7 +3930,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Base {
                 # convert property type to a tuple with different (but
                 # cast-compatible) element types
-                property foo -> tuple<str, int32>;
+                property foo -> tuple<int64, int32>;
             }
         """])
 
@@ -4279,7 +4225,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """, r"""
             type Foo {
-                property bar -> str;
+                property bar -> array<float64>;
             };
 
             type Bar {
@@ -4300,22 +4246,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             scalar type MyScalar extending str;
 
             type User {
-                required property tup -> array<x:MyScalar>;
-            };
-        """])
-
-    def test_schema_migrations_equivalence_collections_24(self):
-        self._assert_migration_equivalence([r"""
-            scalar type MyScalar extending str;
-
-            type User {
-                required property arr -> array<x:MyScalar>;
-            };
-        """, r"""
-            scalar type MyScalar extending str;
-
-            type User {
-                required property arr -> tuple<x:MyScalar>;
+                required property tup -> tuple<x:str>;
             };
         """])
 

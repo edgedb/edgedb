@@ -128,6 +128,9 @@ class Cardinality(s_enum.StrEnum):
     def is_multi(self) -> bool:
         return not self.is_single()
 
+    def can_be_zero(self) -> bool:
+        return self not in {Cardinality.ONE, Cardinality.AT_LEAST_ONE}
+
     def to_schema_value(self) -> Tuple[bool, SchemaCardinality]:
         return _CARD_TO_TUPLE[self]
 

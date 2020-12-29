@@ -631,6 +631,7 @@ class SetPointerType(SetField):
     name: str = 'target'
     special_syntax: bool = True
     value: TypeExpr
+    cast_expr: typing.Optional[Expr]
 
 
 class NamedDDL(DDLCommand):

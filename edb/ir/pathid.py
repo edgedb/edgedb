@@ -138,7 +138,7 @@ class PathId:
         namespace: AbstractSet[AnyNamespace] = frozenset(),
         typename: Optional[s_name.QualName] = None,
     ) -> PathId:
-        """Return a ``PathId``instance for a given :class:`schema.types.Type`
+        """Return a ``PathId`` instance for a given :class:`schema.types.Type`
 
         The returned ``PathId`` instance describes a set variable of type *t*.
         The name of the passed type is used as the name for the variable,
@@ -172,6 +172,47 @@ class PathId:
                                 typename=typename)
 
     @classmethod
+    def from_pointer(
+        cls,
+        schema: s_schema.Schema,
+        pointer: s_pointers.Pointer,
+        *,
+        namespace: AbstractSet[AnyNamespace] = frozenset(),
+    ) -> PathId:
+        """Return a ``PathId`` instance for a given link or property.
+
+        The specified *pointer* argument must be a concrete link or property.
+        The returned ``PathId`` instance describes a set variable of all
+        objects represented by the pointer (i.e, for a link, a set of all
+        link targets).
+
+        Args:
+            schema:
+                A schema instance where the type *t* is defined.
+            pointer:
+                An instance of a concrete link or property.
+            namespace:
+                Optional namespace in which the variable is defined.
+
+        Returns:
+            A ``PathId`` instance.
+        """
+        if pointer.generic(schema):
+            raise ValueError(f'invalid PathId: {pointer} is not concrete')
+
+        source = pointer.get_source(schema)
+        if isinstance(source, s_pointers.Pointer):
+            prefix = cls.from_pointer(schema, source, namespace=namespace)
+            prefix = prefix.ptr_path()
+        elif isinstance(source, s_types.Type):
+            prefix = cls.from_type(schema, source, namespace=namespace)
+        else:
+            raise AssertionError(f'unexpected pointer source: {source!r}')
+
+        ptrref = typeutils.ptrref_from_ptrcls(schema=schema, ptrcls=pointer)
+        return prefix.extend(ptrref=ptrref, schema=schema)
+
+    @classmethod
     def from_typeref(
         cls,
         typeref: irast.TypeRef,
@@ -179,7 +220,7 @@ class PathId:
         namespace: AbstractSet[AnyNamespace] = frozenset(),
         typename: Optional[Union[s_name.Name, uuid.UUID]] = None,
     ) -> PathId:
-        """Return a ``PathId``instance for a given :class:`ir.ast.TypeRef`
+        """Return a ``PathId`` instance for a given :class:`ir.ast.TypeRef`
 
         The returned ``PathId`` instance describes a set variable of type
         described by *typeref*.  The name of the passed type is used as

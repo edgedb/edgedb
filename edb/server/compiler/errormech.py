@@ -201,7 +201,7 @@ def static_interpret_backend_error(fields):
         return err
 
     if err_details.code == PGErrorCode.NotNullViolationError:
-        if err_details.schema_name and err_details.table_name:
+        if err_details.table_name or err_details.column_name:
             return SchemaRequired
 
         else:
@@ -333,32 +333,36 @@ def static_interpret_backend_error(fields):
 def interpret_backend_error(schema, fields):
     err_details = get_error_details(fields)
     hint = None
+    details = None
     if err_details.detail_json:
         hint = err_details.detail_json.get('hint')
 
     # all generic errors are static and have been handled by this point
 
     if err_details.code == PGErrorCode.NotNullViolationError:
-        source_name = pointer_name = None
+        colname = err_details.column_name
+        if colname:
+            if colname.startswith('??'):
+                ptr_id, *_ = colname[2:].partition('_')
+            else:
+                ptr_id = colname
+            pointer = common.get_object_from_backend_name(
+                schema, s_pointers.Pointer, ptr_id)
+            pname = pointer.get_verbosename(schema, with_parent=True)
+        else:
+            pname = None
 
-        if err_details.schema_name and err_details.table_name:
-            tabname = (err_details.schema_name, err_details.table_name)
-
-            source = common.get_object_from_backend_name(
-                schema, s_objtypes.ObjectType, tabname)
-            source_name = source.get_displayname(schema)
-
-            if err_details.column_name:
-                pointer = common.get_object_from_backend_name(
-                    schema, s_pointers.Pointer, err_details.column_name)
-                pointer_name = pointer.get_shortname(schema).name
-
-        if pointer_name is not None:
-            pname = f'{source_name}.{pointer_name}'
+        if pname is not None:
+            if err_details.detail_json:
+                object_id = err_details.detail_json.get('object_id')
+                if object_id is not None:
+                    details = f'Failing object id is {str(object_id)!r}.'
 
             return errors.MissingRequiredError(
-                f'missing value for required property {pname}')
-
+                f'missing value for required {pname}',
+                details=details,
+                hint=hint,
+            )
         else:
             return errors.InternalServerError(err_details.message)
 

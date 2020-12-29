@@ -25,6 +25,7 @@ import json
 from edb import errors
 
 from edb.common import enum
+from edb.common import struct
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
@@ -1045,6 +1046,93 @@ class PointerCommandOrFragment(
 
         return schema, target_shell, base
 
+    def _compile_expr(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        expr: s_expr.Expression,
+        *,
+        in_ddl_context_name: Optional[str] = None,
+        track_schema_ref_exprs: bool = False,
+        singleton_result_expected: bool = False,
+        target_as_singleton: bool = False,
+        expr_description: Optional[str] = None,
+    ) -> s_expr.Expression:
+        singletons: List[Union[s_types.Type, Pointer]] = []
+        path_prefix_anchor = None
+        anchors: Dict[str, Any] = {}
+
+        parent_ctx = self.get_referrer_context_or_die(context)
+        source = parent_ctx.op.get_object(schema, context)
+
+        if (
+            isinstance(source, Pointer)
+            and not source.get_source(schema)
+        ):
+            # If the source is an abstract link, we need to
+            # make up an object and graft the link onto it,
+            # because the compiler really does not know what
+            # to make of a link without a source or target.
+            from edb.schema import objtypes as s_objtypes
+
+            base_obj = schema.get(
+                s_objtypes.ObjectType.get_default_base_name(),
+                type=s_objtypes.ObjectType
+            )
+            schema, view = base_obj.derive_subtype(
+                schema,
+                name=sn.QualName("__derived__", "FakeAbstractLinkBase"),
+                mark_derived=True,
+                transient=True,
+            )
+            schema, source = source.derive_ref(
+                schema,
+                view,
+                target=view,
+                mark_derived=True,
+                transient=True,
+            )
+
+        anchors[qlast.Source().name] = source
+        assert isinstance(source, (s_types.Type, Pointer))
+        singletons = [source]
+        path_prefix_anchor = qlast.Source().name
+
+        if target_as_singleton:
+            src = self.scls.get_source(schema)
+            if isinstance(src, Pointer):
+                # linkprop
+                singletons.append(src)
+            else:
+                singletons.append(self.scls)
+
+        compiled = type(expr).compiled(
+            expr,
+            schema=schema,
+            options=qlcompiler.CompilerOptions(
+                modaliases=context.modaliases,
+                schema_object_context=self.get_schema_metaclass(),
+                anchors=anchors,
+                path_prefix_anchor=path_prefix_anchor,
+                singletons=frozenset(singletons),
+                apply_query_rewrites=not context.stdmode,
+                track_schema_ref_exprs=track_schema_ref_exprs,
+                in_ddl_context_name=in_ddl_context_name,
+            ),
+        )
+
+        if singleton_result_expected and compiled.cardinality.is_multi():
+            if expr_description is None:
+                expr_description = 'an expression'
+
+            raise errors.SchemaError(
+                f'possibly more than one element returned by '
+                f'{expr_description}, while a singleton is expected',
+                context=expr.qlast.context,
+            )
+
+        return compiled
+
     def compile_expr_field(
         self,
         schema: s_schema.Schema,
@@ -1054,62 +1142,20 @@ class PointerCommandOrFragment(
         track_schema_ref_exprs: bool=False,
     ) -> s_expr.Expression:
         if field.name in {'default', 'expr'}:
-            singletons: List[Union[s_types.Type, Pointer]] = []
-            path_prefix_anchor = None
-            anchors: Dict[str, Any] = {}
-            in_ddl_context_name: Optional[str] = None
-
+            parent_ctx = self.get_referrer_context_or_die(context)
+            source = parent_ctx.op.get_object(schema, context)
+            parent_vname = source.get_verbosename(schema)
+            ptr_name = self.get_verbosename(parent=parent_vname)
+            in_ddl_context_name = None
             if field.name == 'expr':
-                parent_ctx = self.get_referrer_context(context)
-                assert parent_ctx is not None
-                assert isinstance(parent_ctx.op, sd.ObjectCommand)
-                source = parent_ctx.op.get_object(schema, context)
-
-                if (
-                    isinstance(source, Pointer)
-                    and not source.get_source(schema)
-                ):
-                    # If the source is an abstract link, we need to
-                    # make up an object and graft the link onto it,
-                    # because the compiler really does not know what
-                    # to make of a link without a source or target.
-                    from edb.schema import objtypes as s_objtypes
-
-                    base_obj = schema.get(
-                        s_objtypes.ObjectType.get_default_base_name(),
-                        type=s_objtypes.ObjectType
-                    )
-                    schema, view = base_obj.derive_subtype(
-                        schema,
-                        name=sn.QualName("__derived__",
-                                         "FakeAbstractLinkBase"),
-                        mark_derived=True, transient=True)
-                    schema, source = source.derive_ref(
-                        schema, view, target=view,
-                        mark_derived=True, transient=True)
-
-                anchors[qlast.Source().name] = source
-                assert isinstance(source, (s_types.Type, Pointer))
-                singletons = [source]
-                path_prefix_anchor = qlast.Source().name
-
-                parent_vname = source.get_verbosename(schema)
-                ptr_name = self.get_verbosename(parent=parent_vname)
                 in_ddl_context_name = f'computable {ptr_name}'
 
-            return type(value).compiled(
+            return self._compile_expr(
+                schema,
+                context,
                 value,
-                schema=schema,
-                options=qlcompiler.CompilerOptions(
-                    modaliases=context.modaliases,
-                    schema_object_context=self.get_schema_metaclass(),
-                    anchors=anchors,
-                    path_prefix_anchor=path_prefix_anchor,
-                    singletons=frozenset(singletons),
-                    apply_query_rewrites=not context.stdmode,
-                    track_schema_ref_exprs=track_schema_ref_exprs,
-                    in_ddl_context_name=in_ddl_context_name,
-                ),
+                in_ddl_context_name=in_ddl_context_name,
+                track_schema_ref_exprs=track_schema_ref_exprs,
             )
         else:
             return super().compile_expr_field(
@@ -1437,6 +1483,8 @@ class SetPointerType(
     PointerCommandOrFragment[Pointer_T],
 ):
 
+    cast_expr = struct.Field(s_expr.Expression, default=None)
+
     def get_friendly_description(
         self,
         schema: s_schema.Schema,
@@ -1484,10 +1532,71 @@ class SetPointerType(
         if orig_target == new_target:
             return schema
 
-        schema = self._propagate_if_expr_refs(
-            schema, context, action=f'alter the type of {vn}')
-
         if not context.canonical:
+            assert orig_target is not None
+            assert new_target is not None
+            pop = self.get_parent_op(context)
+
+            if (
+                not orig_target.assignment_castable_to(new_target, schema)
+                and not pop.maybe_get_object_aux_data('is_from_alias')
+                and not scls.is_endpoint_pointer(schema)
+                and self.cast_expr is None
+                and not (
+                    pop.get_attribute_value('declared_overloaded')
+                    or isinstance(
+                        self.get_referrer_context_or_die(context).op,
+                        sd.CreateObject
+                    )
+                )
+            ):
+                vn = scls.get_verbosename(schema, with_parent=True)
+                ot = orig_target.get_verbosename(schema)
+                nt = new_target.get_verbosename(schema)
+                raise errors.SchemaError(
+                    f'{vn} cannot be cast automatically from '
+                    f'{ot} to {nt}',
+                    hint=(
+                        'You might need to specify a conversion '
+                        'expression in a USING clause'
+                    ),
+                    context=self.source_context,
+                )
+
+            if self.cast_expr is not None:
+                vn = scls.get_verbosename(schema, with_parent=True)
+                self.cast_expr = self._compile_expr(
+                    schema=orig_schema,
+                    context=context,
+                    expr=self.cast_expr,
+                    target_as_singleton=True,
+                    singleton_result_expected=True,
+                    expr_description=(
+                        f'the USING clause for the alteration of {vn}'
+                    ),
+                )
+
+                using_type = self.cast_expr.stype
+                if not using_type.assignment_castable_to(
+                    new_target,
+                    self.cast_expr.schema,
+                ):
+                    ot = using_type.get_verbosename(self.cast_expr.schema)
+                    nt = new_target.get_verbosename(schema)
+                    raise errors.SchemaError(
+                        f'result of USING clause for the alteration of '
+                        f'{vn} cannot be cast automatically from '
+                        f'{ot} to {nt} ',
+                        hint='You might need to add an explicit cast.',
+                        context=self.source_context,
+                    )
+
+            schema = self._propagate_if_expr_refs(
+                schema,
+                context,
+                action=self.get_friendly_description(schema, context),
+            )
+
             if (
                 orig_target is not None
                 and isinstance(orig_target, s_types.Collection)
@@ -1505,6 +1614,28 @@ class SetPointerType(
                 )
 
         return schema
+
+    @classmethod
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> sd.Command:
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        assert isinstance(cmd, SetPointerType)
+        if (
+            isinstance(astnode, qlast.SetPointerType)
+            and astnode.cast_expr is not None
+        ):
+            cmd.cast_expr = s_expr.Expression.from_ast(
+                astnode.cast_expr,
+                schema,
+                context.modaliases,
+                context.localnames,
+            )
+
+        return cmd
 
 
 class AlterPointerUpperCardinality(
