@@ -138,6 +138,9 @@
 
 0x_FF_00_00_00   ClientError
 0x_FF_01_00_00   ClientConnectionError
+0x_FF_01_01_00   ClientConnectionFailedError
+0x_FF_01_01_01   ClientConnectionFailedTemporarilyError  #SHOULD_RECONNECT
+0x_FF_01_02_00   ClientConnectionTimeoutError  #SHOULD_RECONNECT
 
 0x_FF_02_00_00   InterfaceError
 
