@@ -548,6 +548,7 @@ class ObjectMeta(type):
     #: indirectly.
     _objref_fields: FrozenSet[SchemaField[Any]]
     _reducible_fields: FrozenSet[SchemaField[Any]]
+    _aux_cmd_data_fields: FrozenSet[SchemaField[Any]]  # if f.aux_cmd_data
     _refdicts: collections.OrderedDict[str, RefDict]
     _refdicts_by_refclass: Dict[type, RefDict]
     _refdicts_by_field: Dict[str, RefDict]  # key is rd.attr
@@ -628,6 +629,10 @@ class ObjectMeta(type):
             f for f in cls._schema_fields.values()
             if f.hashable
         }
+        cls._aux_cmd_data_fields = frozenset(
+            f for f in cls._schema_fields.values()
+            if f.aux_cmd_data
+        )
         cls._sorted_fields = collections.OrderedDict(
             sorted(fields.items(), key=lambda e: e[0]))
         cls._objref_fields = frozenset(
@@ -779,6 +784,9 @@ class ObjectMeta(type):
 
     def get_reducible_fields(cls) -> FrozenSet[SchemaField[Any]]:
         return cls._reducible_fields
+
+    def get_aux_cmd_data_fields(cls) -> FrozenSet[SchemaField[Any]]:
+        return cls._aux_cmd_data_fields
 
     def has_field(cls, name: str) -> bool:
         return name in cls._fields
@@ -1452,14 +1460,23 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
     ) -> sd.ObjectCommand_T:
         from . import delta as sd
 
-        return sd.get_object_delta_command(
-            objtype=type(self),
+        cls = type(self)
+        cmd = sd.get_object_delta_command(
+            objtype=cls,
             cmdtype=cmdtype,
             schema=schema,
             name=classname or self.get_name(schema),
             ddl_identity=self.get_ddl_identity(schema),
             **kwargs,
         )
+
+        for field in cls.get_aux_cmd_data_fields():
+            cmd.set_object_aux_data(
+                field.name,
+                self.get_field_value(schema, field.name),
+            )
+
+        return cmd
 
     def init_parent_delta_branch(
         self: Object_T,

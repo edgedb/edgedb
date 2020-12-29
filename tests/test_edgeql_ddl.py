@@ -1868,7 +1868,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.MissingRequiredError,
-                r'missing value for required.*test::TestDefault06.def06'):
+                r"missing value for required link 'def06'"):
             await self.con.execute(r"""
                 INSERT test::TestDefault06;
             """)
@@ -2155,11 +2155,13 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
 
             ALTER TYPE test::Foo {
-                ALTER PROPERTY foo SET TYPE array<float32>;
+                ALTER PROPERTY foo SET TYPE array<float64>;
             };
 
             ALTER TYPE test::Foo {
-                ALTER PROPERTY foo SET TYPE array<int32>;
+                ALTER PROPERTY foo {
+                    SET TYPE array<int32> USING (<array<int32>>.foo);
+                };
             };
         """)
 
@@ -2191,6 +2193,418 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         """)
 
         await self.con.execute('INSERT test::Bar { a := "123456" }')
+
+    async def test_edgeql_ddl_ptr_set_type_using_01(self):
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            CREATE SCALAR TYPE mystr EXTENDING str;
+
+            CREATE TYPE Bar {
+                CREATE PROPERTY name -> str;
+            };
+
+            CREATE TYPE SubBar EXTENDING Bar;
+
+            CREATE TYPE Foo {
+                CREATE PROPERTY p -> str;
+                CREATE REQUIRED PROPERTY r_p -> str;
+                CREATE MULTI PROPERTY m_p -> str;
+                CREATE REQUIRED MULTI PROPERTY rm_p -> str;
+
+                CREATE LINK l -> Bar {
+                    CREATE PROPERTY lp -> str;
+                };
+                CREATE REQUIRED LINK r_l -> Bar {
+                    CREATE PROPERTY lp -> str;
+                };
+                CREATE MULTI LINK m_l -> Bar {
+                    CREATE PROPERTY lp -> str;
+                };
+                CREATE REQUIRED MULTI LINK rm_l -> Bar {
+                    CREATE PROPERTY lp -> str;
+                };
+            };
+
+            INSERT Bar {name := 'bar1'};
+            INSERT SubBar {name := 'bar2'};
+
+            WITH
+                bar := (SELECT Bar FILTER .name = 'bar1' LIMIT 1),
+                bars := (SELECT Bar),
+            INSERT Foo {
+                p := '1',
+                r_p := '10',
+                m_p := {'1', '2'},
+                rm_p := {'10', '20'},
+
+                l := bar { @lp := '1' },
+                r_l := bar { @lp := '10' },
+                m_l := (
+                    FOR bar IN {enumerate(bars)}
+                    UNION (SELECT bar.1 { @lp := <str>(bar.0 + 1) })
+                ),
+                rm_l := (
+                    FOR bar IN {enumerate(bars)}
+                    UNION (SELECT bar.1 { @lp := <str>((bar.0 + 1) * 10) })
+                )
+            };
+
+            WITH
+                bar := (SELECT Bar FILTER .name = 'bar2' LIMIT 1),
+                bars := (SELECT Bar),
+            INSERT Foo {
+                p := '3',
+                r_p := '30',
+                m_p := {'3', '4'},
+                rm_p := {'30', '40'},
+
+                l := bar { @lp := '3' },
+                r_l := bar { @lp := '30' },
+                m_l := (
+                    FOR bar IN {enumerate(bars)}
+                    UNION (SELECT bar.1 { @lp := <str>(bar.0 + 3) })
+                ),
+                rm_l := (
+                    FOR bar IN {enumerate(bars)}
+                    UNION (SELECT bar.1 { @lp := <str>((bar.0 + 3) * 10) })
+                )
+            };
+        """)
+
+        # A normal cast of a property.
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER PROPERTY p {
+                    SET TYPE int64 USING (<int64>.p)
+                }
+            """)
+
+            await self.assert_query_result(
+                'SELECT Foo { p } ORDER BY .p',
+                [
+                    {'p': 1},
+                    {'p': 3},
+                ],
+            )
+
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER PROPERTY m_p {
+                    SET TYPE int64 USING (<int64>.m_p)
+                }
+            """)
+
+            await self.assert_query_result(
+                'SELECT Foo { m_p } ORDER BY .p',
+                [
+                    {'m_p': {1, 2}},
+                    {'m_p': {3, 4}},
+                ],
+            )
+
+        # Cast to an already-compatible type, but with an explicit expression.
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER PROPERTY p {
+                    SET TYPE mystr USING (.p ++ '!')
+                }
+            """)
+
+            await self.assert_query_result(
+                'SELECT Foo { p } ORDER BY .p',
+                [
+                    {'p': '1!'},
+                    {'p': '3!'},
+                ],
+            )
+
+        # Cast to the _same_ type, but with an explicit expression.
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER PROPERTY p {
+                    SET TYPE str USING (.p ++ '!')
+                }
+            """)
+
+            await self.assert_query_result(
+                'SELECT Foo { p } ORDER BY .p',
+                [
+                    {'p': '1!'},
+                    {'p': '3!'},
+                ],
+            )
+
+        # A reference to another property of the same host type.
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER PROPERTY p {
+                    SET TYPE int64 USING (<int64>.r_p)
+                }
+            """)
+
+            await self.assert_query_result(
+                'SELECT Foo { p } ORDER BY .p',
+                [
+                    {'p': 10},
+                    {'p': 30},
+                ],
+            )
+
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER PROPERTY m_p {
+                    SET TYPE int64 USING (<int64>.m_p + <int64>.r_p)
+                }
+            """)
+
+            await self.assert_query_result(
+                'SELECT Foo { m_p } ORDER BY .p',
+                [
+                    {'m_p': {11, 12}},
+                    {'m_p': {33, 34}},
+                ],
+            )
+
+        # Conversion expression that reduces cardinality...
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER PROPERTY p {
+                    SET TYPE int64 USING (<int64>{})
+                }
+            """)
+
+            await self.assert_query_result(
+                'SELECT Foo { p } ORDER BY .p',
+                [
+                    {'p': None},
+                    {'p': None},
+                ],
+            )
+
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER PROPERTY m_p {
+                    SET TYPE int64 USING (
+                        <int64>{} IF <int64>.m_p % 2 = 0 ELSE <int64>.m_p
+                    )
+                }
+            """)
+
+            await self.assert_query_result(
+                'SELECT Foo { m_p } ORDER BY .p',
+                [
+                    {'m_p': {1}},
+                    {'m_p': {3}},
+                ],
+            )
+
+        # ... should fail if empty set is produced and the property is required
+        async with self.assertRaisesRegexTx(
+            edgedb.MissingRequiredError,
+            r"missing value for required property 'r_p'"
+            r" of object type 'test::Foo'"
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER PROPERTY r_p {
+                    SET TYPE int64 USING (<int64>{})
+                }
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.MissingRequiredError,
+            r"missing value for required property 'rm_p'"
+            r" of object type 'test::Foo'"
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER PROPERTY rm_p {
+                    SET TYPE int64 USING (
+                        <int64>{} IF True ELSE <int64>.rm_p
+                    )
+                }
+            """)
+
+        # Straightforward link cast.
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER LINK l {
+                    SET TYPE SubBar USING (.l[IS SubBar])
+                }
+            """)
+
+            await self.assert_query_result(
+                'SELECT Foo { l: {name} } ORDER BY .p',
+                [
+                    {'l': None},
+                    {'l': {'name': 'bar2'}},
+                ],
+            )
+
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER LINK m_l {
+                    SET TYPE SubBar USING (.m_l[IS SubBar])
+                }
+            """)
+
+            await self.assert_query_result(
+                'SELECT Foo { m_l: {name} } ORDER BY .p',
+                [
+                    {'m_l': [{'name': 'bar2'}]},
+                    {'m_l': [{'name': 'bar2'}]},
+                ],
+            )
+
+        # Use a more elaborate expression for the tranform.
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER LINK l {
+                    SET TYPE SubBar USING (SELECT .m_l[IS SubBar] LIMIT 1)
+                }
+            """)
+
+            await self.assert_query_result(
+                'SELECT Foo { l: {name, @lp} } ORDER BY .p',
+                [
+                    {'l': {'name': 'bar2', '@lp': '1'}},
+                    {'l': {'name': 'bar2', '@lp': '3'}},
+                ],
+            )
+
+        # Check that minimum cardinality constraint is enforced on links too...
+        async with self.assertRaisesRegexTx(
+            edgedb.MissingRequiredError,
+            r"missing value for required link 'r_l'"
+            r" of object type 'test::Foo'"
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER LINK r_l {
+                    SET TYPE SubBar USING (.r_l[IS SubBar])
+                }
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.MissingRequiredError,
+            r"missing value for required link 'rm_l'"
+            r" of object type 'test::Foo'"
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER LINK rm_l {
+                    SET TYPE SubBar USING (SELECT SubBar FILTER False LIMIT 1)
+                }
+            """)
+
+        # Test link property transforms now.
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER LINK l ALTER PROPERTY lp {
+                    SET TYPE int64 USING (<int64>@lp)
+                }
+            """)
+
+            await self.assert_query_result(
+                'SELECT Foo { l: { @lp } } ORDER BY .p',
+                [
+                    {'l': {'@lp': 1}},
+                    {'l': {'@lp': 3}},
+                ],
+            )
+
+    async def test_edgeql_ddl_ptr_set_type_validation(self):
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            CREATE TYPE Bar;
+            CREATE TYPE Spam;
+            CREATE TYPE Egg;
+            CREATE TYPE Foo {
+                CREATE PROPERTY p -> str;
+                CREATE LINK l -> Bar {
+                    CREATE PROPERTY lp -> str;
+                };
+            };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaError,
+            r"property 'p' of object type 'test::Foo' cannot be cast"
+            r" automatically from scalar type 'std::str' to scalar"
+            r" type 'std::int64'"
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER PROPERTY p SET TYPE int64;
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaError,
+            r"result of USING clause for the alteration of"
+            r" property 'p' of object type 'test::Foo' cannot be cast"
+            r" automatically from scalar type 'std::float64' to scalar"
+            r" type 'std::int64'"
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER PROPERTY p
+                    SET TYPE int64 USING (<float64>.p)
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaError,
+            r"possibly more than one element returned by the USING clause for"
+            r" the alteration of property 'p' of object type 'test::Foo',"
+            r" while a singleton is expected"
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER PROPERTY p SET TYPE int64 USING ({1, 2})
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaError,
+            r"link 'l' of object type 'test::Foo' cannot be cast"
+            r" automatically from object type 'test::Bar' to object"
+            r" type 'test::Spam'"
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER LINK l SET TYPE Spam;
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaError,
+            r"result of USING clause for the alteration of"
+            r" link 'l' of object type 'test::Foo' cannot be cast"
+            r" automatically from object type 'test::Bar & test::Egg'"
+            r" to object type 'test::Spam'"
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER LINK l SET TYPE Spam USING (.l[IS Egg])
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaError,
+            r"possibly more than one element returned by the USING clause for"
+            r" the alteration of link 'l' of object type 'test::Foo', while"
+            r" a singleton is expected"
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER LINK l SET TYPE Spam USING (SELECT Spam)
+            """)
 
     async def test_edgeql_ddl_link_property_01(self):
         with self.assertRaisesRegex(

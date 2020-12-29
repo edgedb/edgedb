@@ -128,6 +128,10 @@ def get_module_backend_name(module):
     return "edgedbstd" if module in s_schema.STD_MODULES else "edgedbpub"
 
 
+def get_unique_random_name() -> str:
+    return base64.b64encode(uuidgen.uuid1mc().bytes).rstrip(b'=').decode()
+
+
 @functools.lru_cache()
 def _edgedb_name_to_pg_name(name: str, prefix_length: int = 0) -> str:
     # Note: PostgreSQL doesn't have a sha1 implementation as a

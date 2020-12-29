@@ -387,6 +387,20 @@ class ReferencedObjectCommandBase(sd.QualifiedObjectCommand[ReferencedT]):
             raise RuntimeError(f'no referrer context for {cls}')
         return ctx
 
+    def get_top_referrer_op(
+        self,
+        context: sd.CommandContext,
+    ) -> Optional[sd.ObjectCommand[so.Object]]:
+        op: sd.ObjectCommand[so.Object] = self  # type: ignore
+        while True:
+            if not isinstance(op, ReferencedObjectCommandBase):
+                break
+            ctx = op.get_referrer_context(context)
+            if ctx is None:
+                break
+            op = ctx.op
+        return op
+
 
 class StronglyReferencedObjectCommand(
     ReferencedObjectCommandBase[ReferencedT]
@@ -530,18 +544,18 @@ class CreateReferencedObject(
 
         return cmd
 
-    def _get_ast_node(self,
-                      schema: s_schema.Schema,
-                      context: sd.CommandContext
-                      ) -> Type[qlast.DDLOperation]:
+    def _get_ast_node(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> Type[qlast.DDLOperation]:
+        # Render CREATE as ALTER in DDL if the created referenced object is
+        # implicitly inherited from parents.
         scls = self.get_object(schema, context)
         assert isinstance(scls, ReferencedInheritingObject)
         implicit_bases = scls.get_implicit_bases(schema)
         if implicit_bases and not context.declarative:
-            mcls = self.get_schema_metaclass()
-            Alter = sd.get_object_command_class_or_die(
-                sd.AlterObject, mcls)
-            alter = Alter(classname=self.classname)
+            alter = scls.init_delta_command(schema, sd.AlterObject)
             return alter._get_ast_node(schema, context)
         else:
             return super()._get_ast_node(schema, context)

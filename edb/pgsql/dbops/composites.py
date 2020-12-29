@@ -130,14 +130,19 @@ class AlterCompositeDropAttribute(CompositeAttributeCommand):
 
 
 class AlterCompositeAlterAttributeType:
-    def __init__(self, attribute_name, new_type):
+    def __init__(self, attribute_name, new_type, *, using_expr=None):
         self.attribute_name = attribute_name
         self.new_type = new_type
+        self.using_expr = using_expr
 
     def code(self, block: base.PLBlock) -> str:
         attrterm = self.get_attribute_term()  # type: ignore
         attrname = common.quote_ident(str(self.attribute_name))
-        return f'ALTER {attrterm} {attrname} SET DATA TYPE {self.new_type}'
+        code = f'ALTER {attrterm} {attrname} SET DATA TYPE {self.new_type}'
+        if self.using_expr is not None:
+            code += f' USING ({self.using_expr})'
+
+        return code
 
     def __repr__(self):
         cls = self.__class__

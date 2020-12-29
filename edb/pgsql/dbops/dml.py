@@ -94,10 +94,11 @@ class Insert(DMLOperation):
 class Update(DMLOperation):
     def __init__(
             self, table, record, condition, returning=None, *,
-            include_children=True, priority=0):
+            include_children=True, priority=0, table_alias=None):
         super().__init__(priority=priority)
 
         self.table = table
+        self.table_alias = table_alias
         self.record = record
         self.fields = [f for f, v in record.items() if v is not base.Default]
         self.condition = condition
@@ -155,6 +156,9 @@ class Update(DMLOperation):
         tabname = qn(*self.table.name)
         if not self.include_children:
             tabname = 'ONLY {}'.format(tabname)
+
+        if self.table_alias:
+            tabname = f'{tabname} AS {qi(self.table_alias)}'
 
         code = 'UPDATE {} SET {} {}'.format(
             tabname, ', '.join(placeholders), where)

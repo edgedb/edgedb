@@ -1350,6 +1350,13 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         dict,  # type: ignore
         default=None,
     )
+    #: When this command is produced by a breakup of a larger command
+    #: subtree, *orig_cmd_type* would contain the type of the original
+    #: command.
+    orig_cmd_type = struct.Field(
+        CommandMeta,
+        default=None,
+    )
 
     scls: so.Object_T
     _delta_action: ClassVar[str]

@@ -990,17 +990,27 @@ class DropIndexStmt(Nonterm):
         )
 
 
+class OptAlterUsingClause(Nonterm):
+    def reduce_USING_ParenExpr(self, *kids):
+        self.val = kids[1].val
+
+    def reduce_empty(self):
+        self.val = None
+
+
 class SetPropertyTypeStmt(Nonterm):
-    def reduce_SETTYPE_FullTypeExpr(self, *kids):
+    def reduce_SETTYPE_FullTypeExpr_OptAlterUsingClause(self, *kids):
         self.val = qlast.SetPointerType(
             value=kids[1].val,
+            cast_expr=kids[2].val,
         )
 
 
 class SetLinkTypeStmt(Nonterm):
-    def reduce_SETTYPE_FullTypeExpr(self, *kids):
+    def reduce_SETTYPE_FullTypeExpr_OptAlterUsingClause(self, *kids):
         self.val = qlast.SetPointerType(
             value=kids[1].val,
+            cast_expr=kids[2].val,
         )
 
 

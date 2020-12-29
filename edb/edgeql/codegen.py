@@ -1538,6 +1538,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_SetPointerType(self, node: qlast.SetPointerType) -> None:
         self.write('SET TYPE ')
         self.visit(node.value)
+        if node.cast_expr is not None:
+            self.write(' USING (')
+            self.visit(node.cast_expr)
+            self.write(')')
 
     def visit_OnTargetDelete(self, node: qlast.OnTargetDelete) -> None:
         self._write_keywords('ON TARGET DELETE ', node.cascade.to_edgeql())
