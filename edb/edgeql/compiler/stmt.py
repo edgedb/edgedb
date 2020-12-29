@@ -377,6 +377,7 @@ def compile_InsertQuery(
             bodyctx.banned_paths = ictx.banned_paths.copy()
             pathctx.ban_path(subject.path_id, ctx=bodyctx)
 
+            bodyctx.class_view_overrides = ictx.class_view_overrides.copy()
             bodyctx.implicit_id_in_shapes = False
             bodyctx.implicit_tid_in_shapes = False
             bodyctx.implicit_tname_in_shapes = False
@@ -459,6 +460,7 @@ def compile_UpdateQuery(
             stmt, expr.where, ctx=ictx)
 
         with ictx.new() as bodyctx:
+            bodyctx.class_view_overrides = ictx.class_view_overrides.copy()
             bodyctx.implicit_id_in_shapes = False
             bodyctx.implicit_tid_in_shapes = False
             bodyctx.implicit_tname_in_shapes = False
