@@ -33,6 +33,7 @@ from edb.common import uuidgen
 
 from edb.schema import links as s_links
 from edb.schema import objects as s_obj
+from edb.schema import objtypes as s_objtypes
 from edb.schema import scalars as s_scalars
 from edb.schema import types as s_types
 
@@ -205,7 +206,7 @@ class TypeSerializer:
         elif isinstance(t, s_types.Collection):
             raise errors.SchemaError(f'unsupported collection type {t!r}')
 
-        elif view_shapes.get(t):
+        elif isinstance(t, s_objtypes.ObjectType):
             # This is a view
             self.schema, mt = t.material_type(self.schema)
             base_type_id = mt.id
@@ -218,7 +219,7 @@ class TypeSerializer:
             metadata = view_shapes_metadata.get(t)
             implicit_id = metadata is not None and metadata.has_implicit_id
 
-            for ptr in view_shapes[t]:
+            for ptr in view_shapes.get(t, ()):
                 if ptr.singular(self.schema):
                     if isinstance(ptr, s_links.Link) and not follow_links:
                         subtype_id = self._describe_type(
