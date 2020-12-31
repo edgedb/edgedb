@@ -68,11 +68,11 @@ class ReferencedObject(so.DerivableObject):
             schema=schema,
             disable_dep_verification=True,
         )
-        delta, _ = self.init_delta_branch(schema, cmdtype=sd.DeleteObject)
-        with context(sd.DeltaRootContext(schema=schema, op=delta)):
-            schema = delta.apply(schema, context)
-
-        return schema
+        delta, _, _ = self.init_delta_branch(
+            schema, context, cmdtype=sd.DeleteObject)
+        root = sd.DeltaRoot()
+        root.add(delta)
+        return delta.apply(schema, context)
 
     def derive_ref(
         self: ReferencedT,
@@ -157,15 +157,18 @@ class ReferencedObject(so.DerivableObject):
                 cmd.add(rebase_cmd)
 
         context = sd.CommandContext(modaliases={}, schema=schema)
-        delta, parent_cmd = self.init_parent_delta_branch(
-            schema, referrer=referrer)
+        delta, parent_cmd, _ = self.init_parent_delta_branch(
+            schema, context, referrer=referrer)
+        root = sd.DeltaRoot()
+        root.add(delta)
 
-        with context(sd.DeltaRootContext(schema=schema, op=delta)):
+        with context(sd.DeltaRootContext(schema=schema, op=root)):
             if not inheritance_merge:
                 context.current().inheritance_merge = False
 
             if inheritance_refdicts is not None:
-                context.current().inheritance_refdicts = inheritance_refdicts
+                context.current().inheritance_refdicts = (
+                    inheritance_refdicts)
 
             if mark_derived:
                 context.current().mark_derived = True
@@ -201,15 +204,23 @@ class ReferencedObject(so.DerivableObject):
     def init_parent_delta_branch(
         self: ReferencedT,
         schema: s_schema.Schema,
+        context: sd.CommandContext,
         *,
         referrer: Optional[so.Object] = None,
-    ) -> Tuple[sd.DeltaRoot, sd.ObjectCommand[ReferencedT]]:
+    ) -> Tuple[
+        sd.CommandGroup,
+        sd.Command,
+        sd.ContextStack,
+    ]:
+        root, parent, ctx_stack = super().init_parent_delta_branch(
+            schema, context, referrer=referrer)
 
-        delta = sd.DeltaRoot()
         if referrer is None:
             referrer = self.get_referrer(schema)
 
-        assert referrer is not None
+        if referrer is None:
+            return root, parent, ctx_stack
+
         obj: Optional[so.Object] = referrer
         object_stack: List[so.Object] = [referrer]
 
@@ -221,15 +232,14 @@ class ReferencedObject(so.DerivableObject):
             else:
                 obj = None
 
-        cmd: sd.Command = delta
+        cmd: sd.Command = parent
         for obj in reversed(object_stack):
             alter_cmd = obj.init_delta_command(schema, sd.AlterObject)
+            ctx_stack.push(alter_cmd.new_context(schema, context, obj))
             cmd.add(alter_cmd)
             cmd = alter_cmd
 
-        cmd = cast(sd.ObjectCommand[ReferencedT], cmd)
-
-        return delta, cmd
+        return root, cmd, ctx_stack
 
 
 class ReferencedInheritingObject(
@@ -793,20 +803,14 @@ class ReferencedInheritingObjectCommand(
         refname = reftype.get_key_for(schema, self.scls)
 
         for descendant in scls.ordered_descendants(schema):
-            d_alter_cmd = descendant.init_delta_command(schema, sd.AlterObject)
-            assert isinstance(descendant, ReferencedObject)
+            d_alter_root, d_alter_cmd, ctx_stack = (
+                descendant.init_delta_branch(schema, context, sd.AlterObject))
             d_alter_cmd.set_annotation('implicit_propagation', True)
-            d_referrer = descendant.get_referrer(schema)
-            assert d_referrer is not None
-            r_alter_cmd = d_referrer.init_delta_command(schema, sd.AlterObject)
 
-            with r_alter_cmd.new_context(schema, context, d_referrer):
-                with d_alter_cmd.new_context(schema, context, descendant):
-                    cb(d_alter_cmd, refname)
+            with ctx_stack():
+                cb(d_alter_cmd, refname)
 
-                r_alter_cmd.add(d_alter_cmd)
-
-            self.add(r_alter_cmd)
+            self.add(d_alter_root)
 
         return schema
 
@@ -1062,7 +1066,6 @@ class CreateReferencedInheritingObject(
 
         mcls = type(self.scls)
         referrer_cls = type(referrer)
-        alter_cmd = get_cmd(sd.AlterObject, referrer_cls)
         ref_create_cmd = get_cmd(sd.CreateObject, mcls)
         ref_alter_cmd = get_cmd(sd.AlterObject, mcls)
         ref_rebase_cmd = get_cmd(inheriting.RebaseInheritingObject, mcls)
@@ -1075,8 +1078,10 @@ class CreateReferencedInheritingObject(
             if not child.allow_ref_propagation(schema, context, refdict):
                 continue
 
-            alter = alter_cmd(classname=child.get_name(schema))
-            with alter.new_context(schema, context, child):
+            alter_root, alter, ctx_stack = child.init_delta_branch(
+                schema, context, sd.AlterObject)
+
+            with ctx_stack():
                 # This is needed to get the correct inherited name which will
                 # either be created or rebased.
                 ref_field_type = type(child).get_field(refdict.attr).type
@@ -1116,7 +1121,7 @@ class CreateReferencedInheritingObject(
                 alter.add(ref_alter)
                 alter.add(ref_create)
 
-            self.add(alter)
+            self.add(alter_root)
 
         return schema
 
@@ -1383,12 +1388,14 @@ class DeleteReferencedInheritingObject(
                 existing = child_coll.get(schema, child_refname, None)
 
                 if existing is not None:
-                    alter = child.init_delta_command(schema, sd.AlterObject)
-                    with alter.new_context(schema, context, child):
+                    alter_root, alter_leaf, ctx_stack = (
+                        existing.init_parent_delta_branch(
+                            schema, context, referrer=child))
+                    with ctx_stack():
                         schema, cmd = self._propagate_ref_deletion(
                             schema, context, refdict, child, existing)
-                        alter.add(cmd)
-                    self.add(alter)
+                        alter_leaf.add(cmd)
+                    self.add(alter_root)
 
         return schema
 

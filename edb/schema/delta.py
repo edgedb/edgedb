@@ -340,6 +340,7 @@ _dummy_object = so.Object(
 
 
 Command_T = TypeVar("Command_T", bound="Command")
+Command_T_co = TypeVar("Command_T_co", bound="Command", covariant=True)
 
 
 class Command(struct.MixedStruct, metaclass=CommandMeta):
@@ -943,16 +944,16 @@ class CommandContextToken(Generic[Command_T]):
         self.transient_derivation = None
 
 
-class CommandContextWrapper(Generic[Command_T]):
+class CommandContextWrapper(Generic[Command_T_co]):
     def __init__(
         self,
         context: CommandContext,
-        token: CommandContextToken[Command_T],
+        token: CommandContextToken[Command_T_co],
     ) -> None:
         self.context = context
         self.token = token
 
-    def __enter__(self) -> CommandContextToken[Command_T]:
+    def __enter__(self) -> CommandContextToken[Command_T_co]:
         self.context.push(self.token)  # type: ignore
         return self.token
 
@@ -1005,7 +1006,7 @@ class CommandContext:
         self.backend_runtime_params = backend_runtime_params
         self.affected_finalization: Dict[
             Command,
-            List[Tuple[DeltaRoot, Command, List[str]]],
+            List[Tuple[Command, Command, List[str]]],
         ] = collections.defaultdict(list)
         self.compat_ver = compat_ver
 
@@ -1217,6 +1218,28 @@ class CommandContext:
         ver: Tuple[int, int, verutils.VersionStage, int],
     ) -> bool:
         return self.compat_ver is not None and self.compat_ver < ver
+
+
+class ContextStack:
+
+    def __init__(
+        self,
+        contexts: Iterable[CommandContextWrapper[Command]],
+    ) -> None:
+        self._contexts = list(contexts)
+
+    def push(self, ctx: CommandContextWrapper[Command]) -> None:
+        self._contexts.append(ctx)
+
+    def pop(self) -> None:
+        self._contexts.pop()
+
+    @contextlib.contextmanager
+    def __call__(self) -> Generator[None, None, None]:
+        with contextlib.ExitStack() as stack:
+            for ctx in self._contexts:
+                stack.enter_context(ctx)  # type: ignore
+            yield
 
 
 class DeltaRootContext(CommandContextToken["DeltaRoot"]):
@@ -1534,10 +1557,10 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                     # Alter the affected entity to change the body to
                     # a dummy version (removing the dependency) and
                     # then reset the body to original expression.
-                    delta_drop, cmd_drop = ref.init_delta_branch(
-                        schema, cmdtype=AlterObject)
-                    delta_create, cmd_create = ref.init_delta_branch(
-                        schema, cmdtype=AlterObject)
+                    delta_drop, cmd_drop, _ = ref.init_delta_branch(
+                        schema, context, cmdtype=AlterObject)
+                    delta_create, cmd_create, _ = ref.init_delta_branch(
+                        schema, context, cmdtype=AlterObject)
                     cmd_create.scls = ref
                     # Mark it metadata_only so that if it actually gets
                     # applied, only the metadata is changed but not
@@ -2846,7 +2869,8 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
         context: CommandContext,
         scls: so.Object,
     ) -> Command:
-        alter = ref.init_delta_command(schema, AlterObject)
+        root, alter, ctx_stack = ref.init_delta_branch(
+            schema, context, AlterObject)
 
         rename = ref.init_delta_command(
             schema,
@@ -2858,12 +2882,12 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
             value=new_ref_name,
             orig_value=ref_name,
         )
-        with alter.new_context(schema, context, ref):
+        with ctx_stack():
             rename.update(rename._canonicalize(schema, context, ref))
         alter.canonical = True
         alter.add(rename)
 
-        return alter
+        return root
 
     def _canonicalize(
         self,
