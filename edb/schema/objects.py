@@ -1460,24 +1460,49 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
     def init_parent_delta_branch(
         self: Object_T,
         schema: s_schema.Schema,
+        context: sd.CommandContext,
         *,
         referrer: Optional[Object] = None,
-    ) -> Tuple[sd.DeltaRoot, sd.Command]:
+    ) -> Tuple[sd.CommandGroup, sd.Command, sd.ContextStack]:
+        """Prepare a parent portion of a command tree for this object.
+
+        This returns a tuple containing:
+
+        - the root (as a ``CommandGroup``) of a nested ``AlterObject`` tree
+          with nodes for each enclosing referrer object;
+        - direct reference to the innermost command in the above tree
+          (may be root if there are no referring objects);
+        - a ``ContextStack`` instance representing the nested CommandContext
+          corresponding to the returned command tree.
+        """
         from . import delta as sd
-        root = sd.DeltaRoot()
-        return root, root
+        root = sd.CommandGroup()
+        return root, root, sd.ContextStack(())
 
     def init_delta_branch(
         self: Object_T,
         schema: s_schema.Schema,
+        context: sd.CommandContext,
         cmdtype: Type[sd.ObjectCommand_T],
         *,
         classname: Optional[sn.Name] = None,
         referrer: Optional[Object] = None,
         **kwargs: Any,
-    ) -> Tuple[sd.DeltaRoot, sd.ObjectCommand_T]:
-        root_cmd, parent_cmd = self.init_parent_delta_branch(
+    ) -> Tuple[sd.CommandGroup, sd.ObjectCommand_T, sd.ContextStack]:
+        """Make a command subtree for this object.
+
+        This returns a tuple containing:
+
+        - the root (as a ``CommandGroup``) of a nested ``AlterObject`` tree
+          with nodes for each enclosing referrer object and an instance of
+          *cmdtype* as the innermost command;
+        - direct reference to the innermost command in the above tree;
+        - a ``ContextStack`` instance representing the nested CommandContext
+          corresponding to the returned command tree.
+        """
+        root_cmd, parent_cmd, ctx_stack = self.init_parent_delta_branch(
             schema=schema,
+            context=context,
             referrer=referrer,
         )
 
@@ -1487,9 +1512,11 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
             classname=classname,
             **kwargs,
         )
-        parent_cmd.add(self_cmd)
+        self_cmd.scls = self
 
-        return root_cmd, self_cmd
+        parent_cmd.add(self_cmd)
+        ctx_stack.push(self_cmd.new_context(schema, context, self))
+        return root_cmd, self_cmd, ctx_stack
 
     def as_create_delta(
         self: Object_T,
