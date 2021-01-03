@@ -129,6 +129,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
 
         inherited_fields = scls.get_inherited_fields(schema)
         inherited_fields_update = {}
+        deferred_complex_ops = []
 
         for field_name in field_names:
             ignore_local_field = ignore_local or field_name in inherited_fields
@@ -170,12 +171,24 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
                 ):
                     result = self.compile_expr_field(
                         schema, context, field=field, value=result)
-                schema = self.scls.set_field_value(schema, field_name, result)
-                self.set_attribute_value(
+                sav = self.set_attribute_value(
                     field_name, result, inherited=inherited)
+                if isinstance(sav, sd.AlterObjectProperty):
+                    schema = self.scls.set_field_value(
+                        schema, field_name, result)
+                else:
+                    # If this isn't a simple AlterObjectProperty, postpone
+                    # its application to _after_ _update_inherited_fields
+                    # so that the inherited_fields computation is correct,
+                    # as each non-trivial AlterSpecialObjectField operation
+                    # updates inherited_fields.
+                    deferred_complex_ops.append(sav)
 
         schema = self._update_inherited_fields(
             schema, context, inherited_fields_update)
+
+        for op in deferred_complex_ops:
+            schema = op.apply(schema, context)
 
         return schema
 
@@ -808,8 +821,57 @@ class CreateInheritingObject(
         return group
 
 
-class AlterInheritingObject(
+class AlterInheritingObjectOrFragment(
     InheritingObjectCommand[so.InheritingObjectT],
+    sd.AlterObjectOrFragment[so.InheritingObjectT],
+):
+
+    def _alter_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super()._alter_begin(schema, context)
+        scls = self.scls
+
+        if not context.canonical:
+            props = self.enumerate_attributes()
+            if props:
+                bases = scls.get_bases(schema).objects(schema)
+                schema = self.inherit_fields(
+                    schema,
+                    context,
+                    bases,
+                    fields=props,
+                )
+                if context.enable_recursion:
+                    self._propagate_field_alter(schema, context, scls, props)
+
+        return schema
+
+    def _propagate_field_alter(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        scls: so.InheritingObject,
+        props: Tuple[str, ...],
+    ) -> None:
+        for descendant in scls.ordered_descendants(schema):
+            d_root_cmd, d_alter_cmd, ctx_stack = descendant.init_delta_branch(
+                schema, context, sd.AlterObject)
+
+            d_bases = descendant.get_bases(schema).objects(schema)
+
+            with ctx_stack():
+                assert isinstance(d_alter_cmd, InheritingObjectCommand)
+                schema = d_alter_cmd.inherit_fields(
+                    schema, context, d_bases, fields=props)
+
+            self.add(d_root_cmd)
+
+
+class AlterInheritingObject(
+    AlterInheritingObjectOrFragment[so.InheritingObjectT],
     sd.AlterObject[so.InheritingObjectT],
 ):
 
@@ -888,52 +950,9 @@ class AlterInheritingObject(
 
         return cmd
 
-    def _alter_begin(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-    ) -> s_schema.Schema:
-        schema = super()._alter_begin(schema, context)
-        scls = self.scls
-
-        if not context.canonical:
-            props = self.enumerate_attributes()
-            if props:
-                bases = scls.get_bases(schema).objects(schema)
-                schema = self.inherit_fields(
-                    schema,
-                    context,
-                    bases,
-                    fields=props,
-                )
-                if context.enable_recursion:
-                    self._propagate_field_alter(schema, context, scls, props)
-
-        return schema
-
-    def _propagate_field_alter(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        scls: so.InheritingObject,
-        props: Tuple[str, ...],
-    ) -> None:
-        for descendant in scls.ordered_descendants(schema):
-            d_root_cmd, d_alter_cmd, ctx_stack = descendant.init_delta_branch(
-                schema, context, sd.AlterObject)
-
-            d_bases = descendant.get_bases(schema).objects(schema)
-
-            with ctx_stack():
-                assert isinstance(d_alter_cmd, InheritingObjectCommand)
-                schema = d_alter_cmd.inherit_fields(
-                    schema, context, d_bases, fields=props)
-
-            self.add(d_root_cmd)
-
 
 class AlterInheritingObjectFragment(
-    InheritingObjectCommand[so.InheritingObjectT],
+    AlterInheritingObjectOrFragment[so.InheritingObjectT],
     sd.AlterObjectFragment[so.InheritingObjectT],
 ):
     pass

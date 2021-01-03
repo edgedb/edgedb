@@ -138,7 +138,7 @@ class TraceContextBase:
         if isinstance(decl, qlast.CreateConcretePointer):
             name = decl.name.name
             parent_expected = True
-        elif isinstance(decl, qlast.BaseSetField):
+        elif isinstance(decl, qlast.SetField):
             name = decl.name
             parent_expected = True
         elif isinstance(decl, qlast.ObjectDDL):
@@ -176,6 +176,7 @@ class TraceContextBase:
             for cmd in decl.commands:
                 if isinstance(cmd, qlast.SetField) and cmd.name == "expr":
                     assert cmd.value, "sdl SetField should always have value"
+                    assert isinstance(cmd.value, qlast.Expr)
                     exprs.append(cmd.value)
 
             extra_name = '|'.join(qlcodegen.generate_source(e) for e in exprs)
@@ -611,6 +612,7 @@ def trace_ConcreteConstraint(
     for cmd in node.commands:
         if isinstance(cmd, qlast.SetField) and cmd.name == "expr":
             assert cmd.value, "sdl SetField should always have value"
+            assert isinstance(cmd.value, qlast.Expr)
             exprs.append(ExprDependency(expr=cmd.value))
 
     loop_control: Optional[s_name.QualName]
@@ -684,6 +686,7 @@ def trace_Alias(
     for cmd in node.commands:
         if isinstance(cmd, qlast.SetField) and cmd.name == "expr":
             assert cmd.value, "sdl SetField should always have value"
+            assert isinstance(cmd.value, qlast.Expr)
             hard_dep_exprs.append(ExprDependency(expr=cmd.value))
             break
 

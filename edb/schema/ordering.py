@@ -422,7 +422,13 @@ def _break_down(
                 _break_down(opmap, strongrefs, new_opbranch + [sub_op])
         elif (
             isinstance(sub_op, sd.AlterSpecialObjectField)
-            and not isinstance(sub_op, referencing.AlterOwned)
+            and not isinstance(
+                sub_op,
+                (
+                    referencing.AlterOwned,
+                    s_pointers.SetPointerType,
+                )
+            )
         ):
             pass
         elif isinstance(sub_op, breakable_commands):
@@ -451,6 +457,31 @@ def _trace_op(
             item = depgraph[key] = DepGraphEntry(item=())
         return item
 
+    def record_field_deps(
+        op: sd.AlterObjectProperty,
+        parent_op: sd.ObjectCommand[so.Object],
+    ) -> str:
+        if isinstance(op.new_value, (so.Object, so.ObjectShell)):
+            nvn = op.new_value.get_name(new_schema)
+            if nvn is not None:
+                deps.add(('create', str(nvn)))
+                deps.add(('alter', str(nvn)))
+                if nvn in renames_r:
+                    deps.add(('rename', str(renames_r[nvn])))
+
+        graph_key = f'{parent_op.classname}%%{op.property}'
+        deps.add(('create', str(parent_op.classname)))
+
+        if isinstance(op.old_value, (so.Object, so.ObjectShell)):
+            assert old_schema is not None
+            ovn = op.old_value.get_name(old_schema)
+            nvn = op.new_value.get_name(new_schema)
+            if ovn != nvn:
+                ov_item = get_deps(('delete', str(ovn)))
+                ov_item.deps.add((tag, graph_key))
+
+        return graph_key
+
     deps: ordered.OrderedSet[Tuple[str, str]] = ordered.OrderedSet()
     graph_key: str
     implicit_ancestors: List[sn.Name] = []
@@ -467,7 +498,7 @@ def _trace_op(
         tag = 'delete'
     elif isinstance(op, referencing.AlterOwned):
         tag = 'alterowned'
-    elif isinstance(op, sd.AlterObjectProperty):
+    elif isinstance(op, (sd.AlterObjectProperty, sd.AlterSpecialObjectField)):
         tag = 'field'
     else:
         raise RuntimeError(
@@ -570,26 +601,16 @@ def _trace_op(
         graph_key = str(op.classname)
 
     elif isinstance(op, sd.AlterObjectProperty):
-        if isinstance(op.new_value, (so.Object, so.ObjectShell)):
-            nvn = op.new_value.get_name(new_schema)
-            if nvn is not None:
-                deps.add(('create', str(nvn)))
-                deps.add(('alter', str(nvn)))
-                if nvn in renames_r:
-                    deps.add(('rename', str(renames_r[nvn])))
-
         parent_op = opbranch[-2]
         assert isinstance(parent_op, sd.ObjectCommand)
-        graph_key = f'{parent_op.classname}%%{op.property}'
-        deps.add(('create', str(parent_op.classname)))
+        graph_key = record_field_deps(op, parent_op)
 
-        if isinstance(op.old_value, (so.Object, so.ObjectShell)):
-            assert old_schema is not None
-            ovn = op.old_value.get_name(old_schema)
-            nvn = op.new_value.get_name(new_schema)
-            if ovn != nvn:
-                ov_item = get_deps(('delete', str(ovn)))
-                ov_item.deps.add((tag, graph_key))
+    elif isinstance(op, sd.AlterSpecialObjectField):
+        parent_op = opbranch[-2]
+        assert isinstance(parent_op, sd.ObjectCommand)
+        field_op = op._get_attribute_set_cmd(op._field)
+        assert field_op is not None
+        graph_key = record_field_deps(field_op, parent_op)
 
     elif isinstance(op, sd.ObjectCommand):
         # If the object was renamed, use the new name, else use regular.

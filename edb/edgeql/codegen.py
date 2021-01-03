@@ -1090,6 +1090,12 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                     self.write(' (')
                     self.visit(node.value)
                     self.write(')')
+            elif node.name == 'target':
+                if node.value is None:
+                    self._write_keywords('RESET', 'TYPE')
+                else:
+                    self._write_keywords('SET', 'TYPE ')
+                    self.visit(node.value)
             else:
                 keywords = self._process_special_set(node)
                 self.write(*keywords, delimiter=' ')
@@ -1107,7 +1113,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def _eval_bool_expr(
         self,
-        expr: qlast.Expr,
+        expr: Union[qlast.Expr, qlast.TypeExpr],
     ) -> bool:
         if not isinstance(expr, qlast.BooleanConstant):
             raise AssertionError(f'expected BooleanConstant, got {expr!r}')
@@ -1115,7 +1121,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def _eval_enum_expr(
         self,
-        expr: qlast.Expr,
+        expr: Union[qlast.Expr, qlast.TypeExpr],
         enum_type: Type[Enum_T],
     ) -> Enum_T:
         if not isinstance(expr, qlast.StringConstant):
@@ -1409,7 +1415,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
             type_cmd = None
             for cmd in node.commands:
-                if isinstance(cmd, qlast.SetPropertyType):
+                if isinstance(cmd, qlast.SetPointerType):
                     ignored_cmds.add(cmd)
                     type_cmd = cmd
                     break
@@ -1417,7 +1423,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             def after_name() -> None:
                 if type_cmd is not None:
                     self.write(' -> ')
-                    self.visit(type_cmd.type)
+                    self.visit(type_cmd.value)
 
         keywords.append('PROPERTY')
         self._visit_AlterObject(
@@ -1505,7 +1511,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             type_cmd = None
             inherit_cmd = None
             for cmd in node.commands:
-                if isinstance(cmd, qlast.SetLinkType):
+                if isinstance(cmd, qlast.SetPointerType):
                     ignored_cmds.add(cmd)
                     type_cmd = cmd
                 elif isinstance(cmd, qlast.AlterAddInherit):
@@ -1517,7 +1523,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                     self._ddl_visit_bases(inherit_cmd)
                 if type_cmd is not None:
                     self.write(' -> ')
-                    self.visit(type_cmd.type)
+                    self.visit(type_cmd.value)
         else:
             after_name = None
 
@@ -1529,13 +1535,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_DropConcreteLink(self, node: qlast.DropConcreteLink) -> None:
         self._visit_DropObject(node, 'LINK', unqualified=True)
 
-    def visit_SetPropertyType(self, node: qlast.SetPropertyType) -> None:
+    def visit_SetPointerType(self, node: qlast.SetPointerType) -> None:
         self.write('SET TYPE ')
-        self.visit(node.type)
-
-    def visit_SetLinkType(self, node: qlast.SetLinkType) -> None:
-        self.write('SET TYPE ')
-        self.visit(node.type)
+        self.visit(node.value)
 
     def visit_OnTargetDelete(self, node: qlast.OnTargetDelete) -> None:
         self._write_keywords('ON TARGET DELETE ', node.cascade.to_edgeql())

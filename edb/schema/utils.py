@@ -148,12 +148,23 @@ def ast_objref_to_type_shell(
 
 
 def ast_to_type_shell(
-    node: qlast.TypeName,
+    node: qlast.TypeExpr,
     *,
     metaclass: Optional[Type[s_types.Type]] = None,
+    module: Optional[str] = None,
     modaliases: Mapping[Optional[str], str],
     schema: s_schema.Schema,
 ) -> s_types.TypeShell:
+
+    if isinstance(node, qlast.TypeOp):
+        return type_op_ast_to_type_shell(
+            node,
+            module=module,
+            modaliases=modaliases,
+            schema=schema,
+        )
+
+    assert isinstance(node, qlast.TypeName)
 
     if (node.subtypes is not None
             and isinstance(node.maintype, qlast.ObjectRef)
@@ -283,6 +294,61 @@ def ast_to_type_shell(
         metaclass=metaclass,
         schema=schema,
     )
+
+
+def type_op_ast_to_type_shell(
+    node: qlast.TypeOp,
+    *,
+    module: Optional[str] = None,
+    modaliases: Mapping[Optional[str], str],
+    schema: s_schema.Schema,
+) -> s_types.TypeExprShell:
+
+    from . import types as s_types
+
+    if node.op != '|':
+        raise errors.UnsupportedFeatureError(
+            f'unsupported type expression operator: {node.op}',
+            context=node.context,
+        )
+
+    if module is None:
+        module = modaliases.get(None)
+
+    if module is None:
+        raise errors.InternalServerError(
+            'cannot determine module for derived compound type',
+            context=node.context,
+        )
+
+    left = ast_to_type_shell(
+        node.left, module=module, modaliases=modaliases, schema=schema,
+    )
+    right = ast_to_type_shell(
+        node.right, module=module, modaliases=modaliases, schema=schema)
+
+    if isinstance(left, s_types.UnionTypeShell):
+        if isinstance(right, s_types.UnionTypeShell):
+            return s_types.UnionTypeShell(
+                components=left.components + right.components,
+                module=module,
+            )
+        else:
+            return s_types.UnionTypeShell(
+                components=left.components + (right,),
+                module=module,
+            )
+    else:
+        if isinstance(right, s_types.UnionTypeShell):
+            return s_types.UnionTypeShell(
+                components=(left,) + right.components,
+                module=module,
+            )
+        else:
+            return s_types.UnionTypeShell(
+                components=(left, right),
+                module=module,
+            )
 
 
 def ast_to_object_shell(

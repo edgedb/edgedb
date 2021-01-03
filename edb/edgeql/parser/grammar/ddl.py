@@ -314,6 +314,8 @@ class ResetFieldStmt(Nonterm):
             fname = 'is_final'
         elif fname == 'optionality':
             fname = 'required'
+        elif fname == 'type':
+            fname = 'target'
         elif fname in ('delegated', 'cardinality'):
             pass
         else:
@@ -990,12 +992,16 @@ class DropIndexStmt(Nonterm):
 
 class SetPropertyTypeStmt(Nonterm):
     def reduce_SETTYPE_FullTypeExpr(self, *kids):
-        self.val = qlast.SetPropertyType(type=kids[1].val)
+        self.val = qlast.SetPointerType(
+            value=kids[1].val,
+        )
 
 
 class SetLinkTypeStmt(Nonterm):
     def reduce_SETTYPE_FullTypeExpr(self, *kids):
-        self.val = qlast.SetLinkType(type=kids[1].val)
+        self.val = qlast.SetPointerType(
+            value=kids[1].val,
+        )
 
 
 #

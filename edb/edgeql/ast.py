@@ -604,18 +604,6 @@ class DDLCommand(Command, DDLOperation):
     __abstract_node__ = True
 
 
-class SetPointerType(DDLOperation):
-    type: TypeExpr
-
-
-class SetLinkType(SetPointerType):
-    pass
-
-
-class SetPropertyType(SetPointerType):
-    pass
-
-
 class AlterAddInherit(DDLOperation, BasesMixin):
     position: typing.Optional[Position]
 
@@ -628,10 +616,9 @@ class OnTargetDelete(DDLOperation):
     cascade: qltypes.LinkTargetDeleteAction
 
 
-class BaseSetField(DDLOperation):
-    __abstract_node__ = True
+class SetField(DDLOperation):
     name: str
-    value: typing.Optional[Expr]
+    value: typing.Union[Expr, TypeExpr, None]
     #: Indicates that this AST originated from a special DDL syntax
     #: rather than from a generic `SET field := value` statement, and
     #: so must not be subject to the "allow_ddl_set" constraint.
@@ -640,8 +627,10 @@ class BaseSetField(DDLOperation):
     special_syntax: bool = False
 
 
-class SetField(BaseSetField):
-    pass
+class SetPointerType(SetField):
+    name: str = 'target'
+    special_syntax: bool = True
+    value: TypeExpr
 
 
 class NamedDDL(DDLCommand):
@@ -1125,7 +1114,7 @@ def get_ddl_field_command(
 def get_ddl_field_value(
     ddlcmd: DDLOperation,
     name: str,
-) -> typing.Optional[Expr]:
+) -> typing.Union[Expr, TypeExpr, None]:
     cmd = get_ddl_field_command(ddlcmd, name)
     return cmd.value if cmd is not None else None
 
