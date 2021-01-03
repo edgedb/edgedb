@@ -874,9 +874,12 @@ class Compiler(BaseCompiler):
             mstate = mstate._replace(current_ddl=all_ddl)
             if debug.flags.delta_plan:
                 debug.header('Populate Migration DDL AST')
-                for cmd in mstate.current_ddl:
-                    import edb.common.debug
-                    edb.common.debug.dump(cmd)
+                text = []
+                for cmd in new_ddl:
+                    debug.dump(cmd)
+                    text.append(qlcodegen.generate_source(cmd, pretty=True))
+                debug.header('Populate Migration DDL Text')
+                debug.dump_code(';\n'.join(text) + ';')
             current_tx.update_migration_state(mstate)
 
             delta_context = self._new_delta_context(ctx)
