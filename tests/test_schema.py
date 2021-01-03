@@ -831,8 +831,8 @@ _123456789_123456789_123456789 -> str
 
         with self.assertRaisesRegex(
             errors.SchemaDefinitionError,
-            "cannot alter the cardinality of inherited property 'foo1' of "
-            "object type 'test::Bar'"
+            "cannot redefine the cardinality of property 'foo1' of "
+            "object type 'test::Bar'.*"
         ):
             self.run_ddl(schema, '''
                 ALTER TYPE Bar ALTER PROPERTY foo1 SET MULTI
@@ -1306,8 +1306,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
             if list(diff.get_subcommands()):
                 self.fail(
-                    f'unexpected difference in schema produced by\n'
-                    f'alternative migration paths on step {i + 1}:\n'
+                    f'unexpected difference in schema produced by '
+                    f'incremental migration on step {i + 1}:\n'
                     f'{markup.dumps(diff)}\n'
                 )
 

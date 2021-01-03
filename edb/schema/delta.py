@@ -545,7 +545,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         from_default: bool = False,
         orig_computed: Optional[bool] = None,
         source_context: Optional[parsing.ParserContext] = None,
-    ) -> None:
+    ) -> Command:
         orig_op = op = self._get_simple_attribute_set_cmd(attr_name)
         if op is None:
             op = AlterObjectProperty(property=attr_name, new_value=value)
@@ -570,6 +570,8 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
 
         if orig_op is None:
             self.add(op)
+
+        return op
 
     def discard_attribute(self, attr_name: str) -> None:
         op = self._get_attribute_set_cmd(attr_name)
@@ -885,6 +887,18 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         if ctxcls is None:
             raise RuntimeError(f'context class not defined for {cls}')
         return ctxcls
+
+    def formatfields(
+        self,
+        formatter: str = 'str',
+    ) -> Iterator[Tuple[str, str]]:
+        """Return an iterator over fields formatted using `formatter`."""
+        for name, field in self.__class__._fields.items():
+            value = getattr(self, name)
+            default = field.default
+            formatter_obj = field.formatters.get(formatter)
+            if formatter_obj and value != default:
+                yield (name, formatter_obj(value))
 
 
 class Nop(Command):
@@ -1440,7 +1454,10 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         cls,
         field_name: str,
     ) -> Optional[Type[AlterSpecialObjectField[so.Object]]]:
-        if issubclass(cls, AlterObject):
+        if (
+            issubclass(cls, AlterObjectOrFragment)
+            and not issubclass(cls, AlterSpecialObjectField)
+        ):
             schema_cls = cls.get_schema_metaclass()
             return get_special_field_alter_handler(field_name, schema_cls)
         else:
@@ -1458,7 +1475,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         orig_computed: Optional[bool] = None,
         from_default: bool = False,
         source_context: Optional[parsing.ParserContext] = None,
-    ) -> None:
+    ) -> Command:
         special = type(self)._get_special_handler(attr_name)
         op = self._get_attribute_set_cmd(attr_name)
         top_op: Optional[Command] = None
@@ -1503,6 +1520,9 @@ class ObjectCommand(Command, Generic[so.Object_T]):
 
         if top_op is not None:
             self.add(top_op)
+            return top_op
+        else:
+            return op
 
     def _propagate_if_expr_refs(
         self,
@@ -2132,21 +2152,37 @@ class ObjectCommand(Command, Generic[so.Object_T]):
 
         value = context.get_cached((self, 'attribute', attr_name))
         if value is None:
-            metaclass = self.get_schema_metaclass()
-            field = metaclass.get_field(attr_name)
-            if field is None:
-                raise errors.SchemaDefinitionError(
-                    f'got AlterObjectProperty command for '
-                    f'invalid field: {metaclass.__name__}.{attr_name}')
-
-            value = self._resolve_attr_value(
-                raw_value, attr_name, field, schema)
-
-            if (isinstance(value, s_expr.Expression)
-                    and not value.is_compiled()):
-                value = self.compile_expr_field(schema, context, field, value)
-
+            value = self.resolve_attribute_value(
+                attr_name,
+                raw_value,
+                schema=schema,
+                context=context,
+            )
             context.cache_value((self, 'attribute', attr_name), value)
+
+        return value
+
+    def resolve_attribute_value(
+        self,
+        attr_name: str,
+        raw_value: Any,
+        *,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> Any:
+        metaclass = self.get_schema_metaclass()
+        field = metaclass.get_field(attr_name)
+        if field is None:
+            raise errors.SchemaDefinitionError(
+                f'got AlterObjectProperty command for '
+                f'invalid field: {metaclass.__name__}.{attr_name}')
+
+        value = self._resolve_attr_value(
+            raw_value, attr_name, field, schema)
+
+        if (isinstance(value, s_expr.Expression)
+                and not value.is_compiled()):
+            value = self.compile_expr_field(schema, context, field, value)
 
         return value
 
@@ -2593,7 +2629,8 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         context: CommandContext,
     ) -> s_schema.Schema:
         for op in self.get_subcommands(include_prerequisites=False):
-            schema = op.apply(schema, context=context)
+            if not isinstance(op, AlterObjectProperty):
+                schema = op.apply(schema, context=context)
         return schema
 
     def _create_finalize(
@@ -2629,7 +2666,7 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         return schema
 
 
-class AlterObjectCommon(ObjectCommand[so.Object_T]):
+class AlterObjectOrFragment(ObjectCommand[so.Object_T]):
 
     def canonicalize_attributes(
         self,
@@ -2646,7 +2683,7 @@ class AlterObjectCommon(ObjectCommand[so.Object_T]):
         return schema
 
 
-class AlterObjectFragment(AlterObjectCommon[so.Object_T]):
+class AlterObjectFragment(AlterObjectOrFragment[so.Object_T]):
 
     def apply(
         self,
@@ -3003,7 +3040,7 @@ class RenameQualifiedObject(AlterObjectFragment[so.Object_T]):
         return astnode(new_name=ref)
 
 
-class AlterObject(AlterObjectCommon[so.Object_T], Generic[so.Object_T]):
+class AlterObject(AlterObjectOrFragment[so.Object_T], Generic[so.Object_T]):
     _delta_action = 'alter'
 
     #: If True, apply the command only if the object exists.
@@ -3133,6 +3170,9 @@ class AlterObject(AlterObjectCommon[so.Object_T], Generic[so.Object_T]):
 
 class DeleteObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
     _delta_action = 'delete'
+
+    #: If True, apply the command only if the object exists.
+    if_exists = struct.Field(bool, default=False)
 
     #: If True, apply the command only if the object has no referrers
     #: in the schema.
@@ -3276,7 +3316,14 @@ class DeleteObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         schema: s_schema.Schema,
         context: CommandContext,
     ) -> s_schema.Schema:
-        scls = self.get_object(schema, context)
+        if self.if_exists:
+            scls = self.get_object(schema, context, default=None)
+            if scls is None:
+                context.current().op.discard(self)
+                return schema
+        else:
+            scls = self.get_object(schema, context)
+
         self.scls = scls
 
         with self.new_context(schema, context, scls):
@@ -3418,11 +3465,14 @@ def get_special_field_alter_handler_for_context(
     of an AlterObject operation, and a special handler has been declared.
     """
     this_op = context.current().op
-    if not isinstance(this_op, AlterObject):
-        return None
-    else:
+    if (
+        isinstance(this_op, AlterObjectOrFragment)
+        and not isinstance(this_op, AlterSpecialObjectField)
+    ):
         mcls = this_op.get_schema_metaclass()
         return get_special_field_alter_handler(field, mcls)
+    else:
+        return None
 
 
 class AlterObjectProperty(Command):
@@ -3540,10 +3590,26 @@ class AlterObjectProperty(Command):
                     schema=schema,
                 )
 
-            elif (isinstance(astnode.value, qlast.Set)
-                    and not astnode.value.elements):
+            elif (
+                isinstance(astnode.value, qlast.Set)
+                and not astnode.value.elements
+            ):
                 # empty set
                 new_value = None
+
+            elif isinstance(astnode.value, qlast.TypeExpr):
+                if not isinstance(parent_op, QualifiedObjectCommand):
+                    raise AssertionError(
+                        'cannot determine module for derived compound type: '
+                        'parent operation is not a QualifiedObjectCommand'
+                    )
+
+                new_value = utils.ast_to_type_shell(
+                    astnode.value,
+                    module=parent_op.classname.module,
+                    modaliases=context.modaliases,
+                    schema=schema,
+                )
 
             else:
                 new_value = qlcompiler.evaluate_ast_to_python_val(
@@ -3710,6 +3776,8 @@ class AlterObjectProperty(Command):
                     )
                 )
             )
+        elif isinstance(value, so.ObjectShell):
+            value = utils.shell_to_ast(schema, value)
         else:
             value = utils.const_ast_from_python(value)
 
@@ -3783,9 +3851,16 @@ def compile_ddl(
     if context is None:
         context = CommandContext()
 
-    primary_cmdcls = CommandMeta._astnode_map.get(type(astnode))
+    astnode_type = type(astnode)
+    primary_cmdcls = CommandMeta._astnode_map.get(astnode_type)
     if primary_cmdcls is None:
-        raise LookupError(f'no delta command class for AST node {astnode!r}')
+        for astnode_type_base in astnode_type.__mro__[1:]:
+            primary_cmdcls = CommandMeta._astnode_map.get(astnode_type_base)
+            if primary_cmdcls is not None:
+                break
+        else:
+            raise AssertionError(
+                f'no delta command class for AST node {astnode!r}')
 
     cmdcls = primary_cmdcls.command_for_ast_node(astnode, schema, context)
 

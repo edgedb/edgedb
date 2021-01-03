@@ -105,7 +105,7 @@ def merge_cardinality(
                 nextval_qual = 'unknown'
 
             raise errors.SchemaDefinitionError(
-                f'cannot redefine the target cardinality of '
+                f'cannot redefine the cardinality of '
                 f'{tgt_repr}: it is {current_qual} in {cf_repr} and '
                 f'is {nextval_qual} in {other_repr}.'
             )
@@ -258,7 +258,10 @@ class Pointer(referencing.ReferencedInheritingObject,
     target = so.SchemaField(
         s_types.Type,
         merge_fn=merge_target,
-        default=None, compcoef=0.85)
+        default=None,
+        compcoef=0.85,
+        special_ddl_syntax=True,
+    )
 
     required = so.SchemaField(
         bool,
@@ -451,21 +454,6 @@ class Pointer(referencing.ReferencedInheritingObject,
                         f'parent type'
             )
 
-        elif isinstance(t1, s_abc.ScalarType):
-            # Targets are both scalars
-            if t1 != t2:
-                vnp = ptr.get_verbosename(schema, with_parent=True)
-                vn = ptr.get_verbosename(schema)
-                t1_vn = t1.get_verbosename(schema)
-                t2_vn = t2.get_verbosename(schema)
-                raise errors.SchemaError(
-                    f'cannot redefine {vnp} as {t2_vn}',
-                    details=f'{vn} is defined as {t1_vn} in a parent type, '
-                            f'which is incompatible with {t2_vn} ',
-                )
-
-            return schema, t1
-
         else:
             assert isinstance(t1, so.SubclassableObject)
             assert isinstance(t2, so.SubclassableObject)
@@ -482,13 +470,13 @@ class Pointer(referencing.ReferencedInheritingObject,
                 # conflict.
                 vnp = ptr.get_verbosename(schema, with_parent=True)
                 vn = ptr.get_verbosename(schema)
+                t1_vn = t1.get_verbosename(schema)
                 t2_vn = t2.get_verbosename(schema)
                 raise errors.SchemaError(
                     f'cannot redefine {vnp} as {t2_vn}',
-                    details=(
-                        f'{vn} targets {t2_vn} that is not related '
-                        f'to a type found in this link in the parent type: '
-                        f'{t1.get_displayname(schema)!r}.'))
+                    details=f'{vn} is defined as {t1_vn} in a parent type, '
+                            f'which is incompatible with {t2_vn} ',
+                )
 
             return schema, current_target
 
@@ -1217,15 +1205,6 @@ class PointerCommand(
     PointerCommandOrFragment[Pointer_T],
 ):
 
-    def _set_pointer_type(
-        self,
-        schema: s_schema.Schema,
-        astnode: qlast.CreateConcretePointer,
-        context: sd.CommandContext,
-        target_ref: Union[so.Object, so.ObjectShell, ComputableRef],
-    ) -> None:
-        raise NotImplementedError
-
     def _create_begin(
         self,
         schema: s_schema.Schema,
@@ -1443,12 +1422,18 @@ class PointerCommand(
             )
 
         elif target_ref is not None:
-            self._set_pointer_type(schema, astnode, context, target_ref)
+            assert astnode.target is not None
+            self.set_attribute_value(
+                'target',
+                target_ref,
+                source_context=astnode.target.context,
+            )
 
 
 class SetPointerType(
     referencing.ReferencedInheritingObjectCommand[Pointer_T],
     inheriting.AlterInheritingObjectFragment[Pointer_T],
+    sd.AlterSpecialObjectField[Pointer_T],
     PointerCommandOrFragment[Pointer_T],
 ):
 
@@ -1477,16 +1462,28 @@ class SetPointerType(
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         orig_schema = schema
+        orig_rec = context.current().enable_recursion
+        context.current().enable_recursion = False
         schema = super()._alter_begin(schema, context)
+        context.current().enable_recursion = orig_rec
         scls = self.scls
+
+        vn = scls.get_verbosename(schema, with_parent=True)
 
         orig_target = scls.get_target(orig_schema)
         new_target = scls.get_target(schema)
 
+        if new_target is None:
+            # This will happen if `RESET TYPE` was called
+            # on a non-inherited type.
+            raise errors.SchemaError(
+                f'cannot RESET TYPE of {vn} because it is not inherited',
+                context=self.source_context,
+            )
+
         if orig_target == new_target:
             return schema
 
-        vn = scls.get_verbosename(schema, with_parent=True)
         schema = self._propagate_if_expr_refs(
             schema, context, action=f'alter the type of {vn}')
 
@@ -1500,63 +1497,14 @@ class SetPointerType(
                 parent_ctx.op.add(orig_target.as_colltype_delete_delta(
                     schema, expiring_refs={scls}))
 
-            schema = self._propagate_ref_field_alter_in_inheritance(
-                schema,
-                context,
-                field_name='target',
-            )
+            if context.enable_recursion:
+                schema = self._propagate_ref_field_alter_in_inheritance(
+                    schema,
+                    context,
+                    field_name='target',
+                )
 
         return schema
-
-    @classmethod
-    def _cmd_from_ast(
-        cls,
-        schema: s_schema.Schema,
-        astnode: qlast.DDLOperation,
-        context: sd.CommandContext,
-    ) -> sd.ObjectCommand[Pointer_T]:
-        this_op = context.current().op
-        assert isinstance(this_op, sd.ObjectCommand)
-        return cls(classname=this_op.classname)
-
-    @classmethod
-    def _cmd_tree_from_ast(
-        cls,
-        schema: s_schema.Schema,
-        astnode: qlast.DDLOperation,
-        context: sd.CommandContext,
-    ) -> sd.Command:
-        assert isinstance(astnode, qlast.SetPointerType)
-        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
-
-        targets = qlast.get_targets(astnode.type)
-        target_ref: s_types.TypeShell
-
-        if len(targets) > 1:
-            new_targets = [
-                utils.ast_to_type_shell(
-                    t,
-                    modaliases=context.modaliases,
-                    schema=schema,
-                )
-                for t in targets
-            ]
-
-            target_ref = s_types.UnionTypeShell(
-                new_targets,
-                module=cls.classname.module,
-            )
-        else:
-            target = targets[0]
-            target_ref = utils.ast_to_type_shell(
-                target,
-                modaliases=context.modaliases,
-                schema=schema,
-            )
-
-        cmd.set_attribute_value('target', target_ref)
-
-        return cmd
 
 
 class AlterPointerUpperCardinality(

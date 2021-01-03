@@ -370,7 +370,7 @@ class ConstraintCommand(
     ) -> None:
         # check that 'subject' and 'subjectexpr' are not set as annotations
         for command in astnode.commands:
-            if isinstance(command, qlast.BaseSetField):
+            if isinstance(command, qlast.SetField):
                 cname = command.name
                 if cname in {'subject', 'subjectexpr'}:
                     raise errors.InvalidConstraintDefinitionError(

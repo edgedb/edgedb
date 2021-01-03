@@ -212,19 +212,6 @@ class PropertyCommand(
     referrer_context_class=PropertySourceContext,
 ):
 
-    def _set_pointer_type(
-        self,
-        schema: s_schema.Schema,
-        astnode: qlast.CreateConcretePointer,
-        context: sd.CommandContext,
-        target_ref: Union[so.Object, so.ObjectShell, pointers.ComputableRef],
-    ) -> None:
-        assert astnode.target is not None
-        spt = SetPropertyType(classname=self.classname, type=target_ref)
-        spt.set_attribute_value(
-            'target', target_ref, source_context=astnode.target.context)
-        self.add(spt)
-
     def _validate_pointer_def(
         self,
         schema: s_schema.Schema,
@@ -353,8 +340,8 @@ class CreateProperty(
                 ref = op.new_value
                 assert isinstance(ref, (so.Object, so.ObjectShell))
                 node.commands.append(
-                    qlast.SetPropertyType(
-                        type=utils.typeref_to_ast(schema, ref)
+                    qlast.SetPointerType(
+                        value=utils.typeref_to_ast(schema, ref)
                     )
                 )
         else:
@@ -378,8 +365,9 @@ class RebaseProperty(
 class SetPropertyType(
     pointers.SetPointerType[Property],
     referrer_context_class=PropertySourceContext,
+    field='target',
 ):
-    astnode = qlast.SetPropertyType
+    pass
 
 
 class AlterPropertyUpperCardinality(
@@ -435,8 +423,8 @@ class AlterProperty(
             if op.new_value:
                 assert isinstance(op.new_value, so.ObjectShell)
                 node.commands.append(
-                    qlast.SetPropertyType(
-                        type=utils.typeref_to_ast(schema, op.new_value),
+                    qlast.SetPointerType(
+                        value=utils.typeref_to_ast(schema, op.new_value),
                     ),
                 )
         elif op.property == 'computable':

@@ -422,6 +422,9 @@ class BaseSchemaTest(BaseDocTest):
                         testmode=True,
                     )
 
+                    if debug.flags.delta_plan:
+                        debug.header('Delta Plan')
+                        debug.dump(ddl_plan, schema=schema)
             else:
                 raise ValueError(
                     f'unexpected {stmt!r} in compiler setup script')

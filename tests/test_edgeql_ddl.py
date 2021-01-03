@@ -1943,6 +1943,32 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 CREATE TYPE Derived EXTENDING Base0, Base1;
             ''')
 
+    async def test_edgeql_ddl_link_target_bad_03(self):
+        await self.con.execute('''
+            SET MODULE test;
+            CREATE TYPE A;
+            CREATE TYPE Foo {
+                CREATE LINK a -> A;
+                CREATE PROPERTY b -> str;
+            };
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.SchemaError,
+                "cannot RESET TYPE of link 'a' of object type 'test::Foo' "
+                "because it is not inherited"):
+            await self.con.execute('''
+                ALTER TYPE Foo ALTER LINK a RESET TYPE;
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.SchemaError,
+                "cannot RESET TYPE of property 'b' of object type 'test::Foo' "
+                "because it is not inherited"):
+            await self.con.execute('''
+                ALTER TYPE Foo ALTER PROPERTY b RESET TYPE;
+            ''')
+
     async def test_edgeql_ddl_link_target_merge_01(self):
         await self.con.execute('''
             SET MODULE test;
@@ -2018,8 +2044,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_link_target_alter_02(self):
         with self.assertRaisesRegex(
-                edgedb.SchemaDefinitionError,
-                "cannot alter the type of inherited property 'foo'"):
+            edgedb.SchemaError,
+            "cannot redefine property 'foo' of object type 'test::Child' "
+            "as scalar type 'std::int16'",
+        ):
             await self.con.execute("""
                 CREATE TYPE test::Parent01 {
                     CREATE PROPERTY foo -> int64;
@@ -2133,6 +2161,35 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 ALTER PROPERTY foo SET TYPE array<int32>;
             };
         """)
+
+    async def test_edgeql_ddl_prop_target_subtype_01(self):
+        await self.con.execute(r"""
+            CREATE SCALAR TYPE test::mystr EXTENDING std::str {
+                CREATE CONSTRAINT std::max_len_value(5)
+            };
+
+            CREATE TYPE test::Foo {
+                CREATE PROPERTY a -> std::str;
+            };
+
+            CREATE TYPE test::Bar EXTENDING test::Foo {
+                ALTER PROPERTY a SET TYPE test::mystr;
+            };
+        """)
+
+        await self.con.execute('INSERT test::Foo { a := "123456" }')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            'must be no longer than 5 characters'
+        ):
+            await self.con.execute('INSERT test::Bar { a := "123456" }')
+
+        await self.con.execute("""
+            ALTER TYPE test::Bar ALTER PROPERTY a RESET TYPE;
+        """)
+
+        await self.con.execute('INSERT test::Bar { a := "123456" }')
 
     async def test_edgeql_ddl_link_property_01(self):
         with self.assertRaisesRegex(
