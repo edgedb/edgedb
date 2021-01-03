@@ -29,6 +29,7 @@ import re
 import unittest
 
 from edb.common import context
+from edb.common import debug
 from edb.common import devmode
 from edb.common import markup
 
@@ -352,13 +353,26 @@ class BaseSchemaTest(BaseDocTest):
                     migration_target,
                 )
 
-                migration_script.extend(
-                    s_ddl.ddlast_from_delta(
-                        migration_schema,
-                        migration_target,
-                        migration_diff,
-                    ),
+                if debug.flags.delta_plan:
+                    debug.header('Populate Migration Diff')
+                    debug.dump(migration_diff, schema=schema)
+
+                new_ddl = s_ddl.ddlast_from_delta(
+                    migration_schema,
+                    migration_target,
+                    migration_diff,
                 )
+
+                migration_script.extend(new_ddl)
+
+                if debug.flags.delta_plan:
+                    debug.header('Populate Migration DDL AST')
+                    text = []
+                    for cmd in new_ddl:
+                        debug.dump(cmd)
+                        text.append(edgeql.generate_source(cmd, pretty=True))
+                    debug.header('Populate Migration DDL Text')
+                    debug.dump_code(';\n'.join(text) + ';')
 
             elif isinstance(stmt, qlast.CommitMigration):
                 if migration_target is None:
@@ -387,6 +401,10 @@ class BaseSchemaTest(BaseDocTest):
                     modaliases={None: default_module},
                     testmode=True,
                 )
+
+                if debug.flags.delta_plan:
+                    debug.header('Delta Plan')
+                    debug.dump(ddl_plan, schema=schema)
 
                 migration_schema = None
                 migration_target = None
