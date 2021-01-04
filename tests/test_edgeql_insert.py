@@ -2306,6 +2306,46 @@ class TestInsert(tb.QueryTestCase):
         self.assertNotEqual(res1.id, res2.id)
         self.assertEqual(res1.person, res2.person)
 
+    async def test_edgeql_insert_unless_conflict_09(self):
+        query = r'''
+            WITH MODULE test
+            INSERT Person {
+                name := 'Cap',
+                tag := 'hero',
+            } UNLESS CONFLICT ON .name ELSE (
+                UPDATE Person SET {
+                    tag := 'super ' ++ .tag
+                }
+            );
+        '''
+
+        await self.con.execute(query)
+
+        await self.assert_query_result(
+            "SELECT test::Person { tag } FILTER .name = 'Cap'",
+            [{
+                'tag': 'hero'
+            }]
+        )
+
+        await self.con.execute(query)
+
+        await self.assert_query_result(
+            "SELECT test::Person { tag } FILTER .name = 'Cap'",
+            [{
+                'tag': 'super hero'
+            }]
+        )
+
+        await self.con.execute(query)
+
+        await self.assert_query_result(
+            "SELECT test::Person { tag } FILTER .name = 'Cap'",
+            [{
+                'tag': 'super super hero'
+            }]
+        )
+
     async def test_edgeql_insert_dependent_01(self):
         query = r'''
             WITH MODULE test

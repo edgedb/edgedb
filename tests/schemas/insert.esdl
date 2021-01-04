@@ -47,7 +47,7 @@ type Note {
 type Person {
     required single property name -> std::str {
         constraint std::exclusive;
-	default := "Nemo";
+        default := "Nemo";
     };
     optional single property tag -> std::str;
     optional multi link notes -> Note;
