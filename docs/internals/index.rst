@@ -1,4 +1,4 @@
-.. eql:section-intro-page:: rocket
+.. eql:section-intro-page:: microchips
 
 =========
 Internals
