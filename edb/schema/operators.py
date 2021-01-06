@@ -36,8 +36,13 @@ if TYPE_CHECKING:
     from edb.schema import schema as s_schema
 
 
-class Operator(s_func.CallableObject, s_func.VolatilitySubject,
-               s_abc.Operator, qlkind=ft.SchemaObjectClass.OPERATOR):
+class Operator(
+    s_func.CallableObject,
+    s_func.VolatilitySubject,
+    s_abc.Operator,
+    qlkind=ft.SchemaObjectClass.OPERATOR,
+    data_safe=True,
+):
 
     operator_kind = so.SchemaField(
         ft.OperatorKind, coerce=True, compcoef=0.4)

@@ -35,9 +35,13 @@ if TYPE_CHECKING:
     from . import schema as s_schema
 
 
-class Annotation(so.QualifiedObject,
-                 so.InheritingObject,
-                 qlkind=qltypes.SchemaObjectClass.ANNOTATION):
+class Annotation(
+    so.QualifiedObject,
+    so.InheritingObject,
+    qlkind=qltypes.SchemaObjectClass.ANNOTATION,
+    data_safe=True,
+):
+
     inheritable = so.SchemaField(
         bool, default=False, compcoef=0.2)
 
@@ -54,6 +58,7 @@ class AnnotationValue(
     qlkind=qltypes.SchemaObjectClass.ANNOTATION,
     reflection=so.ReflectionMethod.AS_LINK,
     reflection_link='annotation',
+    data_safe=True,
 ):
 
     subject = so.SchemaField(

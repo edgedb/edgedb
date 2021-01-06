@@ -554,6 +554,10 @@ class ObjectMeta(type):
     _ql_class: Optional[qltypes.SchemaObjectClass]
     _reflection_method: ReflectionMethod
     _reflection_link: Optional[str]
+    #: Indicates that ALL changes to this object class are safe from the
+    #: standpoint of persistent data.  In other words, changes to the
+    #: object are fully reversible without possible data loss.
+    _data_safe: bool
 
     def __new__(
         mcls,
@@ -564,6 +568,7 @@ class ObjectMeta(type):
         qlkind: Optional[qltypes.SchemaObjectClass] = None,
         reflection: ReflectionMethod = ReflectionMethod.REGULAR,
         reflection_link: Optional[str] = None,
+        data_safe: bool = False,
     ) -> ObjectMeta:
         refdicts: collections.OrderedDict[str, RefDict]
 
@@ -613,6 +618,7 @@ class ObjectMeta(type):
                     for k, d in parent.get_own_refdicts().items()
                 })
 
+        cls._data_safe = data_safe
         cls._fields = fields
         cls._schema_fields = {
             fn: f for fn, f in fields.items()

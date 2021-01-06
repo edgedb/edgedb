@@ -395,6 +395,9 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
             result.add(mcls.adapt(op))
         return result
 
+    def is_data_safe(self) -> bool:
+        return False
+
     def resolve_obj_collection(
         self,
         value: Any,
@@ -1387,6 +1390,15 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         assert isinstance(astnode, qlast.ObjectDDL), 'expected ObjectDDL'
         classname = cls._classname_from_ast(schema, astnode, context)
         return cls(classname=classname)
+
+    def is_data_safe(self) -> bool:
+        if self.get_schema_metaclass()._data_safe:
+            return True
+        else:
+            return all(
+                subcmd.is_data_safe()
+                for subcmd in self.get_subcommands()
+            )
 
     def get_parent_op(
         self,
@@ -2387,6 +2399,10 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
     # If the command is conditioned with IF NOT EXISTS
     if_not_exists = struct.Field(bool, default=False)
 
+    def is_data_safe(self) -> bool:
+        # Creations are always data-safe.
+        return True
+
     @classmethod
     def command_for_ast_node(
         cls,
@@ -2590,7 +2606,24 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         return schema
 
 
-class AlterObjectFragment(ObjectCommand[so.Object_T]):
+class AlterObjectCommon(ObjectCommand[so.Object_T]):
+
+    def canonicalize_attributes(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> s_schema.Schema:
+        schema = super().canonicalize_attributes(schema, context)
+        # Hydrate the ALTER fields with original field values,
+        # if not present.
+        for cmd in self.get_subcommands(type=AlterObjectProperty):
+            if cmd.old_value is None:
+                cmd.old_value = self.scls.get_explicit_field_value(
+                    schema, cmd.property, default=None)
+        return schema
+
+
+class AlterObjectFragment(AlterObjectCommon[so.Object_T]):
 
     def apply(
         self,
@@ -2659,6 +2692,10 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
     astnode = qlast.Rename
 
     new_name = struct.Field(sn.Name)
+
+    def is_data_safe(self) -> bool:
+        # Renames are always data-safe.
+        return True
 
     def get_friendly_description(
         self,
@@ -2942,7 +2979,7 @@ class RenameQualifiedObject(AlterObjectFragment[so.Object_T]):
         return astnode(new_name=ref)
 
 
-class AlterObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
+class AlterObject(AlterObjectCommon[so.Object_T], Generic[so.Object_T]):
     _delta_action = 'alter'
 
     #: If True, apply the command only if the object exists.
@@ -3097,6 +3134,11 @@ class DeleteObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
             object_desc=object_desc,
         )
         return f'drop {object_desc}'
+
+    def is_data_safe(self) -> bool:
+        # Deletions are only safe if the entire object class
+        # has been declared as data-safe.
+        return self.get_schema_metaclass()._data_safe
 
     def _delete_begin(
         self,
@@ -3490,6 +3532,14 @@ class AlterObjectProperty(Command):
             new_value=new_value,
             source_context=astnode.context,
         )
+
+    def is_data_safe(self) -> bool:
+        # Field alterations on existing schema objects
+        # generally represent semantic changes and are
+        # reversible.  Non-safe field alters are normally
+        # represented by a dedicated subcommand, such as
+        # SetLinkType.
+        return True
 
     def _get_ast(
         self,

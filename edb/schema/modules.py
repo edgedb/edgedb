@@ -32,6 +32,7 @@ from . import schema as s_schema
 class Module(
     s_anno.AnnotationSubject,
     qlkind=qltypes.SchemaObjectClass.MODULE,
+    data_safe=False,
 ):
     pass
 

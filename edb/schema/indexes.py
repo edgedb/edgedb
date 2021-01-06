@@ -47,6 +47,7 @@ class Index(
     referencing.ReferencedInheritingObject,
     s_anno.AnnotationSubject,
     qlkind=qltypes.SchemaObjectClass.INDEX,
+    data_safe=True,
 ):
 
     subject = so.SchemaField(so.Object)

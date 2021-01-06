@@ -167,6 +167,7 @@ class Cast(
     s_func.VolatilitySubject,
     s_abc.Cast,
     qlkind=qltypes.SchemaObjectClass.CAST,
+    data_safe=True,
 ):
 
     from_type = so.SchemaField(

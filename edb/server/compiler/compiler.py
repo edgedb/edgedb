@@ -960,6 +960,7 @@ class Compiler(BaseCompiler):
                         'confidence': top_op.get_annotation('confidence'),
                         'prompt': top_op.get_annotation('user_prompt'),
                         'operation_id': op_id,
+                        'data_safe': top_op.is_data_safe(),
                     }
                 else:
                     proposed_desc = None

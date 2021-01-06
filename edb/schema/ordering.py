@@ -101,9 +101,7 @@ def linearize_delta(
         _trace_op(op, opbranch, depgraph, renames,
                   renames_r, strongrefs, old_schema, new_schema)
 
-    depgraph = dict(
-        filter(lambda i: i[1].item != (), depgraph.items()))
-
+    depgraph = dict(filter(lambda i: i[1].item != (), depgraph.items()))
     everything = set(depgraph)
     for item in depgraph.values():
         item.deps &= everything
