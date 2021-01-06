@@ -9079,3 +9079,25 @@ type test::Foo {
             """,
             [{"required": True, "has_required": False}]
         )
+
+
+class TestMigrations(tb.DDLTestCase):
+    TRANSACTION_ISOLATION = False
+
+    @test.xfail('https://github.com/edgedb/edgedb/issues/2085')
+    async def test_edgeql_ddl_create_migration_02(self):
+        await self.con.execute('''
+            CREATE MIGRATION m1arqp5cg4dqgdqx7tb4vv2lui6wlksysbplyc5kqrdkpcvcv4em6q
+                ONTO m1a2l6lbzimqokzygdzbkyjrhbmjh3iljg7i2m6r2ias2z2de4x4cq
+            {
+              CREATE TYPE default::A;
+            };
+            ''')
+        await self.con.query('''
+            CREATE MIGRATION m1jd2aedby6pksanlucebgb6tfkcs4si2zdcyoisupckq46dteorpq
+                ONTO m1arqp5cg4dqgdqx7tb4vv2lui6wlksysbplyc5kqrdkpcvcv4em6q
+            {
+              CREATE TYPE default::B;
+            };
+        ''')
+
