@@ -53,8 +53,8 @@ INSERT Łukasz {
     )
 };
 
-CREATE MIGRATION m1nwaxnkxpixj4ignmxg6kivmevnhv62aoa3nzxiotxmx4gmp65xhq
-ONTO m1n3v3eqsjlwqi7ebltfrdykhlzgoxvfi46o7mt443z6urwzetayka {
+CREATE MIGRATION m1aiqboz5vo6iurir4sapc42x6bsj3pqrryxfuwzskl7yuoelqreha
+ONTO m1sehqkwmhpz473poacvpkpy2yonhxb64aufugy3ubanaddsztmkea {
     CREATE TYPE default::Migrated;
     create type default::Migrated2 {};
 };

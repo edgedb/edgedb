@@ -105,6 +105,7 @@ def linearize_delta(
     everything = set(depgraph)
     for item in depgraph.values():
         item.deps &= everything
+        item.weak_deps &= everything
 
     sortedlist = [i[1] for i in topological.sort_ex(depgraph)]
     reconstructed = reconstruct_tree(sortedlist, depgraph)
@@ -454,7 +455,11 @@ def _trace_op(
         try:
             item = depgraph[key]
         except KeyError:
-            item = depgraph[key] = DepGraphEntry(item=())
+            item = depgraph[key] = DepGraphEntry(
+                item=(),
+                deps=ordered.OrderedSet(),
+                weak_deps=ordered.OrderedSet(),
+            )
         return item
 
     def record_field_deps(
@@ -481,6 +486,22 @@ def _trace_op(
                 ov_item.deps.add((tag, graph_key))
 
         return graph_key
+
+    def write_dep_matrix(
+        dependent: str,
+        dependent_tags: Tuple[str, ...],
+        dependency: str,
+        dependency_tags: Tuple[str, ...],
+        *,
+        as_weak: bool = False,
+    ) -> None:
+        for dependent_tag in dependent_tags:
+            item = get_deps((dependent_tag, dependent))
+            for dependency_tag in dependency_tags:
+                if as_weak:
+                    item.weak_deps.add((dependency_tag, dependency))
+                else:
+                    item.deps.add((dependency_tag, dependency))
 
     deps: ordered.OrderedSet[Tuple[str, str]] = ordered.OrderedSet()
     graph_key: str
@@ -656,24 +677,40 @@ def _trace_op(
 
                 continue
 
-            item = get_deps(('create', ref_name_str))
-            item.deps.add(('create', this_name_str))
-            item.deps.add(('alter', this_name_str))
-            item.deps.add(('rename', this_name_str))
-
-            item = get_deps(('alter', ref_name_str))
-            item.deps.add(('create', this_name_str))
-            item.deps.add(('alter', this_name_str))
-            item.deps.add(('rename', this_name_str))
-
-            item = get_deps(('rebase', ref_name_str))
-            item.deps.add(('create', this_name_str))
-            item.deps.add(('alter', this_name_str))
-            item.deps.add(('rename', this_name_str))
+            write_dep_matrix(
+                dependent=ref_name_str,
+                dependent_tags=('create', 'alter', 'rebase'),
+                dependency=this_name_str,
+                dependency_tags=('create', 'alter', 'rename'),
+            )
 
             item = get_deps(('rename', ref_name_str))
             item.deps.add(('create', this_name_str))
             item.deps.add(('alter', this_name_str))
+
+            if isinstance(ref, s_pointers.Pointer):
+                # The current item is a type referred to by
+                # a link or property in another type.  Set the referring
+                # type and its descendants as weak dependents of the current
+                # item to reduce the number of unnecessary ALTERs in the
+                # final delta, especially ones that might result in SET TYPE
+                # commands being generated.
+                ref_src = ref.get_source(new_schema)
+                if isinstance(ref_src, s_pointers.Pointer):
+                    ref_src_src = ref_src.get_source(new_schema)
+                    if ref_src_src is not None:
+                        ref_src = ref_src_src
+                if ref_src is not None:
+                    for desc in ref_src.descendants(new_schema) | {ref_src}:
+                        desc_name = str(desc.get_name(new_schema))
+
+                        write_dep_matrix(
+                            dependent=desc_name,
+                            dependent_tags=('create', 'alter'),
+                            dependency=this_name_str,
+                            dependency_tags=('create', 'alter', 'rename'),
+                            as_weak=True,
+                        )
 
         if tag in ('create', 'alter'):
             # In a delete/create cycle, deletion must obviously

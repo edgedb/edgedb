@@ -42,8 +42,15 @@ T = TypeVar('T')
 
 class DepGraphEntry(Generic[K, V, T]):
 
+    #: The graph node
     item: V
+    #: An optional set of dependencies for the graph node as lookup keys.
     deps: MutableSet[K]
+    #: An optional set of *weak* dependencies for the graph node as
+    #: lookup keys.  The difference from regular deps is that weak deps
+    #: that cause cycles are ignored.  Essentially, weak deps dictate
+    #: a _preference_ in order rather than a requirement.
+    weak_deps: MutableSet[K]
     merge: Optional[MutableSet[K]]
     loop_control: MutableSet[K]
     extra: Optional[T]
@@ -55,6 +62,7 @@ class DepGraphEntry(Generic[K, V, T]):
         merge: Optional[MutableSet[K]] = None,
         loop_control: Optional[MutableSet[K]] = None,
         extra: Optional[T] = None,
+        weak_deps: Optional[MutableSet[K]] = None,
     ) -> None:
         self.item = item
         if deps is None:
@@ -65,6 +73,9 @@ class DepGraphEntry(Generic[K, V, T]):
             loop_control = set()
         self.loop_control = loop_control
         self.extra = extra
+        if weak_deps is None:
+            weak_deps = set()
+        self.weak_deps = weak_deps
 
 
 def sort_ex(
@@ -74,9 +85,19 @@ def sort_ex(
 ) -> Iterator[Tuple[K, DepGraphEntry[K, V, T]]]:
 
     adj: Dict[K, OrderedSet[K]] = defaultdict(OrderedSet)
+    weak_adj: Dict[K, OrderedSet[K]] = defaultdict(OrderedSet)
     loop_control: Dict[K, OrderedSet[K]] = defaultdict(OrderedSet)
 
     for item_name, item in graph.items():
+        if item.weak_deps:
+            for dep in item.weak_deps:
+                if dep in graph:
+                    weak_adj[item_name].add(dep)
+                elif not allow_unresolved:
+                    raise UnresolvedReferenceError(
+                        'reference to an undefined item {} in {}'.format(
+                            dep, item_name))
+
         if item.merge is not None:
             for merge in item.merge:
                 if merge in graph:
@@ -105,10 +126,15 @@ def sort_ex(
                             ctrl, item_name))
 
     visiting: OrderedSet[K] = OrderedSet()
+    visiting_weak: MutableSet[K] = set()
     visited = set()
     order = []
 
-    def visit(item: K, for_control: bool = False) -> None:
+    def visit(
+        item: K,
+        for_control: bool = False,
+        weak_link: bool = False,
+    ) -> None:
         if item in visiting:
             raise CycleError(
                 f"dependency cycle between {list(visiting)[1]!r} "
@@ -117,14 +143,34 @@ def sort_ex(
             )
         if item not in visited:
             visiting.add(item)
-            for n in adj[item]:
-                visit(n)
-            for n in loop_control[item]:
-                visit(n, for_control=True)
-            if not for_control:
-                order.append(item)
-                visited.add(item)
-            visiting.remove(item)
+            if weak_link:
+                visiting_weak.add(item)
+
+            try:
+                for n in weak_adj[item]:
+                    try:
+                        visit(n, weak_link=True)
+                    except CycleError:
+                        if len(visiting_weak) == 0:
+                            pass
+                        else:
+                            raise
+                for n in adj[item]:
+                    visit(n, weak_link=weak_link)
+                for n in loop_control[item]:
+                    visit(n, weak_link=weak_link, for_control=True)
+                if not for_control:
+                    order.append(item)
+                    visited.add(item)
+            except CycleError:
+                if len(visiting_weak) == 1:
+                    pass
+                else:
+                    raise
+            finally:
+                visiting.remove(item)
+                if weak_link:
+                    visiting_weak.remove(item)
 
     for key in graph:
         visit(key)
