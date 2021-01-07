@@ -2131,7 +2131,7 @@ def process_set_as_func_expr(
 
         if expr.error_on_null_result:
             set_expr = pgast.FuncCall(
-                name=('edgedb', '_raise_exception_on_null'),
+                name=('edgedb', 'raise_on_null'),
                 args=[
                     set_expr,
                     pgast.StringConstant(
@@ -2289,7 +2289,7 @@ def process_set_as_agg_expr(
 
         if expr.error_on_null_result:
             set_expr = pgast.FuncCall(
-                name=('edgedb', '_raise_exception_on_null'),
+                name=('edgedb', 'raise_on_null'),
                 args=[
                     set_expr,
                     pgast.StringConstant(

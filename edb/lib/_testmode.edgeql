@@ -178,7 +178,7 @@ sys::_advisory_lock(key: std::int64) -> std::bool
     SET volatility := 'VOLATILE';
     USING SQL $$
     SELECT CASE WHEN "key" < 0 THEN
-        edgedb._raise_exception('lock key cannot be negative', NULL::bool)
+        edgedb.raise(NULL::bool, msg => 'lock key cannot be negative')
     ELSE
         pg_advisory_lock("key") IS NOT NULL
     END;
@@ -195,7 +195,7 @@ sys::_advisory_unlock(key: std::int64) -> std::bool
     SET volatility := 'VOLATILE';
     USING SQL $$
     SELECT CASE WHEN "key" < 0 THEN
-        edgedb._raise_exception('lock key cannot be negative', NULL::bool)
+        edgedb.raise(NULL::bool, msg => 'lock key cannot be negative')
     ELSE
         pg_advisory_unlock("key")
     END;
