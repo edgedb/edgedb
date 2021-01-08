@@ -1191,6 +1191,10 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
             val = self.get_explicit_field_value(schema, fn, default=None)
             if val is None:
                 continue
+            elif isinstance(val, collections.abc.MutableSequence):
+                # Turn the list into something hashable so it can be
+                # put in a set.
+                val = tuple(val)
             sig.append((fn, val))
 
         return frozenset(sig)

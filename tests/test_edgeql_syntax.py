@@ -3718,6 +3718,66 @@ aa';
         };
         """
 
+    def test_edgeql_syntax_ddl_operator_05(self):
+        """
+        CREATE ABSTRACT INFIX OPERATOR
+        std::`>=` (l: anytype, r: anytype) -> std::bool;
+        """
+
+    def test_edgeql_syntax_ddl_cast_01(self):
+        """
+        CREATE CAST FROM std::str TO std::bool {
+            SET volatility := 'IMMUTABLE';
+            USING SQL FUNCTION 'edgedb.str_to_bool';
+        };
+        """
+
+    def test_edgeql_syntax_ddl_cast_02(self):
+        """
+        CREATE CAST FROM std::bool TO std::str {
+            SET volatility := 'IMMUTABLE';
+            USING SQL CAST;
+        };
+        """
+
+    def test_edgeql_syntax_ddl_cast_03(self):
+        """
+        CREATE CAST FROM std::json TO std::bigint {
+            SET volatility := 'STABLE';
+            USING SQL $$
+            SELECT edgedb.str_to_bigint(
+                edgedb.jsonb_extract_scalar(val, 'number')
+            );
+            $$;
+        };
+        """
+
+    def test_edgeql_syntax_ddl_cast_04(self):
+        """
+        CREATE CAST FROM std::int32 TO std::int64 {
+            SET volatility := 'IMMUTABLE';
+            USING SQL CAST;
+            ALLOW IMPLICIT;
+        };
+        """
+
+    def test_edgeql_syntax_ddl_cast_05(self):
+        """
+        CREATE CAST FROM std::int64 TO std::int16 {
+            SET volatility := 'IMMUTABLE';
+            USING SQL CAST;
+            ALLOW ASSIGNMENT;
+        };
+        """
+
+    def test_edgeql_syntax_ddl_cast_06(self):
+        """
+        CREATE CAST FROM std::BaseObject TO std::json {
+            SET volatility := 'IMMUTABLE';
+            USING SQL EXPRESSION;
+        };
+        """
+
     def test_edgeql_syntax_ddl_property_01(self):
         """
         CREATE ABSTRACT PROPERTY std::property {

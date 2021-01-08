@@ -1066,6 +1066,48 @@ class CreateCallableObject(
         props['params'] = params
         return props
 
+    def _skip_param(self, props: Dict[str, Any]) -> bool:
+        return False
+
+    def _get_params_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        node: qlast.DDLOperation,
+    ) -> List[Tuple[int, qlast.FuncParam]]:
+        params: List[Tuple[int, qlast.FuncParam]] = []
+        for op in self.get_subcommands(type=ParameterCommand):
+            props = op.get_resolved_attributes(schema, context)
+            if self._skip_param(props):
+                continue
+
+            num: int = props['num']
+            default = props.get('default')
+            param = qlast.FuncParam(
+                name=Parameter.paramname_from_fullname(props['name']),
+                type=utils.typeref_to_ast(schema, props['type']),
+                typemod=props['typemod'],
+                kind=props['kind'],
+                default=default.qlast if default is not None else None,
+            )
+            params.append((num, param))
+
+        params.sort(key=lambda e: e[0])
+
+        return params
+
+        node.params = [p[1] for p in params]
+
+    def _apply_fields_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        node: qlast.DDLOperation,
+    ) -> None:
+        super()._apply_fields_ast(schema, context, node)
+        params = self._get_params_ast(schema, context, node)
+        node.params = [p[1] for p in params]
+
 
 class DeleteCallableObject(
     CallableCommand[CallableObjectT],
@@ -1649,32 +1691,6 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                 )
 
         return cmd
-
-    def _apply_fields_ast(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        node: qlast.DDLOperation,
-    ) -> None:
-        super()._apply_fields_ast(schema, context, node)
-
-        params = []
-        for op in self.get_subcommands(type=ParameterCommand):
-            props = op.get_resolved_attributes(schema, context)
-            num: int = props['num']
-            default = props.get('default')
-            param = qlast.FuncParam(
-                name=Parameter.paramname_from_fullname(props['name']),
-                type=utils.typeref_to_ast(schema, props['type']),
-                typemod=props['typemod'],
-                kind=props['kind'],
-                default=default.qlast if default is not None else None,
-            )
-            params.append((num, param))
-
-        params.sort(key=lambda e: e[0])
-
-        node.params = [p[1] for p in params]
 
     def _apply_field_ast(
         self,
