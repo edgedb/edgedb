@@ -31,6 +31,7 @@ from . import delta as sd
 from . import functions as s_func
 from . import name as sn
 from . import objects as so
+from . import utils
 
 if TYPE_CHECKING:
     from edb.schema import schema as s_schema
@@ -117,6 +118,18 @@ class OperatorCommand(
     s_func.CallableCommand[Operator],
     context_class=OperatorCommandContext,
 ):
+
+    def get_ast_attr_for_field(
+        self,
+        field: str,
+        astnode: Type[qlast.DDLOperation],
+    ) -> Optional[str]:
+        if field == 'is_abstract':
+            return field
+        elif field == 'operator_kind':
+            return 'kind'
+        else:
+            return super().get_ast_attr_for_field(field, astnode)
 
     @classmethod
     def _cmd_tree_from_ast(
@@ -307,6 +320,50 @@ class CreateOperator(
                 )
 
         return cmd
+
+    def _apply_field_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        node: qlast.DDLOperation,
+        op: sd.AlterObjectProperty,
+    ) -> None:
+        assert isinstance(node, qlast.CreateOperator)
+        new_value: Any = op.new_value
+
+        if op.property == 'return_type':
+            node.returning = utils.typeref_to_ast(schema, new_value)
+
+        elif op.property == 'return_typemod':
+            node.returning_typemod = new_value
+
+        elif op.property == 'code':
+            if node.code is None:
+                node.code = qlast.OperatorCode()
+            node.code.code = new_value
+
+        elif op.property == 'language':
+            if node.code is None:
+                node.code = qlast.OperatorCode()
+            node.code.language = new_value
+
+        elif op.property == 'from_function' and new_value:
+            if node.code is None:
+                node.code = qlast.OperatorCode()
+            node.code.from_function = new_value
+
+        elif op.property == 'from_expr' and new_value:
+            if node.code is None:
+                node.code = qlast.OperatorCode()
+            node.code.from_expr = new_value
+
+        elif op.property == 'from_operator' and new_value:
+            if node.code is None:
+                node.code = qlast.OperatorCode()
+            node.code.from_operator = new_value
+
+        else:
+            super()._apply_field_ast(schema, context, node, op)
 
 
 class RenameOperator(sd.RenameObject[Operator], OperatorCommand):

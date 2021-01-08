@@ -17,6 +17,7 @@
 #
 
 import decimal
+import re
 import uuid
 
 import edgedb
@@ -5547,6 +5548,61 @@ type test::Foo {
         self.assertGreater(child3, child2, roles)
         self.assertGreater(child3, base1, roles)
         self.assertIn("SET password_hash := 'SCRAM-SHA-256$4096:", roles)
+
+    async def test_edgeql_ddl_describe_schema(self):
+        # This is ensuring that describing std does not cause errors.
+        # The test validates only a small sample of entries, though.
+
+        result = await self.con.query_one("""
+            DESCRIBE MODULE std
+        """)
+        # This is essentially a syntax test from this point on.
+        re_filter = re.compile(r'[\s]+|(#.*?(\n|$))|(,(?=\s*[})]))')
+        result_stripped = re_filter.sub('', result).lower()
+
+        for expected in [
+                '''
+                CREATE SCALAR TYPE std::float32 EXTENDING std::anyfloat;
+                ''',
+                '''
+                CREATE FUNCTION
+                std::str_lower(s: std::str) -> std::str
+                {
+                    SET volatility := 'Immutable';
+                    CREATE ANNOTATION std::description :=
+                        'Return a lowercase copy of the input *string*.';
+                    USING SQL FUNCTION 'lower';
+                };
+                ''',
+                '''
+                CREATE INFIX OPERATOR
+                std::`AND`(a: std::bool, b: std::bool) -> std::bool {
+                    SET volatility := 'Immutable';
+                    USING SQL EXPRESSION;
+                };
+                ''',
+                '''
+                CREATE ABSTRACT INFIX OPERATOR
+                std::`>=`(l: anytype, r: anytype) -> std::bool;
+                ''',
+                '''
+                CREATE CAST FROM std::str TO std::bool {
+                    SET volatility := 'Immutable';
+                    USING SQL FUNCTION 'edgedb.str_to_bool';
+                };
+                ''',
+                '''
+                CREATE CAST FROM std::int64 TO std::int16 {
+                    SET volatility := 'Immutable';
+                    USING SQL CAST;
+                    ALLOW ASSIGNMENT;
+                };
+                ''']:
+            expected_stripped = re_filter.sub('', expected).lower()
+            self.assertTrue(
+                expected_stripped in result_stripped,
+                f'`DESCRIBE MODULE std` is missing the following: "{expected}"'
+            )
 
     async def test_edgeql_ddl_rename_01(self):
         await self.con.execute(r"""

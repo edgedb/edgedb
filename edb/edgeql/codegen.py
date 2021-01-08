@@ -1600,6 +1600,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(node.returning_typemod.to_edgeql(), ' ')
             self.visit(node.returning)
 
+            if node.is_abstract:
+                return
+
             if node.commands:
                 self.write(' {')
                 self._block_ws(1)
@@ -1618,30 +1621,34 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 op_str = op
                 if types:
                     op_str += f'({",".join(types)})'
-                self.write(f'{op_str!r}')
+                self.write(f'{op_str!r}', ';')
             elif node.code.from_expr:
                 from_clause = f'USING {node.code.language} EXPRESSION'
                 if self.sdlmode:
                     from_clause = from_clause.lower()
-                self.write(from_clause)
+                self.write(from_clause, ';')
             else:
                 from_clause = f'USING {node.code.language} '
                 if self.sdlmode:
                     from_clause = from_clause.lower()
                 self.write(from_clause)
                 if node.code.code:
-                    self.write(edgeql_quote.dollar_quote_literal(
-                        node.code.code))
+                    self.write(
+                        edgeql_quote.dollar_quote_literal(
+                            node.code.code),
+                        ';'
+                    )
 
             self._block_ws(-1)
             if node.commands:
-                self.write(';')
                 self.write('}')
 
+        op_type = []
+        if node.is_abstract:
+            op_type.append('ABSTRACT')
         if node.kind:
-            op_type = [node.kind.upper(), 'OPERATOR']
-        else:
-            op_type = ['OPERATOR']
+            op_type.append(node.kind.upper())
+        op_type.append('OPERATOR')
 
         self._visit_CreateObject(node, *op_type, after_name=after_name,
                                  render_commands=False)
@@ -1729,6 +1736,60 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if node.default:
             self.write(' = ')
             self.visit(node.default)
+
+    def visit_CreateCast(self, node: qlast.CreateCast) -> None:
+        def after_name() -> None:
+            self.write(' ')
+            self.visit(node.from_type)
+            if self.sdlmode:
+                self.write(' to ')
+            else:
+                self.write(' TO ')
+            self.visit(node.to_type)
+
+            self.write(' {')
+            self._block_ws(1)
+
+            if node.commands:
+                commands = self._ddl_clean_up_commands(node.commands)
+                self.visit_list(commands, terminator=';')
+                self.new_lines = 1
+
+            from_clause = f'USING {node.code.language} '
+            code = ''
+
+            if node.code.from_function:
+                from_clause += 'FUNCTION'
+                code = f'{node.code.from_function!r}'
+            elif node.code.from_cast:
+                from_clause += 'CAST'
+            elif node.code.from_expr:
+                from_clause += 'EXPRESSION'
+            elif node.code.code:
+                code = edgeql_quote.dollar_quote_literal(node.code.code)
+
+            if self.sdlmode:
+                from_clause = from_clause.lower()
+            self.write(from_clause)
+            if code:
+                self.write(' ', code)
+            self.write(';')
+            self.new_lines = 1
+
+            if node.allow_assignment:
+                self.write('ALLOW ASSIGNMENT;')
+                self.new_lines = 1
+            if node.allow_implicit:
+                self.write('ALLOW IMPLICIT;')
+                self.new_lines = 1
+
+            self._block_ws(-1)
+            self.write('}')
+
+        self._visit_CreateObject(
+            node, 'CAST', 'FROM',
+            named=False, after_name=after_name, render_commands=False
+        )
 
     def visit_ConfigSet(self, node: qlast.ConfigSet) -> None:
         self.write('CONFIGURE ')

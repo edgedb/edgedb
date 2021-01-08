@@ -641,7 +641,7 @@ class CreateConstraint(
         *,
         param_offset: int=0
     ) -> List[s_func.ParameterDesc]:
-        if not hasattr(astnode, 'params'):
+        if not isinstance(astnode, qlast.CallableObject):
             # Concrete constraint.
             return []
 
@@ -1111,35 +1111,20 @@ class CreateConstraint(
         assert isinstance(cmd, CreateConstraint)
         return cmd
 
-    def _apply_fields_ast(
+    def _skip_param(self, props: Dict[str, Any]) -> bool:
+        pname = s_func.Parameter.paramname_from_fullname(props['name'])
+        return pname == '__subject__'
+
+    def _get_params_ast(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
         node: qlast.DDLOperation,
-    ) -> None:
-        super()._apply_fields_ast(schema, context, node)
-
+    ) -> List[Tuple[int, qlast.FuncParam]]:
         if isinstance(node, qlast.CreateConstraint):
-            params = []
-            for op in self.get_subcommands(type=s_func.ParameterCommand):
-                props = op.get_resolved_attributes(schema, context)
-                pname = s_func.Parameter.paramname_from_fullname(props['name'])
-                if pname == '__subject__':
-                    continue
-                num: int = props['num']
-                default = props.get('default')
-                param = qlast.FuncParam(
-                    name=pname,
-                    type=utils.typeref_to_ast(schema, props['type']),
-                    typemod=props['typemod'],
-                    kind=props['kind'],
-                    default=default.qlast if default is not None else None,
-                )
-                params.append((num, param))
-
-            params.sort(key=lambda e: e[0])
-
-            node.params = [p[1] for p in params]
+            return super()._get_params_ast(schema, context, node)
+        else:
+            return []
 
     def _apply_field_ast(
         self,
