@@ -1278,6 +1278,9 @@ class FuncArgList(ListNonterm, element=FuncCallArg, separator=tokens.T_COMMA):
 
 
 class OptFuncArgList(Nonterm):
+    def reduce_FuncArgList_COMMA(self, *kids):
+        self.val = kids[0].val
+
     def reduce_FuncArgList(self, *kids):
         self.val = kids[0].val
 

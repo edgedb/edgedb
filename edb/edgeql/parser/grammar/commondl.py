@@ -216,11 +216,19 @@ class FuncDeclArgList(ListNonterm, element=FuncDeclArg,
     pass
 
 
+class FuncDeclArgs(Nonterm):
+    def reduce_FuncDeclArgList_COMMA(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_FuncDeclArgList(self, *kids):
+        self.val = kids[0].val
+
+
 class CreateFunctionArgs(Nonterm):
     def reduce_LPAREN_RPAREN(self, *kids):
         self.val = []
 
-    def reduce_LPAREN_FuncDeclArgList_RPAREN(self, *kids):
+    def reduce_LPAREN_FuncDeclArgs_RPAREN(self, *kids):
         args = kids[1].val
 
         last_pos_default_arg = None

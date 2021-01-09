@@ -2795,6 +2795,21 @@ aa';
         SELECT count(1, $a := 1);
         """
 
+    def test_edgeql_syntax_function_09(self):
+        """
+        SELECT bar(User.name,);
+        SELECT baz(User.name, User.age,);
+        SELECT str_lower(string := User.name,);
+        SELECT baz(age := User.age, of := User.name, `select` := 1,);
+
+% OK %
+
+        SELECT bar(User.name);
+        SELECT baz(User.name, User.age);
+        SELECT str_lower(string := User.name);
+        SELECT baz(age := User.age, of := User.name, `select` := 1);
+        """
+
     def test_edgeql_syntax_tuple_01(self):
         """
         SELECT ('foo', 42).0;
@@ -3672,6 +3687,68 @@ aa';
         """
         CREATE FUNCTION __std__(
             f: int64
+        ) ->
+            std::int64 USING SQL FUNCTION 'aaa';
+        """
+
+    def test_edgeql_syntax_ddl_function_49(self):
+        """
+        CREATE FUNCTION std::strlen(string: std::str,) -> std::int64
+            USING SQL FUNCTION 'strlen';
+
+% OK %
+
+        CREATE FUNCTION std::strlen(string: std::str) -> std::int64
+            USING SQL FUNCTION 'strlen';
+        """
+
+    def test_edgeql_syntax_ddl_function_50(self):
+        """
+        CREATE FUNCTION std::strlen(string: std::str = '1',)
+            -> std::int64
+            USING SQL FUNCTION 'strlen';
+
+% OK %
+
+        CREATE FUNCTION std::strlen(string: std::str = '1')
+            -> std::int64
+            USING SQL FUNCTION 'strlen';
+        """
+
+    def test_edgeql_syntax_ddl_function_51(self):
+        """
+        CREATE FUNCTION std::strlen(
+            a: std::str = '1',
+            VARIADIC b: std::str,
+        ) -> std::int64
+            USING SQL FUNCTION 'strlen';
+
+% OK %
+
+        CREATE FUNCTION std::strlen(
+            a: std::str = '1',
+            VARIADIC b: std::str
+        ) -> std::int64
+            USING SQL FUNCTION 'strlen';
+        """
+
+    def test_edgeql_syntax_ddl_function_52(self):
+        """
+        CREATE FUNCTION foo(
+            a: OPTIONAL std::str,
+            NAMED ONLY b: OPTIONAL std::str,
+            NAMED ONLY c: OPTIONAL std::str = '1',
+            NAMED ONLY d: OPTIONAL std::str,
+        ) ->
+            std::int64 USING SQL FUNCTION 'aaa';
+
+% OK %
+
+        CREATE FUNCTION foo(
+            a: OPTIONAL std::str,
+            NAMED ONLY b: OPTIONAL std::str,
+            NAMED ONLY c: OPTIONAL std::str = '1',
+            NAMED ONLY d: OPTIONAL std::str
         ) ->
             std::int64 USING SQL FUNCTION 'aaa';
         """
