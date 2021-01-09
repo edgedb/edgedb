@@ -9065,6 +9065,28 @@ type test::Foo {
                 INSERT Foo;
             """)
 
+    async def test_edgeql_ddl_bad_field_01(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            "'ha' is not a valid field",
+        ):
+            await self.con.execute(r"""
+                CREATE TYPE test::Lol {SET ha := "crash"};
+            """)
+
+    async def test_edgeql_ddl_bad_field_02(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            "'ha' is not a valid field",
+        ):
+            await self.con.execute(r"""
+                START MIGRATION TO {
+                    type test::Lol {
+                        ha := "crash"
+                    }
+                }
+            """)
+
     async def test_edgeql_ddl_adjust_computed_01(self):
         await self.con.execute(r"""
             SET MODULE test;
