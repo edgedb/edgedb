@@ -3524,7 +3524,12 @@ class AlterObjectProperty(Command):
         ):
             return Nop()
         else:
-            field = parent_cls.get_field(propname)
+            try:
+                field = parent_cls.get_field(propname)
+            except LookupError:
+                raise errors.SchemaDefinitionError(
+                    f'{propname!r} is not a valid field',
+                    context=astnode.context)
 
         if not (
             astnode.special_syntax
