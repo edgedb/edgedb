@@ -45,7 +45,7 @@ def make_ctx(env: context.Environment) -> InfCtx:
         env=env,
         inferred_cardinality={},
         inferred_multiplicity={},
-        singletons={},
+        singletons=frozenset(env.singletons),
         bindings={},
         volatile_uses={},
         in_for_body=False,
