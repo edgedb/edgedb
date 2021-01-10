@@ -217,15 +217,21 @@ class Environment:
     functions) that appear in a function body.
     """
 
+    #: A list of bindings that should be assumed to be singletons.
+    singletons: List[irast.PathId]
+
     def __init__(
         self,
         *,
         schema: s_schema.Schema,
-        path_scope: irast.ScopeTreeNode,
-        options: Optional[GlobalCompilerOptions]=None,
+        path_scope: Optional[irast.ScopeTreeNode] = None,
+        options: Optional[GlobalCompilerOptions] = None,
     ) -> None:
         if options is None:
             options = GlobalCompilerOptions()
+
+        if path_scope is None:
+            path_scope = irast.new_scope_tree()
 
         self.options = options
         self.schema = schema
@@ -249,6 +255,7 @@ class Environment:
         self.dml_exprs = []
         self.pointer_derivation_map = collections.defaultdict(list)
         self.pointer_specified_info = {}
+        self.singletons = []
 
     def add_schema_ref(
             self, sobj: s_obj.Object, expr: Optional[qlast.Base]) -> None:
