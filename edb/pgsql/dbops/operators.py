@@ -90,12 +90,13 @@ class CreateOperatorAlias(ddl.SchemaObjectOperation):
         else:
             commutator_decl = textwrap.indent(textwrap.dedent(f'''\
                 ', COMMUTATOR = ' || (
-                    SELECT edgedb._raise_specific_exception(
+                    SELECT edgedb.raise(
+                        NULL::text,
                         'invalid_object_definition',
-                        'missing required commutator for operator '
-                        || {ql(oper_name)},
-                        NULL,
-                        NULL::text
+                        msg => (
+                            'missing required commutator for operator '
+                            || {ql(oper_name)}
+                        )
                     )
                 )
             '''), ' ' * 8).strip()
@@ -110,12 +111,13 @@ class CreateOperatorAlias(ddl.SchemaObjectOperation):
         else:
             negator_decl = textwrap.indent(textwrap.dedent(f'''\
                 ', NEGATOR = ' || (
-                    SELECT edgedb._raise_specific_exception(
+                    SELECT edgedb.raise(
+                        NULL::text,
                         'invalid_object_definition',
-                        'missing required negator for operator '
-                        || {ql(oper_name)},
-                        NULL,
-                        NULL::text
+                        msg => (
+                            'missing required negator for operator '
+                            || {ql(oper_name)}
+                        )
                     )
                 )
             '''), ' ' * 8).strip()

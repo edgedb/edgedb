@@ -258,11 +258,13 @@ def generate_structure(
                                     typ.typname = "typeid"::text || '_domain'
                             ),
 
-                            edgedb._raise_specific_exception(
+                            edgedb.raise(
+                                NULL::bigint,
                                 'invalid_parameter_value',
-                                'cannot determine OID of ' || typeid::text,
-                                '',
-                                NULL::bigint
+                                msg => (
+                                    'cannot determine OID of '
+                                    || typeid::text
+                                )
                             )
                         )::bigint
                 $$;

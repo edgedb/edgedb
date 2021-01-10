@@ -232,12 +232,13 @@ class StrToBigint(dbops.Function):
             (CASE WHEN scale(v.column1) = 0 THEN
                 v.column1
             ELSE
-                edgedb._raise_specific_exception(
+                edgedb.raise(
+                    NULL::numeric,
                     'invalid_text_representation',
-                    'invalid syntax for edgedb.bigint_t: '
-                        || quote_literal(val),
-                    '',
-                    NULL::numeric
+                    msg => (
+                        'invalid syntax for edgedb.bigint_t: '
+                        || quote_literal(val)
+                    )
                 )
             END)::edgedb.bigint_t
         FROM
@@ -264,12 +265,13 @@ class StrToDecimal(dbops.Function):
             (CASE WHEN v.column1 != 'NaN' THEN
                 v.column1
             ELSE
-                edgedb._raise_specific_exception(
+                edgedb.raise(
+                    NULL::numeric,
                     'invalid_text_representation',
-                    'invalid syntax for numeric: '
-                        || quote_literal(val),
-                    '',
-                    NULL::numeric
+                    msg => (
+                        'invalid syntax for numeric: '
+                        || quote_literal(val)
+                    )
                 )
             END)
         FROM
@@ -447,15 +449,23 @@ class GetSharedObjectMetadata(dbops.Function):
 class RaiseExceptionFunction(dbops.Function):
     text = '''
     BEGIN
-        RAISE EXCEPTION '%', msg;
-        RETURN rtype;
+        RAISE EXCEPTION USING
+            ERRCODE = "exc",
+            MESSAGE = "msg",
+            DETAIL = COALESCE("detail", '');
+        RETURN "rtype";
     END;
     '''
 
     def __init__(self) -> None:
         super().__init__(
-            name=('edgedb', '_raise_exception'),
-            args=[('msg', ('text',)), ('rtype', ('anyelement',))],
+            name=('edgedb', 'raise'),
+            args=[
+                ('rtype', ('anyelement',)),
+                ('exc', ('text',), "'raise_exception'"),
+                ('msg', ('text',), "''"),
+                ('detail', ('text',), "''"),
+            ],
             returns=('anyelement',),
             # NOTE: The main reason why we don't want this function to be
             # immutable is that immutable functions can be
@@ -466,73 +476,33 @@ class RaiseExceptionFunction(dbops.Function):
             # NULL or not.
             volatility='stable',
             language='plpgsql',
-            text=self.text)
-
-
-class RaiseSpecificExceptionFunction(dbops.Function):
-    text = '''
-    BEGIN
-        RAISE EXCEPTION USING
-            ERRCODE = exc,
-            MESSAGE = msg,
-            DETAIL = COALESCE(det, '');
-        RETURN rtype;
-    END;
-    '''
-
-    def __init__(self) -> None:
-        super().__init__(
-            name=('edgedb', '_raise_specific_exception'),
-            args=[('exc', ('text',)), ('msg', ('text',)), ('det', ('text',)),
-                  ('rtype', ('anyelement',))],
-            returns=('anyelement',),
-            # See NOTE for the _raise_exception for reason why this is
-            # stable and not immutable.
-            volatility='stable',
-            language='plpgsql',
-            text=self.text)
-
-
-class RaiseSpecificExceptionFunctionArray(dbops.Function):
-    text = '''
-    BEGIN
-        RAISE EXCEPTION USING
-            ERRCODE = exc,
-            MESSAGE = msg,
-            DETAIL = COALESCE(det, '');
-        RETURN rtype;
-    END;
-    '''
-
-    def __init__(self) -> None:
-        super().__init__(
-            name=('edgedb', '_raise_specific_exception_array'),
-            args=[('exc', ('text',)), ('msg', ('text',)), ('det', ('text',)),
-                  ('rtype', ('anyarray',))],
-            returns=('anyarray',),
-            # See NOTE for the _raise_exception for reason why this is
-            # stable and not immutable.
-            volatility='stable',
-            language='plpgsql',
-            text=self.text)
+            text=self.text,
+        )
 
 
 class RaiseExceptionOnNullFunction(dbops.Function):
     """Return the passed value or raise an exception if it's NULL."""
     text = '''
-        SELECT
-            coalesce(val, edgedb._raise_specific_exception(exc, msg, det, val))
+        SELECT coalesce(
+            val,
+            edgedb.raise(val, exc, msg => msg, detail => detail)
+        )
     '''
 
     def __init__(self) -> None:
         super().__init__(
-            name=('edgedb', '_raise_exception_on_null'),
-            args=[('val', ('anyelement',)), ('exc', ('text',)),
-                  ('msg', ('text',)), ('det', ('text',))],
+            name=('edgedb', 'raise_on_null'),
+            args=[
+                ('val', ('anyelement',)),
+                ('exc', ('text',)),
+                ('msg', ('text',)),
+                ('detail', ('text',), "''"),
+            ],
             returns=('anyelement',),
-            # Same volatility as _raise_specific_exception
+            # Same volatility as raise()
             volatility='stable',
-            text=self.text)
+            text=self.text,
+        )
 
 
 class RaiseExceptionOnEmptyStringFunction(dbops.Function):
@@ -540,7 +510,7 @@ class RaiseExceptionOnEmptyStringFunction(dbops.Function):
     text = '''
         SELECT
             CASE WHEN edgedb._length(val) = 0 THEN
-                edgedb._raise_specific_exception(exc, msg, det, val)
+                edgedb.raise(val, exc, msg => msg, detail => detail)
             ELSE
                 val
             END;
@@ -548,13 +518,18 @@ class RaiseExceptionOnEmptyStringFunction(dbops.Function):
 
     def __init__(self) -> None:
         super().__init__(
-            name=('edgedb', '_raise_exception_on_empty'),
-            args=[('val', ('anyelement',)), ('exc', ('text',)),
-                  ('msg', ('text',)), ('det', ('text',))],
+            name=('edgedb', 'raise_on_empty'),
+            args=[
+                ('val', ('anyelement',)),
+                ('exc', ('text',)),
+                ('msg', ('text',)),
+                ('detail', ('text',), "''"),
+            ],
             returns=('anyelement',),
-            # Same volatility as _raise_specific_exception
+            # Same volatility as raise()
             volatility='stable',
-            text=self.text)
+            text=self.text,
+        )
 
 
 class AssertJSONTypeFunction(dbops.Function):
@@ -562,16 +537,19 @@ class AssertJSONTypeFunction(dbops.Function):
     text = '''
         SELECT
             CASE WHEN array_position(typenames, jsonb_typeof(val)) IS NULL THEN
-                edgedb._raise_specific_exception(
+                edgedb.raise(
+                    NULL::jsonb,
                     'wrong_object_type',
-                    coalesce(
+                    msg => coalesce(
                         msg,
-                        'expected json ' ||
-                        array_to_string(typenames, ' or ') ||
-                        '; got json ' || coalesce(jsonb_typeof(val), 'UNKNOWN')
+                        (
+                            'expected json '
+                            || array_to_string(typenames, ' or ')
+                            || '; got json '
+                            || coalesce(jsonb_typeof(val), 'UNKNOWN')
+                        )
                     ),
-                    det,
-                    NULL::jsonb
+                    detail => detail
                 )
             ELSE
                 val
@@ -581,13 +559,17 @@ class AssertJSONTypeFunction(dbops.Function):
     def __init__(self) -> None:
         super().__init__(
             name=('edgedb', 'jsonb_assert_type'),
-            args=[('val', ('jsonb',)), ('typenames', ('text[]',)),
-                  ('msg', ('text',), 'NULL'), ('det', ('text',), "''")],
+            args=[
+                ('val', ('jsonb',)),
+                ('typenames', ('text[]',)),
+                ('msg', ('text',), 'NULL'),
+                ('detail', ('text',), "''"),
+            ],
             returns=('jsonb',),
-            # Max volatility of _raise_specific_exception and
-            # array_to_string (stable)
+            # Max volatility of raise() and array_to_string() (stable)
             volatility='stable',
-            text=self.text)
+            text=self.text,
+        )
 
 
 class ExtractJSONScalarFunction(dbops.Function):
@@ -595,19 +577,28 @@ class ExtractJSONScalarFunction(dbops.Function):
     text = '''
         SELECT
             (to_jsonb(ARRAY[
-                edgedb.jsonb_assert_type(coalesce(val, 'null'::jsonb),
-                                         ARRAY[json_typename, 'null'])
+                edgedb.jsonb_assert_type(
+                    coalesce(val, 'null'::jsonb),
+                    ARRAY[json_typename, 'null'],
+                    msg => msg,
+                    detail => detail
+                )
             ])->>0)
     '''
 
     def __init__(self) -> None:
         super().__init__(
             name=('edgedb', 'jsonb_extract_scalar'),
-            args=[('val', ('jsonb',)), ('json_typename', ('text',)),
-                  ('msg', ('text',), 'NULL'), ('det', ('text',), "''")],
+            args=[
+                ('val', ('jsonb',)),
+                ('json_typename', ('text',)),
+                ('msg', ('text',), 'NULL'),
+                ('detail', ('text',), "''"),
+            ],
             returns=('text',),
             volatility='stable',
-            text=self.text)
+            text=self.text,
+        )
 
 
 class GetSchemaObjectNameFunction(dbops.Function):
@@ -615,9 +606,9 @@ class GetSchemaObjectNameFunction(dbops.Function):
         SELECT coalesce(
             (SELECT name FROM edgedb."_SchemaObject"
              WHERE id = type::uuid),
-            edgedb._raise_exception(
-                'resolve_type_name: unknown type: "' || type || '"',
-                NULL::text
+            edgedb.raise(
+                NULL::text,
+                msg => 'resolve_type_name: unknown type: "' || type || '"'
             )
         )
     '''
@@ -627,7 +618,7 @@ class GetSchemaObjectNameFunction(dbops.Function):
             name=('edgedb', '_get_schema_object_name'),
             args=[('type', ('uuid',))],
             returns=('text',),
-            # Max volatility of _raise_exception and a SELECT from a
+            # Max volatility of raise() and a SELECT from a
             # table (stable).
             volatility='stable',
             text=self.text,
@@ -1121,11 +1112,11 @@ class NormalizeArrayIndexFunction(dbops.Function):
 class ArrayIndexWithBoundsFunction(dbops.Function):
     """Get an array element or raise an out-of-bounds exception."""
     text = '''
-        SELECT edgedb._raise_exception_on_null(
+        SELECT edgedb.raise_on_null(
             val[edgedb._normalize_array_index(index, array_upper(val, 1))],
             'array_subscript_error',
-            'array index ' || index::text || ' is out of bounds',
-            det
+            msg => 'array index ' || index::text || ' is out of bounds',
+            detail => detail
         )
     '''
 
@@ -1133,12 +1124,13 @@ class ArrayIndexWithBoundsFunction(dbops.Function):
         super().__init__(
             name=('edgedb', '_index'),
             args=[('val', ('anyarray',)), ('index', ('bigint',)),
-                  ('det', ('text',))],
+                  ('detail', ('text',))],
             returns=('anyelement',),
-            # Same volatility as _raise_exception_on_null
+            # Same volatility as raise()
             volatility='stable',
             strict=True,
-            text=self.text)
+            text=self.text,
+        )
 
 
 class ArraySliceFunction(dbops.Function):
@@ -1174,53 +1166,63 @@ class ArraySliceFunction(dbops.Function):
 class StringIndexWithBoundsFunction(dbops.Function):
     """Get a string character or raise an out-of-bounds exception."""
     text = '''
-        SELECT edgedb._raise_exception_on_empty(
+        SELECT edgedb.raise_on_empty(
             substr(
-                val,
-                edgedb._normalize_array_index(index, char_length(val)),
-                1),
+                "val",
+                edgedb._normalize_array_index("index", char_length("val")),
+                1
+            ),
             'invalid_parameter_value',
-            'string index ' || index::text || ' is out of bounds',
-            det
+            'string index ' || "index"::text || ' is out of bounds',
+            "detail"
         )
     '''
 
     def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_index'),
-            args=[('val', ('text',)), ('index', ('bigint',)),
-                  ('det', ('text',))],
+            args=[
+                ('val', ('text',)),
+                ('index', ('bigint',)),
+                ('detail', ('text',)),
+            ],
             returns=('text',),
-            # Same volatility as _raise_exception_on_empty
+            # Same volatility as raise_on_empty
             volatility='stable',
             strict=True,
-            text=self.text)
+            text=self.text,
+        )
 
 
 class BytesIndexWithBoundsFunction(dbops.Function):
     """Get a bytes character or raise an out-of-bounds exception."""
     text = '''
-        SELECT edgedb._raise_exception_on_empty(
+        SELECT edgedb.raise_on_empty(
             substr(
-                val,
-                edgedb._normalize_array_index(index, length(val)),
-                1),
+                "val",
+                edgedb._normalize_array_index("index", length("val")),
+                1
+            ),
             'invalid_parameter_value',
-            'byte string index ' || index::text || ' is out of bounds',
-            det
+            'byte string index ' || "index"::text || ' is out of bounds',
+            "detail"
         )
     '''
 
     def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_index'),
-            args=[('val', ('bytea',)), ('index', ('bigint',)),
-                  ('det', ('text',))],
+            args=[
+                ('val', ('bytea',)),
+                ('index', ('bigint',)),
+                ('detail', ('text',)),
+            ],
             returns=('bytea',),
-            # Same volatility as _raise_exception_on_empty
+            # Same volatility as raise_on_empty
             volatility='stable',
             strict=True,
-            text=self.text)
+            text=self.text,
+        )
 
 
 class SubstrProxyFunction(dbops.Function):
@@ -1361,30 +1363,36 @@ class JSONIndexByTextFunction(dbops.Function):
         SELECT
             CASE jsonb_typeof(val)
             WHEN 'object' THEN (
-                edgedb._raise_exception_on_null(
+                edgedb.raise_on_null(
                     val -> index,
                     'invalid_parameter_value',
-                    'json index ' || quote_literal(index) ||
-                    ' is out of bounds',
-                    det
+                    msg => (
+                        'json index ' || quote_literal(index)
+                        || ' is out of bounds'
+                    ),
+                    detail => detail
                 )
             )
             WHEN 'array' THEN (
-                edgedb._raise_specific_exception(
+                edgedb.raise(
+                    NULL::jsonb,
                     'wrong_object_type',
-                    'cannot index json ' || jsonb_typeof(val) ||
-                    ' by ' || pg_typeof(index)::text,
-                    det,
-                    NULL::jsonb
+                    msg => (
+                        'cannot index json ' || jsonb_typeof(val)
+                        || ' by ' || pg_typeof(index)::text
+                    ),
+                    detail => detail
                 )
             )
             ELSE
-                edgedb._raise_specific_exception(
+                edgedb.raise(
+                    NULL::jsonb,
                     'wrong_object_type',
-                    'cannot index json ' || coalesce(jsonb_typeof(val),
-                                                     'UNKNOWN'),
-                    det,
-                    NULL::jsonb
+                    msg => (
+                        'cannot index json '
+                        || coalesce(jsonb_typeof(val), 'UNKNOWN')
+                    ),
+                    detail => detail
                 )
             END
     '''
@@ -1392,13 +1400,17 @@ class JSONIndexByTextFunction(dbops.Function):
     def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_index'),
-            args=[('val', ('jsonb',)), ('index', ('text',)),
-                  ('det', ('text',))],
+            args=[
+                ('val', ('jsonb',)),
+                ('index', ('text',)),
+                ('detail', ('text',), "''"),
+            ],
             returns=('jsonb',),
             # Same volatility as exception helpers
             volatility='stable',
             strict=True,
-            text=self.text)
+            text=self.text,
+        )
 
 
 class JSONIndexByIntFunction(dbops.Function):
@@ -1407,29 +1419,33 @@ class JSONIndexByIntFunction(dbops.Function):
         SELECT
             CASE jsonb_typeof(val)
             WHEN 'object' THEN (
-                edgedb._raise_specific_exception(
+                edgedb.raise(
+                    NULL::jsonb,
                     'wrong_object_type',
-                    'cannot index json ' || jsonb_typeof(val) ||
-                    ' by ' || pg_typeof(index)::text,
-                    det,
-                    NULL::jsonb
+                    msg => (
+                        'cannot index json ' || jsonb_typeof(val)
+                        || ' by ' || pg_typeof(index)::text
+                    ),
+                    detail => detail
                 )
             )
             WHEN 'array' THEN (
-                edgedb._raise_exception_on_null(
+                edgedb.raise_on_null(
                     val -> index::int,
                     'invalid_parameter_value',
-                    'json index ' || index::text || ' is out of bounds',
-                    det
+                    msg => 'json index ' || index::text || ' is out of bounds',
+                    detail => detail
                 )
             )
             ELSE
-                edgedb._raise_specific_exception(
+                edgedb.raise(
+                    NULL::jsonb,
                     'wrong_object_type',
-                    'cannot index json ' || coalesce(jsonb_typeof(val),
-                                                     'UNKNOWN'),
-                    det,
-                    NULL::jsonb
+                    msg => (
+                        'cannot index json '
+                        || coalesce(jsonb_typeof(val), 'UNKNOWN')
+                    ),
+                    detail => detail
                 )
             END
     '''
@@ -1437,13 +1453,17 @@ class JSONIndexByIntFunction(dbops.Function):
     def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_index'),
-            args=[('val', ('jsonb',)), ('index', ('bigint',)),
-                  ('det', ('text',))],
+            args=[
+                ('val', ('jsonb',)),
+                ('index', ('bigint',)),
+                ('detail', ('text',), "''"),
+            ],
             returns=('jsonb',),
             # Min volatility of exception helpers and pg_typeof (stable).
             volatility='stable',
             strict=True,
-            text=self.text)
+            text=self.text,
+        )
 
 
 class JSONSliceFunction(dbops.Function):
@@ -1491,14 +1511,18 @@ class DatetimeInFunction(dbops.Function):
                     ')\s*$'
                 )
             THEN
-                edgedb._raise_specific_exception(
+                edgedb.raise(
+                    NULL::timestamptz,
                     'invalid_datetime_format',
-                    'invalid input syntax for type timestamptz: ' ||
-                    quote_literal(val),
-                    '{"hint":"Please use ISO8601 format. Alternatively ' ||
-                    '\"to_datetime\" function provides custom ' ||
-                    'formatting options."}',
-                    NULL::timestamptz
+                    msg => (
+                        'invalid input syntax for type timestamptz: '
+                        || quote_literal(val)
+                    ),
+                    detail => (
+                        '{"hint":"Please use ISO8601 format. Alternatively '
+                        || '\"to_datetime\" function provides custom '
+                        || 'formatting options."}'
+                    )
                 )
             ELSE
                 val::timestamptz
@@ -1510,7 +1534,7 @@ class DatetimeInFunction(dbops.Function):
             name=('edgedb', 'datetime_in'),
             args=[('val', ('text',))],
             returns=('timestamptz',),
-            # Same volatility as _raise_specific_exception (stable)
+            # Same volatility as raise() (stable)
             volatility='stable',
             text=self.text)
 
@@ -1524,13 +1548,17 @@ class DurationInFunction(dbops.Function):
                 EXTRACT(YEAR FROM v.column1) != 0 OR
                 EXTRACT(DAY FROM v.column1) != 0
             THEN
-                edgedb._raise_specific_exception(
+                edgedb.raise(
+                    NULL::interval,
                     'invalid_datetime_format',
-                    'invalid input syntax for type std::duration: '
-                        || quote_literal(val),
-                    '{"hint":"Units bigger than days cannot be used ' ||
-                    'for std::duration."}',
-                    NULL::interval
+                    msg => (
+                        'invalid input syntax for type std::duration: '
+                        || quote_literal(val)
+                    ),
+                    detail => (
+                        '{"hint":"Units bigger than days cannot be used '
+                        || 'for std::duration."}'
+                    )
                 )
             ELSE v.column1
             END
@@ -1545,16 +1573,18 @@ class DurationInFunction(dbops.Function):
             name=('edgedb', 'duration_in'),
             args=[('val', ('text',))],
             returns=('interval',),
-            # Same volatility as _raise_specific_exception (stable)
+            # Same volatility as raise() (stable)
             volatility='stable',
-            text=self.text)
+            text=self.text,
+        )
 
 
 class LocalDatetimeInFunction(dbops.Function):
     """Cast text into timestamp using ISO8601 spec."""
     text = r'''
         SELECT
-            CASE WHEN val !~ (
+            CASE WHEN
+                val !~ (
                     '^\s*(' ||
                         '(\d{4}-\d{2}-\d{2}|\d{8})' ||
                         '[ tT]' ||
@@ -1562,14 +1592,18 @@ class LocalDatetimeInFunction(dbops.Function):
                     ')\s*$'
                 )
             THEN
-                edgedb._raise_specific_exception(
+                edgedb.raise(
+                    NULL::timestamp,
                     'invalid_datetime_format',
-                    'invalid input syntax for type timestamp: ' ||
-                    quote_literal(val),
-                    '{"hint":"Please use ISO8601 format. Alternatively ' ||
-                    '\"to_local_datetime\" function provides custom ' ||
-                    'formatting options."}',
-                    NULL::timestamp
+                    msg => (
+                        'invalid input syntax for type timestamp: '
+                        || quote_literal(val)
+                    ),
+                    detail => (
+                        '{"hint":"Please use ISO8601 format. Alternatively '
+                        || '\"to_local_datetime\" function provides custom '
+                        || 'formatting options."}'
+                    )
                 )
             ELSE
                 val::timestamp
@@ -1581,7 +1615,7 @@ class LocalDatetimeInFunction(dbops.Function):
             name=('edgedb', 'local_datetime_in'),
             args=[('val', ('text',))],
             returns=('timestamp',),
-            # Same volatility as _raise_specific_exception (stable)
+            # Same volatility as raise() (stable)
             volatility='stable',
             text=self.text)
 
@@ -1590,20 +1624,25 @@ class LocalDateInFunction(dbops.Function):
     """Cast text into date using ISO8601 spec."""
     text = r'''
         SELECT
-            CASE WHEN val !~ (
+            CASE WHEN
+                val !~ (
                     '^\s*(' ||
                         '(\d{4}-\d{2}-\d{2}|\d{8})' ||
                     ')\s*$'
                 )
             THEN
-                edgedb._raise_specific_exception(
+                edgedb.raise(
+                    NULL::date,
                     'invalid_datetime_format',
-                    'invalid input syntax for type date: ' ||
-                    quote_literal(val),
-                    '{"hint":"Please use ISO8601 format. Alternatively ' ||
-                    '\"to_local_date\" function provides custom ' ||
-                    'formatting options."}',
-                    NULL::date
+                    msg => (
+                        'invalid input syntax for type date: '
+                        || quote_literal(val)
+                    ),
+                    detail => (
+                        '{"hint":"Please use ISO8601 format. Alternatively '
+                        || '\"to_local_date\" function provides custom '
+                        || 'formatting options."}'
+                    )
                 )
             ELSE
                 val::date
@@ -1615,7 +1654,7 @@ class LocalDateInFunction(dbops.Function):
             name=('edgedb', 'local_date_in'),
             args=[('val', ('text',))],
             returns=('date',),
-            # Same volatility as _raise_specific_exception (stable)
+            # Same volatility as raise() (stable)
             volatility='stable',
             text=self.text)
 
@@ -1630,14 +1669,18 @@ class LocalTimeInFunction(dbops.Function):
                     ')\s*$'
                 )
             THEN
-                edgedb._raise_specific_exception(
+                edgedb.raise(
+                    NULL::time,
                     'invalid_datetime_format',
-                    'invalid input syntax for type time: ' ||
-                    quote_literal(val),
-                    '{"hint":"Please use ISO8601 format. Alternatively ' ||
-                    '\"to_local_time\" function provides custom ' ||
-                    'formatting options."}',
-                    NULL::time
+                    msg => (
+                        'invalid input syntax for type time: '
+                        || quote_literal(val)
+                    ),
+                    detail => (
+                        '{"hint":"Please use ISO8601 format. Alternatively '
+                        || '\"to_local_time\" function provides custom '
+                        || 'formatting options."}'
+                    )
                 )
             ELSE
                 val::time
@@ -1649,9 +1692,10 @@ class LocalTimeInFunction(dbops.Function):
             name=('edgedb', 'local_time_in'),
             args=[('val', ('text',))],
             returns=('time',),
-            # Same volatility as _raise_specific_exception (stable)
+            # Same volatility as raise() (stable)
             volatility='stable',
-            text=self.text)
+            text=self.text,
+        )
 
 
 class ToTimestampTZCheck(dbops.Function):
@@ -1732,13 +1776,17 @@ class ToDatetimeFunction(dbops.Function):
                     ')*(TZH).*$'
                 )
             THEN
-                edgedb._raise_specific_exception(
+                edgedb.raise(
+                    NULL::timestamptz,
                     'invalid_datetime_format',
-                    'missing required time zone in format: ' ||
-                    quote_literal(fmt),
-                    $h${"hint":"Use one or both of the following: $h$ ||
-                    $h$'TZH', 'TZM'"}$h$,
-                    NULL::timestamptz
+                    msg => (
+                        'missing required time zone in format: '
+                        || quote_literal(fmt)
+                    ),
+                    detail => (
+                        $h${"hint":"Use one or both of the following: $h$
+                        || $h$'TZH', 'TZM'"}$h$
+                    )
                 )
             ELSE
                 edgedb._to_timestamptz_check(val, fmt, true)
@@ -1767,12 +1815,13 @@ class ToLocalDatetimeFunction(dbops.Function):
                     ')*(TZH|TZM).*$'
                 )
             THEN
-                edgedb._raise_specific_exception(
+                edgedb.raise(
+                    NULL::timestamp,
                     'invalid_datetime_format',
-                    'unexpected time zone in format: ' ||
-                    quote_literal(fmt),
-                    '',
-                    NULL::timestamp
+                    msg => (
+                        'unexpected time zone in format: '
+                        || quote_literal(fmt)
+                    )
                 )
             ELSE
                 edgedb._to_timestamptz_check(val, fmt, false)::timestamp
@@ -1796,20 +1845,16 @@ class StrToBool(dbops.Function):
     # an array of matches. The first element matching "true" and
     # second - "false". So the boolean value is then "true" if the
     # second array element is NULL and false otherwise.
-    #
-    # Also, we can't re-use `_raise_specific_exception` or functions
-    # derived from it because we're passing an array as argument
-    # instead of an element.
     text = r'''
         SELECT (
             coalesce(
                 regexp_match(val, '^\s*(?:(true)|(false))\s*$', 'i')::text[],
-                edgedb._raise_specific_exception_array(
+                edgedb.raise(
+                    NULL::text[],
                     'invalid_text_representation',
-                    'invalid syntax for bool: ' || quote_literal(val),
-                    '',
-                    NULL::text[])
+                    msg => 'invalid syntax for bool: ' || quote_literal(val)
                 )
+            )
         )[2] IS NULL;
     '''
 
@@ -2545,10 +2590,13 @@ class SysGetTransactionIsolation(dbops.Function):
                 WHEN 'repeatable read' THEN 'RepeatableRead'
                 WHEN 'serializable' THEN 'Serializable'
                 ELSE (
-                    SELECT edgedb._raise_exception(
-                        'unknown transaction isolation level "' ||
-                            setting || '"',
-                        NULL::text)
+                    SELECT edgedb.raise(
+                        NULL::text,
+                        msg => (
+                            'unknown transaction isolation level "'
+                            || setting || '"'
+                        )
+                    )
                 )
             END
         FROM pg_settings
@@ -2633,8 +2681,6 @@ async def bootstrap(conn):
         dbops.CreateFunction(GetObjectMetadata()),
         dbops.CreateFunction(GetSharedObjectMetadata()),
         dbops.CreateFunction(RaiseExceptionFunction()),
-        dbops.CreateFunction(RaiseSpecificExceptionFunction()),
-        dbops.CreateFunction(RaiseSpecificExceptionFunctionArray()),
         dbops.CreateFunction(RaiseExceptionOnNullFunction()),
         dbops.CreateFunction(RaiseExceptionOnEmptyStringFunction()),
         dbops.CreateFunction(AssertJSONTypeFunction()),

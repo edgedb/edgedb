@@ -245,7 +245,7 @@ def compile_TypeCast(
 
     if expr.cardinality_mod is qlast.CardinalityModifier.Required:
         res = pgast.FuncCall(
-            name=('edgedb', '_raise_exception_on_null'),
+            name=('edgedb', 'raise_on_null'),
             args=[
                 res,
                 pgast.StringConstant(
@@ -254,7 +254,6 @@ def compile_TypeCast(
                 pgast.StringConstant(
                     val='invalid null value in cast',
                 ),
-                pgast.StringConstant(val=''),
             ]
         )
 

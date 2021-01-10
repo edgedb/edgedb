@@ -42,17 +42,16 @@ std::to_str(dt: std::datetime, fmt: OPTIONAL str={}) -> std::str
         CASE WHEN "fmt" IS NULL THEN
             trim(to_json("dt")::text, '"')
         WHEN "fmt" = '' THEN
-            edgedb._raise_specific_exception(
+            edgedb.raise(
+                NULL::text,
                 'invalid_parameter_value',
-                'to_str(): "fmt" argument must be a non-empty string',
-                '',
-                NULL::text)
+                msg => 'to_str(): "fmt" argument must be a non-empty string'
+            )
         ELSE
-            edgedb._raise_exception_on_null(
+            edgedb.raise_on_null(
                 to_char("dt", "fmt"),
                 'invalid_parameter_value',
-                'to_str(): format ''' || "fmt" || ''' is invalid',
-                ''
+                msg => 'to_str(): format ''' || "fmt" || ''' is invalid'
             )
         END
     )
@@ -72,17 +71,16 @@ std::to_str(td: std::duration, fmt: OPTIONAL str={}) -> std::str
         CASE WHEN "fmt" IS NULL THEN
             trim(to_json("td")::text, '"')
         WHEN "fmt" = '' THEN
-            edgedb._raise_specific_exception(
+            edgedb.raise(
+                NULL::text,
                 'invalid_parameter_value',
-                'to_str(): "fmt" argument must be a non-empty string',
-                '',
-                NULL::text)
+                msg => 'to_str(): "fmt" argument must be a non-empty string'
+            )
         ELSE
-            edgedb._raise_exception_on_null(
+            edgedb.raise_on_null(
                 to_char("td", "fmt"),
                 'invalid_parameter_value',
-                'to_str(): format ''' || "fmt" || ''' is invalid',
-                ''
+                msg => 'to_str(): format ''' || "fmt" || ''' is invalid'
             )
         END
     )
@@ -107,17 +105,16 @@ std::to_str(i: std::int64, fmt: OPTIONAL str={}) -> std::str
         CASE WHEN "fmt" IS NULL THEN
             "i"::text
         WHEN "fmt" = '' THEN
-            edgedb._raise_specific_exception(
+            edgedb.raise(
+                NULL::text,
                 'invalid_parameter_value',
-                'to_str(): "fmt" argument must be a non-empty string',
-                '',
-                NULL::text)
+                msg => 'to_str(): "fmt" argument must be a non-empty string'
+            )
         ELSE
-            edgedb._raise_exception_on_null(
+            edgedb.raise_on_null(
                 to_char("i", "fmt"),
                 'invalid_parameter_value',
-                'to_str(): format ''' || "fmt" || ''' is invalid',
-                ''
+                msg => 'to_str(): format ''' || "fmt" || ''' is invalid'
             )
         END
     )
@@ -137,17 +134,16 @@ std::to_str(f: std::float64, fmt: OPTIONAL str={}) -> std::str
         CASE WHEN "fmt" IS NULL THEN
             "f"::text
         WHEN "fmt" = '' THEN
-            edgedb._raise_specific_exception(
+            edgedb.raise(
+                NULL::text,
                 'invalid_parameter_value',
-                'to_str(): "fmt" argument must be a non-empty string',
-                '',
-                NULL::text)
+                msg => 'to_str(): "fmt" argument must be a non-empty string'
+            )
         ELSE
-            edgedb._raise_exception_on_null(
+            edgedb.raise_on_null(
                 to_char("f", "fmt"),
                 'invalid_parameter_value',
-                'to_str(): format ''' || "fmt" || ''' is invalid',
-                ''
+                msg => 'to_str(): format ''' || "fmt" || ''' is invalid'
             )
         END
     )
@@ -167,17 +163,16 @@ std::to_str(d: std::bigint, fmt: OPTIONAL str={}) -> std::str
         CASE WHEN "fmt" IS NULL THEN
             "d"::text
         WHEN "fmt" = '' THEN
-            edgedb._raise_specific_exception(
+            edgedb.raise(
+                NULL::text,
                 'invalid_parameter_value',
-                'to_str(): "fmt" argument must be a non-empty string',
-                '',
-                NULL::text)
+                msg => 'to_str(): "fmt" argument must be a non-empty string'
+            )
         ELSE
-            edgedb._raise_exception_on_null(
+            edgedb.raise_on_null(
                 to_char("d", "fmt"),
                 'invalid_parameter_value',
-                'to_str(): format ''' || "fmt" || ''' is invalid',
-                ''
+                'to_str(): format ''' || "fmt" || ''' is invalid'
             )
         END
     )
@@ -197,17 +192,16 @@ std::to_str(d: std::decimal, fmt: OPTIONAL str={}) -> std::str
         CASE WHEN "fmt" IS NULL THEN
             "d"::text
         WHEN "fmt" = '' THEN
-            edgedb._raise_specific_exception(
+            edgedb.raise(
+                NULL::text,
                 'invalid_parameter_value',
-                'to_str(): "fmt" argument must be a non-empty string',
-                '',
-                NULL::text)
+                msg => 'to_str(): "fmt" argument must be a non-empty string'
+            )
         ELSE
-            edgedb._raise_exception_on_null(
+            edgedb.raise_on_null(
                 to_char("d", "fmt"),
                 'invalid_parameter_value',
-                'to_str(): format ''' || "fmt" || ''' is invalid',
-                ''
+                msg => 'to_str(): format ''' || "fmt" || ''' is invalid'
             )
         END
     )
@@ -247,17 +241,16 @@ std::to_str(json: std::json, fmt: OPTIONAL str={}) -> std::str
         WHEN "fmt" = 'pretty' THEN
             jsonb_pretty("json")
         WHEN "fmt" = '' THEN
-            edgedb._raise_specific_exception(
+            edgedb.raise(
+                NULL::text,
                 'invalid_parameter_value',
-                'to_str(): "fmt" argument must be a non-empty string',
-                '',
-                NULL::text)
+                msg => 'to_str(): "fmt" argument must be a non-empty string'
+            )
         ELSE
-            edgedb._raise_specific_exception(
+            edgedb.raise(
+                NULL::text,
                 'invalid_parameter_value',
-                'to_str(): format ''' || "fmt" || ''' is invalid',
-                NULL,
-                NULL::text
+                msg => 'to_str(): format ''' || "fmt" || ''' is invalid'
             )
         END
     )
@@ -289,17 +282,18 @@ std::to_datetime(s: std::str, fmt: OPTIONAL str={}) -> std::datetime
         CASE WHEN "fmt" IS NULL THEN
             edgedb.datetime_in("s")
         WHEN "fmt" = '' THEN
-            edgedb._raise_specific_exception(
+            edgedb.raise(
+                NULL::timestamptz,
                 'invalid_parameter_value',
-                'to_datetime(): "fmt" argument must be a non-empty string',
-                '',
-                NULL::timestamptz)
+                msg => (
+                    'to_datetime(): "fmt" argument must be a non-empty string'
+                )
+            )
         ELSE
-            edgedb._raise_exception_on_null(
+            edgedb.raise_on_null(
                 edgedb.to_datetime("s", "fmt"),
                 'invalid_parameter_value',
-                'to_datetime(): format ''' || "fmt" || ''' is invalid',
-                ''
+                msg => 'to_datetime(): format ''' || "fmt" || ''' is invalid'
             )
         END
     )
@@ -392,17 +386,18 @@ std::to_bigint(s: std::str, fmt: OPTIONAL str={}) -> std::bigint
         CASE WHEN "fmt" IS NULL THEN
             edgedb.str_to_bigint("s")
         WHEN "fmt" = '' THEN
-            edgedb._raise_specific_exception(
+            edgedb.raise(
+                NULL::edgedb.bigint_t,
                 'invalid_parameter_value',
-                'to_bigint(): "fmt" argument must be a non-empty string',
-                '',
-                NULL::edgedb.bigint_t)
+                msg => (
+                    'to_bigint(): "fmt" argument must be a non-empty string'
+                )
+            )
         ELSE
-            edgedb._raise_exception_on_null(
+            edgedb.raise_on_null(
                 to_number("s", "fmt")::edgedb.bigint_t,
                 'invalid_parameter_value',
-                'to_bigint(): format ''' || "fmt" || ''' is invalid',
-                ''
+                msg => 'to_bigint(): format ''' || "fmt" || ''' is invalid'
             )
         END
     )
@@ -421,17 +416,18 @@ std::to_decimal(s: std::str, fmt: OPTIONAL str={}) -> std::decimal
         CASE WHEN "fmt" IS NULL THEN
             edgedb.str_to_decimal("s")
         WHEN "fmt" = '' THEN
-            edgedb._raise_specific_exception(
+            edgedb.raise(
+                NULL::numeric,
                 'invalid_parameter_value',
-                'to_decimal(): "fmt" argument must be a non-empty string',
-                '',
-                NULL::numeric)
+                msg => (
+                    'to_decimal(): "fmt" argument must be a non-empty string'
+                )
+            )
         ELSE
-            edgedb._raise_exception_on_null(
+            edgedb.raise_on_null(
                 to_number("s", "fmt")::numeric,
                 'invalid_parameter_value',
-                'to_decimal(): format ''' || "fmt" || ''' is invalid',
-                ''
+                msg => 'to_decimal(): format ''' || "fmt" || ''' is invalid'
             )
         END
     )
@@ -452,17 +448,16 @@ std::to_int64(s: std::str, fmt: OPTIONAL str={}) -> std::int64
             -- the overeager function inliner from crashing
             edgedb.str_to_int64_noinline("s")
         WHEN "fmt" = '' THEN
-            edgedb._raise_specific_exception(
+            edgedb.raise(
+                NULL::bigint,
                 'invalid_parameter_value',
-                'to_int64(): "fmt" argument must be a non-empty string',
-                '',
-                NULL::bigint)
+                msg => 'to_int64(): "fmt" argument must be a non-empty string'
+            )
         ELSE
-            edgedb._raise_exception_on_null(
+            edgedb.raise_on_null(
                 to_number("s", "fmt")::bigint,
                 'invalid_parameter_value',
-                'to_int64(): format ''' || "fmt" || ''' is invalid',
-                ''
+                msg => 'to_int64(): format ''' || "fmt" || ''' is invalid'
             )
         END
     )
@@ -483,17 +478,16 @@ std::to_int32(s: std::str, fmt: OPTIONAL str={}) -> std::int32
             -- the overeager function inliner from crashing
             edgedb.str_to_int32_noinline("s")
         WHEN "fmt" = '' THEN
-            edgedb._raise_specific_exception(
+            edgedb.raise(
+                NULL::int,
                 'invalid_parameter_value',
-                'to_int32(): "fmt" argument must be a non-empty string',
-                '',
-                NULL::int)
+                msg => 'to_int32(): "fmt" argument must be a non-empty string'
+            )
         ELSE
-            edgedb._raise_exception_on_null(
+            edgedb.raise_on_null(
                 to_number("s", "fmt")::int,
                 'invalid_parameter_value',
-                'to_int32(): format ''' || "fmt" || ''' is invalid',
-                ''
+                msg => 'to_int32(): format ''' || "fmt" || ''' is invalid'
             )
         END
     )
@@ -514,17 +508,16 @@ std::to_int16(s: std::str, fmt: OPTIONAL str={}) -> std::int16
             -- the overeager function inliner from crashing
             edgedb.str_to_int16_noinline("s")
         WHEN "fmt" = '' THEN
-            edgedb._raise_specific_exception(
+            edgedb.raise(
+                NULL::smallint,
                 'invalid_parameter_value',
-                'to_int16(): "fmt" argument must be a non-empty string',
-                '',
-                NULL::smallint)
+                msg => 'to_int16(): "fmt" argument must be a non-empty string'
+            )
         ELSE
-            edgedb._raise_exception_on_null(
+            edgedb.raise_on_null(
                 to_number("s", "fmt")::smallint,
                 'invalid_parameter_value',
-                'to_int16(): format ''' || "fmt" || ''' is invalid',
-                ''
+                msg => 'to_int16(): format ''' || "fmt" || ''' is invalid'
             )
         END
     )
@@ -543,17 +536,18 @@ std::to_float64(s: std::str, fmt: OPTIONAL str={}) -> std::float64
         CASE WHEN "fmt" IS NULL THEN
             edgedb.str_to_float64_noinline("s")
         WHEN "fmt" = '' THEN
-            edgedb._raise_specific_exception(
+            edgedb.raise(
+                NULL::float8,
                 'invalid_parameter_value',
-                'to_float64(): "fmt" argument must be a non-empty string',
-                '',
-                NULL::float8)
+                msg => (
+                    'to_float64(): "fmt" argument must be a non-empty string'
+                )
+            )
         ELSE
-            edgedb._raise_exception_on_null(
+            edgedb.raise_on_null(
                 to_number("s", "fmt")::float8,
                 'invalid_parameter_value',
-                'to_float64(): format ''' || "fmt" || ''' is invalid',
-                ''
+                msg => 'to_float64(): format ''' || "fmt" || ''' is invalid'
             )
         END
     )
@@ -572,17 +566,18 @@ std::to_float32(s: std::str, fmt: OPTIONAL str={}) -> std::float32
         CASE WHEN "fmt" IS NULL THEN
             edgedb.str_to_float32_noinline("s")
         WHEN "fmt" = '' THEN
-            edgedb._raise_specific_exception(
+            edgedb.raise(
+                NULL::float4,
                 'invalid_parameter_value',
-                'to_float32(): "fmt" argument must be a non-empty string',
-                '',
-                NULL::float4)
+                msg => (
+                    'to_float32(): "fmt" argument must be a non-empty string'
+                )
+            )
         ELSE
-            edgedb._raise_exception_on_null(
+            edgedb.raise_on_null(
                 to_number("s", "fmt")::float4,
                 'invalid_parameter_value',
-                'to_float32(): format ''' || "fmt" || ''' is invalid',
-                ''
+                msg => 'to_float32(): format ''' || "fmt" || ''' is invalid'
             )
         END
     )

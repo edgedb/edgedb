@@ -2035,11 +2035,10 @@ CREATE CAST FROM std::float32 TO std::decimal {
             THEN
                 val::numeric
             ELSE
-                edgedb._raise_specific_exception(
+                edgedb.raise(
+                    NULL::numeric,
                     'invalid_text_representation',
-                    'invalid value for numeric: ' || quote_literal(val),
-                    '',
-                    NULL::numeric
+                    msg => 'invalid value for numeric: ' || quote_literal(val)
                 )
             END)
         ;
@@ -2081,11 +2080,10 @@ CREATE CAST FROM std::float64 TO std::decimal {
             THEN
                 val::numeric
             ELSE
-                edgedb._raise_specific_exception(
+                edgedb.raise(
+                    NULL::numeric,
                     'invalid_text_representation',
-                    'invalid value for numeric: ' || quote_literal(val),
-                    '',
-                    NULL::numeric
+                    msg => 'invalid value for numeric: ' || quote_literal(val)
                 )
             END)
         ;
