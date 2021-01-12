@@ -334,14 +334,19 @@ cdef class DatabaseConnectionView:
         return side_effects
 
     async def apply_config_ops(self, conn, ops):
+        settings = config.get_settings()
+
         for op in ops:
+            setting = settings[op.setting_name]
+            if setting.backend_setting:
+                continue
+
             if op.scope is config.ConfigScope.SYSTEM:
                 await self._db._index.apply_system_config_op(conn, op)
             elif op.scope is config.ConfigScope.SESSION:
                 self.set_session_config(
-                    op.apply(
-                        config.get_settings(),
-                        self.get_session_config()))
+                    op.apply(settings, self.get_session_config()),
+                )
 
     @staticmethod
     def raise_in_tx_error():

@@ -28,7 +28,6 @@ import pickle
 import re
 
 import immutables
-import psutil
 
 from edb import errors
 
@@ -808,25 +807,7 @@ async def _configure(
     config_spec = config.get_settings()
 
     scripts = []
-
-    if cluster.is_managed() and not devmode.is_in_dev_mode():
-        memory_kb = psutil.virtual_memory().total // 1024
-        settings = config.from_dict(
-            config_spec,
-            {
-                'shared_buffers': f'"{int(memory_kb * 0.2)}kB"',
-                'effective_cache_size': f'"{int(memory_kb * 0.5)}kB"',
-                'query_work_mem': f'"{6 * (2 ** 10)}kB"',
-            },
-            source='dynamic default',
-        )
-
-        for setting, value in settings.items():
-            scripts.append(f'''
-                CONFIGURE SYSTEM SET {setting} := {value.value};
-            ''')
-    else:
-        settings = {}
+    settings: Mapping[str, config.SettingValue] = {}
 
     if insecure:
         scripts.append('''
