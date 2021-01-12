@@ -1386,6 +1386,14 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             [[False, 0]],
         )
 
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT (count(Publication), Publication.title ?= "")
+            ''',
+            [[False, 0]],
+        )
+
     async def test_edgeql_coalesce_set_of_12(self):
         await self.assert_query_result(
             r'''

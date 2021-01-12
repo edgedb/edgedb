@@ -26,7 +26,6 @@ from typing import *
 from edb import errors
 
 from edb.ir import ast as irast
-from edb.ir import utils as irutils
 
 from edb.schema import constraints as s_constr
 from edb.schema import functions as s_func
@@ -40,7 +39,6 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes as ft
 from edb.edgeql import parser as qlparser
 
-from . import astutils
 from . import casts
 from . import context
 from . import dispatch
@@ -94,7 +92,11 @@ def compile_FunctionCall(
         ctx.env.options.schema_object_context is s_constr.Constraint
     )
 
-    args, kwargs, arg_ctxs = compile_call_args(expr, funcname, ctx=ctx)
+    typemods = polyres.find_callable_typemods(
+        funcs, num_args=len(expr.args), kwargs_names=expr.kwargs.keys(),
+        ctx=ctx)
+    args, kwargs, arg_ctxs = compile_call_args(
+        expr, funcname, typemods, ctx=ctx)
     matched = polyres.find_callable(funcs, args=args, kwargs=kwargs, ctx=ctx)
     if not matched:
         alts = [f.get_signature_as_str(env.schema) for f in funcs]
@@ -278,7 +280,7 @@ CONDITIONAL_OPS = {
 
 
 def compile_operator(
-        qlexpr: qlast.Base, op_name: str, qlargs: List[qlast.Base], *,
+        qlexpr: qlast.Base, op_name: str, qlargs: List[qlast.Expr], *,
         ctx: context.ContextLevel) -> irast.Set:
 
     env = ctx.env
@@ -293,26 +295,20 @@ def compile_operator(
     fq_op_name = next(iter(opers)).get_shortname(ctx.env.schema)
     conditional_args = CONDITIONAL_OPS.get(fq_op_name)
 
+    typemods, _ = polyres.find_callable_typemods(
+        opers, num_args=len(qlargs), kwargs_names=set(), ctx=ctx)
+
     arg_ctxs = {}
     args = []
+
     for ai, qlarg in enumerate(qlargs):
-        with ctx.newscope(fenced=True) as fencectx:
-            fencectx.path_log = []
-            # We put on a SET OF fence preemptively in case this is
-            # a SET OF arg, which we don't know yet due to polymorphic
-            # matching.  We will remove it if necessary in `finalize_args()`.
-            if conditional_args and ai in conditional_args:
-                fencectx.in_conditional = qlexpr.context
-
-            arg_ir = setgen.ensure_set(
-                dispatch.compile(qlarg, ctx=fencectx),
-                ctx=fencectx)
-
-            arg_ir = setgen.scoped_set(
-                setgen.ensure_stmt(arg_ir, ctx=fencectx),
-                ctx=fencectx)
-
-            arg_ctxs[arg_ir] = fencectx
+        arg_ir, argctx = compile_arg(
+            qlarg,
+            typemods[ai],
+            in_conditional=bool(conditional_args and ai in conditional_args),
+            ctx=ctx,
+        )
+        arg_ctxs[arg_ir] = argctx
 
         arg_type = inference.infer_type(arg_ir, ctx.env)
         if arg_type is None:
@@ -622,27 +618,54 @@ def validate_recursive_operator(
     return matched
 
 
-def compile_call_arg(
-        arg_ql: qlast.Expr, *,
+def compile_arg(
+        arg_ql: qlast.Expr, typemod: ft.TypeModifier, *,
+        in_conditional: bool=False,
         ctx: context.ContextLevel) -> Tuple[irast.Set, context.ContextLevel]:
-    with ctx.new() as argctx:
+    fenced = typemod is ft.TypeModifier.SetOfType
+    optional = typemod is ft.TypeModifier.OptionalType
+    scoped = fenced or optional
+
+    # Create a fenced scoped for SET OF arguments, and a branch for
+    # OPTIONAL ones. The OPTIONAL branch is to have a place to mark as
+    # optional in the scope tree; we'll immediately remove it after
+    # compiling.
+    new = ctx.newscope(fenced=fenced) if scoped else ctx.new()
+    with new as argctx:
         argctx.path_log = []
-        # We put on a SET OF fence preemptively in case this is
-        # a SET OF arg, which we don't know yet due to polymorphic
-        # matching.  We will remove it if necessary in `finalize_args()`.
-        # Similarly, delay the decision to inject the implicit limit to
+
+        if in_conditional:
+            argctx.in_conditional = arg_ql.context
+
+        if optional:
+            argctx.path_scope.mark_as_optional()
+
+        # Delay the decision of whether to inject implicit limits to
         # `finalize_args()`.
-        arg_ql = astutils.ensure_qlstmt(arg_ql)
         argctx.inhibit_implicit_limit = True
-        return setgen.ensure_set(
+        arg_ir = setgen.ensure_set(
             dispatch.compile(arg_ql, ctx=argctx),
             ctx=argctx,
-        ), argctx
+        )
+
+        if optional:
+            branch = argctx.path_scope.unfence()
+            pathctx.register_set_in_scope(arg_ir, optional=True, ctx=ctx)
+            pathctx.assign_set_scope(arg_ir, branch, ctx=ctx)
+
+        if fenced:
+            arg_ir = setgen.scoped_set(
+                setgen.ensure_stmt(arg_ir, ctx=argctx),
+                ctx=argctx)
+
+        return arg_ir, argctx
 
 
 def compile_call_args(
     expr: qlast.FunctionCall,
     funcname: sn.Name,
+    typemods: Tuple[
+        Sequence[ft.TypeModifier], Dict[str, ft.TypeModifier]],
     *,
     ctx: context.ContextLevel
 ) -> Tuple[
@@ -650,12 +673,13 @@ def compile_call_args(
     Dict[str, Tuple[s_types.Type, irast.Set]],
     Dict[irast.Set, context.ContextLevel],
 ]:
+    arg_typemods, kwarg_typemods = typemods
     args = []
     kwargs = {}
     arg_ctxs = {}
 
     for ai, arg in enumerate(expr.args):
-        arg_ir, arg_ctx = compile_call_arg(arg, ctx=ctx)
+        arg_ir, arg_ctx = compile_arg(arg, arg_typemods[ai], ctx=ctx)
         arg_type = inference.infer_type(arg_ir, ctx.env)
         if arg_type is None:
             raise errors.QueryError(
@@ -667,7 +691,7 @@ def compile_call_args(
         args.append((arg_type, arg_ir))
 
     for aname, arg in expr.kwargs.items():
-        arg_ir, arg_ctx = compile_call_arg(arg, ctx=ctx)
+        arg_ir, arg_ctx = compile_arg(arg, kwarg_typemods[aname], ctx=ctx)
 
         arg_type = inference.infer_type(arg_ir, ctx.env)
         if arg_type is None:
@@ -736,36 +760,18 @@ def finalize_args(
 
         orig_arg = arg
         arg_ctx = arg_ctxs.get(orig_arg)
-        arg_scope = pathctx.get_set_scope(arg, ctx=ctx)
         if param_mod is not ft.TypeModifier.SetOfType:
             param_shortname = param.get_parameter_name(ctx.env.schema)
 
-            # Arg was wrapped for scope fencing purposes,
-            # but that fence has been removed above, so unwrap it.
-            arg = irutils.unwrap_set(arg)
-
-            if (param_mod is ft.TypeModifier.OptionalType or
-                    param_shortname in bound_call.null_args):
-
-                process_path_log(arg_ctx, arg_scope)
-
-                if arg_scope is not None:
-                    # Due to the construction of relgen, the (unfenced)
-                    # subscope is necessary to shield LHS paths from the outer
-                    # query to prevent path binding which may break OPTIONAL.
-                    arg_scope.mark_as_optional()
-                    branch = arg_scope.unfence()
-
+            if param_shortname in bound_call.null_args:
                 pathctx.register_set_in_scope(arg, optional=True, ctx=ctx)
 
-                if arg_scope is not None:
-                    pathctx.assign_set_scope(arg, branch, ctx=ctx)
+            elif param_mod is ft.TypeModifier.OptionalType:
+                arg_scope = pathctx.get_set_scope(arg, ctx=ctx)
+                process_path_log(arg_ctx, arg_scope)
 
-            elif arg_scope is not None:
-                arg_scope.collapse()
-                if arg is orig_arg:
-                    pathctx.assign_set_scope(arg, None, ctx=ctx)
         else:
+            arg_scope = pathctx.get_set_scope(arg, ctx=ctx)
             process_path_log(arg_ctx, arg_scope)
             is_array_agg = (
                 isinstance(bound_call.func, s_func.Function)

@@ -444,7 +444,8 @@ class ScopeTreeNode:
         for descendant in node.path_descendants:
             path_id = descendant.path_id.strip_namespace(dns)
             visible, visible_finfo = self.find_visible_ex(path_id)
-            desc_optional = descendant.is_optional_upto(node.parent)
+            desc_optional = (
+                descendant.is_optional_upto(node.parent) or self.optional)
             if visible is not None:
                 if visible_finfo is not None and visible_finfo.factoring_fence:
                     # This node is already present in the surrounding
@@ -469,6 +470,8 @@ class ScopeTreeNode:
                     visible.optional_count += 1
 
             elif descendant.parent_fence is node:
+                search_root = self.fence  # XXX? is this right?
+
                 # Unfenced path.
                 # First, find any existing descendant with the same path_id.
                 # If not found, find any _unfenced_ node that is a child of
@@ -476,7 +479,7 @@ class ScopeTreeNode:
                 # If found, attach the node directly to its parent fence
                 # and remove all other occurrences.
                 existing, existing_ns, existing_finfo = (
-                    self.find_descendant_and_ns(path_id))
+                    search_root.find_descendant_and_ns(path_id))
                 if (existing is not None and existing_finfo is not None
                         and existing_finfo.factoring_fence):
                     # This node is already present in the surrounding
@@ -642,23 +645,6 @@ class ScopeTreeNode:
         parent = self.parent
         if parent is not None:
             parent.remove_subtree(self)
-
-    def collapse(self) -> None:
-        """Remove the node, reattaching the children to the parent."""
-        parent = self.parent
-        if parent is None:
-            raise ValueError('cannot collapse the root node')
-
-        if self.path_id is not None:
-            subtree = ScopeTreeNode()
-
-            for child in self.children:
-                subtree.attach_child(child)
-        else:
-            subtree = self
-
-        self.remove()
-        parent.attach_subtree(subtree)
 
     def unfence(self) -> ScopeTreeNode:
         """Remove the node, reattaching the children as an unfenced branch."""

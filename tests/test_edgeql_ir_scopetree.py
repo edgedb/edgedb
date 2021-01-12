@@ -226,8 +226,8 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
 % OK %
         "FENCE": {
-            "(__derived__::expr~5).>friends[IS test::User]": {
-                "(__derived__::expr~5)": {
+            "(__derived__::expr~3).>friends[IS test::User]": {
+                "(__derived__::expr~3)": {
                     "FENCE": {
                         "(test::User)",
                         "FENCE": {
@@ -366,8 +366,8 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
 % OK %
         "FENCE": {
-            "(__derived__::expr~10)",
-            "(__derived__::expr~5)",
+            "(__derived__::expr~3)",
+            "(__derived__::expr~6)",
             "FENCE": {
                 "(test::Card)",
                 "FENCE": {
@@ -465,14 +465,14 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         "FENCE": {
             "(test::User)",
             "FENCE": {
-                "(__derived__::expr~7).>name[IS std::str]": {
-                    "(__derived__::expr~7)": {
+                "(__derived__::expr~5).>name[IS std::str]": {
+                    "(__derived__::expr~5)": {
                         "FENCE": {
                             "FENCE": {
                                 "(test::User).>friends[IS test::User]",
                                 "FENCE": {
-                                    "(test::User)\
-.>friends[IS test::User]@nickname[IS std::str]"
+                                    "(test::User).>friends[IS test::User]\
+@nickname[IS std::str]"
                                 }
                             }
                         }
@@ -559,11 +559,12 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
 % OK %
         "FENCE": {
-            "(__derived__::expr~6).>name[IS std::str]": {
-                "(__derived__::expr~6)"
+            "(__derived__::expr~3).>name[IS std::str]": {
+                "(__derived__::expr~3)"
             },
-            "(test::Card)",
-            "(test::Card).>element[IS std::str]"
+            "(test::Card).>element[IS std::str]": {
+                "(test::Card)"
+            }
         }
         """
 
@@ -767,16 +768,19 @@ name[IS std::str]"
             "(test::Card)",
             "(test::Card).>name[IS std::str]",
             "FENCE": {
-                "(__derived__::__derived__|A@w~1).>owners[IS test::User]": {
-                    "BRANCH": {
-                        "(__derived__::__derived__|A@w~1)"
-                    },
-                    "FENCE": {
-                        "ns~2@@(__derived__::__derived__|A@w~1)\
-.<deck[IS __derived__::(@SID@)].>indirection[IS test::User]": {
+                "FENCE": {
+                    "(__derived__::__derived__|A@w~1).>\
+owners[IS test::User]": {
+                        "BRANCH": {
+                            "(__derived__::__derived__|A@w~1)"
+                        },
+                        "FENCE": {
                             "ns~2@@(__derived__::__derived__|A@w~1)\
+.<deck[IS __derived__::(@SID@)].>indirection[IS test::User]": {
+                                "ns~2@@(__derived__::__derived__|A@w~1)\
 .<deck[IS __derived__::(@SID@)]": {
-                                "(__derived__::__derived__|A@w~1)"
+                                    "(__derived__::__derived__|A@w~1)"
+                                }
                             }
                         }
                     }
