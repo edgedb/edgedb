@@ -205,7 +205,11 @@ def include_specific_rvar(
     """
 
     if not has_rvar(stmt, rvar, ctx=ctx):
-        rel_join(stmt, rvar, ctx=ctx)
+        if not (
+            ctx.env.external_rvars
+            and has_external_rvar(path_id, aspects, ctx=ctx)
+        ):
+            rel_join(stmt, rvar, ctx=ctx)
         # Make sure that the path namespace of *rvar* is mapped
         # onto the path namespace of *stmt*.
         if pull_namespace:
@@ -243,6 +247,21 @@ def has_rvar(
         curstmt = ctx.rel_hierarchy.get(curstmt)
 
     return False
+
+
+def has_external_rvar(
+    path_id: irast.PathId,
+    aspects: Iterable[str],
+    *,
+    ctx: context.CompilerContextLevel,
+) -> bool:
+    return (
+        bool(ctx.env.external_rvars)
+        and all(
+            (path_id, aspect) in ctx.env.external_rvars
+            for aspect in aspects
+        )
+    )
 
 
 def _maybe_get_path_rvar(
@@ -620,24 +639,6 @@ def semi_join(
     return set_rvar
 
 
-def ensure_source_rvar(
-        ir_set: irast.Set, stmt: pgast.Query, *,
-        ctx: context.CompilerContextLevel) \
-        -> pgast.PathRangeVar:
-
-    rvar = maybe_get_path_rvar(stmt, ir_set.path_id, aspect='source', ctx=ctx)
-    if rvar is None:
-        scope_stmt = maybe_get_scope_stmt(ir_set.path_id, ctx=ctx)
-        if scope_stmt is None:
-            scope_stmt = ctx.rel
-        rvar = new_root_rvar(ir_set, ctx=ctx)
-        include_rvar(scope_stmt, rvar, path_id=ir_set.path_id, ctx=ctx)
-        pathctx.put_path_rvar(
-            stmt, ir_set.path_id, rvar, aspect='source', env=ctx.env)
-
-    return rvar
-
-
 def ensure_bond_for_expr(
         ir_set: irast.Set, stmt: pgast.BaseRelation, *, type: str='int',
         ctx: context.CompilerContextLevel) -> None:
@@ -866,6 +867,12 @@ def range_for_material_objtype(
         )
 
     overlays = get_type_rel_overlays(typeref, dml_source=dml_source, ctx=ctx)
+    external_rvar = ctx.env.external_rvars.get((path_id, 'source'))
+    if external_rvar is not None:
+        if overlays:
+            raise AssertionError('cannot mix external and internal overlays')
+        return external_rvar
+
     if overlays and include_overlays:
         set_ops = []
 
@@ -1118,6 +1125,10 @@ def range_for_ptrref(
             )
     else:
         refs = {ptrref}
+        assert isinstance(ptrref, irast.PointerRef), \
+            "expected regular PointerRef"
+        overlays = get_ptr_rel_overlays(
+            ptrref, dml_source=dml_source, ctx=ctx)
 
     for src_ptrref in refs:
         assert isinstance(src_ptrref, irast.PointerRef), \
@@ -1169,9 +1180,17 @@ def range_for_ptrref(
 
 
 def range_for_pointer(
-        pointer: irast.Pointer, *,
-        dml_source: Optional[irast.MutatingStmt]=None,
-        ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
+    pointer: irast.Pointer,
+    *,
+    dml_source: Optional[irast.MutatingStmt] = None,
+    ctx: context.CompilerContextLevel,
+) -> pgast.PathRangeVar:
+
+    path_id = pointer.target.path_id.ptr_path()
+    external_rvar = ctx.env.external_rvars.get((path_id, 'source'))
+    if external_rvar is not None:
+        return external_rvar
+
     ptrref = pointer.ptrref
     if ptrref.material_ptr is not None:
         ptrref = ptrref.material_ptr

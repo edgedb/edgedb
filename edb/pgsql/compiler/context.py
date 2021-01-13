@@ -63,6 +63,9 @@ class OutputFormat(enum.Enum):
     #: Script mode: query result not returned, cardinality of result set
     #: is returned instead.
     SCRIPT = enum.auto()
+    #: Like NATIVE, but objects without an explicit shape are serialized
+    #: as UUIDs.
+    NATIVE_INTERNAL = enum.auto()
 
 
 NO_STMT = pgast.SelectStmt()
@@ -329,6 +332,7 @@ class Environment:
     singleton_mode: bool
     query_params: List[irast.Param]
     type_rewrites: Dict[uuid.UUID, irast.Set]
+    external_rvars: Mapping[Tuple[irast.PathId, str], pgast.PathRangeVar]
 
     def __init__(
         self,
@@ -341,6 +345,9 @@ class Environment:
         explicit_top_cast: Optional[irast.TypeRef],
         query_params: List[irast.Param],
         type_rewrites: Dict[uuid.UUID, irast.Set],
+        external_rvars: Optional[
+            Mapping[Tuple[irast.PathId, str], pgast.PathRangeVar]
+        ] = None,
     ) -> None:
         self.aliases = aliases.AliasGenerator()
         self.output_format = output_format
@@ -352,6 +359,7 @@ class Environment:
         self.explicit_top_cast = explicit_top_cast
         self.query_params = query_params
         self.type_rewrites = type_rewrites
+        self.external_rvars = external_rvars or {}
 
 
 # XXX: this context hack is necessary until pathctx is converted
