@@ -188,37 +188,70 @@ def get_set_rvar(
             null_query = rvars.main.rvar.query
             null_query.where_clause = pgast.BooleanConstant(val='FALSE')
 
-        for set_rvar in rvars.new:
-            # overwrite_path_rvar is needed because we want
-            # the outermost Set with the given path_id to
-            # represent the path.  Nested Sets with the
-            # same path_id but different expression are
-            # possible when there is a computable pointer
-            # that refers to itself in its expression.
-            relctx.include_specific_rvar(
-                scope_stmt, set_rvar.rvar,
-                path_id=set_rvar.path_id,
-                overwrite_path_rvar=True,
-                aspects=set_rvar.aspects,
-                ctx=subctx)
-
-        result_rvar = rvars.main.rvar
-
+        result_rvar = _include_rvars(rvars, scope_stmt=scope_stmt, ctx=subctx)
         for aspect in rvars.main.aspects:
             pathctx.put_path_rvar_if_not_exists(
-                ctx.rel, path_id, result_rvar,
-                aspect=aspect, env=subctx.env)
+                ctx.rel,
+                path_id,
+                result_rvar,
+                aspect=aspect,
+                env=ctx.env,
+            )
 
     return result_rvar
 
 
+def _include_rvars(
+    rvars: SetRVars,
+    *,
+    scope_stmt: pgast.SelectStmt,
+    ctx: context.CompilerContextLevel,
+) -> pgast.PathRangeVar:
+    for set_rvar in rvars.new:
+        # overwrite_path_rvar is needed because we want
+        # the outermost Set with the given path_id to
+        # represent the path.  Nested Sets with the
+        # same path_id but different expression are
+        # possible when there is a computable pointer
+        # that refers to itself in its expression.
+        relctx.include_specific_rvar(
+            scope_stmt,
+            set_rvar.rvar,
+            path_id=set_rvar.path_id,
+            overwrite_path_rvar=True,
+            aspects=set_rvar.aspects,
+            ctx=ctx,
+        )
+
+    return rvars.main.rvar
+
+
 def _process_toplevel_query(
-        ir_set: irast.Set, *,
-        ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
+    ir_set: irast.Set,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> pgast.PathRangeVar:
 
     relctx.init_toplevel_query(ir_set, ctx=ctx)
     rvars = _get_set_rvar(ir_set, ctx=ctx)
-    return rvars.main.rvar
+    if isinstance(ir_set, irast.EmptySet):
+        # In cases where the top-level expression is an empty set
+        # as opposed to a Set wrapping some expression or path, make
+        # sure the generated empty rel gets selected in the toplevel
+        # SelectStmt.
+        result_rvar = _include_rvars(rvars, scope_stmt=ctx.rel, ctx=ctx)
+        for aspect in rvars.main.aspects:
+            pathctx.put_path_rvar_if_not_exists(
+                ctx.rel,
+                ir_set.path_id,
+                result_rvar,
+                aspect=aspect,
+                env=ctx.env,
+            )
+    else:
+        result_rvar = rvars.main.rvar
+
+    return result_rvar
 
 
 def _get_set_rvar(
@@ -323,6 +356,32 @@ def _get_set_rvar(
         rvars = process_set_as_root(ir_set, stmt, ctx=ctx)
 
     return rvars
+
+
+def _ensure_source_rvar(
+    ir_set: irast.Set,
+    stmt: pgast.Query,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> pgast.PathRangeVar:
+
+    rvar = relctx.maybe_get_path_rvar(
+        stmt, ir_set.path_id, aspect='source', ctx=ctx)
+    if rvar is None:
+        get_set_rvar(ir_set, ctx=ctx)
+
+    rvar = relctx.maybe_get_path_rvar(
+        stmt, ir_set.path_id, aspect='source', ctx=ctx)
+    if rvar is None:
+        scope_stmt = relctx.maybe_get_scope_stmt(ir_set.path_id, ctx=ctx)
+        if scope_stmt is None:
+            scope_stmt = ctx.rel
+        rvar = relctx.new_root_rvar(ir_set, ctx=ctx)
+        relctx.include_rvar(scope_stmt, rvar, path_id=ir_set.path_id, ctx=ctx)
+        pathctx.put_path_rvar(
+            stmt, ir_set.path_id, rvar, aspect='source', env=ctx.env)
+
+    return rvar
 
 
 def set_as_subquery(
@@ -651,7 +710,6 @@ def process_set_as_link_property_ref(
         ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
     ir_source = ir_set.rptr.source
-    src_rvar = get_set_rvar(ir_source, ctx=ctx)
     rvars = []
 
     lpropref = ir_set.rptr.ptrref
@@ -662,6 +720,8 @@ def process_set_as_link_property_ref(
             str(lpropref.std_parent_name) == 'std::target'):
         # This is a singleton link property stored in source rel,
         # e.g. @target
+        src_rvar = get_set_rvar(ir_source, ctx=ctx)
+
         val = pathctx.get_rvar_path_var(
             src_rvar, ir_source.path_id, aspect='value', env=ctx.env)
 
@@ -695,6 +755,7 @@ def process_set_as_link_property_ref(
             source_scope_stmt, link_path_id, aspect='source', env=ctx.env)
 
         if link_rvar is None:
+            src_rvar = get_set_rvar(ir_source, ctx=ctx)
             link_rvar = relctx.new_pointer_rvar(
                 link_prefix.rptr, src_rvar=src_rvar,
                 link_bias=True, ctx=newctx)
@@ -929,8 +990,7 @@ def process_set_as_path(
             # (The returned one won't be a source rvar if it comes
             # from a function, for example)
             if not ir_source.path_id.is_type_intersection_path():
-                src_rvar = relctx.ensure_source_rvar(
-                    ir_source, ctx.rel, ctx=srcctx)
+                src_rvar = _ensure_source_rvar(ir_source, ctx.rel, ctx=srcctx)
             set_rvar = relctx.semi_join(stmt, ir_set, src_rvar, ctx=srcctx)
             rvars.append(SetRVar(set_rvar, ir_set.path_id,
                                  ['value', 'source']))
@@ -946,7 +1006,7 @@ def process_set_as_path(
             if is_inline_primitive_ref:
                 # Semi-join variant for inline scalar links,
                 # which is, essentially, just filtering out NULLs.
-                relctx.ensure_source_rvar(ir_source, srcctx.rel, ctx=srcctx)
+                _ensure_source_rvar(ir_source, srcctx.rel, ctx=srcctx)
 
                 var = pathctx.get_path_value_var(
                     srcctx.rel, path_id=ir_set.path_id, env=ctx.env)
@@ -960,9 +1020,6 @@ def process_set_as_path(
         relctx.include_rvar(stmt, src_rvar, path_id=ir_source.path_id, ctx=ctx)
         stmt.path_id_mask.add(ir_source.path_id)
 
-    else:
-        src_rvar = get_set_rvar(ir_source, ctx=ctx)
-
     # Path is a reference to a link property.
     if is_linkprop:
         srvars = process_set_as_link_property_ref(ir_set, stmt, ctx=ctx)
@@ -971,7 +1028,7 @@ def process_set_as_path(
 
     elif is_id_ref_to_inline_source:
         main_rvar = SetRVar(
-            relctx.ensure_source_rvar(ir_source, stmt, ctx=ctx),
+            _ensure_source_rvar(ir_source, stmt, ctx=ctx),
             path_id=ir_set.path_id,
             aspects=['value']
         )
@@ -982,7 +1039,7 @@ def process_set_as_path(
         # complex field indirections, so rely on tuple_getattr()
         # fallback for tuple properties for now.
         main_rvar = SetRVar(
-            relctx.ensure_source_rvar(ir_source, stmt, ctx=ctx),
+            _ensure_source_rvar(ir_source, stmt, ctx=ctx),
             path_id=ir_set.path_id,
             aspects=['value']
         )
@@ -993,9 +1050,10 @@ def process_set_as_path(
             aspects = ['value']
             # If this is a link that is stored inline, make sure
             # the source aspect is actually accessible (not just value).
-            src_rvar = relctx.ensure_source_rvar(ir_source, stmt, ctx=ctx)
+            src_rvar = _ensure_source_rvar(ir_source, stmt, ctx=ctx)
         else:
             aspects = ['value', 'source']
+            src_rvar = get_set_rvar(ir_source, ctx=ctx)
 
         map_rvar = SetRVar(
             relctx.new_pointer_rvar(ir_set.rptr, src_rvar=src_rvar, ctx=ctx),

@@ -665,7 +665,9 @@ def get_path_rvar(
 def maybe_get_path_rvar(
         stmt: pgast.Query, path_id: irast.PathId, *, aspect: str,
         env: context.Environment) -> Optional[pgast.PathRangeVar]:
-    rvar = stmt.path_rvar_map.get((path_id, aspect))
+    rvar = env.external_rvars.get((path_id, aspect))
+    if rvar is None:
+        rvar = stmt.path_rvar_map.get((path_id, aspect))
     if rvar is None and aspect == 'identity':
         rvar = stmt.path_rvar_map.get((path_id, 'value'))
     return rvar

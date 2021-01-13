@@ -461,7 +461,18 @@ def output_as_value(
     if isinstance(expr, pgast.TupleVar):
         RowCls: Union[Type[pgast.ImplicitRowExpr],
                       Type[pgast.RowExpr]]
-        if len(expr.elements) > 1:
+
+        if (
+            env.output_format is context.OutputFormat.NATIVE_INTERNAL
+            and len(expr.elements) == 1
+            and (path_id := (el0 := expr.elements[0]).path_id) is not None
+            and (rptr_name := path_id.rptr_name()) is not None
+            and (rptr_name.name == 'id')
+        ):
+            # This is is a special mode whereby bare refs to objects
+            # are serialized to UUID values.
+            return output_as_value(el0.val, env=env)
+        elif len(expr.elements) > 1:
             RowCls = pgast.ImplicitRowExpr
         else:
             RowCls = pgast.RowExpr
@@ -543,6 +554,7 @@ def serialize_expr(
             expr, path_id=path_id, nested=nested, env=env)
 
     elif env.output_format in (context.OutputFormat.NATIVE,
+                               context.OutputFormat.NATIVE_INTERNAL,
                                context.OutputFormat.SCRIPT):
         val = output_as_value(expr, env=env)
 

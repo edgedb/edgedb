@@ -42,13 +42,18 @@ from .context import OutputFormat as OutputFormat # NOQA
 
 
 def compile_ir_to_sql_tree(
-        ir_expr: irast.Base, *,
-        output_format: Optional[OutputFormat]=None,
-        ignore_shapes: bool=False,
-        explicit_top_cast: Optional[irast.TypeRef]=None,
-        singleton_mode: bool=False,
-        use_named_params: bool=False,
-        expected_cardinality_one: bool=False) -> pgast.Base:
+    ir_expr: irast.Base,
+    *,
+    output_format: Optional[OutputFormat] = None,
+    ignore_shapes: bool = False,
+    explicit_top_cast: Optional[irast.TypeRef] = None,
+    singleton_mode: bool = False,
+    use_named_params: bool = False,
+    expected_cardinality_one: bool = False,
+    external_rvars: Optional[
+        Mapping[Tuple[irast.PathId, str], pgast.PathRangeVar]
+    ] = None,
+) -> pgast.Base:
     try:
         # Transform to sql tree
         query_params = []
@@ -72,7 +77,9 @@ def compile_ir_to_sql_tree(
             type_rewrites=type_rewrites,
             ignore_object_shapes=ignore_shapes,
             explicit_top_cast=explicit_top_cast,
-            singleton_mode=singleton_mode)
+            singleton_mode=singleton_mode,
+            external_rvars=external_rvars,
+        )
 
         ctx = context.CompilerContextLevel(
             None,
@@ -155,3 +162,54 @@ def _run_codegen(
         raise err from e
 
     return codegen
+
+
+def new_external_rvar(
+    *,
+    rel_name: Tuple[str, ...],
+    path_id: irast.PathId,
+    outputs: Mapping[Tuple[irast.PathId, Tuple[str, ...]], str],
+) -> pgast.RelRangeVar:
+    """Construct a ``RangeVar`` instance given a relation name and a path id.
+
+    Given an optionally-qualified relation name *rel_name* and a *path_id*,
+    return a ``RangeVar`` instance over the specified relation that is
+    then assumed to represent the *path_id* binding.
+
+    This is useful in situations where it is necessary to "prime" the compiler
+    with a list of external relations that exist in a larger SQL expression
+    that _this_ expression is being embedded into.
+
+    The *outputs* mapping optionally specifies a set of outputs in the
+    resulting range var as a ``(path_id, tuple-of-aspects): attribute name``
+    mapping.
+    """
+    if len(rel_name) == 1:
+        table_name = rel_name[0]
+        schema_name = None
+    elif len(rel_name) == 2:
+        schema_name, table_name = rel_name
+    else:
+        raise AssertionError(f'unexpected rvar name: {rel_name}')
+
+    rel = pgast.Relation(
+        name=table_name,
+        schemaname=schema_name,
+        path_id=path_id,
+    )
+
+    alias = pgast.Alias(aliasname=table_name)
+
+    if not path_id.is_ptr_path():
+        rvar = pgast.RelRangeVar(
+            relation=rel, typeref=path_id.target, alias=alias)
+    else:
+        rvar = pgast.RelRangeVar(
+            relation=rel, alias=alias)
+
+    for (output_pid, output_aspects), colname in outputs.items():
+        var = pgast.ColumnRef(name=[colname])
+        for aspect in output_aspects:
+            rel.path_outputs[output_pid, aspect] = var
+
+    return rvar
