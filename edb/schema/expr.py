@@ -30,6 +30,7 @@ from edb.edgeql import ast as qlast_
 from edb.edgeql import codegen as qlcodegen
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import parser as qlparser
+from edb.edgeql import qltypes
 
 from . import abc as s_abc
 from . import objects as so
@@ -37,6 +38,8 @@ from . import objects as so
 
 if TYPE_CHECKING:
     from edb.schema import schema as s_schema
+    from edb.schema import types as s_types
+
     from edb.ir import ast as irast_
 
 
@@ -254,6 +257,31 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
         ],
     ) -> FrozenSet[uuid.UUID]:
         return so.ObjectCollection.schema_refs_from_data(data[1])
+
+    @property
+    def _ir_statement(self) -> irast_.Statement:
+        """Assert this expr is a compiled EdgeQL statement and return its IR"""
+        from edb.ir import ast as irast_
+
+        if not self.is_compiled():
+            raise AssertionError('expected a compiled expression')
+        ir = self.irast
+        if not isinstance(ir, irast_.Statement):
+            raise AssertionError(
+                'expected the result of an expression to be a Statement')
+        return ir
+
+    @property
+    def stype(self) -> s_types.Type:
+        return self._ir_statement.stype
+
+    @property
+    def cardinality(self) -> qltypes.Cardinality:
+        return self._ir_statement.cardinality
+
+    @property
+    def schema(self) -> s_schema.Schema:
+        return self._ir_statement.schema
 
 
 class ExpressionShell(so.Shell):
