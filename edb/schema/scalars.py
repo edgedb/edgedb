@@ -119,7 +119,10 @@ class ScalarType(
         other: s_types.Type,
         schema: s_schema.Schema,
     ) -> bool:
-        assert isinstance(other, ScalarType)
+        if not isinstance(other, ScalarType):
+            return False
+        if self.is_polymorphic(schema) or other.is_polymorphic(schema):
+            return False
         left = self.get_base_for_cast(schema)
         right = other.get_base_for_cast(schema)
         return s_casts.is_assignment_castable(schema, left, right)
@@ -138,6 +141,22 @@ class ScalarType(
         assert isinstance(left, s_types.Type)
         assert isinstance(right, s_types.Type)
         return s_casts.is_implicitly_castable(schema, left, right)
+
+    def castable_to(
+        self,
+        other: s_types.Type,
+        schema: s_schema.Schema,
+    ) -> bool:
+        """Determine if any cast exists between self and *other*."""
+        if not isinstance(other, ScalarType):
+            return False
+        if self.is_polymorphic(schema) or other.is_polymorphic(schema):
+            return False
+        left = self.get_topmost_concrete_base(schema)
+        right = other.get_topmost_concrete_base(schema)
+        assert isinstance(left, s_types.Type)
+        assert isinstance(right, s_types.Type)
+        return s_casts.is_castable(schema, left, right)
 
     def get_implicit_cast_distance(
         self,

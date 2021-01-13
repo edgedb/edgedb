@@ -147,6 +147,32 @@ def is_assignment_castable(
     return False
 
 
+@functools.lru_cache()
+def is_castable(
+    schema: s_schema.Schema,
+    source: s_types.Type,
+    target: s_types.Type,
+) -> bool:
+
+    # Implicitly castable
+    if is_implicitly_castable(schema, source, target):
+        return True
+
+    elif is_assignment_castable(schema, source, target):
+        return True
+
+    else:
+        casts = schema.get_casts_to_type(target)
+        if not casts:
+            return False
+        else:
+            for c in casts:
+                if c.get_from_type(schema) == source:
+                    return True
+            else:
+                return False
+
+
 def get_cast_fullname(
     schema: s_schema.Schema,
     module: str,
