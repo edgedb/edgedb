@@ -452,7 +452,13 @@ class RaiseExceptionFunction(dbops.Function):
         RAISE EXCEPTION USING
             ERRCODE = "exc",
             MESSAGE = "msg",
-            DETAIL = COALESCE("detail", '');
+            DETAIL = COALESCE("detail", ''),
+            HINT = COALESCE("hint", ''),
+            COLUMN = COALESCE("column", ''),
+            CONSTRAINT = COALESCE("constraint", ''),
+            DATATYPE = COALESCE("datatype", ''),
+            TABLE = COALESCE("table", ''),
+            SCHEMA = COALESCE("schema", '');
         RETURN "rtype";
     END;
     '''
@@ -465,6 +471,12 @@ class RaiseExceptionFunction(dbops.Function):
                 ('exc', ('text',), "'raise_exception'"),
                 ('msg', ('text',), "''"),
                 ('detail', ('text',), "''"),
+                ('hint', ('text',), "''"),
+                ('column', ('text',), "''"),
+                ('constraint', ('text',), "''"),
+                ('datatype', ('text',), "''"),
+                ('table', ('text',), "''"),
+                ('schema', ('text',), "''"),
             ],
             returns=('anyelement',),
             # NOTE: The main reason why we don't want this function to be
@@ -485,7 +497,18 @@ class RaiseExceptionOnNullFunction(dbops.Function):
     text = '''
         SELECT coalesce(
             val,
-            edgedb.raise(val, exc, msg => msg, detail => detail)
+            edgedb.raise(
+                val,
+                exc,
+                msg => msg,
+                detail => detail,
+                hint => hint,
+                "column" => "column",
+                "constraint" => "constraint",
+                "datatype" => "datatype",
+                "table" => "table",
+                "schema" => "schema"
+            )
         )
     '''
 
@@ -497,6 +520,12 @@ class RaiseExceptionOnNullFunction(dbops.Function):
                 ('exc', ('text',)),
                 ('msg', ('text',)),
                 ('detail', ('text',), "''"),
+                ('hint', ('text',), "''"),
+                ('column', ('text',), "''"),
+                ('constraint', ('text',), "''"),
+                ('datatype', ('text',), "''"),
+                ('table', ('text',), "''"),
+                ('schema', ('text',), "''"),
             ],
             returns=('anyelement',),
             # Same volatility as raise()
