@@ -220,6 +220,7 @@ def merge_target(
 ) -> Optional[s_types.Type]:
 
     target = None
+    current_source = None
 
     for base in bases:
         base_target = base.get_target(schema)
@@ -228,19 +229,126 @@ def merge_target(
 
         if target is None:
             target = base_target
+            current_source = base.get_source(schema)
         else:
-            schema, target = Pointer.merge_targets(
-                schema, ptr, target, base_target, allow_contravariant=True)
+            assert current_source is not None
+            source = base.get_source(schema)
+            assert source is not None
+            schema, target = _merge_types(
+                schema,
+                ptr,
+                target,
+                base_target,
+                t1_source=current_source,
+                t2_source=source,
+                allow_contravariant=True,
+            )
 
     if not ignore_local:
         local_target = ptr.get_target(schema)
         if target is None:
             target = local_target
         elif local_target is not None:
-            schema, target = Pointer.merge_targets(
-                schema, ptr, target, local_target)
+            assert current_source is not None
+            schema, target = _merge_types(
+                schema,
+                ptr,
+                target,
+                local_target,
+                t1_source=current_source,
+                t2_source=None,
+            )
 
     return target
+
+
+def _merge_types(
+    schema: s_schema.Schema,
+    ptr: Pointer,
+    t1: s_types.Type,
+    t2: s_types.Type,
+    *,
+    t1_source: so.Object,
+    t2_source: Optional[so.Object],
+    allow_contravariant: bool = False,
+) -> Tuple[s_schema.Schema, Optional[s_types.Type]]:
+    if t1 == t2:
+        return schema, t1
+
+    # When two pointers are merged, check target compatibility
+    # and return a target that satisfies both specified targets.
+
+    if (isinstance(t1, s_abc.ScalarType) !=
+            isinstance(t2, s_abc.ScalarType)):
+        # Mixing a property with a link.
+        vnp = ptr.get_verbosename(schema, with_parent=True)
+        vn = ptr.get_verbosename(schema)
+        t1_vn = t1.get_verbosename(schema)
+        t2_vn = t2.get_verbosename(schema)
+        t1_cls = 'property' if isinstance(t1, s_abc.ScalarType) else 'link'
+        t2_cls = 'property' if isinstance(t2, s_abc.ScalarType) else 'link'
+
+        t1_source_vn = t1_source.get_verbosename(schema, with_parent=True)
+        if t2_source is None:
+            raise errors.SchemaError(
+                f'cannot redefine {vnp} as {t2_vn}',
+                details=(
+                    f'{vn} is defined as a {t1_cls} to {t1_vn} in'
+                    f' parent {t1_source_vn}'
+                ),
+            )
+        else:
+            t2_source_vn = t2_source.get_verbosename(schema, with_parent=True)
+            raise errors.SchemaError(
+                f'inherited {vnp} has a type conflict',
+                details=(
+                    f'{vn} is defined as a {t1_cls} to {t1_vn} in'
+                    f' parent {t1_source_vn} and as {t2_cls} in'
+                    f' parent {t2_source_vn}'
+                ),
+            )
+
+    else:
+        assert isinstance(t1, so.SubclassableObject)
+        assert isinstance(t2, so.SubclassableObject)
+
+        if t2.issubclass(schema, t1):
+            # The new target is a subclass of the current target, so
+            # it is a more specific requirement.
+            current_target = t2
+        elif allow_contravariant and t1.issubclass(schema, t2):
+            current_target = t1
+        else:
+            # The new target is not a subclass, of the previously seen
+            # targets, which creates an unresolvable target requirement
+            # conflict.
+            vnp = ptr.get_verbosename(schema, with_parent=True)
+            vn = ptr.get_verbosename(schema)
+            t1_vn = t1.get_verbosename(schema)
+            t2_vn = t2.get_verbosename(schema)
+
+            t1_source_vn = t1_source.get_verbosename(schema, with_parent=True)
+            if t2_source is None:
+                raise errors.SchemaError(
+                    f'cannot redefine {vnp} as {t2_vn}',
+                    details=(
+                        f'{vn} is defined as {t1_vn} in'
+                        f' parent {t1_source_vn}'
+                    ),
+                )
+            else:
+                t2_source_vn = t2_source.get_verbosename(
+                    schema, with_parent=True)
+                raise errors.SchemaError(
+                    f'inherited {vnp} has a type conflict',
+                    details=(
+                        f'{vn} is defined as {t1_vn} in'
+                        f' parent {t1_source_vn} and as {t2_vn} in'
+                        f' parent {t2_source_vn}'
+                    ),
+                )
+
+        return schema, current_target
 
 
 Pointer_T = TypeVar("Pointer_T", bound="Pointer")
@@ -425,61 +533,6 @@ class Pointer(referencing.ReferencedInheritingObject,
         target: s_types.Type,
     ) -> s_schema.Schema:
         return self.set_field_value(schema, 'target', target)
-
-    @classmethod
-    def merge_targets(
-        cls,
-        schema: s_schema.Schema,
-        ptr: Pointer,
-        t1: s_types.Type,
-        t2: s_types.Type,
-        *,
-        allow_contravariant: bool = False,
-    ) -> Tuple[s_schema.Schema, Optional[s_types.Type]]:
-        if t1 == t2:
-            return schema, t1
-
-        # When two pointers are merged, check target compatibility
-        # and return a target that satisfies both specified targets.
-
-        if (isinstance(t1, s_abc.ScalarType) !=
-                isinstance(t2, s_abc.ScalarType)):
-            # Mixing a property with a link.
-            vnp = ptr.get_verbosename(schema, with_parent=True)
-            vn = ptr.get_verbosename(schema)
-            t1_vn = t1.get_verbosename(schema)
-            t2_vn = t2.get_verbosename(schema)
-            raise errors.SchemaError(
-                f'cannot redefine {vnp} as {t2_vn}',
-                details=f'{vn} is defined as a link to {t1_vn} in a '
-                        f'parent type'
-            )
-
-        else:
-            assert isinstance(t1, so.SubclassableObject)
-            assert isinstance(t2, so.SubclassableObject)
-
-            if t2.issubclass(schema, t1):
-                # The new target is a subclass of the current target, so
-                # it is a more specific requirement.
-                current_target = t2
-            elif allow_contravariant and t1.issubclass(schema, t2):
-                current_target = t1
-            else:
-                # The new target is not a subclass, of the previously seen
-                # targets, which creates an unresolvable target requirement
-                # conflict.
-                vnp = ptr.get_verbosename(schema, with_parent=True)
-                vn = ptr.get_verbosename(schema)
-                t1_vn = t1.get_verbosename(schema)
-                t2_vn = t2.get_verbosename(schema)
-                raise errors.SchemaError(
-                    f'cannot redefine {vnp} as {t2_vn}',
-                    details=f'{vn} is defined as {t1_vn} in a parent type, '
-                            f'which is incompatible with {t2_vn} ',
-                )
-
-            return schema, current_target
 
     def get_derived(
         self: Pointer_T,
