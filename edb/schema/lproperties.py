@@ -122,27 +122,6 @@ class Property(
     def is_property(self, schema: s_schema.Schema) -> bool:
         return True
 
-    @classmethod
-    def merge_targets(
-        cls,
-        schema: s_schema.Schema,
-        ptr: pointers.Pointer,
-        t1: s_types.Type,
-        t2: s_types.Type,
-        *,
-        allow_contravariant: bool = False,
-    ) -> Tuple[s_schema.Schema, Optional[s_types.Type]]:
-        if ptr.is_endpoint_pointer(schema):
-            return schema, t1
-        else:
-            return super().merge_targets(
-                schema,
-                ptr,
-                t1,
-                t2,
-                allow_contravariant=allow_contravariant
-            )
-
     def scalar(self) -> bool:
         return True
 

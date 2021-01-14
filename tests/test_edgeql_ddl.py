@@ -1913,9 +1913,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         ''')
 
         with self.assertRaisesRegex(
-                edgedb.SchemaError,
-                "cannot redefine link 'foo' of object type 'test::Derived' "
-                "as object type 'test::B'"):
+            edgedb.SchemaError,
+            "inherited link 'foo' of object type 'test::Derived' has a "
+            "type conflict"
+        ):
             await self.con.execute('''
                 CREATE TYPE Derived EXTENDING Base0, Base1;
             ''')
@@ -1937,9 +1938,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         ''')
 
         with self.assertRaisesRegex(
-                edgedb.SchemaError,
-                "cannot redefine link 'foo' of object type 'test::Derived' "
-                "as object type 'test::C'"):
+            edgedb.SchemaError,
+            "inherited link 'foo' of object type 'test::Derived' "
+            "has a type conflict"
+        ):
             await self.con.execute('''
                 CREATE TYPE Derived EXTENDING Base0, Base1;
             ''')
@@ -2046,8 +2048,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_link_target_alter_02(self):
         with self.assertRaisesRegex(
             edgedb.SchemaError,
-            "cannot redefine property 'foo' of object type 'test::Child' "
-            "as scalar type 'std::int16'",
+            "inherited property 'foo' of object type 'test::Child'"
+            " has a type conflict",
         ):
             await self.con.execute("""
                 CREATE TYPE test::Parent01 {
