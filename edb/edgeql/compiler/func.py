@@ -95,7 +95,7 @@ def compile_FunctionCall(
     typemods = polyres.find_callable_typemods(
         funcs, num_args=len(expr.args), kwargs_names=expr.kwargs.keys(),
         ctx=ctx)
-    args, kwargs, arg_ctxs = compile_call_args(
+    args, kwargs = compile_call_args(
         expr, funcname, typemods, ctx=ctx)
     matched = polyres.find_callable(funcs, args=args, kwargs=kwargs, ctx=ctx)
     if not matched:
@@ -198,7 +198,6 @@ def compile_FunctionCall(
     final_args, params_typemods = finalize_args(
         matched_call,
         is_polymorphic=is_polymorphic,
-        arg_ctxs=arg_ctxs,
         ctx=ctx,
     )
 
@@ -298,17 +297,15 @@ def compile_operator(
     typemods, _ = polyres.find_callable_typemods(
         opers, num_args=len(qlargs), kwargs_names=set(), ctx=ctx)
 
-    arg_ctxs = {}
     args = []
 
     for ai, qlarg in enumerate(qlargs):
-        arg_ir, argctx = compile_arg(
+        arg_ir = compile_arg(
             qlarg,
             typemods[ai],
             in_conditional=bool(conditional_args and ai in conditional_args),
             ctx=ctx,
         )
-        arg_ctxs[arg_ir] = argctx
 
         arg_type = inference.infer_type(arg_ir, ctx.env)
         if arg_type is None:
@@ -512,7 +509,6 @@ def compile_operator(
 
     final_args, params_typemods = finalize_args(
         matched_call,
-        arg_ctxs=arg_ctxs,
         actual_typemods=actual_typemods,
         is_polymorphic=is_polymorphic,
         ctx=ctx,
@@ -621,7 +617,7 @@ def validate_recursive_operator(
 def compile_arg(
         arg_ql: qlast.Expr, typemod: ft.TypeModifier, *,
         in_conditional: bool=False,
-        ctx: context.ContextLevel) -> Tuple[irast.Set, context.ContextLevel]:
+        ctx: context.ContextLevel) -> irast.Set:
     fenced = typemod is ft.TypeModifier.SetOfType
     optional = typemod is ft.TypeModifier.OptionalType
     scoped = fenced or optional
@@ -632,8 +628,6 @@ def compile_arg(
     # compiling.
     new = ctx.newscope(fenced=fenced) if scoped else ctx.new()
     with new as argctx:
-        argctx.path_log = []
-
         if in_conditional:
             argctx.in_conditional = arg_ql.context
 
@@ -658,7 +652,7 @@ def compile_arg(
                 setgen.ensure_stmt(arg_ir, ctx=argctx),
                 ctx=argctx)
 
-        return arg_ir, argctx
+        return arg_ir
 
 
 def compile_call_args(
@@ -671,15 +665,13 @@ def compile_call_args(
 ) -> Tuple[
     List[Tuple[s_types.Type, irast.Set]],
     Dict[str, Tuple[s_types.Type, irast.Set]],
-    Dict[irast.Set, context.ContextLevel],
 ]:
     arg_typemods, kwarg_typemods = typemods
     args = []
     kwargs = {}
-    arg_ctxs = {}
 
     for ai, arg in enumerate(expr.args):
-        arg_ir, arg_ctx = compile_arg(arg, arg_typemods[ai], ctx=ctx)
+        arg_ir = compile_arg(arg, arg_typemods[ai], ctx=ctx)
         arg_type = inference.infer_type(arg_ir, ctx.env)
         if arg_type is None:
             raise errors.QueryError(
@@ -687,11 +679,10 @@ def compile_call_args(
                 f'#{ai} of function {funcname}',
                 context=arg.context)
 
-        arg_ctxs[arg_ir] = arg_ctx
         args.append((arg_type, arg_ir))
 
     for aname, arg in expr.kwargs.items():
-        arg_ir, arg_ctx = compile_arg(arg, kwarg_typemods[aname], ctx=ctx)
+        arg_ir = compile_arg(arg, kwarg_typemods[aname], ctx=ctx)
 
         arg_type = inference.infer_type(arg_ir, ctx.env)
         if arg_type is None:
@@ -700,40 +691,13 @@ def compile_call_args(
                 f'${aname} of function {funcname}',
                 context=arg.context)
 
-        arg_ctxs[arg_ir] = arg_ctx
         kwargs[aname] = (arg_type, arg_ir)
 
-    return args, kwargs, arg_ctxs
-
-
-def process_path_log(arg_ctx: Optional[context.ContextLevel],
-                     arg_scope: Optional[irast.ScopeTreeNode]) -> None:
-    if arg_ctx and arg_ctx.path_log is not None:
-        # Since we don't know whether arguments are OPTIONAL or SET OF
-        # until after doing polymorphic matching, paths in an OPTIONAL
-        # or SET OF argument could get factored into an existing
-        # optional node, destroying its optionality.
-        #
-        # To fix this, we track all of the paths attached to the tree
-        # while compiling an argument and find and adjust the
-        # optionality of any factored out nodes after the fact.
-        for path_id in arg_ctx.path_log:
-            for prefix in path_id.iter_prefixes(include_ptr=True):
-                assert arg_scope is not None
-                # If the node is still here, nothing to do
-                desc = arg_scope.find_descendant(prefix)
-                if desc:
-                    continue
-                visible = arg_scope.find_visible(prefix)
-                if visible:
-                    if visible.optional_count:
-                        visible.optional_count -= 1
-        arg_ctx.path_log = []
+    return args, kwargs
 
 
 def finalize_args(
     bound_call: polyres.BoundCall, *,
-    arg_ctxs: Dict[irast.Set, context.ContextLevel],
     actual_typemods: Sequence[ft.TypeModifier] = (),
     is_polymorphic: bool = False,
     ctx: context.ContextLevel,
@@ -758,21 +722,13 @@ def finalize_args(
 
         typemods.append(param_mod)
 
-        orig_arg = arg
-        arg_ctx = arg_ctxs.get(orig_arg)
         if param_mod is not ft.TypeModifier.SetOfType:
             param_shortname = param.get_parameter_name(ctx.env.schema)
 
             if param_shortname in bound_call.null_args:
                 pathctx.register_set_in_scope(arg, optional=True, ctx=ctx)
 
-            elif param_mod is ft.TypeModifier.OptionalType:
-                arg_scope = pathctx.get_set_scope(arg, ctx=ctx)
-                process_path_log(arg_ctx, arg_scope)
-
         else:
-            arg_scope = pathctx.get_set_scope(arg, ctx=ctx)
-            process_path_log(arg_ctx, arg_scope)
             is_array_agg = (
                 isinstance(bound_call.func, s_func.Function)
                 and (
@@ -826,10 +782,5 @@ def finalize_args(
                 arg, paramtype, srcctx=None, ctx=ctx)
 
         args.append(irast.CallArg(expr=arg, cardinality=None))
-
-        # If we have any logged paths left over and our enclosing
-        # context is logging paths, propagate them up.
-        if arg_ctx and arg_ctx.path_log and ctx.path_log is not None:
-            ctx.path_log.extend(arg_ctx.path_log)
 
     return args, typemods
