@@ -82,32 +82,48 @@ def find_callable_typemods(
         kwargs_names: AbstractSet[str],
         ctx: context.ContextLevel) -> Tuple[
             Sequence[ft.TypeModifier], Dict[str, ft.TypeModifier]]:
+    """Find the type modifiers for a callable.
+
+    We do this early, before we've compiled/checked the arguments,
+    so that we can compile the arguments with the proper fences.
+    """
+
     typ = s_pseudo.PseudoType.get(ctx.env.schema, 'anytype')
     args = [(typ, irast.EmptySet())] * num_args
     kwargs = {k: (typ, irast.EmptySet()) for k in kwargs_names}
     options = find_callable(candidates, basic_matching_only=True,
                             args=args, kwargs=kwargs, ctx=ctx)
 
-    arg_fts = [_SINGLETON] * num_args
-    kwarg_fts = {k: _SINGLETON for k in kwargs_names}
-
     # No options means an error is going to happen later, but for now,
     # just return some placeholders so that we can make it to the
     # error later.
     if not options:
-        return arg_fts, kwarg_fts
+        return [_SINGLETON] * num_args, {k: _SINGLETON for k in kwargs_names}
 
-    # XXX: do some correctness check?
-    for barg in options[0].args:
-        if not barg.param:
-            continue
-        ft = barg.param.get_typemod(ctx.env.schema)
-        if isinstance(barg.arg_id, int):
-            arg_fts[barg.arg_id] = ft
-        elif isinstance(barg.arg_id, str):
-            kwarg_fts[barg.arg_id] = ft
+    result = None
+    for choice in options:
+        arg_fts = [_SINGLETON] * num_args
+        kwarg_fts = {k: _SINGLETON for k in kwargs_names}
 
-    return arg_fts, kwarg_fts
+        for barg in choice.args:
+            if not barg.param:
+                continue
+            ft = barg.param.get_typemod(ctx.env.schema)
+            if isinstance(barg.arg_id, int):
+                arg_fts[barg.arg_id] = ft
+            elif isinstance(barg.arg_id, str):
+                kwarg_fts[barg.arg_id] = ft
+
+        if result is None:
+            result = (arg_fts, kwarg_fts)
+        elif (arg_fts, kwarg_fts) != result:
+            # TODO: We should do this check ahead of time in the schema!
+            raise errors.QueryError(
+                f'multiple possible type modifiers for call to '
+                f'{candidates[0].get_shortname(ctx.env.schema)}')
+
+    assert result is not None
+    return result
 
 
 def find_callable(

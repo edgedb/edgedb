@@ -210,7 +210,7 @@ std::to_str(d: std::decimal, fmt: OPTIONAL str={}) -> std::str
 
 
 CREATE FUNCTION
-std::to_str(array: array<std::str>, delimiter: std::str) -> std::str
+std::to_str(array: array<std::str>, delimiter: OPTIONAL str) -> std::str
 {
     CREATE ANNOTATION std::description :=
         'Return string representation of the input value.';
@@ -220,7 +220,7 @@ std::to_str(array: array<std::str>, delimiter: std::str) -> std::str
          Use std::array_join() instead.';
     SET volatility := 'STABLE';
     USING (
-        SELECT std::array_join(array, delimiter)
+        SELECT std::array_join(array, delimiter ?? '')
     );
 };
 
@@ -272,7 +272,7 @@ std::to_json(str: std::str) -> std::json
 
 
 CREATE FUNCTION
-std::to_datetime(s: std::str, fmt: OPTIONAL str={}) -> std::datetime
+std::to_datetime(s: std::str, fmt: str={}) -> std::datetime
 {
     CREATE ANNOTATION std::description := 'Create a `datetime` value.';
     # Helper function to_datetime is VOLATILE.

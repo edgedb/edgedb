@@ -29,7 +29,7 @@ CREATE SCALAR TYPE cal::local_time EXTENDING std::anyscalar;
 ## ---------
 
 CREATE FUNCTION
-cal::to_local_datetime(s: std::str, fmt: OPTIONAL str={})
+cal::to_local_datetime(s: std::str, fmt: str={})
     -> cal::local_datetime
 {
     CREATE ANNOTATION std::description :=
@@ -96,7 +96,7 @@ cal::to_local_datetime(dt: std::datetime, zone: std::str)
 
 
 CREATE FUNCTION
-cal::to_local_date(s: std::str, fmt: OPTIONAL str={}) -> cal::local_date
+cal::to_local_date(s: std::str, fmt: str={}) -> cal::local_date
 {
     CREATE ANNOTATION std::description := 'Create a `cal::local_date` value.';
     # Helper functions raising exceptions are STABLE.
@@ -154,7 +154,7 @@ cal::to_local_date(year: std::int64, month: std::int64, day: std::int64)
 
 
 CREATE FUNCTION
-cal::to_local_time(s: std::str, fmt: OPTIONAL str={}) -> cal::local_time
+cal::to_local_time(s: std::str, fmt: str={}) -> cal::local_time
 {
     CREATE ANNOTATION std::description := 'Create a `cal::local_time` value.';
     # Helper functions raising exceptions are STABLE.

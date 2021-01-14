@@ -1605,19 +1605,15 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
             assert isinstance(ir_default, irast.Statement)
 
             check_default_type = True
-            if p_type.is_polymorphic(schema):
-                if irutils.is_empty(ir_default.expr):
-                    check_default_type = False
-                else:
-                    raise errors.InvalidFunctionDefinitionError(
-                        f'cannot create the `{signature}` function: '
-                        f'polymorphic parameter of type '
-                        f'{p_type.get_displayname(schema)} cannot '
-                        f'have a non-empty default value',
-                        context=self.source_context)
-            elif (p.get_typemod(schema) is ft.TypeModifier.OptionalType and
-                    irutils.is_empty(ir_default.expr)):
+            if irutils.is_empty(ir_default.expr):
                 check_default_type = False
+            elif p_type.is_polymorphic(schema):
+                raise errors.InvalidFunctionDefinitionError(
+                    f'cannot create the `{signature}` function: '
+                    f'polymorphic parameter of type '
+                    f'{p_type.get_displayname(schema)} cannot '
+                    f'have a non-empty default value',
+                    context=self.source_context)
 
             if check_default_type:
                 default_type = ir_default.stype
