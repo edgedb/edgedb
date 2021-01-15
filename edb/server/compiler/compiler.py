@@ -83,7 +83,7 @@ from . import status
 class CompilerDatabaseState:
 
     dbver: bytes
-    schema: s_schema.Schema
+    user_schema: s_schema.Schema
     cached_reflection: immutables.Map[str, Tuple[str, ...]]
 
 
@@ -137,8 +137,8 @@ def compile_edgeql_script(
 
     sql, argmap = compiler._compile_ql_script(ctx, eql)
     new_schema = ctx.state.current_tx().get_schema()
-
-    return new_schema, sql
+    assert isinstance(new_schema, s_schema.ChainedSchema)
+    return new_schema.get_top_schema(), sql
 
 
 def new_compiler(
@@ -158,6 +158,7 @@ def new_compiler(
 
 
 def new_compiler_context(
+    std_schema: s_schema.Schema,
     schema: s_schema.Schema,
     *,
     single_statement: bool = False,
@@ -174,6 +175,7 @@ def new_compiler_context(
 
     state = dbstate.CompilerConnectionState(
         0,
+        std_schema,
         schema,
         immutables.Map(modaliases) if modaliases else EMPTY_MAP,
         EMPTY_MAP,
@@ -265,13 +267,14 @@ class BaseCompiler:
     def _wrap_schema(
         self,
         dbver: bytes,
-        schema: s_schema.Schema,
+        user_schema: s_schema.Schema,
         cached_reflection: immutables.Map[str, Tuple[str, ...]],
     ) -> CompilerDatabaseState:
+        assert isinstance(user_schema, s_schema.FlatSchema)
         assert isinstance(dbver, bytes)
         return CompilerDatabaseState(
             dbver=dbver,
-            schema=schema,
+            user_schema=user_schema,
             cached_reflection=cached_reflection,
         )
 
@@ -290,14 +293,11 @@ class BaseCompiler:
         connection: asyncpg.Connection,
     ) -> s_schema.Schema:
         data = await connection.fetchval(self._intro_query)
-        return s_schema.ChainedSchema(
-            self._std_schema,
-            s_refl.parse_into(
-                base_schema=self._std_schema,
-                schema=s_schema.FlatSchema(),
-                data=data,
-                schema_class_layout=self._schema_class_layout,
-            )
+        return s_refl.parse_into(
+            base_schema=self._std_schema,
+            schema=s_schema.FlatSchema(),
+            data=data,
+            schema_class_layout=self._schema_class_layout,
         )
 
     async def _load_reflection_cache(
@@ -326,9 +326,9 @@ class BaseCompiler:
         con = await self.new_connection()
         try:
             await self.ensure_initialized(con)
-            schema = await self.introspect(con)
+            user_schema = await self.introspect(con)
             cached_reflection = await self._load_reflection_cache(con)
-            db = self._wrap_schema(dbver, schema, cached_reflection)
+            db = self._wrap_schema(dbver, user_schema, cached_reflection)
             self._cached_db = db
             return db
         finally:
@@ -523,7 +523,14 @@ class Compiler(BaseCompiler):
 
         try:
             # Switch to the shadow introspection/reflection schema.
-            ctx.state.current_tx().update_schema(self._refl_schema)
+            ctx.state.current_tx().update_schema(
+                # Trick dbstate to set the effective schema
+                # to _refl_schema.
+                s_schema.ChainedSchema(
+                    self._std_schema,
+                    self._refl_schema
+                )
+            )
 
             newctx = CompileContext(
                 state=ctx.state,
@@ -1682,7 +1689,7 @@ class Compiler(BaseCompiler):
         inline_typeids: bool=False,
         inline_typenames: bool=False,
         json_parameters: bool=False,
-        schema: Optional[s_schema.Schema] = None,
+        top_schema: Optional[s_schema.Schema] = None,
         schema_object_ids: Optional[Mapping[s_name.Name, uuid.UUID]] = None,
         compat_ver: Optional[verutils.Version] = None,
     ) -> CompileContext:
@@ -1695,16 +1702,17 @@ class Compiler(BaseCompiler):
         assert isinstance(modaliases, immutables.Map)
         assert isinstance(session_config, immutables.Map)
 
-        if schema is None:
+        if top_schema is None:
             db = await self._get_database(dbver)
-            schema = db.schema
+            top_schema = db.user_schema
             cached_reflection = db.cached_reflection
         else:
             cached_reflection = immutables.Map()
 
         self._current_db_state = dbstate.CompilerConnectionState(
             dbver,
-            schema,
+            self._std_schema,
+            top_schema,
             modaliases,
             session_config,
             cached_reflection,
@@ -1920,7 +1928,11 @@ class Compiler(BaseCompiler):
 
     async def interpret_backend_error(self, dbver, fields):
         db = await self._get_database(dbver)
-        return errormech.interpret_backend_error(db.schema, fields)
+        schema = s_schema.ChainedSchema(
+            self._std_schema,
+            db.user_schema
+        )
+        return errormech.interpret_backend_error(schema, fields)
 
     async def interpret_backend_error_in_tx(self, txid, fields):
         state = self._load_state(txid)
@@ -1955,7 +1967,11 @@ class Compiler(BaseCompiler):
         self,
         tx_snapshot_id: str
     ) -> DumpDescriptor:
-        schema = await self._introspect_schema_in_snapshot(tx_snapshot_id)
+        user_schema = await self._introspect_schema_in_snapshot(tx_snapshot_id)
+        schema = s_schema.ChainedSchema(
+            self._std_schema,
+            user_schema
+        )
 
         schema_ddl = s_ddl.ddl_text_from_schema(
             schema, include_migrations=True)
@@ -2169,7 +2185,7 @@ class Compiler(BaseCompiler):
             session_config=EMPTY_MAP,
             stmt_mode=enums.CompileStatementMode.ALL,
             json_parameters=False,
-            schema=schema,
+            top_schema=schema,
             schema_object_ids=schema_object_ids,
             compat_ver=dump_server_ver,
         )

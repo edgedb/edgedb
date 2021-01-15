@@ -26,6 +26,9 @@ import immutables
 
 from edb import errors
 from edb import graphql
+
+from edb.schema import schema as s_schema
+
 from graphql.language import lexer as gql_lexer
 
 from edb.common import debug
@@ -60,13 +63,18 @@ class Compiler(compiler.BaseCompiler):
     def _wrap_schema(
         self,
         dbver: bytes,
-        schema: s_schema.Schema,
+        user_schema: s_schema.Schema,
         cached_reflection: immutables.Map[str, Tuple[str, ...]],
     ) -> CompilerDatabaseState:
-        gqlcore = graphql.GQLCoreSchema(schema)
+        gqlcore = graphql.GQLCoreSchema(
+            s_schema.ChainedSchema(
+                self._std_schema,
+                user_schema
+            )
+        )
         return CompilerDatabaseState(
             dbver=dbver,
-            schema=schema,
+            user_schema=user_schema,
             cached_reflection=cached_reflection,
             gqlcore=gqlcore,
         )
@@ -97,7 +105,10 @@ class Compiler(compiler.BaseCompiler):
 
         ir = qlcompiler.compile_ast_to_ir(
             op.edgeql_ast,
-            schema=db.schema,
+            schema=s_schema.ChainedSchema(
+                self._std_schema,
+                db.user_schema,
+            ),
             options=qlcompiler.CompilerOptions(
                 json_parameters=True,
                 allow_top_level_shape_dml=True,

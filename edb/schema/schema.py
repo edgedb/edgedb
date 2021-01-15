@@ -1456,6 +1456,9 @@ class ChainedSchema(Schema):
         self._base_schema = base_schema
         self._top_schema = top_schema
 
+    def get_top_schema(self):
+        return self._top_schema
+
     def add_raw(
         self,
         id: uuid.UUID,

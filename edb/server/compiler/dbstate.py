@@ -263,6 +263,8 @@ class TransactionState(NamedTuple):
 
 class Transaction:
 
+    _constate: CompilerConnectionState
+
     def __init__(
         self,
         constate,
@@ -273,6 +275,8 @@ class Transaction:
         *,
         implicit=True,
     ) -> None:
+
+        assert not isinstance(schema, s_schema.ChainedSchema)
 
         self._constate = constate
         self._id = time.monotonic_ns()
@@ -333,7 +337,7 @@ class Transaction:
             TransactionState(
                 id=sp_id,
                 name=name,
-                schema=self.get_schema(),
+                schema=self.get_schema().get_top_schema(),
                 modaliases=self.get_modaliases(),
                 config=self.get_session_config(),
                 cached_reflection=self.get_cached_reflection(),
@@ -346,7 +350,7 @@ class Transaction:
             TransactionState(
                 id=sp_id,
                 name=None,
-                schema=self.get_schema(),
+                schema=self.get_schema().get_top_schema(),
                 modaliases=self.get_modaliases(),
                 config=self.get_session_config(),
                 cached_reflection=self.get_cached_reflection(),
@@ -396,7 +400,10 @@ class Transaction:
             self._stack = new_stack[::-1]
 
     def get_schema(self) -> s_schema.Schema:
-        return self._stack[-1].schema
+        return s_schema.ChainedSchema(
+            self._constate._std_schema,
+            self._stack[-1].schema
+        )
 
     def get_modaliases(self) -> immutables.Map:
         return self._stack[-1].modaliases
@@ -411,7 +418,10 @@ class Transaction:
         return self._stack[-1].migration_state
 
     def update_schema(self, new_schema: s_schema.Schema):
-        self._stack[-1] = self._stack[-1]._replace(schema=new_schema)
+        assert isinstance(new_schema, s_schema.ChainedSchema)
+        self._stack[-1] = self._stack[-1]._replace(
+            schema=new_schema.get_top_schema()
+        )
 
     def update_modaliases(self, new_modaliases: immutables.Map):
         self._stack[-1] = self._stack[-1]._replace(modaliases=new_modaliases)
@@ -435,21 +445,26 @@ class CompilerConnectionState:
 
     _savepoints_log: Mapping[int, Transaction]
 
-    __slots__ = ('_savepoints_log', '_dbver', '_current_tx')
+    __slots__ = ('_savepoints_log', '_dbver', '_current_tx', '_std_schema')
 
     def __init__(
         self,
         dbver: bytes,
-        schema: s_schema.Schema,
+        std_schema: s_schema.Schema,
+        top_schema: s_schema.Schema,
         modaliases: immutables.Map,
         config: immutables.Map,
-        cached_reflection: FrozenSet[str],
+        cached_reflection: FrozenSet[str]
     ):
         self._dbver = dbver
         self._savepoints_log = {}
-        self._init_current_tx(schema, modaliases, config, cached_reflection)
+        self._init_current_tx(
+            top_schema, modaliases, config, cached_reflection)
+        assert isinstance(std_schema, s_schema.FlatSchema)
+        self._std_schema = std_schema
 
     def _init_current_tx(self, schema, modaliases, config, cached_reflection):
+        assert isinstance(schema, s_schema.FlatSchema)
         self._current_tx = Transaction(
             self, schema, modaliases, config, cached_reflection)
 

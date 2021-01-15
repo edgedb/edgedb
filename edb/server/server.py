@@ -207,14 +207,11 @@ class Server:
                 self._intro_query, b'__intro_db',
                 dbver=b'', use_prep_stmt=True, args=(),
             )
-            schema = s_schema.ChainedSchema(
-                self._std_schema,
-                s_refl.parse_into(
-                    base_schema=self._std_schema,
-                    schema=s_schema.FlatSchema(),
-                    data=json_data,
-                    schema_class_layout=self._schema_class_layout,
-                )
+            schema = s_refl.parse_into(
+                base_schema=self._std_schema,
+                schema=s_schema.FlatSchema(),
+                data=json_data,
+                schema_class_layout=self._schema_class_layout,
             )
             # print('!!!!!!!', dbname, schema)
         finally:
