@@ -3246,7 +3246,6 @@ async def generate_more_support_functions(conn, compiler, schema, testmode):
 
     _, text = edbbootstrap.compile_bootstrap_script(
         compiler,
-        s_schema.FlatSchema(),
         schema,
         _describe_config(
             schema, source='system override', testmode=testmode),
@@ -3264,7 +3263,6 @@ async def generate_more_support_functions(conn, compiler, schema, testmode):
 
     _, text = edbbootstrap.compile_bootstrap_script(
         compiler,
-        s_schema.FlatSchema(),
         schema,
         _describe_config(
             schema, source='database', testmode=testmode),

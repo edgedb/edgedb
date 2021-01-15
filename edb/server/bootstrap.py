@@ -334,7 +334,6 @@ def _process_delta(delta, schema):
 
 def compile_bootstrap_script(
     compiler: edbcompiler.Compiler,
-    std_schema: s_schema.Schema,
     schema: s_schema.Schema,
     eql: str,
     *,
@@ -344,8 +343,7 @@ def compile_bootstrap_script(
 ) -> Tuple[s_schema.Schema, str]:
 
     ctx = edbcompiler.new_compiler_context(
-        std_schema=std_schema,
-        schema=schema,
+        user_schema=schema,
         single_statement=single_statement,
         expected_cardinality_one=expected_cardinality_one,
         json_parameters=True,
@@ -435,8 +433,7 @@ async def _make_stdlib(testmode: bool, global_ids) -> StdlibBits:
     )
 
     compilerctx = edbcompiler.new_compiler_context(
-        reflschema,
-        s_schema.FlatSchema(),
+        user_schema=reflschema,
         bootstrap_mode=True,
     )
     for std_plan in std_plans:
@@ -447,8 +444,7 @@ async def _make_stdlib(testmode: bool, global_ids) -> StdlibBits:
         )
 
     compilerctx = edbcompiler.new_compiler_context(
-        reflschema,
-        s_schema.FlatSchema(),
+        user_schema=reflschema,
         bootstrap_mode=True,
         internal_schema_mode=True,
     )
@@ -461,8 +457,7 @@ async def _make_stdlib(testmode: bool, global_ids) -> StdlibBits:
     sqltext = current_block.to_string()
 
     compilerctx = edbcompiler.new_compiler_context(
-        reflschema,
-        s_schema.FlatSchema(),
+        user_schema=reflschema,
         schema_reflection_mode=True,
         output_format=edbcompiler.IoFormat.JSON_ELEMENTS,
     )
@@ -532,12 +527,8 @@ async def _amend_stdlib(
     )
 
     compilerctx = edbcompiler.new_compiler_context(
-        schema,
-        bootstrap_mode=True,
+        user_schema=schema
     )
-
-    compilerctx = edbcompiler.new_compiler_context(schema)
-
     for plan in plans:
         compiler._compile_schema_storage_in_delta(
             ctx=compilerctx,
@@ -629,7 +620,6 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
         _, sql = compile_bootstrap_script(
             compiler,
             stdlib.reflschema,
-            s_schema.FlatSchema(),
             '''
             UPDATE schema::ScalarType
             FILTER .builtin AND NOT (.is_abstract ?? False)
@@ -666,7 +656,6 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
     _, sql = compile_bootstrap_script(
         compiler,
         stdlib.reflschema,
-        s_schema.FlatSchema(),
         '''
         SELECT schema::ScalarType {
             id,
@@ -784,25 +773,23 @@ async def _execute_ddl(conn, sql_text):
         raise
 
 
-async def _init_defaults(std_schema, schema, compiler, conn):
+async def _init_defaults(schema, compiler, conn):
     script = '''
         CREATE MODULE default;
     '''
 
-    schema, sql = compile_bootstrap_script(
-        compiler, std_schema, schema, script)
+    schema, sql = compile_bootstrap_script(compiler, schema, script)
     await _execute_ddl(conn, sql)
     return schema
 
 
-async def _populate_data(std_schema, schema, compiler, conn):
+async def _populate_data(schema, compiler, conn):
     script = '''
         INSERT stdgraphql::Query;
         INSERT stdgraphql::Mutation;
     '''
 
-    schema, sql = compile_bootstrap_script(
-        compiler, std_schema, schema, script)
+    schema, sql = compile_bootstrap_script(compiler, schema, script)
     await _execute_ddl(conn, sql)
     return schema
 
@@ -832,7 +819,6 @@ async def _configure(
     for script in scripts:
         _, sql = compile_bootstrap_script(
             compiler,
-            std_schema,
             schema,
             script,
             single_statement=True,
@@ -863,7 +849,6 @@ async def _compile_sys_queries(schema, compiler, cluster):
     _, sql = compile_bootstrap_script(
         compiler,
         schema,
-        s_schema.FlatSchema(),
         'SELECT cfg::get_config_json()',
         expected_cardinality_one=True,
         single_statement=True,
@@ -874,7 +859,6 @@ async def _compile_sys_queries(schema, compiler, cluster):
     _, sql = compile_bootstrap_script(
         compiler,
         schema,
-        s_schema.FlatSchema(),
         'SELECT (SELECT sys::Database FILTER NOT .builtin).name',
         expected_cardinality_one=False,
         single_statement=True,
@@ -892,7 +876,6 @@ async def _compile_sys_queries(schema, compiler, cluster):
     _, sql = compile_bootstrap_script(
         compiler,
         schema,
-        s_schema.FlatSchema(),
         role_query,
         expected_cardinality_one=False,
         single_statement=True,
@@ -908,7 +891,6 @@ async def _compile_sys_queries(schema, compiler, cluster):
     _, sql = compile_bootstrap_script(
         compiler,
         schema,
-        s_schema.FlatSchema(),
         tids_query,
         expected_cardinality_one=False,
         single_statement=True,
@@ -1145,8 +1127,8 @@ async def _bootstrap(
         await _compile_sys_queries(refl_schema, compiler, cluster)
 
         schema = s_schema.FlatSchema()
-        schema = await _init_defaults(std_schema, schema, compiler, conn)
-        schema = await _populate_data(std_schema, schema, compiler, conn)
+        schema = await _init_defaults(schema, compiler, conn)
+        schema = await _populate_data(schema, compiler, conn)
         await _configure(std_schema, schema, compiler, conn, cluster,
                          insecure=args['insecure'])
     finally:

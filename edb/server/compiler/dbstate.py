@@ -337,7 +337,7 @@ class Transaction:
             TransactionState(
                 id=sp_id,
                 name=name,
-                schema=self.get_schema().get_top_schema(),
+                schema=self._stack[-1].schema,
                 modaliases=self.get_modaliases(),
                 config=self.get_session_config(),
                 cached_reflection=self.get_cached_reflection(),
@@ -350,7 +350,7 @@ class Transaction:
             TransactionState(
                 id=sp_id,
                 name=None,
-                schema=self.get_schema().get_top_schema(),
+                schema=self._stack[-1].schema,
                 modaliases=self.get_modaliases(),
                 config=self.get_session_config(),
                 cached_reflection=self.get_cached_reflection(),
@@ -399,9 +399,10 @@ class Transaction:
         else:
             self._stack = new_stack[::-1]
 
-    def get_schema(self) -> s_schema.Schema:
+    def get_schema(self, std_schema: s_schema.Schema) -> s_schema.Schema:
+        assert isinstance(std_schema, s_schema.FlatSchema)
         return s_schema.ChainedSchema(
-            self._constate._std_schema,
+            std_schema,
             self._stack[-1].schema
         )
 
@@ -450,7 +451,6 @@ class CompilerConnectionState:
     def __init__(
         self,
         dbver: bytes,
-        std_schema: s_schema.Schema,
         top_schema: s_schema.Schema,
         modaliases: immutables.Map,
         config: immutables.Map,
@@ -460,8 +460,6 @@ class CompilerConnectionState:
         self._savepoints_log = {}
         self._init_current_tx(
             top_schema, modaliases, config, cached_reflection)
-        assert isinstance(std_schema, s_schema.FlatSchema)
-        self._std_schema = std_schema
 
     def _init_current_tx(self, schema, modaliases, config, cached_reflection):
         assert isinstance(schema, s_schema.FlatSchema)

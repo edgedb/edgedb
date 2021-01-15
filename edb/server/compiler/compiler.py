@@ -136,7 +136,7 @@ def compile_edgeql_script(
 ) -> Tuple[s_schema.Schema, str]:
 
     sql, argmap = compiler._compile_ql_script(ctx, eql)
-    new_schema = ctx.state.current_tx().get_schema()
+    new_schema = ctx.state.current_tx().get_schema(compiler._std_schema)
     assert isinstance(new_schema, s_schema.ChainedSchema)
     return new_schema.get_top_schema(), sql
 
@@ -158,9 +158,8 @@ def new_compiler(
 
 
 def new_compiler_context(
-    std_schema: s_schema.Schema,
-    schema: s_schema.Schema,
     *,
+    user_schema: s_schema.Schema,
     single_statement: bool = False,
     modaliases: Optional[Mapping[Optional[str], str]] = None,
     expected_cardinality_one: bool = False,
@@ -175,8 +174,7 @@ def new_compiler_context(
 
     state = dbstate.CompilerConnectionState(
         0,
-        std_schema,
-        schema,
+        user_schema,
         immutables.Map(modaliases) if modaliases else EMPTY_MAP,
         EMPTY_MAP,
         EMPTY_MAP,
@@ -408,7 +406,7 @@ class Compiler(BaseCompiler):
         """Adapt and process the delta command."""
 
         current_tx = ctx.state.current_tx()
-        schema = current_tx.get_schema()
+        schema = current_tx.get_schema(self._std_schema)
 
         if debug.flags.delta_plan:
             debug.header('Canonical Delta Plan')
@@ -454,7 +452,7 @@ class Compiler(BaseCompiler):
     ):
 
         current_tx = ctx.state.current_tx()
-        schema = current_tx.get_schema()
+        schema = current_tx.get_schema(self._std_schema)
 
         meta_blocks: List[Tuple[str, Dict[str, Any]]] = []
 
@@ -519,7 +517,7 @@ class Compiler(BaseCompiler):
         eql: str,
     ) -> Tuple[str, Dict[str, int]]:
 
-        schema = ctx.state.current_tx().get_schema()
+        schema = ctx.state.current_tx().get_schema(self._std_schema)
 
         try:
             # Switch to the shadow introspection/reflection schema.
@@ -611,7 +609,7 @@ class Compiler(BaseCompiler):
 
         ir = qlcompiler.compile_ast_to_ir(
             ql,
-            schema=current_tx.get_schema(),
+            schema=current_tx.get_schema(self._std_schema),
             options=qlcompiler.CompilerOptions(
                 modaliases=current_tx.get_modaliases(),
                 implicit_tid_in_shapes=(
@@ -748,7 +746,7 @@ class Compiler(BaseCompiler):
         stmt: qlast.DDLOperation,
     ) -> dbstate.DDLQuery:
         current_tx = ctx.state.current_tx()
-        schema = current_tx.get_schema()
+        schema = current_tx.get_schema(self._std_schema)
 
         delta = s_ddl.delta_from_ddl(
             stmt,
@@ -781,7 +779,7 @@ class Compiler(BaseCompiler):
 
         # Do a dry-run on test_schema to canonicalize
         # the schema delta-commands.
-        test_schema = current_tx.get_schema()
+        test_schema = current_tx.get_schema(self._std_schema)
         context = self._new_delta_context(ctx)
         delta.apply(test_schema, context=context)
         delta.canonical = True
@@ -816,7 +814,7 @@ class Compiler(BaseCompiler):
 
     def _compile_ql_migration(self, ctx: CompileContext, ql: qlast.Migration):
         current_tx = ctx.state.current_tx()
-        schema = current_tx.get_schema()
+        schema = current_tx.get_schema(self._std_schema)
 
         if isinstance(ql, qlast.CreateMigration):
             query = self._compile_and_apply_ddl_stmt(ctx, ql)
@@ -1252,7 +1250,7 @@ class Compiler(BaseCompiler):
     def _compile_ql_sess_state(self, ctx: CompileContext,
                                ql: qlast.BaseSessionCommand):
         current_tx = ctx.state.current_tx()
-        schema = current_tx.get_schema()
+        schema = current_tx.get_schema(self._std_schema)
 
         aliases = ctx.state.current_tx().get_modaliases()
 
@@ -1331,7 +1329,7 @@ class Compiler(BaseCompiler):
     def _compile_ql_config_op(self, ctx: CompileContext, ql: qlast.Base):
 
         current_tx = ctx.state.current_tx()
-        schema = current_tx.get_schema()
+        schema = current_tx.get_schema(self._std_schema)
 
         modaliases = ctx.state.current_tx().get_modaliases()
         session_config = ctx.state.current_tx().get_session_config()
@@ -1711,7 +1709,6 @@ class Compiler(BaseCompiler):
 
         self._current_db_state = dbstate.CompilerConnectionState(
             dbver,
-            self._std_schema,
             top_schema,
             modaliases,
             session_config,
@@ -1937,12 +1934,12 @@ class Compiler(BaseCompiler):
     async def interpret_backend_error_in_tx(self, txid, fields):
         state = self._load_state(txid)
         return errormech.interpret_backend_error(
-            state.current_tx().get_schema(), fields)
+            state.current_tx().get_schema(self._std_schema), fields)
 
     async def update_type_ids(self, txid, typemap):
         state = self._load_state(txid)
         tx = state.current_tx()
-        schema = tx.get_schema()
+        schema = tx.get_schema(self._std_schema)
         for tid, backend_tid in typemap.items():
             t = schema.get_by_id(uuidgen.UUID(tid))
             schema = t.set_field_value(schema, 'backend_id', backend_tid)
@@ -2200,7 +2197,7 @@ class Compiler(BaseCompiler):
 
         ddl_source = edgeql.Source.from_string(schema_ddl.decode('utf-8'))
         units = self._compile(ctx=ctx, source=ddl_source)
-        schema = ctx.state.current_tx().get_schema()
+        schema = ctx.state.current_tx().get_schema(self._std_schema)
 
         restore_blocks = []
         tables = []
