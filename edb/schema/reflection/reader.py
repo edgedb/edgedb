@@ -39,11 +39,14 @@ from edb.schema import schema as s_schema
 from . import structure as sr_struct
 
 
+SchemaClassLayout = Dict[Type[s_obj.Object], sr_struct.SchemaTypeLayout]
+
+
 def parse_into(
     base_schema: s_schema.Schema,
     schema: s_schema.FlatSchema,
-    data: Sequence[str],
-    schema_class_layout: Dict[Type[s_obj.Object], sr_struct.SchemaTypeLayout],
+    data: Union[str, bytes],
+    schema_class_layout: SchemaClassLayout,
 ) -> s_schema.FlatSchema:
     """Parse JSON-encoded schema objects and populate the schema with them.
 
@@ -51,7 +54,7 @@ def parse_into(
         schema:
             A schema instance to use as a starting point.
         data:
-            A sequence of JSON-encoded schema object data as returned
+            A JSON-encoded schema object data as returned
             by an introspection query.
         schema_class_layout:
             A mapping describing schema class layout in the reflection,
@@ -79,8 +82,7 @@ def parse_into(
 
     objects: Dict[uuid.UUID, Tuple[s_obj.Object, Dict[str, Any]]] = {}
 
-    for entry_json in data:
-        entry = json.loads(entry_json)
+    for entry in json.loads(data):
         _, _, clsname = entry['_tname'].rpartition('::')
         mcls = s_obj.ObjectMeta.maybe_get_schema_class(clsname)
         if mcls is None:

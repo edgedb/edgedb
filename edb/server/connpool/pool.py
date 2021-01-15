@@ -277,6 +277,10 @@ class BasePool(typing.Generic[C]):
         self._conntime_avg = rolavg.RollingAverage(history_size=10)
 
     @property
+    def max_capacity(self) -> int:
+        return self._max_capacity
+
+    @property
     def failed_connects(self) -> int:
         return self._failed_connects
 

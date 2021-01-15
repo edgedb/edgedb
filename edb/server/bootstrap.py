@@ -478,6 +478,10 @@ async def _make_stdlib(testmode: bool, global_ids) -> StdlibBits:
         sql_introparts.append(sql_intropart)
 
     introsql = ' UNION ALL '.join(sql_introparts)
+    introsql = f'''
+        WITH intro(c) AS ({introsql})
+        SELECT json_agg(intro.c) FROM intro
+    '''
 
     return StdlibBits(
         stdschema=schema,
@@ -856,6 +860,16 @@ async def _compile_sys_queries(schema, compiler, cluster):
     )
 
     queries['config'] = sql
+
+    schema, sql = compile_bootstrap_script(
+        compiler,
+        schema,
+        'SELECT (SELECT sys::Database FILTER NOT .builtin).name',
+        expected_cardinality_one=False,
+        single_statement=True,
+    )
+
+    queries['listdbs'] = sql
 
     role_query = '''
         SELECT sys::Role {

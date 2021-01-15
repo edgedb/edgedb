@@ -21,14 +21,19 @@ from __future__ import annotations
 from typing import *
 
 import asyncio
+import binascii
 import json
 import logging
+import pickle
 
 import immutables
 
 from edb import errors
 
 from edb.common import taskgroup
+
+from edb.schema import reflection as s_refl
+from edb.schema import schema as s_schema
 
 from edb.edgeql import parser as ql_parser
 
@@ -71,6 +76,11 @@ class Server:
     _roles: Mapping[str, RoleDescriptor]
     _instance_data: Mapping[str, str]
     _sys_queries: Mapping[str, str]
+    _intro_query: bytes
+
+    _std_schema: s_schema.Schema
+    _refl_schema: s_schema.Schema
+    _schema_class_layout: s_refl.SchemaClassLayout
 
     def __init__(
         self,
@@ -149,8 +159,8 @@ class Server:
         self._sys_pgcon_waiters.put_nowait(self.__sys_pgcon)
 
         await self._load_instance_data()
-        await self._load_sys_queries()
         await self._fetch_roles()
+        await self._introspect_dbs()
         self._dbindex = await dbview.DatabaseIndex.init(self)
 
         self._populate_sys_auth()
@@ -190,6 +200,42 @@ class Server:
             discard = True
         self._pg_pool.release(dbname, conn, discard=discard)
 
+    async def _introspect_db(self, dbname):
+        conn = await self.acquire_pgcon(dbname)
+        try:
+            json_data = await conn.parse_execute_json(
+                self._intro_query, b'__intro_db',
+                dbver=b'', use_prep_stmt=True, args=(),
+            )
+            schema = s_schema.ChainedSchema(
+                self._std_schema,
+                s_refl.parse_into(
+                    base_schema=self._std_schema,
+                    schema=s_schema.FlatSchema(),
+                    data=json_data,
+                    schema_class_layout=self._schema_class_layout,
+                )
+            )
+            # print('!!!!!!!', dbname, schema)
+        finally:
+            self.release_pgcon(dbname, conn)
+
+    async def _introspect_dbs(self):
+        syscon = await self._acquire_sys_pgcon()
+        try:
+            dbs_query = self.get_sys_query('listdbs')
+            json_data = await syscon.parse_execute_json(
+                dbs_query, b'__listdbs',
+                dbver=b'', use_prep_stmt=True, args=(),
+            )
+            dbnames = json.loads(json_data)
+        finally:
+            self._release_sys_pgcon()
+
+        async with taskgroup.TaskGroup(name='introspect DBs') as g:
+            for dbname in dbnames:
+                g.create_task(self._introspect_db(dbname))
+
     async def _fetch_roles(self):
         syscon = await self._acquire_sys_pgcon()
         try:
@@ -212,12 +258,7 @@ class Server:
             ''', ignore_data=False)
             self._instance_data = immutables.Map(
                 json.loads(result[0][0].decode('utf-8')))
-        finally:
-            self._release_sys_pgcon()
 
-    async def _load_sys_queries(self):
-        syscon = await self._acquire_sys_pgcon()
-        try:
             result = await syscon.simple_query(b'''\
                 SELECT json FROM edgedbinstdata.instdata
                 WHERE key = 'sysqueries';
@@ -225,6 +266,46 @@ class Server:
             queries = json.loads(result[0][0].decode('utf-8'))
             self._sys_queries = immutables.Map(
                 {k: q.encode() for k, q in queries.items()})
+
+            result = await syscon.simple_query(b'''\
+                SELECT text FROM edgedbinstdata.instdata
+                WHERE key = 'introquery';
+            ''', ignore_data=False)
+            self._intro_query = result[0][0]
+
+            result = await syscon.simple_query(b'''\
+                SELECT bin FROM edgedbinstdata.instdata
+                WHERE key = 'stdschema';
+            ''', ignore_data=False)
+            try:
+                data = binascii.a2b_hex(result[0][0][2:])
+                self._std_schema = pickle.loads(data)
+            except Exception as e:
+                raise RuntimeError(
+                    'could not load std schema pickle') from e
+
+            result = await syscon.simple_query(b'''\
+                SELECT bin FROM edgedbinstdata.instdata
+                WHERE key = 'reflschema';
+            ''', ignore_data=False)
+            try:
+                data = binascii.a2b_hex(result[0][0][2:])
+                self._refl_schema = pickle.loads(data)
+            except Exception as e:
+                raise RuntimeError(
+                    'could not load refl schema pickle') from e
+
+            result = await syscon.simple_query(b'''\
+                SELECT bin FROM edgedbinstdata.instdata
+                WHERE key = 'classlayout';
+            ''', ignore_data=False)
+            try:
+                data = binascii.a2b_hex(result[0][0][2:])
+                self._schema_class_layout = pickle.loads(data)
+            except Exception as e:
+                raise RuntimeError(
+                    'could not load schema class layout pickle') from e
+
         finally:
             self._release_sys_pgcon()
 

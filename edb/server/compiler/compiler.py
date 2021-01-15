@@ -145,7 +145,7 @@ def new_compiler(
     *,
     std_schema: s_schema.Schema,
     reflection_schema: s_schema.Schema,
-    schema_class_layout: Dict[Type[s_obj.Object], s_refl.SchemaTypeLayout],
+    schema_class_layout: Dict[Type[s_obj.Object], s_refl.SchemaClassLayout],
 ) -> Compiler:
     """Create and return an ad-hoc compiler instance."""
 
@@ -221,7 +221,7 @@ async def load_schema_intro_query(backend_conn) -> str:
     ''')
 
 
-async def load_schema_class_layout(backend_conn) -> s_schema.Schema:
+async def load_schema_class_layout(backend_conn) -> s_refl.SchemaClassLayout:
     data = await backend_conn.fetchval(f'''\
         SELECT bin FROM edgedbinstdata.instdata
         WHERE key = 'classlayout';
@@ -289,13 +289,13 @@ class BaseCompiler:
         self,
         connection: asyncpg.Connection,
     ) -> s_schema.Schema:
-        data = await connection.fetch(self._intro_query)
+        data = await connection.fetchval(self._intro_query)
         return s_schema.ChainedSchema(
             self._std_schema,
             s_refl.parse_into(
                 base_schema=self._std_schema,
                 schema=s_schema.FlatSchema(),
-                data=[r[0] for r in data],
+                data=data,
                 schema_class_layout=self._schema_class_layout,
             )
         )
