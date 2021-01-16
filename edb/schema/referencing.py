@@ -54,6 +54,23 @@ class ReferencedObject(so.DerivableObject):
         special_ddl_syntax=True,
     )
 
+    @classmethod
+    def get_verbosename_static(
+        cls,
+        name: sn.Name,
+        *,
+        parent: Optional[str] = None,
+    ) -> str:
+        clsname = cls.get_schema_class_displayname()
+        dname = cls.get_displayname_static(name)
+        sn = cls.get_shortname_static(name)
+        if sn == name:
+            clsname = f'abstract {clsname}'
+        if parent is not None:
+            return f"{clsname} '{dname}' of {parent}"
+        else:
+            return f"{clsname} '{dname}'"
+
     def get_subject(self, schema: s_schema.Schema) -> Optional[so.Object]:
         # NB: classes that inherit ReferencedObject define a `get_subject`
         # method dynamically, with `subject = SchemaField`
@@ -870,8 +887,7 @@ class ReferencedInheritingObjectCommand(
 
                 vn = scls.get_verbosename(schema, with_parent=True)
                 desc = self.get_friendly_description(
-                    schema,
-                    context,
+                    schema=schema,
                     object_desc=f'inherited {vn}',
                 )
 

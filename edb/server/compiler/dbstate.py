@@ -240,6 +240,24 @@ class QueryUnit:
 #############################
 
 
+class ProposedMigrationStep(NamedTuple):
+
+    statements: Tuple[str, ...]
+    confidence: float
+    prompt: str
+    prompt_id: str
+    data_safe: bool
+
+    def to_json(self) -> Dict[str, Any]:
+        return {
+            'statements': [{'text': stmt} for stmt in self.statements],
+            'confidence': self.confidence,
+            'prompt': self.prompt,
+            'prompt_id': self.prompt_id,
+            'data_safe': self.data_safe,
+        }
+
+
 class MigrationState(NamedTuple):
 
     parent_migration: Optional[s_migrations.Migration]
@@ -248,6 +266,7 @@ class MigrationState(NamedTuple):
     target_schema: s_schema.Schema
     guidance: s_obj.DeltaGuidance
     current_ddl: Tuple[qlast.DDLOperation, ...]
+    last_proposed: Tuple[ProposedMigrationStep, ...]
 
 
 class TransactionState(NamedTuple):

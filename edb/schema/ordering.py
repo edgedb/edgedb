@@ -140,12 +140,19 @@ def reconstruct_tree(
     def ok_to_attach_to(
         op_to_attach: sd.Command,
         op_to_attach_to: sd.ObjectCommand[so.Object],
+        only_if_confident: bool = False,
     ) -> bool:
         """Determine if a given command can be attached to another.
 
         Returns True, if *op_to_attach* can be attached to *op_to_attach_to*
         without violating the dependency order.
         """
+        if only_if_confident and isinstance(op_to_attach, sd.ObjectCommand):
+            # Avoid reattaching the subcommand if confidence is below 100%,
+            # so that granular prompts can be generated.
+            confidence = op_to_attach.get_annotation('confidence')
+            if confidence is not None and confidence < 1.0:
+                return False
         tgt_offset = offsets[op_to_attach_to]
         tgt_offset_len = len(tgt_offset)
         deps = dependencies[op_to_attach]
@@ -289,7 +296,14 @@ def reconstruct_tree(
             for op_type in allowed_op_types:
                 parent_op = opindex.get((op_type, candidate))
 
-                if parent_op is not None and ok_to_attach_to(op, parent_op):
+                if (
+                    parent_op is not None
+                    and ok_to_attach_to(
+                        op,
+                        parent_op,
+                        only_if_confident=not as_implicit,
+                    )
+                ):
                     attach(
                         opbranch,
                         parent_op,
