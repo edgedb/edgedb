@@ -18,9 +18,9 @@
 
 
 from __future__ import annotations
+from typing import *
 
 from collections import defaultdict
-from typing import *  # noqa
 
 from edb import edgeql
 from edb.edgeql import ast as qlast
@@ -233,6 +233,12 @@ def delta_schemas(
                 )
                 assert isinstance(create, sd.CreateObject)
                 create.if_not_exists = True
+                # We currently fully assume that modules are created
+                # or deleted and never renamed.  This is fine, because module
+                # objects are never actually referenced directly, only by
+                # the virtue of being the leading part of a fully-qualified
+                # name.
+                create.set_annotation('confidence', 1.0)
 
                 result.add(create)
 
@@ -349,10 +355,73 @@ def delta_schemas(
                     schema=schema_a,
                     context=context,
                 )
+                dropped.set_annotation('confidence', 1.0)
 
                 result.add(dropped)
 
     return result
+
+
+def schemas_are_equal(
+    schema_a: s_schema.Schema,
+    schema_b: s_schema.Schema,
+    *,
+    included_modules: Optional[Iterable[str]]=None,
+    excluded_modules: Optional[Iterable[str]]=None,
+    included_items: Optional[Iterable[sn.Name]]=None,
+    excluded_items: Optional[Iterable[sn.Name]]=None,
+    schema_a_filters: Iterable[
+        Callable[[s_schema.Schema, so.Object], bool]
+    ] = (),
+    schema_b_filters: Iterable[
+        Callable[[s_schema.Schema, so.Object], bool]
+    ] = (),
+) -> bool:
+    """Test if *schema_a* and *schema_b* are equal.
+
+    Return ``True`` if *schema_a* and *schema_b* are equal
+    (with respect to the specified filters).
+
+    Args:
+        included_modules:
+            Optional list of modules to include in the delta.
+
+        excluded_modules:
+            Optional list of modules to exlude from the delta.
+            Takes precedence over *included_modules*.
+            NOTE: standard library modules are always excluded,
+            unless *include_std_diff* is ``True``.
+
+        included_items:
+            Optional list of names of objects to include in the delta.
+
+        excluded_items:
+            Optional list of names of objects to exclude from the delta.
+            Takes precedence over *included_items*.
+
+        schema_a_filters:
+            Optional list of additional filters to place on *schema_a*.
+
+        schema_b_filters:
+            Optional list of additional filters to place on *schema_b*.
+
+        include_module_diff:
+            Whether to include create/drop module operations
+            in the delta diff.
+    """
+    diff = delta_schemas(
+        schema_a,
+        schema_b,
+        included_modules=included_modules,
+        excluded_modules=excluded_modules,
+        included_items=included_items,
+        excluded_items=excluded_items,
+        schema_a_filters=schema_a_filters,
+        schema_b_filters=schema_b_filters,
+        linearize_delta=False,
+    )
+
+    return not bool(diff.get_subcommands())
 
 
 def cmd_from_ddl(
@@ -554,7 +623,7 @@ def ddlast_from_delta(
     *,
     sdlmode: bool = False,
     descriptive_mode: bool = False,
-) -> Tuple[qlast.DDLOperation, ...]:
+) -> Dict[qlast.DDLOperation, sd.Command]:
     context = sd.CommandContext(
         descriptive_mode=descriptive_mode,
         declarative=sdlmode,
@@ -567,7 +636,7 @@ def ddlast_from_delta(
         schema = schema_a
         update_schema = True
 
-    stmts = []
+    stmts = {}
     for command in delta.get_subcommands():
         with context(sd.DeltaRootContext(schema=schema, op=delta)):
             # The reason we do this instead of just directly using the new
@@ -580,9 +649,9 @@ def ddlast_from_delta(
 
             ql_ast = command.get_ast(schema, context)
             if ql_ast:
-                stmts.append(ql_ast)
+                stmts[ql_ast] = command
 
-    return tuple(stmts)
+    return stmts
 
 
 def statements_from_delta(
@@ -593,7 +662,7 @@ def statements_from_delta(
     sdlmode: bool = False,
     descriptive_mode: bool = False,
     limit_ref_classes: Iterable[so.ObjectMeta] = tuple(),
-) -> Tuple[str, ...]:
+) -> Tuple[Tuple[str, sd.Command], ...]:
 
     stmts = ddlast_from_delta(
         schema_a,
@@ -610,14 +679,14 @@ def statements_from_delta(
     ql_classes = {q for q in ql_classes_src if q is not None}
 
     text = []
-    for stmt_ast in stmts:
+    for stmt_ast, cmd in stmts.items():
         stmt_text = edgeql.generate_source(
             stmt_ast,
             sdlmode=sdlmode,
             descmode=descriptive_mode,
             limit_ref_classes=ql_classes,
         )
-        text.append(stmt_text + ';')
+        text.append((stmt_text + ';', cmd))
 
     return tuple(text)
 
@@ -639,7 +708,7 @@ def text_from_delta(
         descriptive_mode=descriptive_mode,
         limit_ref_classes=limit_ref_classes,
     )
-    return '\n'.join(stmts)
+    return '\n'.join(text for text, _ in stmts)
 
 
 def ddl_text_from_delta(

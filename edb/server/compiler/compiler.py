@@ -762,7 +762,27 @@ class Compiler(BaseCompiler):
             )
 
             context = self._new_delta_context(ctx)
+            orig_schema = schema
             schema = delta.apply(schema, context=context)
+
+            if mstate.last_proposed:
+                proposed_stmts = mstate.last_proposed[0].statements
+                ddl_script = '\n'.join(proposed_stmts)
+                proposed_schema = s_ddl.apply_ddl_script(
+                    ddl_script, schema=orig_schema)
+
+                if s_ddl.schemas_are_equal(schema, proposed_schema):
+                    # The client has confirmed the proposed migration step,
+                    # advance the proposed script.
+                    mstate = mstate._replace(
+                        last_proposed=mstate.last_proposed[1:],
+                    )
+                else:
+                    # The client replied with a statement that does not
+                    # match what was proposed, reset the proposed script
+                    # to force script regeneration on next DESCRIBE.
+                    mstate = mstate._replace(last_proposed=tuple())
+
             current_tx.update_migration_state(mstate)
             current_tx.update_schema(schema)
 
@@ -838,6 +858,7 @@ class Compiler(BaseCompiler):
                     guidance=s_obj.DeltaGuidance(),
                     target_schema=target_schema,
                     current_ddl=tuple(),
+                    last_proposed=tuple(),
                 ),
             )
 
@@ -868,8 +889,8 @@ class Compiler(BaseCompiler):
                 debug.header('Populate Migration Diff')
                 debug.dump(diff, schema=schema)
 
-            new_ddl = s_ddl.ddlast_from_delta(
-                schema, mstate.target_schema, diff)
+            new_ddl = tuple(s_ddl.ddlast_from_delta(
+                schema, mstate.target_schema, diff))
             all_ddl = mstate.current_ddl + new_ddl
             mstate = mstate._replace(current_ddl=all_ddl)
             if debug.flags.delta_plan:
@@ -933,40 +954,47 @@ class Compiler(BaseCompiler):
                         qlcodegen.generate_source(stmt, pretty=True) + ';',
                     )
 
-                guided_diff = s_ddl.delta_schemas(
-                    schema,
-                    mstate.target_schema,
-                    generate_prompts=True,
-                    guidance=mstate.guidance,
-                )
+                if not mstate.last_proposed:
+                    guided_diff = s_ddl.delta_schemas(
+                        schema,
+                        mstate.target_schema,
+                        generate_prompts=True,
+                        guidance=mstate.guidance,
+                    )
 
-                auto_diff = s_ddl.delta_schemas(
-                    schema,
-                    mstate.target_schema,
-                )
+                    proposed_ddl = s_ddl.statements_from_delta(
+                        schema,
+                        mstate.target_schema,
+                        guided_diff,
+                    )
 
-                proposed_ddl = s_ddl.statements_from_delta(
-                    schema,
-                    mstate.target_schema,
-                    guided_diff,
-                )
+                    proposed_steps = []
 
-                if proposed_ddl:
-                    top_op = next(iter(guided_diff.get_subcommands()))
-                    op_id = top_op.get_annotation('op_id')
-                    assert op_id is not None
+                    if proposed_ddl:
+                        for ddl_text, top_op in proposed_ddl:
+                            prompt_id, prompt_text = top_op.get_user_prompt()
+                            confidence = top_op.get_annotation('confidence')
+                            assert confidence is not None
+                            step = dbstate.ProposedMigrationStep(
+                                statements=(ddl_text,),
+                                confidence=confidence,
+                                prompt=prompt_text,
+                                prompt_id=prompt_id,
+                                data_safe=top_op.is_data_safe(),
+                            )
+                            proposed_steps.append(step)
 
-                    proposed_desc = {
-                        'statements': [{
-                            'text': proposed_ddl[0],
-                        }],
-                        'confidence': top_op.get_annotation('confidence'),
-                        'prompt': top_op.get_annotation('user_prompt'),
-                        'operation_id': op_id,
-                        'data_safe': top_op.is_data_safe(),
-                    }
+                        proposed_desc = proposed_steps[0].to_json()
+                    else:
+                        proposed_desc = None
+
+                    mstate = mstate._replace(
+                        last_proposed=tuple(proposed_steps),
+                    )
+
+                    current_tx.update_migration_state(mstate)
                 else:
-                    proposed_desc = None
+                    proposed_desc = mstate.last_proposed[0].to_json()
 
                 desc = json.dumps({
                     'parent': (
@@ -974,7 +1002,8 @@ class Compiler(BaseCompiler):
                         if mstate.parent_migration is not None
                         else 'initial'
                     ),
-                    'complete': not bool(list(auto_diff.get_subcommands())),
+                    'complete': s_ddl.schemas_are_equal(
+                        schema, mstate.target_schema),
                     'confirmed': confirmed,
                     'proposed': proposed_desc,
                 }).encode('unicode_escape').decode('utf-8')
@@ -1051,7 +1080,10 @@ class Compiler(BaseCompiler):
                         f'delta diff: {top_cmdclass!r}',
                     )
 
-            mstate = mstate._replace(guidance=new_guidance)
+            mstate = mstate._replace(
+                guidance=new_guidance,
+                last_proposed=tuple(),
+            )
             current_tx.update_migration_state(mstate)
 
             query = dbstate.MigrationControlQuery(

@@ -1554,10 +1554,6 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         )
 
         if context.generate_prompts:
-            svn = self.get_verbosename(schema, with_parent=True)
-            prompt = f'did you create {svn}?'
-            delta.set_annotation('user_prompt', prompt)
-            delta.set_annotation('op_id', sd.get_object_command_id(delta))
             delta.set_annotation('orig_cmdclass', type(delta))
 
         # IDs are assigned once when the object is created and
@@ -1633,18 +1629,9 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         delta.set_annotation('confidence', confidence)
 
         if context.generate_prompts:
-            svn = self.get_verbosename(self_schema, with_parent=True)
-            self_name = self.get_name(self_schema)
             other_name = other.get_name(other_schema)
-            if self_name != other_name:
-                ovn = other.get_displayname(other_schema)
-                prompt = f'did you rename {svn} to {ovn!r}?'
-            else:
-                prompt = f'did you alter {svn}?'
-
-            delta.set_annotation('user_prompt', prompt)
-            delta.set_annotation('new_name', other_name)
-            delta.set_annotation('op_id', sd.get_object_command_id(delta))
+            if self.get_name(self_schema) != other_name:
+                delta.set_annotation('new_name', other_name)
             delta.set_annotation('orig_cmdclass', type(delta))
 
         ff = cls.get_fields(sorted=True).items()
@@ -1715,6 +1702,7 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
                     oldcoll_idx,
                     newcoll_idx,
                     sclass=refdict.ref_cls,
+                    parent_confidence=confidence,
                     context=context,
                     old_schema=self_schema,
                     new_schema=other_schema,
@@ -1739,10 +1727,6 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         )
 
         if context.generate_prompts:
-            svn = self.get_verbosename(schema, with_parent=True)
-            prompt = f'did you drop {svn}?'
-            delta.set_annotation('user_prompt', prompt)
-            delta.set_annotation('op_id', sd.get_object_command_id(delta))
             delta.set_annotation('orig_cmdclass', type(delta))
 
         context.deletions[type(self), delta.classname] = delta

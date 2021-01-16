@@ -417,7 +417,11 @@ class Pointer(referencing.ReferencedInheritingObject,
     # defining them.
     expr = so.SchemaField(
         s_expr.Expression,
-        default=None, coerce=True, compcoef=0.909)
+        default=None,
+        coerce=True,
+        compcoef=0.909,
+        special_ddl_syntax=True,
+    )
 
     default = so.SchemaField(
         s_expr.Expression,
@@ -1538,21 +1542,8 @@ class SetPointerType(
 
     cast_expr = struct.Field(s_expr.Expression, default=None)
 
-    def get_friendly_description(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        *,
-        object: Optional[Pointer_T] = None,
-        object_desc: Optional[str] = None,
-    ) -> str:
-        object_desc = self.get_friendly_object_name_for_description(
-            schema,
-            context,
-            object=object,
-            object_desc=object_desc,
-        )
-        return f'alter the type of {object_desc}'
+    def get_verb(self) -> str:
+        return 'alter the type of'
 
     def is_data_safe(self) -> bool:
         return False
@@ -1647,7 +1638,7 @@ class SetPointerType(
             schema = self._propagate_if_expr_refs(
                 schema,
                 context,
-                action=self.get_friendly_description(schema, context),
+                action=self.get_friendly_description(schema=schema),
             )
 
             if (

@@ -406,15 +406,6 @@ class AlterProperty(
                         value=utils.typeref_to_ast(schema, op.new_value),
                     ),
                 )
-        elif op.property == 'computable':
-            if not op.new_value:
-                node.commands.append(
-                    qlast.SetField(
-                        name='expr',
-                        value=None,
-                        special_syntax=True,
-                    ),
-                )
         else:
             super()._apply_field_ast(schema, context, node, op)
 
