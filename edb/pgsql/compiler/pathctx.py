@@ -1032,6 +1032,25 @@ def get_path_serialized_output(
 
     ref = get_path_serialized_or_value_var(rel, path_id, env=env)
 
+    if (
+        isinstance(ref, pgast.TupleVarBase)
+        and not isinstance(ref, pgast.TupleVar)
+    ):
+        elements = []
+
+        for el in ref.elements:
+            assert el.path_id is not None
+            val = get_path_serialized_or_value_var(rel, el.path_id, env=env)
+            elements.append(
+                pgast.TupleElement(
+                    path_id=el.path_id, name=el.name, val=val))
+
+        ref = pgast.TupleVar(
+            elements,
+            named=ref.named,
+            typeref=ref.typeref,
+        )
+
     refexpr = output.serialize_expr(ref, path_id=path_id, env=env)
     alias = get_path_output_alias(path_id, aspect, env=env)
 

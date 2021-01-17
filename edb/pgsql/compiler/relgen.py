@@ -798,15 +798,6 @@ def process_set_as_link_property_ref(
         rvars.append(SetRVar(
             link_rvar, link_path_id, aspects=['value', 'source']))
 
-        target_rvar = pathctx.maybe_get_path_rvar(
-            source_scope_stmt, link_path_id.tgt_path(),
-            aspect='value', env=ctx.env)
-
-        if target_rvar is None:
-            target_rvar = relctx.new_root_rvar(ir_source, ctx=newctx)
-
-        rvars.append(SetRVar(target_rvar, link_path_id.tgt_path()))
-
     return SetRVars(main=SetRVar(link_rvar, ir_set.path_id), new=rvars)
 
 

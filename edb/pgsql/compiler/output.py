@@ -710,9 +710,13 @@ def top_output_as_value(
         # into a JSON array.
         return aggregate_json_output(stmt, ir_set, env=env)
 
-    elif (env.output_format is context.OutputFormat.NATIVE and
-            env.explicit_top_cast is not None):
-
+    elif (
+        env.explicit_top_cast is not None
+        and (
+            env.output_format is context.OutputFormat.NATIVE
+            or env.output_format is context.OutputFormat.NATIVE_INTERNAL
+        )
+    ):
         typecast = pgast.TypeCast(
             arg=stmt.target_list[0].val,
             type_name=pgast.TypeName(
