@@ -55,6 +55,7 @@ from edb.schema import pseudo as s_pseudo
 from edb.schema import roles as s_roles
 from edb.schema import sources as s_sources
 from edb.schema import types as s_types
+from edb.schema import utils as s_utils
 
 from edb.common import markup
 from edb.common import ordered
@@ -2165,9 +2166,6 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
         source_ctx = self.get_referrer_context_or_die(context)
         source_op = source_ctx.op
 
-        if not pointer.is_endpoint_pointer(orig_schema):
-            self._alter_pointer_type(pointer, schema, orig_schema, context)
-
         old_ptr_stor_info = types.get_pointer_storage_info(
             pointer, schema=orig_schema)
         new_ptr_stor_info = types.get_pointer_storage_info(
@@ -2263,20 +2261,9 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
     def _alter_pointer_type(self, pointer, schema, orig_schema, context):
         old_ptr_stor_info = types.get_pointer_storage_info(
             pointer, schema=orig_schema)
-        old_target = pointer.get_target(orig_schema)
         new_target = pointer.get_target(schema)
 
-        alters = self.get_subcommands(type=s_pointers.SetPointerType)
-
-        if alters:
-            assert len(alters) == 1, 'expected only one SET TYPE'
-            using_eql_expr = next(iter(alters)).cast_expr
-        else:
-            using_eql_expr = None
-
-        if old_target == new_target and using_eql_expr is None:
-            return
-
+        using_eql_expr = self.cast_expr
         ptr_table = old_ptr_stor_info.table_type == 'link'
         is_link = isinstance(pointer, s_links.Link)
         is_lprop = pointer.is_link_property(schema)
@@ -2286,7 +2273,7 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
 
         if is_multi:
             if isinstance(self, sd.AlterObjectFragment):
-                source_op = self.get_parent_op()
+                source_op = self.get_parent_op(context)
             else:
                 source_op = self
         else:
@@ -2296,11 +2283,6 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
         # Ignore type narrowing resulting from a creation of a subtype
         # as there isn't any data in the link yet.
         if is_link and isinstance(source_op, sd.CreateObject):
-            return
-
-        # Changes to alias pointers are immaterial.  Perhaps this should
-        # be moved up the call stack?
-        if self.maybe_get_object_aux_data('is_from_alias'):
             return
 
         new_target = pointer.get_target(schema)
@@ -2322,121 +2304,169 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
         ):
             return
 
-        if using_eql_expr is not None:
-            # The EdgeQL statement contained a USING clause.  There are
-            # two major possibilities: 1) trivial case, where the USING
-            # clause refers only to the columns of the source table, in
-            # which case we simply compile that into an equivalent SQL
-            # USING clause, and 2) complex case, which supports arbitrary
-            # queries, but requires a temporary column, which is populated
-            # with the transition query and then used as the source for
-            # the SQL USING clause.
-            if using_eql_expr.irast is not None:
-                ir = using_eql_expr.irast
-            else:
-                using_eql_expr = self._compile_expr(
-                    orig_schema,
-                    context,
-                    using_eql_expr,
-                    target_as_singleton=True,
-                )
-                ir = using_eql_expr.irast
-
-            assert ir is not None
-
-            expr_is_nullable = using_eql_expr.cardinality.can_be_zero()
-
-            refs = irutils.get_longest_paths(ir.expr)
-            ref_tables = schemamech.get_ref_storage_info(ir.schema, refs)
-
-            local_table_only = all(
-                t == old_ptr_stor_info.table_name
-                for t in ref_tables
+        if using_eql_expr is None and not is_link:
+            # A lack of an explicit EdgeQL conversion expression means
+            # that the new type is assignment-castable from the old type
+            # in the EdgeDB schema.  BUT, it would not necessarily be
+            # assignment-castable in Postgres, especially if the types are
+            # compound.  Thus, generate an explicit cast expression.
+            pname = pointer.get_shortname(schema).name
+            using_eql_expr = s_expr.Expression.from_ast(
+                ql_ast.TypeCast(
+                    expr=ql_ast.Path(
+                        partial=True,
+                        steps=[
+                            ql_ast.Ptr(
+                                ptr=ql_ast.ObjectRef(name=pname),
+                                type='property' if is_lprop else None,
+                            ),
+                        ],
+                    ),
+                    type=s_utils.typeref_to_ast(schema, new_target),
+                ),
+                schema=orig_schema,
             )
 
-            using_expr_is_trivial = (
-                not is_link
-                # SQL SET TYPE cannot contain references
-                # outside of the local table.
-                and local_table_only
-                # Changes to a multi-pointer might involve contraction of
-                # the overall cardinality, i.e. the deletion some rows.
-                and not is_multi
-                # If the property is required, and the USING expression
-                # was not proven by the compiler to not return ZERO, we
-                # must inject an explicit NULL guard, as the SQL null
-                # violation error is very nondescript in the context of
-                # a table rewrite, making it hard to pinpoint the failing
-                # object.
-                and (not is_required or not expr_is_nullable)
-            )
-
-            need_temp_col = (
-                (is_multi and expr_is_nullable)
-                or (changing_col_type and not using_expr_is_trivial)
-            )
-
-            if not using_expr_is_trivial:
-                # Non-trivial conversion expression means that we
-                # are compiling a full-blown EdgeQL statement as
-                # opposed to compiling a scalar fragment in trivial
-                # expression mode.
-                alias = f'alias_{uuidgen.uuid1mc()}'
-                external_rvars = {}
-
-                if is_lprop:
-                    tgt_path_id = irpathid.PathId.from_pointer(
-                        orig_schema,
-                        pointer,
-                    ).src_path()
-                else:
-                    tgt_path_id = irpathid.PathId.from_pointer(
-                        orig_schema,
-                        pointer,
-                    )
-
-                ptr_path_id = tgt_path_id.ptr_path()
-                src_path_id = ptr_path_id.src_path()
-
-                if ptr_table:
-                    rvar = compiler.new_external_rvar(
-                        rel_name=(alias,),
-                        path_id=ptr_path_id,
-                        outputs={
-                            (src_path_id, ('identity',)): 'source',
-                        },
-                    )
-                    external_rvars[ptr_path_id, 'source'] = rvar
-                    external_rvars[ptr_path_id, 'value'] = rvar
-                    external_rvars[src_path_id, 'identity'] = rvar
-                    if local_table_only:
-                        external_rvars[src_path_id, 'source'] = rvar
-                        external_rvars[src_path_id, 'value'] = rvar
-                    if is_lprop:
-                        external_rvars[tgt_path_id, 'identity'] = rvar
-                        external_rvars[tgt_path_id, 'value'] = rvar
-                else:
-                    src_rvar = compiler.new_external_rvar(
-                        rel_name=(alias,),
-                        path_id=src_path_id,
-                        outputs={},
-                    )
-                    external_rvars[src_path_id, 'identity'] = src_rvar
-                    external_rvars[src_path_id, 'value'] = src_rvar
-                    external_rvars[src_path_id, 'source'] = src_rvar
-            else:
-                external_rvars = None
-
-            sql_tree = compiler.compile_ir_to_sql_tree(
-                ir,
-                output_format=compiler.OutputFormat.NATIVE_INTERNAL,
-                singleton_mode=using_expr_is_trivial,
-                external_rvars=external_rvars,
-            )
-
-            using_expr = codegen.generate_source(sql_tree)
+        # There are two major possibilities about the USING claus:
+        # 1) trivial case, where the USING clause refers only to the
+        # columns of the source table, in which case we simply compile that
+        # into an equivalent SQL USING clause, and 2) complex case, which
+        # supports arbitrary queries, but requires a temporary column,
+        # which is populated with the transition query and then used as the
+        # source for the SQL USING clause.
+        if using_eql_expr.irast is not None:
+            ir = using_eql_expr.irast
         else:
-            need_temp_col = False
+            using_eql_expr = self._compile_expr(
+                orig_schema,
+                context,
+                using_eql_expr,
+                target_as_singleton=True,
+            )
+            ir = using_eql_expr.irast
+
+        assert ir is not None
+
+        if ir.stype != new_target and not is_link:
+            # The result of an EdgeQL USING clause does not match
+            # the target type exactly, but is castable.  Like in the
+            # case of an empty USING clause, we still have to make
+            # ane explicit EdgeQL cast rather than rely on Postgres
+            # casting.
+            using_eql_expr = self._compile_expr(
+                orig_schema,
+                context,
+                s_expr.Expression.from_ast(
+                    ql_ast.TypeCast(
+                        expr=using_eql_expr.qlast,
+                        type=s_utils.typeref_to_ast(schema, new_target),
+                    ),
+                    schema=orig_schema,
+                ),
+                target_as_singleton=True,
+            )
+
+            ir = using_eql_expr.irast
+
+        expr_is_nullable = using_eql_expr.cardinality.can_be_zero()
+
+        refs = irutils.get_longest_paths(ir.expr)
+        ref_tables = schemamech.get_ref_storage_info(ir.schema, refs)
+
+        local_table_only = all(
+            t == old_ptr_stor_info.table_name
+            for t in ref_tables
+        )
+
+        # TODO: implement IR complexity inference
+        can_translate_to_sql_value_expr = False
+
+        using_expr_is_trivial = (
+            # Only allow trivial USING if we can compile the
+            # EdgeQL expression into a trivial SQL value expression.
+            can_translate_to_sql_value_expr
+            # No link expr is trivially translatable into
+            # a USING SQL clause.
+            and not is_link
+            # SQL SET TYPE cannot contain references
+            # outside of the local table.
+            and local_table_only
+            # Changes to a multi-pointer might involve contraction of
+            # the overall cardinality, i.e. the deletion some rows.
+            and not is_multi
+            # If the property is required, and the USING expression
+            # was not proven by the compiler to not return ZERO, we
+            # must inject an explicit NULL guard, as the SQL null
+            # violation error is very nondescript in the context of
+            # a table rewrite, making it hard to pinpoint the failing
+            # object.
+            and (not is_required or not expr_is_nullable)
+        )
+
+        need_temp_col = (
+            (is_multi and expr_is_nullable)
+            or (changing_col_type and not using_expr_is_trivial)
+        )
+
+        if not using_expr_is_trivial:
+            # Non-trivial conversion expression means that we
+            # are compiling a full-blown EdgeQL statement as
+            # opposed to compiling a scalar fragment in trivial
+            # expression mode.
+            alias = f'alias_{uuidgen.uuid1mc()}'
+            external_rvars = {}
+
+            if is_lprop:
+                tgt_path_id = irpathid.PathId.from_pointer(
+                    orig_schema,
+                    pointer,
+                ).src_path()
+            else:
+                tgt_path_id = irpathid.PathId.from_pointer(
+                    orig_schema,
+                    pointer,
+                )
+
+            ptr_path_id = tgt_path_id.ptr_path()
+            src_path_id = ptr_path_id.src_path()
+
+            if ptr_table:
+                rvar = compiler.new_external_rvar(
+                    rel_name=(alias,),
+                    path_id=ptr_path_id,
+                    outputs={
+                        (src_path_id, ('identity',)): 'source',
+                    },
+                )
+                external_rvars[ptr_path_id, 'source'] = rvar
+                external_rvars[ptr_path_id, 'value'] = rvar
+                external_rvars[src_path_id, 'identity'] = rvar
+                if local_table_only and not is_lprop:
+                    external_rvars[src_path_id, 'source'] = rvar
+                    external_rvars[src_path_id, 'value'] = rvar
+                elif is_lprop:
+                    external_rvars[tgt_path_id, 'identity'] = rvar
+                    external_rvars[tgt_path_id, 'value'] = rvar
+            else:
+                src_rvar = compiler.new_external_rvar(
+                    rel_name=(alias,),
+                    path_id=src_path_id,
+                    outputs={},
+                )
+                external_rvars[src_path_id, 'identity'] = src_rvar
+                external_rvars[src_path_id, 'value'] = src_rvar
+                external_rvars[src_path_id, 'source'] = src_rvar
+        else:
+            external_rvars = None
+
+        sql_tree = compiler.compile_ir_to_sql_tree(
+            ir,
+            output_format=compiler.OutputFormat.NATIVE_INTERNAL,
+            singleton_mode=using_expr_is_trivial,
+            external_rvars=external_rvars,
+        )
+
+        using_expr = codegen.generate_source(sql_tree)
 
         if changing_col_type:
             self.pgops.add(source_op.drop_inhview(
@@ -2854,8 +2884,18 @@ class SetLinkType(LinkMetaCommand, adapts=s_links.SetLinkType):
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
+        orig_schema = schema
         schema = s_links.SetLinkType.apply(self, schema, context)
-        return LinkMetaCommand.apply(self, schema, context)
+        schema = LinkMetaCommand.apply(self, schema, context)
+        pop = self.get_parent_op(context)
+        orig_type = self.scls.get_target(orig_schema)
+        new_type = self.scls.get_target(schema)
+        if (
+            not pop.maybe_get_object_aux_data('is_from_alias')
+            and (orig_type != new_type or self.cast_expr is not None)
+        ):
+            self._alter_pointer_type(self.scls, schema, orig_schema, context)
+        return schema
 
 
 class AlterLinkUpperCardinality(
@@ -3209,8 +3249,20 @@ class SetPropertyType(
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
+        pop = self.get_parent_op(context)
+        orig_schema = schema
         schema = s_props.SetPropertyType.apply(self, schema, context)
-        return PropertyMetaCommand.apply(self, schema, context)
+        schema = PropertyMetaCommand.apply(self, schema, context)
+        pop = self.get_parent_op(context)
+        orig_type = self.scls.get_target(orig_schema)
+        new_type = self.scls.get_target(schema)
+        if (
+            not pop.maybe_get_object_aux_data('is_from_alias')
+            and not self.scls.is_endpoint_pointer(schema)
+            and (orig_type != new_type or self.cast_expr is not None)
+        ):
+            self._alter_pointer_type(self.scls, schema, orig_schema, context)
+        return schema
 
 
 class AlterPropertyUpperCardinality(
