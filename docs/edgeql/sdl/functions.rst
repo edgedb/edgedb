@@ -17,9 +17,9 @@ the end of the that string:
 .. code-block:: sdl
 
     function foo(s: str) -> str
-        using EdgeQL $$
+        using (
             SELECT s ++ <str>len(a)
-        $$;
+        );
 
 
 Syntax
