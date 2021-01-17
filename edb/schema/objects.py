@@ -196,6 +196,7 @@ class ComparisonContext:
     renames: Dict[Tuple[Type[Object], sn.Name], sd.RenameObject[Object]]
     deletions: Dict[Tuple[Type[Object], sn.Name], sd.DeleteObject[Object]]
     guidance: Optional[DeltaGuidance]
+    parent_ops: List[sd.ObjectCommand[Any]]
 
     def __init__(
         self,
@@ -209,6 +210,8 @@ class ComparisonContext:
         self.guidance = guidance
         self.renames = {}
         self.deletions = {}
+        self.placeholder_ctr: Dict[str, int] = collections.Counter()
+        self.parent_ops = []
 
     def is_deleting(self, schema: s_schema.Schema, obj: Object) -> bool:
         return (type(obj), obj.get_name(schema)) in self.deletions
@@ -229,6 +232,14 @@ class ComparisonContext:
             return rename_op.new_name
         else:
             return obj_name
+
+    def get_placeholder(self, prefix: str) -> str:
+        ctr = self.placeholder_ctr[prefix]
+        self.placeholder_ctr[prefix] += 1
+        if ctr == 0:
+            return f'{prefix}'
+        else:
+            return f'{prefix}_{ctr}'
 
 
 # derived from ProtoField for validation
@@ -1697,6 +1708,8 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
                 key=lambda o: o.get_name(other_schema),
             )
 
+            context.parent_ops.append(delta)
+
             delta.add(
                 sd.delta_objects(
                     oldcoll_idx,
@@ -1708,6 +1721,8 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
                     new_schema=other_schema,
                 ),
             )
+
+            context.parent_ops.pop()
 
         return delta
 
@@ -1780,7 +1795,7 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         else:
             orig_is_computed = is_computed
 
-        delta.set_attribute_value(
+        cmd = delta.set_attribute_value(
             fname,
             value,
             orig_value=orig_value,
@@ -1788,6 +1803,14 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
             orig_computed=orig_is_computed,
             from_default=from_default,
         )
+
+        context.parent_ops.append(delta)
+        cmd.record_diff_annotations(
+            schema=schema,
+            orig_schema=orig_schema,
+            context=context,
+        )
+        context.parent_ops.pop()
 
     def record_field_create_delta(
         self: Object_T,
@@ -2998,7 +3021,7 @@ class InheritingObject(SubclassableObject):
         else:
             orig_is_computed = is_computed
 
-        delta.set_attribute_value(
+        cmd = delta.set_attribute_value(
             fname,
             value=value,
             orig_value=orig_value,
@@ -3008,6 +3031,14 @@ class InheritingObject(SubclassableObject):
             orig_computed=orig_is_computed,
             from_default=from_default,
         )
+
+        context.parent_ops.append(delta)
+        cmd.record_diff_annotations(
+            schema=schema,
+            orig_schema=orig_schema,
+            context=context,
+        )
+        context.parent_ops.pop()
 
     def get_field_create_delta(
         self: InheritingObjectT,

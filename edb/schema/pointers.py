@@ -1548,6 +1548,116 @@ class SetPointerType(
     def is_data_safe(self) -> bool:
         return False
 
+    def record_diff_annotations(
+        self,
+        schema: s_schema.Schema,
+        orig_schema: Optional[s_schema.Schema],
+        context: so.ComparisonContext,
+    ) -> None:
+        super().record_diff_annotations(
+            schema=schema,
+            orig_schema=orig_schema,
+            context=context,
+        )
+
+        if orig_schema is None:
+            return
+
+        if not context.generate_prompts:
+            return
+
+        old_type_shell = self.get_orig_attribute_value('target')
+        new_type_shell = self.get_attribute_value('target')
+
+        assert isinstance(old_type_shell, s_types.TypeShell)
+        assert isinstance(new_type_shell, s_types.TypeShell)
+
+        old_type: Optional[s_types.Type] = None
+
+        try:
+            old_type = old_type_shell.resolve(schema)
+        except errors.InvalidReferenceError:
+            # The original type does not exist in the new schema,
+            # which means either of the two things:
+            # 1) the original type is a collection, in which case we can
+            #    attempt to temporarily recreate it in the new schema to
+            #    check castability;
+            # 2) the original type is not a collection, and was removed
+            #    in the new schema; there is no way for us to infer
+            #    castability and we assume a cast expression is needed.
+            if isinstance(old_type_shell, s_types.CollectionTypeShell):
+                create = old_type_shell.as_create_delta(schema)
+                try:
+                    schema = sd.apply(create, schema=schema)
+                except errors.InvalidReferenceError:
+                    # A removed type is part of the collection,
+                    # can't do anything about that.
+                    pass
+                else:
+                    old_type = old_type_shell.resolve(schema)
+
+        new_type = new_type_shell.resolve(schema)
+
+        assert len(context.parent_ops) > 1
+        ptr_op = context.parent_ops[-1]
+        src_op = context.parent_ops[-2]
+        needs_cast = (
+            old_type is None
+            or self._needs_cast_expr(
+                schema=schema,
+                ptr_op=ptr_op,
+                src_op=src_op,
+                old_type=old_type,
+                new_type=new_type,
+            )
+        )
+
+        if needs_cast:
+            placeholder_name = context.get_placeholder('cast_expr')
+            desc = self.get_friendly_description(schema=schema)
+            prompt = f'Please specify a conversion expression to {desc}'
+            self.set_annotation('required_input', {
+                placeholder_name: prompt,
+            })
+
+            self.cast_expr = s_expr.Expression.from_ast(
+                qlast.Placeholder(name=placeholder_name),
+                schema,
+            )
+
+    def _is_endpoint_property(self) -> bool:
+        mcls = self.get_schema_metaclass()
+        shortname = mcls.get_shortname_static(self.classname)
+        quals = sn.quals_from_fullname(self.classname)
+        if not quals:
+            return False
+        else:
+            source = quals[0]
+            return (
+                sn.is_fullname(source)
+                and str(shortname) in {'__::source', '__::target'}
+            )
+
+    def _needs_cast_expr(
+        self,
+        *,
+        schema: s_schema.Schema,
+        ptr_op: sd.ObjectCommand[so.Object],
+        src_op: sd.ObjectCommand[so.Object],
+        old_type: s_types.Type,
+        new_type: s_types.Type,
+    ) -> bool:
+        return (
+            not old_type.assignment_castable_to(new_type, schema)
+            and not ptr_op.maybe_get_object_aux_data('is_from_alias')
+            and self.cast_expr is None
+            and not self._is_endpoint_property()
+            and not (
+                ptr_op.get_attribute_value('declared_overloaded')
+                or isinstance(src_op, sd.CreateObject)
+            )
+        )
+
     def _alter_begin(
         self,
         schema: s_schema.Schema,
@@ -1579,20 +1689,15 @@ class SetPointerType(
         if not context.canonical:
             assert orig_target is not None
             assert new_target is not None
-            pop = self.get_parent_op(context)
+            ptr_op = self.get_parent_op(context)
+            src_op = self.get_referrer_context_or_die(context).op
 
-            if (
-                not orig_target.assignment_castable_to(new_target, schema)
-                and not pop.maybe_get_object_aux_data('is_from_alias')
-                and not scls.is_endpoint_pointer(schema)
-                and self.cast_expr is None
-                and not (
-                    pop.get_attribute_value('declared_overloaded')
-                    or isinstance(
-                        self.get_referrer_context_or_die(context).op,
-                        sd.CreateObject
-                    )
-                )
+            if self._needs_cast_expr(
+                schema=schema,
+                ptr_op=ptr_op,
+                src_op=src_op,
+                old_type=orig_target,
+                new_type=new_target,
             ):
                 vn = scls.get_verbosename(schema, with_parent=True)
                 ot = orig_target.get_verbosename(schema)
@@ -1680,6 +1785,26 @@ class SetPointerType(
             )
 
         return cmd
+
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
+        set_field = super()._get_ast(schema, context, parent_node=parent_node)
+        if set_field is None:
+            return None
+        else:
+            assert isinstance(set_field, qlast.SetField)
+            return qlast.SetPointerType(
+                value=set_field.value,
+                cast_expr=(
+                    self.cast_expr.qlast
+                    if self.cast_expr is not None else None
+                )
+            )
 
 
 class AlterPointerUpperCardinality(

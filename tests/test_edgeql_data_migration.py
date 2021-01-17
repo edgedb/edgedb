@@ -16,9 +16,12 @@
 # limitations under the License.
 #
 
+from __future__ import annotations
+from typing import *
 
 import json
 import os.path
+import re
 import textwrap
 import uuid
 
@@ -74,7 +77,12 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             self.add_fail_notes(serialization='json')
             raise
 
-    async def fast_forward_describe_migration(self, *, limit=None):
+    async def fast_forward_describe_migration(
+        self,
+        *,
+        limit=None,
+        user_input: Optional[Iterable[str]] = None,
+    ):
         '''Repeatedly get the next step from DESCRIBE and execute it.
 
         The point of this as opposed to just using "POPULATE
@@ -85,6 +93,11 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         # Keep track of proposed DDL
         prevddl = ''
+
+        if user_input is None:
+            input_iter: Iterator[str] = iter(tuple())
+        else:
+            input_iter = iter(user_input)
 
         try:
             step = 0
@@ -101,8 +114,38 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                     await self.con.execute('COMMIT MIGRATION;')
                     break
 
+                interpolations = {}
+
+                user_input_reqs = mig['proposed']['required_user_input']
+                if user_input_reqs:
+                    for var in user_input_reqs:
+                        var_name = var['placeholder']
+                        var_desc = var['prompt']
+                        try:
+                            var_value = next(input_iter)
+                        except StopIteration:
+                            raise AssertionError(
+                                f'missing input value for prompt: {var_desc}'
+                            ) from None
+
+                        interpolations[var_name] = var_value
+
                 for stmt in mig['proposed']['statements']:
                     curddl = stmt['text']
+
+                    if interpolations:
+                        def _replace(match):
+                            var_name = match.group(1)
+                            var_value = interpolations.get(var_name)
+                            if var_value is None:
+                                raise AssertionError(
+                                    f'missing value for '
+                                    f'placeholder {var_name!r}'
+                                )
+                            return var_value
+
+                        curddl = re.sub(r'\\\((\w+)\)', _replace, curddl)
+
                     if prevddl == curddl:
                         raise Exception(
                             f"Repeated previous proposed DDL {curddl!r}"
@@ -135,12 +178,18 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         if populate:
             await self.con.execute('POPULATE MIGRATION;')
 
-    async def migrate(self, migration, *,
-                      populate: bool = False, module: str = 'test'):
+    async def migrate(
+        self,
+        migration,
+        *,
+        populate: bool = False,
+        module: str = 'test',
+        user_input: Optional[Iterable[str]] = None,
+    ):
         async with self.con.transaction():
             await self.start_migration(
                 migration, populate=populate, module=module)
-            await self.fast_forward_describe_migration()
+            await self.fast_forward_describe_migration(user_input=user_input)
 
     async def test_edgeql_migration_simple_01(self):
         # Base case, ensuring a single SDL migration from a clean
@@ -3319,7 +3368,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-    @test.xfail('needs SET TYPE guidance')
     async def test_edgeql_migration_eq_26(self):
         await self.migrate(r"""
             type Child;
@@ -3360,20 +3408,37 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-        await self.migrate(r"""
-            type Child;
+        await self.migrate(
+            r"""
+                type Child;
 
-            type DerivedChild extending Child;
+                type DerivedChild extending Child;
 
-            type Parent {
-                link bar -> Child;
-            }
+                type Parent {
+                    link bar -> Child;
+                }
 
-            # derive a type with a more restrictive link
-            type DerivedParent extending Parent {
-                overloaded link bar -> DerivedChild;
-            }
-        """)
+                type DerivedParent extending Parent;
+            """,
+        )
+
+        await self.migrate(
+            r"""
+                type Child;
+
+                type DerivedChild extending Child;
+
+                type Parent {
+                    link bar -> Child;
+                }
+
+                # derive a type with a more restrictive link
+                type DerivedParent extending Parent {
+                    overloaded link bar -> DerivedChild;
+                }
+            """,
+            user_input=[".bar[IS DerivedChild]"],
+        )
 
         await self.con.execute(r"""
             INSERT DerivedParent {
@@ -3775,7 +3840,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             ],
         )
 
-    @test.xfail('needs SET TYPE guidance')
     async def test_edgeql_migration_eq_33(self):
         await self.migrate(r"""
             type Child;
@@ -3808,15 +3872,31 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-        await self.migrate(r"""
-            type Child;
-            type Child2;
+        await self.migrate(
+            r"""
+                type Child;
+                type Child2;
 
-            type Base {
-                # change link type
-                link foo -> Child2;
-            }
-        """)
+                type Base {
+                    link foo -> Child;
+                }
+            """,
+        )
+
+        await self.migrate(
+            r"""
+                type Child;
+                type Child2;
+
+                type Base {
+                    # change link type
+                    link foo -> Child2;
+                }
+            """,
+            user_input=[
+                '.foo[IS Child2]'
+            ],
+        )
 
         await self.assert_query_result(
             r"""
@@ -6774,13 +6854,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [[1.0, 2.0]],
         )
 
-    @test.xfail('''
-        ISE: column <blah> cannot be cast automatically to type
-           <blah>
-
-        I think we ought to generate a DROP/CREATE and also reject the ALTER
-        with a real error message.
-    ''')
     async def test_edgeql_migration_eq_collections_07(self):
         await self.con.execute("""
             SET MODULE test;
@@ -6788,45 +6861,41 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.migrate(r"""
             type Base {
                 # convert property type to tuple
+                property bar -> array<str>;
                 property foo -> tuple<str, int32>;
             }
         """)
 
         await self.con.execute(r"""
             INSERT Base {
-                foo := ('test', <int32>7)
+                bar := ['123'],
+                foo := ('test', <int32>7),
             }
         """)
 
-        await self.migrate(r"""
-            type Base {
-                # convert property type to a bigger tuple
-                property foo -> tuple<str, int32, int32>;
-            }
-        """)
-
-        # expect that the new value is simply empty
-        await self.assert_query_result(
-            r"""SELECT Base.foo;""",
-            [],
+        await self.migrate(
+            r"""
+                type Base {
+                    property bar -> array<int64>;
+                    property foo -> tuple<str, int32, int32>;
+                }
+            """,
+            user_input=[
+                "<array<int64>>.bar",
+                "(.foo.0, .foo.1, 0)",
+            ]
         )
 
-        await self.con.execute(r"""
-            UPDATE Base
-            SET {
-                foo := ('new', 7, 1)
-            };
-        """)
         await self.assert_query_result(
-            r"""SELECT Base.foo;""",
-            [['new', 7, 1]],
+            r"""SELECT Base.bar;""",
+            [[123]],
         )
 
-    @test.xfail('''
-        ISE: cannot be cast automatically
+        await self.assert_query_result(
+            r"""SELECT Base.foo;""",
+            [['test', 7, 0]],
+        )
 
-        The test case thinks this ought to work, at least.
-    ''')
     async def test_edgeql_migration_eq_collections_08(self):
         await self.migrate(r"""
             type Base {
@@ -6846,23 +6915,15 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Base {
                 # convert property type to a tuple with different (but
                 # cast-compatible) element types
-                property foo -> tuple<str, int32>;
+                property foo -> tuple<int64, int32>;
             }
         """)
 
-        # In theory, since under normal circumstances we can cast one
-        # tuple into the other, it's reasonable to expect this
-        # migration to preserve data here.
         await self.assert_query_result(
             r"""SELECT Base.foo;""",
-            [['0', 8]],
+            [[0, 8]],
         )
 
-    @test.xfail('''
-        ISE: cannot be cast automatically
-
-        The test case thinks this ought to work, at least.
-    ''')
     async def test_edgeql_migration_eq_collections_09(self):
         await self.migrate(r"""
             type Base {
@@ -7879,13 +7940,9 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.fast_forward_describe_migration()
 
     async def test_edgeql_migration_prompt_id_01(self):
-        await self.con.execute('''
-            START MIGRATION TO {
-                module test {
-                    type Bar { link spam -> Spam };
-                    type Spam { link bar -> Bar };
-                };
-            };
+        await self.start_migration('''
+            type Bar { link spam -> Spam };
+            type Spam { link bar -> Bar };
         ''')
 
         await self.assert_describe_migration({
@@ -7927,6 +7984,36 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                     """,
                 }],
                 'confidence': 1.0,
+            },
+        })
+
+    async def test_edgeql_migration_user_input_01(self):
+        await self.migrate('''
+            type Bar { property foo -> str };
+        ''')
+
+        await self.start_migration('''
+            type Bar { property foo -> int64 };
+        ''')
+
+        await self.assert_describe_migration({
+            'proposed': {
+                'statements': [{
+                    'text': '''
+                        ALTER TYPE test::Bar {
+                            ALTER PROPERTY foo {
+                                SET TYPE std::int64 USING (\\(cast_expr));
+                            };
+                        };
+                    '''
+                }],
+                'required_user_input': [{
+                    'placeholder': 'cast_expr',
+                    'prompt': (
+                        "Please specify a conversion expression"
+                        " to alter the type of property 'foo'"
+                    ),
+                }],
             },
         })
 

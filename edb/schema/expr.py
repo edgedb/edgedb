@@ -111,12 +111,14 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
         cls: Type[Expression],
         qltree: qlast_.Base,
         schema: s_schema.Schema,
-        modaliases: Mapping[Optional[str], str],
+        modaliases: Optional[Mapping[Optional[str], str]] = None,
         localnames: AbstractSet[str] = frozenset(),
         *,
         as_fragment: bool = False,
         orig_text: Optional[str] = None,
     ) -> Expression:
+        if modaliases is None:
+            modaliases = {}
         if orig_text is None:
             orig_text = qlcodegen.generate_source(qltree, pretty=False)
         if not as_fragment:

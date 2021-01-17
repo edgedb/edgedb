@@ -588,6 +588,11 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_Parameter(self, node: qlast.Parameter) -> None:
         self.write(param_to_str(node.name))
 
+    def visit_Placeholder(self, node: qlast.Placeholder) -> None:
+        self.write('\\(')
+        self.write(node.name)
+        self.write(')')
+
     def visit_StringConstant(self, node: qlast.StringConstant) -> None:
         if not _NON_PRINTABLE_RE.search(node.value):
             for d in ("'", '"', '$$'):
@@ -1536,12 +1541,15 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_DropObject(node, 'LINK', unqualified=True)
 
     def visit_SetPointerType(self, node: qlast.SetPointerType) -> None:
-        self.write('SET TYPE ')
-        self.visit(node.value)
-        if node.cast_expr is not None:
-            self.write(' USING (')
-            self.visit(node.cast_expr)
-            self.write(')')
+        if node.value is None:
+            self.write('RESET TYPE')
+        else:
+            self.write('SET TYPE ')
+            self.visit(node.value)
+            if node.cast_expr is not None:
+                self.write(' USING (')
+                self.visit(node.cast_expr)
+                self.write(')')
 
     def visit_OnTargetDelete(self, node: qlast.OnTargetDelete) -> None:
         self._write_keywords('ON TARGET DELETE ', node.cascade.to_edgeql())

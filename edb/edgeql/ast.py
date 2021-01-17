@@ -137,6 +137,11 @@ class Options(Base):
         return len(self.options)
 
 
+class Placeholder(Base):
+    """An interpolation placeholder used in expression templates."""
+    name: str
+
+
 class Expr(Base):
     """Abstract parent for all query expressions."""
     __abstract_node__ = True

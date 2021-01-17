@@ -411,6 +411,32 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
     def is_data_safe(self) -> bool:
         return False
 
+    def get_required_user_input(self) -> Dict[str, str]:
+        return {}
+
+    def record_diff_annotations(
+        self,
+        schema: s_schema.Schema,
+        orig_schema: Optional[s_schema.Schema],
+        context: so.ComparisonContext,
+    ) -> None:
+        """Record extra information on a delta obtained by diffing schemas.
+
+        This provides an apportunity for a delta command to annotate itself
+        in schema diff schenarios (i.e. migrations).
+
+        Args:
+            schema:
+                Final schema of a migration.
+
+            orig_schema:
+                Original schema of a migration.
+
+            context:
+                Schema comparison context.
+        """
+        pass
+
     def resolve_obj_collection(
         self,
         value: Any,
@@ -1462,6 +1488,16 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                 subcmd.is_data_safe()
                 for subcmd in self.get_subcommands()
             )
+
+    def get_required_user_input(self) -> Dict[str, str]:
+        result: Dict[str, str] = self.get_annotation('required_input')
+        if result is None:
+            result = {}
+        for cmd in self.get_subcommands():
+            subresult = cmd.get_required_user_input()
+            if subresult:
+                result.update(subresult)
+        return result
 
     def get_friendly_description(
         self,
@@ -3976,3 +4012,21 @@ def get_object_command_id(delta: ObjectCommand[Any]) -> str:
 
     qlcls = delta.get_schema_metaclass().get_ql_class_or_die()
     return f'{cmdtype.__name__} {qlcls} {quoted_name}'
+
+
+def apply(
+    delta: Command,
+    *,
+    schema: s_schema.Schema,
+    context: Optional[CommandContext] = None,
+) -> s_schema.Schema:
+    if context is None:
+        context = CommandContext()
+
+    if not isinstance(delta, DeltaRoot):
+        root = DeltaRoot()
+        root.add(delta)
+    else:
+        root = delta
+
+    return root.apply(schema, context)

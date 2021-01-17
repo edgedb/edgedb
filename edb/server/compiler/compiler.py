@@ -766,22 +766,27 @@ class Compiler(BaseCompiler):
             schema = delta.apply(schema, context=context)
 
             if mstate.last_proposed:
-                proposed_stmts = mstate.last_proposed[0].statements
-                ddl_script = '\n'.join(proposed_stmts)
-                proposed_schema = s_ddl.apply_ddl_script(
-                    ddl_script, schema=orig_schema)
-
-                if s_ddl.schemas_are_equal(schema, proposed_schema):
-                    # The client has confirmed the proposed migration step,
-                    # advance the proposed script.
-                    mstate = mstate._replace(
-                        last_proposed=mstate.last_proposed[1:],
-                    )
-                else:
-                    # The client replied with a statement that does not
-                    # match what was proposed, reset the proposed script
-                    # to force script regeneration on next DESCRIBE.
+                if mstate.last_proposed[0].required_user_input:
+                    # Cannot auto-apply the proposed DDL
+                    # if user input is required.
                     mstate = mstate._replace(last_proposed=tuple())
+                else:
+                    proposed_stmts = mstate.last_proposed[0].statements
+                    ddl_script = '\n'.join(proposed_stmts)
+                    proposed_schema = s_ddl.apply_ddl_script(
+                        ddl_script, schema=orig_schema)
+
+                    if s_ddl.schemas_are_equal(schema, proposed_schema):
+                        # The client has confirmed the proposed migration step,
+                        # advance the proposed script.
+                        mstate = mstate._replace(
+                            last_proposed=mstate.last_proposed[1:],
+                        )
+                    else:
+                        # The client replied with a statement that does not
+                        # match what was proposed, reset the proposed script
+                        # to force script regeneration on next DESCRIBE.
+                        mstate = mstate._replace(last_proposed=tuple())
 
             current_tx.update_migration_state(mstate)
             current_tx.update_schema(schema)
@@ -975,12 +980,16 @@ class Compiler(BaseCompiler):
                             prompt_id, prompt_text = top_op.get_user_prompt()
                             confidence = top_op.get_annotation('confidence')
                             assert confidence is not None
+
                             step = dbstate.ProposedMigrationStep(
                                 statements=(ddl_text,),
                                 confidence=confidence,
                                 prompt=prompt_text,
                                 prompt_id=prompt_id,
                                 data_safe=top_op.is_data_safe(),
+                                required_user_input=tuple(
+                                    top_op.get_required_user_input().items(),
+                                ),
                             )
                             proposed_steps.append(step)
 
