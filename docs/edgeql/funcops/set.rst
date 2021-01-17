@@ -293,7 +293,8 @@ Set
 ----------
 
 
-.. eql:function:: std::sum(s: SET OF int32) -> int64
+.. eql:function:: std::sum(s: SET OF int16) -> int16
+                  std::sum(s: SET OF int32) -> int32
                   std::sum(s: SET OF int64) -> int64
                   std::sum(s: SET OF float32) -> float32
                   std::sum(s: SET OF float64) -> float64
