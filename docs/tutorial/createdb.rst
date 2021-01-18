@@ -42,7 +42,8 @@ who directed and acted in them.
 
 For the next step, there are two ways of setting this up. You have
 two methods to choose from for this: 
-:ref:`ref_tutorial_createdb_sdl` (recommended) or :ref:`ref_tutorial_createdb_ddl`.
+:ref:`ref_tutorial_createdb_sdl` (recommended) or 
+:ref:`ref_tutorial_createdb_ddl`.
 
 
 .. _ref_tutorial_createdb_sdl:
