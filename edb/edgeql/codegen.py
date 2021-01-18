@@ -1551,6 +1551,22 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.visit(node.cast_expr)
                 self.write(')')
 
+    def visit_SetPointerOptionality(
+        self,
+        node: qlast.SetPointerOptionality,
+    ) -> None:
+        if node.value is None:
+            self.write('RESET OPTIONALITY')
+        else:
+            if self._eval_bool_expr(node.value):
+                self.write('SET REQUIRED')
+            else:
+                self.write('SET OPTIONAL')
+            if node.fill_expr is not None:
+                self.write(' USING (')
+                self.visit(node.fill_expr)
+                self.write(')')
+
     def visit_OnTargetDelete(self, node: qlast.OnTargetDelete) -> None:
         self._write_keywords('ON TARGET DELETE ', node.cascade.to_edgeql())
 

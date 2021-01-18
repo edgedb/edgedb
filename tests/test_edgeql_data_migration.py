@@ -2545,45 +2545,88 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         )
 
     async def test_edgeql_migration_eq_07(self):
-        await self.migrate(r"""
-            type Child;
-
-            type Base {
-                link bar -> Child;
-            }
-        """)
         await self.con.execute("""
             SET MODULE test;
         """)
-        res = await self.con.query(r"""
-            SELECT (
-                INSERT Base {
-                    bar := (INSERT Child),
+
+        await self.migrate(r"""
+            type Child {
+                required property name -> str {
+                    constraint exclusive;
                 }
-            ) {
-                bar: {id}
+            }
+
+            type Base {
+                required property name -> str;
+                link bar -> Child;
             }
         """)
 
+        await self.con.execute('''
+            INSERT Child { name := 'c1' };
+            INSERT Child { name := 'c2' };
+
+            INSERT Base {
+                name := 'b1',
+                bar := (SELECT Child FILTER .name = 'c1'),
+            };
+
+            INSERT Base {
+                name := 'b2',
+            };
+        ''')
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    bar: {
+                        name
+                    }
+                } ORDER BY .name;
+            """,
+            [{
+                'bar': {
+                    'name': 'c1',
+                },
+            }, {
+                'bar': None,
+            }],
+        )
+
         await self.migrate(r"""
-            type Child;
+            type Child {
+                required property name -> str {
+                    constraint exclusive;
+                }
+            }
 
             type Base {
+                required property name -> str;
                 required link bar -> Child {
                     # add a constraint
                     constraint exclusive;
                 }
             }
-        """)
+        """, user_input=[
+            "SELECT Child FILTER .name = 'c2'"
+        ])
 
         await self.assert_query_result(
             r"""
                 SELECT Base {
-                    bar: {id},
-                };
+                    bar: {
+                        name
+                    }
+                } ORDER BY .name;
             """,
             [{
-                'bar': {'id': res[0].bar.id},
+                'bar': {
+                    'name': 'c1',
+                },
+            }, {
+                'bar': {
+                    'name': 'c2',
+                },
             }],
         )
 
@@ -2605,7 +2648,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         # data.
         new_state = r"""
             type Base {
-                required property foo -> str {
+                property foo -> str {
                     # add a constraint
                     constraint max_len_value(10);
                 }
@@ -2854,7 +2897,9 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
 
             type Derived extending Base {
-                overloaded required property foo -> str;
+                overloaded property foo -> str {
+                    annotation title := 'overloaded'
+                }
             }
         """)
 
@@ -2950,18 +2995,23 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-        await self.migrate(r"""
-            type Child;
+        await self.migrate(
+            r"""
+                type Child;
 
-            type Base {
-                link bar -> Child;
-            }
+                type Base {
+                    link bar -> Child;
+                }
 
-            type Derived extending Base {
-                # also make the link 'required'
-                overloaded required link bar -> Child;
-            }
-        """)
+                type Derived extending Base {
+                    # also make the link 'required'
+                    overloaded required link bar -> Child;
+                }
+            """,
+            user_input=[
+                '.bar',
+            ],
+        )
 
         await self.assert_query_result(
             r"""

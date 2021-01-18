@@ -561,6 +561,16 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         else:
             return False
 
+    def is_attribute_computed(
+        self,
+        attr_name: str,
+    ) -> bool:
+        op = self._get_attribute_set_cmd(attr_name)
+        if op is not None:
+            return op.new_computed
+        else:
+            return False
+
     def get_attribute_source_context(
         self,
         attr_name: str,

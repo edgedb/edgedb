@@ -998,22 +998,6 @@ class OptAlterUsingClause(Nonterm):
         self.val = None
 
 
-class SetPropertyTypeStmt(Nonterm):
-    def reduce_SETTYPE_FullTypeExpr_OptAlterUsingClause(self, *kids):
-        self.val = qlast.SetPointerType(
-            value=kids[1].val,
-            cast_expr=kids[2].val,
-        )
-
-
-class SetLinkTypeStmt(Nonterm):
-    def reduce_SETTYPE_FullTypeExpr_OptAlterUsingClause(self, *kids):
-        self.val = qlast.SetPointerType(
-            value=kids[1].val,
-            cast_expr=kids[2].val,
-        )
-
-
 #
 # CREATE PROPERTY
 #
@@ -1167,15 +1151,16 @@ class SetCardinalityStmt(Nonterm):
 
 class SetRequiredStmt(Nonterm):
 
-    def reduce_SET_REQUIRED(self, *kids):
-        self.val = qlast.SetField(
+    def reduce_SET_REQUIRED_OptAlterUsingClause(self, *kids):
+        self.val = qlast.SetPointerOptionality(
             name='required',
             value=qlast.BooleanConstant.from_python(True),
             special_syntax=True,
+            fill_expr=kids[2].val,
         )
 
     def reduce_SET_OPTIONAL(self, *kids):
-        self.val = qlast.SetField(
+        self.val = qlast.SetPointerOptionality(
             name='required',
             value=qlast.BooleanConstant.from_python(False),
             special_syntax=True,
@@ -1183,10 +1168,19 @@ class SetRequiredStmt(Nonterm):
 
     def reduce_DROP_REQUIRED(self, *kids):
         # TODO: Raise a DeprecationWarning once we have facility for that.
-        self.val = qlast.SetField(
+        self.val = qlast.SetPointerOptionality(
             name='required',
             value=qlast.BooleanConstant.from_python(False),
             special_syntax=True,
+        )
+
+
+class SetPointerTypeStmt(Nonterm):
+
+    def reduce_SETTYPE_FullTypeExpr_OptAlterUsingClause(self, *kids):
+        self.val = qlast.SetPointerType(
+            value=kids[1].val,
+            cast_expr=kids[2].val,
         )
 
 
@@ -1200,7 +1194,7 @@ commands_block(
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     DropAnnotationValueStmt,
-    SetPropertyTypeStmt,
+    SetPointerTypeStmt,
     SetCardinalityStmt,
     SetRequiredStmt,
     AlterSimpleExtending,
@@ -1415,7 +1409,7 @@ commands_block(
     DropAnnotationValueStmt,
     SetCardinalityStmt,
     SetRequiredStmt,
-    SetLinkTypeStmt,
+    SetPointerTypeStmt,
     AlterSimpleExtending,
     CreateConcreteConstraintStmt,
     AlterConcreteConstraintStmt,

@@ -580,15 +580,16 @@ class CreateReferencedObject(
     @classmethod
     def as_inherited_ref_cmd(
         cls,
+        *,
         schema: s_schema.Schema,
         context: sd.CommandContext,
         astnode: qlast.ObjectDDL,
-        parents: Any,
+        bases: Any,
+        referrer: so.Object,
     ) -> sd.ObjectCommand[ReferencedT]:
         cmd = cls(classname=cls._classname_from_ast(schema, astnode, context))
         cmd.set_attribute_value('name', cmd.classname)
-        cmd.set_attribute_value(
-            'bases', so.ObjectList.create(schema, parents))
+        cmd.set_attribute_value('bases', so.ObjectList.create(schema, bases))
         return cmd
 
     @classmethod
@@ -1128,7 +1129,12 @@ class CreateReferencedInheritingObject(
                 # containing Alter(if_exists) and Create(if_not_exists)
                 # to postpone that check until the application time.
                 ref_create = ref_create_cmd.as_inherited_ref_cmd(
-                    schema, context, astnode, [self.scls])
+                    schema=schema,
+                    context=context,
+                    astnode=astnode,
+                    bases=[self.scls],
+                    referrer=child,
+                )
                 assert isinstance(ref_create, sd.CreateObject)
                 ref_create.if_not_exists = True
 

@@ -379,7 +379,12 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
 
         for create_cmd, astnode, bases in refs.values():
             cmd = create_cmd.as_inherited_ref_cmd(
-                schema, context, astnode, bases)
+                schema=schema,
+                context=context,
+                astnode=astnode,
+                bases=bases,
+                referrer=scls,
+            )
 
             obj = schema.get(cmd.classname, default=None)
             if obj is None:
@@ -810,9 +815,14 @@ class CreateInheritingObject(
         refs = self.get_inherited_ref_layout(schema, context, refdict)
         group = sd.CommandGroup()
 
-        for create_cmd, astnode, parents in refs.values():
+        for create_cmd, astnode, bases in refs.values():
             cmd = create_cmd.as_inherited_ref_cmd(
-                schema, context, astnode, parents)
+                schema=schema,
+                context=context,
+                astnode=astnode,
+                bases=bases,
+                referrer=scls,
+            )
 
             cmd.set_attribute_value(refdict.backref_attr, scls)
 

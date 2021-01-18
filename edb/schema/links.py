@@ -279,8 +279,8 @@ class LinkCommand(
 
 
 class CreateLink(
+    pointers.CreatePointer[Link],
     LinkCommand,
-    referencing.CreateReferencedInheritingObject[Link],
 ):
     astnode = [qlast.CreateConcreteLink, qlast.CreateLink]
     referenced_astnode = qlast.CreateConcreteLink
@@ -517,6 +517,14 @@ class AlterLinkUpperCardinality(
     pointers.AlterPointerUpperCardinality[Link],
     referrer_context_class=LinkSourceCommandContext,
     field='cardinality',
+):
+    pass
+
+
+class AlterLinkLowerCardinality(
+    pointers.AlterPointerLowerCardinality[Link],
+    referrer_context_class=LinkSourceCommandContext,
+    field='required',
 ):
     pass
 

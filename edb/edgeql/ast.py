@@ -639,6 +639,12 @@ class SetPointerType(SetField):
     cast_expr: typing.Optional[Expr]
 
 
+class SetPointerOptionality(SetField):
+    name: str = 'required'
+    special_syntax: bool = True
+    fill_expr: typing.Optional[Expr]
+
+
 class NamedDDL(DDLCommand):
     __abstract_node__ = True
     name: ObjectRef
