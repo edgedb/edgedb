@@ -2608,6 +2608,201 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 ALTER TYPE Foo ALTER LINK l SET TYPE Spam USING (SELECT Spam)
             """)
 
+    async def test_edgeql_ddl_ptr_set_required_01(self):
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            CREATE TYPE Bar {
+                CREATE PROPERTY name -> str {
+                    CREATE CONSTRAINT std::exclusive;
+                }
+            };
+
+            CREATE TYPE Foo {
+                CREATE PROPERTY p -> str;
+                CREATE PROPERTY p2 -> str;
+                CREATE MULTI PROPERTY m_p -> str;
+
+                CREATE LINK l -> Bar {
+                    CREATE PROPERTY lp -> str;
+                };
+                CREATE MULTI LINK m_l -> Bar {
+                    CREATE PROPERTY lp -> str;
+                };
+            };
+
+            INSERT Bar {name := 'bar1'};
+            INSERT Bar {name := 'bar2'};
+
+            WITH
+                bar := (SELECT Bar FILTER .name = 'bar1' LIMIT 1),
+                bars := (SELECT Bar),
+            INSERT Foo {
+                p := '1',
+                p2 := '1',
+                m_p := {'1', '2'},
+
+                l := bar { @lp := '1' },
+                m_l := (
+                    FOR bar IN {enumerate(bars)}
+                    UNION (SELECT bar.1 { @lp := <str>(bar.0 + 1) })
+                ),
+            };
+
+            INSERT Foo {
+                p2 := '3',
+            };
+        """)
+
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                ALTER TYPE Foo ALTER PROPERTY p {
+                    SET REQUIRED USING ('3')
+                }
+            """)
+
+            await self.assert_query_result(
+                'SELECT Foo { p } ORDER BY .p',
+                [
+                    {'p': '1'},
+                    {'p': '3'},
+                ],
+            )
+
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER PROPERTY m_p {
+                    SET REQUIRED USING ('3')
+                }
+            """)
+
+            await self.assert_query_result(
+                'SELECT Foo { m_p } ORDER BY .p',
+                [
+                    {'m_p': {'1', '2'}},
+                    {'m_p': {'3'}},
+                ],
+            )
+
+        # A reference to another property of the same host type.
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER PROPERTY p {
+                    SET REQUIRED USING (.p2)
+                }
+            """)
+
+            await self.assert_query_result(
+                'SELECT Foo { p } ORDER BY .p',
+                [
+                    {'p': '1'},
+                    {'p': '3'},
+                ],
+            )
+
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER PROPERTY m_p {
+                    SET REQUIRED USING (.p2)
+                }
+            """)
+
+            await self.assert_query_result(
+                'SELECT Foo { m_p } ORDER BY .p',
+                [
+                    {'m_p': {'1', '2'}},
+                    {'m_p': {'3'}},
+                ],
+            )
+
+        # ... should fail if empty set is produced by the USING clause
+        async with self.assertRaisesRegexTx(
+            edgedb.MissingRequiredError,
+            r"missing value for required property 'p'"
+            r" of object type 'test::Foo'"
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER PROPERTY p {
+                    SET REQUIRED USING (<str>{})
+                }
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.MissingRequiredError,
+            r"missing value for required property 'm_p'"
+            r" of object type 'test::Foo'"
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER PROPERTY m_p {
+                    SET REQUIRED USING (
+                        <str>{} IF True ELSE .p2
+                    )
+                }
+            """)
+
+        # And now see about the links.
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER LINK l {
+                    SET REQUIRED USING (SELECT Bar FILTER .name = 'bar2')
+                }
+            """)
+
+            await self.assert_query_result(
+                'SELECT Foo { l: {name} } ORDER BY .p EMPTY LAST',
+                [
+                    {'l': {'name': 'bar1'}},
+                    {'l': {'name': 'bar2'}},
+                ],
+            )
+
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER LINK m_l {
+                    SET REQUIRED USING (SELECT Bar FILTER .name = 'bar2')
+                }
+            """)
+
+            await self.assert_query_result(
+                '''
+                SELECT Foo { m_l: {name} ORDER BY .name }
+                ORDER BY .p EMPTY LAST
+                ''',
+                [
+                    {'m_l': [{'name': 'bar1'}, {'name': 'bar2'}]},
+                    {'m_l': [{'name': 'bar2'}]},
+                ],
+            )
+
+        # Check that minimum cardinality constraint is enforced on links too...
+        async with self.assertRaisesRegexTx(
+            edgedb.MissingRequiredError,
+            r"missing value for required link 'l'"
+            r" of object type 'test::Foo'"
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER LINK l {
+                    SET REQUIRED USING (SELECT Bar FILTER false LIMIT 1)
+                }
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.MissingRequiredError,
+            r"missing value for required link 'm_l'"
+            r" of object type 'test::Foo'"
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER LINK m_l {
+                    SET REQUIRED USING (SELECT Bar FILTER false LIMIT 1)
+                }
+            """)
+
     async def test_edgeql_ddl_link_property_01(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidPropertyDefinitionError,

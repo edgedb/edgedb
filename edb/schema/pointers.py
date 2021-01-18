@@ -1533,6 +1533,35 @@ class PointerCommand(
             )
 
 
+class CreatePointer(
+    referencing.CreateReferencedInheritingObject[Pointer_T],
+    PointerCommand[Pointer_T],
+):
+
+    @classmethod
+    def as_inherited_ref_cmd(
+        cls,
+        *,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        astnode: qlast.ObjectDDL,
+        bases: Any,
+        referrer: so.Object,
+    ) -> sd.ObjectCommand[Pointer_T]:
+        cmd = super().as_inherited_ref_cmd(
+            schema=schema,
+            context=context,
+            astnode=astnode,
+            bases=bases,
+            referrer=referrer,
+        )
+
+        if isinstance(referrer, s_types.Type) and referrer.is_view(schema):
+            cmd.set_attribute_value('is_from_alias', True)
+
+        return cmd
+
+
 class SetPointerType(
     referencing.ReferencedInheritingObjectCommand[Pointer_T],
     inheriting.AlterInheritingObjectFragment[Pointer_T],
@@ -1854,6 +1883,200 @@ class AlterPointerUpperCardinality(
             )
 
         return schema
+
+
+class AlterPointerLowerCardinality(
+    referencing.ReferencedInheritingObjectCommand[Pointer_T],
+    inheriting.AlterInheritingObjectFragment[Pointer_T],
+    sd.AlterSpecialObjectField[Pointer_T],
+    PointerCommandOrFragment[Pointer_T],
+):
+    """Handler for the "required" field changes."""
+
+    fill_expr = struct.Field(s_expr.Expression, default=None)
+
+    def get_friendly_description(
+        self,
+        *,
+        parent_op: Optional[sd.Command] = None,
+        schema: Optional[s_schema.Schema] = None,
+        object: Any = None,
+        object_desc: Optional[str] = None,
+    ) -> str:
+        object_desc = self.get_friendly_object_name_for_description(
+            parent_op=parent_op,
+            schema=schema,
+            object=object,
+            object_desc=object_desc,
+        )
+        required = self.get_attribute_value('required')
+        return f"make {object_desc} {'required' if required else 'optional'}"
+
+    def is_data_safe(self) -> bool:
+        return True
+
+    def _alter_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        orig_schema = schema
+        schema = super()._alter_begin(schema, context)
+        scls = self.scls
+
+        orig_required = scls.get_required(orig_schema)
+        new_required = scls.get_required(schema)
+        is_computed = 'required' in scls.get_computed_fields(schema)
+
+        if orig_required == new_required or is_computed:
+            # The actual value hasn't changed, nothing to do here.
+            return schema
+
+        if not context.canonical:
+            vn = scls.get_verbosename(schema, with_parent=True)
+
+            if self.fill_expr is not None:
+                self.fill_expr = self._compile_expr(
+                    schema=orig_schema,
+                    context=context,
+                    expr=self.fill_expr,
+                    target_as_singleton=True,
+                    singleton_result_expected=True,
+                    expr_description=(
+                        f'the USING clause for the alteration of {vn}'
+                    ),
+                )
+
+                using_type = self.fill_expr.stype
+                ptr_type = scls.get_target(schema)
+                assert ptr_type is not None
+                if not using_type.assignment_castable_to(
+                    ptr_type,
+                    self.fill_expr.schema,
+                ):
+                    ot = using_type.get_verbosename(self.fill_expr.schema)
+                    nt = ptr_type.get_verbosename(schema)
+                    raise errors.SchemaError(
+                        f'result of USING clause for the alteration of '
+                        f'{vn} cannot be cast automatically from '
+                        f'{ot} to {nt} ',
+                        hint='You might need to add an explicit cast.',
+                        context=self.source_context,
+                    )
+
+            schema = self._propagate_if_expr_refs(
+                schema,
+                context,
+                action=(
+                    f'make {vn} {"required" if new_required else "optional"}'
+                ),
+            )
+
+        return schema
+
+    def record_diff_annotations(
+        self,
+        schema: s_schema.Schema,
+        orig_schema: Optional[s_schema.Schema],
+        context: so.ComparisonContext,
+    ) -> None:
+        super().record_diff_annotations(
+            schema=schema,
+            orig_schema=orig_schema,
+            context=context,
+        )
+
+        if orig_schema is None:
+            return
+
+        if not context.generate_prompts:
+            return
+
+        assert len(context.parent_ops) > 1
+        ptr_op = context.parent_ops[-1]
+        src_op = context.parent_ops[-2]
+
+        needs_fill_expr = self._needs_fill_expr(
+            schema=schema,
+            ptr_op=ptr_op,
+            src_op=src_op,
+        )
+
+        if needs_fill_expr:
+            placeholder_name = context.get_placeholder('fill_expr')
+            desc = self.get_friendly_description(schema=schema)
+            prompt = (
+                f'Please specify an expression to populate existing objects '
+                f'in order to {desc}'
+            )
+            self.set_annotation('required_input', {
+                placeholder_name: prompt,
+            })
+
+            self.fill_expr = s_expr.Expression.from_ast(
+                qlast.Placeholder(name=placeholder_name),
+                schema,
+            )
+
+    def _needs_fill_expr(
+        self,
+        *,
+        schema: s_schema.Schema,
+        ptr_op: sd.ObjectCommand[so.Object],
+        src_op: sd.ObjectCommand[so.Object],
+    ) -> bool:
+        return (
+            self.get_attribute_value('required')
+            and not self.is_attribute_computed('required')
+            and not ptr_op.maybe_get_object_aux_data('is_from_alias')
+            and self.fill_expr is None
+            and not (
+                ptr_op.get_attribute_value('declared_overloaded')
+                or isinstance(src_op, sd.CreateObject)
+            )
+        )
+
+    @classmethod
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> sd.Command:
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        assert isinstance(cmd, AlterPointerLowerCardinality)
+        if (
+            isinstance(astnode, qlast.SetPointerOptionality)
+            and astnode.fill_expr is not None
+        ):
+            cmd.fill_expr = s_expr.Expression.from_ast(
+                astnode.fill_expr,
+                schema,
+                context.modaliases,
+                context.localnames,
+            )
+
+        return cmd
+
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
+        set_field = super()._get_ast(schema, context, parent_node=parent_node)
+        if set_field is None:
+            return None
+        else:
+            assert isinstance(set_field, qlast.SetField)
+            return qlast.SetPointerOptionality(
+                value=set_field.value,
+                fill_expr=(
+                    self.fill_expr.qlast
+                    if self.fill_expr is not None else None
+                )
+            )
 
 
 def get_or_create_union_pointer(

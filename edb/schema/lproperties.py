@@ -357,6 +357,14 @@ class AlterPropertyUpperCardinality(
     pass
 
 
+class AlterPropertyLowerCardinality(
+    pointers.AlterPointerLowerCardinality[Property],
+    referrer_context_class=PropertySourceContext,
+    field='required',
+):
+    pass
+
+
 class AlterPropertyOwned(
     referencing.AlterOwned[Property],
     referrer_context_class=PropertySourceContext,

@@ -958,23 +958,28 @@ class CreateConstraint(
     @classmethod
     def as_inherited_ref_cmd(
         cls,
+        *,
         schema: s_schema.Schema,
         context: sd.CommandContext,
         astnode: qlast.ObjectDDL,
-        parents: Any,
+        bases: Any,
+        referrer: so.Object,
     ) -> sd.ObjectCommand[Constraint]:
-        cmd = super().as_inherited_ref_cmd(schema, context, astnode, parents)
+        cmd = super().as_inherited_ref_cmd(
+            schema=schema,
+            context=context,
+            astnode=astnode,
+            bases=bases,
+            referrer=referrer,
+        )
 
         args = cls._constraint_args_from_ast(schema, astnode, context)
         if args:
             cmd.set_attribute_value('args', args)
 
-        subj_expr = parents[0].get_subjectexpr(schema)
+        subj_expr = bases[0].get_subjectexpr(schema)
         if subj_expr is not None:
             cmd.set_attribute_value('subjectexpr', subj_expr)
-
-        cmd.set_attribute_value(
-            'bases', so.ObjectList.create(schema, parents))
 
         return cmd
 
