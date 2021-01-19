@@ -747,3 +747,19 @@ fn invalid_suffix() {
     assert_eq!(tok_err("SELECT 1d;"), "Unexpected `suffix \"d\" \
         is invalid for numbers, perhaps you wanted `1n` (bigint)?`");
 }
+
+#[test]
+fn test_substitution() {
+    assert_eq!(tok_str("SELECT \\(expr);"),
+                       ["SELECT", "\\(expr)", ";"]);
+    assert_eq!(tok_typ("SELECT \\(expr);"),
+                       [Keyword, Substitution, Semicolon]);
+    assert_eq!(tok_str("SELECT \\(other_Name1);"),
+                       ["SELECT", "\\(other_Name1)", ";"]);
+    assert_eq!(tok_typ("SELECT \\(other_Name1);"),
+                       [Keyword, Substitution, Semicolon]);
+    assert_eq!(tok_err("SELECT \\(some-name);"),
+        "Unexpected `only alphanumerics are allowed in \\(name) token`");
+    assert_eq!(tok_err("SELECT \\(some_name"),
+        "Unexpected `unclosed \\(name) token`");
+}

@@ -289,6 +289,7 @@ fn is_operator(token: &CowToken) -> bool {
         | BacktickName
         | Keyword
         | Ident
+        | Substitution
         => false,
     }
 }
