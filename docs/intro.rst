@@ -16,7 +16,7 @@ as strongly typed objects and relationships between them.
 EdgeDB is built on top of PostgreSQL, inheriting all of its core
 strengths: ACID compliance, performance, and reliability.
 Building EdgeDB this way lets us offer something completely new
-while maintaining decades of established practice in the areas 
+while maintaining decades of established practice in the areas
 where existing database software just works.
 
 .. eql:react-element:: DocsNavTable
