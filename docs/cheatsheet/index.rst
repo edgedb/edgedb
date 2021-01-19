@@ -11,9 +11,11 @@ via our longer [interactive tutorial] and **much** longer [Easy EdgeDB textbook]
 
 CLI/Admin:
 
-* :ref:`CLI Usage <ref_cheatsheet_cli>` - Getting your database started.
-* :ref:`REPL <ref_cheatsheet_repl>` - Shortcuts for frequently used commands in the EdgeDB REPL.
-* :ref:`Administration <ref_cheatsheet_admin>` - Database and role creation, passwords, port configuration, etc.
+* :ref:`CLI Usage <ref_cheatsheet_cli>` -- Getting your database started.
+* :ref:`REPL <ref_cheatsheet_repl>` -- Shortcuts for frequently used 
+  commands in the EdgeDB REPL.
+* :ref:`Administration <ref_cheatsheet_admin>` -- Database and role creation, 
+  passwords, port configuration, etc.
 
 EdgeQL:
 
