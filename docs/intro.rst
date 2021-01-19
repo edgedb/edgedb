@@ -3,12 +3,12 @@
 Introduction
 ============
 
-*The relational model is still the most effective method*
-*of representing data. And SQL as a declarative,*
-*storage-neutral query language is powerful and versatile.*
-*We don’t need to abandon either.*
-*Instead, we build on what works in a language that affords* 
-*more power to its users, while being simpler and more consistent.*"
+    The relational model is still the most effective method
+    of representing data. And SQL as a declarative,
+    storage-neutral query language is powerful and versatile.
+    We don’t need to abandon either. Instead, we build on 
+    what works in a language that affords more power to its 
+    users, while being simpler and more consistent.
 
 EdgeDB is a relational database that stores and describes the data
 as strongly typed objects and relationships between them.
