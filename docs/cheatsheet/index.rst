@@ -30,11 +30,16 @@ EdgeQL:
 
 Schema:
 
-* :ref:`Types <ref_cheatsheet_types>` - Make your own object and abstract types on top of existing system types.
-* :ref:`Functions <ref_cheatsheet_functions>` - Write and overload your own strongly typed functions.
-* :ref:`Aliases <ref_cheatsheet_aliases>` - Use aliases to create new types and modify existing ones on the fly.
-* :ref:`Annotations <ref_cheatsheet_annotations>` - Add human readable descriptions to items in your schema.
-* :ref:`Migrations <ref_cheatsheet_migrations>` - Describe your final schema and let EdgeDB put it together for you.
+* :ref:`Types <ref_cheatsheet_types>` -- Make your own object and abstract
+  types on top of existing system types.
+* :ref:`Functions <ref_cheatsheet_functions>` -- Write and overload your own
+  strongly typed functions.
+* :ref:`Aliases <ref_cheatsheet_aliases>` -- Use aliases to create new types
+  and modify existing ones on the fly.
+* :ref:`Annotations <ref_cheatsheet_annotations>` -- Add human readable
+  descriptions to items in your schema.
+* :ref:`Migrations <ref_cheatsheet_migrations>` -- Describe your final
+  schema and let EdgeDB put it together for you.
 
 
 .. toctree::
