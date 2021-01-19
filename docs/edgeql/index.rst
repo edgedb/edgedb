@@ -10,18 +10,18 @@ EdgeQL is the primary language of EdgeDB. It is used to define, mutate, and quer
 
 - Most frequently used in EdgeQL is the **querying language**. EdgeQL is a functional language in that every expression is a composition of one or more queries. The querying language looks like this:
 
-```
-SELECT Issue {
-    number,
-    body,
-    due_date
-}
-FILTER
-    EXISTS .due_date
-ORDER BY
-    .due_date
-LIMIT 3;
-```
+.. code-block:: edgeql
+
+    SELECT Issue {
+        number,
+        body,
+        due_date
+    }
+    FILTER
+        EXISTS .due_date
+    ORDER BY
+        .due_date
+    LIMIT 3;
 
 The simplicity of EdgeQL queries might remind you of GraphQL a bit, and EdgeQL does indeed have a similar straightforwardness while being more powerful (see some [comparisons of syntax here](https://www.edgedb.com/docs/clients/99_graphql/graphql) for details on that).
 
