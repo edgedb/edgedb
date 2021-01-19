@@ -43,19 +43,18 @@ type Person {
 
 So you can't create `Movie` first using DDL because it links to `Person`. The two are created in this order:
 
-```
-CREATE TYPE Person {
-    CREATE REQUIRED PROPERTY name -> str;
-};
-CREATE: OK
+.. code-block:: edgeql-repl
 
-CREATE TYPE Movie {
-    CREATE REQUIRED PROPERTY title -> str;
-    CREATE REQUIRED LINK director -> Person;
-    CREATE MULTI LINK actors -> Person;
-};
-CREATE: OK
-```
+    db> CREATE TYPE Person {
+    ...    CREATE REQUIRED PROPERTY name -> str;
+    ... };
+    CREATE: OK
+    db> CREATE TYPE Movie {
+    ...     CREATE REQUIRED PROPERTY title -> str;
+    ...     CREATE REQUIRED LINK director -> Person;
+    ...     CREATE MULTI LINK actors -> Person;
+    ... };
+    CREATE: OK
 
 SDL is sort of like a 3D printer: you set the final shape and it puts it together for you. DDL is like building a house with traditional methods: to add a window you first need a frame, to have a frame you need a wall, and so on. But DDL is great for making quick changes to your schema without a new migration, in the same way that you can replace a window without describing the whole house to do it. In practice, most people stick to SDL until they get comfortable and only then begin to experiment with DDL.
 
