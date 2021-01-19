@@ -37,16 +37,17 @@ to a specific schema state. In SDL you write the final types and
 relationships without needing to worry about making declarations in any 
 particular order. Items in a schema written in SDL look like this:
 
-```
-type Movie {
-  required property title -> str;
-  required link director -> Person;
-  multi link actors -> Person;
-}
-type Person {
-  required property name -> str;
-}
-```
+.. code-block:: sdl
+
+    type Movie {
+        required property title -> str;
+        required link director -> Person;
+        multi link actors -> Person;
+    }
+    
+    type Person {
+        required property name -> str;
+    }
 
 - **DDL (data definition language)**. DDL is the less frequently used 
 (but often convenient) cousin of SDL. DDL is used to transform schema 
