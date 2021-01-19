@@ -99,7 +99,7 @@ empty set) since no ``year`` is set for that object.
 
 Let's narrow down the ``Movie`` search to "blade runner" using
 :eql:op:`ILIKE` (simple case-insensitive pattern matching). With the %
-at the end anything after `blade runner` will match (Blade Runner, 
+at the end anything after ``blade runner`` will match (Blade Runner, 
 Blade Runner 2049, BLaDE runnER the Video Game...).
 
 .. code-block:: edgeql-repl
