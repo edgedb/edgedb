@@ -19,13 +19,13 @@ CLI/Admin:
 
 EdgeQL:
 
-* :ref:`SELECT <ref_cheatsheet_select>` - Retrieve or compute a set of values.
-* :ref:`INSERT <ref_cheatsheet_insert>`- Create new database objects.
-* :ref:`UPDATE <ref_cheatsheet_update>` - Update database objects.
-* :ref:`DELETE <ref_cheatsheet_delete>` - Remove objects from the database.
-* :ref:`GraphQL <ref_cheatsheet_graphql>` - GraphQL queries supported natively
+* :ref:`SELECT <ref_cheatsheet_select>` -- Retrieve or compute a set of values.
+* :ref:`INSERT <ref_cheatsheet_insert>` -- Create new database objects.
+* :ref:`UPDATE <ref_cheatsheet_update>` -- Update database objects.
+* :ref:`DELETE <ref_cheatsheet_delete>` -- Remove objects from the database.
+* :ref:`GraphQL <ref_cheatsheet_graphql>` -- GraphQL queries supported natively
   out of the box.
-* :ref:`Special Syntax <ref_cheatsheet_syntax>` - Info on types of strings,
+* :ref:`Special Syntax <ref_cheatsheet_syntax>` -- Info on types of strings,
   number literals, etc.
 
 Schema:
