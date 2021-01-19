@@ -37,9 +37,9 @@ add movie, director and actor data all at once:
 
 .. note::
 
-    The specific ``id`` values will be different. They are shown
-    explicitly here so that the tutorial can refer to the Movie
-    objects by their ``id``.
+    The specific ``id`` values will be different from the one
+    above. They are shown explicitly here so that the tutorial 
+    can refer to the Movie objects by their ``id``.
 
 In principle, we could have first used individual :ref:`INSERT
 <ref_eql_statements_insert>` statements to create all the people
@@ -98,7 +98,9 @@ the query shape. The year for the movie "Dune" is given as ``{}`` (the
 empty set) since no ``year`` is set for that object.
 
 Let's narrow down the ``Movie`` search to "blade runner" using
-:eql:op:`ILIKE` (simple case-insensitive pattern matching):
+:eql:op:`ILIKE` (simple case-insensitive pattern matching). With the %
+at the end anything after ``blade runner`` will match (Blade Runner, 
+Blade Runner 2049, BLaDE runnER the Video Game...).
 
 .. code-block:: edgeql-repl
 
@@ -178,8 +180,8 @@ some of the actors, like Jason Momoa, Zendaya and Oscar Isaac:
 Unfortunately, adding Zendaya is not possible with the current schema
 since both ``first_name`` and ``last_name`` are required. So let's
 :ref:`alter <ref_eql_ddl_object_types_alter>` our schema to make
-``first_name`` optional (we'll use :ref:`DDL <ref_eql_ddl>` here
-for brevity):
+``first_name`` optional. We'll use :ref:`DDL <ref_eql_ddl>` here
+for brevity as it lets us modify the schema without a new migration:
 
 .. code-block:: edgeql-repl
 
