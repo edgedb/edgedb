@@ -150,7 +150,7 @@ pub fn is_empty(text: &str) -> bool {
             None => return true,
         };
         match cur_char {
-            '\u{feff}' | '\r' | '\t' | '\n' | ' ' => continue,
+            '\u{feff}' | '\r' | '\t' | '\n' | ' ' | ';' => continue,
             // Comment
             '#' => {
                 while let Some(c) = iter.next() {

@@ -38,6 +38,7 @@ fn test_backtick_quoted_semicolon() {
     test_statement(b"select `a;`; some trailer", 12);
 }
 
+
 #[test]
 fn test_commented_semicolon() {
     test_statement(b"select # test;\n1+1;", 19);
@@ -130,16 +131,16 @@ fn empty() {
     assert!(is_empty("#xx\n"));
     assert!(is_empty("# xx\n# yy"));
     assert!(is_empty(" #xx\n  #yy"));
+    assert!(is_empty(";"));
+    assert!(is_empty(";;"));
+    assert!(is_empty("    ;\n#cd"));
     assert!(!is_empty("a"));
     assert!(!is_empty("ab cd"));
     assert!(!is_empty(","));
-    assert!(!is_empty(";"));
-    assert!(!is_empty(";;"));
     assert!(!is_empty(";ab;"));
     assert!(!is_empty("ab;;de"));
     assert!(!is_empty("    xy"));
     assert!(!is_empty("    xy #c"));
     assert!(!is_empty("    '#c"));
-    assert!(!is_empty("    ;\n#cd"));
     assert!(!is_empty("ab\n#cd"));
 }
