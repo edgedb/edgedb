@@ -3,6 +3,8 @@
 Introduction
 ============
 
+.. pull-quote::
+
     The relational model is still the most effective method
     of representing data. And SQL as a declarative,
     storage-neutral query language is powerful and versatile.
