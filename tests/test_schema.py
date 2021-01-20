@@ -3206,6 +3206,189 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
+    @test.xfail('''
+        unexpected difference in schema produced by incremental
+        migration on step 2:
+
+        Target types in UserAlias don't agree
+    ''')
+    def test_schema_migrations_equivalence_44(self):
+        # change a link used in a computable
+        self._assert_migration_equivalence([r"""
+            type Action {
+                required link user -> User;
+            };
+            type Post extending Action;
+            type User {
+                multi link actions := .<user[IS Post];
+            };
+
+            alias UserAlias := User {
+                action_ids := .actions.id
+            };
+        """, r"""
+            type Action {
+                required link user -> User;
+            };
+            type Post extending Action;
+            type User {
+                multi link actions := .<user[IS Action];
+            };
+
+            alias UserAlias := User {
+                action_ids := .actions.id
+            };
+        """])
+
+    @test.xfail('''
+        unexpected difference in schema produced by incremental
+        migration on step 2:
+
+        ... is_from_alias = None | True
+    ''')
+    def test_schema_migrations_equivalence_45(self):
+        # change a link used in a computable
+        self._assert_migration_equivalence([r"""
+            type Action {
+                required link user -> User;
+            };
+            type Post extending Action;
+            type User {
+                multi link actions := .<user[IS Post];
+            };
+
+            alias UserAlias := User {
+                action_ids := .actions.id
+            };
+        """, r"""
+            type Action {
+                required link user -> User;
+            };
+            type Post extending Action;
+            type User {
+                multi link actions := .<user[IS Post];
+                # Similar to previous test, but with an intermediate
+                # step. Separating addition of a new computable and
+                # then swapping the old one for the new one.
+                #
+                # Basically, we model a situation where some kind of
+                # link "actions" has to exist throughout the entire
+                # process (part of some interface that cannot be
+                # easily changed maybe).
+                multi link new_actions := .<user[IS Action];
+            };
+
+            alias UserAlias := User {
+                action_ids := .actions.id,
+                new_action_ids := .new_actions.id,
+            };
+        """, r"""
+            type Action {
+                required link user -> User;
+            };
+            type Post extending Action;
+            type User {
+                multi link actions := .<user[IS Action];
+            };
+
+            alias UserAlias := User {
+                action_ids := .actions.id
+            };
+        """])
+
+    @test.xfail('''
+        unexpected difference in schema produced by incremental
+        migration on step 2:
+
+        Target types in UserAlias don't agree
+    ''')
+    def test_schema_migrations_equivalence_46(self):
+        # change a link used in a computable
+        self._assert_migration_equivalence([r"""
+            type Action;
+            type Post extending Action {
+                required link user -> User;
+            };
+            type User {
+                multi link actions := .<user[IS Post]
+            };
+
+            alias UserAlias := User {
+                action_ids := .actions.id
+            };
+        """, r"""
+            type Action {
+                required link user -> User;
+            };
+            type Post extending Action;
+            type User {
+                multi link actions := .<user[IS Action]
+            };
+
+            alias UserAlias := User {
+                action_ids := .actions.id
+            };
+        """])
+
+    @test.xfail('''
+        edb.errors.SchemaError: cannot drop link 'user' of object type
+        'default::Action' because other objects in the schema depend
+        on it
+    ''')
+    def test_schema_migrations_equivalence_47(self):
+        # change a link used in a computable
+        self._assert_migration_equivalence([r"""
+            type Action {
+                required link user -> User;
+            };
+            type Post extending Action;
+            type User {
+                multi link actions := .<user[IS Action]
+            };
+        """, r"""
+            type Action;
+            type Post extending Action {
+                required link user -> User;
+            };
+            type User {
+                multi link actions := .<user[IS Post]
+            };
+        """])
+
+    @test.xfail('''
+        edb.errors.SchemaError: link 'owned' of object type
+        'default::User' cannot be cast automatically from object type
+        'default::Post' to object type 'default::Action'
+
+        Notice that since this link is a computable, we shouldn't care
+        about "converting" it.
+    ''')
+    def test_schema_migrations_equivalence_48(self):
+        # change a link used in a computable
+        self._assert_migration_equivalence([r"""
+            type Action {
+                required property name -> str;
+            };
+            type Post {
+                required property stamp -> datetime;
+                required link user -> User;
+            };
+            type User {
+                multi link owned := .<user[IS Post]
+            };
+        """, r"""
+            type Action {
+                required property name -> str;
+                required link user -> User;
+            };
+            type Post {
+                required property stamp -> datetime;
+            };
+            type User {
+                multi link owned := .<user[IS Action]
+            };
+        """])
+
     def test_schema_migrations_equivalence_function_01(self):
         self._assert_migration_equivalence([r"""
             function hello01(a: int64) -> str
@@ -3756,6 +3939,104 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Derived extending Base;
         """])
 
+    @test.xfail('''
+        edb.errors.InvalidReferenceError:
+        schema item 'default::default|foo_anno@default|Derived' does not exist
+    ''')
+    def test_schema_migrations_equivalence_annotation_04(self):
+        self._assert_migration_equivalence([r"""
+            type Base;
+        """, r"""
+            abstract inheritable annotation bar_anno;
+
+            type Base {
+                annotation bar_anno := 'Base bar_anno 04';
+            }
+
+            type Derived extending Base;
+        """, r"""
+            # rename bar_anno -> foo_anno
+            abstract inheritable annotation foo_anno;
+
+            type Base {
+                annotation foo_anno := 'Base bar_anno 04';
+            }
+
+            type Derived extending Base;
+        """])
+
+    @test.xfail('''
+        AssertionError:
+        assert isinstance(astnode, qlast.AlterAnnotationValue)
+    ''')
+    def test_schema_migrations_equivalence_annotation_05(self):
+        self._assert_migration_equivalence([r"""
+            abstract inheritable annotation my_anno;
+
+            type Base {
+                property my_prop -> str {
+                    annotation my_anno := 'Base my_anno 05';
+                }
+            }
+
+            type Derived extending Base {
+                overloaded property my_prop -> str {
+                    annotation my_anno := 'Derived my_anno 05';
+                }
+            }
+        """, r"""
+            # rename annotated & inherited property
+            abstract inheritable annotation my_anno;
+
+            type Base {
+                property renamed_prop -> str {
+                    annotation my_anno := 'Base my_anno 05';
+                }
+            }
+
+            type Derived extending Base {
+                overloaded property renamed_prop -> str {
+                    annotation my_anno := 'Derived my_anno 05';
+                }
+            }
+        """])
+
+    @test.xfail('''
+        AssertionError:
+        assert isinstance(astnode, qlast.AlterAnnotationValue)
+    ''')
+    def test_schema_migrations_equivalence_annotation_06(self):
+        self._assert_migration_equivalence([r"""
+            abstract inheritable annotation my_anno;
+
+            type Base {
+                link my_link -> Object {
+                    annotation my_anno := 'Base my_anno 06';
+                }
+            }
+
+            type Derived extending Base {
+                overloaded link my_link -> Object {
+                    annotation my_anno := 'Derived my_anno 06';
+                }
+            }
+        """, r"""
+            # rename annotated & inherited link
+            abstract inheritable annotation my_anno;
+
+            type Base {
+                link renamed_link -> Object {
+                    annotation my_anno := 'Base my_anno 06';
+                }
+            }
+
+            type Derived extending Base {
+                overloaded link renamed_link -> Object {
+                    annotation my_anno := 'Derived my_anno 06';
+                }
+            }
+        """])
+
     def test_schema_migrations_equivalence_index_01(self):
         self._assert_migration_equivalence([r"""
             type Base {
@@ -3865,6 +4146,61 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Base {
                 property first_name -> str;
                 # drop constraint
+            }
+        """])
+
+    def test_schema_migrations_equivalence_constraint_02(self):
+        self._assert_migration_equivalence([r"""
+            type Base {
+                property firstname -> str {
+                    constraint max_len_value(10)
+                }
+            }
+
+            type Derived extending Base;
+        """, r"""
+            # rename constrained & inherited property
+            type Base {
+                property first_name -> str {
+                    constraint max_len_value(10)
+                }
+            }
+
+            type Derived extending Base;
+        """])
+
+    @test.xfail('''
+        edb.edgeql.codegen.EdgeQLSourceGeneratorError:
+        No method to generate code for Expression
+    ''')
+    def test_schema_migrations_equivalence_constraint_03(self):
+        self._assert_migration_equivalence([r"""
+            type Base {
+                property firstname -> str {
+                    constraint max_len_value(10);
+                }
+            }
+
+            type Derived extending Base {
+                overloaded property firstname -> str {
+                    constraint max_len_value(10);
+                    # add another constraint to make the prop overloaded
+                    constraint min_len_value(5);
+                }
+            }
+        """, r"""
+            # rename constrained & inherited property
+            type Base {
+                property first_name -> str {
+                    constraint max_len_value(10);
+                }
+            }
+
+            type Derived extending Base {
+                overloaded property first_name -> str {
+                    constraint max_len_value(10);
+                    constraint min_len_value(5);
+                }
             }
         """])
 
