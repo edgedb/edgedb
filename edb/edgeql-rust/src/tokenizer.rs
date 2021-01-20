@@ -89,6 +89,7 @@ pub struct Tokens {
     argument: PyString,
     eof: PyString,
     empty: PyString,
+    substitution: PyString,
 
     named_only: PyString,
     named_only_val: PyString,
@@ -256,6 +257,7 @@ impl Tokens {
             argument: PyString::new(py, "ARGUMENT"),
             eof: PyString::new(py, "EOF"),
             empty: PyString::new(py, ""),
+            substitution: PyString::new(py, "SUBSTITUTION"),
             named_only: PyString::new(py, "NAMEDONLY"),
             named_only_val: PyString::new(py, "NAMED ONLY"),
             set_annotation: PyString::new(py, "SETANNOTATION"),
@@ -610,6 +612,12 @@ fn convert(py: Python, tokens: &Tokens, cache: &mut Cache,
                     },
                 }
             }
+        }
+        Substitution => {
+            let content = &value[2..value.len()-1];
+            Ok((tokens.substitution.clone_ref(py),
+                PyString::new(py, value),
+                PyString::new(py, content).into_object()))
         }
     }
 }

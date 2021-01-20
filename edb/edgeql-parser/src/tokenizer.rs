@@ -63,6 +63,7 @@ pub enum Kind {
     BinStr,           // b"xx", b'xx'
     Str,              // "xx", 'xx', r"xx", r'xx', $$xx$$
     BacktickName,     // `xx`
+    Substitution,     // \(name)
     Keyword,
     Ident,
 }
@@ -508,6 +509,32 @@ impl<'a> TokenStream<'a> {
                     }
                 }
                 return Ok((Argument, end_idx));
+            }
+            '\\' => match iter.next() {
+                Some((_, '(')) => {
+                    let len = loop {
+                        match iter.next() {
+                            Some((_, '_')) => continue,
+                            Some((_, c)) if c.is_alphanumeric() => continue,
+                            Some((idx, ')')) => break idx,
+                            Some((_, _)) => {
+                                return Err(Error::unexpected_static_message(
+                                    "only alphanumerics are allowed in \
+                                     \\(name) token"));
+                            }
+                            None => {
+                                return Err(Error::unexpected_static_message(
+                                    "unclosed \\(name) token"));
+                            }
+                        }
+                    };
+                    Ok((Substitution, len+1))
+                }
+                _ => return Err(
+                    Error::unexpected_format(
+                        format_args!("unexpected character {:?}", cur_char)
+                    )
+                ),
             }
             _ => return Err(
                 Error::unexpected_format(
