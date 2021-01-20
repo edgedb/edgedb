@@ -1339,11 +1339,12 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 # aliases are introduced
                 WITH MODULE test
                 SELECT (Card.name,
-                       count((WITH A := Card SELECT A).owners));
+                        count((WITH A := Card SELECT A).owners));
             ''',
-            {['Imp', 1], ['Dragon', 2], ['Bog monster', 4],
-             ['Giant turtle', 4], ['Dwarf', 2], ['Golem', 3],
-             ['Sprite', 2], ['Giant eagle', 2], ['Djinn', 2]},
+            [["Bog monster", 4], ["Djinn", 2], ["Dragon", 2], ["Dwarf", 2],
+             ["Giant eagle", 2], ["Giant turtle", 4], ["Golem", 3],
+             ["Imp", 1], ["Sprite", 2]],
+            sort=True,
         )
 
     async def test_edgeql_scope_nested_12(self):
