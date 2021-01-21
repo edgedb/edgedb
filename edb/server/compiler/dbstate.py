@@ -69,6 +69,14 @@ class BaseQuery:
 
 
 @dataclasses.dataclass(frozen=True)
+class NullQuery(BaseQuery):
+
+    sql: Tuple[bytes, ...] = tuple()
+    is_transactional: bool = True
+    has_dml: bool = False
+
+
+@dataclasses.dataclass(frozen=True)
 class Query(BaseQuery):
 
     sql_hash: bytes
@@ -274,7 +282,7 @@ class MigrationState(NamedTuple):
     initial_savepoint: Optional[str]
     target_schema: s_schema.Schema
     guidance: s_obj.DeltaGuidance
-    current_ddl: Tuple[qlast.DDLOperation, ...]
+    accepted_cmds: Tuple[qlast.Command, ...]
     last_proposed: Tuple[ProposedMigrationStep, ...]
 
 

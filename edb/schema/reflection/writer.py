@@ -939,3 +939,17 @@ def write_meta_nop(
     stdmode: bool,
 ) -> None:
     pass
+
+
+@write_meta.register
+def write_meta_query(
+    cmd: sd.Query,
+    *,
+    classlayout: Dict[Type[so.Object], sr_struct.SchemaTypeLayout],
+    schema: s_schema.Schema,
+    context: sd.CommandContext,
+    blocks: List[Tuple[str, Dict[str, Any]]],
+    internal_schema_mode: bool,
+    stdmode: bool,
+) -> None:
+    pass

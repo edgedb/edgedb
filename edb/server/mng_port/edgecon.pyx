@@ -834,8 +834,9 @@ cdef class EdgeConnection:
 
         conn = await self.get_pgcon()
         try:
-            await conn.simple_query(
-                b';'.join(query_unit.sql), ignore_data=True)
+            if query_unit.sql:
+                await conn.simple_query(
+                    b';'.join(query_unit.sql), ignore_data=True)
 
             if query_unit.tx_savepoint_rollback:
                 if self.debug:
@@ -940,20 +941,21 @@ cdef class EdgeConnection:
                     if query_unit.system_config:
                         await self._execute_system_config(query_unit, conn)
                     else:
-                        if query_unit.is_transactional:
-                            await conn.simple_query(
-                                b';'.join(query_unit.sql),
-                                ignore_data=True,
-                                state=state)
-                        else:
-                            i = 0
-                            for sql in query_unit.sql:
+                        if query_unit.sql:
+                            if query_unit.is_transactional:
                                 await conn.simple_query(
-                                    sql,
+                                    b';'.join(query_unit.sql),
                                     ignore_data=True,
-                                    state=state if i == 0 else None)
-                                # only apply state to the first query.
-                                i += 1
+                                    state=state)
+                            else:
+                                i = 0
+                                for sql in query_unit.sql:
+                                    await conn.simple_query(
+                                        sql,
+                                        ignore_data=True,
+                                        state=state if i == 0 else None)
+                                    # only apply state to the first query.
+                                    i += 1
 
                         if query_unit.config_ops:
                             await self.dbview.apply_config_ops(
@@ -1318,8 +1320,12 @@ cdef class EdgeConnection:
                 f'unsupported "describe" message mode {chr(rtype)!r}')
 
     async def _execute_system_config(self, query_unit, conn):
-        data = await conn.simple_query(
-            b';'.join(query_unit.sql), ignore_data=False)
+        if query_unit.sql:
+            data = await conn.simple_query(
+                b';'.join(query_unit.sql), ignore_data=False)
+        else:
+            data = None
+
         if data:
             # Prefer encoded op produced by the SQL command.
             config_ops = [config.Operation.from_json(r[0]) for r in data]
@@ -1353,8 +1359,9 @@ cdef class EdgeConnection:
 
             conn = await self.get_pgcon()
             try:
-                await conn.simple_query(
-                    b';'.join(query_unit.sql), ignore_data=True)
+                if query_unit.sql:
+                    await conn.simple_query(
+                        b';'.join(query_unit.sql), ignore_data=True)
 
                 if query_unit.tx_savepoint_rollback:
                     await self.recover_current_tx_info(conn)
@@ -1380,13 +1387,14 @@ cdef class EdgeConnection:
             if query_unit.system_config:
                 await self._execute_system_config(query_unit, conn)
             else:
-                await conn.parse_execute(
-                    query_unit,         # =query
-                    self,               # =edgecon
-                    bound_args_buf,     # =bind_data
-                    use_prep_stmt,      # =use_prep_stmt
-                    state,              # =state
-                )
+                if query_unit.sql:
+                    await conn.parse_execute(
+                        query_unit,         # =query
+                        self,               # =edgecon
+                        bound_args_buf,     # =bind_data
+                        use_prep_stmt,      # =use_prep_stmt
+                        state,              # =state
+                    )
                 if query_unit.config_ops:
                     await self.dbview.apply_config_ops(
                         conn,
@@ -2222,7 +2230,7 @@ cdef class EdgeConnection:
                     raise errors.ProtocolError(
                         'config commands are not supported '
                         'during restore')
-                else:
+                elif query_unit.sql:
                     await pgcon.simple_query(
                         b';'.join(query_unit.sql),
                         ignore_data=True)

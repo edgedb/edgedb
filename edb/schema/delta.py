@@ -1354,6 +1354,60 @@ class DeltaRoot(CommandGroup, context_class=DeltaRootContext):
         return schema
 
 
+class Query(Command):
+    """A special delta command representing a non-DDL query.
+
+    These are found in migrations.
+    """
+
+    astnode = qlast.Query
+
+    expr = struct.Field(s_expr.Expression)
+
+    @classmethod
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: CommandContext,
+    ) -> Command:
+        return cls(
+            source_context=astnode.context,
+            qlast=astnode,
+            expr=s_expr.Expression.from_ast(
+                astnode,
+                schema=schema,
+                modaliases=context.modaliases,
+                localnames=context.localnames,
+            ),
+        )
+
+    @classmethod
+    def as_markup(cls, self: Command, *, ctx: markup.Context) -> markup.Markup:
+        node = super().as_markup(self, ctx=ctx)
+        assert isinstance(node, markup.elements.lang.TreeNode)
+        assert isinstance(self, Query)
+        qltext = self.expr.text
+        node.add_child(node=markup.elements.lang.MultilineString(str=qltext))
+        return node
+
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> s_schema.Schema:
+        schema = super().apply(schema, context)
+        if not self.expr.is_compiled():
+            self.expr = self.expr.compiled(
+                self.expr,
+                schema,
+                options=qlcompiler.CompilerOptions(
+                    modaliases=context.modaliases,
+                )
+            )
+        return schema
+
+
 _command_registry: Dict[
     Tuple[str, Type[so.Object]],
     Type[ObjectCommand[so.Object]]

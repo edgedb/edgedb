@@ -82,6 +82,12 @@ class Buffer:
         yield
         self.data.append((FOLDABLE_LINES_END, ))
 
+    @contextlib.contextmanager
+    def non_foldable_lines(self):
+        self.data.append((FOLDABLE_LINES_END, ))
+        yield
+        self.data.append((FOLDABLE_LINES_START, ))
+
     def mark_line_break(self):
         self.data.append((LINE_BREAK, ))
 
@@ -428,6 +434,18 @@ class LangRenderer(BaseRenderer):
     def _render_lang_String(self, element):
         self.buffer.write(
             xrepr(element.str, max_len=120), style=self.styles.literal)
+
+    def _render_lang_MultilineString(self, element):
+        with self.buffer.non_foldable_lines():
+            for line in element.str.splitlines():
+                self.buffer.new_line()
+                self.buffer.write(
+                    line,
+                    style=self.styles.literal
+                )
+            self.buffer.data.append((DEDENT_NO_NL, ))
+            self.buffer.new_line()
+            self.buffer.data.append((INDENT_NO_NL, ))
 
     def _render_lang_Number(self, element):
         self.buffer.write(element.num, style=self.styles.literal)

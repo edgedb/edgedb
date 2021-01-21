@@ -38,6 +38,10 @@ class String(LangMarkup):
     str = Field(str, default=None, coerce=True)
 
 
+class MultilineString(LangMarkup):
+    str = Field(str, default=None, coerce=True)
+
+
 class Ref(LangMarkup):
     ref = Field(int, coerce=True)
     refname = Field(str, default=None)

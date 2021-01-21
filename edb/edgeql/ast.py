@@ -515,7 +515,11 @@ class Shape(Expr):
     elements: typing.List[ShapeElement]
 
 
-class SelectQuery(Statement, ReturningMixin, SelectClauseMixin):
+class Query(Statement):
+    __abstract_node__ = True
+
+
+class SelectQuery(Query, ReturningMixin, SelectClauseMixin):
     pass
 
 
@@ -525,22 +529,22 @@ class GroupQuery(SelectQuery, SubjectMixin):
     into: str
 
 
-class InsertQuery(Statement, SubjectMixin):
+class InsertQuery(Query, SubjectMixin):
     subject: Path
     shape: typing.List[ShapeElement]
     unless_conflict: typing.Optional[
         typing.Tuple[typing.Optional[Expr], typing.Optional[Expr]]]
 
 
-class UpdateQuery(Statement, SubjectMixin, FilterMixin):
+class UpdateQuery(Query, SubjectMixin, FilterMixin):
     shape: typing.List[ShapeElement]
 
 
-class DeleteQuery(Statement, SubjectMixin, SelectClauseMixin):
+class DeleteQuery(Query, SubjectMixin, SelectClauseMixin):
     pass
 
 
-class ForQuery(Statement, ReturningMixin):
+class ForQuery(Query, ReturningMixin):
     iterator: Expr
     iterator_alias: str
 
@@ -743,7 +747,6 @@ class GlobalObjectCommand(ObjectDDL):
 
 
 class DatabaseCommand(GlobalObjectCommand):
-
     __abstract_node__ = True
     object_class: qltypes.SchemaObjectClass = (
         qltypes.SchemaObjectClass.DATABASE)
@@ -782,7 +785,6 @@ class DropModule(DropObject, ModuleCommand):
 
 
 class RoleCommand(GlobalObjectCommand):
-
     __abstract_node__ = True
     object_class: qltypes.SchemaObjectClass = (
         qltypes.SchemaObjectClass.ROLE)

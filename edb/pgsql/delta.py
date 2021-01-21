@@ -247,6 +247,36 @@ class Nop(MetaCommand, adapts=sd.Nop):
     pass
 
 
+class Query(MetaCommand, adapts=sd.Query):
+
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super().apply(schema, context)
+
+        sql_tree = compiler.compile_ir_to_sql_tree(
+            self.expr.irast,
+            output_format=compiler.OutputFormat.NATIVE_INTERNAL,
+            explicit_top_cast=irtyputils.type_to_typeref(
+                schema,
+                schema.get('std::str'),
+            ),
+        )
+
+        sql_text = codegen.generate_source(sql_tree)
+
+        # The INTO _dummy_text bit is needed because PL/pgSQL _really_
+        # wants the result of a returning query to be stored in a variable,
+        # and the PERFORM hack does not work if the query has DML CTEs.
+        self.pgops.add(dbops.Query(
+            text=f'{sql_text} INTO _dummy_text',
+        ))
+
+        return schema
+
+
 class AlterObjectProperty(MetaCommand, adapts=sd.AlterObjectProperty):
     pass
 

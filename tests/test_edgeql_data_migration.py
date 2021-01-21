@@ -42,14 +42,18 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
     should match for easy reference, even if it means skipping some.
     """
 
-    def cleanup_statement(self, s: str) -> str:
-        return textwrap.dedent(s.lstrip('\n')).rstrip('\n')
+    def normalize_statement(self, s: str) -> str:
+        re_filter = re.compile(r'[\s]+|(#.*?(\n|$))|(,(?=\s*[})]))')
+        stripped = textwrap.dedent(s.lstrip('\n')).rstrip('\n')
+        folded = re_filter.sub('', stripped).lower()
+        return folded
 
     def cleanup_migration_exp_json(self, exp_result_json):
         # Cleanup the expected values by dedenting/stripping them
         if 'confirmed' in exp_result_json:
             exp_result_json['confirmed'] = [
-                self.cleanup_statement(v) for v in exp_result_json['confirmed']
+                self.normalize_statement(v)
+                for v in exp_result_json['confirmed']
             ]
         if (
             'proposed' in exp_result_json
@@ -57,7 +61,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             and 'statements' in exp_result_json['proposed']
         ):
             for stmt in exp_result_json['proposed']['statements']:
-                stmt['text'] = self.cleanup_statement(stmt['text'])
+                stmt['text'] = self.normalize_statement(stmt['text'])
 
     async def assert_describe_migration(self, exp_result_json, *, msg=None):
         self.cleanup_migration_exp_json(exp_result_json)
@@ -72,6 +76,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 await tx.rollback()
 
             res = json.loads(res)
+            self.cleanup_migration_exp_json(res)
             self._assert_data_shape(res, exp_result_json, message=msg)
         except Exception:
             self.add_fail_notes(serialization='json')
@@ -80,8 +85,9 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
     async def fast_forward_describe_migration(
         self,
         *,
-        limit=None,
+        limit: Optional[int] = None,
         user_input: Optional[Iterable[str]] = None,
+        commit: bool = True,
     ):
         '''Repeatedly get the next step from DESCRIBE and execute it.
 
@@ -111,7 +117,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                         message='No more "proposed", but not "completed" '
                                 'either.'
                     )
-                    await self.con.execute('COMMIT MIGRATION;')
+                    if commit:
+                        await self.con.execute('COMMIT MIGRATION;')
                     break
 
                 interpolations = {}
@@ -300,14 +307,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             ROLLBACK TO SAVEPOINT t0;
         ''')
         await self.migrate(schema)
-
-    async def test_edgeql_migration_describe_reject_01(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r"not currently in a migration block"):
-            await self.con.execute('''
-                ALTER CURRENT MIGRATION REJECT PROPOSED;
-            ''')
 
     async def test_edgeql_migration_describe_reject_02(self):
         await self.con.execute('''
@@ -7607,6 +7606,37 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         })
         await self.fast_forward_describe_migration()
 
+    async def test_edgeql_migration_non_ddl_statements(self):
+        await self.con.execute('SET MODULE test')
+
+        await self.start_migration('''
+            type Obj1 {
+                property foo -> str;
+            }
+        ''')
+
+        await self.con.execute('SELECT 1')
+
+        await self.fast_forward_describe_migration(commit=False)
+
+        await self.con.execute('INSERT Obj1 { foo := "test" }')
+
+        await self.assert_describe_migration({
+            'confirmed': [
+                'SELECT 1;',
+                'CREATE TYPE test::Obj1 { CREATE PROPERTY foo -> std::str; };',
+                "INSERT Obj1 { foo := 'test' };"
+            ],
+            'complete': True,
+        })
+
+        await self.con.execute('COMMIT MIGRATION')
+
+        await self.assert_query_result(
+            'SELECT Obj1 { foo }',
+            [{'foo': 'test'}],
+        )
+
     async def test_edgeql_migration_confidence_01(self):
         await self.con.execute('''
             START MIGRATION TO {
@@ -8066,6 +8096,132 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 }],
             },
         })
+
+    async def test_edgeql_migration_misplaced_commands(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            r"cannot execute ALTER CURRENT MIGRATION"
+            r" outside of a migration block",
+        ):
+            await self.con.execute('''
+                ALTER CURRENT MIGRATION REJECT PROPOSED;
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            r"cannot execute DESCRIBE CURRENT MIGRATION"
+            r" outside of a migration block",
+        ):
+            await self.con.execute('''
+                DESCRIBE CURRENT MIGRATION;
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            r"cannot execute COMMIT MIGRATION"
+            r" outside of a migration block",
+        ):
+            await self.con.execute('''
+                COMMIT MIGRATION;
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            r"cannot execute ABORT MIGRATION"
+            r" outside of a migration block",
+        ):
+            await self.con.execute('''
+                ABORT MIGRATION;
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            r"cannot execute POPULATE MIGRATION"
+            r" outside of a migration block",
+        ):
+            await self.con.execute('''
+                POPULATE MIGRATION;
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            r"cannot execute CREATE DATABASE"
+            r" in a migration block",
+        ):
+            await self.start_migration('type Foo;')
+            await self.con.execute('''
+                CREATE DATABASE should_not_happen;
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            r"cannot execute CREATE ROLE"
+            r" in a migration block",
+        ):
+            await self.start_migration('type Foo;')
+            await self.con.execute('''
+                CREATE ROLE should_not_happen;
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            r"cannot execute CREATE MIGRATION"
+            r" in a migration block",
+        ):
+            await self.start_migration('type Foo;')
+            await self.con.execute('''
+                CREATE MIGRATION blah;
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            r"cannot execute START MIGRATION"
+            r" in a migration block",
+        ):
+            await self.start_migration('type Foo;')
+            await self.con.execute('''
+                START MIGRATION TO { module test { type Foo; }};
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            r"cannot execute START TRANSACTION"
+            r" in a migration block",
+        ):
+            await self.start_migration('type Foo;')
+            await self.con.execute('''
+                START TRANSACTION;
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            r"cannot execute START TRANSACTION"
+            r" in a migration block",
+        ):
+            await self.start_migration('type Foo;')
+            await self.con.execute('''
+                START TRANSACTION;
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            r"cannot execute CONFIGURE SYSTEM"
+            r" in a migration block",
+        ):
+            await self.start_migration('type Foo;')
+            await self.con.execute('''
+                CONFIGURE SYSTEM SET _foo := 123;
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            r"cannot execute CONFIGURE DATABASE"
+            r" in a migration block",
+        ):
+            await self.start_migration('type Foo;')
+            await self.con.execute('''
+                CONFIGURE CURRENT DATABASE SET _foo := 123;
+            ''')
 
 
 class TestEdgeQLDataMigrationNonisolated(tb.DDLTestCase):
