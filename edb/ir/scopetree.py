@@ -125,6 +125,20 @@ class ScopeTreeNode:
 
         return cp
 
+    def find_dupe_unique_ids(self) -> Set[int]:
+        seen = set()
+        dupes = set()
+        for node in self.root.descendants:
+            if node.unique_id is not None:
+                if node.unique_id in seen:
+                    dupes.add(node.unique_id)
+                seen.add(node.unique_id)
+        return dupes
+
+    def validate_unique_ids(self) -> None:
+        dupes = self.find_dupe_unique_ids()
+        assert not dupes, f'Duplicate "unique" ids seen {dupes}'
+
     @property
     def name(self) -> str:
         return self._name(debug=False)

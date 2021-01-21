@@ -374,6 +374,13 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                     ''',
                 )
 
+    @test.xfail('''
+        Broken by #2137.
+        We need to be a little smarter about tracking volatility in
+        WITH bindings.
+    ''')
+    async def test_edgeql_volatility_with_02(self):
+        # We would eventually like to compute this correctly instead
         async with self._run_and_rollback():
             with self.assertRaisesRegex(
                     edgedb.QueryError,

@@ -229,7 +229,6 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                 'could not resolve partial path ',
                 context=expr.context)
 
-    extra_scopes = {}
     computables = []
     path_sets = []
 
@@ -283,8 +282,6 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                         is_binding=True,
                         ctx=ctx,
                     )
-
-                    extra_scopes[path_tip] = view_scope_info
                 else:
                     path_tip = class_set(stype, ctx=ctx)
 
@@ -414,7 +411,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                 raise RuntimeError(
                     'unexpected expression as a non-first path item')
 
-            with ctx.newscope(fenced=True, temporary=True) as subctx:
+            with ctx.newscope(fenced=True, temporary=False) as subctx:
                 path_tip = ensure_set(
                     dispatch.compile(step, ctx=subctx), ctx=subctx)
 
@@ -423,9 +420,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                 else:
                     scope_set = path_tip
 
-                extra_scopes[scope_set] = context.ScopeInfo(
-                    path_scope=subctx.path_scope,
-                )
+                scope_set = scoped_set(scope_set, ctx=subctx)
 
         for key_path_id in path_tip.path_id.iter_weak_namespace_prefixes():
             mapped = ctx.view_map.get(key_path_id)
@@ -487,24 +482,6 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
 
     for fence in fences:
         fence.fenced = True
-
-    for ir_set, scope_info in extra_scopes.items():
-        nodes = tuple(
-            node for node in ctx.path_scope.find_descendants(ir_set.path_id)
-        )
-
-        if not nodes:
-            # The path portion not being a descendant means
-            # that is is already present in the scope above us,
-            # along with the view scope.
-            continue
-
-        assert len(nodes) == 1
-
-        nodes[0].fuse_subtree(scope_info.path_scope.copy())
-
-        if ir_set.path_scope_id is None:
-            pathctx.assign_set_scope(ir_set, nodes[0], ctx=ctx)
 
     for ir_set in computables:
         scope = ctx.path_scope.find_descendant(ir_set.path_id)

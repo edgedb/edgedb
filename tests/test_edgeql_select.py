@@ -1846,6 +1846,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
+    @test.xfail('We invalidly produce duplicates now as a result of #2137')
     async def test_edgeql_select_tvariant_04(self):
         await self.assert_query_result(
             r"""

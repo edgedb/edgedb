@@ -218,7 +218,7 @@ def _check_binding_volatility(
                 "be used inside FOR bodies",
                 context=ir.context)
 
-        if bind_scope and scope_tree.parent_fence != bind_scope.fence:
+        if bind_scope and scope_tree.fence != bind_scope.fence:
             if (
                 path_id in ctx.volatile_uses
                 and ctx.volatile_uses[path_id] != scope_tree
@@ -610,7 +610,7 @@ def _infer_set_inner(
     if (node := _find_visible(ir, scope_tree)) is not None:
         return AT_MOST_ONE if node.optional else ONE
 
-    _check_binding_volatility(ir, scope_tree=new_scope, ctx=ctx)
+    _check_binding_volatility(ir, scope_tree=scope_tree, ctx=ctx)
 
     if rptr is not None:
         if isinstance(rptrref, irast.TypeIntersectionPointerRef):
