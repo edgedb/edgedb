@@ -5,7 +5,7 @@ use crate::tokenizer::{Kind, TokenStream};
 ///
 /// See [check][].
 #[derive(Debug, thiserror::Error)]
-pub enum ExpressionError {
+pub enum Error {
     #[error("{}: tokenizer error: {}", _1, _0)]
     Tokenizer(String, Pos),
     #[error(
@@ -64,9 +64,9 @@ fn matching_bracket(tok: Kind) -> Kind {
 /// semicolon `;` outside of brackets.
 ///
 /// This is NOT a security measure.
-pub fn check(text: &str) -> Result<(), ExpressionError> {
+pub fn check(text: &str) -> Result<(), Error> {
     use crate::tokenizer::Kind::*;
-    use ExpressionError::*;
+    use Error::*;
 
     let mut brackets = Vec::new();
     let mut parser = &mut TokenStream::new(text);
