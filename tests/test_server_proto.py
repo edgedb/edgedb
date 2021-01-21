@@ -194,13 +194,13 @@ class TestServerProto(tb.QueryTestCase):
             };
         ''')
         self.assertEqual(r, [])
-        self.assertEqual(self.con._get_last_status(), 'CREATE')
+        self.assertEqual(self.con._get_last_status(), 'CREATE TYPE')
 
         r = await self.con.query('''
             DROP TYPE test::server_fetch_single_command_01;
         ''')
         self.assertEqual(r, [])
-        self.assertEqual(self.con._get_last_status(), 'DROP')
+        self.assertEqual(self.con._get_last_status(), 'DROP TYPE')
 
         r = await self.con.query('''
             CREATE TYPE test::server_fetch_single_command_01 {

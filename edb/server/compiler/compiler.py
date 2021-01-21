@@ -829,10 +829,14 @@ class Compiler(BaseCompiler):
             single_unit=(not is_transactional) or (drop_db is not None),
             new_types=new_types,
             drop_db=drop_db,
-            has_role_ddl=isinstance(stmt, qlast.Role),
+            has_role_ddl=isinstance(stmt, qlast.RoleCommand),
         )
 
-    def _compile_ql_migration(self, ctx: CompileContext, ql: qlast.Migration):
+    def _compile_ql_migration(
+        self,
+        ctx: CompileContext,
+        ql: qlast.MigrationCommand,
+    ):
         current_tx = ctx.state.current_tx()
         schema = current_tx.get_schema()
 
@@ -1430,13 +1434,13 @@ class Compiler(BaseCompiler):
         ctx: CompileContext,
         ql: qlast.Base
     ) -> Tuple[dbstate.BaseQuery, enums.Capability]:
-        if isinstance(ql, qlast.Migration):
+        if isinstance(ql, qlast.MigrationCommand):
             query = self._compile_ql_migration(ctx, ql)
             if isinstance(query, dbstate.MigrationControlQuery):
                 return (query, enums.Capability.DDL)
             else:  # DESCRIBE CURRENT MIGRATION
                 return (query, enums.Capability(0))
-        elif isinstance(ql, qlast.Database):
+        elif isinstance(ql, qlast.DatabaseCommand):
             return (
                 self._compile_and_apply_ddl_stmt(ctx, ql),
                 enums.Capability.DDL,

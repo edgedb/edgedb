@@ -393,7 +393,7 @@ class ConstraintCommand(
         for arg in args:
             exprs.append(arg.text)
 
-        assert isinstance(astnode, qlast.ConstraintOp)
+        assert isinstance(astnode, qlast.ConcreteConstraintOp)
         if astnode.subjectexpr:
             # use the normalized text directly from the expression
             expr = s_expr.Expression.from_ast(
@@ -418,7 +418,7 @@ class ConstraintCommand(
         context: sd.CommandContext,
     ) -> List[s_expr.Expression]:
         args = []
-        assert isinstance(astnode, qlast.ConstraintOp)
+        assert isinstance(astnode, qlast.ConcreteConstraintOp)
 
         if astnode.args:
             for arg in astnode.args:
@@ -631,7 +631,7 @@ class CreateConstraint(
         *,
         param_offset: int=0
     ) -> List[s_func.ParameterDesc]:
-        if not isinstance(astnode, qlast.CallableObject):
+        if not isinstance(astnode, qlast.CallableObjectCommand):
             # Concrete constraint.
             return []
 

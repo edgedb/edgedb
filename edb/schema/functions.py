@@ -911,7 +911,7 @@ class CallableCommand(sd.QualifiedObjectCommand[CallableObjectT]):
             # Some Callables, like the concrete constraints,
             # have no params in their AST.
             return []
-        assert isinstance(astnode, qlast.CallableObject)
+        assert isinstance(astnode, qlast.CallableObjectCommand)
         return cls._get_param_desc_from_params_ast(
             schema, modaliases, astnode.params, param_offset=param_offset)
 
@@ -986,9 +986,9 @@ class AlterCallableObject(
         context: sd.CommandContext,
         *,
         parent_node: Optional[qlast.DDLOperation] = None,
-    ) -> Optional[qlast.CallableObject]:
+    ) -> Optional[qlast.CallableObjectCommand]:
         node = cast(
-            qlast.CallableObject,
+            qlast.CallableObjectCommand,
             super()._get_ast(schema, context, parent_node=parent_node)
         )
 

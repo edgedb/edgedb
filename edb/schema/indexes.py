@@ -167,7 +167,7 @@ class IndexCommand(
         referrer_name: sn.QualName,
         context: sd.CommandContext,
     ) -> Tuple[str, ...]:
-        assert isinstance(astnode, qlast.IndexOp)
+        assert isinstance(astnode, qlast.IndexCommand)
         # use the normalized text directly from the expression
         expr = s_expr.Expression.from_ast(
             astnode.expr, schema, context.modaliases)
@@ -241,7 +241,7 @@ class IndexCommand(
         astnode: qlast.DDLOperation,
         context: sd.CommandContext,
     ) -> sd.ObjectCommand[Index]:
-        assert isinstance(astnode, qlast.IndexOp)
+        assert isinstance(astnode, qlast.IndexCommand)
         cmd = super()._cmd_from_ast(schema, astnode, context)
         orig_text = cls.get_orig_expr_text(schema, astnode, 'expr')
         cmd.set_ddl_identity(
