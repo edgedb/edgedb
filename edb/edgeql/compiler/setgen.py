@@ -411,9 +411,28 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                 raise RuntimeError(
                     'unexpected expression as a non-first path item')
 
-            with ctx.newscope(fenced=True, temporary=False) as subctx:
+            # We need to fence this if the head is a mutating
+            # statement, to make sure that the factoring allowlist
+            # works right.
+            is_subquery = isinstance(step, qlast.Statement)
+            with ctx.newscope(fenced=is_subquery) as subctx:
                 path_tip = ensure_set(
                     dispatch.compile(step, ctx=subctx), ctx=subctx)
+
+                # If the head of the path is a direct object
+                # reference, wrap it in an expression set to give it a
+                # new path id. This prevents the object path from being
+                # spuriously visible to computable paths defined in a shape
+                # at the root of a path. (See test_edgeql_select_tvariant_04
+                # for an example).
+                if (
+                    path_tip.path_id.is_objtype_path()
+                    and not path_tip.path_id.is_view_path()
+                    and path_tip.path_id.src_path() is None
+                ):
+                    path_tip = expression_set(
+                        ensure_stmt(path_tip, ctx=subctx),
+                        ctx=subctx)
 
                 if path_tip.path_id.is_type_intersection_path():
                     scope_set = path_tip.rptr.source

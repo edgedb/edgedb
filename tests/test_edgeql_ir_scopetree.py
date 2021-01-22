@@ -227,8 +227,8 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
 % OK %
         "FENCE": {
-            "(__derived__::expr~5).>friends[IS test::User]": {
-                "(__derived__::expr~5)"
+            "(__derived__::expr~6).>friends[IS test::User]": {
+                "(__derived__::expr~6)"
             },
             "FENCE": {
                 "FENCE": {
@@ -466,8 +466,8 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         "FENCE": {
             "(test::User)",
             "FENCE": {
-                "(__derived__::expr~7).>name[IS std::str]": {
-                    "(__derived__::expr~7)"
+                "(__derived__::expr~8).>name[IS std::str]": {
+                    "(__derived__::expr~8)"
                 },
                 "FENCE": {
                     "FENCE": {
@@ -561,8 +561,8 @@ deck_cost[IS std::int64]": {
 
 % OK %
         "FENCE": {
-            "(__derived__::expr~6).>name[IS std::str]": {
-                "(__derived__::expr~6)"
+            "(__derived__::expr~7).>name[IS std::str]": {
+                "(__derived__::expr~7)"
             },
             "(test::Card)",
             "(test::Card).>element[IS std::str]"
