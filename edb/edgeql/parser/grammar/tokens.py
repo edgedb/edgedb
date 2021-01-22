@@ -219,6 +219,10 @@ class T_OP(Token):
     pass
 
 
+class T_SUBSTITUTION(Token):
+    pass
+
+
 class T_EOF(Token):
     pass
 
