@@ -964,6 +964,54 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
             ]
         )
 
+    async def test_edgeql_aliases_subqueries_01(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT count((
+                    (SELECT EarthOrFireCard.name),
+                    (EarthOrFireCard.name)
+                ))
+            """,
+            [4]
+        )
+
+    async def test_edgeql_aliases_subqueries_02(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT count((
+                    (EarthOrFireCard.name),
+                    (SELECT EarthOrFireCard.name)
+                ))
+            """,
+            [4]
+        )
+
+    async def test_edgeql_aliases_subqueries_03(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT count((
+                    (EarthOrFireCard.name),
+                    (EarthOrFireCard.name)
+                ))
+            """,
+            [4]
+        )
+
+    async def test_edgeql_aliases_subqueries_04(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT count((
+                    (SELECT EarthOrFireCard.name),
+                    (SELECT EarthOrFireCard.name)
+                ))
+            """,
+            [16]
+        )
+
     async def test_edgeql_aliases_introspection(self):
         await self.assert_query_result(
             r"""

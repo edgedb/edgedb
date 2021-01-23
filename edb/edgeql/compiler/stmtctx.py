@@ -143,6 +143,8 @@ def fini_expression(
             if node.path_id.namespace:
                 node.path_id = node.path_id.strip_weak_namespaces()
 
+        ctx.path_scope.validate_unique_ids()
+
     if isinstance(ir, irast.Command):
         if isinstance(ir, irast.ConfigCommand):
             ir.scope_tree = ctx.path_scope
@@ -387,6 +389,7 @@ def declare_view(
     expr: qlast.Expr,
     alias: s_name.Name,
     *,
+    factoring_fence: bool=False,
     fully_detached: bool=False,
     must_be_used: bool=False,
     path_id_namespace: Optional[FrozenSet[str]]=None,
@@ -395,7 +398,8 @@ def declare_view(
 
     pinned_pid_ns = path_id_namespace
 
-    with ctx.newscope(temporary=True, fenced=True) as subctx:
+    with ctx.newscope(fenced=True) as subctx:
+        subctx.path_scope.factoring_fence = factoring_fence
         if path_id_namespace is not None:
             subctx.path_id_namespace = path_id_namespace
 
@@ -481,7 +485,8 @@ def declare_view_from_schema(
 
         vc = subctx.aliased_views[viewcls_name]
         assert vc is not None
-        ctx.env.schema_view_cache[viewcls] = vc
+        if not ctx.in_temp_scope:
+            ctx.env.schema_view_cache[viewcls] = vc
         ctx.source_map.update(subctx.source_map)
         ctx.aliased_views[viewcls_name] = subctx.aliased_views[viewcls_name]
         ctx.view_nodes[vc.get_name(ctx.env.schema)] = vc

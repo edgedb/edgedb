@@ -1971,6 +1971,19 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
+    async def test_edgeql_select_tvariant_09(self):
+        await self.assert_query_result(
+            r"""
+                WITH
+                    MODULE test,
+                SELECT
+                    (((SELECT Issue {
+                        x := .number ++ "!"
+                    }), Issue).0.x ++ (SELECT Issue.number));
+            """,
+            {"1!1", "2!2", "3!3", "4!4"},
+        )
+
     async def test_edgeql_select_tvariant_bad_01(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,
@@ -2451,7 +2464,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_select_setops_13(self):
+    async def test_edgeql_select_setops_13a(self):
         await self.assert_query_result(
             r"""
             WITH
@@ -2459,6 +2472,33 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 L := LogEntry  # there happens to only be 1 entry
             SELECT
                 (Issue.time_spent_log UNION L, Issue).0 {
+                    body
+                };
+            """,
+            [
+                # not only do we expect duplicates, but we actually
+                # expect 5 entries here:
+                # - 1 for the actual `time_spent_log' links from Issue
+                # - 4 from the UNION for each Issue.time_spent_log
+                {'body': 'Rewriting everything.'},
+                {'body': 'Rewriting everything.'},
+                {'body': 'Rewriting everything.'},
+                {'body': 'Rewriting everything.'},
+                {'body': 'Rewriting everything.'},
+            ],
+        )
+
+    @test.xfail('The results get deduplicated')
+    async def test_edgeql_select_setops_13b(self):
+        # This should be equivalent to the above test, but actually we
+        # end up deduplicating.
+        await self.assert_query_result(
+            r"""
+            WITH
+                MODULE test,
+                L := LogEntry  # there happens to only be 1 entry
+            SELECT
+                (SELECT (Issue.time_spent_log UNION L, Issue)).0 {
                     body
                 };
             """,

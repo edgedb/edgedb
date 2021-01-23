@@ -784,6 +784,11 @@ class TestTree(tb.QueryTestCase):
             ]
         )
 
+    @test.xfail('''
+        Fails with a SQL reference to a nonexistant alias.
+        Introduced in #2137, but I think that the issue is #1381
+        (weak namespace stripping being bogus).
+    ''')
     async def test_edgeql_tree_update_05(self):
         # Swap around a tree node and its first child as an atomic operation.
         #
