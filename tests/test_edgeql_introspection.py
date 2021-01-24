@@ -1204,10 +1204,18 @@ class TestIntrospection(tb.QueryTestCase):
                 {
                     'name': 'test::Comment',
                     'links': [
-                        {'name': '__type__', 'required': True, 'readonly': True},
+                        {
+                            'name': '__type__',
+                            'required': True, 
+                            'readonly': True
+                        },
                         {'name': 'issue', 'required': True, 'readonly': False},
                         {'name': 'owner', 'required': True, 'readonly': False},
-                        {'name': 'parent', 'required': False, 'readonly': False},
+                        {
+                            'name': 'parent',
+                            'required': False,
+                            'readonly': False
+                        },
                     ]
                 }
             ],
