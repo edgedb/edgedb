@@ -160,8 +160,8 @@ class Server:
 
         await self._load_instance_data()
         await self._fetch_roles()
-        await self._introspect_dbs()
         self._dbindex = await dbview.DatabaseIndex.init(self)
+        await self._introspect_dbs()
 
         self._populate_sys_auth()
 
@@ -200,20 +200,47 @@ class Server:
             discard = True
         self._pg_pool.release(dbname, conn, discard=discard)
 
-    async def _introspect_db(self, dbname):
+    async def introspect_db(self, dbname):
         conn = await self.acquire_pgcon(dbname)
         try:
             json_data = await conn.parse_execute_json(
                 self._intro_query, b'__intro_db',
                 dbver=b'', use_prep_stmt=True, args=(),
             )
-            schema = s_refl.parse_into(
+
+            user_schema = s_refl.parse_into(
                 base_schema=self._std_schema,
                 schema=s_schema.FlatSchema(),
                 data=json_data,
                 schema_class_layout=self._schema_class_layout,
             )
-            # print('!!!!!!!', dbname, schema)
+
+            reflection_cache_json = await conn.parse_execute_json(
+                b'''
+                    SELECT json_agg(o.c)
+                    FROM (
+                        SELECT
+                            json_build_object(
+                                'eql_hash', t.eql_hash,
+                                'argnames', array_to_json(t.argnames)
+                            ) AS c
+                        FROM
+                            ROWS FROM(edgedb._get_cached_reflection())
+                                AS t(eql_hash text, argnames text[])
+                    ) AS o;
+                ''',
+                b'__reflection_cache',
+                dbver=b'',
+                use_prep_stmt=True,
+                args=(),
+            )
+
+            reflection_cache = immutables.Map({
+                r['eql_hash']: tuple(r['argnames'])
+                for r in json.loads(reflection_cache_json)
+            })
+
+            self._dbindex.register_db(dbname, user_schema, reflection_cache)
         finally:
             self.release_pgcon(dbname, conn)
 
@@ -231,7 +258,7 @@ class Server:
 
         async with taskgroup.TaskGroup(name='introspect DBs') as g:
             for dbname in dbnames:
-                g.create_task(self._introspect_db(dbname))
+                g.create_task(self.introspect_db(dbname))
 
     async def _fetch_roles(self):
         syscon = await self._acquire_sys_pgcon()

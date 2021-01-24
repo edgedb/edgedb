@@ -37,11 +37,14 @@ cdef class DatabaseIndex:
 cdef class Database:
 
     cdef:
-        str _name
-        object _dbver
         object _eql_to_compiled
         DatabaseIndex _index
         object _views
+
+        readonly str name
+        readonly object dbver
+        readonly object user_schema
+        readonly object reflection_cache
 
     cdef _signal_ddl(self, new_dbver)
     cdef _invalidate_caches(self)

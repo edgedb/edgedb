@@ -46,9 +46,15 @@ cdef class Database:
     # Global LRU cache of compiled anonymous queries
     _eql_to_compiled: typing.Mapping[str, dbstate.QueryUnit]
 
-    def __init__(self, DatabaseIndex index, str name):
-        self._name = name
-        self._dbver = uuidgen.uuid1mc().bytes
+    def __init__(
+        self,
+        DatabaseIndex index,
+        str name,
+        object user_schema,
+        object reflection_cache
+    ):
+        self.name = name
+        self.dbver = uuidgen.uuid1mc().bytes
 
         self._index = index
         self._views = weakref.WeakSet()
@@ -56,11 +62,14 @@ cdef class Database:
         self._eql_to_compiled = lru.LRUMapping(
             maxsize=defines._MAX_QUERIES_CACHE)
 
+        self.user_schema = user_schema
+        self.reflection_cache = reflection_cache
+
     cdef _signal_ddl(self, new_dbver):
         if new_dbver is None:
-            self._dbver = uuidgen.uuid1mc().bytes
+            self.dbver = uuidgen.uuid1mc().bytes
         else:
-            self._dbver = new_dbver
+            self.dbver = new_dbver
         self._invalidate_caches()
 
     cdef _invalidate_caches(self):
@@ -211,11 +220,11 @@ cdef class DatabaseConnectionView:
 
     property dbver:
         def __get__(self):
-            return self._db._dbver
+            return self._db.dbver
 
     property dbname:
         def __get__(self):
-            return self._db._name
+            return self._db.name
 
     cdef in_tx(self):
         return self._in_tx
@@ -391,16 +400,24 @@ cdef class DatabaseIndex:
         return self._sys_config
 
     def get_dbver(self, dbname):
-        db = self._get_db(dbname)
-        return (<Database>db)._dbver
+        db = self.get_db(dbname)
+        return (<Database>db).dbver
 
-    def _get_db(self, dbname):
-        try:
-            db = self._dbs[dbname]
-        except KeyError:
-            db = Database(self, dbname)
-            self._dbs[dbname] = db
-        return db
+    def get_db(self, dbname):
+        return self._dbs[dbname]
+
+    def register_db(self, dbname, schema, reflection_cache):
+        if dbname in self._dbs:
+            raise RuntimeError(
+                f'cannot register DB {dbname!r}: it is already registered')
+        db = Database(self, dbname, schema, reflection_cache)
+        self._dbs[dbname] = db
+
+    def unregister_db(self, dbname):
+        self._dbs.pop(dbname)
+
+    def iter_dbs(self):
+        return iter(self._dbs.values())
 
     async def _save_system_overrides(self, conn):
         data = config.to_json(
@@ -457,7 +474,7 @@ cdef class DatabaseIndex:
                 op.setting_name)
 
     def new_view(self, dbname: str, *, user: str, query_cache: bool):
-        db = self._get_db(dbname)
+        db = self.get_db(dbname)
         return (<Database>db)._new_view(user, query_cache)
 
     def _on_remote_ddl(self, dbname, dbver):
@@ -467,7 +484,7 @@ cdef class DatabaseIndex:
             db = <Database>(self._dbs[dbname])
         except KeyError:
             return
-        if db._dbver != dbver:
+        if db.dbver != dbver:
             db._signal_ddl(dbver)
 
     def _on_remote_database_config_change(self, dbname):

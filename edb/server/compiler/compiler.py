@@ -795,9 +795,12 @@ class Compiler(BaseCompiler):
         else:
             sql = (block.to_string().encode('utf-8'),)
 
+        create_db = None
         drop_db = None
         if isinstance(stmt, qlast.DropDatabase):
             drop_db = stmt.name.name
+        elif isinstance(stmt, qlast.CreateDatabase):
+            create_db = stmt.name.name
 
         if debug.flags.delta_execute:
             debug.header('Delta Script')
@@ -808,6 +811,7 @@ class Compiler(BaseCompiler):
             is_transactional=is_transactional,
             single_unit=(not is_transactional) or (drop_db is not None),
             new_types=new_types,
+            create_db=create_db,
             drop_db=drop_db,
             has_role_ddl=isinstance(stmt, qlast.Role),
         )
@@ -1400,13 +1404,8 @@ class Compiler(BaseCompiler):
                 return (query, enums.Capability.DDL)
             else:  # DESCRIBE CURRENT MIGRATION
                 return (query, enums.Capability(0))
-        elif isinstance(ql, qlast.Database):
-            return (
-                self._compile_and_apply_ddl_stmt(ctx, ql),
-                enums.Capability.DDL,
-            )
 
-        elif isinstance(ql, qlast.DDL):
+        elif isinstance(ql, (qlast.Database, qlast.DDL)):
             return (
                 self._compile_and_apply_ddl_stmt(ctx, ql),
                 enums.Capability.DDL,
@@ -1554,9 +1553,10 @@ class Compiler(BaseCompiler):
             elif isinstance(comp, dbstate.DDLQuery):
                 unit.sql += comp.sql
                 unit.new_types = comp.new_types
+                unit.create_db = comp.create_db
                 unit.drop_db = comp.drop_db
                 unit.has_role_ddl = comp.has_role_ddl
-                if comp.drop_db:
+                if comp.drop_db or comp.create_db:
                     units.append(unit)
                     unit = None
 

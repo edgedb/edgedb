@@ -113,6 +113,7 @@ class DDLQuery(BaseQuery):
     new_types: FrozenSet[str] = frozenset()
     is_transactional: bool = True
     single_unit: bool = False
+    create_db: Optional[str] = None
     drop_db: Optional[str] = None
     has_role_ddl: bool = False
 
@@ -204,8 +205,10 @@ class QueryUnit:
     cacheable: bool = False
 
     # If non-None, contains a name of the DB that is about to be
-    # deleted. The server should close all inactive unused pooled
-    # connections to it.
+    # created/deleted. If it's the former, the IO process needs to
+    # introspect the new db. If it's the later, the server should
+    # close all inactive unused pooled connections to it.
+    create_db: Optional[str] = None
     drop_db: Optional[str] = None
 
     # Cardinality of the result set.  Set to NO_RESULT if the

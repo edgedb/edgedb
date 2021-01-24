@@ -955,6 +955,11 @@ cdef class EdgeConnection:
                                 # only apply state to the first query.
                                 i += 1
 
+                        if query_unit.create_db:
+                            await self.port.get_server().introspect_db(
+                                query_unit.create_db
+                            )
+
                         if query_unit.config_ops:
                             await self.dbview.apply_config_ops(
                                 conn,
@@ -1387,6 +1392,12 @@ cdef class EdgeConnection:
                     use_prep_stmt,      # =use_prep_stmt
                     state,              # =state
                 )
+
+                if query_unit.create_db:
+                    await self.port.get_server().introspect_db(
+                        query_unit.create_db
+                    )
+
                 if query_unit.config_ops:
                     await self.dbview.apply_config_ops(
                         conn,
