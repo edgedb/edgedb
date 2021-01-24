@@ -222,6 +222,7 @@ CREATE ABSTRACT TYPE schema::Pointer
 {
     CREATE PROPERTY cardinality -> schema::Cardinality;
     CREATE PROPERTY required -> std::bool;
+    CREATE PROPERTY readonly -> std::bool;
     CREATE PROPERTY default -> std::str;
     CREATE PROPERTY expr -> std::str;
 };
