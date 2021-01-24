@@ -279,6 +279,26 @@ def _sort_by_inheritance(
     return topological.sort(graph, allow_unresolved=True)
 
 
+def sort_by_cross_refs(
+    schema: s_schema.Schema,
+    objs: Iterable[so.Object_T],
+) -> Tuple[so.Object_T, ...]:
+    """Sort an iterable of objects according to cross-references between them.
+
+    Return a toplogical ordering of a graph of objects joined by references.
+    It is assumed that the graph has no cycles.
+    """
+    graph = {}
+    for x in objs:
+        graph[x] = topological.DepGraphEntry(
+            item=x,
+            deps=set(schema.get_referrers(x)),
+            extra=False,
+        )
+
+    return topological.sort(graph, allow_unresolved=True)  # type: ignore
+
+
 CommandMeta_T = TypeVar("CommandMeta_T", bound="CommandMeta")
 
 
@@ -2861,6 +2881,49 @@ class AlterObjectOrFragment(ObjectCommand[so.Object_T]):
                     schema, cmd.property, default=None)
         return schema
 
+    def validate_alter(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> None:
+        self._validate_legal_command(schema, context)
+
+    def _alter_begin(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> s_schema.Schema:
+        for op in self.get_prerequisites():
+            schema = op.apply(schema, context)
+
+        if not context.canonical:
+            schema = self.populate_ddl_identity(schema, context)
+            schema = self.canonicalize_attributes(schema, context)
+            computed_status = self._get_computed_status_of_fields(
+                schema, context)
+            self._update_computed_fields(schema, context, computed_status)
+            self.validate_alter(schema, context)
+
+        props = self.get_resolved_attributes(schema, context)
+        return self.scls.update(schema, props)
+
+    def _alter_innards(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> s_schema.Schema:
+        for op in self.get_subcommands(include_prerequisites=False):
+            if not isinstance(op, AlterObjectProperty):
+                schema = op.apply(schema, context=context)
+        return schema
+
+    def _alter_finalize(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> s_schema.Schema:
+        return self._finalize_affected_refs(schema, context)
+
 
 class AlterObjectFragment(AlterObjectOrFragment[so.Object_T]):
 
@@ -2887,42 +2950,6 @@ class AlterObjectFragment(AlterObjectOrFragment[so.Object_T]):
         op = context.current().op
         assert isinstance(op, ObjectCommand)
         return op
-
-    def _alter_begin(
-        self,
-        schema: s_schema.Schema,
-        context: CommandContext,
-    ) -> s_schema.Schema:
-        for op in self.get_prerequisites():
-            schema = op.apply(schema, context)
-
-        if not context.canonical:
-            schema = self.populate_ddl_identity(schema, context)
-            schema = self.canonicalize_attributes(schema, context)
-            computed_status = self._get_computed_status_of_fields(
-                schema, context)
-            self._update_computed_fields(schema, context, computed_status)
-
-        props = self.get_resolved_attributes(schema, context)
-        return self.scls.update(schema, props)
-
-    def _alter_innards(
-        self,
-        schema: s_schema.Schema,
-        context: CommandContext,
-    ) -> s_schema.Schema:
-        for op in self.get_subcommands(include_prerequisites=False):
-            if not isinstance(op, AlterObjectProperty):
-                schema = op.apply(schema, context=context)
-        return schema
-
-    def _alter_finalize(
-        self,
-        schema: s_schema.Schema,
-        context: CommandContext,
-    ) -> s_schema.Schema:
-        schema = self._finalize_affected_refs(schema, context)
-        return schema
 
 
 class RenameObject(AlterObjectFragment[so.Object_T]):
@@ -3003,121 +3030,69 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
             compiled.qlast, schema, modaliases={}, as_fragment=True)
         return out
 
-    def _rename_begin(
+    def _alter_begin(
         self,
         schema: s_schema.Schema,
         context: CommandContext,
     ) -> s_schema.Schema:
-        self._validate_legal_command(schema, context)
         scls = self.scls
+        context.renames[self.classname] = self.new_name
+        context.renamed_objs.add(scls)
 
-        # Renames of schema objects used in expressions is
-        # not supported yet.  Eventually we'll add support
-        # for transparent recompilation.
         vn = scls.get_verbosename(schema)
         schema = self._propagate_if_expr_refs(
-            schema, context, action=f'rename {vn}',
-            fixer=self._fix_referencing_expr)
+            schema,
+            context,
+            action=f'rename {vn}',
+            fixer=self._fix_referencing_expr,
+        )
 
         if not context.canonical:
-            self.validate_rename(schema, context)
             self.set_attribute_value(
                 'name',
                 value=self.new_name,
                 orig_value=self.classname,
             )
 
-            if not context.get_value(('renamecanon', self)):
-                commands = self._canonicalize(schema, context, self.scls)
-                self.update(commands)
+        return super()._alter_begin(schema, context)
 
-        for op in self.get_prerequisites():
-            schema = op.apply(schema, context)
-
-        self.old_name = self.classname
-        schema = scls.set_field_value(schema, 'name', self.new_name)
-
-        return schema
-
-    def _rename_innards(
+    def _alter_innards(
         self,
         schema: s_schema.Schema,
         context: CommandContext,
     ) -> s_schema.Schema:
-        for op in self.get_subcommands(include_prerequisites=False):
-            if not isinstance(op, (AlterObjectFragment, AlterObjectProperty)):
-                schema = op.apply(schema, context=context)
-        return schema
+        if not context.canonical:
+            self._canonicalize(schema, context, self.scls)
+        return super()._alter_innards(schema, context)
 
-    def _rename_finalize(
-        self,
-        schema: s_schema.Schema,
-        context: CommandContext,
-    ) -> s_schema.Schema:
-        schema = self._finalize_affected_refs(schema, context)
-        return schema
-
-    def validate_rename(
-        self,
-        schema: s_schema.Schema,
-        context: CommandContext,
-    ) -> None:
-        pass
-
-    def apply(
-        self,
-        schema: s_schema.Schema,
-        context: CommandContext,
-    ) -> s_schema.Schema:
-        parent_op = self.get_parent_op(context)
-        scls = self.scls = cast(so.Object_T, parent_op.scls)
-
-        context.renames[self.classname] = self.new_name
-        context.renamed_objs.add(scls)
-
-        schema = self._rename_begin(schema, context)
-        schema = self._rename_innards(schema, context)
-        schema = self._rename_finalize(schema, context)
-
-        return schema
-
-    def _canonicalize_ref_rename(
+    def init_rename_branch(
         self,
         ref: so.Object,
-        ref_name: sn.Name,
         new_ref_name: sn.Name,
         schema: s_schema.Schema,
         context: CommandContext,
-        scls: so.Object,
     ) -> Command:
-        root, alter, ctx_stack = ref.init_delta_branch(
+
+        ref_root, ref_alter, _ = ref.init_delta_branch(
             schema, context, AlterObject)
 
-        rename = ref.init_delta_command(
-            schema,
-            RenameObject,
-            new_name=new_ref_name,
+        ref_alter.add(
+            ref.init_delta_command(
+                schema,
+                RenameObject,
+                new_name=new_ref_name,
+            ),
         )
-        rename.set_attribute_value(
-            'name',
-            value=new_ref_name,
-            orig_value=ref_name,
-        )
-        with ctx_stack():
-            rename.update(rename._canonicalize(schema, context, ref))
-        alter.canonical = True
-        alter.add(rename)
 
-        return root
+        return ref_root
 
     def _canonicalize(
         self,
         schema: s_schema.Schema,
         context: CommandContext,
         scls: so.Object,
-    ) -> Sequence[Command]:
+    ) -> None:
         mcls = self.get_schema_metaclass()
-        commands = []
 
         for refdict in mcls.get_refdicts():
             all_refs = set(
@@ -3135,16 +3110,12 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
                     name=sn.get_specialized_name(shortname, *quals),
                     module=self.new_name.module,
                 )
-
-                commands.append(self._canonicalize_ref_rename(
-                    ref, ref_name, new_ref_name, schema, context, scls))
-
-        # Record the fact that RenameObject._canonicalize
-        # was called on this object to guard against possible
-        # duplicate calls.
-        context.store_value(('renamecanon', self), True)
-
-        return commands
+                self.add(self.init_rename_branch(
+                    ref,
+                    new_ref_name,
+                    schema=schema,
+                    context=context,
+                ))
 
     def _get_ast(
         self,
@@ -3266,54 +3237,6 @@ class AlterObject(AlterObjectOrFragment[so.Object_T], Generic[so.Object_T]):
             # so filter it out as well.
             node = None
         return node
-
-    def _alter_begin(
-        self,
-        schema: s_schema.Schema,
-        context: CommandContext,
-    ) -> s_schema.Schema:
-        self._validate_legal_command(schema, context)
-
-        for op in self.get_prerequisites():
-            schema = op.apply(schema, context)
-
-        if not context.canonical:
-            schema = self.populate_ddl_identity(schema, context)
-            schema = self.canonicalize_attributes(schema, context)
-            computed_status = self._get_computed_status_of_fields(
-                schema, context)
-            self._update_computed_fields(schema, context, computed_status)
-            self.validate_alter(schema, context)
-
-        props = self.get_resolved_attributes(schema, context)
-        schema = self.scls.update(schema, props)
-        return schema
-
-    def _alter_innards(
-        self,
-        schema: s_schema.Schema,
-        context: CommandContext,
-    ) -> s_schema.Schema:
-        for op in self.get_subcommands(include_prerequisites=False):
-            if not isinstance(op, AlterObjectProperty):
-                schema = op.apply(schema, context=context)
-
-        return schema
-
-    def _alter_finalize(
-        self,
-        schema: s_schema.Schema,
-        context: CommandContext,
-    ) -> s_schema.Schema:
-        schema = self._finalize_affected_refs(schema, context)
-        return schema
-
-    def validate_alter(
-        self,
-        schema: s_schema.Schema,
-        context: CommandContext,
-    ) -> None:
-        pass
 
     def apply(
         self,
@@ -3469,6 +3392,22 @@ class DeleteObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         schema = schema.delete(self.scls)
         return schema
 
+    def _has_outside_references(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> bool:
+        # Check if the subject of this command has any outside references
+        # minus any current expiring refs and minus structural child refs
+        # (e.g. source backref in pointers of an object type).
+        refs = [
+            ref
+            for ref in schema.get_referrers(self.scls) - self.expiring_refs
+            if not ref.is_parent_ref(schema, self.scls)
+        ]
+
+        return bool(refs)
+
     def apply(
         self,
         schema: s_schema.Schema,
@@ -3488,7 +3427,7 @@ class DeleteObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
             if (
                 not self.canonical
                 and self.if_unused
-                and (schema.get_referrers(scls) - self.expiring_refs)
+                and self._has_outside_references(schema, context)
             ):
                 parent_ctx = context.parent()
                 if parent_ctx is not None:

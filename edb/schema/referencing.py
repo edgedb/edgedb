@@ -258,6 +258,23 @@ class ReferencedObject(so.DerivableObject):
 
         return root, cmd, ctx_stack
 
+    def is_parent_ref(
+        self,
+        schema: s_schema.Schema,
+        reference: so.Object,
+    ) -> bool:
+        """Return True if *reference* is a structural ancestor of self"""
+        obj = self.get_referrer(schema)
+        while obj is not None:
+            if obj == reference:
+                return True
+            elif isinstance(obj, ReferencedObject):
+                obj = obj.get_referrer(schema)
+            else:
+                break
+
+        return False
+
 
 class ReferencedInheritingObject(
     so.DerivableInheritingObject,
@@ -1283,37 +1300,52 @@ class RenameReferencedInheritingObject(
     sd.RenameObject[ReferencedInheritingObjectT],
 ):
 
-    def _rename_begin(self,
-                      schema: s_schema.Schema,
-                      context: sd.CommandContext
-                      ) -> s_schema.Schema:
+    def _alter_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
         orig_schema = schema
-        schema = super()._rename_begin(schema, context)
+        schema = super()._alter_begin(schema, context)
         scls = self.scls
 
         if not context.canonical and not scls.generic(schema):
-            implicit_bases = scls.get_implicit_bases(schema)
-            non_renamed_bases = set(implicit_bases) - context.renamed_objs
+            referrer_ctx = self.get_referrer_context_or_die(context)
+            referrer_class = referrer_ctx.op.get_schema_metaclass()
+            mcls = self.get_schema_metaclass()
+            refdict = referrer_class.get_refdict_for_class(mcls)
+            reftype = referrer_class.get_field(refdict.attr).type
 
-            # This object is inherited from one or more ancestors that
-            # are not renamed in the same op, and this is an error.
-            if non_renamed_bases:
-                bases_str = ', '.join(
-                    b.get_verbosename(schema, with_parent=True)
-                    for b in non_renamed_bases
-                )
+            orig_ref_fqname = scls.get_name(orig_schema)
+            orig_ref_lname = reftype.get_key_for_name(schema, orig_ref_fqname)
 
-                verb = 'are' if len(non_renamed_bases) > 1 else 'is'
-                vn = scls.get_verbosename(orig_schema, with_parent=True)
+            new_ref_fqname = scls.get_name(schema)
+            new_ref_lname = reftype.get_key_for_name(schema, new_ref_fqname)
 
-                raise errors.SchemaDefinitionError(
-                    f'cannot rename inherited {vn}',
-                    details=(
-                        f'{vn} is inherited from '
-                        f'{bases_str}, which {verb} not being renamed'
-                    ),
-                    context=self.source_context,
-                )
+            # Distinguish between actual local name change and fully-qualified
+            # name change due to structural parent rename.
+            if orig_ref_lname != new_ref_lname:
+                implicit_bases = scls.get_implicit_bases(schema)
+                non_renamed_bases = set(implicit_bases) - context.renamed_objs
+                # This object is inherited from one or more ancestors that
+                # are not renamed in the same op, and this is an error.
+                if non_renamed_bases:
+                    bases_str = ', '.join(
+                        b.get_verbosename(schema, with_parent=True)
+                        for b in non_renamed_bases
+                    )
+
+                    verb = 'are' if len(non_renamed_bases) > 1 else 'is'
+                    vn = scls.get_verbosename(orig_schema, with_parent=True)
+
+                    raise errors.SchemaDefinitionError(
+                        f'cannot rename inherited {vn}',
+                        details=(
+                            f'{vn} is inherited from '
+                            f'{bases_str}, which {verb} not being renamed'
+                        ),
+                        context=self.source_context,
+                    )
 
             schema = self._propagate_ref_rename(schema, context, scls)
 

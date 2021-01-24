@@ -108,12 +108,6 @@ class TypeSerializer:
         string_id += f'{has_implicit_fields!r};{links_props!r};{links!r}'
         return uuidgen.uuid5(s_types.TYPE_ID_NAMESPACE, string_id)
 
-    def _get_union_type_id(self, union_type):
-        base_type_id = ','.join(
-            str(c.id) for c in union_type.children(self.schema))
-
-        return uuidgen.uuid5(s_types.TYPE_ID_NAMESPACE, base_type_id)
-
     @classmethod
     def _get_set_type_id(cls, basetype_id):
         return uuidgen.uuid5(s_types.TYPE_ID_NAMESPACE,

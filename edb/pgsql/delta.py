@@ -330,6 +330,14 @@ class CreateTuple(TupleCommand, adapts=s_types.CreateTuple):
         return schema
 
 
+class AlterTuple(TupleCommand, adapts=s_types.AlterTuple):
+    pass
+
+
+class RenameTuple(TupleCommand, adapts=s_types.RenameTuple):
+    pass
+
+
 class DeleteTuple(TupleCommand, adapts=s_types.DeleteTuple):
 
     def apply(
@@ -434,6 +442,14 @@ class CreateArray(ArrayCommand, adapts=s_types.CreateArray):
         schema = self.__class__.get_adaptee().apply(self, schema, context)
         schema = ArrayCommand.apply(self, schema, context)
         return schema
+
+
+class AlterArray(ArrayCommand, adapts=s_types.AlterArray):
+    pass
+
+
+class RenameArray(ArrayCommand, adapts=s_types.RenameArray):
+    pass
 
 
 class DeleteArray(ArrayCommand, adapts=s_types.DeleteArray):
@@ -2465,7 +2481,7 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
         if (
             is_link
             and using_eql_expr is None
-            and orig_target.issubclass(schema, new_target)
+            and orig_target.issubclass(orig_schema, new_target)
         ):
             return
 
@@ -3042,8 +3058,8 @@ class RenameLink(LinkMetaCommand, adapts=s_links.RenameLink):
         schema = LinkMetaCommand.apply(self, schema, context)
         return schema
 
-    def _rename_begin(self, schema, context):
-        schema = super()._rename_begin(schema, context)
+    def _alter_begin(self, schema, context):
+        schema = super()._alter_begin(schema, context)
         scls = self.scls
 
         self.attach_alter_table(context)

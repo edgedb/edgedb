@@ -1056,19 +1056,26 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         return hash(self.id)
 
     @classmethod
-    def _prepare_id(
-        cls, id: Optional[uuid.UUID], data: Dict[str, Any]
+    def generate_id(
+        cls,
+        schema: s_schema.Schema,
+        data: Dict[str, Any],
     ) -> uuid.UUID:
-        if id is not None:
-            return id
+        return uuidgen.uuid1mc()
 
+    @classmethod
+    def _prepare_id(
+        cls,
+        schema: s_schema.Schema,
+        data: Dict[str, Any],
+    ) -> uuid.UUID:
         name = data.get('name')
         assert isinstance(name, (str, sn.Name))
 
         try:
             return get_known_type_id(name)
         except errors.SchemaError:
-            return uuidgen.uuid1mc()
+            return cls.generate_id(schema, data)
 
     @classmethod
     def _create_from_id(cls: Type[Object_T], id: uuid.UUID) -> Object_T:
@@ -1097,7 +1104,8 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
             value = field.coerce_value(schema, value)
             obj_data[field.index] = value
 
-        id = cls._prepare_id(id, data)
+        if id is None:
+            id = cls._prepare_id(schema, data)
         scls = cls._create_from_id(id)
         schema = schema.add(id, cls, tuple(obj_data))
 
@@ -1260,6 +1268,14 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         self, schema: s_schema.Schema, reference: Object
     ) -> bool:
         return True
+
+    def is_parent_ref(
+        self,
+        schema: s_schema.Schema,
+        reference: Object,
+    ) -> bool:
+        """Return True if *reference* is a structural ancestor of self."""
+        return False
 
     def is_generated(self, schema: s_schema.Schema) -> bool:
         return False
@@ -1480,14 +1496,19 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
             ddl_identity=self.get_ddl_identity(schema),
             **kwargs,
         )
+        self.record_cmd_object_aux_data(schema, cmd)
+        return cmd
 
-        for field in cls.get_aux_cmd_data_fields():
+    def record_cmd_object_aux_data(
+        self: Object_T,
+        schema: s_schema.Schema,
+        cmd: sd.ObjectCommand[Any],
+    ) -> None:
+        for field in type(self).get_aux_cmd_data_fields():
             cmd.set_object_aux_data(
                 field.name,
                 self.get_field_value(schema, field.name),
             )
-
-        return cmd
 
     def init_parent_delta_branch(
         self: Object_T,
@@ -1566,11 +1587,6 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
 
         if context.generate_prompts:
             delta.set_annotation('orig_cmdclass', type(delta))
-
-        # IDs are assigned once when the object is created and
-        # never changed.
-        id_value = self.get_explicit_field_value(schema, 'id')
-        delta.set_attribute_value('id', id_value)
 
         ff = cls.get_fields(sorted=True).items()
         fields = {fn: f for fn, f in ff if f.simpledelta and not f.ephemeral}
@@ -2291,7 +2307,7 @@ class ObjectCollection(
         compcoef: float,
     ) -> float:
         if ours is not None:
-            our_names = tuple(
+            our_names = cls._container(
                 context.get_obj_name(our_schema, obj)
                 for obj in ours.objects(our_schema)
             )

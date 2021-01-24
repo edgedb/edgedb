@@ -1305,14 +1305,7 @@ class GQLCoreSchema:
 
         if not name.startswith('stdgraphql::'):
             if edb_base is None:
-                type_id = s_types.type_id_from_name(
-                    s_name.name_from_string(name))
-                if type_id is not None:
-                    edb_base = self.edb_schema.get_by_id(
-                        type_id,
-                        type=s_types.Type,
-                    )
-                elif '::' in name:
+                if '::' in name:
                     edb_base = self.edb_schema.get(
                         name,
                         type=s_types.Type,
@@ -1326,6 +1319,17 @@ class GQLCoreSchema:
                         )
                         if edb_base:
                             break
+
+                    # XXX: find a better way to do this
+                    if edb_base is None:
+                        edb_base = self.edb_schema.get_global(
+                            s_types.Array, name, default=None
+                        )
+
+                    if edb_base is None:
+                        edb_base = self.edb_schema.get_global(
+                            s_types.Tuple, name, default=None
+                        )
 
                     if edb_base is None:
                         raise AssertionError(

@@ -204,9 +204,11 @@ class Schema(abc.ABC):
     def get_referrers_ex(
         self,
         scls: so.Object,
+        *,
+        scls_type: Optional[Type[so.Object_T]] = None,
     ) -> Dict[
-        Tuple[Type[so.Object], str],
-        FrozenSet[so.Object],
+        Tuple[Type[so.Object_T], str],
+        FrozenSet[so.Object_T],
     ]:
         raise NotImplementedError
 
@@ -1122,18 +1124,19 @@ class FlatSchema(Schema):
             if scls_type is not None:
                 if field_name is not None:
                     for (st, fn), ids in refs.items():
-                        if st is scls_type and fn == field_name:
+                        if issubclass(st, scls_type) and fn == field_name:
                             referrers.update(
                                 self.get_by_id(objid) for objid in ids)
                 else:
                     for (st, _), ids in refs.items():
-                        if st is scls_type:
+                        if issubclass(st, scls_type):
                             referrers.update(
                                 self.get_by_id(objid) for objid in ids)
             elif field_name is not None:
-                raise ValueError(
-                    'get_referrers: field_name cannot be used '
-                    'without scls_type')
+                for (_, fn), ids in refs.items():
+                    if fn == field_name:
+                        referrers.update(
+                            self.get_by_id(objid) for objid in ids)
             else:
                 refids = itertools.chain.from_iterable(refs.values())
                 referrers.update(self.get_by_id(objid) for objid in refids)
@@ -1144,9 +1147,11 @@ class FlatSchema(Schema):
     def get_referrers_ex(
         self,
         scls: so.Object,
+        *,
+        scls_type: Optional[Type[so.Object_T]] = None,
     ) -> Dict[
-        Tuple[Type[so.Object], str],
-        FrozenSet[so.Object],
+        Tuple[Type[so.Object_T], str],
+        FrozenSet[so.Object_T],
     ]:
         try:
             refs = self._refs_to[scls.id]
@@ -1155,11 +1160,17 @@ class FlatSchema(Schema):
         else:
             result = {}
 
-            for (st, fn), ids in refs.items():
-                result[st, fn] = frozenset(
-                    self.get_by_id(objid) for objid in ids)
+            if scls_type is not None:
+                for (st, fn), ids in refs.items():
+                    if issubclass(st, scls_type):
+                        result[st, fn] = frozenset(
+                            self.get_by_id(objid) for objid in ids)
+            else:
+                for (st, fn), ids in refs.items():
+                    result[st, fn] = frozenset(  # type: ignore
+                        self.get_by_id(objid) for objid in ids)
 
-            return result
+            return result  # type: ignore
 
     @overload
     def get_by_id(
@@ -1643,12 +1654,14 @@ class ChainedSchema(Schema):
     def get_referrers_ex(
         self,
         scls: so.Object,
+        *,
+        scls_type: Optional[Type[so.Object_T]] = None,
     ) -> Dict[
-        Tuple[Type[so.Object], str],
-        FrozenSet[so.Object],
+        Tuple[Type[so.Object_T], str],
+        FrozenSet[so.Object_T],
     ]:
-        base = self._base_schema.get_referrers_ex(scls)
-        top = self._top_schema.get_referrers_ex(scls)
+        base = self._base_schema.get_referrers_ex(scls, scls_type=scls_type)
+        top = self._top_schema.get_referrers_ex(scls, scls_type=scls_type)
         return {
             k: base.get(k, frozenset()) | top.get(k, frozenset())
             for k in itertools.chain(base, top)

@@ -701,6 +701,7 @@ def _trace_op(
             item = get_deps(('rename', ref_name_str))
             item.deps.add(('create', this_name_str))
             item.deps.add(('alter', this_name_str))
+            item.deps.add(('rename', this_name_str))
 
             if isinstance(ref, s_pointers.Pointer):
                 # The current item is a type referred to by
@@ -802,9 +803,7 @@ def get_object(
         if isinstance(name, sn.QualName):
             return schema.get(name)
         else:
-            t_id = s_types.type_id_from_name(name)
-            assert t_id is not None
-            return schema.get_by_id(t_id)
+            return schema.get_global(metaclass, name)
     elif not issubclass(metaclass, so.QualifiedObject):
         obj = schema.get_global(metaclass, name)
         assert isinstance(obj, so.Object)

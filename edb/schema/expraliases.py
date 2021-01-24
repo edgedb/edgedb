@@ -237,6 +237,8 @@ class AliasCommand(
 
         for vt in coll_expr_aliases:
             new_schema = vt.set_field_value(new_schema, 'expr', expr)
+            new_schema = vt.set_field_value(
+                new_schema, 'alias_is_persistent', True)
             ct = vt.as_shell(new_schema).as_create_delta(
                 # not "new_schema", to ensure the nested collection types
                 # are picked up properly.
@@ -248,7 +250,6 @@ class AliasCommand(
                     'expr_type': s_types.ExprType.Select,
                 },
             )
-            new_schema = ct.apply(new_schema, context)
             derived_delta.add(ct)
 
         derived_delta = s_ordering.linearize_delta(
@@ -327,7 +328,7 @@ class CreateAlias(
 
 class RenameAlias(AliasCommand, sd.RenameObject[Alias]):
 
-    def _rename_begin(
+    def _alter_begin(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
@@ -344,7 +345,7 @@ class RenameAlias(AliasCommand, sd.RenameObject[Alias]):
             alter_cmd.add(rename_cmd)
             self.add_prerequisite(alter_cmd)
 
-        return super()._rename_begin(schema, context)
+        return super()._alter_begin(schema, context)
 
 
 class AlterAlias(

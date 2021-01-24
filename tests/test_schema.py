@@ -3389,6 +3389,33 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
+    def test_schema_migrations_equivalence_compound_01(self):
+        # Check that union types can be referenced in computables
+        # Bug #2002.
+        self._assert_migration_equivalence([r"""
+            type Type1;
+            type Type2;
+            type Type3 {
+                link l1 -> (Type1 | Type2);
+                link l2 := (SELECT .l1);
+            };
+        """, r"""
+            type Type11;  # Rename
+            type Type2;
+            type Type3 {
+                link l1 -> (Type11 | Type2);
+                link l2 := (SELECT .l1);
+            };
+        """, r"""
+            type Type11;
+            type Type2;
+            type TypeS;
+            type Type3 {
+                link l1 -> (Type11 | Type2 | TypeS);  # Expand union
+                link l2 := (SELECT .l1);
+            };
+        """])
+
     def test_schema_migrations_equivalence_function_01(self):
         self._assert_migration_equivalence([r"""
             function hello01(a: int64) -> str
@@ -4586,6 +4613,65 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
+    def test_schema_migrations_equivalence_collections_24(self):
+        self._assert_migration_equivalence([r"""
+            scalar type MyScalar extending str;
+
+            type User {
+                required property tup -> tuple<x:MyScalar>;
+            };
+        """, r"""
+            scalar type MyScalarRenamed extending str;
+
+            type User {
+                required property tup -> tuple<x:MyScalarRenamed>;
+            };
+        """])
+
+    def test_schema_migrations_equivalence_collections_25(self):
+        self._assert_migration_equivalence([r"""
+            scalar type MyScalar extending str;
+
+            type User {
+                required property arr -> array<MyScalar>;
+            };
+        """, r"""
+            scalar type MyScalarRenamed extending str;
+
+            type User {
+                required property tup -> array<MyScalarRenamed>;
+            };
+        """])
+
+    def test_schema_migrations_equivalence_collections_26(self):
+        self._assert_migration_equivalence([r"""
+            scalar type MyScalar extending str;
+            scalar type MyScalar2 extending int64;
+
+            type User {
+                required property tup ->
+                    tuple<
+                        a: tuple<x:MyScalar>,
+                        b: MyScalar,
+                        c: array<MyScalar2>,
+                        d: tuple<array<MyScalar2>>,
+                    >;
+            };
+        """, r"""
+            scalar type MyScalarRenamed extending str;
+            scalar type MyScalar2Renamed extending int64;
+
+            type User {
+                required property tup ->
+                    tuple<
+                        a: tuple<x:MyScalarRenamed>,
+                        b: MyScalarRenamed,
+                        c: array<MyScalar2Renamed>,
+                        d: tuple<array<MyScalar2Renamed>>,
+                    >;
+            };
+        """])
+
     def test_schema_migrations_equivalence_rename_refs_01(self):
         self._assert_migration_equivalence([r"""
             type Note {
@@ -5002,10 +5088,6 @@ class TestDescribe(tb.BaseSchemaLoadTest):
     """Test the DESCRIBE command."""
 
     re_filter = re.compile(r'[\s]+|(,(?=\s*[})]))')
-    uuid_re = re.compile(
-        r'[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}'
-        r'-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}'
-    )
     maxDiff = 10000
 
     def _assert_describe(
@@ -5033,11 +5115,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 ),
             )
 
-            output = self.uuid_re.sub(
-                '@SID@',
-                stmt.expr.expr.result.expr.value,
-            )
-
+            output = stmt.expr.expr.result.expr.value
             if isinstance(expected_output, list):
                 for variant in expected_output:
                     try:

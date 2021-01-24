@@ -277,10 +277,7 @@ class Constraint(
         schema: s_schema.Schema,
         context: so.ComparisonContext,
     ) -> sd.ObjectCommand[Constraint]:
-        return super().as_delete_delta(
-            schema=schema,
-            context=context,
-        )
+        return super().as_delete_delta(schema=schema, context=context)
 
     def get_ddl_identity(
         self,
@@ -1176,13 +1173,13 @@ class RenameConstraint(
         schema: s_schema.Schema,
         context: sd.CommandContext,
         scls: so.Object,
-    ) -> List[sd.Command]:
-        assert isinstance(scls, Constraint)
-        commands = list(super()._canonicalize(schema, context, scls))
+    ) -> None:
+        super()._canonicalize(schema, context, scls)
 
+        assert isinstance(scls, Constraint)
         # Don't do anything for concrete constraints
         if not scls.get_abstract(schema):
-            return commands
+            return
 
         # Concrete constraints are children of abstract constraints
         # and have names derived from the abstract constraints. We
@@ -1198,11 +1195,15 @@ class RenameConstraint(
                 name=sn.get_specialized_name(self.new_name, *quals),
                 module=ref_name.module,
             )
-            commands.append(
-                self._canonicalize_ref_rename(
-                    ref, ref_name, new_ref_name, schema, context, scls))
 
-        return commands
+            self.add(self.init_rename_branch(
+                ref,
+                new_ref_name,
+                schema=schema,
+                context=context,
+            ))
+
+        return
 
 
 class AlterConstraintOwned(

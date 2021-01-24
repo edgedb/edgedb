@@ -58,6 +58,7 @@ class ObjectType(
         default=so.DEFAULT_CONSTRUCTOR,
         coerce=True,
         type_is_generic_self=True,
+        compcoef=0.0,
     )
 
     intersection_of = so.SchemaField(
@@ -287,14 +288,13 @@ def get_or_create_union_type(
     module: Optional[str] = None,
 ) -> Tuple[s_schema.Schema, ObjectType, bool]:
 
-    type_id, name = s_types.get_union_type_id(
-        schema,
-        components,
+    name = s_types.get_union_type_name(
+        (c.get_name(schema) for c in components),
         opaque=opaque,
         module=module,
     )
 
-    objtype = schema.get_by_id(type_id, None, type=ObjectType)
+    objtype = schema.get(name, default=None, type=ObjectType)
     created = objtype is None
     if objtype is None:
         components = list(components)
@@ -305,7 +305,6 @@ def get_or_create_union_type(
             schema,
             name=name,
             attrs=dict(
-                id=type_id,
                 union_of=so.ObjectSet.create(schema, components),
                 is_opaque_union=opaque,
                 abstract=True,
@@ -332,13 +331,12 @@ def get_or_create_intersection_type(
     module: Optional[str] = None,
 ) -> Tuple[s_schema.Schema, ObjectType, bool]:
 
-    type_id, name = s_types.get_intersection_type_id(
-        schema,
-        components,
+    name = s_types.get_intersection_type_name(
+        (c.get_name(schema) for c in components),
         module=module,
     )
 
-    objtype = schema.get_by_id(type_id, None)
+    objtype = schema.get(name, default=None, type=ObjectType)
     created = objtype is None
     if objtype is None:
         components = list(components)
@@ -349,7 +347,6 @@ def get_or_create_intersection_type(
             schema,
             name=name,
             attrs=dict(
-                id=type_id,
                 intersection_of=so.ObjectSet.create(schema, components),
                 abstract=True,
                 final=True,
@@ -437,7 +434,7 @@ class CreateObjectType(
             return super()._get_ast_node(schema, context)
 
 
-class RenameObjectType(ObjectTypeCommand, sd.RenameObject[ObjectType]):
+class RenameObjectType(ObjectTypeCommand, s_types.RenameType[ObjectType]):
     pass
 
 
@@ -451,8 +448,11 @@ class AlterObjectType(ObjectTypeCommand,
     astnode = qlast.AlterObjectType
 
 
-class DeleteObjectType(ObjectTypeCommand,
-                       inheriting.DeleteInheritingObject[ObjectType]):
+class DeleteObjectType(
+    ObjectTypeCommand,
+    s_types.DeleteType[ObjectType],
+    inheriting.DeleteInheritingObject[ObjectType],
+):
     astnode = qlast.DropObjectType
 
     def _get_ast(

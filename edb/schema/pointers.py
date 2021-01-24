@@ -986,6 +986,7 @@ class PointerCommandOrFragment(
                 'target',
                 inf_target_ref,
                 source_context=srcctx,
+                computed=True,
             )
 
         schema = s_types.materialize_type_in_attribute(
@@ -1492,7 +1493,7 @@ class PointerCommand(
             ]
 
             target_ref = s_types.UnionTypeShell(
-                new_targets,
+                components=new_targets,
                 module=source_name.module,
             )
         elif targets:
@@ -1774,14 +1775,23 @@ class SetPointerType(
                 action=self.get_friendly_description(schema=schema),
             )
 
-            if (
-                orig_target is not None
-                and isinstance(orig_target, s_types.Collection)
-            ):
-                parent_ctx = context.parent()
-                assert parent_ctx
-                parent_ctx.op.add(orig_target.as_colltype_delete_delta(
-                    schema, expiring_refs={scls}))
+            if orig_target is not None:
+                if isinstance(orig_target, s_types.Collection):
+                    parent_op = self.get_parent_op(context)
+                    cleanup_op = orig_target.as_colltype_delete_delta(
+                        schema, expiring_refs={scls})
+                    parent_op.add(cleanup_op)
+                    schema = cleanup_op.apply(schema, context)
+                elif orig_target.is_compound_type(schema):
+                    parent_op = self.get_parent_op(context)
+                    cleanup_op = orig_target.init_delta_command(
+                        schema,
+                        sd.DeleteObject,
+                        if_unused=True,
+                        expiring_refs={scls},
+                    )
+                    parent_op.add(cleanup_op)
+                    schema = cleanup_op.apply(schema, context)
 
             if context.enable_recursion:
                 schema = self._propagate_ref_field_alter_in_inheritance(
@@ -1822,7 +1832,7 @@ class SetPointerType(
         parent_node: Optional[qlast.DDLOperation] = None,
     ) -> Optional[qlast.DDLOperation]:
         set_field = super()._get_ast(schema, context, parent_node=parent_node)
-        if set_field is None:
+        if set_field is None or self.is_attribute_computed('target'):
             return None
         else:
             assert isinstance(set_field, qlast.SetField)

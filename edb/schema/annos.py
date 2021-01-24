@@ -200,14 +200,15 @@ class CreateAnnotation(AnnotationCommand, sd.CreateObject[Annotation]):
 
 
 class RenameAnnotation(AnnotationCommand, sd.RenameObject[Annotation]):
+
     def _canonicalize(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
         scls: so.Object,
-    ) -> List[sd.Command]:
+    ) -> None:
+        super()._canonicalize(schema, context, scls)
         assert isinstance(scls, Annotation)
-        commands = list(super()._canonicalize(schema, context, scls))
 
         # AnnotationValues have names derived from the abstract
         # annotations. We unfortunately need to go update their names.
@@ -223,11 +224,13 @@ class RenameAnnotation(AnnotationCommand, sd.RenameObject[Annotation]):
                 name=sn.get_specialized_name(self.new_name, *quals),
                 module=ref_name.module,
             )
-            commands.append(
-                self._canonicalize_ref_rename(
-                    ref, ref_name, new_ref_name, schema, context, scls))
 
-        return commands
+            self.add(self.init_rename_branch(
+                ref,
+                new_ref_name,
+                schema=schema,
+                context=context,
+            ))
 
 
 class AlterAnnotation(AnnotationCommand, sd.AlterObject[Annotation]):
@@ -295,8 +298,11 @@ class AnnotationValueCommand(
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         schema = super().populate_ddl_identity(schema, context)
-        annoname = sn.shortname_from_fullname(self.classname)
-        anno = schema.get(annoname, type=Annotation)
+        if not isinstance(self, sd.CreateObject):
+            anno = self.scls.get_annotation(schema)
+        else:
+            annoname = sn.shortname_from_fullname(self.classname)
+            anno = schema.get(annoname, type=Annotation)
         self.set_ddl_identity('annotation', anno)
         return schema
 

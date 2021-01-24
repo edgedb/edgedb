@@ -949,13 +949,13 @@ class RenameCallableObject(
         schema: s_schema.Schema,
         context: sd.CommandContext,
         scls: so.Object,
-    ) -> List[sd.Command]:
-        assert isinstance(scls, CallableObject)
-        commands = list(super()._canonicalize(schema, context, scls))
+    ) -> None:
+        super()._canonicalize(schema, context, scls)
 
+        assert isinstance(scls, CallableObject)
         # Don't do anything for concrete constraints
         if not isinstance(scls, Function) and not scls.get_abstract(schema):
-            return commands
+            return
 
         # params don't get picked up by the base _canonicalize because
         # they aren't RefDicts (and use a different mangling scheme to
@@ -966,13 +966,12 @@ class RenameCallableObject(
 
         assert isinstance(self.new_name, sn.QualName)
         for dparam, oparam in zip(params, param_list.objects(schema)):
-            ref_name = oparam.get_name(schema)
-            new_ref_name = dparam.get_fqname(schema, self.new_name)
-            commands.append(
-                self._canonicalize_ref_rename(
-                    oparam, ref_name, new_ref_name, schema, context, scls))
-
-        return commands
+            self.add(self.init_rename_branch(
+                oparam,
+                dparam.get_fqname(schema, self.new_name),
+                schema=schema,
+                context=context,
+            ))
 
 
 class AlterCallableObject(
@@ -1752,7 +1751,7 @@ class RenameFunction(RenameCallableObject[Function], FunctionCommand):
         )
         return out
 
-    def validate_rename(
+    def validate_alter(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
