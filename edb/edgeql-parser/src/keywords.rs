@@ -26,6 +26,7 @@ pub const UNRESERVED_KEYWORDS: &[&str] = &[
     "emit",
     "explicit",
     "expression",
+    "extension",
     "final",
     "first",
     "from",
@@ -52,6 +53,7 @@ pub const UNRESERVED_KEYWORDS: &[&str] = &[
     "optionality",
     "overloaded",
     "owned",
+    "package",
     "postfix",
     "prefix",
     "property",
@@ -85,6 +87,7 @@ pub const UNRESERVED_KEYWORDS: &[&str] = &[
     "unless",
     "using",
     "verbose",
+    "version",
     "view",
     "write",
 ];

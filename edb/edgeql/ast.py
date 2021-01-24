@@ -698,6 +698,12 @@ class Rename(NamedDDL):
         return self.new_name
 
 
+class NestedQLBlock(DDL):
+
+    commands: typing.List[DDLOperation]
+    text: typing.Optional[str] = None
+
+
 class MigrationCommand:
 
     __abstract_node__ = True
@@ -705,15 +711,9 @@ class MigrationCommand:
         qltypes.SchemaObjectClass.MIGRATION)
 
 
-class MigrationBody(DDL):
-
-    commands: typing.Tuple[DDLOperation, ...]
-
-
 class CreateMigration(CreateObject, MigrationCommand):
 
-    body: MigrationBody
-    script: typing.Optional[str] = None
+    body: NestedQLBlock
     parent: typing.Optional[ObjectRef] = None
     message: typing.Optional[str] = None
     metadata_only: bool = False
@@ -779,6 +779,22 @@ class AlterDatabase(AlterObject, DatabaseCommand):
 
 
 class DropDatabase(DropObject, DatabaseCommand):
+    pass
+
+
+class ExtensionPackageCommand(GlobalObjectCommand):
+    __abstract_node__ = True
+    object_class: qltypes.SchemaObjectClass = (
+        qltypes.SchemaObjectClass.EXTENSION_PACKAGE)
+    version: StringConstant
+
+
+class CreateExtensionPackage(CreateObject, ExtensionPackageCommand):
+
+    body: NestedQLBlock
+
+
+class DropExtensionPackage(DropObject, ExtensionPackageCommand):
     pass
 
 

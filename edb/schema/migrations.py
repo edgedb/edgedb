@@ -133,14 +133,9 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
             parent_name = sn.UnqualName(name='initial')
 
         hasher = qlhasher.Hasher.start_migration(str(parent_name))
-        if astnode.body.context is not None:
+        if astnode.body.text is not None:
             # This is an explicitly specified CREATE MIGRATION
-            src_start = astnode.body.context.start
-            src_end = astnode.body.context.end
-            # XXX: Workaround the rust lexer issue of returning
-            # byte token offsets instead of character offsets.
-            buffer = astnode.context.buffer.encode('utf-8')
-            ddl_text = buffer[src_start:src_end].decode('utf-8')
+            ddl_text = astnode.body.text
         elif astnode.body.commands:
             # An implicit CREATE MIGRATION produced by START MIGRATION
             ddl_text = ';\n'.join(
@@ -212,9 +207,9 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
     ) -> None:
         assert isinstance(node, qlast.CreateMigration)
         if op.property == 'script':
-            node.script = op.new_value
-            node.body = qlast.MigrationBody(
-                commands=tuple(qlparser.parse_block(op.new_value)),
+            node.body = qlast.NestedQLBlock(
+                commands=qlparser.parse_block(op.new_value),
+                text=op.new_value,
             )
         elif op.property == 'parents':
             if op.new_value and (items := op.new_value.items):

@@ -80,9 +80,9 @@ def parse_version(ver: str) -> Version:
         pre_l = v.group('pre_l')
         if pre_l in {'a', 'alpha'}:
             stage = VersionStage.ALPHA
-        elif pre_l == {'b', 'beta'}:
+        elif pre_l in {'b', 'beta'}:
             stage = VersionStage.BETA
-        elif pre_l == {'c', 'rc'}:
+        elif pre_l in {'c', 'rc'}:
             stage = VersionStage.RC
         else:
             raise ValueError(f'cannot determine release stage from {ver}')

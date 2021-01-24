@@ -42,6 +42,7 @@ from edb.schema import database as s_db
 from edb.schema import delta as sd
 from edb.schema import expr as s_expr
 from edb.schema import expraliases as s_aliases
+from edb.schema import extensions as s_exts
 from edb.schema import functions as s_funcs
 from edb.schema import indexes as s_indexes
 from edb.schema import links as s_links
@@ -4859,6 +4860,71 @@ class DeleteRole(ObjectMetaCommand, adapts=s_roles.DeleteRole):
         schema = s_roles.DeleteRole.apply(self, schema, context)
         schema = ObjectMetaCommand.apply(self, schema, context)
         self.pgops.add(dbops.DropRole(str(self.classname)))
+        return schema
+
+
+class CreateExtensionPackage(
+    ObjectMetaCommand,
+    adapts=s_exts.CreateExtensionPackage,
+):
+
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = s_exts.CreateExtensionPackage.apply(self, schema, context)
+        schema = ObjectMetaCommand.apply(self, schema, context)
+        ext_id = str(self.scls.id)
+        name__internal = str(self.scls.get_name(schema))
+        name = self.scls.get_displayname(schema)
+        version = self.scls.get_version(schema)._asdict()
+        version['stage'] = version['stage'].name.lower()
+        self.pgops.add(
+            dbops.UpdateMetadataSection(
+                dbops.Database(name=edbdef.EDGEDB_TEMPLATE_DB),
+                section='ExtensionPackage',
+                metadata={
+                    ext_id: {
+                        'id': ext_id,
+                        'name': name,
+                        'name__internal': name__internal,
+                        'script': self.scls.get_script(schema),
+                        'version': version,
+                        'builtin': self.scls.get_builtin(schema),
+                        'internal': self.scls.get_internal(schema),
+                    }
+                }
+            )
+        )
+
+        return schema
+
+
+class DeleteExtensionPackage(
+    ObjectMetaCommand,
+    adapts=s_exts.DeleteExtensionPackage,
+):
+
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = s_exts.DeleteExtensionPackage.apply(self, schema, context)
+        schema = ObjectMetaCommand.apply(self, schema, context)
+
+        ext_id = str(self.scls.id)
+        self.pgops.add(
+            dbops.UpdateMetadataSection(
+                dbops.Database(name=edbdef.EDGEDB_TEMPLATE_DB),
+                section='ExtensionPackage',
+                metadata={
+                    ext_id: None
+                }
+            )
+        )
+
         return schema
 
 

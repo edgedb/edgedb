@@ -190,6 +190,7 @@ class SchemaObjectClass(s_enum.StrEnum):
     CAST = 'CAST'
     CONSTRAINT = 'CONSTRAINT'
     DATABASE = 'DATABASE'
+    EXTENSION_PACKAGE = 'EXTENSION PACKAGE'
     FUNCTION = 'FUNCTION'
     INDEX = 'INDEX'
     LINK = 'LINK'

@@ -26,6 +26,7 @@ import uuid
 from edb.common import adapter
 from edb.common import checked
 from edb.common import enum
+from edb.common import verutils
 
 from edb.edgeql import qltypes
 
@@ -182,6 +183,17 @@ def _classify_object_field(field: s_obj.Field[Any]) -> FieldStorage:
         ptr_kind = 'property'
         ptr_type = 'uuid'
 
+    elif issubclass(ftype, verutils.Version):
+        ptr_kind = 'property'
+        ptr_type = '''
+            tuple<
+                major: std::int64,
+                minor: std::int64,
+                stage: sys::VersionStage,
+                stage_no: std::int64,
+                local: array<std::str>,
+            >
+        '''
     else:
         raise RuntimeError(
             f'no metaschema reflection for field {field.name} of type {ftype}'

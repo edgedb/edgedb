@@ -24,6 +24,10 @@ CREATE SCALAR TYPE sys::TransactionIsolation
     EXTENDING enum<RepeatableRead, Serializable>;
 
 
+CREATE SCALAR TYPE sys::VersionStage
+    EXTENDING enum<dev, alpha, beta, rc, final>;
+
+
 CREATE ABSTRACT TYPE sys::SystemObject EXTENDING schema::AnnotationSubject;
 
 
@@ -31,6 +35,18 @@ CREATE TYPE sys::Database EXTENDING sys::SystemObject {
     ALTER PROPERTY name {
         CREATE CONSTRAINT std::exclusive;
     };
+};
+
+
+CREATE TYPE sys::ExtensionPackage EXTENDING sys::SystemObject {
+    CREATE REQUIRED PROPERTY script -> str;
+    CREATE REQUIRED PROPERTY version -> tuple<
+                                            major: std::int64,
+                                            minor: std::int64,
+                                            stage: sys::VersionStage,
+                                            stage_no: std::int64,
+                                            local: array<std::str>,
+                                        >;
 };
 
 
@@ -49,10 +65,6 @@ CREATE TYPE sys::Role EXTENDING sys::SystemObject {
 ALTER TYPE sys::Role {
     CREATE MULTI LINK member_of -> sys::Role;
 };
-
-
-CREATE SCALAR TYPE sys::VersionStage
-    EXTENDING enum<dev, alpha, beta, rc, final>;
 
 
 # An intermediate function is needed because we can't

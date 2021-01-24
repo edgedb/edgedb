@@ -735,7 +735,7 @@ class Compiler:
             )
         ):
             cm = qlast.CreateMigration(
-                body=qlast.MigrationBody(
+                body=qlast.NestedQLBlock(
                     commands=[stmt],
                 ),
             )
@@ -1176,7 +1176,7 @@ class Compiler:
                 last_migration_ref = None
 
             create_migration = qlast.CreateMigration(
-                body=qlast.MigrationBody(commands=mstate.accepted_cmds),
+                body=qlast.NestedQLBlock(commands=mstate.accepted_cmds),
                 parent=last_migration_ref,
             )
 

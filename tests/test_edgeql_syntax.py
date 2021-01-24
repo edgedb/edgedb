@@ -3023,13 +3023,6 @@ aa';
     def test_edgeql_syntax_ddl_create_migration_02(self):
         """
         CREATE MIGRATION { ;;; CREATE TYPE Foo ;;; CREATE TYPE Bar ;;; };
-
-% OK %
-
-        CREATE MIGRATION {
-            CREATE TYPE Foo;
-            CREATE TYPE Bar;
-        };
         """
 
     def test_edgeql_syntax_ddl_create_migration_03(self):
@@ -3062,6 +3055,30 @@ aa';
         CREATE APPLIED MIGRATION m123123123 ONTO m134134134 {
             CREATE TYPE Foo;
         };
+        """
+
+    def test_edgeql_syntax_ddl_create_extension_package_01(self):
+        """
+        CREATE EXTENSION PACKAGE foo VERSION '1.0';
+        """
+
+    def test_edgeql_syntax_ddl_create_extension_package_02(self):
+        """
+        CREATE EXTENSION PACKAGE foo VERSION '1.0' {
+            ;;; CREATE TYPE Foo ;;; CREATE TYPE Bar ;;;
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "invalid extension version format", line=2)
+    def test_edgeql_syntax_ddl_create_extension_package_03(self):
+        """
+        CREATE EXTENSION PACKAGE foo VERSION 'aaa';
+        """
+
+    def test_edgeql_syntax_ddl_drop_extension_package_01(self):
+        """
+        DROP EXTENSION PACKAGE foo VERSION '1.0';
         """
 
     # TODO: remove this test once the entire grammar is converted

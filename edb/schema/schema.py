@@ -1276,9 +1276,7 @@ class FlatSchema(Schema):
         elif default is not so.NoDefault:
             return default
         else:
-            desc = objtype.get_schema_class_displayname()
-            raise errors.InvalidReferenceError(
-                f'{desc} {name!r} does not exist')
+            self._raise_bad_reference(name, type=objtype)
 
     def get_generic(
         self,
@@ -1336,16 +1334,20 @@ class FlatSchema(Schema):
                 label = 'schema item'
 
         if type is not None:
-            if not sn.is_qualified(refname):
-                if module_aliases is not None:
-                    default_module = module_aliases.get(None)
-                    if default_module is not None:
-                        refname = type.get_displayname_static(
-                            sn.QualName(default_module, refname),
-                        )
+            if issubclass(type, so.QualifiedObject):
+                if not sn.is_qualified(refname):
+                    if module_aliases is not None:
+                        default_module = module_aliases.get(None)
+                        if default_module is not None:
+                            refname = type.get_displayname_static(
+                                sn.QualName(default_module, refname),
+                            )
+                else:
+                    refname = type.get_displayname_static(
+                        sn.QualName.from_string(refname))
             else:
                 refname = type.get_displayname_static(
-                    sn.QualName.from_string(refname))
+                    sn.UnqualName.from_string(refname))
 
         raise errors.InvalidReferenceError(
             f'{label} {refname!r} does not exist',

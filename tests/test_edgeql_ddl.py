@@ -6088,6 +6088,84 @@ type test::Foo {
                 DROP MODULE test_other;
             """)
 
+    async def test_edgeql_ddl_extension_package_01(self):
+        await self.con.execute(r"""
+            CREATE EXTENSION PACKAGE foo_01 VERSION '1.0' {
+                CREATE MODULE foo_ext;;
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT sys::ExtensionPackage {
+                    name,
+                    script,
+                    ver := (.version.major, .version.minor),
+                }
+                FILTER .name LIKE 'foo_%'
+                ORDER BY .name
+            """,
+            [{
+                'name': 'foo_01',
+                'script': (
+                    "CREATE MODULE foo_ext;;"
+                ),
+                'ver': [1, 0],
+            }]
+        )
+
+        await self.con.execute(r"""
+            CREATE EXTENSION PACKAGE foo_01 VERSION '2.0-beta.1' {
+                SELECT 1/0;
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT sys::ExtensionPackage {
+                    name,
+                    script,
+                    ver := (.version.major, .version.minor, .version.stage),
+                }
+                FILTER .name LIKE 'foo_%'
+                ORDER BY .name THEN .version
+            """,
+            [{
+                'name': 'foo_01',
+                'script': (
+                    "CREATE MODULE foo_ext;;"
+                ),
+                'ver': [1, 0, 'final'],
+            }, {
+                'name': 'foo_01',
+                'script': (
+                    "SELECT 1/0;"
+                ),
+                'ver': [2, 0, 'beta'],
+            }]
+        )
+
+        await self.con.execute(r"""
+            DROP EXTENSION PACKAGE foo_01 VERSION '1.0';
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT sys::ExtensionPackage {
+                    name,
+                    script,
+                }
+                FILTER .name LIKE 'foo_%'
+                ORDER BY .name
+            """,
+            [{
+                'name': 'foo_01',
+                'script': (
+                    "SELECT 1/0;"
+                ),
+            }]
+        )
+
     async def test_edgeql_ddl_role_01(self):
         await self.con.execute(r"""
             CREATE ROLE foo_01;

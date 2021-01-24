@@ -414,7 +414,11 @@ class Type(
             cmd.set_object_aux_data('is_compound_type', True)
 
 
-class InheritingType(so.DerivableInheritingObject, Type):
+class QualifiedType(so.QualifiedObject, Type):
+    pass
+
+
+class InheritingType(so.DerivableInheritingObject, QualifiedType):
 
     def material_type(
         self, schema: s_schema.Schema
@@ -948,7 +952,7 @@ class CollectionTypeShell(TypeShell):
         )
 
 
-class CollectionExprAlias(so.QualifiedObject, Collection):
+class CollectionExprAlias(QualifiedType, Collection):
 
     @classmethod
     def get_schema_class_displayname(cls) -> str:

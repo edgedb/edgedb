@@ -26,6 +26,7 @@ import uuid
 
 import immutables
 
+from edb.common import verutils
 from edb.common import uuidgen
 
 from edb.schema import abc as s_abc
@@ -110,7 +111,7 @@ def parse_into(
         id_to_type[objid] = type(obj).__name__
 
         all_fields = mcls.get_schema_fields()
-        objdata = [None] * len(all_fields)
+        objdata: List[Any] = [None] * len(all_fields)
         val: Any
 
         for k, v in entry.items():
@@ -183,7 +184,10 @@ def parse_into(
                 else:
                     ftype = mcls.get_field(fn).type
                     if type(v) is not ftype:
-                        objdata[findex] = ftype(v)
+                        if issubclass(ftype, verutils.Version):
+                            objdata[findex] = _parse_version(v)
+                        else:
+                            objdata[findex] = ftype(v)
                     else:
                         objdata[findex] = v
 
@@ -260,4 +264,14 @@ def _parse_expression(val: Dict[str, Any]) -> s_expr.Expression:
             refids,
             _private_init=True,
         )
+    )
+
+
+def _parse_version(val: Dict[str, Any]) -> verutils.Version:
+    return verutils.Version(
+        major=val['major'],
+        minor=val['minor'],
+        stage=getattr(verutils.VersionStage, val['stage'].upper()),
+        stage_no=val['stage_no'],
+        local=val['local'],
     )

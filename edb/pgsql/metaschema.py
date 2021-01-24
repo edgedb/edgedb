@@ -42,6 +42,7 @@ from edb.schema import name as s_name
 from edb.schema import objects as s_obj
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
+from edb.schema import lproperties as s_props
 from edb.schema import scalars as s_scalars
 from edb.schema import schema as s_schema
 from edb.schema import sources as s_sources
@@ -2994,6 +2995,119 @@ def _generate_database_views(schema: s_schema.Schema) -> List[dbops.View]:
     return views
 
 
+def _generate_extension_views(schema: s_schema.Schema) -> List[dbops.View]:
+    ExtPkg = schema.get('sys::ExtensionPackage', type=s_objtypes.ObjectType)
+    annos = ExtPkg.getptr(
+        schema, s_name.UnqualName('annotations'), type=s_links.Link)
+    int_annos = ExtPkg.getptr(
+        schema, s_name.UnqualName('annotations__internal'), type=s_links.Link)
+    ver = ExtPkg.getptr(
+        schema, s_name.UnqualName('version'), type=s_props.Property)
+    ver_t = common.get_backend_name(
+        schema,
+        ver.get_target(schema),
+        catenate=False,
+    )
+
+    view_query = f'''
+        SELECT
+            (e.value->>'id')::uuid
+                AS {qi(ptr_col_name(schema, ExtPkg, 'id'))},
+            (SELECT id FROM edgedb."_SchemaObjectType"
+                 WHERE name = 'sys::ExtensionPackage')
+                AS {qi(ptr_col_name(schema, ExtPkg, '__type__'))},
+            (e.value->>'name')
+                AS {qi(ptr_col_name(schema, ExtPkg, 'name'))},
+            (e.value->>'name__internal')
+                AS {qi(ptr_col_name(schema, ExtPkg, 'name__internal'))},
+            (
+                (e.value->'version'->>'major')::int,
+                (e.value->'version'->>'minor')::int,
+                (e.value->'version'->>'stage')::text,
+                (e.value->'version'->>'stage_no')::int,
+                COALESCE(
+                    (SELECT array_agg(q.v::text)
+                    FROM jsonb_array_elements(
+                        e.value->'version'->'local'
+                    ) AS q(v)),
+                    ARRAY[]::text[]
+                )
+            )::{qt(ver_t)}
+                AS {qi(ptr_col_name(schema, ExtPkg, 'version'))},
+            (e.value->>'script')
+                AS {qi(ptr_col_name(schema, ExtPkg, 'script'))},
+            ARRAY[]::text[]
+                AS {qi(ptr_col_name(schema, ExtPkg, 'computed_fields'))},
+            (e.value->>'builtin')::bool
+                AS {qi(ptr_col_name(schema, ExtPkg, 'builtin'))},
+            (e.value->>'internal')::bool
+                AS {qi(ptr_col_name(schema, ExtPkg, 'internal'))}
+        FROM
+            jsonb_each(edgedb.shobj_metadata(
+                (SELECT oid FROM pg_database
+                WHERE datname = {ql(defines.EDGEDB_TEMPLATE_DB)}),
+                'pg_database'
+            ) -> 'ExtensionPackage') AS e
+    '''
+
+    annos_link_query = f'''
+        SELECT
+            (e.value->>'id')::uuid
+                AS {qi(ptr_col_name(schema, annos, 'source'))},
+            (annotations->>'id')::uuid
+                AS {qi(ptr_col_name(schema, annos, 'target'))},
+            (annotations->>'value')::text
+                AS {qi(ptr_col_name(schema, annos, 'value'))},
+            (annotations->>'is_owned')::bool
+                AS {qi(ptr_col_name(schema, annos, 'owned'))}
+        FROM
+            jsonb_each(edgedb.shobj_metadata(
+                (SELECT oid FROM pg_database
+                WHERE datname = {ql(defines.EDGEDB_TEMPLATE_DB)}),
+                'pg_database'
+            ) -> 'ExtensionPackage') AS e
+            CROSS JOIN LATERAL
+                ROWS FROM (
+                    jsonb_array_elements(e.value->'annotations')
+                ) AS annotations
+    '''
+
+    int_annos_link_query = f'''
+        SELECT
+            (e.value->>'id')::uuid
+                AS {qi(ptr_col_name(schema, int_annos, 'source'))},
+            (annotations->>'id')::uuid
+                AS {qi(ptr_col_name(schema, int_annos, 'target'))},
+            (annotations->>'is_owned')::bool
+                AS {qi(ptr_col_name(schema, int_annos, 'owned'))}
+        FROM
+            jsonb_each(edgedb.shobj_metadata(
+                (SELECT oid FROM pg_database
+                WHERE datname = {ql(defines.EDGEDB_TEMPLATE_DB)}),
+                'pg_database'
+            ) -> 'ExtensionPackage') AS e
+            CROSS JOIN LATERAL
+                ROWS FROM (
+                    jsonb_array_elements(e.value->'annotations__internal')
+                ) AS annotations
+    '''
+
+    objects = {
+        ExtPkg: view_query,
+        annos: annos_link_query,
+        int_annos: int_annos_link_query,
+    }
+
+    views = []
+    for obj, query in objects.items():
+        tabview = dbops.View(name=tabname(schema, obj), query=query)
+        inhview = dbops.View(name=inhviewname(schema, obj), query=query)
+        views.append(tabview)
+        views.append(inhview)
+
+    return views
+
+
 def _generate_role_views(schema: s_schema.Schema) -> List[dbops.View]:
     Role = schema.get('sys::Role', type=s_objtypes.ObjectType)
     member_of = Role.getptr(
@@ -3378,6 +3492,9 @@ async def generate_support_views(
 
     for dbview in _generate_database_views(schema):
         commands.add_command(dbops.CreateView(dbview, or_replace=True))
+
+    for extview in _generate_extension_views(schema):
+        commands.add_command(dbops.CreateView(extview, or_replace=True))
 
     for roleview in _generate_role_views(schema):
         commands.add_command(dbops.CreateView(roleview, or_replace=True))

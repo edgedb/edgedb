@@ -395,7 +395,7 @@ class BaseSchemaTest(BaseDocTest):
                     last_migration_ref = None
 
                 create_migration = qlast.CreateMigration(
-                    body=qlast.MigrationBody(commands=tuple(migration_script)),
+                    body=qlast.NestedQLBlock(commands=migration_script),
                     parent=last_migration_ref,
                 )
 

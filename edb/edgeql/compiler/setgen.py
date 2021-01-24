@@ -261,6 +261,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                         and (o.is_object_type() or o.is_view(ctx.env.schema))
                     ),
                     label='object type or alias',
+                    item_type=s_types.QualifiedType,
                     srcctx=step.context,
                     ctx=ctx,
                 )
