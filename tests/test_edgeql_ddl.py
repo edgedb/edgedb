@@ -7139,6 +7139,19 @@ type test::Foo {
                         ON (len(__subject__));
         """)
 
+    async def test_edgeql_ddl_constraint_12(self):
+        with self.assertRaisesRegex(
+                edgedb.errors.SchemaError,
+                r'Constraint .+ is already present in the schema'):
+            await self.con.execute(r"""
+                CREATE TYPE Base {
+                    CREATE PROPERTY firstname -> str {
+                        CREATE CONSTRAINT max_len_value(10);
+                        CREATE CONSTRAINT max_len_value(10);
+                    }
+                }
+            """)
+
     async def test_edgeql_ddl_constraint_alter_01(self):
         await self.con.execute(r"""
             CREATE TYPE test::ConTest01 {
@@ -7382,6 +7395,26 @@ type test::Foo {
                 }]
             }]
         )
+
+    async def test_edgeql_ddl_constraint_alter_05(self):
+        await self.con.execute(r"""
+            CREATE TYPE Base {
+                CREATE PROPERTY firstname -> str {
+                    CREATE CONSTRAINT max_len_value(10);
+                }
+            }
+        """)
+
+        with self.assertRaisesRegex(
+                edgedb.errors.SchemaError,
+                r'Constraint .+ is already present in the schema'):
+            await self.con.execute(r"""
+                ALTER TYPE Base {
+                    ALTER PROPERTY firstname {
+                        CREATE CONSTRAINT max_len_value(10);
+                    }
+                }
+            """)
 
     async def test_edgeql_ddl_drop_inherited_link(self):
         await self.con.execute(r"""

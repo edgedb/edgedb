@@ -2015,6 +2015,67 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
+    @test.xfail('''
+        The error is not raised.
+    ''')
+    def test_schema_get_migration_41(self):
+        schema = r'''
+        type Base {
+            property firstname -> str {
+                constraint max_len_value(10);
+                # Test that it's illegal to restate the constraint,
+                # just like in DDL.
+                constraint max_len_value(10);
+            }
+        }
+        '''
+
+        with self.assertRaisesRegex(
+                errors.SchemaError,
+                r'Constraint .+ is already present in the schema'):
+            self._assert_migration_consistency(schema)
+
+    def test_schema_get_migration_42(self):
+        schema = r'''
+        type Base {
+            property firstname -> str {
+                constraint max_len_value(10);
+            }
+        }
+
+        type Derived extending Base {
+            overloaded property firstname -> str {
+                # Same constraint, but stricter.
+                constraint max_len_value(5);
+            }
+        }
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    @test.xfail('''
+        edb.errors.InvalidReferenceError:
+        constraint 'std::max_len_value' does not exist
+    ''')
+    def test_schema_get_migration_43(self):
+        schema = r'''
+        type Base {
+            property firstname -> str {
+                constraint max_len_value(10);
+            }
+        }
+
+        type Derived extending Base {
+            overloaded property firstname -> str {
+                # Test that it's legal to restate the constraint when
+                # overloading.
+                constraint max_len_value(10);
+            }
+        }
+        '''
+
+        self._assert_migration_consistency(schema)
+
     def test_schema_get_migration_multi_module_01(self):
         schema = r'''
             # The two declared types declared are from different
@@ -4196,10 +4257,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Derived extending Base;
         """])
 
-    @test.xfail('''
-        edb.edgeql.codegen.EdgeQLSourceGeneratorError:
-        No method to generate code for Expression
-    ''')
     def test_schema_migrations_equivalence_constraint_03(self):
         self._assert_migration_equivalence([r"""
             type Base {
@@ -4210,7 +4267,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
             type Derived extending Base {
                 overloaded property firstname -> str {
-                    constraint max_len_value(10);
                     # add another constraint to make the prop overloaded
                     constraint min_len_value(5);
                 }
@@ -4225,7 +4281,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
             type Derived extending Base {
                 overloaded property first_name -> str {
-                    constraint max_len_value(10);
                     constraint min_len_value(5);
                 }
             }
