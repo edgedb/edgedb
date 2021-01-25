@@ -1130,7 +1130,8 @@ class CreateConstraint(
     ) -> None:
         if (
             op.property == 'args'
-            and isinstance(node, qlast.CreateConcreteConstraint)
+            and isinstance(node, (qlast.CreateConcreteConstraint,
+                                  qlast.AlterConcreteConstraint))
         ):
             assert isinstance(op.new_value, s_expr.ExpressionList)
             args = []
