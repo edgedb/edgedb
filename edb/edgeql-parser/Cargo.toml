@@ -9,7 +9,7 @@ edition = "2018"
 base32 = "0.4.0"
 sha2 = "0.9.1"
 snafu = "0.6.0"
-combine = "4.0.0-beta.1"
+combine = "4.5.2"
 twoway = "0.2.1"
 wasm-bindgen = {version="0.2", features=["serde-serialize"], optional=true}
 serde = {version="1.0.106", features=["derive"], optional=true}
