@@ -1206,15 +1206,23 @@ class TestIntrospection(tb.QueryTestCase):
                     'links': [
                         {
                             'name': '__type__',
-                            'required': True, 
-                            'readonly': True
+                            'required': True,
+                            'readonly': True,
                         },
-                        {'name': 'issue', 'required': True, 'readonly': False},
-                        {'name': 'owner', 'required': True, 'readonly': False},
+                        {
+                            'name': 'issue',
+                            'required': True,
+                            'readonly': False,
+                        },
+                        {
+                            'name': 'owner',
+                            'required': True,
+                            'readonly': False,
+                        },
                         {
                             'name': 'parent',
                             'required': False,
-                            'readonly': False
+                            'readonly': False,
                         },
                     ]
                 }
