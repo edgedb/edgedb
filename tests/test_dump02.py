@@ -207,7 +207,7 @@ class TestDump02(tb.QueryTestCase, tb.CLITestCaseMixin):
                 WITH MODULE schema
                 SELECT Constraint {
                     name,
-                } FILTER .name LIKE 'default%' AND .is_abstract;
+                } FILTER .name LIKE 'default%' AND .abstract;
             ''',
             [
                 {'name': 'default::🚀🍿'},
@@ -226,7 +226,7 @@ class TestDump02(tb.QueryTestCase, tb.CLITestCaseMixin):
                 }
                 FILTER
                     .name = 'default::🚀🍿' AND
-                    NOT .is_abstract AND
+                    NOT .abstract AND
                     Constraint.<constraints[IS ScalarType].name =
                         'default::🚀🚀🚀';
             ''',

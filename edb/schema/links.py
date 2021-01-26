@@ -230,7 +230,7 @@ class LinkCommand(
         scls = self.scls
         assert isinstance(scls, Link)
 
-        if not scls.get_is_owned(schema):
+        if not scls.get_owned(schema):
             return
 
         target = scls.get_target(schema)
@@ -431,8 +431,8 @@ class CreateLink(
         )
         src_prop.set_attribute_value('required', True)
         src_prop.set_attribute_value('readonly', True)
-        src_prop.set_attribute_value('is_final', True)
-        src_prop.set_attribute_value('is_owned', True)
+        src_prop.set_attribute_value('final', True)
+        src_prop.set_attribute_value('owned', True)
         src_prop.set_attribute_value('cardinality',
                                      qltypes.SchemaCardinality.One)
 
@@ -464,8 +464,8 @@ class CreateLink(
         )
         tgt_prop.set_attribute_value('required', False)
         tgt_prop.set_attribute_value('readonly', True)
-        tgt_prop.set_attribute_value('is_final', True)
-        tgt_prop.set_attribute_value('is_owned', True)
+        tgt_prop.set_attribute_value('final', True)
+        tgt_prop.set_attribute_value('owned', True)
         tgt_prop.set_attribute_value('cardinality',
                                      qltypes.SchemaCardinality.One)
 
@@ -532,7 +532,7 @@ class AlterLinkLowerCardinality(
 class AlterLinkOwned(
     referencing.AlterOwned[Link],
     referrer_context_class=LinkSourceCommandContext,
-    field='is_owned',
+    field='owned',
 ):
     pass
 
@@ -675,7 +675,7 @@ class DeleteLink(
         *,
         parent_node: Optional[qlast.DDLOperation] = None,
     ) -> Optional[qlast.DDLOperation]:
-        if self.get_orig_attribute_value('is_from_alias'):
+        if self.get_orig_attribute_value('from_alias'):
             # This is an alias type, appropriate DDL would be generated
             # from the corresponding Alter/DeleteAlias node.
             return None

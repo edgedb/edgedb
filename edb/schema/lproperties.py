@@ -200,7 +200,7 @@ class PropertyCommand(
         super()._validate_pointer_def(schema, context)
 
         scls = self.scls
-        if not scls.get_is_owned(schema):
+        if not scls.get_owned(schema):
             return
 
         if scls.is_special_pointer(schema):
@@ -368,7 +368,7 @@ class AlterPropertyLowerCardinality(
 class AlterPropertyOwned(
     referencing.AlterOwned[Property],
     referrer_context_class=PropertySourceContext,
-    field='is_owned',
+    field='owned',
 ):
     pass
 
@@ -424,7 +424,7 @@ class AlterProperty(
         *,
         parent_node: Optional[qlast.DDLOperation] = None,
     ) -> Optional[qlast.DDLOperation]:
-        if self.maybe_get_object_aux_data('is_from_alias'):
+        if self.maybe_get_object_aux_data('from_alias'):
             # This is an alias type, appropriate DDL would be generated
             # from the corresponding Alter/DeleteAlias node.
             return None
@@ -464,7 +464,7 @@ class DeleteProperty(
         *,
         parent_node: Optional[qlast.DDLOperation] = None,
     ) -> Optional[qlast.DDLOperation]:
-        if self.maybe_get_object_aux_data('is_from_alias'):
+        if self.maybe_get_object_aux_data('from_alias'):
             # This is an alias type, appropriate DDL would be generated
             # from the corresponding Alter/DeleteAlias node.
             return None

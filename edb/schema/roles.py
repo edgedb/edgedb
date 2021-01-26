@@ -44,7 +44,7 @@ class Role(
     data_safe=True,
 ):
 
-    is_superuser = so.SchemaField(
+    superuser = so.SchemaField(
         bool,
         default=False,
         inheritable=False)
@@ -143,7 +143,7 @@ class CreateRole(RoleCommand, inheriting.CreateInheritingObject[Role]):
                 context=astnode.context,
             )
 
-        cmd.set_attribute_value('is_superuser', astnode.superuser)
+        cmd.set_attribute_value('superuser', astnode.superuser)
         cls._process_role_body(cmd, schema, astnode, context)
         return cmd
 
@@ -153,7 +153,7 @@ class CreateRole(RoleCommand, inheriting.CreateInheritingObject[Role]):
         astnode: Type[qlast.DDLOperation],
     ) -> Optional[str]:
         if (
-            field == 'is_superuser'
+            field == 'superuser'
             and issubclass(astnode, qlast.CreateRole)
         ):
             return 'superuser'

@@ -412,7 +412,7 @@ class RenameIndex(
 class AlterIndexOwned(
     IndexCommand,
     referencing.AlterOwned[Index],
-    field='is_owned',
+    field='owned',
 ):
     pass
 

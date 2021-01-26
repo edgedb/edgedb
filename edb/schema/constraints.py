@@ -186,9 +186,8 @@ class Constraint(
         *,
         with_parent: bool=False
     ) -> str:
-        is_abstract = self.generic(schema)
         vn = super().get_verbosename(schema)
-        if is_abstract:
+        if self.generic(schema):
             return f'abstract {vn}'
         else:
             if with_parent:
@@ -536,7 +535,7 @@ class ConstraintCommand(
         explicit_bases = [
             b for b in child_bases
             # abstract constraints play a similar role to default_base
-            if not b.get_is_abstract(schema)
+            if not b.get_abstract(schema)
             and b.generic(schema) and b.get_name(schema) != default_base
         ]
 
@@ -950,7 +949,7 @@ class CreateConstraint(
         attrs['return_typemod'] = constr_base.get_return_typemod(schema)
         attrs['finalexpr'] = final_expr
         attrs['params'] = constr_base.get_params(schema)
-        attrs['is_abstract'] = False
+        attrs['abstract'] = False
 
         for k, v in attrs.items():
             self.set_attribute_value(k, v, inherited=bool(inherited.get(k)))
@@ -1182,7 +1181,7 @@ class RenameConstraint(
         commands = list(super()._canonicalize(schema, context, scls))
 
         # Don't do anything for concrete constraints
-        if not scls.get_is_abstract(schema):
+        if not scls.get_abstract(schema):
             return commands
 
         # Concrete constraints are children of abstract constraints
@@ -1190,7 +1189,7 @@ class RenameConstraint(
         # unfortunately need to go update their names.
         children = scls.children(schema)
         for ref in children:
-            if ref.get_is_abstract(schema):
+            if ref.get_abstract(schema):
                 continue
 
             ref_name = ref.get_name(schema)
@@ -1208,7 +1207,7 @@ class RenameConstraint(
 
 class AlterConstraintOwned(
     referencing.AlterOwned[Constraint],
-    field='is_owned',
+    field='owned',
     referrer_context_class=ConsistencySubjectCommandContext,
 ):
     pass

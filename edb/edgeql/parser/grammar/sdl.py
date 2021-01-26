@@ -427,7 +427,7 @@ class ScalarTypeDeclaration(Nonterm):
             OptExtending CreateScalarTypeSDLCommandsBlock \
         """
         self.val = qlast.CreateScalarType(
-            is_abstract=True,
+            abstract=True,
             name=kids[3].val,
             bases=kids[4].val,
             commands=kids[5].val,
@@ -439,7 +439,7 @@ class ScalarTypeDeclaration(Nonterm):
             OptExtending CreateScalarTypeSDLCommandsBlock \
         """
         self.val = qlast.CreateScalarType(
-            is_final=True,
+            final=True,
             name=kids[3].val,
             bases=kids[4].val,
             commands=kids[5].val,
@@ -464,7 +464,7 @@ class ScalarTypeDeclarationShort(Nonterm):
             OptExtending \
         """
         self.val = qlast.CreateScalarType(
-            is_abstract=True,
+            abstract=True,
             name=kids[3].val,
             bases=kids[4].val,
         )
@@ -475,7 +475,7 @@ class ScalarTypeDeclarationShort(Nonterm):
             OptExtending \
         """
         self.val = qlast.CreateScalarType(
-            is_final=True,
+            final=True,
             name=kids[3].val,
             bases=kids[4].val,
         )
@@ -499,7 +499,7 @@ class AnnotationDeclaration(Nonterm):
         r"""%reduce ABSTRACT ANNOTATION NodeName OptExtendingSimple \
                     CreateSDLCommandsBlock"""
         self.val = qlast.CreateAnnotation(
-            is_abstract=True,
+            abstract=True,
             name=kids[2].val,
             bases=kids[3].val,
             inheritable=False,
@@ -510,7 +510,7 @@ class AnnotationDeclaration(Nonterm):
         r"""%reduce ABSTRACT INHERITABLE ANNOTATION
                     NodeName OptExtendingSimple CreateSDLCommandsBlock"""
         self.val = qlast.CreateAnnotation(
-            is_abstract=True,
+            abstract=True,
             name=kids[3].val,
             bases=kids[4].val,
             inheritable=True,
@@ -522,7 +522,7 @@ class AnnotationDeclarationShort(Nonterm):
     def reduce_CreateAnnotation(self, *kids):
         r"""%reduce ABSTRACT ANNOTATION NodeName OptExtendingSimple"""
         self.val = qlast.CreateAnnotation(
-            is_abstract=True,
+            abstract=True,
             name=kids[2].val,
             bases=kids[3].val,
             inheritable=False,
@@ -532,7 +532,7 @@ class AnnotationDeclarationShort(Nonterm):
         r"""%reduce ABSTRACT INHERITABLE ANNOTATION
                     NodeName OptExtendingSimple"""
         self.val = qlast.CreateAnnotation(
-            is_abstract=True,
+            abstract=True,
             name=kids[3].val,
             bases=kids[4].val,
             inheritable=True,
@@ -913,7 +913,7 @@ class ObjectTypeDeclaration(Nonterm):
             CreateObjectTypeSDLCommandsBlock \
         """
         self.val = qlast.CreateObjectType(
-            is_abstract=True,
+            abstract=True,
             name=kids[2].val,
             bases=kids[3].val,
             commands=kids[4].val,
@@ -936,7 +936,7 @@ class ObjectTypeDeclarationShort(Nonterm):
         r"""%reduce \
             ABSTRACT TYPE NodeName OptExtendingSimple"""
         self.val = qlast.CreateObjectType(
-            is_abstract=True,
+            abstract=True,
             name=kids[2].val,
             bases=kids[3].val,
         )

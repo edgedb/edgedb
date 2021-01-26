@@ -1148,7 +1148,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 keywords.extend(('SET', 'REQUIRED'))
             else:
                 keywords.extend(('SET', 'OPTIONAL'))
-        elif fname == 'is_abstract':
+        elif fname == 'abstract':
             if node.value is None:
                 keywords.extend(('RESET', 'ABSTRACT'))
             elif self._eval_bool_expr(node.value):
@@ -1162,7 +1162,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 keywords.extend(('SET', 'DELEGATED'))
             else:
                 keywords.extend(('SET', 'NOT', 'DELEGATED'))
-        elif fname == 'is_final':
+        elif fname == 'final':
             if node.value is None:
                 keywords.extend(('RESET', 'FINAL'))
             elif self._eval_bool_expr(node.value):
@@ -1176,7 +1176,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 value = self._eval_enum_expr(
                     node.value, qltypes.SchemaCardinality)
                 keywords.extend(('SET', value.to_edgeql()))
-        elif fname == 'is_owned':
+        elif fname == 'owned':
             if node.value is None:
                 keywords.extend(('DROP', 'OWNED'))
             elif self._eval_bool_expr(node.value):
@@ -1312,9 +1312,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_CreateScalarType(self, node: qlast.CreateScalarType) -> None:
         keywords = []
-        if node.is_abstract:
+        if node.abstract:
             keywords.append('ABSTRACT')
-        if node.is_final:
+        if node.final:
             keywords.append('FINAL')
         keywords.append('SCALAR')
         keywords.append('TYPE')
@@ -1573,9 +1573,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_CreateObjectType(self, node: qlast.CreateObjectType) -> None:
         keywords = []
 
-        if node.is_abstract:
+        if node.abstract:
             keywords.append('ABSTRACT')
-        if node.is_final:
+        if node.final:
             keywords.append('FINAL')
         keywords.append('TYPE')
 
@@ -1628,7 +1628,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(node.returning_typemod.to_edgeql(), ' ')
             self.visit(node.returning)
 
-            if node.is_abstract:
+            if node.abstract:
                 return
 
             if node.commands:
@@ -1672,7 +1672,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.write('}')
 
         op_type = []
-        if node.is_abstract:
+        if node.abstract:
             op_type.append('ABSTRACT')
         if node.kind:
             op_type.append(node.kind.upper())

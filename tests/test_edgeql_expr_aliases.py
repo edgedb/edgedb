@@ -1019,7 +1019,7 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
                 SELECT Type {
                     name
                 }
-                FILTER .is_from_alias AND .name LIKE 'test::Air%'
+                FILTER .from_alias AND .name LIKE 'test::Air%'
                 ORDER BY .name
             """,
             [{
@@ -1041,7 +1041,7 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
                     } ORDER BY @index
                 }
                 FILTER
-                    .is_from_alias
+                    .from_alias
                     AND .name = 'test::tuple_alias'
                 ORDER BY .name
             """,

@@ -369,7 +369,7 @@ def compile_InsertQuery(
         assert isinstance(subject, irast.Set)
 
         subject_stype = setgen.get_set_type(subject, ctx=ictx)
-        if subject_stype.get_is_abstract(ctx.env.schema):
+        if subject_stype.get_abstract(ctx.env.schema):
             raise errors.QueryError(
                 f'cannot insert into abstract '
                 f'{subject_stype.get_verbosename(ctx.env.schema)}',

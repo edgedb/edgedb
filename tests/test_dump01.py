@@ -356,7 +356,7 @@ class DumpTestCaseMixin:
                     expr,
                 }
                 FILTER
-                    .is_abstract
+                    .abstract
                     AND
                     .name LIKE 'default::%'
                 ORDER BY .name;

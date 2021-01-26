@@ -323,7 +323,7 @@ def __infer_typecast(
 ) -> s_types.Type:
     stype = infer_type(ir.to_type, env)
 
-    # is_polymorphic is synonymous to get_is_abstract for scalars
+    # is_polymorphic is synonymous to get_abstract for scalars
     if stype.is_polymorphic(env.schema):
         raise errors.QueryError(
             f'cannot cast into generic type '

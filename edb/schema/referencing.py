@@ -45,7 +45,7 @@ class ReferencedObject(so.DerivableObject):
 
     #: True if the object has an explicit definition and is not
     #: purely inherited.
-    is_owned = so.SchemaField(
+    owned = so.SchemaField(
         bool,
         default=False,
         inheritable=False,
@@ -305,7 +305,7 @@ class ReferencedInheritingObject(
         del_op = super().as_delete_delta(schema=schema, context=context)
 
         if (
-            self.get_is_owned(schema)
+            self.get_owned(schema)
             and not self.is_generated(schema)
             and any(
                 context.is_deleting(schema, ancestor)
@@ -313,7 +313,7 @@ class ReferencedInheritingObject(
             )
         ):
             owned_op = self.init_delta_command(schema, AlterOwned)
-            owned_op.set_attribute_value('is_owned', False, orig_value=True)
+            owned_op.set_attribute_value('owned', False, orig_value=True)
             del_op.add(owned_op)
 
         return del_op
@@ -554,10 +554,10 @@ class CreateReferencedObject(
                 ),
             )
 
-            cmd.set_attribute_value('is_owned', True)
+            cmd.set_attribute_value('owned', True)
 
-            if getattr(astnode, 'is_abstract', None):
-                cmd.set_attribute_value('is_abstract', True)
+            if getattr(astnode, 'abstract', None):
+                cmd.set_attribute_value('abstract', True)
 
         return cmd
 
@@ -708,7 +708,7 @@ class ReferencedInheritingObjectCommand(
             parent_coll = ref_base.get_field_value(schema, referrer_field)
             parent_item = parent_coll.get(schema, refname, default=None)
             if (parent_item is not None
-                    and not parent_item.get_is_final(schema)):
+                    and not parent_item.get_final(schema)):
                 implicit_bases.append(parent_item)
 
         return implicit_bases
@@ -750,7 +750,7 @@ class ReferencedInheritingObjectCommand(
         referrer_class = referrer_ctx.op.get_schema_metaclass()
         refdict = referrer_class.get_refdict_for_class(objcls)
 
-        if context.declarative and scls.get_is_owned(schema):
+        if context.declarative and scls.get_owned(schema):
             if (implicit_bases
                     and refdict.requires_explicit_overloaded
                     and not self.get_attribute_value('declared_overloaded')):
@@ -929,9 +929,9 @@ class ReferencedInheritingObjectCommand(
         ref: ReferencedInheritingObject
         for ref in refs.objects(schema):
             inherited = ref.get_implicit_bases(schema)
-            if inherited and ref.get_is_owned(schema):
+            if inherited and ref.get_owned(schema):
                 alter = ref.init_delta_command(schema, sd.AlterObject)
-                alter.set_attribute_value('is_owned', False, orig_value=True)
+                alter.set_attribute_value('owned', False, orig_value=True)
                 schema = alter.apply(schema, context)
                 self.add(alter)
             elif (
@@ -962,10 +962,10 @@ class CreateReferencedInheritingObject(
     ) -> Optional[qlast.DDLOperation]:
         refctx = type(self).get_referrer_context(context)
         if refctx is not None:
-            if self.get_attribute_value('is_from_alias'):
+            if self.get_attribute_value('from_alias'):
                 return None
 
-            elif not self.get_attribute_value('is_owned'):
+            elif not self.get_attribute_value('owned'):
                 if context.descriptive_mode:
                     astnode = super()._get_ast(
                         schema,
@@ -1076,7 +1076,7 @@ class CreateReferencedInheritingObject(
 
         schema = super()._create_ref(schema, context, referrer)
 
-        if (not self.scls.get_is_final(schema)
+        if (not self.scls.get_final(schema)
                 and isinstance(referrer, so.InheritingObject)
                 and not context.canonical
                 and context.enable_recursion):
@@ -1174,7 +1174,7 @@ class AlterReferencedInheritingObject(
         *,
         parent_node: Optional[qlast.DDLOperation] = None,
     ) -> Optional[qlast.DDLOperation]:
-        if self.get_attribute_value('is_from_alias'):
+        if self.get_attribute_value('from_alias'):
             return None
         else:
             return super()._get_ast(schema, context, parent_node=parent_node)
@@ -1195,7 +1195,7 @@ class AlterReferencedInheritingObject(
         # _all_ subcommands are `RESET` subcommands.
         if (
             refctx is not None
-            and qlast.get_ddl_field_command(astnode, 'is_owned') is None
+            and qlast.get_ddl_field_command(astnode, 'owned') is None
             and (
                 not cmd.get_subcommands()
                 or not all(
@@ -1207,7 +1207,7 @@ class AlterReferencedInheritingObject(
                 )
             )
         ):
-            cmd.set_attribute_value('is_owned', True)
+            cmd.set_attribute_value('owned', True)
 
         assert isinstance(cmd, AlterReferencedInheritingObject)
         return cmd
@@ -1219,8 +1219,8 @@ class AlterReferencedInheritingObject(
     ) -> s_schema.Schema:
         schema = super()._alter_finalize(schema, context)
         scls = self.scls
-        was_owned = scls.get_is_owned(context.current().original_schema)
-        now_owned = scls.get_is_owned(schema)
+        was_owned = scls.get_owned(context.current().original_schema)
+        now_owned = scls.get_owned(schema)
         if not was_owned and now_owned:
             self._validate(schema, context)
         return schema
@@ -1449,7 +1449,7 @@ class DeleteReferencedInheritingObject(
 
         cmd: sd.Command
 
-        if child_ref.get_is_owned(schema) or implicit_bases:
+        if child_ref.get_owned(schema) or implicit_bases:
             # Child is either defined locally or is inherited
             # from another parent, so we need to do a rebase.
             removed_bases, added_bases = self.get_ref_implicit_base_delta(
@@ -1483,7 +1483,7 @@ class DeleteReferencedInheritingObject(
         refctx = type(self).get_referrer_context(context)
         if (
             refctx is not None
-            and not self.get_orig_attribute_value('is_owned')
+            and not self.get_orig_attribute_value('owned')
         ):
             return None
         else:
@@ -1507,8 +1507,8 @@ class AlterOwned(
         schema = super()._alter_begin(schema, context)
         scls = self.scls
 
-        orig_owned = scls.get_is_owned(orig_schema)
-        owned = scls.get_is_owned(schema)
+        orig_owned = scls.get_owned(orig_schema)
+        owned = scls.get_owned(schema)
 
         if (
             orig_owned != owned

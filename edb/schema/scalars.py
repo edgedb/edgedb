@@ -70,7 +70,7 @@ class ScalarType(
         return bool(self.get_enum_values(schema))
 
     def is_polymorphic(self, schema: s_schema.Schema) -> bool:
-        return self.get_is_abstract(schema)
+        return self.get_abstract(schema)
 
     def contains_json(self, schema: s_schema.Schema) -> bool:
         return self.issubclass(
@@ -254,7 +254,7 @@ class ScalarTypeCommand(
     ) -> None:
         concrete_ancestors = {
             ancestor for ancestor in ancestors
-            if not ancestor.get_is_abstract(schema)
+            if not ancestor.get_abstract(schema)
         }
         # Filter out anything that has a subclass relation with
         # every other concrete ancestor. This lets us allow chains
@@ -355,7 +355,7 @@ class CreateScalarType(
                         context=astnode.bases[0].context,
                     )
                 create_cmd.set_attribute_value('enum_values', shell.elements)
-                create_cmd.set_attribute_value('is_final', True)
+                create_cmd.set_attribute_value('final', True)
                 create_cmd.set_attribute_value('bases', [
                     s_utils.ast_objref_to_object_shell(
                         s_utils.name_to_ast_ref(

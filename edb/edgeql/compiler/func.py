@@ -438,7 +438,7 @@ def compile_operator(
 
     if not in_polymorphic_func:
         matched = [call for call in matched
-                   if not call.func.get_is_abstract(env.schema)]
+                   if not call.func.get_abstract(env.schema)]
 
     if len(matched) == 1:
         matched_call = matched[0]

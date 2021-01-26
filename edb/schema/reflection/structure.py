@@ -382,13 +382,13 @@ def generate_structure(
                     f'reflection method but is not referenced in any RefDict'
                 )
 
-        is_concrete = not schema_objtype.get_is_abstract(schema)
+        is_concrete = not schema_objtype.get_abstract(schema)
 
         if (
             is_concrete
             and not is_simple_wrapper
             and any(
-                not b.get_is_abstract(schema)
+                not b.get_abstract(schema)
                 for b in schema_objtype.get_ancestors(schema).objects(schema)
             )
         ):
@@ -638,7 +638,7 @@ def generate_structure(
         rschema_name = get_schema_name_for_pycls(py_cls)
         schema_cls = schema.get(rschema_name, type=s_objtypes.ObjectType)
 
-        is_concrete = not schema_cls.get_is_abstract(schema)
+        is_concrete = not schema_cls.get_abstract(schema)
         read_shape = read_sets[rschema_name]
 
         for refdict in py_cls.get_refdicts():

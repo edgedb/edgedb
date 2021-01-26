@@ -1888,7 +1888,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         # the constraint.
         elif (
             isinstance(cmd, s_cnstr.AlterConstraint)
-            and not cmd.get_attribute_value('is_abstract')
+            and not cmd.get_attribute_value('abstract')
             and (subjectexpr :=
                  cmd.get_attribute_value('subjectexpr')) is not None
         ):
@@ -1917,7 +1917,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         # Also indexes.
         elif (
             isinstance(cmd, s_indexes.AlterIndex)
-            and not cmd.get_attribute_value('is_abstract')
+            and not cmd.get_attribute_value('abstract')
             and (indexexpr :=
                  cmd.get_attribute_value('expr')) is not None
         ):
@@ -2701,8 +2701,8 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
 
         cmd.set_attribute_value('name', cmd.classname)
 
-        if getattr(astnode, 'is_abstract', False):
-            cmd.set_attribute_value('is_abstract', True)
+        if getattr(astnode, 'abstract', False):
+            cmd.set_attribute_value('abstract', True)
 
         return cmd
 
@@ -3246,8 +3246,8 @@ class AlterObject(AlterObjectOrFragment[so.Object_T], Generic[so.Object_T]):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         assert isinstance(cmd, AlterObject)
 
-        if getattr(astnode, 'is_abstract', False):
-            cmd.set_attribute_value('is_abstract', True)
+        if getattr(astnode, 'abstract', False):
+            cmd.set_attribute_value('abstract', True)
 
         return cmd
 

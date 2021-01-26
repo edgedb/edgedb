@@ -141,7 +141,7 @@ def try_bind_call_args(
         ctx: context.ContextLevel) -> Optional[BoundCall]:
 
     return_type = func.get_return_type(ctx.env.schema)
-    is_abstract = func.get_is_abstract(ctx.env.schema)
+    is_abstract = func.get_abstract(ctx.env.schema)
     resolved_poly_base_type: Optional[s_types.Type] = None
 
     def _get_cast_distance(

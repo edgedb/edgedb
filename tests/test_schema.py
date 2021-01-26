@@ -3244,7 +3244,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         unexpected difference in schema produced by incremental
         migration on step 2:
 
-        ... is_from_alias = None | True
+        ... from_alias = None | True
     ''')
     def test_schema_migrations_equivalence_45(self):
         # change a link used in a computable
@@ -6054,9 +6054,10 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             {
                 CREATE MULTI LINK intersection_of -> schema::ObjectType;
                 CREATE MULTI LINK union_of -> schema::ObjectType;
-                CREATE PROPERTY is_compound_type := (
+                CREATE PROPERTY compound_type := (
                     (EXISTS (.union_of) OR EXISTS (.intersection_of))
                 );
+                CREATE PROPERTY is_compound_type := (.compound_type);
                 CREATE MULTI LINK links := (
                     .pointers[IS schema::Link]
                 );
@@ -6082,9 +6083,10 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                     .pointers[IS schema::Property]
                 );
                 multi link union_of -> schema::ObjectType;
-                property is_compound_type := (
+                property compound_type := (
                     (EXISTS (.union_of) OR EXISTS (.intersection_of))
                 );
+                property is_compound_type := (.compound_type);
             };
             """,
         )

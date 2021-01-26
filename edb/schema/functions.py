@@ -709,7 +709,7 @@ class CallableLike:
     def get_verbosename(self, schema: s_schema.Schema) -> str:
         raise NotImplementedError
 
-    def get_is_abstract(self, schema: s_schema.Schema) -> bool:
+    def get_abstract(self, schema: s_schema.Schema) -> bool:
         raise NotImplementedError
 
 
@@ -733,7 +733,7 @@ class CallableObject(
     return_typemod = so.SchemaField(
         ft.TypeModifier, compcoef=0.4, coerce=True)
 
-    is_abstract = so.SchemaField(
+    abstract = so.SchemaField(
         bool, default=False, compcoef=0.909)
 
     def as_create_delta(
@@ -954,7 +954,7 @@ class RenameCallableObject(
         commands = list(super()._canonicalize(schema, context, scls))
 
         # Don't do anything for concrete constraints
-        if not isinstance(scls, Function) and not scls.get_is_abstract(schema):
+        if not isinstance(scls, Function) and not scls.get_abstract(schema):
             return commands
 
         # params don't get picked up by the base _canonicalize because

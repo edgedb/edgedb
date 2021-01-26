@@ -401,7 +401,7 @@ def _build_object_mutation_shape(
     if isinstance(cmd, sd.CreateObject):
         if (
             issubclass(mcls, s_scalars.ScalarType)
-            and not cmd.get_attribute_value('is_abstract')
+            and not cmd.get_attribute_value('abstract')
         ):
             assignments.append(
                 f'backend_id := sys::_get_pg_type_for_scalar_type('

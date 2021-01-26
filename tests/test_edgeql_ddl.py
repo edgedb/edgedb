@@ -901,16 +901,16 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                           FILTER .name = 'test::User')
                 SELECT
                     C {
-                        pointers: { @is_owned }
+                        pointers: { @owned }
                         FILTER .name IN {'name', 'desc'}
                     };
             """,
             [
                 {
                     'pointers': [{
-                        '@is_owned': False,
+                        '@owned': False,
                     }, {
-                        '@is_owned': False,
+                        '@owned': False,
                     }],
                 },
             ],
@@ -930,16 +930,16 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                           FILTER .name = 'test::User')
                 SELECT
                     C {
-                        pointers: { @is_owned }
+                        pointers: { @owned }
                         FILTER .name IN {'name', 'desc'}
                     };
             """,
             [
                 {
                     'pointers': [{
-                        '@is_owned': True,
+                        '@owned': True,
                     }, {
-                        '@is_owned': True,
+                        '@owned': True,
                     }],
                 },
             ],
@@ -967,7 +967,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 SELECT
                     C {
                         pointers: {
-                            @is_owned,
+                            @owned,
                             required,
                             constraints: {
                                 name,
@@ -979,13 +979,13 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             [
                 {
                     'pointers': [{
-                        '@is_owned': True,
+                        '@owned': True,
                         'required': True,
                         'constraints': [{
                             'name': 'std::exclusive',
                         }],
                     }, {
-                        '@is_owned': True,
+                        '@owned': True,
                         'required': True,
                         'constraints': [{
                             'name': 'std::exclusive',
@@ -1011,7 +1011,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 SELECT
                     C {
                         pointers: {
-                            @is_owned,
+                            @owned,
                             required,
                             constraints: {
                                 name,
@@ -1023,11 +1023,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             [
                 {
                     'pointers': [{
-                        '@is_owned': False,
+                        '@owned': False,
                         'required': False,
                         'constraints': [],
                     }, {
-                        '@is_owned': False,
+                        '@owned': False,
                         'required': False,
                         'constraints': [],
                     }],
@@ -1083,7 +1083,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 SELECT
                     C {
                         links: {
-                            @is_owned,
+                            @owned,
                             required,
                             properties: {
                                 name,
@@ -1095,7 +1095,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             [
                 {
                     'links': [{
-                        '@is_owned': False,
+                        '@owned': False,
                         'required': False,
                         'properties': [{"name": "source"}, {"name": "target"}],
                     }],
@@ -1111,11 +1111,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 SELECT
                     C {
                         links: {
-                            @is_owned,
+                            @owned,
                             required,
                             properties: {
                                 name,
-                                @is_owned,
+                                @owned,
                                 constraints: {
                                     name,
                                 }
@@ -1127,11 +1127,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             [
                 {
                     'links': [{
-                        '@is_owned': True,
+                        '@owned': True,
                         'required': True,
                         'properties': [{
                             'name': 'foo',
-                            '@is_owned': True,
+                            '@owned': True,
                             'constraints': [{
                                 'name': 'std::exclusive',
                             }]
@@ -1160,7 +1160,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 SELECT
                     C {
                         properties: {
-                            @is_owned,
+                            @owned,
                             required,
                             inherited_fields,
                         }
@@ -1170,7 +1170,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             [
                 {
                     'properties': [{
-                        '@is_owned': True,
+                        '@owned': True,
                         'required': True,
                         'inherited_fields': {
                             'cardinality',
@@ -1195,7 +1195,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 SELECT
                     C {
                         properties: {
-                            @is_owned,
+                            @owned,
                             required,
                             inherited_fields,
                         }
@@ -1205,7 +1205,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             [
                 {
                     'properties': [{
-                        '@is_owned': True,
+                        '@owned': True,
                         'required': True,
                         'inherited_fields': [],
                     }],
@@ -4520,7 +4520,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     WITH MODULE schema
                     SELECT Operator {
                         name,
-                        is_abstract,
+                        abstract,
                     }
                     FILTER
                         .name = 'test::>'
@@ -4528,7 +4528,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 [
                     {
                         'name': 'test::>',
-                        'is_abstract': True,
+                        'abstract': True,
                     },
                 ]
             )
@@ -6015,13 +6015,13 @@ type test::Foo {
             r"""
                 SELECT sys::Role {
                     name,
-                    is_superuser,
+                    superuser,
                     password,
                 } FILTER .name = 'foo_01'
             """,
             [{
                 'name': 'foo_01',
-                'is_superuser': False,
+                'superuser': False,
                 'password': None,
             }]
         )
@@ -6037,12 +6037,12 @@ type test::Foo {
             r"""
                 SELECT sys::Role {
                     name,
-                    is_superuser,
+                    superuser,
                 } FILTER .name = 'foo2'
             """,
             [{
                 'name': 'foo2',
-                'is_superuser': True,
+                'superuser': True,
             }]
         )
 
@@ -6081,7 +6081,7 @@ type test::Foo {
             r"""
                 SELECT sys::Role {
                     name,
-                    is_superuser,
+                    superuser,
                     password,
                     member_of: {
                         name
@@ -6090,7 +6090,7 @@ type test::Foo {
             """,
             [{
                 'name': 'foo4',
-                'is_superuser': False,
+                'superuser': False,
                 'password': None,
                 'member_of': [{
                     'name': 'foo3'

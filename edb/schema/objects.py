@@ -1322,7 +1322,7 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         # so we should use the default for comparisons. This means
         # that we perform the comparison as if explicit = False.
         #
-        # E.g. 'is_owned' being None and False is semantically
+        # E.g. 'owned' being None and False is semantically
         # identical and should not be considered a change.
         if (isinstance(field, SchemaField) and not field.inheritable):
             explicit = False
@@ -2747,7 +2747,7 @@ class ObjectList(
 
 class SubclassableObject(Object):
 
-    is_abstract = SchemaField(
+    abstract = SchemaField(
         bool,
         default=False,
         inheritable=False,
@@ -2755,7 +2755,7 @@ class SubclassableObject(Object):
         compcoef=0.909,
     )
 
-    is_final = SchemaField(
+    final = SchemaField(
         bool,
         default=False,
         special_ddl_syntax=True,
@@ -2850,10 +2850,10 @@ class InheritingObject(SubclassableObject):
         """Get the topmost non-abstract base."""
         lineage = self.get_ancestors(schema).objects(schema)
         for ancestor in reversed(lineage):
-            if not ancestor.get_is_abstract(schema):
+            if not ancestor.get_abstract(schema):
                 return ancestor
 
-        if not self.get_is_abstract(schema):
+        if not self.get_abstract(schema):
             return self
 
         raise errors.SchemaError(

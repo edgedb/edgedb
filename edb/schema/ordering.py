@@ -569,7 +569,7 @@ def _trace_op(
                 )
                 and (
                     not isinstance(ref, s_pointers.Pointer)
-                    or not ref.get_is_from_alias(old_schema)
+                    or not ref.get_from_alias(old_schema)
                 )
             ):
                 # If the ref is an implicit descendant (i.e. an inherited ref),
@@ -606,7 +606,7 @@ def _trace_op(
                 # For DROP OWNED and DROP we want it after the rebase.
                 is_set_owned = (
                     isinstance(op, referencing.AlterOwned)
-                    and op.get_attribute_value('is_owned')
+                    and op.get_attribute_value('owned')
                 )
                 if is_set_owned:
                     ref_item = get_deps(('rebase', str(referrer_name)))
@@ -618,7 +618,7 @@ def _trace_op(
                     isinstance(obj, referencing.ReferencedInheritingObject)
                     and (
                         not isinstance(obj, s_pointers.Pointer)
-                        or not obj.get_is_from_alias(old_schema)
+                        or not obj.get_from_alias(old_schema)
                     )
                 ):
                     for ancestor in obj.get_implicit_ancestors(old_schema):
