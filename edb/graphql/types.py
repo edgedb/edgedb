@@ -1200,7 +1200,7 @@ class GQLCoreSchema:
 
         # concrete types are also reflected as Type (with a '_Type' postfix)
         obj_types += [t for t in interface_types
-                      if not t.get_is_abstract(self.edb_schema)]
+                      if not t.get_abstract(self.edb_schema)]
 
         # interfaces
         for t in interface_types:

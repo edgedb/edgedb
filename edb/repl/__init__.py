@@ -673,7 +673,7 @@ class Cli:
 
         flag = '' if 'case_sensitive' in flags else 'i'
         pattern = arg or ''
-        filter_and = 'NOT .is_from_alias'
+        filter_and = 'NOT .from_alias'
         if 'system' not in flags:
             filter_and = f'''
                 {filter_and} AND NOT (re_test("^({STD_RE})::", .name))
@@ -744,7 +744,7 @@ class Cli:
     ) -> None:
         flag = '' if 'case_sensitive' in flags else 'i'
         pattern = arg or ''
-        filter_and = 'NOT .is_from_alias AND NOT .is_compound_type'
+        filter_and = 'NOT .from_alias AND NOT .compound_type'
         if 'system' not in flags:
             filter_and += f'''
                 AND NOT (re_test("^({STD_RE})::", .name))
@@ -807,7 +807,7 @@ class Cli:
     ) -> None:
         flag = '' if 'case_sensitive' in flags else 'i'
         pattern = arg or ''
-        filter_and = '.is_from_alias'
+        filter_and = '.from_alias'
         if 'system' not in flags:
             filter_and += f'''
                 AND NOT (re_test("^({STD_RE})::", .name))
@@ -978,7 +978,7 @@ class Cli:
                     Index,
                     (
                         SELECT Constraint
-                        FILTER .name = 'std::exclusive' AND NOT .is_abstract
+                        FILTER .name = 'std::exclusive' AND NOT .abstract
                     )
                 }
             SELECT I {

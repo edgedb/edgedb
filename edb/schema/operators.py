@@ -124,7 +124,7 @@ class OperatorCommand(
         field: str,
         astnode: Type[qlast.DDLOperation],
     ) -> Optional[str]:
-        if field == 'is_abstract':
+        if field == 'abstract':
             return field
         elif field == 'operator_kind':
             return 'kind'

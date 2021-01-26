@@ -169,7 +169,7 @@ def fini_expression(
                 _elide_derived_ancestors(vptr, ctx=ctx)
                 ctx.env.schema = vptr.set_field_value(
                     ctx.env.schema,
-                    'is_from_alias',
+                    'from_alias',
                     True,
                 )
 
@@ -197,7 +197,7 @@ def fini_expression(
                     _elide_derived_ancestors(vlprop, ctx=ctx)
                     ctx.env.schema = vlprop.set_field_value(
                         ctx.env.schema,
-                        'is_from_alias',
+                        'from_alias',
                         True,
                     )
 

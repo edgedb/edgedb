@@ -330,7 +330,7 @@ class CastCallableWrapper(s_func.CallableLike):
     def get_verbosename(self, schema: s_schema.Schema) -> str:
         return self._cast.get_verbosename(schema)
 
-    def get_is_abstract(self, schema: s_schema.Schema) -> bool:
+    def get_abstract(self, schema: s_schema.Schema) -> bool:
         return False
 
 

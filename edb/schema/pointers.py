@@ -404,7 +404,7 @@ class Pointer(referencing.ReferencedInheritingObject,
     )
 
     # True, if this pointer is defined in an Alias.
-    is_from_alias = so.SchemaField(
+    from_alias = so.SchemaField(
         bool,
         default=None,
         compcoef=0.99,
@@ -467,7 +467,7 @@ class Pointer(referencing.ReferencedInheritingObject,
         return False
 
     def is_generated(self, schema: s_schema.Schema) -> bool:
-        return bool(self.get_is_from_alias(schema))
+        return bool(self.get_from_alias(schema))
 
     @classmethod
     def get_displayname_static(cls, name: sn.Name) -> str:
@@ -483,9 +483,8 @@ class Pointer(referencing.ReferencedInheritingObject,
         *,
         with_parent: bool=False,
     ) -> str:
-        is_abstract = self.generic(schema)
         vn = super().get_verbosename(schema)
-        if is_abstract:
+        if self.generic(schema):
             return f'abstract {vn}'
         else:
             if with_parent:
@@ -822,7 +821,7 @@ class PseudoPointer(s_abc.Pointer):
     def get_is_derived(self, schema: s_schema.Schema) -> bool:
         return False
 
-    def get_is_owned(self, schema: s_schema.Schema) -> bool:
+    def get_owned(self, schema: s_schema.Schema) -> bool:
         return True
 
     def get_union_of(
@@ -1342,7 +1341,7 @@ class PointerCommand(
             return
 
         scls = self.scls
-        if not scls.get_is_owned(schema):
+        if not scls.get_owned(schema):
             return
 
         default_expr = scls.get_default(schema)
@@ -1557,7 +1556,7 @@ class CreatePointer(
         )
 
         if isinstance(referrer, s_types.Type) and referrer.is_view(schema):
-            cmd.set_attribute_value('is_from_alias', True)
+            cmd.set_attribute_value('from_alias', True)
 
         return cmd
 
@@ -1678,7 +1677,7 @@ class SetPointerType(
     ) -> bool:
         return (
             not old_type.assignment_castable_to(new_type, schema)
-            and not ptr_op.maybe_get_object_aux_data('is_from_alias')
+            and not ptr_op.maybe_get_object_aux_data('from_alias')
             and self.cast_expr is None
             and not self._is_endpoint_property()
             and not (
@@ -2028,7 +2027,7 @@ class AlterPointerLowerCardinality(
         return (
             self.get_attribute_value('required')
             and not self.is_attribute_computed('required')
-            and not ptr_op.maybe_get_object_aux_data('is_from_alias')
+            and not ptr_op.maybe_get_object_aux_data('from_alias')
             and self.fill_expr is None
             and not (
                 ptr_op.get_attribute_value('declared_overloaded')

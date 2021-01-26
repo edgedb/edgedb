@@ -66,7 +66,7 @@ class PseudoType(
     ) -> so.ObjectList[PseudoType]:
         return so.ObjectList[PseudoType].create_empty()  # type: ignore
 
-    def get_is_abstract(self, schema: s_schema.Schema) -> bool:
+    def get_abstract(self, schema: s_schema.Schema) -> bool:
         return True
 
     def is_polymorphic(self, schema: s_schema.Schema) -> bool:

@@ -172,7 +172,7 @@ class AnnotationCommand(sd.QualifiedObjectCommand[Annotation],
         field: str,
         astnode: Type[qlast.DDLOperation],
     ) -> Optional[str]:
-        if field in {'is_abstract', 'inheritable'}:
+        if field in {'abstract', 'inheritable'}:
             return field
         else:
             return super().get_ast_attr_for_field(field, astnode)
@@ -193,7 +193,7 @@ class CreateAnnotation(AnnotationCommand, sd.CreateObject[Annotation]):
         assert isinstance(astnode, qlast.CreateAnnotation)
 
         cmd.set_attribute_value('inheritable', astnode.inheritable)
-        cmd.set_attribute_value('is_abstract', True)
+        cmd.set_attribute_value('abstract', True)
 
         assert isinstance(cmd, CreateAnnotation)
         return cmd
@@ -349,7 +349,7 @@ class CreateAnnotationValue(
         anno = self.get_ddl_identity('annotation')
         assert anno is not None
         self.set_attribute_value(
-            'is_final',
+            'final',
             not anno.get_inheritable(schema),
         )
         self.set_attribute_value('internal', True)

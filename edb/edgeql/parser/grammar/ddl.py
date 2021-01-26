@@ -309,9 +309,9 @@ class ResetFieldStmt(Nonterm):
         if fname == 'expression':
             fname = 'expr'
         elif fname == 'abstract':
-            fname = 'is_abstract'
+            fname = 'abstract'
         elif fname == 'final':
-            fname = 'is_final'
+            fname = 'final'
         elif fname == 'optionality':
             fname = 'required'
         elif fname == 'type':
@@ -381,21 +381,21 @@ class AlterAbstract(Nonterm):
     def reduce_DROP_ABSTRACT(self, *kids):
         # TODO: Raise a DeprecationWarning once we have facility for that.
         self.val = qlast.SetField(
-            name='is_abstract',
+            name='abstract',
             value=qlast.BooleanConstant.from_python(False),
             special_syntax=True,
         )
 
     def reduce_SET_NOT_ABSTRACT(self, *kids):
         self.val = qlast.SetField(
-            name='is_abstract',
+            name='abstract',
             value=qlast.BooleanConstant.from_python(False),
             special_syntax=True,
         )
 
     def reduce_SET_ABSTRACT(self, *kids):
         self.val = qlast.SetField(
-            name='is_abstract',
+            name='abstract',
             value=qlast.BooleanConstant.from_python(True),
             special_syntax=True,
         )
@@ -406,21 +406,21 @@ class AlterFinal(Nonterm):
     def reduce_DROP_FINAL(self, *kids):
         # TODO: Raise a DeprecationWarning once we have facility for that.
         self.val = qlast.SetField(
-            name='is_final',
+            name='final',
             value=qlast.BooleanConstant.from_python(False),
             special_syntax=True,
         )
 
     def reduce_SET_NOT_FINAL(self, *kids):
         self.val = qlast.SetField(
-            name='is_final',
+            name='final',
             value=qlast.BooleanConstant.from_python(False),
             special_syntax=True,
         )
 
     def reduce_SET_FINAL(self, *kids):
         self.val = qlast.SetField(
-            name='is_final',
+            name='final',
             value=qlast.BooleanConstant.from_python(True),
             special_syntax=True,
         )
@@ -477,14 +477,14 @@ class AlterOwnedStmt(Nonterm):
 
     def reduce_DROP_OWNED(self, *kids):
         self.val = qlast.SetField(
-            name='is_owned',
+            name='owned',
             value=qlast.BooleanConstant(value='false'),
             special_syntax=True,
         )
 
     def reduce_SET_OWNED(self, *kids):
         self.val = qlast.SetField(
-            name='is_owned',
+            name='owned',
             value=qlast.BooleanConstant(value='true'),
             special_syntax=True,
         )
@@ -805,7 +805,7 @@ class CreateScalarTypeStmt(Nonterm):
         """
         self.val = qlast.CreateScalarType(
             name=kids[4].val,
-            is_abstract=True,
+            abstract=True,
             bases=kids[5].val,
             commands=kids[6].val
         )
@@ -817,7 +817,7 @@ class CreateScalarTypeStmt(Nonterm):
         """
         self.val = qlast.CreateScalarType(
             name=kids[4].val,
-            is_final=True,
+            final=True,
             bases=kids[5].val,
             commands=kids[6].val
         )
@@ -1480,7 +1480,7 @@ class CreateObjectTypeStmt(Nonterm):
         self.val = qlast.CreateObjectType(
             name=kids[3].val,
             bases=kids[4].val,
-            is_abstract=True,
+            abstract=True,
             commands=kids[5].val,
         )
 
@@ -1492,7 +1492,7 @@ class CreateObjectTypeStmt(Nonterm):
         self.val = qlast.CreateObjectType(
             name=kids[2].val,
             bases=kids[3].val,
-            is_abstract=False,
+            abstract=False,
             commands=kids[4].val,
         )
 
@@ -1878,7 +1878,7 @@ class CreateOperatorStmt(Nonterm):
             params=kids[5].val,
             returning_typemod=kids[7].val,
             returning=kids[8].val,
-            is_abstract=True,
+            abstract=True,
             **self._process_operator_body(kids[9], abstract=True)
         )
 

@@ -401,7 +401,7 @@ class Type(
             return TypeShell(
                 name=name,
                 schemaclass=type(self),
-                is_abstract=self.get_is_abstract(schema),
+                is_abstract=self.get_abstract(schema),
             )
 
 

@@ -216,7 +216,7 @@ def type_to_typeref(
             material_typeref = None
 
         if (isinstance(material_type, s_scalars.ScalarType)
-                and not material_type.get_is_abstract(schema)):
+                and not material_type.get_abstract(schema)):
             base_type = material_type.get_topmost_concrete_base(schema)
             if base_type == material_type:
                 base_typeref = None
@@ -275,7 +275,7 @@ def type_to_typeref(
             common_parent=common_parent_ref,
             element_name=_name,
             is_scalar=t.is_scalar(),
-            is_abstract=t.get_is_abstract(schema),
+            is_abstract=t.get_abstract(schema),
             is_view=t.is_view(schema),
             is_opaque_union=t.get_is_opaque_union(schema),
         )

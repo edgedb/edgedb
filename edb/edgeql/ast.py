@@ -661,7 +661,7 @@ class ObjectDDL(NamedDDL):
 
 
 class CreateObject(ObjectDDL):
-    is_abstract: bool = False
+    abstract: bool = False
     sdl_alter_if_exists: bool = False
     create_if_not_exists: bool = False
 
@@ -675,7 +675,7 @@ class DropObject(ObjectDDL):
 
 
 class CreateExtendingObject(CreateObject, BasesMixin):
-    is_final: bool = False
+    final: bool = False
 
 
 class Rename(NamedDDL):
@@ -982,7 +982,7 @@ class CreateConstraint(
     ConstraintCommand,
 ):
     subjectexpr: typing.Optional[Expr]
-    is_abstract: bool = True
+    abstract: bool = True
 
 
 class AlterConstraint(AlterObject, ConstraintCommand):

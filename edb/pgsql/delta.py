@@ -797,7 +797,7 @@ class CreateOperator(OperatorCommand, CreateObject,
     ) -> s_schema.Schema:
         schema = super().apply(schema, context)
         oper = self.scls
-        if oper.get_is_abstract(schema):
+        if oper.get_abstract(schema):
             return schema
 
         oper_language = oper.get_language(schema)
@@ -928,7 +928,7 @@ class DeleteOperator(
         orig_schema = schema
         oper = schema.get(self.classname)
 
-        if oper.get_is_abstract(schema):
+        if oper.get_abstract(schema):
             return super().apply(schema, context)
 
         name = common.get_backend_name(schema, oper, catenate=False)
@@ -1327,7 +1327,7 @@ class CreateScalarType(ScalarTypeMetaCommand,
 
         schema = ScalarTypeMetaCommand.apply(self, schema, context)
 
-        if scalar.get_is_abstract(schema):
+        if scalar.get_abstract(schema):
             return schema
 
         new_domain_name = types.pg_type_from_scalar(schema, scalar)
@@ -3100,7 +3100,7 @@ class SetLinkType(LinkMetaCommand, adapts=s_links.SetLinkType):
         orig_type = self.scls.get_target(orig_schema)
         new_type = self.scls.get_target(schema)
         if (
-            not pop.maybe_get_object_aux_data('is_from_alias')
+            not pop.maybe_get_object_aux_data('from_alias')
             and (orig_type != new_type or self.cast_expr is not None)
         ):
             self._alter_pointer_type(self.scls, schema, orig_schema, context)
@@ -3139,7 +3139,7 @@ class AlterLinkLowerCardinality(
             orig_required = self.scls.get_required(orig_schema)
             new_required = self.scls.get_required(schema)
             if (
-                not pop.maybe_get_object_aux_data('is_from_alias')
+                not pop.maybe_get_object_aux_data('from_alias')
                 and not self.scls.is_endpoint_pointer(schema)
                 and orig_required != new_required
             ):
@@ -3238,7 +3238,7 @@ class DeleteLink(LinkMetaCommand, adapts=s_links.DeleteLink):
                         update_descendants=True,
                     )
 
-            if link.get_is_owned(orig_schema):
+            if link.get_owned(orig_schema):
                 self.schedule_endpoint_delete_action_update(
                     link, orig_schema, schema, context)
 
@@ -3469,7 +3469,7 @@ class SetPropertyType(
         orig_type = self.scls.get_target(orig_schema)
         new_type = self.scls.get_target(schema)
         if (
-            not pop.maybe_get_object_aux_data('is_from_alias')
+            not pop.maybe_get_object_aux_data('from_alias')
             and not self.scls.is_endpoint_pointer(schema)
             and (orig_type != new_type or self.cast_expr is not None)
         ):
@@ -3510,7 +3510,7 @@ class AlterPropertyLowerCardinality(
             orig_required = self.scls.get_required(orig_schema)
             new_required = self.scls.get_required(schema)
             if (
-                not pop.maybe_get_object_aux_data('is_from_alias')
+                not pop.maybe_get_object_aux_data('from_alias')
                 and not self.scls.is_endpoint_pointer(schema)
                 and orig_required != new_required
             ):
@@ -3980,7 +3980,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
         for link_op, link, orig_schema in self.link_ops:
             if isinstance(link_op, DeleteLink):
                 if (link.generic(orig_schema)
-                        or not link.get_is_owned(orig_schema)
+                        or not link.get_owned(orig_schema)
                         or link.is_pure_computable(orig_schema)):
                     continue
                 source = link.get_source(orig_schema)
@@ -3996,7 +3996,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
             else:
                 if (
                     link.generic(schema)
-                    or not link.get_is_owned(schema)
+                    or not link.get_owned(schema)
                     or link.is_pure_computable(schema)
                 ):
                     continue
@@ -4022,7 +4022,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
             for link in source.get_pointers(src_schema).objects(src_schema):
                 if (not isinstance(link, s_links.Link)
-                        or not link.get_is_owned(src_schema)
+                        or not link.get_owned(src_schema)
                         or link.is_pure_computable(src_schema)):
                     continue
                 ptr_stor_info = types.get_pointer_storage_info(
@@ -4048,7 +4048,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
             for link in schema.get_referrers(target, scls_type=s_links.Link,
                                              field_name='target'):
-                if (not link.get_is_owned(schema)
+                if (not link.get_owned(schema)
                         or link.is_pure_computable(schema)):
                     continue
                 source = link.get_source(schema)
@@ -4424,7 +4424,7 @@ class CreateRole(ObjectMetaCommand, adapts=s_roles.CreateRole):
         instance_params = backend_params.instance_params
         capabilities = instance_params.capabilities
 
-        if role.get_is_superuser(schema):
+        if role.get_superuser(schema):
             if instance_params.base_superuser:
                 # If the cluster is exposing an explicit superuser role,
                 # become a member of that instead of creating a superuser
@@ -4445,7 +4445,7 @@ class CreateRole(ObjectMetaCommand, adapts=s_roles.CreateRole):
         role = dbops.Role(
             name=str(role.get_name(schema)),
             allow_login=True,
-            is_superuser=superuser_flag,
+            superuser=superuser_flag,
             password=passwd,
             membership=membership,
             metadata=dict(
@@ -4477,7 +4477,7 @@ class AlterRole(ObjectMetaCommand, adapts=s_roles.AlterRole):
                 password_hash=passwd,
                 builtin=role.get_builtin(schema),
             )
-        if self.has_attribute_value('is_superuser'):
+        if self.has_attribute_value('superuser'):
             ctx_backend_params = context.backend_runtime_params
             if ctx_backend_params is not None:
                 backend_params = cast(
@@ -4508,7 +4508,7 @@ class AlterRole(ObjectMetaCommand, adapts=s_roles.AlterRole):
                     & pgcluster.BackendCapabilities.SUPERUSER_ACCESS
                 )
 
-            kwargs['is_superuser'] = superuser_flag
+            kwargs['superuser'] = superuser_flag
 
         dbrole = dbops.Role(name=rolname, **kwargs)
         self.pgops.add(dbops.AlterRole(dbrole))

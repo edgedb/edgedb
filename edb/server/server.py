@@ -57,7 +57,7 @@ class StartupScript(NamedTuple):
 
 
 class RoleDescriptor(TypedDict):
-    is_superuser: bool
+    superuser: bool
     name: str
     password: str
 

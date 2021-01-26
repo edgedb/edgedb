@@ -100,7 +100,7 @@ def get_scalar_base(schema, scalar) -> Tuple[str, ...]:
         return base
 
     for ancestor in scalar.get_ancestors(schema).objects(schema):
-        if not ancestor.get_is_abstract(schema):
+        if not ancestor.get_abstract(schema):
             # Check if base is fundamental, if not, then it is
             # another domain.
             try:

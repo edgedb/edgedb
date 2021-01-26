@@ -39,7 +39,9 @@ CREATE TYPE sys::Role EXTENDING sys::SystemObject {
         CREATE CONSTRAINT std::exclusive;
     };
 
-    CREATE REQUIRED PROPERTY is_superuser -> std::bool;
+    CREATE REQUIRED PROPERTY superuser -> std::bool;
+    # Backwards compatibility.
+    CREATE PROPERTY is_superuser := .superuser;
     CREATE PROPERTY password -> std::str;
 };
 

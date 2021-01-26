@@ -2862,8 +2862,8 @@ def _generate_database_views(schema):
                 AS {qi(ptr_col_name(schema, annos, 'target'))},
             (annotations->>'value')::text
                 AS {qi(ptr_col_name(schema, annos, 'value'))},
-            (annotations->>'is_owned')::bool
-                AS {qi(ptr_col_name(schema, annos, 'is_owned'))}
+            (annotations->>'owned')::bool
+                AS {qi(ptr_col_name(schema, annos, 'owned'))}
         FROM
             pg_database dat
             CROSS JOIN LATERAL (
@@ -2883,8 +2883,8 @@ def _generate_database_views(schema):
                 AS {qi(ptr_col_name(schema, int_annos, 'source'))},
             (annotations->>'id')::uuid
                 AS {qi(ptr_col_name(schema, int_annos, 'target'))},
-            (annotations->>'is_owned')::bool
-                AS {qi(ptr_col_name(schema, int_annos, 'is_owned'))}
+            (annotations->>'owned')::bool
+                AS {qi(ptr_col_name(schema, int_annos, 'owned'))}
         FROM
             pg_database dat
             CROSS JOIN LATERAL (
@@ -2924,7 +2924,7 @@ def _generate_role_views(schema):
     annos = Role.getptr(schema, 'annotations')
     int_annos = Role.getptr(schema, 'annotations__internal')
 
-    is_superuser = f'''
+    superuser = f'''
         a.rolsuper OR EXISTS (
             SELECT
             FROM
@@ -2948,12 +2948,12 @@ def _generate_role_views(schema):
                 AS {qi(ptr_col_name(schema, Role, 'name'))},
             a.rolname
                 AS {qi(ptr_col_name(schema, Role, 'name__internal'))},
-            {is_superuser}
-                AS {qi(ptr_col_name(schema, Role, 'is_superuser'))},
+            {superuser}
+                AS {qi(ptr_col_name(schema, Role, 'superuser'))},
             False
-                AS {qi(ptr_col_name(schema, Role, 'is_abstract'))},
+                AS {qi(ptr_col_name(schema, Role, 'abstract'))},
             False
-                AS {qi(ptr_col_name(schema, Role, 'is_final'))},
+                AS {qi(ptr_col_name(schema, Role, 'final'))},
             False
                 AS {qi(ptr_col_name(schema, Role, 'is_derived'))},
             ARRAY[]::text[]
@@ -3052,8 +3052,8 @@ def _generate_role_views(schema):
                 AS {qi(ptr_col_name(schema, annos, 'target'))},
             (annotations->>'value')::text
                 AS {qi(ptr_col_name(schema, annos, 'value'))},
-            (annotations->>'is_owned')::bool
-                AS {qi(ptr_col_name(schema, annos, 'is_owned'))}
+            (annotations->>'owned')::bool
+                AS {qi(ptr_col_name(schema, annos, 'owned'))}
         FROM
             pg_catalog.pg_roles AS a
             CROSS JOIN LATERAL (
@@ -3075,8 +3075,8 @@ def _generate_role_views(schema):
                 AS {qi(ptr_col_name(schema, int_annos, 'source'))},
             (annotations->>'id')::uuid
                 AS {qi(ptr_col_name(schema, int_annos, 'target'))},
-            (annotations->>'is_owned')::bool
-                AS {qi(ptr_col_name(schema, int_annos, 'is_owned'))}
+            (annotations->>'owned')::bool
+                AS {qi(ptr_col_name(schema, int_annos, 'owned'))}
         FROM
             pg_catalog.pg_roles AS a
             CROSS JOIN LATERAL (

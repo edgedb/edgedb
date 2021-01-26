@@ -129,7 +129,7 @@ async def _ensure_edgedb_supergroup(
 
     role = dbops.Role(
         name=username,
-        is_superuser=bool(
+        superuser=bool(
             instance_params.capabilities
             & pgcluster.BackendCapabilities.SUPERUSER_ACCESS
         ),
@@ -156,12 +156,12 @@ async def _ensure_edgedb_role(
     conn,
     username,
     *,
-    is_superuser=False,
+    superuser=False,
     builtin=False,
     objid=None,
 ) -> None:
     member_of = set()
-    if is_superuser:
+    if superuser:
         member_of.add(edbdef.EDGEDB_SUPERGROUP)
 
     if objid is None:
@@ -175,8 +175,8 @@ async def _ensure_edgedb_role(
     instance_params = cluster.get_runtime_params().instance_params
     role = dbops.Role(
         name=username,
-        is_superuser=(
-            is_superuser
+        superuser=(
+            superuser
             and bool(
                 instance_params.capabilities
                 & pgcluster.BackendCapabilities.SUPERUSER_ACCESS
@@ -624,7 +624,7 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
             stdlib.reflschema,
             '''
             UPDATE schema::ScalarType
-            FILTER .builtin AND NOT (.is_abstract ?? False)
+            FILTER .builtin AND NOT (.abstract ?? False)
             SET {
                 backend_id := sys::_get_pg_type_for_scalar_type(.id)
             }
@@ -662,7 +662,7 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
         SELECT schema::ScalarType {
             id,
             backend_id,
-        } FILTER .builtin AND NOT (.is_abstract ?? False);
+        } FILTER .builtin AND NOT (.abstract ?? False);
         ''',
         expected_cardinality_one=False,
         single_statement=True,
@@ -860,7 +860,7 @@ async def _compile_sys_queries(schema, compiler, cluster):
     role_query = '''
         SELECT sys::Role {
             name,
-            is_superuser,
+            superuser,
             password,
         };
     '''
@@ -1084,7 +1084,7 @@ async def _bootstrap(
         cluster,
         pgconn,
         edbdef.EDGEDB_SUPERUSER,
-        is_superuser=True,
+        superuser=True,
         builtin=True,
     )
 
@@ -1148,7 +1148,7 @@ async def _bootstrap(
             cluster,
             pgconn,
             args['default_database_user'],
-            is_superuser=True,
+            superuser=True,
         )
 
         await _execute(
