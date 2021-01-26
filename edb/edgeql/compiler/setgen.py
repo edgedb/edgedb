@@ -184,7 +184,7 @@ def new_tuple_set(
     for elem in elements:
         elem_path_id = pathctx.get_tuple_indirection_path_id(
             result_path_id, elem.name, get_set_type(elem.val, ctx=ctx),
-            ctx=ctx).strip_weak_namespaces()
+            ctx=ctx)
         final_elems.append(irast.TupleElement(
             name=elem.name,
             val=elem.val,

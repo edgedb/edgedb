@@ -168,12 +168,11 @@ def ban_path(
         path_id: irast.PathId, *,
         ctx: context.ContextLevel) -> None:
 
-    ctx.banned_paths.add(path_id.strip_weak_namespaces())
+    ctx.banned_paths.add(path_id)
 
 
 def path_is_banned(
         path_id: irast.PathId, *,
         ctx: context.ContextLevel) -> bool:
 
-    s_path_id = path_id.strip_weak_namespaces()
-    return s_path_id in ctx.banned_paths and ctx.path_scope.is_visible(path_id)
+    return path_id in ctx.banned_paths and ctx.path_scope.is_visible(path_id)

@@ -170,7 +170,7 @@ class NodeVisitor:
         for _field, value in base.iter_fields(node, include_meta=False):
             if typeutils.is_container(value):
                 for item in value:
-                    if base.is_ast_node(item):
+                    if base.is_ast_node(item) or typeutils.is_container(item):
                         res = self.visit(item)
                         if res is not None:
                             field_results.append(res)

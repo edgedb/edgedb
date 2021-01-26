@@ -133,7 +133,7 @@ def init_dml_stmt(
     else_cte = None
     if (
         isinstance(ir_stmt, irast.InsertStmt)
-        and ir_stmt.on_conflict and ir_stmt.on_conflict[1] is not None
+        and ir_stmt.on_conflict and ir_stmt.on_conflict.else_ir is not None
     ):
         dml_cte = pgast.CommonTableExpr(
             query=pgast.SelectStmt(),
@@ -660,7 +660,8 @@ def compile_insert_else_body(
     )
 
     if on_conflict.else_ir:
-        else_select, else_branch = on_conflict.else_ir
+        else_select = on_conflict.else_ir.select
+        else_branch = on_conflict.else_ir.body
 
         subject_id = ir_stmt.subject.path_id
 

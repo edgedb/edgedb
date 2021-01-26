@@ -48,7 +48,8 @@ def amend_empty_set_type(
     alias = es.path_id.target_name_hint.name
     typename = s_name.QualName(module='__derived__', name=alias)
     es.path_id = irast.PathId.from_type(
-        env.schema, t, env=env, typename=typename
+        env.schema, t, env=env, typename=typename,
+        namespace=es.path_id.namespace,
     )
 
 
