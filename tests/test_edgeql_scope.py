@@ -2082,6 +2082,33 @@ class TestEdgeQLScope(tb.QueryTestCase):
             {'Fire', 'Water', 'Earth', 'Air'},
         )
 
+    async def test_edgeql_scope_with_02(self):
+        # Test a WITH binding that depends on a previous one is still
+        # independent
+        await self.assert_query_result(
+            r"""
+                WITH
+                    MODULE test,
+                    X := {1, 2},
+                    Y := X + 1,
+                SELECT _ := (X, Y) ORDER BY _;
+            """,
+            [[1, 2], [1, 3], [2, 2], [2, 3]]
+        )
+
+    async def test_edgeql_scope_with_03(self):
+        # Test that a WITH binding used in a computable doesn't have its
+        # reference to that type captured
+        await self.assert_query_result(
+            r"""
+                WITH
+                    MODULE test,
+                    a := count({Card.name})
+                SELECT Card {name, a := a} FILTER .name = 'Imp';
+            """,
+            [{"name": "Imp", "a": 9}],
+        )
+
     async def test_edgeql_scope_unused_with_def_01(self):
 
         with self.assertRaisesRegex(

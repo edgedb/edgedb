@@ -745,12 +745,12 @@ class MutatingStmt(Stmt):
     subject: Set
 
 
-class OnConflictElse(typing.NamedTuple):
+class OnConflictElse(Base):
     select: Set
     body: Set
 
 
-class OnConflictClause(typing.NamedTuple):
+class OnConflictClause(Base):
     constraint: typing.Optional[ConstraintRef]
     else_ir: typing.Optional[OnConflictElse]
 

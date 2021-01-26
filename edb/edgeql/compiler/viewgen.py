@@ -447,6 +447,7 @@ def _normalize_view_ptr_expr(
         )
 
         base_cardinality = _get_base_ptr_cardinality(base_ptrcls, ctx=ctx)
+        base_is_singleton = False
         if base_cardinality is not None and base_cardinality.is_known():
             base_is_singleton = base_cardinality.is_single()
 

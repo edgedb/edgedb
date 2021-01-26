@@ -383,23 +383,6 @@ class PathId:
         else:
             return self
 
-    def strip_weak_namespaces(self) -> PathId:
-        """Return a copy of this ``PathId`` with weak namespace portion
-           removed."""
-        if self._namespace is not None:
-            stripped_ns = {bit for bit in self._namespace
-                           if not isinstance(bit, WeakNamespace)}
-            result = self.replace_namespace(stripped_ns)
-
-            if result._prefix is not None:
-                result._prefix = result._get_minimal_prefix(
-                    result._prefix.strip_weak_namespaces())
-
-        else:
-            result = self
-
-        return result
-
     def strip_namespace(self, namespace: AbstractSet[AnyNamespace]) -> PathId:
         """Return a copy of this ``PathId`` with a given portion of the
            namespace id removed."""
@@ -644,7 +627,7 @@ class PathId:
         if self.startswith(prefix):
             prefix_len = len(prefix)
             if prefix_len < len(self):
-                result = self.__class__()
+                result = self.__class__(self)
                 result._path = replacement._path + self._path[prefix_len:]
                 result._norm_path = \
                     replacement._norm_path + self._norm_path[prefix_len:]

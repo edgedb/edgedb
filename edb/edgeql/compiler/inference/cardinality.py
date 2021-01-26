@@ -206,7 +206,7 @@ def _check_binding_volatility(
         and ir.expr
         and volatility.infer_volatility(ir.expr, env=ctx.env) == VOLATILE
     ):
-        path_id = ir.path_id.strip_weak_namespaces()
+        path_id = ir.path_id
         if path_id not in ctx.bindings:
             return
 

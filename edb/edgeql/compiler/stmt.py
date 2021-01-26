@@ -337,11 +337,12 @@ def compile_insert_unless_conflict(
         else_ir = dispatch.compile(
             astutils.ensure_qlstmt(else_branch), ctx=ctx)
         assert isinstance(else_ir, irast.Set)
-        else_info = irast.OnConflictElse(select_ir, else_ir)
+        else_info = irast.OnConflictElse(select=select_ir, body=else_ir)
 
     return irast.OnConflictClause(
-        irast.ConstraintRef(id=ex_cnstrs[0].id, module_id=module_id),
-        else_info
+        constraint=irast.ConstraintRef(
+            id=ex_cnstrs[0].id, module_id=module_id),
+        else_ir=else_info
     )
 
 
