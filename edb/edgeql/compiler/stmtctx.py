@@ -349,7 +349,6 @@ def _elide_derived_ancestors(
     obj: Union[s_types.InheritingType, s_pointers.Pointer], *,
     ctx: context.ContextLevel
 ) -> None:
-
     """Collapse references to derived objects in bases.
 
     When compiling a schema view expression, make sure we don't
