@@ -9,10 +9,12 @@ mod tokenizer;
 pub mod normalize;
 mod pynormalize;
 mod hash;
+mod position;
 
 use errors::TokenizerError;
 use tokenizer::{Token, tokenize, get_unpickle_fn};
 use pynormalize::normalize;
+use position::SourcePoint;
 
 
 py_module_initializer!(
@@ -27,6 +29,7 @@ py_module_initializer!(
         m.add(py, "Token", py.get_type::<Token>())?;
         m.add(py, "TokenizerError", py.get_type::<TokenizerError>())?;
         m.add(py, "Entry", py.get_type::<pynormalize::Entry>())?;
+        m.add(py, "SourcePoint", py.get_type::<SourcePoint>())?;
         m.add(py, "normalize", py_fn!(py, normalize(query: &PyString)))?;
         m.add(py, "Hasher", py.get_type::<hash::Hasher>())?;
         m.add(py, "unreserved_keywords", keywords.unreserved)?;
