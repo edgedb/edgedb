@@ -21,11 +21,11 @@
 
 
 from __future__ import annotations
-
 from typing import *
-import textwrap
 
 from collections import defaultdict
+import textwrap
+
 from edb import errors
 from edb.common import context as pctx
 
@@ -295,6 +295,7 @@ def compile_insert_unless_conflict(
     # Find the IR corresponding to our field
     # FIXME: Is there a better way to do this?
     for elem, _ in stmt.subject.shape:
+        assert elem.rptr is not None
         if elem.rptr.ptrref.shortname == field_name:
             key = elem.expr
             break
@@ -307,6 +308,7 @@ def compile_insert_unless_conflict(
     # FIXME: This reuse of the source
     ctx.anchors = ctx.anchors.copy()
     source_alias = ctx.aliases.get('a')
+    assert key is not None
     ctx.anchors[source_alias] = setgen.ensure_set(key, ctx=ctx)
     anchor = qlast.Path(steps=[qlast.ObjectRef(name=source_alias)])
 
@@ -685,7 +687,7 @@ def compile_DescribeStmt(
             itemclass = objref.itemclass
 
             if itemclass is qltypes.SchemaObjectClass.MODULE:
-                modules.append(objref.name)
+                modules.append(s_utils.ast_ref_to_unqualname(objref))
             else:
                 itemtype: Optional[Type[s_obj.Object]] = None
 
@@ -1154,6 +1156,7 @@ def compile_query_subject(
 
     if is_ptr_alias:
         assert view_rptr is not None
+        assert expr_rptr is not None
         # We are inside an expression that defines a link alias in
         # the parent shape, ie. Spam { alias := Spam.bar }, so
         # `Spam.alias` should be a subclass of `Spam.bar` inheriting

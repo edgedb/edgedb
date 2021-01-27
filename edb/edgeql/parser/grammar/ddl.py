@@ -2303,7 +2303,7 @@ class OptCreateMigrationBody(Nonterm):
             LBRACE CreateMigrationBody OptSemicolons RBRACE
         """
         message, stmts = self._process_body(kids[1].val)
-        body = qlast.MigrationBody(commands=stmts)
+        body = qlast.MigrationBody(commands=tuple(stmts))
         contexts = [kids[1].context]
         if kids[2].context is not None:
             contexts.append(kids[2].context)
@@ -2315,7 +2315,7 @@ class OptCreateMigrationBody(Nonterm):
             LBRACE Semicolons CreateMigrationBody OptSemicolons RBRACE
         """
         message, stmts = self._process_body(kids[2].val)
-        body = qlast.MigrationBody(commands=stmts)
+        body = qlast.MigrationBody(commands=tuple(stmts))
         body.context = pctx.merge_context(
             [kids[1].context, kids[2].context, kids[3].context])
         self.val = MigrationBody(body=body, message=message)
@@ -2325,14 +2325,14 @@ class OptCreateMigrationBody(Nonterm):
             LBRACE OptSemicolons RBRACE
         """
         self.val = []
-        body = qlast.MigrationBody(commands=[])
+        body = qlast.MigrationBody(commands=tuple())
         body.context = kids[1].context
         if body.context is None:
             body.context = pctx.empty_context()
         self.val = MigrationBody(body=body, message=None)
 
     def reduce_empty(self):
-        body = qlast.MigrationBody(commands=[])
+        body = qlast.MigrationBody(commands=tuple())
         body.context = pctx.empty_context()
         self.val = MigrationBody(body=body, message=None)
 

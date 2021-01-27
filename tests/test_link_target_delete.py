@@ -25,6 +25,7 @@ from edb import errors
 
 from edb.testbase import lang as tb
 from edb.schema import links as s_links
+from edb.schema import name as s_name
 
 from edb.testbase import server as stb
 
@@ -44,11 +45,13 @@ class TestLinkTargetDeleteSchema(tb.BaseSchemaLoadTest):
         obj = schema.get('test::Object')
 
         self.assertEqual(
-            obj.getptr(schema, 'foo').get_on_target_delete(schema),
+            obj.getptr(schema, s_name.UnqualName('foo')).get_on_target_delete(
+                schema),
             s_links.LinkTargetDeleteAction.Allow)
 
         self.assertEqual(
-            obj.getptr(schema, 'bar').get_on_target_delete(schema),
+            obj.getptr(schema, s_name.UnqualName('bar')).get_on_target_delete(
+                schema),
             s_links.LinkTargetDeleteAction.Restrict)
 
     def test_schema_on_target_delete_02(self):
@@ -74,12 +77,14 @@ class TestLinkTargetDeleteSchema(tb.BaseSchemaLoadTest):
 
         obj2 = schema.get('test::Object2')
         self.assertEqual(
-            obj2.getptr(schema, 'foo').get_on_target_delete(schema),
+            obj2.getptr(schema, s_name.UnqualName('foo')).get_on_target_delete(
+                schema),
             s_links.LinkTargetDeleteAction.Allow)
 
         obj3 = schema.get('test::Object3')
         self.assertEqual(
-            obj3.getptr(schema, 'foo').get_on_target_delete(schema),
+            obj3.getptr(schema, s_name.UnqualName('foo')).get_on_target_delete(
+                schema),
             s_links.LinkTargetDeleteAction.Restrict)
 
     @tb.must_fail(errors.SchemaError,

@@ -156,10 +156,10 @@ def get_known_type_id(
 
 class DeltaGuidance(NamedTuple):
 
-    banned_creations: FrozenSet[Tuple[Type[Object], str]] = frozenset()
-    banned_deletions: FrozenSet[Tuple[Type[Object], str]] = frozenset()
+    banned_creations: FrozenSet[Tuple[Type[Object], sn.Name]] = frozenset()
+    banned_deletions: FrozenSet[Tuple[Type[Object], sn.Name]] = frozenset()
     banned_alters: FrozenSet[
-        Tuple[Type[Object], Tuple[str, str]]
+        Tuple[Type[Object], Tuple[sn.Name, sn.Name]]
     ] = frozenset()
 
 
@@ -1013,6 +1013,10 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         return name
 
     @classmethod
+    def get_local_name_static(cls, name: sn.Name) -> sn.UnqualName:
+        return cls.get_shortname_static(name).get_local_name()
+
+    @classmethod
     def get_displayname_static(cls, name: sn.Name) -> str:
         return str(cls.get_shortname_static(name))
 
@@ -1032,6 +1036,9 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
 
     def get_shortname(self, schema: s_schema.Schema) -> sn.Name:
         return type(self).get_shortname_static(self.get_name(schema))
+
+    def get_local_name(self, schema: s_schema.Schema) -> sn.UnqualName:
+        return type(self).get_local_name_static(self.get_name(schema))
 
     def get_displayname(self, schema: s_schema.Schema) -> str:
         return type(self).get_displayname_static(self.get_name(schema))
@@ -2205,7 +2212,7 @@ class ObjectCollection(
             f'{type(self)} parameters are not resolved'
 
         cls: Type[ObjectCollection[Object_T]] = self.__class__
-        types: Optional[Tuple[type, ...]] = self.types
+        types: Optional[Tuple[type, ...]] = self.orig_args
         if types is None or not cls.is_anon_parametrized():
             typeargs = None
         else:
@@ -2357,48 +2364,48 @@ class ObjectCollectionShell(Shell, Generic[Object_T]):
         return f'<{tn} {cn}({items}) at 0x{id(self):x}>'
 
 
-OIBT = TypeVar("OIBT", bound="ObjectIndexBase[Object]")
-KeyFunction = Callable[["s_schema.Schema", Object_T], str]
+Key_T = TypeVar("Key_T")
+KeyFunction = Callable[["s_schema.Schema", Object_T], Key_T]
+OIBT = TypeVar("OIBT", bound="ObjectIndexBase[Object, Any]")
 
 
 class ObjectIndexBase(
+    Generic[Key_T, Object_T],
     ObjectCollection[Object_T],
     container=tuple,
 ):
-    _key: KeyFunction[Object_T]
+    _key: KeyFunction[Object_T, Key_T]
 
     def __init_subclass__(
         cls,
         *,
-        key: Optional[KeyFunction[Object_T]] = None,
+        key: Optional[KeyFunction[Object_T, Key_T]] = None,
     ) -> None:
         super().__init_subclass__()
         if key is not None:
             cls._key = key
-        elif cls._key is None:
-            raise TypeError('missing required "key" class argument')
 
     @classmethod
-    def get_key_for(cls, schema: s_schema.Schema, obj: Object) -> str:
-        return cls._key(schema, obj)
+    def get_key_for(cls, schema: s_schema.Schema, obj: Object) -> Key_T:
+        return cls._key(schema, obj)  # type: ignore  # mypy bug?
 
     @classmethod
     def get_key_for_name(
         cls,
         schema: s_schema.Schema,
         name: sn.Name,
-    ) -> str:
-        return str(name)
+    ) -> Key_T:
+        raise NotImplementedError
 
     @classmethod
     def create(
-        cls: Type[ObjectIndexBase[Object_T]],
+        cls: Type[ObjectIndexBase[Key_T, Object_T]],
         schema: s_schema.Schema,
         data: Iterable[Object_T],
         **kwargs: Any,
-    ) -> ObjectIndexBase[Object_T]:
+    ) -> ObjectIndexBase[Key_T, Object_T]:
         coll = cast(
-            ObjectIndexBase[Object_T],
+            ObjectIndexBase[Key_T, Object_T],
             super().create(schema, data, **kwargs)
         )
         coll._check_duplicates(schema)
@@ -2486,11 +2493,11 @@ class ObjectIndexBase(
     def delete(
         self: OIBT,
         schema: s_schema.Schema,
-        names: Iterable[str],
+        names: Iterable[Key_T],
     ) -> Tuple[s_schema.Schema, OIBT]:
         items = dict(self.items(schema))
         for name in names:
-            items.pop(name)
+            items.pop(name)  # type: ignore[call-overload]  # mypy bug
         return (
             schema,
             cast(OIBT, type(self).create(schema, items.values())),
@@ -2499,7 +2506,7 @@ class ObjectIndexBase(
     def items(
         self,
         schema: s_schema.Schema,
-    ) -> Tuple[Tuple[str, Object_T], ...]:
+    ) -> Tuple[Tuple[Key_T, Object_T], ...]:
         result = []
         keyfunc = type(self)._key
 
@@ -2508,7 +2515,7 @@ class ObjectIndexBase(
 
         return tuple(result)
 
-    def keys(self, schema: s_schema.Schema) -> Tuple[str, ...]:
+    def keys(self, schema: s_schema.Schema) -> Tuple[Key_T, ...]:
         result = []
         keyfunc = type(self)._key
 
@@ -2517,13 +2524,13 @@ class ObjectIndexBase(
 
         return tuple(result)
 
-    def has(self, schema: s_schema.Schema, name: str) -> bool:
+    def has(self, schema: s_schema.Schema, name: Key_T) -> bool:
         return name in self.keys(schema)
 
     def get(
         self,
         schema: s_schema.Schema,
-        name: str,
+        name: Key_T,
         default: Any = NoDefault,
     ) -> Optional[Object_T]:
         items = dict(self.items(schema))
@@ -2533,23 +2540,30 @@ class ObjectIndexBase(
             return items.get(name, default)
 
 
-def _fullname_object_key(schema: s_schema.Schema, o: Object) -> str:
-    return str(o.get_name(schema))
+def _fullname_object_key(schema: s_schema.Schema, o: Object) -> sn.Name:
+    return o.get_name(schema)
 
 
 class ObjectIndexByFullname(
-    ObjectIndexBase[Object_T],
+    ObjectIndexBase[sn.Name, Object_T],
     key=_fullname_object_key,
 ):
-    pass
+
+    @classmethod
+    def get_key_for_name(
+        cls,
+        schema: s_schema.Schema,
+        name: sn.Name,
+    ) -> sn.Name:
+        return name
 
 
-def _shortname_object_key(schema: s_schema.Schema, o: Object) -> str:
-    return str(o.get_shortname(schema))
+def _shortname_object_key(schema: s_schema.Schema, o: Object) -> sn.Name:
+    return o.get_shortname(schema)
 
 
 class ObjectIndexByShortname(
-    ObjectIndexBase[Object_T],
+    ObjectIndexBase[sn.Name, Object_T],
     key=_shortname_object_key,
 ):
 
@@ -2558,21 +2572,20 @@ class ObjectIndexByShortname(
         cls,
         schema: s_schema.Schema,
         name: sn.Name,
-    ) -> str:
-        return str(sn.shortname_from_fullname(name))
+    ) -> sn.Name:
+        return sn.shortname_from_fullname(name)
 
 
 def _unqualified_object_key(
     schema: s_schema.Schema,
     o: QualifiedObject,
-) -> str:
+) -> sn.UnqualName:
     assert isinstance(o, QualifiedObject)
-    return o.get_shortname(schema).name
+    return sn.UnqualName(o.get_shortname(schema).name)
 
 
 class ObjectIndexByUnqualifiedName(
-    ObjectIndexBase[QualifiedObject_T],
-    Generic[QualifiedObject_T],
+    ObjectIndexBase[sn.UnqualName, QualifiedObject_T],
     key=_unqualified_object_key,
 ):
 
@@ -2581,11 +2594,8 @@ class ObjectIndexByUnqualifiedName(
         cls,
         schema: s_schema.Schema,
         name: sn.Name,
-    ) -> str:
-        return sn.shortname_from_fullname(name).name
-
-
-Key_T = TypeVar("Key_T")
+    ) -> sn.UnqualName:
+        return sn.UnqualName(sn.shortname_from_fullname(name).name)
 
 
 class ObjectDict(

@@ -306,7 +306,8 @@ def object_type_to_python_type(
     subclasses = []
 
     for pn, p in objtype.get_pointers(schema).items(schema):
-        if pn in ('id', '__type__'):
+        str_pn = str(pn)
+        if str_pn in ('id', '__type__'):
             continue
 
         ptype = p.get_target(schema)
@@ -354,7 +355,7 @@ def object_type_to_python_type(
             repr=True,
             default=default,
         )
-        fields.append((pn, pytype, field))
+        fields.append((str_pn, pytype, field))
 
     bases: Tuple[type, ...]
     if base_class is not None:

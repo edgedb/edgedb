@@ -214,7 +214,7 @@ class Constraint(
     ) -> str:
         errmsg = self.get_errmessage(schema)
         subject = self.get_subject(schema)
-        titleattr = subject.get_annotation(schema, 'std::title')
+        titleattr = subject.get_annotation(schema, sn.QualName('std', 'title'))
 
         if not titleattr:
             subjname = subject.get_shortname(schema)
@@ -513,10 +513,9 @@ class ConstraintCommand(
         schema: s_schema.Schema,
         context: sd.CommandContext,
         parent: so.Object,
-        name: str,
+        name: sn.Name,
     ) -> qlast.ObjectRef:
-        assert sn.is_qualified(name)
-        bn = sn.shortname_from_fullname(sn.QualName.from_string(name))
+        bn = sn.shortname_from_fullname(name)
         return utils.name_to_ast_ref(bn)
 
     def get_ref_implicit_base_delta(
@@ -886,7 +885,7 @@ class CreateConstraint(
 
         attrs['args'] = args
 
-        if expr == '__subject__':
+        if expr.text == '__subject__':
             expr_context = sourcectx
         else:
             expr_context = None
@@ -984,7 +983,7 @@ class CreateConstraint(
         cls,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-        name: str,
+        name: sn.Name,
         parent: so.Object,
     ) -> qlast.ObjectDDL:
         assert isinstance(parent, Constraint)

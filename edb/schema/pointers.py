@@ -603,8 +603,8 @@ class Pointer(referencing.ReferencedInheritingObject,
 
     def is_id_pointer(self, schema: s_schema.Schema) -> bool:
         from edb.schema import sources as s_sources
-        std_id = schema.get('std::BaseObject',
-                            type=s_sources.Source).getptr(schema, 'id')
+        std_base = schema.get('std::BaseObject', type=s_sources.Source)
+        std_id = std_base.getptr(schema, sn.UnqualName('id'))
         std_target = schema.get('std::target', type=so.SubclassableObject)
         assert isinstance(std_id, so.SubclassableObject)
         return self.issubclass(schema, (std_id, std_target))
@@ -2090,7 +2090,7 @@ class AlterPointerLowerCardinality(
 
 def get_or_create_union_pointer(
     schema: s_schema.Schema,
-    ptrname: str,
+    ptrname: sn.UnqualName,
     source: s_sources.Source,
     direction: PointerDirection,
     components: Iterable[Pointer],
@@ -2136,9 +2136,7 @@ def get_or_create_union_pointer(
         schema,
         source,
         target,
-        derived_name_base=sn.QualName(
-            module='__',
-            name=ptrname),
+        derived_name_base=sn.QualName(module='__', name=ptrname.name),
         attrs={
             'union_of': so.ObjectSet.create(schema, components),
             'cardinality': cardinality,
@@ -2160,7 +2158,7 @@ def get_or_create_union_pointer(
 
 def get_or_create_intersection_pointer(
     schema: s_schema.Schema,
-    ptrname: str,
+    ptrname: sn.UnqualName,
     source: s_objtypes.ObjectType,
     components: Iterable[Pointer], *,
     modname: Optional[str] = None,
@@ -2190,9 +2188,7 @@ def get_or_create_intersection_pointer(
         schema,
         source,
         target,
-        derived_name_base=sn.QualName(
-            module='__',
-            name=ptrname),
+        derived_name_base=sn.QualName(module='__', name=ptrname.name),
         attrs={
             'intersection_of': so.ObjectSet.create(schema, components),
             'cardinality': cardinality,

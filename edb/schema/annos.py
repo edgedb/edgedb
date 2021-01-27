@@ -153,9 +153,11 @@ class AnnotationSubject(so.Object):
         inheritable=False, ephemeral=True, coerce=True, compcoef=0.909,
         default=so.DEFAULT_CONSTRUCTOR)
 
-    def get_annotation(self,
-                       schema: s_schema.Schema,
-                       name: str) -> Optional[str]:
+    def get_annotation(
+        self,
+        schema: s_schema.Schema,
+        name: sn.QualName,
+    ) -> Optional[str]:
         attrval = self.get_annotations(schema).get(schema, name, None)
         return attrval.get_value(schema) if attrval is not None else None
 

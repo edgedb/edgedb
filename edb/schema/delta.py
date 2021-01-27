@@ -2252,7 +2252,10 @@ class ObjectCommand(Command, Generic[so.Object_T]):
 
             if (
                 isinstance(self.classname, sn.QualName)
-                and (modname := self.classname.module) in s_schema.STD_MODULES
+                and (
+                    (modname := self.classname.get_module_name())
+                    in s_schema.STD_MODULES
+                )
             ):
                 raise errors.SchemaDefinitionError(
                     f'cannot {self._delta_action} {self.get_verbosename()}: '

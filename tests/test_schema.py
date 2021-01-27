@@ -32,6 +32,7 @@ from edb.edgeql import qltypes
 
 from edb.schema import ddl as s_ddl
 from edb.schema import links as s_links
+from edb.schema import name as s_name
 from edb.schema import objtypes as s_objtypes
 
 from edb.testbase import lang as tb
@@ -207,9 +208,11 @@ _123456789_123456789_123456789 -> str
         """)
 
         obj = schema.get('test::Object')
+        foo_bar = obj.getptr(schema, s_name.UnqualName('foo_plus_bar'))
         self.assertEqual(
-            obj.getptr(schema, 'foo_plus_bar').get_cardinality(schema),
-            qltypes.SchemaCardinality.One)
+            foo_bar.get_cardinality(schema),
+            qltypes.SchemaCardinality.One,
+        )
 
     def test_schema_computable_cardinality_inference_02(self):
         schema = self.load_schema("""
@@ -222,9 +225,11 @@ _123456789_123456789_123456789 -> str
         """)
 
         obj = schema.get('test::Object')
+        foo_bar = obj.getptr(schema, s_name.UnqualName('foo_plus_bar'))
         self.assertEqual(
-            obj.getptr(schema, 'foo_plus_bar').get_cardinality(schema),
-            qltypes.SchemaCardinality.Many)
+            foo_bar.get_cardinality(schema),
+            qltypes.SchemaCardinality.Many,
+        )
 
     @tb.must_fail(errors.SchemaDefinitionError,
                   "possibly more than one element returned by an expression "
@@ -324,13 +329,14 @@ _123456789_123456789_123456789 -> str
         Obj4 = schema.get('test::Object4')
         Obj5 = schema.get('test::Object5')
         Obj6 = schema.get('test::Object6')
-        obj1_id = Obj1.getptr(schema, 'id')
-        obj1_type = Obj1.getptr(schema, '__type__')
-        obj1_type_source = obj1_type.getptr(schema, 'source')
-        obj2_type = Obj2.getptr(schema, '__type__')
-        foo = Obj2.getptr(schema, 'foo')
-        foo_target = foo.getptr(schema, 'target')
-        bar = Obj5.getptr(schema, 'bar')
+        obj1_id = Obj1.getptr(schema, s_name.UnqualName('id'))
+        obj1_type = Obj1.getptr(schema, s_name.UnqualName('__type__'))
+        obj1_type_source = obj1_type.getptr(
+            schema, s_name.UnqualName('source'))
+        obj2_type = Obj2.getptr(schema, s_name.UnqualName('__type__'))
+        foo = Obj2.getptr(schema, s_name.UnqualName('foo'))
+        foo_target = foo.getptr(schema, s_name.UnqualName('target'))
+        bar = Obj5.getptr(schema, s_name.UnqualName('bar'))
 
         self.assertEqual(
             schema.get_referrers(Obj1),
@@ -468,10 +474,10 @@ _123456789_123456789_123456789 -> str
         """)
 
         Obj1 = schema.get('test::Object1')
-        obj1_num = Obj1.getptr(schema, 'num')
+        obj1_num = Obj1.getptr(schema, s_name.UnqualName('num'))
 
         Obj2 = schema.get('test::Object2')
-        obj2_num = Obj2.getptr(schema, 'num')
+        obj2_num = Obj2.getptr(schema, s_name.UnqualName('num'))
 
         self.assertEqual(
             schema.get_referrers(obj1_num),
@@ -496,10 +502,10 @@ _123456789_123456789_123456789 -> str
         """)
 
         Obj1 = schema.get('test::Object1')
-        obj1_num = Obj1.getptr(schema, 'num')
+        obj1_num = Obj1.getptr(schema, s_name.UnqualName('num'))
 
         Obj2 = schema.get('test::Object2')
-        obj2_num = Obj2.getptr(schema, 'num')
+        obj2_num = Obj2.getptr(schema, s_name.UnqualName('num'))
 
         self.assertEqual(
             schema.get_referrers(obj1_num),
@@ -525,14 +531,23 @@ _123456789_123456789_123456789 -> str
         Object1 = schema.get('test::Object1')
         Object2 = schema.get('test::Object2')
 
-        self.assertEqual(Object1.get_annotation(schema, 'test::noninh'), 'bar')
+        self.assertEqual(
+            Object1.get_annotation(schema, s_name.QualName('test', 'noninh')),
+            'bar',
+        )
         # Attributes are non-inheritable by default
-        self.assertIsNone(Object2.get_annotation(schema, 'test::noninh'))
+        self.assertIsNone(
+            Object2.get_annotation(schema, s_name.QualName('test', 'noninh')),
+        )
 
         self.assertEqual(
-            Object1.get_annotation(schema, 'test::inh'), 'inherit me')
+            Object1.get_annotation(schema, s_name.QualName('test', 'inh')),
+            'inherit me',
+        )
         self.assertEqual(
-            Object2.get_annotation(schema, 'test::inh'), 'inherit me')
+            Object2.get_annotation(schema, s_name.QualName('test', 'inh')),
+            'inherit me',
+        )
 
     def test_schema_annotation_inheritance_02(self):
         schema = tb._load_std_schema()
@@ -552,7 +567,7 @@ _123456789_123456789_123456789 -> str
         inh_anno = schema.get('default::inh_anno')
         der = schema.get('default::Derived')
         annos = der.get_annotations(schema)
-        anno = annos.get(schema, 'default::inh_anno')
+        anno = annos.get(schema, s_name.QualName('default', 'inh_anno'))
         self.assertEqual(anno.get_annotation(schema), inh_anno)
 
         no_anno = annos.get(schema, 'default::noinh_anno', default=None)
@@ -578,7 +593,7 @@ _123456789_123456789_123456789 -> str
         ''')
 
         User = schema.get('default::User')
-        name_prop = User.getptr(schema, 'name')
+        name_prop = User.getptr(schema, s_name.UnqualName('name'))
         constr = name_prop.get_constraints(schema).objects(schema)[0]
         base_names = constr.get_bases(schema).names(schema)
         self.assertEqual(len(base_names), 1)
@@ -603,7 +618,7 @@ _123456789_123456789_123456789 -> str
         ''')
 
         User = schema.get('default::User')
-        name_prop = User.getptr(schema, 'name')
+        name_prop = User.getptr(schema, s_name.UnqualName('name'))
         constr = name_prop.get_constraints(schema).objects(schema)[0]
         base_names = constr.get_bases(schema).names(schema)
         self.assertEqual(len(base_names), 1)
@@ -631,7 +646,7 @@ _123456789_123456789_123456789 -> str
         ''')
 
         VegRecipes = schema.get('default::VegRecipes')
-        name_prop = VegRecipes.getptr(schema, 'name')
+        name_prop = VegRecipes.getptr(schema, s_name.UnqualName('name'))
         constr = name_prop.get_constraints(schema).objects(schema)
         self.assertEqual(
             len(constr), 0,
@@ -659,7 +674,7 @@ _123456789_123456789_123456789 -> str
         ''')
 
         VegRecipes = schema.get('default::VegRecipes')
-        name_prop = VegRecipes.getptr(schema, 'name')
+        name_prop = VegRecipes.getptr(schema, s_name.UnqualName('name'))
         constr = name_prop.get_constraints(schema).objects(schema)
 
         self.assertEqual(
@@ -852,7 +867,7 @@ _123456789_123456789_123456789 -> str
         ''', default_module='test')
 
         Bar = schema.get('test::Bar', type=s_objtypes.ObjectType)
-        foo1 = Bar.getptr(schema, 'foo1')
+        foo1 = Bar.getptr(schema, s_name.UnqualName('foo1'))
         self.assertEqual(str(foo1.get_cardinality(schema)), 'Many')
 
     def test_schema_ref_diamond_inheritance(self):
@@ -958,12 +973,13 @@ _123456789_123456789_123456789 -> str
 
         self.assertEqual(
             obj.get_annotations(schema).get(
-                schema, 'test::attr').get_verbosename(
+                schema, s_name.QualName('test', 'attr')).get_verbosename(
                     schema, with_parent=True),
             "annotation 'test::attr' of object type 'test::Object1'",
         )
 
-        foo_prop = obj.get_pointers(schema).get(schema, 'foo')
+        foo_prop = obj.get_pointers(schema).get(
+            schema, s_name.UnqualName('foo'))
         self.assertEqual(
             foo_prop.get_verbosename(schema, with_parent=True),
             "property 'foo' of object type 'test::Object1'",
@@ -971,7 +987,7 @@ _123456789_123456789_123456789 -> str
 
         self.assertEqual(
             foo_prop.get_annotations(schema).get(
-                schema, 'test::attr').get_verbosename(
+                schema, s_name.QualName('test', 'attr')).get_verbosename(
                     schema, with_parent=True),
             "annotation 'test::attr' of property 'foo' of "
             "object type 'test::Object1'",
@@ -985,16 +1001,18 @@ _123456789_123456789_123456789 -> str
             "object type 'test::Object1'",
         )
 
-        bar_link = obj.get_pointers(schema).get(schema, 'bar')
+        bar_link = obj.get_pointers(schema).get(
+            schema, s_name.UnqualName('bar'))
         self.assertEqual(
             bar_link.get_verbosename(schema, with_parent=True),
             "link 'bar' of object type 'test::Object1'",
         )
 
-        bar_link_prop = bar_link.get_pointers(schema).get(schema, 'bar_prop')
+        bar_link_prop = bar_link.get_pointers(schema).get(
+            schema, s_name.UnqualName('bar_prop'))
         self.assertEqual(
             bar_link_prop.get_annotations(schema).get(
-                schema, 'test::attr').get_verbosename(
+                schema, s_name.QualName('test', 'attr')).get_verbosename(
                     schema, with_parent=True),
             "annotation 'test::attr' of property 'bar_prop' of "
             "link 'bar' of object type 'test::Object1'",
@@ -1045,19 +1063,19 @@ _123456789_123456789_123456789 -> str
         A = schema.get('test::A')
         T2 = schema.get('test::T2')
         F = schema.get('test::F')
-        A_t = A.getptr(schema, 't')
-        A_t2 = A.getptr(schema, 't2')
-        A_tf_link = A.getptr(schema, 'tf')
+        A_t = A.getptr(schema, s_name.UnqualName('t'))
+        A_t2 = A.getptr(schema, s_name.UnqualName('t2'))
+        A_tf_link = A.getptr(schema, s_name.UnqualName('tf'))
         A_tf = A_tf_link.get_target(schema)
 
         # Check that ((T1 | T2) & F) has properties from both parts
         # of the intersection.
-        A_tf.getptr(schema, 'n')
-        A_tf.getptr(schema, 'f')
+        A_tf.getptr(schema, s_name.UnqualName('n'))
+        A_tf.getptr(schema, s_name.UnqualName('f'))
 
         # Ditto for link properties defined on a common link.
-        tfd = A_tf.getptr(schema, 'd')
-        tfd.getptr(schema, 'f_d_prop')
+        tfd = A_tf.getptr(schema, s_name.UnqualName('d'))
+        tfd.getptr(schema, s_name.UnqualName('f_d_prop'))
 
         # t1_d_prop is only present in T1, and so wouldn't be in T1 | T2
         self.assertIsNone(tfd.maybe_get_ptr(schema, 't1_d_prop'))
@@ -1096,11 +1114,13 @@ _123456789_123456789_123456789 -> str
         B = schema.get('test::B')
         C = schema.get('test::C')
         std_link = schema.get('std::link')
-        BaseObject__type__ = BaseObject.getptr(schema, '__type__')
-        Object__type__ = Object.getptr(schema, '__type__')
-        A__type__ = A.getptr(schema, '__type__')
-        B__type__ = B.getptr(schema, '__type__')
-        C__type__ = C.getptr(schema, '__type__')
+        BaseObject__type__ = BaseObject.getptr(
+            schema, s_name.UnqualName('__type__'))
+        Object__type__ = Object.getptr(
+            schema, s_name.UnqualName('__type__'))
+        A__type__ = A.getptr(schema, s_name.UnqualName('__type__'))
+        B__type__ = B.getptr(schema, s_name.UnqualName('__type__'))
+        C__type__ = C.getptr(schema, s_name.UnqualName('__type__'))
         self.assertEqual(
             C__type__.get_ancestors(schema).objects(schema),
             (
@@ -1144,7 +1164,7 @@ _123456789_123456789_123456789 -> str
 
         std_prop = schema.get('std::property')
         B = schema.get('test::B')
-        B_name = B.getptr(schema, 'name')
+        B_name = B.getptr(schema, s_name.UnqualName('name'))
         schema, derived = std_prop.derive_ref(
             schema,
             B,

@@ -58,7 +58,7 @@ from . import table
 from . import utils
 
 
-STD_RE = '|'.join(schema.STD_MODULES)
+STD_RE = '|'.join(str(m) for m in schema.STD_MODULES)
 
 STATUSES_WITH_OUTPUT = frozenset({
     'SELECT', 'INSERT', 'DELETE', 'UPDATE',

@@ -40,8 +40,10 @@ V = TypeVar("V")
 class ParametricType:
 
     types: ClassVar[Optional[Tuple[type, ...]]] = None
+    orig_args: ClassVar[Optional[Tuple[type, ...]]] = None
     _forward_refs: ClassVar[Dict[str, Tuple[int, str]]] = {}
     _type_param_map: ClassVar[Dict[Any, str]] = {}
+    _non_type_params: ClassVar[Dict[int, type]] = {}
 
     def __init_subclass__(cls) -> None:
         super().__init_subclass__()
@@ -114,6 +116,8 @@ class ParametricType:
         # TypeVar remapping and generally check for type sanity.
 
         ob = getattr(cls, '__orig_bases__', ())
+        generic_params = []
+
         for b in ob:
             if (
                 isinstance(b, type)
@@ -132,10 +136,11 @@ class ParametricType:
             if not isinstance(org, type):
                 continue
             if not issubclass(org, ParametricType):
+                generic_params.extend(getattr(b, '__parameters__', ()))
                 continue
 
             base_params = getattr(org, '__parameters__', ())
-
+            base_non_type_params = getattr(org, '_non_type_params', {})
             args = typing_inspect.get_args(b)
             expected = len(base_params)
             if len(args) != expected:
@@ -148,6 +153,8 @@ class ParametricType:
             subclass_map = {}
 
             for i, arg in enumerate(args):
+                if i in base_non_type_params:
+                    continue
                 if not typing_inspect.is_typevar(arg):
                     raise TypeError(
                         f'{b.__name__} expects all arguments to be'
@@ -166,6 +173,11 @@ class ParametricType:
                 )
 
             cls._type_param_map = subclass_map
+
+        cls._non_type_params = {
+            i: p for i, p in enumerate(generic_params)
+            if p not in cls._type_param_map
+        }
 
     def __init__(self) -> None:
         if self._forward_refs:
@@ -198,11 +210,17 @@ class ParametricType:
 
         if not isinstance(params, tuple):
             params = (params,)
-        params_str = ", ".join(_type_repr(a) for a in params)
+        all_params = params
+        type_params = []
+        for i, param in enumerate(all_params):
+            if i not in cls._non_type_params:
+                type_params.append(param)
+        params_str = ", ".join(_type_repr(a) for a in all_params)
         name = f"{cls.__name__}[{params_str}]"
         bases = (cls,)
         type_dict: Dict[str, Any] = {
-            "types": params,
+            "types": tuple(type_params),
+            "orig_args": all_params,
             "__module__": cls.__module__,
         }
         forward_refs: Dict[str, Tuple[int, str]] = {}
@@ -225,18 +243,21 @@ class ParametricType:
                 )
 
             for i, attr in tuple_to_attr.items():
-                type_dict[attr] = params[i]
+                type_dict[attr] = all_params[i]
 
-        if not all(isinstance(param, type) for param in params):
-            if all(type(param) == TypeVar for param in params):
+        if not all(isinstance(param, type) for param in type_params):
+            if all(
+                type(param) == TypeVar  # type: ignore[comparison-overlap]
+                for param in type_params
+            ):
                 # All parameters are type variables: return the regular generic
                 # alias to allow proper subclassing.
                 generic = super(ParametricType, cls)
-                return generic.__class_getitem__(params)  # type: ignore
+                return generic.__class_getitem__(all_params)  # type: ignore
             else:
                 forward_refs = {
                     param: (i, tuple_to_attr[i])
-                    for i, param in enumerate(params)
+                    for i, param in enumerate(type_params)
                     if isinstance(param, str)
                 }
 

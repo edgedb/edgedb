@@ -145,7 +145,7 @@ class Adapter(type):
             raise AdapterError(
                 'could not find {}.{} adapter for {}'.format(
                     mcls.__module__, mcls.__name__, obj.__class__.__name__))
-        elif adapter is not obj.__class__:
+        elif adapter is not obj.__class__:  # type: ignore
             return adapter.adapt(obj)
         else:
             return obj

@@ -98,16 +98,6 @@ class ScopeInfo:
     pinned_path_id_ns: Optional[FrozenSet[str]] = None
 
 
-@dataclasses.dataclass
-class ComputableInfo:
-
-    qlexpr: qlast.Expr
-    context: ContextLevel
-    path_id: irast.PathId
-    path_id_ns: Optional[irast.WeakNamespace]
-    shape_op: qlast.ShapeOp
-
-
 class PointerRefCache(Dict[irtyputils.PtrRefCacheKey, irast.BasePointerRef]):
 
     _rcache: Dict[irast.BasePointerRef, s_pointers.PointerLike]
@@ -372,7 +362,7 @@ class ContextLevel(compiler.ContextLevel):
     stmt_metadata: Dict[qlast.Statement, StatementMetadata]
     """Extra statement metadata needed by the compiler, but not in AST."""
 
-    source_map: Dict[s_pointers.PointerLike, ComputableInfo]
+    source_map: Dict[s_pointers.PointerLike, irast.ComputableInfo]
     """A mapping of computable pointers to QL source AST and context."""
 
     view_nodes: Dict[s_name.Name, s_types.Type]

@@ -223,6 +223,7 @@ def _validate_config_object(
         ctx: context.ContextLevel) -> None:
 
     for element, _ in expr.shape:
+        assert element.rptr is not None
         if element.rptr.ptrref.shortname.name == 'id':
             continue
 
@@ -249,7 +250,7 @@ def _validate_op(
 
     if isinstance(expr, (qlast.ConfigSet, qlast.ConfigReset)):
         # expr.name is the actual name of the property.
-        ptr = cfg_host_type.maybe_get_ptr(ctx.env.schema, name)
+        ptr = cfg_host_type.maybe_get_ptr(ctx.env.schema, sn.UnqualName(name))
         if ptr is not None:
             cfg_type = ptr.get_target(ctx.env.schema)
 
@@ -300,7 +301,7 @@ def _validate_op(
     assert isinstance(ptr, s_pointers.Pointer)
 
     sys_attr = ptr.get_annotations(ctx.env.schema).get(
-        ctx.env.schema, 'cfg::system', None)
+        ctx.env.schema, sn.QualName('cfg', 'system'), None)
 
     system = (
         sys_attr is not None
@@ -311,7 +312,7 @@ def _validate_op(
     assert cardinality is not None
 
     restart_attr = ptr.get_annotations(ctx.env.schema).get(
-        ctx.env.schema, 'cfg::requires_restart', None)
+        ctx.env.schema, sn.QualName('cfg', 'requires_restart'), None)
 
     requires_restart = (
         restart_attr is not None
@@ -319,7 +320,7 @@ def _validate_op(
     )
 
     backend_attr = ptr.get_annotations(ctx.env.schema).get(
-        ctx.env.schema, 'cfg::backend_setting', None)
+        ctx.env.schema, sn.QualName('cfg', 'backend_setting'), None)
 
     if backend_attr is not None:
         backend_setting = json.loads(backend_attr.get_value(ctx.env.schema))

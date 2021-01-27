@@ -214,7 +214,7 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
         if op.property == 'script':
             node.script = op.new_value
             node.body = qlast.MigrationBody(
-                commands=qlparser.parse_block(op.new_value)
+                commands=tuple(qlparser.parse_block(op.new_value)),
             )
         elif op.property == 'parents':
             if op.new_value and (items := op.new_value.items):

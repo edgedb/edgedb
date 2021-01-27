@@ -52,8 +52,15 @@ if TYPE_CHECKING:
         ],
     ]
 
-STD_LIB = ('std', 'schema', 'math', 'sys', 'cfg', 'cal')
-STD_MODULES = frozenset(STD_LIB + ('stdgraphql',))
+STD_LIB = (
+    sn.UnqualName('std'),
+    sn.UnqualName('schema'),
+    sn.UnqualName('math'),
+    sn.UnqualName('sys'),
+    sn.UnqualName('cfg'),
+    sn.UnqualName('cal'),
+)
+STD_MODULES = frozenset(STD_LIB + (sn.UnqualName('stdgraphql'),))
 
 
 Schema_T = TypeVar('Schema_T', bound='Schema')
@@ -414,8 +421,8 @@ class Schema(abc.ABC):
         self,
         *,
         exclude_stdlib: bool = False,
-        included_modules: Optional[Iterable[str]] = None,
-        excluded_modules: Optional[Iterable[str]] = None,
+        included_modules: Optional[Iterable[sn.Name]] = None,
+        excluded_modules: Optional[Iterable[sn.Name]] = None,
         included_items: Optional[Iterable[sn.Name]] = None,
         excluded_items: Optional[Iterable[sn.Name]] = None,
         type: Optional[Type[so.Object_T]] = None,
@@ -1348,8 +1355,8 @@ class FlatSchema(Schema):
         self,
         *,
         exclude_stdlib: bool = False,
-        included_modules: Optional[Iterable[str]] = None,
-        excluded_modules: Optional[Iterable[str]] = None,
+        included_modules: Optional[Iterable[sn.Name]] = None,
+        excluded_modules: Optional[Iterable[sn.Name]] = None,
         included_items: Optional[Iterable[sn.Name]] = None,
         excluded_items: Optional[Iterable[sn.Name]] = None,
         type: Optional[Type[so.Object_T]] = None,
@@ -1389,8 +1396,8 @@ class SchemaIterator(Generic[so.Object_T]):
         object_ids: Iterable[uuid.UUID],
         *,
         exclude_stdlib: bool = False,
-        included_modules: Optional[Iterable[str]],
-        excluded_modules: Optional[Iterable[str]],
+        included_modules: Optional[Iterable[sn.Name]],
+        excluded_modules: Optional[Iterable[sn.Name]],
         included_items: Optional[Iterable[sn.Name]] = None,
         excluded_items: Optional[Iterable[sn.Name]] = None,
         type: Optional[Type[so.Object_T]] = None,
@@ -1408,10 +1415,10 @@ class SchemaIterator(Generic[so.Object_T]):
             filters.append(
                 lambda schema, obj:
                     isinstance(obj, so.QualifiedObject) and
-                    obj.get_name(schema).module in modules)
+                    obj.get_name(schema).get_module_name() in modules)
 
         if excluded_modules or exclude_stdlib:
-            excmod: Set[str] = set()
+            excmod: Set[sn.Name] = set()
             if excluded_modules:
                 excmod.update(excluded_modules)
             if exclude_stdlib:
@@ -1419,7 +1426,7 @@ class SchemaIterator(Generic[so.Object_T]):
             filters.append(
                 lambda schema, obj: (
                     not isinstance(obj, so.QualifiedObject)
-                    or obj.get_name(schema).module not in excmod
+                    or obj.get_name(schema).get_module_name() not in excmod
                 )
             )
 
@@ -1789,8 +1796,8 @@ class ChainedSchema(Schema):
         self,
         *,
         exclude_stdlib: bool = False,
-        included_modules: Optional[Iterable[str]] = None,
-        excluded_modules: Optional[Iterable[str]] = None,
+        included_modules: Optional[Iterable[sn.Name]] = None,
+        excluded_modules: Optional[Iterable[sn.Name]] = None,
         included_items: Optional[Iterable[sn.Name]] = None,
         excluded_items: Optional[Iterable[sn.Name]] = None,
         type: Optional[Type[so.Object_T]] = None,

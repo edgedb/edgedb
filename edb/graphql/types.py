@@ -277,7 +277,7 @@ GQL_TO_OPS_MAP = {
 }
 
 
-HIDDEN_MODULES = s_schema.STD_MODULES - {'std'}
+HIDDEN_MODULES = s_schema.STD_MODULES - {s_name.UnqualName('std')}
 TOP_LEVEL_TYPES = {
     s_name.QualName(module='stdgraphql', name='Query'),
     s_name.QualName(module='stdgraphql', name='Mutation'),
@@ -322,7 +322,7 @@ class GQLCoreSchema:
         self.edb_schema = edb_schema
         # extract and sort modules to have a consistent type ordering
         self.modules = list(sorted({
-            str(m.get_name(self.edb_schema))
+            m.get_name(self.edb_schema)
             for m in self.edb_schema.get_objects(type=s_mod.Module)
         } - HIDDEN_MODULES))
 
@@ -412,7 +412,7 @@ class GQLCoreSchema:
 
     def _get_description(self, edb_type: s_types.Type) -> Optional[str]:
         description_anno = edb_type.get_annotations(self.edb_schema).get(
-            self.edb_schema, 'std::description', None)
+            self.edb_schema, s_name.QualName('std', 'description'), None)
         if description_anno is not None:
             return description_anno.get_value(self.edb_schema)
 
@@ -645,7 +645,8 @@ class GQLCoreSchema:
             )
             pointers = edb_type.get_pointers(self.edb_schema)
 
-            for pn, ptr in sorted(pointers.items(self.edb_schema)):
+            for unqual_pn, ptr in sorted(pointers.items(self.edb_schema)):
+                pn = str(unqual_pn)
                 if pn == '__type__':
                     continue
 
@@ -707,7 +708,8 @@ class GQLCoreSchema:
         edb_type = self.edb_schema.get(typename, type=s_objtypes.ObjectType)
         pointers = edb_type.get_pointers(self.edb_schema)
         names = sorted(pointers.keys(self.edb_schema))
-        for name in names:
+        for unqual_name in names:
+            name = str(unqual_name)
             if name == '__type__':
                 continue
             if name in fields:
@@ -716,7 +718,7 @@ class GQLCoreSchema:
                     "reserved fields required for GraphQL conversion"
                 )
 
-            ptr = edb_type.getptr(self.edb_schema, name)
+            ptr = edb_type.getptr(self.edb_schema, unqual_name)
             edb_target = ptr.get_target(self.edb_schema)
             assert edb_target is not None
 
@@ -764,11 +766,12 @@ class GQLCoreSchema:
         edb_type = self.edb_schema.get(typename, type=s_objtypes.ObjectType)
         pointers = edb_type.get_pointers(self.edb_schema)
         names = sorted(pointers.keys(self.edb_schema))
-        for name in names:
+        for unqual_name in names:
+            name = str(unqual_name)
             if name == '__type__':
                 continue
 
-            ptr = edb_type.getptr(self.edb_schema, name)
+            ptr = edb_type.getptr(self.edb_schema, unqual_name)
             edb_target = ptr.get_target(self.edb_schema)
 
             intype: GraphQLInputType
@@ -837,11 +840,12 @@ class GQLCoreSchema:
         edb_type = self.edb_schema.get(typename, type=s_objtypes.ObjectType)
         pointers = edb_type.get_pointers(self.edb_schema)
         names = sorted(pointers.keys(self.edb_schema))
-        for name in names:
+        for unqual_name in names:
+            name = str(unqual_name)
             if name == '__type__':
                 continue
 
-            ptr = edb_type.getptr(self.edb_schema, name)
+            ptr = edb_type.getptr(self.edb_schema, unqual_name)
             edb_target = ptr.get_target(self.edb_schema)
 
             if isinstance(edb_target, s_objtypes.ObjectType):
@@ -1055,8 +1059,11 @@ class GQLCoreSchema:
         )
 
         scalar_types = list(
-            self.edb_schema.get_objects(included_modules=self.modules,
-                                        type=s_scalars.ScalarType))
+            self.edb_schema.get_objects(
+                included_modules=self.modules,
+                type=s_scalars.ScalarType
+            ),
+        )
         for st in scalar_types:
             enum_values = st.get_enum_values(self.edb_schema)
             if enum_values is not None:
@@ -1141,11 +1148,13 @@ class GQLCoreSchema:
         pointers = edb_type.get_pointers(self.edb_schema)
         names = sorted(pointers.keys(self.edb_schema))
 
-        for name in names:
+        for unqual_name in names:
+            name = str(unqual_name)
             if name == '__type__':
                 continue
 
-            ptr = edb_type.getptr(self.edb_schema, name)
+            ptr = edb_type.getptr(self.edb_schema, unqual_name)
+
             if not ptr.singular(self.edb_schema):
                 continue
 
@@ -1558,7 +1567,10 @@ class GQLBaseType(metaclass=GQLTypeMeta):
                 )
 
             elif isinstance(self.edb_base, s_objtypes.ObjectType):
-                ptr = self.edb_base.maybe_get_ptr(self.edb_schema, name)
+                ptr = self.edb_base.maybe_get_ptr(
+                    self.edb_schema,
+                    s_name.UnqualName(name),
+                )
                 if ptr is not None:
                     target = self.convert_edb_to_gql_type(ptr)
 
@@ -1569,7 +1581,8 @@ class GQLBaseType(metaclass=GQLTypeMeta):
 
     def has_native_field(self, name: str) -> bool:
         if isinstance(self.edb_base, s_objtypes.ObjectType):
-            ptr = self.edb_base.maybe_get_ptr(self.edb_schema, name)
+            ptr = self.edb_base.maybe_get_ptr(
+                self.edb_schema, s_name.UnqualName(name))
             return ptr is not None
         else:
             return False
@@ -1666,7 +1679,10 @@ class GQLBaseType(metaclass=GQLTypeMeta):
             return None
 
         elif isinstance(self.edb_base, s_objtypes.ObjectType):
-            ptr = self.edb_base.getptr(self.edb_schema, name)
+            ptr = self.edb_base.getptr(
+                self.edb_schema,
+                s_name.UnqualName(name),
+            )
             if not ptr.singular(self.edb_schema):
                 return qltypes.SchemaCardinality.Many
 

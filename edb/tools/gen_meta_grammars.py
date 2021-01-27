@@ -108,7 +108,8 @@ def main(names, con):
                         eql_keywords.unreserved_keywords - BOOL_LITERALS),
                     bool_literals=sorted(BOOL_LITERALS),
                     type_builtins=types,
-                    module_builtins=sorted(s_schema.STD_MODULES),
+                    module_builtins=(
+                        sorted((str(m) for m in s_schema.STD_MODULES))),
                     constraint_builtins=constraints,
                     fn_builtins=fn_builtins,
                     operators=operators,

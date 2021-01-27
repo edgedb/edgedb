@@ -123,7 +123,7 @@ def quote_type(type_):
     return first + last
 
 
-def get_module_backend_name(module):
+def get_module_backend_name(module: s_name.Name) -> str:
     # standard modules go into "edgedbstd", user ones into "edgedbpub"
     return "edgedbstd" if module in s_schema.STD_MODULES else "edgedbpub"
 
@@ -172,7 +172,7 @@ def edgedb_name_to_pg_name(name: str, prefix_length: int = 0) -> str:
 
 
 def convert_name(name, suffix='', catenate=True):
-    schema = get_module_backend_name(name.module)
+    schema = get_module_backend_name(name.get_module_name())
     if suffix:
         sname = f'{name.name}_{suffix}'
     else:
@@ -355,7 +355,7 @@ def get_backend_name(schema, obj, catenate=True, *, aspect=None):
 
     elif isinstance(obj, s_mod.Module):
         name = obj.get_name(schema)
-        return get_module_backend_name(name.module)
+        return get_module_backend_name(name.get_module_name())
 
     elif isinstance(obj, s_constr.Constraint):
         name = obj.get_name(schema)

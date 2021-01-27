@@ -22,6 +22,7 @@ import os.path
 from edb.testbase import lang as tb
 from edb.ir import pathid
 from edb.ir import typeutils as irtyputils
+from edb.schema import name as s_name
 from edb.schema import pointers as s_pointers
 
 
@@ -33,8 +34,8 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_pathid_basic(self):
         User = self.schema.get('test::User')
-        deck_ptr = User.getptr(self.schema, 'deck')
-        count_prop = deck_ptr.getptr(self.schema, 'count')
+        deck_ptr = User.getptr(self.schema, s_name.UnqualName('deck'))
+        count_prop = deck_ptr.getptr(self.schema, s_name.UnqualName('count'))
 
         pid_1 = pathid.PathId.from_type(self.schema, User)
         self.assertEqual(
@@ -92,12 +93,12 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_pathid_startswith(self):
         User = self.schema.get('test::User')
-        deck_ptr = User.getptr(self.schema, 'deck')
+        deck_ptr = User.getptr(self.schema, s_name.UnqualName('deck'))
         deck_ptr_ref = irtyputils.ptrref_from_ptrcls(
             schema=self.schema,
             ptrcls=deck_ptr,
         )
-        count_prop = deck_ptr.getptr(self.schema, 'count')
+        count_prop = deck_ptr.getptr(self.schema, s_name.UnqualName('count'))
         count_prop_ref = irtyputils.ptrref_from_ptrcls(
             schema=self.schema,
             ptrcls=count_prop,
@@ -121,12 +122,12 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_pathid_namespace_01(self):
         User = self.schema.get('test::User')
-        deck_ptr = User.getptr(self.schema, 'deck')
+        deck_ptr = User.getptr(self.schema, s_name.UnqualName('deck'))
         deck_ptr_ref = irtyputils.ptrref_from_ptrcls(
             schema=self.schema,
             ptrcls=deck_ptr,
         )
-        count_prop = deck_ptr.getptr(self.schema, 'count')
+        count_prop = deck_ptr.getptr(self.schema, s_name.UnqualName('count'))
         count_prop_ref = irtyputils.ptrref_from_ptrcls(
             schema=self.schema,
             ptrcls=count_prop,
@@ -151,17 +152,17 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
 
         Card = self.schema.get('test::Card')
         User = self.schema.get('test::User')
-        owners_ptr = Card.getptr(self.schema, 'owners')
+        owners_ptr = Card.getptr(self.schema, s_name.UnqualName('owners'))
         owners_ptr_ref = irtyputils.ptrref_from_ptrcls(
             schema=self.schema,
             ptrcls=owners_ptr,
         )
-        deck_ptr = User.getptr(self.schema, 'deck')
+        deck_ptr = User.getptr(self.schema, s_name.UnqualName('deck'))
         deck_ptr_ref = irtyputils.ptrref_from_ptrcls(
             schema=self.schema,
             ptrcls=deck_ptr,
         )
-        count_prop = deck_ptr.getptr(self.schema, 'count')
+        count_prop = deck_ptr.getptr(self.schema, s_name.UnqualName('count'))
         count_prop_ref = irtyputils.ptrref_from_ptrcls(
             schema=self.schema,
             ptrcls=count_prop,

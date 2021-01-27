@@ -604,6 +604,7 @@ def semi_join(
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
     """Join an IR Set using semi-join."""
     rptr = ir_set.rptr
+    assert rptr is not None
 
     # Target set range.
     set_rvar = new_root_rvar(ir_set, ctx=ctx)
@@ -837,6 +838,8 @@ def range_for_material_objtype(
             include_rvar(sctx.rel, cte_rvar, rewrite.path_id, ctx=sctx)
             rvar = rvar_for_rel(sctx.rel, typeref=typeref, ctx=sctx)
     else:
+        assert isinstance(typeref.name_hint, sn.QualName)
+
         table_schema_name, table_name = common.get_objtype_backend_name(
             typeref.id,
             typeref.name_hint.module,
@@ -1052,10 +1055,12 @@ def rel_filter_out(
 
 
 def range_from_queryset(
-        set_ops: Sequence[Tuple[str, pgast.SelectStmt]],
-        objname: sn.QualName, *,
-        path_id: Optional[irast.PathId]=None,
-        ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
+    set_ops: Sequence[Tuple[str, pgast.SelectStmt]],
+    objname: sn.Name,
+    *,
+    path_id: Optional[irast.PathId]=None,
+    ctx: context.CompilerContextLevel,
+) -> pgast.PathRangeVar:
 
     rvar: pgast.PathRangeVar
 

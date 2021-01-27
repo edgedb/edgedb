@@ -209,9 +209,7 @@ def _infer_set_inner(
                 # We should only have some kind of path terminating in a
                 # property here.
                 assert isinstance(rptrref, irast.PointerRef)
-                _ptr = schema.get_by_id(rptrref.id)
-                assert isinstance(_ptr, s_pointers.Pointer)
-                ptr = _ptr.get_nearest_non_derived_parent(ctx.env.schema)
+                ptr = schema.get_by_id(rptrref.id, type=s_pointers.Pointer)
                 if ptr.is_exclusive(schema):
                     # Got an exclusive constraint
                     return ONE
@@ -449,21 +447,27 @@ def _infer_for_multiplicity(
                 elif right.rptr is not None:
                     it = left
 
-                if has_enumerate:
-                    assert isinstance(itfn, irast.FunctionCall)
-                    enumerate_mult = infer_multiplicity(
-                        itfn.args[0].expr, scope_tree=scope_tree, ctx=ctx,
-                    )
-                    if (enumerate_mult is ONE and
-                            isinstance(
-                                it.rptr, irast.TupleIndirectionPointer) and
+                if it is not None:
+                    if has_enumerate:
+                        assert isinstance(itfn, irast.FunctionCall)
+                        enumerate_mult = infer_multiplicity(
+                            itfn.args[0].expr, scope_tree=scope_tree, ctx=ctx,
+                        )
+                        if (
+                            enumerate_mult is ONE
+                            and it.rptr is not None
+                            and isinstance(
+                                it.rptr,
+                                irast.TupleIndirectionPointer
+                            )
                             # Tuple comes from the iterator set
-                            it.rptr.source.expr is itexpr and
+                            and it.rptr.source.expr is itexpr
                             # the indirection is accessing element 1
-                            str(it.rptr.ptrref.name) == '__tuple__::1'):
+                            and str(it.rptr.ptrref.name) == '__tuple__::1'
+                        ):
+                            return ONE
+                    elif (it.is_binding and it.expr is itexpr):
                         return ONE
-                elif (it.is_binding and it.expr is itexpr):
-                    return ONE
 
     elif isinstance(ir.result.expr, irast.InsertStmt):
         # A union of inserts always has multiplicity ONE

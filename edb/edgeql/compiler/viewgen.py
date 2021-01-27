@@ -37,6 +37,7 @@ from edb.schema import objtypes as s_objtypes
 from edb.schema import objects as s_objects
 from edb.schema import pointers as s_pointers
 from edb.schema import types as s_types
+from edb.schema import utils as s_utils
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import parser as qlparser
@@ -191,7 +192,7 @@ def _process_view(
 
     if is_insert:
         explicit_ptrs = {
-            ptrcls.get_shortname(ctx.env.schema).name
+            ptrcls.get_local_name(ctx.env.schema)
             for ptrcls in pointers
         }
         scls_pointers = stype.get_pointers(ctx.env.schema)
@@ -204,7 +205,7 @@ def _process_view(
             if not default_expr:
                 if (
                     ptrcls.get_required(ctx.env.schema)
-                    and ptrcls.get_shortname(ctx.env.schema).name != '__type__'
+                    and pn != sn.UnqualName('__type__')
                 ):
                     if ptrcls.is_property(ctx.env.schema):
                         # If the target is a sequence, there's no need
@@ -265,7 +266,7 @@ def _process_view(
         and ctx.env.options.apply_query_rewrites
     ):
         explicit_ptrs = {
-            ptrcls.get_shortname(ctx.env.schema).name
+            ptrcls.get_local_name(ctx.env.schema)
             for ptrcls in pointers
         }
         scls_pointers = stype.get_pointers(ctx.env.schema)
@@ -281,22 +282,15 @@ def _process_view(
                 continue
 
             with ctx.newscope(fenced=True) as scopectx:
+                ptr_ref = s_utils.name_to_ast_ref(pn)
                 implicit_ql = qlast.ShapeElement(
-                    expr=qlast.Path(
-                        steps=[
-                            qlast.Ptr(
-                                ptr=qlast.ObjectRef(
-                                    name=pn,
-                                ),
-                            ),
-                        ],
-                    ),
+                    expr=qlast.Path(steps=[qlast.Ptr(ptr=ptr_ref)]),
                     compexpr=qlast.BinOp(
                         left=qlast.Path(
                             partial=True,
                             steps=[
                                 qlast.Ptr(
-                                    ptr=qlast.ObjectRef(name=pn),
+                                    ptr=ptr_ref,
                                     direction=(
                                         s_pointers.PointerDirection.Outbound
                                     ),
@@ -859,7 +853,7 @@ def _normalize_view_ptr_expr(
         )
 
     if qlexpr is not None:
-        ctx.source_map[ptrcls] = context.ComputableInfo(
+        ctx.source_map[ptrcls] = irast.ComputableInfo(
             qlexpr=qlexpr,
             context=ctx,
             path_id=path_id,
@@ -1028,7 +1022,10 @@ def _get_base_ptr_cardinality(
     ctx: context.ContextLevel,
 ) -> Optional[qltypes.SchemaCardinality]:
     ptr_name = ptrcls.get_name(ctx.env.schema)
-    if ptr_name in {('std', 'link'), ('std', 'property')}:
+    if ptr_name in {
+        sn.QualName('std', 'link'),
+        sn.QualName('std', 'property')
+    }:
         return None
     else:
         return ptrcls.get_cardinality(ctx.env.schema)
@@ -1130,14 +1127,14 @@ def _get_shape_configuration(
 
     stype = setgen.get_set_type(ir_set, ctx=ctx)
 
-    sources: List[
-        Union[s_types.Type, s_pointers.PointerLike]] = []
+    sources: List[Union[s_types.Type, s_pointers.PointerLike]] = []
     link_view = False
     is_objtype = ir_set.path_id.is_objtype_path()
 
     if rptr is None:
         rptr = ir_set.rptr
 
+    rptrcls: Optional[s_pointers.PointerLike]
     if rptr is not None:
         rptrcls = typegen.ptrcls_from_ptrref(rptr.ptrref, ctx=ctx)
     else:
@@ -1153,15 +1150,19 @@ def _get_shape_configuration(
         sources.append(stype)
 
     if link_view:
+        assert rptrcls is not None
         sources.append(rptrcls)
 
     shape_ptrs = []
 
     for source in sources:
         for ptr, shape_op in ctx.env.view_shapes[source]:
-            if (ptr.is_link_property(ctx.env.schema) and
-                    ir_set.path_id != rptr.target.path_id):
-                path_tip = rptr.target
+            if ptr.is_link_property(ctx.env.schema):
+                assert rptr is not None
+                if ir_set.path_id != rptr.target.path_id:
+                    path_tip = rptr.target
+                else:
+                    path_tip = ir_set
             else:
                 path_tip = ir_set
 

@@ -495,7 +495,7 @@ def derive_dummy_ptr(
 
 def get_union_pointer(
     *,
-    ptrname: str,
+    ptrname: sn.UnqualName,
     source: s_sources.Source,
     direction: s_pointers.PointerDirection,
     components: Iterable[s_pointers.Pointer],

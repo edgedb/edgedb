@@ -32,6 +32,7 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import parser as ql_parser
 from edb.edgeql.compiler import astutils as ql_astutils
 
+from edb.schema import name as s_name
 from edb.schema import scalars as s_scalars
 from edb.schema import utils as s_utils
 from edb.schema import types as s_types
@@ -455,7 +456,7 @@ def get_ref_storage_info(schema, refs):
             if not irtyputils.is_object(source_typeref):
                 continue
             schema, t = irtyputils.ir_typeref_to_type(schema, ref.typeref)
-            ptr = t.getptr(schema, 'id')
+            ptr = t.getptr(schema, s_name.UnqualName('id'))
         else:
             ptrref = ref.rptr.ptrref
             schema, ptr = irtyputils.ptrcls_from_ptrref(ptrref, schema=schema)

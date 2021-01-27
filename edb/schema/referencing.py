@@ -614,7 +614,7 @@ class CreateReferencedObject(
         cls,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-        refname: str,
+        refname: sn.Name,
         parent: ReferencedObject,
     ) -> qlast.ObjectDDL:
         nref = cls.get_inherited_ref_name(schema, context, parent, refname)
@@ -629,9 +629,9 @@ class CreateReferencedObject(
         schema: s_schema.Schema,
         context: sd.CommandContext,
         parent: ReferencedObject,
-        refname: str
+        refname: sn.Name,
     ) -> qlast.ObjectRef:
-        ref = utils.name_to_ast_ref(sn.name_from_string(refname))
+        ref = utils.name_to_ast_ref(refname)
         if ref.module is None:
             ref.module = parent.get_shortname(schema).module
         return ref
@@ -834,7 +834,7 @@ class ReferencedInheritingObjectCommand(
         schema: s_schema.Schema,
         context: sd.CommandContext,
         scls: ReferencedInheritingObject,
-        cb: Callable[[sd.ObjectCommand[so.Object], str], None]
+        cb: Callable[[sd.ObjectCommand[so.Object], sn.Name], None]
     ) -> s_schema.Schema:
         for ctx in reversed(context.stack):
             if (
@@ -922,7 +922,7 @@ class ReferencedInheritingObjectCommand(
 
         def _propagate(
             alter_cmd: sd.ObjectCommand[so.Object],
-            refname: str,
+            refname: sn.Name,
         ) -> None:
             s_t = type(self)(classname=alter_cmd.classname)
             s_t.set_attribute_value(field_name, value)
@@ -1359,12 +1359,9 @@ class RenameReferencedInheritingObject(
         rename_cmdcls = sd.get_object_command_class_or_die(
             sd.RenameObject, type(scls))
 
-        def _ref_rename(alter_cmd: sd.Command,
-                        refname: str) -> None:
+        def _ref_rename(alter_cmd: sd.Command, refname: sn.Name) -> None:
             astnode = rename_cmdcls.astnode(
-                new_name=qlast.ObjectRef(
-                    name=refname,
-                ),
+                new_name=utils.name_to_ast_ref(refname),
             )
 
             rename_cmd = rename_cmdcls._rename_cmd_from_ast(

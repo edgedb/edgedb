@@ -201,7 +201,10 @@ def collapse_type_intersection_rptr(
             if ind_ptr.ptrref.rptr_specialization:
                 rptr_specialization.update(
                     ind_ptr.ptrref.rptr_specialization)
-            elif not ind_ptr.ptrref.is_empty:
+            elif (
+                not ind_ptr.ptrref.is_empty
+                and ind_ptr.source.rptr is not None
+            ):
                 assert isinstance(ind_ptr.source.rptr.ptrref, irast.PointerRef)
                 rptr_specialization.add(ind_ptr.source.rptr.ptrref)
 

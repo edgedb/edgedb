@@ -376,7 +376,7 @@ class CreateIndex(
         cls,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-        name: str,
+        name: sn.Name,
         parent: referencing.ReferencedObject,
     ) -> qlast.ObjectDDL:
         assert isinstance(parent, Index)

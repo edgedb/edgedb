@@ -137,14 +137,14 @@ class Options(Base):
         return len(self.options)
 
 
-class Placeholder(Base):
-    """An interpolation placeholder used in expression templates."""
-    name: str
-
-
 class Expr(Base):
     """Abstract parent for all query expressions."""
     __abstract_node__ = True
+
+
+class Placeholder(Expr):
+    """An interpolation placeholder used in expression templates."""
+    name: str
 
 
 class SubExpr(Base):
@@ -695,7 +695,7 @@ class MigrationCommand:
 
 class MigrationBody(DDL):
 
-    commands: typing.List[DDLOperation]
+    commands: typing.Tuple[DDLOperation, ...]
 
 
 class CreateMigration(CreateObject, MigrationCommand):

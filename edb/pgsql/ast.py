@@ -584,7 +584,7 @@ class FuncCall(ImmutableBaseExpr):
     # List of arguments
     args: typing.List[BaseExpr]
     # ORDER BY
-    agg_order: typing.List[BaseExpr]
+    agg_order: typing.List[SortBy]
     # FILTER clause
     agg_filter: BaseExpr
     # Argument list is '*'

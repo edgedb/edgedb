@@ -35,9 +35,9 @@ from edb.common import parsing
 
 from edb.edgeql import qltypes
 
+from edb.schema import name as sn
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
-from edb.schema import constraints as s_constr
 
 from edb.ir import ast as irast
 from edb.ir import utils as irutils
@@ -467,11 +467,10 @@ def _infer_pointer_cardinality(
 
     ptrcls_schema_card = ptrcls.get_cardinality(env.schema)
     if (
-        ptrcls_schema_card is None
-        or not ptrcls_schema_card.is_known()
+        not ptrcls_schema_card.is_known()
         or ptrcls in ctx.env.pointer_specified_info
     ):
-        if ptrcls_schema_card is not None and ptrcls_schema_card.is_known():
+        if ptrcls_schema_card.is_known():
             # If we are overloading an existing pointer, take the _maximum_
             # of the cardinalities.  In practice this only means that we might
             # raise the lower bound, since the other redefinitions of bounds
@@ -504,7 +503,7 @@ def _update_cardinality_in_derived(
     children = env.pointer_derivation_map.get(ptrcls)
     if children:
         ptrcls_cardinality = ptrcls.get_cardinality(env.schema)
-        assert ptrcls_cardinality is not None and ptrcls_cardinality.is_known()
+        assert ptrcls_cardinality.is_known()
         for child in children:
             env.schema = child.set_field_value(
                 env.schema, 'cardinality', ptrcls_cardinality)
@@ -827,14 +826,18 @@ def _is_ptr_or_self_ref(
         srccls = env.set_types[result_expr]
 
         return (
-            isinstance(srccls, s_objtypes.ObjectType) and
-            ir_set.expr is None and
-            (env.set_types[ir_set] == srccls or (
-                ir_set.rptr is not None and
-                srccls.maybe_get_ptr(
-                    env.schema,
-                    ir_set.rptr.ptrref.shortname.name) is not None
-            ))
+            isinstance(srccls, s_objtypes.ObjectType)
+            and ir_set.expr is None
+            and (
+                env.set_types[ir_set] == srccls
+                or (
+                    (rptr := ir_set.rptr) is not None
+                    and srccls.maybe_get_ptr(
+                        env.schema,
+                        rptr.ptrref.shortname.get_local_name()
+                    ) is not None
+                )
+            )
         )
 
 
@@ -875,8 +878,9 @@ def extract_filters(
                     left_stype = env.set_types[left]
                     if left_stype == result_stype:
                         assert isinstance(left_stype, s_objtypes.ObjectType)
-                        _ptr = left_stype.getptr(schema, 'id')
+                        _ptr = left_stype.getptr(schema, sn.UnqualName('id'))
                     else:
+                        assert left.rptr is not None
                         _ptr = env.schema.get(left.rptr.ptrref.name,
                                               type=s_pointers.Pointer)
 
@@ -892,8 +896,9 @@ def extract_filters(
                     right_stype = env.set_types[right]
                     if right_stype == result_stype:
                         assert isinstance(right_stype, s_objtypes.ObjectType)
-                        _ptr = right_stype.getptr(schema, 'id')
+                        _ptr = right_stype.getptr(schema, sn.UnqualName('id'))
                     else:
+                        assert right.rptr is not None
                         _ptr = env.schema.get(right.rptr.ptrref.name,
                                               type=s_pointers.Pointer)
 
@@ -940,17 +945,8 @@ def _analyse_filter_clause(
         result_set, filter_clause, scope_tree, ctx)
 
     if filtered_ptrs:
-        exclusive_constr = schema.get(
-            'std::exclusive', type=s_constr.Constraint)
-
         for ptr, _ in filtered_ptrs:
-            ptr = ptr.get_nearest_non_derived_parent(ctx.env.schema)
-            is_unique = (
-                ptr.is_id_pointer(schema) or
-                any(c.issubclass(schema, exclusive_constr)
-                    for c in ptr.get_constraints(schema).objects(schema))
-            )
-            if is_unique:
+            if ptr.is_exclusive(schema):
                 # Bingo, got an equality filter on a link with a
                 # unique constraint
                 return AT_MOST_ONE

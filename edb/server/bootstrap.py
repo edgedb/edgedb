@@ -380,11 +380,11 @@ async def _make_stdlib(testmode: bool, global_ids) -> StdlibBits:
     current_block = dbops.PLTopBlock()
 
     std_texts = []
-    for modname in s_schema.STD_LIB + ('stdgraphql',):
+    for modname in s_schema.STD_LIB + (sn.UnqualName('stdgraphql'),):
         std_texts.append(s_std.get_std_module_text(modname))
 
     if testmode:
-        std_texts.append(s_std.get_std_module_text('_testmode'))
+        std_texts.append(s_std.get_std_module_text(sn.UnqualName('_testmode')))
 
     ddl_text = '\n'.join(std_texts)
     types: Set[uuid.UUID] = set()

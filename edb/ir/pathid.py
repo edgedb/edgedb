@@ -651,7 +651,7 @@ class PathId:
         return self._path[-1]  # type: ignore
 
     @property
-    def target_name_hint(self) -> s_name.QualName:
+    def target_name_hint(self) -> s_name.Name:
         """Return the name of the type for this PathId."""
         if self.target.material_type is not None:
             material_type = self.target.material_type

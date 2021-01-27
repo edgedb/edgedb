@@ -30,6 +30,7 @@ from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import parser as qlparser
 
 from . import ddl as s_ddl
+from . import name as sn
 from . import schema as s_schema
 
 
@@ -46,11 +47,11 @@ CACHE_SRC_DIRS = (
 )
 
 
-def get_std_module_text(modname: str) -> str:
+def get_std_module_text(modname: sn.Name) -> str:
 
     module_eql = ''
 
-    module_path = LIB_ROOT / modname
+    module_path = LIB_ROOT / str(modname)
     module_files = []
 
     if module_path.is_dir():
@@ -74,7 +75,7 @@ def get_std_module_text(modname: str) -> str:
 
 def load_std_module(
     schema: s_schema.Schema,
-    modname: str,
+    modname: sn.Name,
 ) -> s_schema.Schema:
 
     return s_ddl.apply_ddl_script(

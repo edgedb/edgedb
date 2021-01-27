@@ -59,6 +59,16 @@ def ast_ref_to_name(ref: qlast.ObjectRef) -> sn.Name:
         return sn.UnqualName(name=ref.name)
 
 
+def ast_ref_to_unqualname(ref: qlast.ObjectRef) -> sn.UnqualName:
+    if ref.module:
+        raise errors.InternalServerError(
+            f'unexpected fully-qualified name: {ast_ref_to_name(ref)}',
+            context=ref.context,
+        )
+    else:
+        return sn.UnqualName(name=ref.name)
+
+
 def resolve_name(
     lname: sn.Name,
     *,
@@ -691,11 +701,17 @@ def find_item_suggestions(
             module = schema.get_global(s_mod.Module, modname, None)
             if module:
                 suggestions.extend(
-                    schema.get_objects(included_modules=[modname]))
+                    schema.get_objects(
+                        included_modules=[sn.UnqualName(modname)],
+                    ),
+                )
 
         if not orig_modname:
-            suggestions.extend(schema.get_objects(
-                included_modules=['std']))
+            suggestions.extend(
+                schema.get_objects(
+                    included_modules=[sn.UnqualName('std')],
+                ),
+            )
 
     filters = []
 
@@ -1018,7 +1034,8 @@ def get_config_type_shape(
     for t in stypes:
         t_name = t.get_name(schema)
 
-        for pn, p in t.get_pointers(schema).items(schema):
+        for unqual_pn, p in t.get_pointers(schema).items(schema):
+            pn = str(unqual_pn)
             if pn in ('id', '__type__') or pn in seen:
                 continue
 

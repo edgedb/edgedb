@@ -150,7 +150,11 @@ def is_empty(ir: irast.Base) -> bool:
     return (
         isinstance(ir, irast.EmptySet) or
         (isinstance(ir, irast.Array) and not ir.elements) or
-        (isinstance(ir, irast.Set) and is_empty(ir.expr))
+        (
+            isinstance(ir, irast.Set)
+            and ir.expr is not None
+            and is_empty(ir.expr)
+        )
     )
 
 
@@ -204,7 +208,7 @@ def unwrap_set(ir_set: irast.Set) -> irast.Set:
     """If the give *ir_set* is an implicit SELECT wrapper, return the
        wrapped set.
     """
-    if is_implicit_wrapper(ir_set.expr):
+    if ir_set.expr is not None and is_implicit_wrapper(ir_set.expr):
         return ir_set.expr.result  # type: ignore
     else:
         return ir_set
@@ -271,15 +275,17 @@ def get_nearest_dml_stmt(ir_set: irast.Set) -> Optional[irast.MutatingStmt]:
     """For a given *ir_set* representing a Path, return the nearest path
        step that is a DML expression.
     """
-    while ir_set is not None:
-        if isinstance(ir_set.expr, irast.MutatingStmt):
-            return ir_set.expr
-        elif isinstance(ir_set.expr, irast.SelectStmt):
-            ir_set = ir_set.expr.result
-        elif ir_set.rptr is not None:
-            ir_set = ir_set.rptr.source
+    cur_set: Optional[irast.Set] = ir_set
+    while cur_set is not None:
+        if isinstance(cur_set.expr, irast.MutatingStmt):
+            return cur_set.expr
+        elif isinstance(cur_set.expr, irast.SelectStmt):
+            cur_set = cur_set.expr.result
+        elif cur_set.rptr is not None:
+            cur_set = cur_set.rptr.source
         else:
-            ir_set = None
+            cur_set = None
+    return None
 
 
 def get_iterator_sets(stmt: irast.Stmt) -> Sequence[irast.Set]:

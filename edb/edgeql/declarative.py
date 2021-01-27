@@ -33,7 +33,6 @@ from typing import *
 
 import copy
 import functools
-import re
 from collections import defaultdict
 
 from edb import errors
@@ -52,9 +51,6 @@ from edb.schema import schema as s_schema
 from edb.schema import sources as s_sources
 from edb.schema import types as s_types
 from edb.schema import utils as s_utils
-
-
-STD_PREFIX_RE = re.compile(rf'^({"|".join(s_schema.STD_MODULES)})::')
 
 
 class TraceContextBase:
@@ -381,7 +377,7 @@ def _merge_items(
 
         if pn not in item_ptrs:
             ptr_copy = qltracer.Pointer(
-                s_name.QualName('__', pn),
+                s_name.QualName('__', pn.name),
                 source=ptr.get_source(schema),
                 target=ptr.get_target(schema),
             )
@@ -392,7 +388,7 @@ def _merge_items(
             item_ptr = item.getptr(schema, pn)
             assert isinstance(item_ptr, (qltracer.Pointer, s_sources.Source))
             ptr_copy = qltracer.Pointer(
-                s_name.QualName('__', pn),
+                s_name.QualName('__', pn.name),
                 source=item,
                 target=item_ptr.get_target(schema),
             )
@@ -473,7 +469,7 @@ def _trace_item_layout(
             bases.append(ref)
 
             # ignore std modules dependencies
-            if ref.module not in s_schema.STD_MODULES:
+            if ref.get_module_name() not in s_schema.STD_MODULES:
                 parents.add(ref)
 
             if (
@@ -489,7 +485,7 @@ def _trace_item_layout(
                     base_pointers = base.get_pointers(ctx.schema)
                     for pn, p in base_pointers.items(ctx.schema):
                         base_obj.pointers[pn] = qltracer.Pointer(
-                            s_name.QualName('__', pn),
+                            s_name.QualName('__', pn.name),
                             source=base,
                             target=p.get_target(ctx.schema),
                         )
@@ -510,12 +506,13 @@ def _trace_item_layout(
             else:
                 target = None
 
+            pn = s_utils.ast_ref_to_unqualname(decl.name)
             ptr = qltracer.Pointer(
-                s_name.QualName('__', decl.name.name),
+                s_name.QualName('__', pn.name),
                 source=obj,
                 target=target,
             )
-            obj.pointers[decl.name.name] = ptr
+            obj.pointers[pn] = ptr
             ptr_name = s_name.QualName(
                 module=fq_name.module,
                 name=f'{fq_name.name}@{decl.name.name}',
@@ -587,7 +584,7 @@ def trace_SetField(
         params={},
     ):
         # ignore std module dependencies
-        if not STD_PREFIX_RE.match(str(dep)):
+        if dep.get_module_name() not in s_schema.STD_MODULES:
             deps.add(dep)
 
     _register_item(node, deps=deps, ctx=ctx)
@@ -602,7 +599,7 @@ def trace_ConcreteConstraint(
     deps = set()
 
     base_name = ctx.get_ref_name(node.name)
-    if base_name.module not in s_schema.STD_MODULES:
+    if base_name.get_module_name() not in s_schema.STD_MODULES:
         deps.add(base_name)
 
     exprs = [ExprDependency(expr=arg) for arg in node.args]
@@ -818,12 +815,12 @@ def _register_item(
             if isinstance(cmd, qlast.CreateConcreteConstraint):
                 cmd_name = ctx.get_local_name(
                     cmd.name, type=qltracer.Constraint)
-                if cmd_name.module not in s_schema.STD_MODULES:
+                if cmd_name.get_module_name() not in s_schema.STD_MODULES:
                     deps.add(cmd_name)
             elif isinstance(cmd, qlast.CreateAnnotationValue):
                 cmd_name = ctx.get_local_name(
                     cmd.name, type=qltracer.Annotation)
-                if cmd_name.module not in s_schema.STD_MODULES:
+                if cmd_name.get_module_name() not in s_schema.STD_MODULES:
                     deps.add(cmd_name)
 
             if (isinstance(cmd, qlast.ObjectDDL)
@@ -890,7 +887,7 @@ def _register_item(
                 pdeps: MutableSet[s_name.QualName] = set()
                 for dep in tdeps:
                     # ignore std module dependencies
-                    if not STD_PREFIX_RE.match(str(dep)):
+                    if dep.get_module_name() not in s_schema.STD_MODULES:
                         # First check if the dep is a pointer that's
                         # defined explicitly. If it's not explicitly
                         # defined, check for ancestors and use them
@@ -994,7 +991,7 @@ def _get_hard_deps(
         else:
             # Base case.
             name = ctx.get_ref_name(target.maintype)
-            if name.module not in s_schema.STD_MODULES:
+            if name.get_module_name() not in s_schema.STD_MODULES:
                 deps.add(name)
 
     return deps

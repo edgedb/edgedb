@@ -771,7 +771,7 @@ def finalize_args(
                 isinstance(bound_call.func, s_func.Function)
                 and (
                     bound_call.func.get_shortname(ctx.env.schema)
-                    == ('std', 'array_agg')
+                    == sn.QualName('std', 'array_agg')
                 )
             )
 

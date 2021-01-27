@@ -54,26 +54,74 @@ class Source(so.QualifiedObject, indexes.IndexableSubject):
         inheritable=False, ephemeral=True, coerce=True, compcoef=0.857,
         default=so.DEFAULT_CONSTRUCTOR)
 
-    def maybe_get_ptr(
+    @overload
+    def maybe_get_ptr(  # NoQA: F811
         self,
         schema: s_schema.Schema,
-        name: str,
-    ) -> Optional[s_pointers.Pointer]:
-        if sn.is_qualified(name):
-            raise ValueError(
-                'references to concrete pointers must not be qualified')
-        return self.get_pointers(schema).get(schema, name, None)
+        name: sn.UnqualName,
+        *,
+        type: Type[s_pointers.Pointer_T],
+    ) -> Optional[s_pointers.Pointer_T]:
+        ...
 
-    def getptr(
+    @overload
+    def maybe_get_ptr(  # NoQA: F811
         self,
         schema: s_schema.Schema,
-        name: str,
+        name: sn.UnqualName,
+        *,
+        type: Optional[Type[s_pointers.Pointer_T]] = None,
+    ) -> Optional[s_pointers.Pointer]:
+        ...
+
+    def maybe_get_ptr(  # NoQA: F811
+        self,
+        schema: s_schema.Schema,
+        name: sn.UnqualName,
+        *,
+        type: Optional[Type[s_pointers.Pointer_T]] = None,
+    ) -> Optional[s_pointers.Pointer]:
+        ptr = self.get_pointers(schema).get(schema, name, None)
+        if ptr is not None and type is not None and not isinstance(ptr, type):
+            raise AssertionError(
+                f'{self.get_verbosename(schema)} has a the '
+                f' {str(name)!r} pointer, but it is not a'
+                f' {type.get_schema_class_displayname()}'
+            )
+        return ptr
+
+    @overload
+    def getptr(  # NoQA: F811
+        self,
+        schema: s_schema.Schema,
+        name: sn.UnqualName,
+        *,
+        type: Type[s_pointers.Pointer_T],
+    ) -> s_pointers.Pointer_T:
+        ...
+
+    @overload
+    def getptr(  # NoQA: F811
+        self,
+        schema: s_schema.Schema,
+        name: sn.UnqualName,
+        *,
+        type: Optional[Type[s_pointers.Pointer_T]] = None,
     ) -> s_pointers.Pointer:
-        ptr = self.maybe_get_ptr(schema, name)
+        ...
+
+    def getptr(  # NoQA: F811
+        self,
+        schema: s_schema.Schema,
+        name: sn.UnqualName,
+        *,
+        type: Optional[Type[s_pointers.Pointer_T]] = None,
+    ) -> s_pointers.Pointer:
+        ptr = self.maybe_get_ptr(schema, name, type=type)
         if ptr is None:
             raise AssertionError(
                 f'{self.get_verbosename(schema)} has no'
-                f' link or property {name}'
+                f' link or property {str(name)!r}'
             )
         return ptr
 

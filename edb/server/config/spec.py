@@ -119,7 +119,8 @@ def load_spec_from_schema(schema):
     cfg = schema.get('cfg::Config')
     settings = []
 
-    for pn, p in cfg.get_pointers(schema).items(schema):
+    for ptr_name, p in cfg.get_pointers(schema).items(schema):
+        pn = str(ptr_name)
         if pn in ('id', '__type__'):
             continue
 

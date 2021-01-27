@@ -229,7 +229,8 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         ancestors = set(self.scls.get_ancestors(schema).objects(schema))
         for base in bases.objects(schema) + (self.scls,):
             base_refs: so.ObjectIndexBase[
-                s_referencing.ReferencedInheritingObject
+                sn.Name,
+                s_referencing.ReferencedInheritingObject,
             ] = base.get_field_value(schema, attr)
 
             for k, v in base_refs.items(schema):
@@ -762,7 +763,9 @@ class CreateInheritingObject(
                     node.commands.append(
                         qlast.AlterAddInherit(
                             bases=[
-                                utils.name_to_ast_ref(b)
+                                qlast.TypeName(
+                                    maintype=utils.name_to_ast_ref(b),
+                                )
                                 for b in explicit_bases
                             ],
                         )

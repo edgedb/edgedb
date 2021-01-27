@@ -55,7 +55,7 @@ class ModuleCommand(
 
         if (
             not context.stdmode and not context.testmode
-            and (modname := str(self.classname)) in s_schema.STD_MODULES
+            and (modname := self.classname) in s_schema.STD_MODULES
         ):
             raise errors.SchemaDefinitionError(
                 f'cannot {self._delta_action} {self.get_verbosename()}: '

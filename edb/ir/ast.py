@@ -117,7 +117,7 @@ class TypeRef(ImmutableBase):
     module_id: uuid.UUID
     # Full name of the type, not necessarily schema-addressable,
     # used for annotations only.
-    name_hint: sn.QualName
+    name_hint: sn.Name
     # The ref of the underlying material type, if this is a view type,
     # else None.
     material_type: typing.Optional[TypeRef]
@@ -420,8 +420,8 @@ class Set(Base):
     path_id: PathId
     path_scope_id: typing.Optional[int]
     typeref: TypeRef
-    expr: Expr
-    rptr: Pointer
+    expr: typing.Optional[Expr]
+    rptr: typing.Optional[Pointer]
     anchor: typing.Optional[str]
     show_as_anchor: typing.Optional[str]
     shape: typing.List[typing.Tuple[Set, qlast.ShapeOp]]
@@ -452,6 +452,15 @@ class Param:
     """IR type reference"""
 
 
+class ComputableInfo(typing.NamedTuple):
+
+    qlexpr: qlast.Expr
+    context: compiler.ContextLevel
+    path_id: PathId
+    path_id_ns: typing.Optional[WeakNamespace]
+    shape_op: qlast.ShapeOp
+
+
 class Statement(Command):
 
     expr: Set
@@ -469,11 +478,7 @@ class Statement(Command):
         typing.Dict[so.Object, typing.Set[qlast.Base]]]
     new_coll_types: typing.FrozenSet[s_types.Collection]
     scope_tree: ScopeTreeNode
-    source_map: typing.Dict[s_pointers.Pointer,
-                            typing.Tuple[qlast.Expr,
-                                         compiler.ContextLevel,
-                                         PathId,
-                                         typing.Optional[WeakNamespace]]]
+    source_map: typing.Dict[s_pointers.Pointer, ComputableInfo]
     dml_exprs: typing.List[qlast.Base]
     type_rewrites: typing.Dict[uuid.UUID, Set]
 
@@ -654,7 +659,7 @@ class FunctionCall(Call):
     sql_func_has_out_params: bool = False
 
     # backend_name for the underlying function
-    backend_name: typing.Optional[str] = None
+    backend_name: typing.Optional[uuid.UUID] = None
 
     # Error to raise if the underlying SQL function returns NULL.
     error_on_null_result: typing.Optional[str] = None
@@ -700,7 +705,7 @@ class TypeCast(ImmutableExpr):
 
     expr: Set
     cast_module_id: uuid.UUID
-    cast_name: str
+    cast_name: sn.QualName
     from_type: TypeRef
     to_type: TypeRef
     cardinality_mod: typing.Optional[qlast.CardinalityModifier]

@@ -580,6 +580,7 @@ def process_insert_body(
             assert shape_op is qlast.ShapeOp.ASSIGN
 
             rptr = shape_el.rptr
+            assert rptr is not None
             ptrref = rptr.ptrref
             if ptrref.material_ptr is not None:
                 ptrref = ptrref.material_ptr
@@ -735,6 +736,7 @@ def compile_insert_shape_element(
         # This method is only called if the upper cardinality of
         # the expression is one, so we check for AT_MOST_ONE
         # to determine nullability.
+        assert shape_el.rptr is not None
         if (shape_el.rptr.ptrref.dir_cardinality
                 is qltypes.Cardinality.AT_MOST_ONE):
             insvalctx.force_optional.add(shape_el.path_id)
@@ -792,6 +794,7 @@ def process_update_body(
         subctx.expr_exposed = False
 
         for shape_el, shape_op in ir_stmt.subject.shape:
+            assert shape_el.rptr is not None
             ptrref = shape_el.rptr.ptrref
             assert isinstance(ptrref, irast.PointerRef)
             actual_ptrref = irtyputils.find_actual_ptrref(typeref, ptrref)
@@ -840,7 +843,7 @@ def process_update_body(
                         val = pgast.FuncCall(
                             name=('nullif',),
                             args=[
-                                pgast.ColumnRef(name=(ptr_info.column_name,)),
+                                pgast.ColumnRef(name=[ptr_info.column_name]),
                                 val,
                             ],
                         )
@@ -908,8 +911,11 @@ def is_props_only_update(shape_el: irast.Set, *,
         `True` if *shape_el* represents a link property-only update.
     """
     return (
-        bool(shape_el.shape) and
-        all(el.rptr.ptrref.source_ptr is not None for el, _ in shape_el.shape)
+        bool(shape_el.shape)
+        and all(
+            el.rptr is not None and el.rptr.ptrref.source_ptr is not None
+            for el, _ in shape_el.shape
+        )
     )
 
 
@@ -946,6 +952,7 @@ def process_link_update(
     toplevel = ctx.toplevel_stmt
 
     rptr = ir_set.rptr
+    assert rptr is not None
     ptrref = rptr.ptrref
     assert isinstance(ptrref, irast.PointerRef)
     target_is_scalar = irtyputils.is_scalar(ir_set.typeref)
@@ -1224,6 +1231,7 @@ def process_linkprop_update(
     toplevel = ctx.toplevel_stmt
 
     rptr = ir_expr.rptr
+    assert rptr is not None
     ptrref = rptr.ptrref
 
     if ptrref.material_ptr:
@@ -1249,6 +1257,7 @@ def process_linkprop_update(
     targets = []
     for prop_el, shape_op in ir_expr.shape:
         assert shape_op is qlast.ShapeOp.ASSIGN
+        assert prop_el.rptr is not None
         ptrname = prop_el.rptr.ptrref.shortname
         with ctx.new() as input_rel_ctx:
             input_rel_ctx.expr_exposed = False

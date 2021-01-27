@@ -50,8 +50,8 @@ def delta_schemas(
     schema_a: Optional[s_schema.Schema],
     schema_b: s_schema.Schema,
     *,
-    included_modules: Optional[Iterable[str]]=None,
-    excluded_modules: Optional[Iterable[str]]=None,
+    included_modules: Optional[Iterable[sn.Name]]=None,
+    excluded_modules: Optional[Iterable[sn.Name]]=None,
     included_items: Optional[Iterable[sn.Name]]=None,
     excluded_items: Optional[Iterable[sn.Name]]=None,
     schema_a_filters: Iterable[
@@ -156,16 +156,21 @@ def delta_schemas(
 
             def _filter(schema: s_schema.Schema, obj: so.Object) -> bool:
                 return (
-                    (isinstance(obj, so.QualifiedObject)
-                        and (obj.get_name(schema).module
-                             in s_schema.STD_MODULES))
-                    or (isinstance(obj, s_mod.Module)
-                        and str(obj.get_name(schema)) in s_schema.STD_MODULES)
+                    (
+                        isinstance(obj, so.QualifiedObject)
+                        and (
+                            obj.get_name(schema).get_module_name()
+                            in s_schema.STD_MODULES
+                        )
+                    ) or (
+                        isinstance(obj, s_mod.Module)
+                        and obj.get_name(schema) in s_schema.STD_MODULES
+                    )
                 )
             schema_a_filters.append(_filter)
 
     my_modules = {
-        str(m.get_name(schema_b))
+        m.get_name(schema_b)
         for m in schema_b.get_objects(
             type=s_mod.Module,
             extra_filters=schema_b_filters,
@@ -173,7 +178,7 @@ def delta_schemas(
     }
 
     other_modules = {
-        str(m.get_name(schema_a))
+        m.get_name(schema_a)
         for m in schema_a.get_objects(
             type=s_mod.Module,
             extra_filters=schema_a_filters,
@@ -198,7 +203,7 @@ def delta_schemas(
         schema_b_filters.append(_filter)
 
     # __derived__ is ephemeral and should never be included
-    excluded_modules.add('__derived__')
+    excluded_modules.add(sn.UnqualName('__derived__'))
 
     if included_modules is not None:
         included_modules = set(included_modules)
@@ -366,8 +371,8 @@ def schemas_are_equal(
     schema_a: s_schema.Schema,
     schema_b: s_schema.Schema,
     *,
-    included_modules: Optional[Iterable[str]]=None,
-    excluded_modules: Optional[Iterable[str]]=None,
+    included_modules: Optional[Iterable[sn.Name]]=None,
+    excluded_modules: Optional[Iterable[sn.Name]]=None,
     included_items: Optional[Iterable[sn.Name]]=None,
     excluded_items: Optional[Iterable[sn.Name]]=None,
     schema_a_filters: Iterable[
@@ -791,8 +796,8 @@ def descriptive_text_from_delta(
 
 def ddl_text_from_schema(
     schema: s_schema.Schema, *,
-    included_modules: Optional[Iterable[str]]=None,
-    excluded_modules: Optional[Iterable[str]]=None,
+    included_modules: Optional[Iterable[sn.Name]]=None,
+    excluded_modules: Optional[Iterable[sn.Name]]=None,
     included_items: Optional[Iterable[sn.Name]]=None,
     excluded_items: Optional[Iterable[sn.Name]]=None,
     included_ref_classes: Iterable[so.ObjectMeta]=tuple(),
@@ -817,8 +822,8 @@ def ddl_text_from_schema(
 
 def sdl_text_from_schema(
     schema: s_schema.Schema, *,
-    included_modules: Optional[Iterable[str]]=None,
-    excluded_modules: Optional[Iterable[str]]=None,
+    included_modules: Optional[Iterable[sn.Name]]=None,
+    excluded_modules: Optional[Iterable[sn.Name]]=None,
     included_items: Optional[Iterable[sn.Name]]=None,
     excluded_items: Optional[Iterable[sn.Name]]=None,
     included_ref_classes: Iterable[so.ObjectMeta]=tuple(),
@@ -842,8 +847,8 @@ def sdl_text_from_schema(
 
 def descriptive_text_from_schema(
     schema: s_schema.Schema, *,
-    included_modules: Optional[Iterable[str]]=None,
-    excluded_modules: Optional[Iterable[str]]=None,
+    included_modules: Optional[Iterable[sn.Name]]=None,
+    excluded_modules: Optional[Iterable[sn.Name]]=None,
     included_items: Optional[Iterable[sn.Name]]=None,
     excluded_items: Optional[Iterable[sn.Name]]=None,
     included_ref_classes: Iterable[so.ObjectMeta]=tuple(),

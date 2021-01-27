@@ -1942,7 +1942,7 @@ class DescribeRolesAsDDLFunction(dbops.Function):
     def __init__(self, schema: s_schema.Schema) -> None:
         role_obj = schema.get("sys::Role", type=s_objtypes.ObjectType)
         roles = inhviewname(schema, role_obj)
-        member_of = role_obj.getptr(schema, 'member_of')
+        member_of = role_obj.getptr(schema, s_name.UnqualName('member_of'))
         members = inhviewname(schema, member_of)
         name_col = ptr_col_name(schema, role_obj, 'name')
         pass_col = ptr_col_name(schema, role_obj, 'password')
@@ -2821,17 +2821,17 @@ def ptr_col_name(
     obj: s_sources.Source,
     propname: str,
 ) -> str:
-    prop = obj.getptr(schema, propname)
+    prop = obj.getptr(schema, s_name.UnqualName(propname))
     psi = types.get_pointer_storage_info(prop, schema=schema)
     return psi.column_name  # type: ignore[no-any-return]
 
 
 def _generate_database_views(schema: s_schema.Schema) -> List[dbops.View]:
     Database = schema.get('sys::Database', type=s_objtypes.ObjectType)
-    annos = Database.getptr(schema, 'annotations')
-    assert isinstance(annos, s_links.Link)
-    int_annos = Database.getptr(schema, 'annotations__internal')
-    assert isinstance(int_annos, s_links.Link)
+    annos = Database.getptr(
+        schema, s_name.UnqualName('annotations'), type=s_links.Link)
+    int_annos = Database.getptr(
+        schema, s_name.UnqualName('annotations__internal'), type=s_links.Link)
 
     view_query = f'''
         SELECT
@@ -2926,16 +2926,16 @@ def _generate_database_views(schema: s_schema.Schema) -> List[dbops.View]:
 
 def _generate_role_views(schema: s_schema.Schema) -> List[dbops.View]:
     Role = schema.get('sys::Role', type=s_objtypes.ObjectType)
-    member_of = Role.getptr(schema, 'member_of')
-    assert isinstance(member_of, s_links.Link)
-    bases = Role.getptr(schema, 'bases')
-    assert isinstance(bases, s_links.Link)
-    ancestors = Role.getptr(schema, 'ancestors')
-    assert isinstance(ancestors, s_links.Link)
-    annos = Role.getptr(schema, 'annotations')
-    assert isinstance(annos, s_links.Link)
-    int_annos = Role.getptr(schema, 'annotations__internal')
-    assert isinstance(int_annos, s_links.Link)
+    member_of = Role.getptr(
+        schema, s_name.UnqualName('member_of'), type=s_links.Link)
+    bases = Role.getptr(
+        schema, s_name.UnqualName('bases'), type=s_links.Link)
+    ancestors = Role.getptr(
+        schema, s_name.UnqualName('ancestors'), type=s_links.Link)
+    annos = Role.getptr(
+        schema, s_name.UnqualName('annotations'), type=s_links.Link)
+    int_annos = Role.getptr(
+        schema, s_name.UnqualName('annotations__internal'), type=s_links.Link)
 
     superuser = f'''
         a.rolsuper OR EXISTS (
@@ -3166,9 +3166,9 @@ async def generate_support_views(
 
     schema_objs = schema.get_objects(
         type=s_objtypes.ObjectType,
-        included_modules=('schema',),
-
+        included_modules=(s_name.UnqualName('schema'),),
     )
+
     for schema_obj in schema_objs:
         bn = common.get_backend_name(
             schema,
@@ -3196,7 +3196,8 @@ async def generate_support_views(
 
     InhObject = schema.get(
         'schema::InheritingObject', type=s_objtypes.ObjectType)
-    InhObject_ancestors = InhObject.getptr(schema, 'ancestors')
+    InhObject_ancestors = InhObject.getptr(
+        schema, s_name.UnqualName('ancestors'))
 
     # "issubclass" SQL functions rely on access to the ancestors link.
     bn = common.get_backend_name(
@@ -3336,11 +3337,17 @@ def _describe_config(
 
     cfg = schema.get(config_object_name, type=s_objtypes.ObjectType)
     items = []
-    for pn, p in cfg.get_pointers(schema).items(schema):
+    for ptr_name, p in cfg.get_pointers(schema).items(schema):
+        pn = str(ptr_name)
         if pn in ('id', '__type__'):
             continue
 
-        is_internal = p.get_annotation(schema, 'cfg::internal') == 'true'
+        is_internal = (
+            p.get_annotation(
+                schema,
+                s_name.QualName('cfg', 'internal')
+            ) == 'true'
+        )
         if is_internal and not testmode:
             continue
 
@@ -3550,10 +3557,14 @@ def _describe_config_object(
     layouts = {}
     for cfg in cfg_types:
         items = []
-        for pn, p in cfg.get_pointers(schema).items(schema):
+        for ptr_name, p in cfg.get_pointers(schema).items(schema):
+            pn = str(ptr_name)
             if (
                 pn in ('id', '__type__')
-                or p.get_annotation(schema, 'cfg::internal') == 'true'
+                or p.get_annotation(
+                    schema,
+                    s_name.QualName('cfg', 'internal'),
+                ) == 'true'
             ):
                 continue
 
@@ -3813,7 +3824,8 @@ def _generate_config_type_view(
     sval = f'(q{self_idx}.val)'
 
     for pp_name, pp in stype.get_pointers(schema).items(schema):
-        if pp_name in ('id', '__type__'):
+        pn = str(pp_name)
+        if pn in ('id', '__type__'):
             continue
 
         pp_type = pp.get_target(schema)
@@ -3837,7 +3849,7 @@ def _generate_config_type_view(
                 multi_props.append((pp, pp_cast))
             else:
                 extract_col = (
-                    f'{pp_cast(f"{sval}->{ql(pp_name)}")}'
+                    f'{pp_cast(f"{sval}->{ql(pn)}")}'
                     f' AS {qi(pp_col)}')
 
                 target_cols.append(extract_col)
@@ -4011,10 +4023,10 @@ def _generate_config_type_view(
     for prop, pp_cast in multi_props:
         target_sources = list(sources)
 
-        pp_name = prop.get_shortname(schema).name
+        pn = prop.get_shortname(schema).name
 
         target_source = _build_data_source(
-            schema, prop, self_idx, alias=pp_name)
+            schema, prop, self_idx, alias=pn)
         target_sources.append(target_source)
 
         target_fromlist = ',\n'.join(f'LATERAL {s}' for s in target_sources)
@@ -4022,7 +4034,7 @@ def _generate_config_type_view(
         link_query = textwrap.dedent(f'''\
             SELECT
                 {key_expr} AS source,
-                {pp_cast(f'q{pp_name}.val')} AS target
+                {pp_cast(f'q{pn}.val')} AS target
             FROM
                 {target_fromlist}
         ''')
