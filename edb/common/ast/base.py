@@ -138,7 +138,7 @@ class MetaAST(type):
         super().__init__(name, bases, dct)
         fields = collections.OrderedDict()
 
-        for parent in cls.__mro__:
+        for parent in reversed(cls.__mro__):
             lst = getattr(cls, '_' + parent.__name__ + '__fields', [])
             for field in lst:
                 field_name = field
@@ -171,10 +171,9 @@ class MetaAST(type):
                     if len(field) > 6:
                         field_meta = field[6]
 
-                if field_name not in fields:
-                    fields[field_name] = Field(
-                        field_name, field_type, field_default, field_traverse,
-                        field_child_traverse, field_hidden, field_meta)
+                fields[field_name] = Field(
+                    field_name, field_type, field_default, field_traverse,
+                    field_child_traverse, field_hidden, field_meta)
 
         cls._fields = fields
 
