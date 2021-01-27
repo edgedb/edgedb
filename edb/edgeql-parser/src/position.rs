@@ -58,7 +58,7 @@ impl fmt::Display for Pos {
 
 fn new_lines_in_fragment(data: &[u8]) -> u64 {
     let mut was_lf = false;
-    let mut lines = 0;  // this assumes line found by rfind
+    let mut lines = 0;
     for byte in data {
         match byte {
             b'\n' if was_lf => {
