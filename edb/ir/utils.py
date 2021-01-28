@@ -221,8 +221,9 @@ def get_source_context_as_json(
     details: Optional[str]
     if expr.context:
         details = json.dumps({
-            'line': expr.context.start.line,
-            'column': expr.context.start.column,
+            # TODO(tailhook) should we add offset, utf16column here?
+            'line': expr.context.start_point.line,
+            'column': expr.context.start_point.column,
             'name': expr.context.name,
             'code': exctype.get_code(),
         })

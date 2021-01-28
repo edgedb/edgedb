@@ -135,8 +135,8 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
         hasher = qlhasher.Hasher.start_migration(str(parent_name))
         if astnode.body.context is not None:
             # This is an explicitly specified CREATE MIGRATION
-            src_start = astnode.body.context.start.pointer
-            src_end = astnode.body.context.end.pointer
+            src_start = astnode.body.context.start
+            src_end = astnode.body.context.end
             # XXX: Workaround the rust lexer issue of returning
             # byte token offsets instead of character offsets.
             buffer = astnode.context.buffer.encode('utf-8')

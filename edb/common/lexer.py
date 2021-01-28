@@ -25,8 +25,6 @@ import collections
 import re
 import types
 
-from edb.common import context as pctx
-
 
 class LexError(Exception):
     def __init__(
@@ -156,7 +154,7 @@ class Lexer:
 
         Update the lexer lineno, column, and start.
         """
-        start_pos = pctx.SourcePoint(self.lineno, self.column, self.start)
+        start_pos = self.start
         len_txt = len(txt)
 
         if rule_token is self.NL:
@@ -173,7 +171,7 @@ class Lexer:
             self.column += len_txt
 
         self.start += len_txt
-        end_pos = pctx.SourcePoint(self.lineno, self.column, self.start)
+        end_pos = self.start
 
         return Token(txt, type=rule_token, text=txt,
                      start=start_pos, end=end_pos,

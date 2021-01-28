@@ -113,12 +113,13 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
             self._attrs[FIELD_DETAILS] = details
 
     def set_source_context(self, context):
-        self.set_linecol(context.start.line, context.start.column)
+        start = context.start_point
+        end = context.end_point
+        self.set_linecol(start.line, start.column)
         ex.replace_context(self, context)
 
-        if context.start is not None:
-            self._attrs[FIELD_POSITION_START] = str(context.start.pointer)
-            self._attrs[FIELD_POSITION_END] = str(context.end.pointer)
+        self._attrs[FIELD_POSITION_START] = str(start.offset)
+        self._attrs[FIELD_POSITION_END] = str(end.offset)
 
     def set_position(self, line: int, column: int, pointer: int):
         self.set_linecol(line, column)

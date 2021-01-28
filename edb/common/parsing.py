@@ -431,15 +431,14 @@ class Parser:
         if tok is None:
             if pos is None:
                 pos = lex.end_of_input
-            position = pctx.SourcePoint(*pos)
             context = pctx.ParserContext(
                 name=name, buffer=lex.inputstr,
-                start=position, end=position)
+                start=pos[2], end=pos[2])
         else:
             context = pctx.ParserContext(
                 name=name, buffer=lex.inputstr,
-                start=pctx.SourcePoint(*tok.start()),
-                end=pctx.SourcePoint(*tok.end()))
+                start=tok.start()[2],
+                end=tok.end()[2])
 
         return context
 

@@ -167,6 +167,7 @@ mod test {
         assert_eq!(count("line1\r\nline2\r\nline3"), 2);
         assert_eq!(count("line1\rline2\r\nline3\n"), 3);
         assert_eq!(count("line1\nline2\rline3\r\n"), 3);
+        assert_eq!(count("line1\n\rline2\r\rline3\r"), 5);
     }
 
     #[test]

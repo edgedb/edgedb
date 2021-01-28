@@ -25,6 +25,8 @@ from typing import *
 import re
 import textwrap
 
+from edb import _edgeql_rust
+
 from edb.common import context as parser_context
 from edb.common import debug
 from edb.common import exceptions
@@ -4084,24 +4086,18 @@ async def _execute_sql_script(
         point = None
 
         if position is not None:
-            position = int(position)
-            point = parser_context.SourcePoint(
-                None, None, position)
+            point = int(position)
             text = getattr(e, 'query', None)
             if text is None:
                 # Parse errors
                 text = sql_text
 
         elif internal_position is not None:
-            internal_position = int(internal_position)
-            point = parser_context.SourcePoint(
-                None, None, internal_position)
+            point = int(internal_position)
             text = getattr(e, 'internal_query', None)
 
         elif pl_func_line:
-            point = parser_context.SourcePoint(
-                pl_func_line, None, None
-            )
+            point = _edgeql_rust.offset_of_line(sql_text, pl_func_line)
             text = sql_text
 
         if point is not None:
