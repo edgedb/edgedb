@@ -831,7 +831,7 @@ def _is_ptr_or_self_ref(
             ir_set.expr is None and
             (env.set_types[ir_set] == srccls or (
                 ir_set.rptr is not None and
-                srccls.getptr(
+                srccls.maybe_get_ptr(
                     env.schema,
                     ir_set.rptr.ptrref.shortname.name) is not None
             ))

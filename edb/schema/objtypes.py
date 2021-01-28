@@ -376,7 +376,7 @@ def get_or_create_intersection_type(
             intersection_pointers[pn] = ptr
 
         for pn, ptr in intersection_pointers.items():
-            if objtype.getptr(schema, pn) is None:
+            if objtype.maybe_get_ptr(schema, pn) is None:
                 schema = objtype.add_pointer(schema, ptr)
 
     assert isinstance(objtype, ObjectType)

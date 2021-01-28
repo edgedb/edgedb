@@ -595,7 +595,7 @@ def resolve_ptr(
     ptr: Optional[s_pointers.Pointer] = None
 
     if direction is s_pointers.PointerDirection.Outbound:
-        ptr = near_endpoint.getptr(ctx.env.schema, pointer_name)
+        ptr = near_endpoint.maybe_get_ptr(ctx.env.schema, pointer_name)
 
         if ptr is not None:
             ref = ptr.get_nearest_non_derived_parent(ctx.env.schema)
@@ -809,7 +809,6 @@ def type_intersection_set(
                 assert isinstance(stype, s_objtypes.ObjectType)
                 narrow_ptr = stype.getptr(
                     ctx.env.schema, component.shortname.name)
-                assert narrow_ptr is not None
                 rptr_specialization.append(
                     irtyputils.ptrref_from_ptrcls(
                         schema=ctx.env.schema,

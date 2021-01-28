@@ -105,12 +105,22 @@ class Source(NamedObject):
         super().__init__(name)
         self.pointers = {}
 
-    def getptr(
+    def maybe_get_ptr(
         self,
         schema: s_schema.Schema,
         name: str,
     ) -> Optional[Union[s_pointers.Pointer, Pointer]]:
         return self.pointers.get(name)
+
+    def getptr(
+        self,
+        schema: s_schema.Schema,
+        name: str,
+    ) -> Union[s_pointers.Pointer, Pointer]:
+        ptr = self.maybe_get_ptr(schema, name)
+        if ptr is None:
+            raise AssertionError(f'{self.name} has no link or property {name}')
+        return ptr
 
     def get_pointers(
         self,
@@ -160,14 +170,14 @@ class Pointer(Source):
     def is_pointer(self) -> bool:
         return True
 
-    def getptr(
+    def maybe_get_ptr(
         self,
         schema: s_schema.Schema,
         name: str,
     ) -> Optional[Union[s_pointers.Pointer, Pointer]]:
-        if (not (res := super().getptr(schema, name))
+        if (not (res := super().maybe_get_ptr(schema, name))
                 and isinstance(self.target, (Source, s_sources.Source))):
-            res = self.target.getptr(schema, name)
+            res = self.target.maybe_get_ptr(schema, name)
         return res
 
     def get_target(
@@ -497,7 +507,7 @@ def trace_Path(
                     return None
 
                 elif isinstance(ptr, (s_links.Link, Pointer)):
-                    lprop = ptr.getptr(ctx.schema, step.ptr.name)
+                    lprop = ptr.maybe_get_ptr(ctx.schema, step.ptr.name)
                     if lprop is None:
                         # Invalid link property reference, bail.
                         return None
@@ -527,7 +537,7 @@ def trace_Path(
                         return None
                 else:
                     if isinstance(tip, (Source, s_sources.Source)):
-                        ptr = tip.getptr(ctx.schema, step.ptr.name)
+                        ptr = tip.maybe_get_ptr(ctx.schema, step.ptr.name)
                         if ptr is None:
                             # Invalid pointer reference, bail.
                             return None
@@ -557,7 +567,7 @@ def trace_Path(
             if isinstance(prev_step, qlast.Ptr):
                 if prev_step.direction == '<':
                     if isinstance(tip, (s_sources.Source, ObjectType)):
-                        ptr = tip.getptr(ctx.schema, prev_step.ptr.name)
+                        ptr = tip.maybe_get_ptr(ctx.schema, prev_step.ptr.name)
                         if ptr is None:
                             # Invalid pointer reference, bail.
                             return None

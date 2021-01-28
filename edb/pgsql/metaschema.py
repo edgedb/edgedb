@@ -3175,7 +3175,6 @@ async def generate_support_views(cluster, conn, schema):
 
     InhObject = schema.get('schema::InheritingObject')
     InhObject_ancestors = InhObject.getptr(schema, 'ancestors')
-    assert InhObject_ancestors is not None
 
     # "issubclass" SQL functions rely on access to the ancestors link.
     bn = common.get_backend_name(

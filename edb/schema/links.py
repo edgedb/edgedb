@@ -163,7 +163,6 @@ class Link(
     ) -> s_schema.Schema:
         schema = super().set_target(schema, target)
         tgt_prop = self.getptr(schema, 'target')
-        assert tgt_prop is not None
         schema = tgt_prop.set_target(schema, target)
         return schema
 
@@ -504,7 +503,6 @@ class SetLinkType(
         if not context.canonical:
             # We need to update the target link prop as well
             tgt_prop = scls.getptr(schema, 'target')
-            assert tgt_prop is not None
             tgt_prop_alter = tgt_prop.init_delta_command(
                 schema, sd.AlterObject)
             tgt_prop_alter.set_attribute_value('target', new_target)

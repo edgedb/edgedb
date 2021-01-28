@@ -249,7 +249,7 @@ def _validate_op(
 
     if isinstance(expr, (qlast.ConfigSet, qlast.ConfigReset)):
         # expr.name is the actual name of the property.
-        ptr = cfg_host_type.getptr(ctx.env.schema, name)
+        ptr = cfg_host_type.maybe_get_ptr(ctx.env.schema, name)
         if ptr is not None:
             cfg_type = ptr.get_target(ctx.env.schema)
 

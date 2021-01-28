@@ -54,7 +54,7 @@ class Source(so.QualifiedObject, indexes.IndexableSubject):
         inheritable=False, ephemeral=True, coerce=True, compcoef=0.857,
         default=so.DEFAULT_CONSTRUCTOR)
 
-    def getptr(
+    def maybe_get_ptr(
         self,
         schema: s_schema.Schema,
         name: str,
@@ -63,6 +63,19 @@ class Source(so.QualifiedObject, indexes.IndexableSubject):
             raise ValueError(
                 'references to concrete pointers must not be qualified')
         return self.get_pointers(schema).get(schema, name, None)
+
+    def getptr(
+        self,
+        schema: s_schema.Schema,
+        name: str,
+    ) -> s_pointers.Pointer:
+        ptr = self.maybe_get_ptr(schema, name)
+        if ptr is None:
+            raise AssertionError(
+                f'{self.get_verbosename(schema)} has no'
+                f' link or property {name}'
+            )
+        return ptr
 
     def getrptrs(
         self,
@@ -124,7 +137,7 @@ def populate_pointer_set_for_source_union(
 
     if union_pointers:
         for pn, ptr in union_pointers.items():
-            if union.getptr(schema, pn) is None:
+            if union.maybe_get_ptr(schema, pn) is None:
                 schema = union.add_pointer(schema, ptr)
 
     return schema

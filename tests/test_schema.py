@@ -1052,13 +1052,15 @@ _123456789_123456789_123456789 -> str
 
         # Check that ((T1 | T2) & F) has properties from both parts
         # of the intersection.
-        self.assertIsNotNone(A_tf.getptr(schema, 'n'))
-        self.assertIsNotNone(A_tf.getptr(schema, 'f'))
+        A_tf.getptr(schema, 'n')
+        A_tf.getptr(schema, 'f')
 
         # Ditto for link properties defined on a common link.
         tfd = A_tf.getptr(schema, 'd')
         tfd.getptr(schema, 'f_d_prop')
-        tfd.getptr(schema, 't1_d_prop')
+
+        # t1_d_prop is only present in T1, and so wouldn't be in T1 | T2
+        self.assertIsNone(tfd.maybe_get_ptr(schema, 't1_d_prop'))
 
         self.assertTrue(
             A_t2.get_target(schema).issubclass(

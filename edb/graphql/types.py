@@ -717,7 +717,6 @@ class GQLCoreSchema:
                 )
 
             ptr = edb_type.getptr(self.edb_schema, name)
-            assert ptr is not None
             edb_target = ptr.get_target(self.edb_schema)
             assert edb_target is not None
 
@@ -770,7 +769,6 @@ class GQLCoreSchema:
                 continue
 
             ptr = edb_type.getptr(self.edb_schema, name)
-            assert ptr is not None
             edb_target = ptr.get_target(self.edb_schema)
 
             intype: GraphQLInputType
@@ -844,7 +842,6 @@ class GQLCoreSchema:
                 continue
 
             ptr = edb_type.getptr(self.edb_schema, name)
-            assert ptr is not None
             edb_target = ptr.get_target(self.edb_schema)
 
             if isinstance(edb_target, s_objtypes.ObjectType):
@@ -1149,8 +1146,6 @@ class GQLCoreSchema:
                 continue
 
             ptr = edb_type.getptr(self.edb_schema, name)
-            assert ptr is not None
-
             if not ptr.singular(self.edb_schema):
                 continue
 
@@ -1563,7 +1558,7 @@ class GQLBaseType(metaclass=GQLTypeMeta):
                 )
 
             elif isinstance(self.edb_base, s_objtypes.ObjectType):
-                ptr = self.edb_base.getptr(self.edb_schema, name)
+                ptr = self.edb_base.maybe_get_ptr(self.edb_schema, name)
                 if ptr is not None:
                     target = self.convert_edb_to_gql_type(ptr)
 
@@ -1574,7 +1569,7 @@ class GQLBaseType(metaclass=GQLTypeMeta):
 
     def has_native_field(self, name: str) -> bool:
         if isinstance(self.edb_base, s_objtypes.ObjectType):
-            ptr = self.edb_base.getptr(self.edb_schema, name)
+            ptr = self.edb_base.maybe_get_ptr(self.edb_schema, name)
             return ptr is not None
         else:
             return False
@@ -1672,7 +1667,6 @@ class GQLBaseType(metaclass=GQLTypeMeta):
 
         elif isinstance(self.edb_base, s_objtypes.ObjectType):
             ptr = self.edb_base.getptr(self.edb_schema, name)
-            assert ptr is not None
             if not ptr.singular(self.edb_schema):
                 return qltypes.SchemaCardinality.Many
 

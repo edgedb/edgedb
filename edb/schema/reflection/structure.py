@@ -419,7 +419,7 @@ def generate_structure(
 
             storage = _classify_object_field(field)
 
-            ptr = schema_objtype.getptr(schema, fn)
+            ptr = schema_objtype.maybe_get_ptr(schema, fn)
 
             if fn in ownfields:
                 qual = "REQUIRED" if field.required else "OPTIONAL"
@@ -435,11 +435,10 @@ def generate_structure(
                         delta=delta,
                     )
                     ptr = schema_objtype.getptr(schema, fn)
-                    assert ptr is not None
 
                 if storage.shadow_ptrkind is not None:
                     pn = f'{fn}__internal'
-                    internal_ptr = schema_objtype.getptr(schema, pn)
+                    internal_ptr = schema_objtype.maybe_get_ptr(schema, pn)
                     if internal_ptr is None:
                         ptrkind = storage.shadow_ptrkind
                         ptrtype = storage.shadow_ptrtype
@@ -482,7 +481,6 @@ def generate_structure(
                 proxy_obj = schema.get(
                     proxy_type_name, type=s_objtypes.ObjectType)
                 proxy_link_obj = proxy_obj.getptr(schema, proxy_link_name)
-                assert proxy_link_obj is not None
                 tgt = proxy_link_obj.get_target(schema)
             else:
                 tgt = ptr.get_target(schema)
@@ -505,7 +503,7 @@ def generate_structure(
         schema_cls = schema.get(rschema_name, type=s_objtypes.ObjectType)
 
         for refdict in py_cls.get_own_refdicts().values():
-            ref_ptr = schema_cls.getptr(schema, refdict.attr)
+            ref_ptr = schema_cls.maybe_get_ptr(schema, refdict.attr)
             ref_cls = refdict.ref_cls
             assert issubclass(ref_cls, s_obj.Object)
             shadow_ref_ptr = None
@@ -535,7 +533,6 @@ def generate_structure(
                     delta=delta,
                 )
                 shadow_ref_ptr = schema_cls.getptr(schema, shadow_pn)
-                assert shadow_ref_ptr is not None
             else:
                 target_cls = ref_cls
 
@@ -600,7 +597,7 @@ def generate_structure(
                 extra_props = _classify_scalar_object_fields(fields_as_props)
 
             for fn, storage in {**props, **extra_props}.items():
-                prop_ptr = ref_ptr.getptr(schema, fn)
+                prop_ptr = ref_ptr.maybe_get_ptr(schema, fn)
                 if prop_ptr is None:
                     pty = storage.ptrtype
                     schema = _run_ddl(
@@ -619,7 +616,7 @@ def generate_structure(
                 assert isinstance(shadow_ref_ptr, s_links.Link)
                 shadow_pn = shadow_ref_ptr.get_shortname(schema).name
                 for fn, storage in props.items():
-                    prop_ptr = shadow_ref_ptr.getptr(schema, fn)
+                    prop_ptr = shadow_ref_ptr.maybe_get_ptr(schema, fn)
                     if prop_ptr is None:
                         pty = storage.ptrtype
                         schema = _run_ddl(
@@ -679,7 +676,6 @@ def generate_structure(
 
             for fn, storage in props.items():
                 prop_ptr = ref_ptr.getptr(schema, fn)
-                assert prop_ptr is not None
                 prop_tgt = prop_ptr.get_target(schema)
                 assert prop_tgt is not None
                 prop_layout[fn] = (prop_tgt, storage.fieldtype)
@@ -705,7 +701,6 @@ def generate_structure(
 
                 for fn, storage in extra_props.items():
                     prop_ptr = ref_ptr.getptr(schema, fn)
-                    assert prop_ptr is not None
                     prop_tgt = prop_ptr.get_target(schema)
                     assert prop_tgt is not None
                     extra_prop_layout[fn] = (prop_tgt, storage.fieldtype)
@@ -742,7 +737,6 @@ def generate_structure(
                         schema,
                         f'{refdict.attr}__internal',
                     )
-                    assert ref_ptr is not None
 
                 for fn in props:
                     prop_shape_els.append(f'@{fn}')

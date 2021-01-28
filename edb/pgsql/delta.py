@@ -2881,17 +2881,13 @@ class LinkMetaCommand(CompositeObjectMetaCommand, PointerMetaCommand):
                 columns=[src_col, tgt_col]))
 
         if not link.generic(schema) and link.scalar():
-            try:
-                tgt_prop = link.getptr(schema, 'target')
-            except KeyError:
-                pass
-            else:
-                tgt_ptr = types.get_pointer_storage_info(
-                    tgt_prop, schema=schema)
-                columns.append(
-                    dbops.Column(
-                        name=tgt_ptr.column_name,
-                        type=common.qname(*tgt_ptr.column_type)))
+            tgt_prop = link.getptr(schema, 'target')
+            tgt_ptr = types.get_pointer_storage_info(
+                tgt_prop, schema=schema)
+            columns.append(
+                dbops.Column(
+                    name=tgt_ptr.column_name,
+                    type=common.qname(*tgt_ptr.column_type)))
 
         table = dbops.Table(name=new_table_name)
         table.add_columns(columns)
@@ -3231,10 +3227,10 @@ class DeleteLink(LinkMetaCommand, adapts=s_links.DeleteLink):
 
             if (not isinstance(objtype.op, s_objtypes.DeleteObjectType)
                     and ptr_stor_info.table_type == 'ObjectType'
-                    and objtype.scls.getptr(schema, link_name) is None):
+                    and objtype.scls.maybe_get_ptr(schema, link_name) is None):
                 # Only drop the column if the parent is not being dropped
                 # and the link was not reinherited in the same delta.
-                if objtype.scls.getptr(schema, link_name) is None:
+                if objtype.scls.maybe_get_ptr(schema, link_name) is None:
                     # This must be a separate so that objects depending
                     # on this column can be dropped correctly.
                     #
@@ -3595,7 +3591,7 @@ class DeleteProperty(
             source = source_op = None
 
         if (source
-                and not source.getptr(
+                and not source.maybe_get_ptr(
                     schema, prop.get_shortname(orig_schema).name)
                 and has_table(source, schema)):
 
