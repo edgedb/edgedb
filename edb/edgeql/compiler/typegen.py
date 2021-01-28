@@ -222,9 +222,15 @@ def type_to_typeref(
         expr_type is s_types.ExprType.Update
         or expr_type is s_types.ExprType.Delete
     )
+    include_ancestors = (
+        expr_type is s_types.ExprType.Insert
+        or expr_type is s_types.ExprType.Update
+        or expr_type is s_types.ExprType.Delete
+    )
     return irtyputils.type_to_typeref(
         schema,
         t,
         include_descendants=include_descendants,
+        include_ancestors=include_ancestors,
         cache=cache,
     )

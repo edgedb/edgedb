@@ -43,6 +43,7 @@ type Note {
     property note -> str;
     link subject -> Object;
 }
+type DerivedNote extending Note;
 
 type Person {
     required single property name -> std::str {

@@ -146,6 +146,8 @@ def init_dml_stmt(
     if ctx.enclosing_cte_iterator:
         pathctx.put_path_bond(ctx.rel, ctx.enclosing_cte_iterator.path_id)
 
+    ctx.dml_stmt_stack.append(ir_stmt)
+
     return DMLParts(
         dml_ctes=dml_map,
         range_cte=range_cte,
@@ -189,6 +191,9 @@ def gen_dml_union(
                 all=True,
                 larg=qry,
             )
+
+        if ctx.enclosing_cte_iterator:
+            pathctx.put_path_bond(qry.larg, ctx.enclosing_cte_iterator.path_id)
 
         union_cte = pgast.CommonTableExpr(
             query=qry.larg,
@@ -366,7 +371,7 @@ def fini_dml_stmt(
     # Record the effect of this insertion in the relation overlay
     # context to ensure that the RETURNING clause potentially
     # referencing this class yields the expected results.
-    dml_stack = get_dml_stmt_stack(ir_stmt, ctx=ctx)
+    dml_stack = ctx.dml_stmt_stack
     if isinstance(ir_stmt, irast.InsertStmt):
         # The union CTE might have a SELECT from an ELSE clause, which
         # we don't actually want to include.
@@ -374,6 +379,16 @@ def fini_dml_stmt(
         cte = next(iter(parts.dml_ctes.values()))[0]
         relctx.add_type_rel_overlay(
             ir_stmt.subject.typeref, 'union', cte,
+            dml_stmts=dml_stack, path_id=ir_stmt.subject.path_id, ctx=ctx)
+    elif isinstance(ir_stmt, irast.UpdateStmt):
+        # The overlay for update is in two parts:
+        # First, filter out objects that have been updated, then union them
+        # back in. (If we just did union, we'd see the old values also.)
+        relctx.add_type_rel_overlay(
+            ir_stmt.subject.typeref, 'filter', union_cte,
+            dml_stmts=dml_stack, path_id=ir_stmt.subject.path_id, ctx=ctx)
+        relctx.add_type_rel_overlay(
+            ir_stmt.subject.typeref, 'union', union_cte,
             dml_stmts=dml_stack, path_id=ir_stmt.subject.path_id, ctx=ctx)
     elif isinstance(ir_stmt, irast.DeleteStmt):
         relctx.add_type_rel_overlay(
@@ -383,20 +398,9 @@ def fini_dml_stmt(
     clauses.compile_output(ir_stmt.result, ctx=ctx)
     clauses.fini_stmt(wrapper, ctx, parent_ctx)
 
+    ctx.dml_stmt_stack.pop()
+
     return wrapper
-
-
-def get_dml_stmt_stack(
-        ir_stmt: irast.MutatingStmt, *,
-        ctx: context.CompilerContextLevel) -> List[irast.MutatingStmt]:
-    stack = []
-    stmt: Optional[irast.Stmt] = ir_stmt
-    while stmt is not None:
-        if isinstance(stmt, irast.MutatingStmt):
-            stack.append(stmt)
-        stmt = stmt.parent_stmt
-
-    return stack
 
 
 def get_dml_range(
@@ -1057,9 +1061,8 @@ def process_link_update(
         # Record the effect of this removal in the relation overlay
         # context to ensure that references to the link in the result
         # of this DML statement yield the expected results.
-        dml_stack = get_dml_stmt_stack(ir_stmt, ctx=ctx)
         relctx.add_ptr_rel_overlay(
-            ptrref, 'except', delcte, dml_stmts=dml_stack, ctx=ctx)
+            ptrref, 'except', delcte, dml_stmts=ctx.dml_stmt_stack, ctx=ctx)
         toplevel.ctes.append(delcte)
     else:
         delqry = None
@@ -1180,9 +1183,8 @@ def process_link_update(
     # Record the effect of this insertion in the relation overlay
     # context to ensure that references to the link in the result
     # of this DML statement yield the expected results.
-    dml_stack = get_dml_stmt_stack(ir_stmt, ctx=ctx)
     relctx.add_ptr_rel_overlay(
-        ptrref, 'union', updcte, dml_stmts=dml_stack, ctx=ctx)
+        ptrref, 'union', updcte, dml_stmts=ctx.dml_stmt_stack, ctx=ctx)
     toplevel.ctes.append(updcte)
 
     return data_cte
