@@ -1038,8 +1038,8 @@ def rel_filter_out(
             qry, path_id, rvar, env=ctx.env)
     pathctx.put_path_bond(qry, path_id)
 
-    # The useful work: grab the identity from the LHS and do a negated
-    # semi join against the RHS.
+    # The useful work: grab the identity from the LHS and do an
+    # anti-join against the RHS.
     src_ref = pathctx.get_path_identity_var(
         qry, path_id=path_id, env=ctx.env)
     pathctx.get_path_identity_output(
