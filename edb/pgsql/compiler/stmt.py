@@ -47,6 +47,16 @@ def compile_SelectStmt(
         # Common setup.
         clauses.init_stmt(stmt, ctx=ctx, parent_ctx=parent_ctx)
 
+        for binding in stmt.bindings:
+            # If something we are WITH binding contains DML, we want to
+            # compile it *now*, in the context of its initial appearance
+            # and not where the variable is used. This will populate
+            # dml_stmts with the CTEs, which will be picked up when the
+            # variable is referenced.
+            if irutils.contains_dml(binding):
+                with ctx.substmt() as bctx:
+                    dispatch.compile(binding, ctx=bctx)
+
         query = ctx.stmt
 
         iterators = irutils.get_iterator_sets(stmt)

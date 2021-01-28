@@ -1324,8 +1324,34 @@ def get_type_rel_overlays(
     return ctx.type_rel_overlays[dml_source][typeref.id]
 
 
-def add_ptr_rel_overlay(
-        ptrref: irast.PointerRef,
+def reuse_type_rel_overlays(
+    *,
+    dml_stmts: Iterable[irast.MutatingStmt] = (),
+    dml_source: irast.MutatingStmt,
+    ctx: context.CompilerContextLevel,
+) -> None:
+    """Update type rel overlays when a DML statement is reused.
+
+    When a WITH bound DML is used, we need to add it (and all of its
+    nested overlays) as an overlay for all the enclosing DML
+    statements.
+    """
+    ref_overlays = ctx.type_rel_overlays[dml_source]
+    for tid, overlays in ref_overlays.items():
+        for op, rel, path_id in overlays:
+            _add_type_rel_overlay(
+                tid, op, rel, dml_stmts=dml_stmts, path_id=path_id, ctx=ctx
+            )
+    ptr_overlays = ctx.ptr_rel_overlays[dml_source]
+    for ptr_name, poverlays in ptr_overlays.items():
+        for op, rel in poverlays:
+            _add_ptr_rel_overlay(
+                ptr_name, op, rel, dml_stmts=dml_stmts, ctx=ctx
+            )
+
+
+def _add_ptr_rel_overlay(
+        ptrref_name: str,
         op: str,
         rel: Union[pgast.BaseRelation, pgast.CommonTableExpr], *,
         dml_stmts: Iterable[irast.MutatingStmt] = (),
@@ -1333,11 +1359,21 @@ def add_ptr_rel_overlay(
 
     if dml_stmts:
         for dml_stmt in dml_stmts:
-            overlays = ctx.ptr_rel_overlays[dml_stmt][ptrref.shortname.name]
+            overlays = ctx.ptr_rel_overlays[dml_stmt][ptrref_name]
             overlays.append((op, rel))
     else:
-        overlays = ctx.ptr_rel_overlays[None][ptrref.shortname.name]
+        overlays = ctx.ptr_rel_overlays[None][ptrref_name]
         overlays.append((op, rel))
+
+
+def add_ptr_rel_overlay(
+        ptrref: irast.PointerRef,
+        op: str,
+        rel: Union[pgast.BaseRelation, pgast.CommonTableExpr], *,
+        dml_stmts: Iterable[irast.MutatingStmt] = (),
+        ctx: context.CompilerContextLevel) -> None:
+    _add_ptr_rel_overlay(
+        ptrref.shortname.name, op, rel, dml_stmts=dml_stmts, ctx=ctx)
 
 
 def get_ptr_rel_overlays(

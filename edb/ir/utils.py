@@ -292,7 +292,7 @@ def get_iterator_sets(stmt: irast.Stmt) -> Sequence[irast.Set]:
     return iterators
 
 
-def contains_dml(stmt: irast.Stmt) -> bool:
+def contains_dml(stmt: irast.Base) -> bool:
     """Check whether a statement contains any DML in a subtree."""
     # If this ends up being a perf problem, we can use a visitor
     # directly and cache.
