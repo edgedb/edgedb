@@ -147,29 +147,39 @@ class CompilerContextLevel(compiler.ContextLevel):
     #: Relevant IR scope for this context.
     scope_tree: irast.ScopeTreeNode
 
+    #: A stack of dml statements currently being compiled. Used for
+    #: figuring out what to record in type_rel_overlays.
+    dml_stmt_stack: List[irast.MutatingStmt]
+
     #: Relations used to "overlay" the main table for
     #: the type.  Mostly used with DML statements.
     type_rel_overlays: DefaultDict[
-        Tuple[str, Optional[irast.MutatingStmt]],
-        List[
-            Tuple[
-                str,
-                Union[pgast.BaseRelation, pgast.CommonTableExpr],
-                irast.PathId,
-            ]
-        ]
+        Optional[irast.MutatingStmt],
+        DefaultDict[
+            uuid.UUID,
+            List[
+                Tuple[
+                    str,
+                    Union[pgast.BaseRelation, pgast.CommonTableExpr],
+                    irast.PathId,
+                ]
+            ],
+        ],
     ]
 
     #: Relations used to "overlay" the main table for
     #: the pointer.  Mostly used with DML statements.
     ptr_rel_overlays: DefaultDict[
-        Tuple[str, Optional[irast.MutatingStmt]],
-        List[
-            Tuple[
-                str,
-                Union[pgast.BaseRelation, pgast.CommonTableExpr],
-            ]
-        ]
+        Optional[irast.MutatingStmt],
+        DefaultDict[
+            str,
+            List[
+                Tuple[
+                    str,
+                    Union[pgast.BaseRelation, pgast.CommonTableExpr],
+                ]
+            ],
+        ],
     ]
 
     #: The CTE and some metadata of any enclosing iterator-like
@@ -216,8 +226,11 @@ class CompilerContextLevel(compiler.ContextLevel):
 
             self.path_scope = collections.ChainMap()
             self.scope_tree = scope_tree
-            self.type_rel_overlays = collections.defaultdict(list)
-            self.ptr_rel_overlays = collections.defaultdict(list)
+            self.dml_stmt_stack = []
+            self.type_rel_overlays = collections.defaultdict(
+                lambda: collections.defaultdict(list))
+            self.ptr_rel_overlays = collections.defaultdict(
+                lambda: collections.defaultdict(list))
             self.enclosing_cte_iterator = None
 
         else:
@@ -248,6 +261,7 @@ class CompilerContextLevel(compiler.ContextLevel):
 
             self.path_scope = prevlevel.path_scope
             self.scope_tree = prevlevel.scope_tree
+            self.dml_stmt_stack = prevlevel.dml_stmt_stack
             self.type_rel_overlays = prevlevel.type_rel_overlays
             self.ptr_rel_overlays = prevlevel.ptr_rel_overlays
             self.enclosing_cte_iterator = prevlevel.enclosing_cte_iterator

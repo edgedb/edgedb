@@ -127,6 +127,9 @@ class TypeRef(ImmutableBase):
     # A set of type descendant descriptors, if necessary for
     # this type description.
     descendants: typing.Optional[typing.FrozenSet[TypeRef]]
+    # A set of type ancestor descriptors, if necessary for
+    # this type description.
+    ancestors: typing.Optional[typing.FrozenSet[TypeRef]]
     # If this is a union type, this would be a set of
     # union elements.
     union: typing.FrozenSet[TypeRef]

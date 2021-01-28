@@ -924,7 +924,8 @@ def range_for_material_objtype(
                 set_ops = []
             set_ops.append((op, qry2))
 
-        rvar = range_from_queryset(set_ops, typeref.name_hint, ctx=ctx)
+        rvar = range_from_queryset(
+            set_ops, typeref.name_hint, path_id=path_id, ctx=ctx)
 
     return rvar
 
@@ -1019,29 +1020,63 @@ def range_for_typeref(
     return rvar
 
 
+def rel_filter_out(
+    lhs: pgast.SelectStmt, rhs: pgast.SelectStmt,
+    path_id: irast.PathId, *,
+    ctx: context.CompilerContextLevel,
+) -> pgast.SelectStmt:
+    """Filter elements out of the LHS that appear on the RHS"""
+
+    # We unfortunately need to wrap up the LHS in another select so that
+    # this works when the LHS is a set op.
+    rvar = rvar_for_rel(lhs, ctx=ctx)
+    qry = pgast.SelectStmt(from_clause=[rvar])
+    # Plumb it all up...
+    pathctx.put_path_value_rvar(qry, path_id, rvar, env=ctx.env)
+    if path_id.is_objtype_path():
+        pathctx.put_path_source_rvar(
+            qry, path_id, rvar, env=ctx.env)
+    pathctx.put_path_bond(qry, path_id)
+
+    # The useful work: grab the identity from the LHS and do a negated
+    # semi join against the RHS.
+    src_ref = pathctx.get_path_identity_var(
+        qry, path_id=path_id, env=ctx.env)
+    pathctx.get_path_identity_output(
+        rhs, path_id=path_id, env=ctx.env)
+    cond_expr = astutils.new_binop(src_ref, rhs, 'NOT IN')
+    qry.where_clause = astutils.extend_binop(
+        qry.where_clause, cond_expr)
+
+    return qry
+
+
 def range_from_queryset(
         set_ops: Sequence[Tuple[str, pgast.SelectStmt]],
         objname: sn.QualName, *,
+        path_id: Optional[irast.PathId]=None,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
 
     rvar: pgast.PathRangeVar
 
     if len(set_ops) > 1:
         # More than one class table, generate a UNION/EXCEPT clause.
-        qry = pgast.SelectStmt(
-            all=True,
-            larg=set_ops[0][1]
-        )
+        qry = set_ops[0][1]
 
         for op, rarg in set_ops[1:]:
-            qry.op, qry.rarg = op, rarg
-            qry = pgast.SelectStmt(
-                all=True,
-                larg=qry
-            )
+            if op == 'filter':
+                assert path_id
+                qry = rel_filter_out(qry, rarg, path_id, ctx=ctx)
+            else:
+                qry = pgast.SelectStmt(
+                    op=op,
+                    all=True,
+                    larg=qry,
+                    rarg=rarg,
+                )
 
         rvar = pgast.RangeSubselect(
-            subquery=qry.larg,
+            subquery=qry,
             alias=pgast.Alias(
                 aliasname=ctx.env.aliases.get(objname.name),
             )
@@ -1233,6 +1268,25 @@ def rvar_for_rel(
     return rvar
 
 
+def _add_type_rel_overlay(
+        typeid: uuid.UUID,
+        op: str,
+        rel: Union[pgast.BaseRelation, pgast.CommonTableExpr], *,
+        dml_stmts: Iterable[irast.MutatingStmt] = (),
+        path_id: irast.PathId,
+        ctx: context.CompilerContextLevel) -> None:
+    entry = (op, rel, path_id)
+    if dml_stmts:
+        for dml_stmt in dml_stmts:
+            overlays = ctx.type_rel_overlays[dml_stmt][typeid]
+            if entry not in overlays:
+                overlays.append(entry)
+    else:
+        overlays = ctx.type_rel_overlays[None][typeid]
+        if entry not in overlays:
+            overlays.append(entry)
+
+
 def add_type_rel_overlay(
         typeref: irast.TypeRef,
         op: str,
@@ -1242,14 +1296,14 @@ def add_type_rel_overlay(
         ctx: context.CompilerContextLevel) -> None:
     if typeref.material_type is not None:
         typeref = typeref.material_type
-    typeid = str(typeref.id)
-    if dml_stmts:
-        for dml_stmt in dml_stmts:
-            overlays = ctx.type_rel_overlays[typeid, dml_stmt]
-            overlays.append((op, rel, path_id))
-    else:
-        overlays = ctx.type_rel_overlays[typeid, None]
-        overlays.append((op, rel, path_id))
+
+    objs = [typeref]
+    if typeref.ancestors:
+        objs.extend(typeref.ancestors)
+    for obj in objs:
+        _add_type_rel_overlay(
+            obj.id, op, rel,
+            dml_stmts=dml_stmts, path_id=path_id, ctx=ctx)
 
 
 def get_type_rel_overlays(
@@ -1267,7 +1321,7 @@ def get_type_rel_overlays(
     if typeref.material_type is not None:
         typeref = typeref.material_type
 
-    return ctx.type_rel_overlays[str(typeref.id), dml_source]
+    return ctx.type_rel_overlays[dml_source][typeref.id]
 
 
 def add_ptr_rel_overlay(
@@ -1279,10 +1333,10 @@ def add_ptr_rel_overlay(
 
     if dml_stmts:
         for dml_stmt in dml_stmts:
-            overlays = ctx.ptr_rel_overlays[ptrref.shortname.name, dml_stmt]
+            overlays = ctx.ptr_rel_overlays[dml_stmt][ptrref.shortname.name]
             overlays.append((op, rel))
     else:
-        overlays = ctx.ptr_rel_overlays[ptrref.shortname.name, None]
+        overlays = ctx.ptr_rel_overlays[None][ptrref.shortname.name]
         overlays.append((op, rel))
 
 
@@ -1296,4 +1350,4 @@ def get_ptr_rel_overlays(
         Union[pgast.BaseRelation, pgast.CommonTableExpr],
     ]
 ]:
-    return ctx.ptr_rel_overlays[ptrref.shortname.name, dml_source]
+    return ctx.ptr_rel_overlays[dml_source][ptrref.shortname.name]

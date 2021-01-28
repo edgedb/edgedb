@@ -789,6 +789,174 @@ class TestInsert(tb.QueryTestCase):
             }],
         )
 
+    async def test_edgeql_insert_returning_09(self):
+        # make sure a WITH bound insert makes it into the returned data
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test,
+                     N := (INSERT Note {name := "!" }),
+                SELECT ((
+                    INSERT Person {
+                        name := "Phil Emarg",
+                        notes := N,
+                    }
+                )) { name, notes: {name} };
+
+            ''',
+            [{
+                'name': 'Phil Emarg',
+                'notes': [{'name': '!'}],
+            }],
+        )
+
+        # make sure it works when *doubly* nested!
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test,
+                     S := (INSERT Subordinate { name := "sub" }),
+                     N := (INSERT Note {name := "!", subject := S }),
+                SELECT ((
+                    INSERT Person {
+                        name := "Madeline Hatch",
+                        notes := N,
+                    }
+                )) { name, notes: {name, subject[IS Subordinate]: {name}} };
+
+            ''',
+            [{
+                'name': 'Madeline Hatch',
+                'notes': [{'name': '!', 'subject': {'name': "sub"}}],
+            }],
+        )
+
+        # ... *doubly* nested, but the inner insert is a multi link
+        await self.assert_query_result(
+            r'''
+            WITH MODULE test,
+                 N := (INSERT Note {name := "!" }),
+                 P := (INSERT Person {
+                    name := "Emmanuel Villip",
+                    notes := N,
+                 }),
+            SELECT ((
+                INSERT PersonWrapper { person := P }
+            )) { person: { name, notes: {name} } };
+            ''',
+            [{
+                'person': {
+                    'name': 'Emmanuel Villip',
+                    'notes': [{'name': '!'}],
+                },
+            }],
+        )
+
+    async def test_edgeql_insert_returning_10(self):
+        # test that subtypes get returned by a nested insert
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test,
+                SELECT
+                (INSERT Note {
+                     name := "test",
+                     subject := (INSERT Subordinate { name := "sub" })})
+                { name, subject };
+            ''',
+            [{
+                'name': 'test',
+                'subject': {'id': {}},
+            }],
+        )
+
+    async def test_edgeql_insert_returning_11(self):
+        await self.con.execute(r'''
+            WITH MODULE test
+            INSERT Note { name := "note", note := "a" };
+        ''')
+
+        # test that subtypes get returned by a nested update
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test,
+                SELECT
+                (INSERT Person {
+                     name := "test",
+                     notes := (
+                         UPDATE Note FILTER .name = "note"
+                         SET { note := "b" }
+                     )
+                })
+                { name, notes: {note} };
+            ''',
+            [{
+                'name': 'test',
+                'notes': [{'note': "b"}],
+            }],
+        )
+
+    async def test_edgeql_insert_returning_12(self):
+        await self.con.execute(r'''
+            WITH MODULE test
+            INSERT DerivedNote { name := "note", note := "a" };
+        ''')
+
+        # test that subtypes get returned by a nested update
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test,
+                SELECT
+                (INSERT Person {
+                     name := "test",
+                     notes := (
+                         UPDATE DerivedNote FILTER .name = "note"
+                         SET { note := "b" }
+                     )
+                })
+                { name, notes: {note} };
+            ''',
+            [{
+                'name': 'test',
+                'notes': [{'note': "b"}],
+            }],
+        )
+
+    async def test_edgeql_insert_returning_13(self):
+        await self.con.execute(r'''
+            WITH MODULE test
+            INSERT DerivedNote { name := "dnote", note := "a" };
+        ''')
+
+        await self.con.execute(r'''
+            WITH MODULE test
+            INSERT DerivedNote { name := "anote", note := "some note" };
+        ''')
+
+        # test that subtypes get returned by a nested update
+        await self.assert_query_result(
+            r'''
+            WITH MODULE test,
+            SELECT
+            (INSERT Person {
+                name := "test",
+                notes := {
+                    (SELECT Note FILTER .name = "anote"),
+                    (INSERT DerivedNote { name := "new note", note := "hi" }),
+                    (UPDATE Note FILTER .name = "dnote" SET { note := "b" }),
+                }
+            })
+            { name, notes: {name, note} ORDER BY .name };
+            ''',
+            [
+                {
+                    "name": "test",
+                    "notes": [
+                        {"name": "anote", "note": "some note"},
+                        {"name": "dnote", "note": "b"},
+                        {"name": "new note", "note": "hi"}
+                    ]
+                }
+            ]
+        )
+
     async def test_edgeql_insert_for_01(self):
         await self.con.execute(r'''
             WITH MODULE test

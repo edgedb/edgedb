@@ -42,7 +42,7 @@ if TYPE_CHECKING:
     from edb.schema import schema as s_schema
 
 
-TypeRefCacheKey = Tuple[uuid.UUID, bool]
+TypeRefCacheKey = Tuple[uuid.UUID, bool, bool]
 
 PtrRefCacheKey = Tuple[
     s_pointers.PointerLike,
@@ -126,6 +126,7 @@ def type_to_typeref(
     cache: Optional[Dict[TypeRefCacheKey, irast.TypeRef]] = None,
     typename: Optional[s_name.QualName] = None,
     include_descendants: bool = False,
+    include_ancestors: bool = False,
     _name: Optional[str] = None,
 ) -> irast.TypeRef:
     """Return an instance of :class:`ir.ast.TypeRef` for a given type.
@@ -146,6 +147,9 @@ def type_to_typeref(
         include_descendants:
             Whether to include the description of all material type descendants
             of *t*.
+        include_ancestors:
+            Whether to include the description of all material type ancestors
+            of *t*.
         _name:
             Optional subtype element name if this type is a collection within
             a Tuple,
@@ -157,8 +161,10 @@ def type_to_typeref(
     result: irast.TypeRef
     material_type: s_types.Type
 
+    key = (t.id, include_descendants, include_ancestors)
+
     if cache is not None and typename is None:
-        cached_result = cache.get((t.id, include_descendants))
+        cached_result = cache.get(key)
         if cached_result is not None:
             # If the schema changed due to an ongoing compilation, the name
             # hint might be outdated.
@@ -210,6 +216,7 @@ def type_to_typeref(
                 schema,
                 material_type,
                 include_descendants=include_descendants,
+                include_ancestors=include_ancestors,
                 cache=cache,
             )
         else:
@@ -255,12 +262,28 @@ def type_to_typeref(
                     child,
                     cache=cache,
                     include_descendants=True,
+                    include_ancestors=include_ancestors,
                 )
                 for child in t.children(schema)
                 if not child.get_is_derived(schema)
             )
         else:
             descendants = None
+
+        ancestors: Optional[FrozenSet[irast.TypeRef]]
+        if material_typeref is None and include_ancestors:
+            ancestors = frozenset(
+                type_to_typeref(
+                    schema,
+                    ancestor,
+                    cache=cache,
+                    include_descendants=include_descendants,
+                    include_ancestors=False
+                )
+                for ancestor in t.get_ancestors(schema).objects(schema)
+            )
+        else:
+            ancestors = None
 
         result = irast.TypeRef(
             id=t.id,
@@ -269,6 +292,7 @@ def type_to_typeref(
             material_type=material_typeref,
             base_type=base_typeref,
             descendants=descendants,
+            ancestors=ancestors,
             union=union,
             union_is_concrete=union_is_concrete,
             intersection=intersection,
@@ -331,7 +355,7 @@ def type_to_typeref(
         # There's also no variant for types with custom typenames since they
         # proved to have a very low hit rate.
         # This way we save on the size of the key tuple.
-        cache[t.id, include_descendants] = result
+        cache[key] = result
     return result
 
 
