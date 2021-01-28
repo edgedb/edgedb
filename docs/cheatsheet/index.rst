@@ -42,6 +42,7 @@ Schema:
     update
     delete
     functions
+    boolean
     types
     aliases
     annotations
