@@ -41,6 +41,7 @@ from . import sources
 from . import utils
 
 if TYPE_CHECKING:
+    from . import objtypes as s_objtypes
     from . import types as s_types
     from . import schema as s_schema
 
@@ -115,6 +116,10 @@ class Link(
         coerce=True,
         compcoef=0.9,
         merge_fn=merge_actions)
+
+    def get_target(self, schema: s_schema.Schema) -> s_objtypes.ObjectType:
+        return self.get_field_value(  # type: ignore[no-any-return]
+            schema, 'target')
 
     def is_link_property(self, schema: s_schema.Schema) -> bool:
         return False

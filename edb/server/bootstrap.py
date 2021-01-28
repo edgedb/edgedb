@@ -642,7 +642,6 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
         )
         await conn.execute(testmode_sql)
         await metaschema.generate_support_views(
-            cluster,
             conn,
             stdlib.reflschema,
         )
@@ -708,7 +707,7 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
         stdlib.introquery,
     )
 
-    await metaschema.generate_support_views(cluster, conn, stdlib.reflschema)
+    await metaschema.generate_support_views(conn, stdlib.reflschema)
     await metaschema.generate_support_functions(conn, stdlib.reflschema)
 
     compiler = edbcompiler.new_compiler(

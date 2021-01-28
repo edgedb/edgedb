@@ -1,5 +1,3 @@
-# mypy: ignore-errors
-
 #
 # This source file is part of the EdgeDB open source project.
 #
@@ -35,10 +33,16 @@ from edb.common import uuidgen
 from edb.edgeql import qltypes
 from edb.edgeql import quote as qlquote
 
-from edb.schema import migrations  # NoQA
+from edb.schema import casts as s_casts
+from edb.schema import constraints as s_constr
+from edb.schema import links as s_links
+from edb.schema import name as s_name
+from edb.schema import objects as s_obj
 from edb.schema import objtypes as s_objtypes
+from edb.schema import pointers as s_pointers
 from edb.schema import scalars as s_scalars
 from edb.schema import schema as s_schema
+from edb.schema import sources as s_sources
 from edb.schema import types as s_types
 
 from edb.server import defines
@@ -50,6 +54,9 @@ from . import common
 from . import dbops
 from . import types
 
+if TYPE_CHECKING:
+    import asyncpg
+
 
 q = common.qname
 qi = common.quote_ident
@@ -60,11 +67,6 @@ qt = common.quote_type
 DATABASE_ID_NAMESPACE = uuidgen.UUID('0e6fed66-204b-11e9-8666-cffd58a5240b')
 CONFIG_ID_NAMESPACE = uuidgen.UUID('a48b38fa-349b-11e9-a6be-4f337f82f5ad')
 CONFIG_ID = uuidgen.UUID('172097a4-39f4-11e9-b189-9321eb2f4b97')
-
-
-class Context:
-    def __init__(self, conn):
-        self.db = conn
 
 
 class DBConfigTable(dbops.Table):
@@ -1937,8 +1939,8 @@ class QuoteIdentFunction(dbops.Function):
 class DescribeRolesAsDDLFunction(dbops.Function):
     """Describe roles as DDL"""
 
-    def __init__(self, compiler, schema) -> None:
-        role_obj = schema.get("sys::Role")
+    def __init__(self, schema: s_schema.Schema) -> None:
+        role_obj = schema.get("sys::Role", type=s_objtypes.ObjectType)
         roles = inhviewname(schema, role_obj)
         member_of = role_obj.getptr(schema, 'member_of')
         members = inhviewname(schema, member_of)
@@ -2694,7 +2696,7 @@ class GetBaseScalarTypeMap(dbops.Function):
         )
 
 
-async def bootstrap(conn):
+async def bootstrap(conn: asyncpg.Connection) -> None:
     commands = dbops.CommandGroup()
     commands.add_commands([
         dbops.CreateSchema(name='edgedb'),
@@ -2771,7 +2773,7 @@ async def bootstrap(conn):
     await _execute_block(conn, block)
 
 
-async def create_pg_extensions(conn):
+async def create_pg_extensions(conn: asyncpg.Connection) -> None:
     commands = dbops.CommandGroup()
     commands.add_commands([
         dbops.CreateSchema(name='edgedbext'),
@@ -2790,7 +2792,7 @@ classref_attr_aliases = {
 }
 
 
-def tabname(schema, obj):
+def tabname(schema: s_schema.Schema, obj: s_obj.Object) -> Tuple[str, str]:
     return (
         'edgedbss',
         common.get_backend_name(
@@ -2802,7 +2804,7 @@ def tabname(schema, obj):
     )
 
 
-def inhviewname(schema, obj):
+def inhviewname(schema: s_schema.Schema, obj: s_obj.Object) -> Tuple[str, str]:
     return (
         'edgedbss',
         common.get_backend_name(
@@ -2814,16 +2816,22 @@ def inhviewname(schema, obj):
     )
 
 
-def ptr_col_name(schema, obj, propname: str) -> str:
+def ptr_col_name(
+    schema: s_schema.Schema,
+    obj: s_sources.Source,
+    propname: str,
+) -> str:
     prop = obj.getptr(schema, propname)
     psi = types.get_pointer_storage_info(prop, schema=schema)
-    return psi.column_name
+    return psi.column_name  # type: ignore[no-any-return]
 
 
-def _generate_database_views(schema):
-    Database = schema.get('sys::Database')
+def _generate_database_views(schema: s_schema.Schema) -> List[dbops.View]:
+    Database = schema.get('sys::Database', type=s_objtypes.ObjectType)
     annos = Database.getptr(schema, 'annotations')
+    assert isinstance(annos, s_links.Link)
     int_annos = Database.getptr(schema, 'annotations__internal')
+    assert isinstance(int_annos, s_links.Link)
 
     view_query = f'''
         SELECT
@@ -2916,13 +2924,18 @@ def _generate_database_views(schema):
     return views
 
 
-def _generate_role_views(schema):
-    Role = schema.get('sys::Role')
+def _generate_role_views(schema: s_schema.Schema) -> List[dbops.View]:
+    Role = schema.get('sys::Role', type=s_objtypes.ObjectType)
     member_of = Role.getptr(schema, 'member_of')
+    assert isinstance(member_of, s_links.Link)
     bases = Role.getptr(schema, 'bases')
+    assert isinstance(bases, s_links.Link)
     ancestors = Role.getptr(schema, 'ancestors')
+    assert isinstance(ancestors, s_links.Link)
     annos = Role.getptr(schema, 'annotations')
+    assert isinstance(annos, s_links.Link)
     int_annos = Role.getptr(schema, 'annotations__internal')
+    assert isinstance(int_annos, s_links.Link)
 
     superuser = f'''
         a.rolsuper OR EXISTS (
@@ -3111,7 +3124,12 @@ def _generate_role_views(schema):
     return views
 
 
-def _make_json_caster(schema, json_casts, stype, context):
+def _make_json_caster(
+    schema: s_schema.Schema,
+    json_casts: Mapping[s_types.Type, s_casts.Cast],
+    stype: s_types.Type,
+    context: str,
+) -> Callable[[Any], str]:
     cast = json_casts.get(stype)
 
     if cast is None:
@@ -3124,7 +3142,7 @@ def _make_json_caster(schema, json_casts, stype, context):
     if cast.get_from_cast(schema):
         pgtype = types.pg_type_from_object(schema, stype)
 
-        def _cast(val):
+        def _cast(val: Any) -> str:
             return f'({val})::{q(*pgtype)}'
     else:
         if cast.get_code(schema):
@@ -3134,13 +3152,16 @@ def _make_json_caster(schema, json_casts, stype, context):
         else:
             func_name = cast.get_from_function(schema)
 
-        def _cast(val):
+        def _cast(val: Any) -> str:
             return f'{q(*func_name)}({val})'
 
     return _cast
 
 
-async def generate_support_views(cluster, conn, schema):
+async def generate_support_views(
+    conn: asyncpg.Connection,
+    schema: s_schema.Schema,
+) -> None:
     commands = dbops.CommandGroup()
 
     schema_objs = schema.get_objects(
@@ -3173,7 +3194,8 @@ async def generate_support_views(cluster, conn, schema):
         )
         commands.add_command(dbops.CreateView(alias_view, or_replace=True))
 
-    InhObject = schema.get('schema::InheritingObject')
+    InhObject = schema.get(
+        'schema::InheritingObject', type=s_objtypes.ObjectType)
     InhObject_ancestors = InhObject.getptr(schema, 'ancestors')
 
     # "issubclass" SQL functions rely on access to the ancestors link.
@@ -3190,7 +3212,7 @@ async def generate_support_views(cluster, conn, schema):
     )
     commands.add_command(dbops.CreateView(alias_view, or_replace=True))
 
-    conf = schema.get('cfg::Config')
+    conf = schema.get('cfg::Config', type=s_objtypes.ObjectType)
     cfg_views, _ = _generate_config_type_view(
         schema, conf, scope=None, path=[], rptr=None)
     commands.add_commands([
@@ -3198,7 +3220,7 @@ async def generate_support_views(cluster, conn, schema):
         for tn, q in cfg_views
     ])
 
-    conf = schema.get('cfg::SystemConfig')
+    conf = schema.get('cfg::SystemConfig', type=s_objtypes.ObjectType)
     cfg_views, _ = _generate_config_type_view(
         schema, conf, scope=qltypes.ConfigScope.SYSTEM, path=[], rptr=None)
     commands.add_commands([
@@ -3206,7 +3228,7 @@ async def generate_support_views(cluster, conn, schema):
         for tn, q in cfg_views
     ])
 
-    conf = schema.get('cfg::DatabaseConfig')
+    conf = schema.get('cfg::DatabaseConfig', type=s_objtypes.ObjectType)
     cfg_views, _ = _generate_config_type_view(
         schema, conf, scope=qltypes.ConfigScope.DATABASE, path=[], rptr=None)
     commands.add_commands([
@@ -3225,7 +3247,10 @@ async def generate_support_views(cluster, conn, schema):
     await _execute_block(conn, block)
 
 
-async def generate_support_functions(conn, schema):
+async def generate_support_functions(
+    conn: asyncpg.Connection,
+    schema: s_schema.Schema,
+) -> None:
     commands = dbops.CommandGroup()
 
     commands.add_commands([
@@ -3240,7 +3265,12 @@ async def generate_support_functions(conn, schema):
     await _execute_block(conn, block)
 
 
-async def generate_more_support_functions(conn, compiler, schema, testmode):
+async def generate_more_support_functions(
+    conn: asyncpg.Connection,
+    compiler: edbcompiler.Compiler,
+    schema: s_schema.Schema,
+    testmode: bool,
+) -> None:
     commands = dbops.CommandGroup()
 
     _, text = edbbootstrap.compile_bootstrap_script(
@@ -3280,7 +3310,7 @@ async def generate_more_support_functions(conn, compiler, schema, testmode):
     commands.add_commands([
         dbops.CreateFunction(DescribeSystemConfigAsDDLFunction),
         dbops.CreateFunction(DescribeDatabaseConfigAsDDLFunction),
-        dbops.CreateFunction(DescribeRolesAsDDLFunction(compiler, schema)),
+        dbops.CreateFunction(DescribeRolesAsDDLFunction(schema)),
     ])
 
     block = dbops.PLTopBlock()
@@ -3304,7 +3334,7 @@ def _describe_config(
     else:
         raise AssertionError(f'unexpected configuration source: {source!r}')
 
-    cfg = schema.get(config_object_name)
+    cfg = schema.get(config_object_name, type=s_objtypes.ObjectType)
     items = []
     for pn, p in cfg.get_pointers(schema).items(schema):
         if pn in ('id', '__type__'):
@@ -3315,6 +3345,7 @@ def _describe_config(
             continue
 
         ptype = p.get_target(schema)
+        assert ptype is not None
         ptr_card = p.get_cardinality(schema)
         mult = ptr_card.is_multi()
         if isinstance(ptype, s_objtypes.ObjectType):
@@ -3322,7 +3353,7 @@ def _describe_config(
                 _render_config_object(
                     schema=schema,
                     valtype=ptype,
-                    value_expr=ptype.get_name(schema),
+                    value_expr=str(ptype.get_name(schema)),
                     scope=scope,
                     join_term='',
                     level=1,
@@ -3371,11 +3402,20 @@ def _render_config_value(
     valtype: s_types.Type,
     value_expr: str,
 ) -> str:
-    if valtype.issubclass(schema, schema.get('std::anyreal')):
+    if valtype.issubclass(
+        schema,
+        schema.get('std::anyreal', type=s_scalars.ScalarType),
+    ):
         val = f'<str>{value_expr}'
-    elif valtype.issubclass(schema, schema.get('std::bool')):
+    elif valtype.issubclass(
+        schema,
+        schema.get('std::bool', type=s_scalars.ScalarType),
+    ):
         val = f'<str>{value_expr}'
-    elif valtype.issubclass(schema, schema.get('std::str')):
+    elif valtype.issubclass(
+        schema,
+        schema.get('std::str', type=s_scalars.ScalarType),
+    ):
         val = f'cfg::_quote({value_expr})'
     else:
         raise AssertionError(
@@ -3504,7 +3544,7 @@ def _describe_config_object(
     valtype: s_objtypes.ObjectType,
     level: int,
     scope: qltypes.ConfigScope,
-) -> Dict[str, List[str]]:
+) -> Dict[s_name.QualName, List[str]]:
     cfg_types = [valtype]
     cfg_types.extend(cfg_types[0].descendants(schema))
     layouts = {}
@@ -3518,6 +3558,7 @@ def _describe_config_object(
                 continue
 
             ptype = p.get_target(schema)
+            assert ptype is not None
             ptr_card = p.get_cardinality(schema)
             mult = ptr_card.is_multi()
             psource = f'item.{ qlquote.quote_ident(pn) }'
@@ -3562,7 +3603,12 @@ def _describe_config_object(
     return layouts
 
 
-def _build_key_source(schema, exc_props, rptr, source_idx):
+def _build_key_source(
+    schema: s_schema.Schema,
+    exc_props: Iterable[s_pointers.Pointer],
+    rptr: Optional[s_pointers.Pointer],
+    source_idx: str,
+) -> str:
     if exc_props:
         restargets = []
         for prop in exc_props:
@@ -3577,6 +3623,7 @@ def _build_key_source(schema, exc_props, rptr, source_idx):
                 ARRAY[{targetlist}] AS key
             ) AS k{source_idx}''')
     else:
+        assert rptr is not None
         rptr_name = rptr.get_shortname(schema).name
         keysource = textwrap.dedent(f'''\
             (SELECT
@@ -3591,7 +3638,7 @@ def _build_key_source(schema, exc_props, rptr, source_idx):
     return keysource
 
 
-def _build_key_expr(key_components):
+def _build_key_expr(key_components: List[str]) -> str:
     key_expr = ' || '.join(key_components)
     final_keysource = textwrap.dedent(f'''\
         (SELECT
@@ -3610,7 +3657,13 @@ def _build_key_expr(key_components):
     return final_keysource
 
 
-def _build_data_source(schema, rptr, source_idx, *, alias=None):
+def _build_data_source(
+    schema: s_schema.Schema,
+    rptr: s_pointers.Pointer,
+    source_idx: int,
+    *,
+    alias: Optional[str] = None,
+) -> str:
 
     rptr_name = rptr.get_shortname(schema).name
     rptr_card = rptr.get_cardinality(schema)
@@ -3642,12 +3695,15 @@ def _generate_config_type_view(
     stype: s_objtypes.ObjectType,
     *,
     scope: Optional[qltypes.ConfigScope],
-    path,
-    rptr,
-    _memo=None,
-):
-    exc = schema.get('std::exclusive')
-    json_t = schema.get('std::json')
+    path: List[Tuple[s_pointers.Pointer, List[s_pointers.Pointer]]],
+    rptr: Optional[s_pointers.Pointer],
+    _memo: Optional[Set[s_obj.Object]] = None,
+) -> Tuple[
+    List[Tuple[Tuple[str, str], str]],
+    List[s_pointers.Pointer],
+]:
+    exc = schema.get('std::exclusive', type=s_constr.Constraint)
+    json_t = schema.get('std::json', type=s_scalars.ScalarType)
 
     if scope is not None:
         if scope is qltypes.ConfigScope.SYSTEM:
@@ -3727,7 +3783,7 @@ def _generate_config_type_view(
                 sourceN = _build_data_source(schema, l, i - 1)
 
             sources.append(sourceN)
-            sources.append(_build_key_source(schema, exc_props, l, i))
+            sources.append(_build_key_source(schema, exc_props, l, str(i)))
 
             if exc_props:
                 key_start = i
@@ -3761,12 +3817,13 @@ def _generate_config_type_view(
             continue
 
         pp_type = pp.get_target(schema)
+        assert pp_type is not None
         pp_card = pp.get_cardinality(schema)
         pp_multi = pp_card.is_multi()
         pp_psi = types.get_pointer_storage_info(pp, schema=schema)
         pp_col = pp_psi.column_name
 
-        if pp_type.is_object_type():
+        if isinstance(pp, s_links.Link):
             if pp_multi:
                 multi_links.append(pp)
             else:
@@ -3793,7 +3850,7 @@ def _generate_config_type_view(
 
     if exclusive_props or rptr:
         sources.append(
-            _build_key_source(schema, exclusive_props, rptr, self_idx))
+            _build_key_source(schema, exclusive_props, rptr, str(self_idx)))
 
         key_components = [f'k{i}.key' for i in range(key_start, self_idx + 1)]
         final_keysource = f'{_build_key_expr(key_components)} AS k'
@@ -3870,13 +3927,13 @@ def _generate_config_type_view(
 
         views.extend(target_views)
 
-    target_cols = ',\n'.join(target_cols)
+    target_cols_str = ',\n'.join(target_cols)
 
     fromlist = ',\n'.join(f'LATERAL {s}' for s in sources)
 
     target_query = textwrap.dedent(f'''\
         SELECT
-            {textwrap.indent(target_cols, ' ' * 4).strip()}
+            {textwrap.indent(target_cols_str, ' ' * 4).strip()}
         FROM
             {fromlist}
     ''')
@@ -3976,11 +4033,17 @@ def _generate_config_type_view(
     return views, exclusive_props
 
 
-async def _execute_block(conn, block):
+async def _execute_block(
+    conn: asyncpg.Connection,
+    block: dbops.SQLBlock,
+) -> None:
     await _execute_sql_script(conn, block.to_string())
 
 
-async def _execute_sql_script(conn, sql_text):
+async def _execute_sql_script(
+    conn: asyncpg.Connection,
+    sql_text: str,
+) -> None:
     if debug.flags.bootstrap:
         debug.header('Bootstrap Script')
         if len(sql_text) > 102400:
@@ -3996,13 +4059,14 @@ async def _execute_sql_script(conn, sql_text):
         position = getattr(e, 'position', None)
         internal_position = getattr(e, 'internal_position', None)
         context = getattr(e, 'context', '')
+        pl_func_line: Optional[int]
         if context:
-            pl_func_line = re.search(
+            pl_func_line_m = re.search(
                 r'^PL/pgSQL function inline_code_block line (\d+).*',
                 context, re.M)
 
-            if pl_func_line:
-                pl_func_line = int(pl_func_line.group(1))
+            if pl_func_line_m:
+                pl_func_line = int(pl_func_line_m.group(1))
         else:
             pl_func_line = None
         point = None
@@ -4011,7 +4075,7 @@ async def _execute_sql_script(conn, sql_text):
             position = int(position)
             point = parser_context.SourcePoint(
                 None, None, position)
-            text = e.query
+            text = getattr(e, 'query', None)
             if text is None:
                 # Parse errors
                 text = sql_text
@@ -4020,7 +4084,7 @@ async def _execute_sql_script(conn, sql_text):
             internal_position = int(internal_position)
             point = parser_context.SourcePoint(
                 None, None, internal_position)
-            text = e.internal_query
+            text = getattr(e, 'internal_query', None)
 
         elif pl_func_line:
             point = parser_context.SourcePoint(
