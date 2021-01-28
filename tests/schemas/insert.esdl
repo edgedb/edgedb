@@ -55,6 +55,7 @@ type Person {
     optional multi property multi_prop -> std::str {
         constraint std::exclusive;
     };
+    optional single link note -> Note;
 }
 
 type PersonWrapper {

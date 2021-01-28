@@ -88,7 +88,10 @@ class CompilerContextLevel(compiler.ContextLevel):
     toplevel_stmt: pgast.Query
 
     #: Record of DML CTEs generated for the corresponding IR DML.
-    dml_stmts: Dict[irast.MutatingStmt, pgast.CommonTableExpr]
+    #: CTEs generated for DML-containing FOR statements are keyed
+    #: by their iterator set.
+    dml_stmts: Dict[Union[irast.MutatingStmt, irast.Set],
+                    pgast.CommonTableExpr]
 
     #: SQL statement corresponding to the IR statement
     #: currently being compiled.

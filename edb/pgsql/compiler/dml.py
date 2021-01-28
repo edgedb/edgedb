@@ -307,6 +307,10 @@ def wrap_dml_cte(
     relctx.include_rvar(wrapper, dml_rvar, ir_stmt.subject.path_id, ctx=ctx)
     pathctx.put_path_bond(wrapper, ir_stmt.subject.path_id)
 
+    if ctx.dml_stmt_stack:
+        relctx.reuse_type_rel_overlays(
+            dml_source=ir_stmt, dml_stmts=ctx.dml_stmt_stack, ctx=ctx)
+
     return dml_rvar
 
 
@@ -471,6 +475,16 @@ def compile_iterator_ctes(
         if iterator_set.path_id in seen:
             continue
 
+        # If this iterator has already been compiled to a CTE, use
+        # that CTE instead of recompiling. (This will happen when
+        # a DML-containing FOR loop is WITH bound, for example.)
+        if iterator_set in ctx.dml_stmts:
+            iterator_cte = ctx.dml_stmts[iterator_set]
+            last_iterator = pgast.IteratorCTE(
+                path_id=iterator_set.path_id, cte=iterator_cte,
+                parent=last_iterator)
+            continue
+
         with ctx.newrel() as ictx:
             ictx.path_scope[iterator_set.path_id] = ictx.rel
 
@@ -487,6 +501,8 @@ def compile_iterator_ctes(
                 name=ctx.env.aliases.get('iter')
             )
             ictx.toplevel_stmt.ctes.append(iterator_cte)
+
+        ctx.dml_stmts[iterator_set] = iterator_cte
 
         last_iterator = pgast.IteratorCTE(
             path_id=iterator_set.path_id, cte=iterator_cte,

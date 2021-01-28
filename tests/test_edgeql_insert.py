@@ -2871,6 +2871,108 @@ class TestInsert(tb.QueryTestCase):
             ["foo!", "bar"]
         )
 
+    async def test_edgeql_insert_dependent_11(self):
+        # A with-bound insert used in a FOR should only execute once
+        await self.con.execute(
+            r'''
+                WITH MODULE test,
+                     N := (INSERT Note {name := "tag!" }),
+                FOR name in {"Phil", "Madz"} UNION (
+                    INSERT Person {
+                        name := name,
+                        notes := N,
+                    }
+                );
+            '''
+        )
+
+        # Should only be one note
+        await self.assert_query_result(
+            r'''SELECT test::Note { name }''',
+            [{"name": "tag!"}],
+        )
+
+    async def test_edgeql_insert_dependent_12(self):
+        # A with-bound insert used in a FOR should only execute once
+        # Same as above, but using a single link
+        await self.con.execute(
+            r'''
+                WITH MODULE test,
+                     N := (INSERT Note {name := "tag!" }),
+                FOR name in {"Phil", "Madz"} UNION (
+                    INSERT Person {
+                        name := name,
+                        note := N,
+                    }
+                );
+            '''
+        )
+
+        # Should only be one note
+        await self.assert_query_result(
+            r'''SELECT test::Note { name }''',
+            [{"name": "tag!"}],
+        )
+
+    async def test_edgeql_insert_dependent_13(self):
+        # A WITH bound INSERT used in an INSERT UNLESS CONFLICT
+        # should execute unconditionally
+        query = r'''
+        WITH MODULE test,
+             N := (INSERT Note {name := "tag!" }),
+        SELECT (
+            INSERT Person {
+                name := "Test",
+                notes := N,
+            } UNLESS CONFLICT
+        ) {name};
+        '''
+
+        await self.assert_query_result(
+            query,
+            [{"name": "Test"}]
+        )
+
+        await self.assert_query_result(
+            query,
+            [],
+        )
+
+        # Make sure that two inserts happened
+        await self.assert_query_result(
+            r'''SELECT count(test::Note)''',
+            [2],
+        )
+
+    async def test_edgeql_insert_dependent_14(self):
+        # Test the combination of a WITH bound INSERT, a WITH bound
+        # FOR loop, and a shape query that references both
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test,
+                    N := (INSERT Note {name := "tag!" }),
+                    X := (FOR name in {"Phil", "Madz"} UNION (
+                        INSERT Person {
+                            name := name,
+                            notes := N,
+                        }
+                    )),
+                SELECT stdgraphql::Query {
+                    x := (SELECT X { name } ORDER BY .name),
+                    n := N { name },
+                };
+            ''',
+            [{
+                "n": {"name": "tag!"},
+                "x": [{"name": "Madz"}, {"name": "Phil"}]
+            }],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT count(test::Note)''',
+            [1],
+        )
+
     async def test_edgeql_insert_nested_volatile_01(self):
         await self.con.execute('''
             INSERT test::Subordinate {
