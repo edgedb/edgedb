@@ -38,8 +38,12 @@ from typing import *
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
+from edb.schema import objects as s_obj
+from edb.schema import name as sn
+
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
+from edb.ir import utils as irutils
 
 from edb.pgsql import ast as pgast
 from edb.pgsql import types as pg_types
@@ -512,7 +516,7 @@ def compile_iterator_ctes(
 
 
 def process_insert_body(
-        ir_stmt: irast.MutatingStmt,
+        ir_stmt: irast.InsertStmt,
         wrapper: pgast.SelectStmt,
         insert_cte: pgast.CommonTableExpr,
         insert_rvar: pgast.PathRangeVar,
@@ -555,23 +559,47 @@ def process_insert_body(
         )
     )
 
+    # Handle an UNLESS CONFLICT if we need it
+
+    # If there is an UNLESS CONFLICT, we need to know that there is a
+    # conflict *before* we execute DML for fields stored in the object
+    # itself, so we can prevent that execution from happening. If that
+    # is necessary, compile_insert_else_body will generate an iterator
+    # CTE with a row for each non-conflicting insert we want to do. We
+    # then use that as the iterator for any DML in inline fields.
+    #
+    # (For DML in the definition of pointers stored in link tables, we
+    # don't need to worry about this, because we can run that DML
+    # after the enclosing INSERT, using the enclosing INSERT as the
+    # iterator.)
+    on_conflict_fake_iterator = None
+    if ir_stmt.on_conflict:
+        assert not insert_stmt.on_conflict
+
+        on_conflict_fake_iterator = compile_insert_else_body(
+            insert_stmt, ir_stmt, ir_stmt.on_conflict, else_cte_rvar,
+            ctx=ctx)
+
+    # Compile the shape
     external_inserts = []
 
-    iterator_id: Optional[pgast.BaseExpr] = None
     iterator = ctx.enclosing_cte_iterator
+    inner_iterator = on_conflict_fake_iterator or iterator
 
     with ctx.newrel() as subctx:
+        subctx.enclosing_cte_iterator = inner_iterator
+
         subctx.rel = select
         subctx.rel_hierarchy[select] = insert_stmt
 
         subctx.expr_exposed = False
 
-        if iterator is not None:
+        inner_iterator_id = None
+        if inner_iterator is not None:
             subctx.path_scope = ctx.path_scope.new_child()
-            merge_iterator(iterator, select, ctx=subctx)
-            iterator_id = relctx.get_path_var(
-                select, iterator.path_id,
-                aspect='identity', ctx=ctx)
+            merge_iterator(inner_iterator, select, ctx=subctx)
+            inner_iterator_id = relctx.get_path_var(
+                select, inner_iterator.path_id, aspect='identity', ctx=ctx)
 
         # Process the Insert IR and separate links that go
         # into the main table from links that are inserted into
@@ -598,7 +626,7 @@ def process_insert_body(
                 cols.append(field)
 
                 rel = compile_insert_shape_element(
-                    insert_stmt, wrapper, ir_stmt, shape_el, iterator_id,
+                    insert_stmt, wrapper, ir_stmt, shape_el, inner_iterator_id,
                     ctx=ctx)
 
                 insvalue = pathctx.get_path_value_var(
@@ -624,6 +652,8 @@ def process_insert_body(
         if iterator is not None:
             cols.append(pgast.ColumnRef(name=['__edb_token']))
 
+            iterator_id = relctx.get_path_var(
+                select, iterator.path_id, aspect='identity', ctx=ctx)
             values.append(pgast.ResTarget(val=iterator_id))
 
             pathctx.put_path_identity_var(
@@ -632,13 +662,6 @@ def process_insert_body(
             )
 
             pathctx.put_path_bond(insert_stmt, iterator.path_id)
-
-    if isinstance(ir_stmt, irast.InsertStmt) and ir_stmt.on_conflict:
-        assert not insert_stmt.on_conflict
-
-        compile_insert_else_body(
-            insert_stmt, ir_stmt, ir_stmt.on_conflict, else_cte_rvar,
-            ctx=ctx)
 
     toplevel = ctx.toplevel_stmt
     toplevel.ctes.append(insert_cte)
@@ -657,6 +680,28 @@ def process_insert_body(
         )
 
 
+def insert_needs_conflict_cte(
+    ir_stmt: irast.InsertStmt,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> bool:
+    for shape_el, _ in ir_stmt.subject.shape:
+        assert shape_el.rptr is not None
+        ptrref = shape_el.rptr.ptrref
+        ptr_info = pg_types.get_ptrref_storage_info(
+            ptrref, resolve_type=True, link_bias=False)
+
+        # We need to generate a conflict CTE if we have a DML containing
+        # pointer stored in the object itself
+        if (
+            ptr_info.table_type == 'ObjectType'
+            and irutils.contains_dml(shape_el, skip_bindings=True)
+        ):
+            return True
+
+    return False
+
+
 def compile_insert_else_body(
         insert_stmt: pgast.InsertStmt,
         ir_stmt: irast.InsertStmt,
@@ -664,7 +709,7 @@ def compile_insert_else_body(
         else_cte_rvar: Optional[
             Tuple[pgast.CommonTableExpr, pgast.PathRangeVar]],
         *,
-        ctx: context.CompilerContextLevel) -> None:
+        ctx: context.CompilerContextLevel) -> Optional[pgast.IteratorCTE]:
 
     infer = None
     if on_conflict.constraint:
@@ -676,31 +721,44 @@ def compile_insert_else_body(
         infer=infer,
     )
 
-    if on_conflict.else_ir:
-        else_select = on_conflict.else_ir.select
-        else_branch = on_conflict.else_ir.body
+    needs_conflict_cte = insert_needs_conflict_cte(ir_stmt, ctx=ctx)
 
-        subject_id = ir_stmt.subject.path_id
+    else_select = on_conflict.select_ir
+    else_branch = on_conflict.else_ir
 
-        with ctx.newrel() as ictx:
-            ictx.path_scope[subject_id] = ictx.rel
+    assert not (needs_conflict_cte and not else_select), (
+        "Nested DML into single pointers requires UNLESS CONFLICT ON for now")
 
-            merge_iterator(ctx.enclosing_cte_iterator, ictx.rel, ctx=ictx)
-            clauses.setup_iterator_volatility(ctx.enclosing_cte_iterator,
-                                              is_cte=True, ctx=ictx)
+    if not else_select:
+        return None
+    if not else_branch and not needs_conflict_cte:
+        return None
 
-            pathctx.put_path_bond(ictx.rel, subject_id)
-            dispatch.compile(else_select, ctx=ictx)
-            pathctx.put_path_id_map(ictx.rel, subject_id, else_select.path_id)
+    subject_id = ir_stmt.subject.path_id
 
-            else_select_cte = pgast.CommonTableExpr(
-                query=ictx.rel,
-                name=ctx.env.aliases.get('else')
-            )
-            ictx.toplevel_stmt.ctes.append(else_select_cte)
+    # Compile the query CTE that selects out the existing rows
+    # that we would conflict with
+    with ctx.newrel() as ictx:
+        ictx.path_scope[subject_id] = ictx.rel
 
-        else_select_rvar = relctx.rvar_for_rel(else_select_cte, ctx=ctx)
+        merge_iterator(ctx.enclosing_cte_iterator, ictx.rel, ctx=ictx)
+        clauses.setup_iterator_volatility(ctx.enclosing_cte_iterator,
+                                          is_cte=True, ctx=ictx)
 
+        pathctx.put_path_bond(ictx.rel, subject_id)
+        dispatch.compile(else_select, ctx=ictx)
+        pathctx.put_path_id_map(ictx.rel, subject_id, else_select.path_id)
+
+        else_select_cte = pgast.CommonTableExpr(
+            query=ictx.rel,
+            name=ctx.env.aliases.get('else')
+        )
+        ictx.toplevel_stmt.ctes.append(else_select_cte)
+
+    else_select_rvar = relctx.rvar_for_rel(else_select_cte, ctx=ctx)
+
+    if else_branch:
+        # Compile the body of the ELSE query
         with ctx.newrel() as ictx:
             ictx.path_scope[subject_id] = ictx.rel
 
@@ -718,6 +776,54 @@ def compile_insert_else_body(
             else_branch_cte = else_cte_rvar[0]
             else_branch_cte.query = ictx.rel
             ictx.toplevel_stmt.ctes.append(else_branch_cte)
+
+    anti_cte_iterator = None
+    if needs_conflict_cte:
+        # Compile a CTE that matches rows that didn't appear in the
+        # ELSE query of conflicting rows.
+        with ctx.newrel() as ictx:
+            merge_iterator(ctx.enclosing_cte_iterator, ictx.rel, ctx=ictx)
+            clauses.setup_iterator_volatility(ctx.enclosing_cte_iterator,
+                                              is_cte=True, ctx=ictx)
+
+            # Set up a dummy path to represent all of the rows
+            # that *aren't* being filtered out
+            dummy_pathid = irast.PathId.from_typeref(
+                typeref=irast.TypeRef(
+                    id=s_obj.get_known_type_id('std::uuid'),
+                    name_hint=sn.QualName(
+                        module='__derived__',
+                        name=ctx.env.aliases.get('dummy'))))
+            dummy_q = pgast.SelectStmt()
+            relctx.ensure_transient_identity_for_path(
+                dummy_pathid, dummy_q, type='uuid', ctx=ictx)
+            dummy_rvar = relctx.rvar_for_rel(
+                dummy_q, lateral=True, ctx=ictx)
+            relctx.include_rvar(ictx.rel, dummy_rvar,
+                                path_id=dummy_pathid, ctx=ictx)
+
+            with ctx.subrel() as subrelctx:
+                subrel = subrelctx.rel
+                relctx.include_rvar(subrel, else_select_rvar,
+                                    path_id=subject_id, ctx=ictx)
+
+            # Do the anti-join
+            iter_path_id = (
+                ictx.enclosing_cte_iterator.path_id if
+                ictx.enclosing_cte_iterator else None)
+            relctx.anti_join(ictx.rel, subrel, iter_path_id, ctx=ctx)
+
+            # Package it up as a CTE
+            anti_cte = pgast.CommonTableExpr(
+                query=ictx.rel,
+                name=ctx.env.aliases.get('non_conflict')
+            )
+            ictx.toplevel_stmt.ctes.append(anti_cte)
+            anti_cte_iterator = pgast.IteratorCTE(
+                path_id=dummy_pathid, cte=anti_cte,
+                parent=ictx.enclosing_cte_iterator)
+
+    return anti_cte_iterator
 
 
 def compile_insert_shape_element(
@@ -792,7 +898,6 @@ def process_update_body(
         for shape_el, shape_op in ir_stmt.subject.shape:
             assert shape_el.rptr is not None
             ptrref = shape_el.rptr.ptrref
-            assert isinstance(ptrref, irast.PointerRef)
             actual_ptrref = irtyputils.find_actual_ptrref(typeref, ptrref)
             updvalue = shape_el.expr
             ptr_info = pg_types.get_ptrref_storage_info(

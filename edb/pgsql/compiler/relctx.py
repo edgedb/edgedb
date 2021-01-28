@@ -647,7 +647,8 @@ def ensure_bond_for_expr(
         # ObjectTypes have inherent identity
         return
 
-    ensure_transient_identity_for_set(ir_set, stmt, type=type, ctx=ctx)
+    ensure_transient_identity_for_path(
+        ir_set.path_id, stmt, type=type, ctx=ctx)
 
 
 def apply_volatility_ref(
@@ -665,8 +666,8 @@ def apply_volatility_ref(
         )
 
 
-def ensure_transient_identity_for_set(
-        ir_set: irast.Set, stmt: pgast.BaseRelation, *,
+def ensure_transient_identity_for_path(
+        path_id: irast.PathId, stmt: pgast.BaseRelation, *,
         ctx: context.CompilerContextLevel, type: str='int') -> None:
 
     if type == 'uuid':
@@ -681,9 +682,9 @@ def ensure_transient_identity_for_set(
             over=pgast.WindowDef()
         )
 
-    pathctx.put_path_identity_var(stmt, ir_set.path_id,
+    pathctx.put_path_identity_var(stmt, path_id,
                                   id_expr, force=True, env=ctx.env)
-    pathctx.put_path_bond(stmt, ir_set.path_id)
+    pathctx.put_path_bond(stmt, path_id)
 
     if isinstance(stmt, pgast.SelectStmt):
         apply_volatility_ref(stmt, ctx=ctx)
@@ -1023,35 +1024,39 @@ def range_for_typeref(
     return rvar
 
 
-def rel_filter_out(
-    lhs: pgast.SelectStmt, rhs: pgast.SelectStmt,
-    path_id: irast.PathId, *,
-    ctx: context.CompilerContextLevel,
+def wrap_set_op_query(
+    qry: pgast.SelectStmt, *,
+    ctx: context.CompilerContextLevel
 ) -> pgast.SelectStmt:
+    if astutils.is_set_op_query(qry):
+        rvar = rvar_for_rel(qry, ctx=ctx)
+        qry = pgast.SelectStmt(from_clause=[rvar])
+        pull_path_namespace(target=qry, source=rvar, ctx=ctx)
+    return qry
+
+
+def anti_join(
+    lhs: pgast.SelectStmt, rhs: pgast.SelectStmt,
+    path_id: Optional[irast.PathId], *,
+    ctx: context.CompilerContextLevel,
+) -> None:
     """Filter elements out of the LHS that appear on the RHS"""
 
-    # We unfortunately need to wrap up the LHS in another select so that
-    # this works when the LHS is a set op.
-    rvar = rvar_for_rel(lhs, ctx=ctx)
-    qry = pgast.SelectStmt(from_clause=[rvar])
-    # Plumb it all up...
-    pathctx.put_path_value_rvar(qry, path_id, rvar, env=ctx.env)
-    if path_id.is_objtype_path():
-        pathctx.put_path_source_rvar(
-            qry, path_id, rvar, env=ctx.env)
-    pathctx.put_path_bond(qry, path_id)
-
-    # The useful work: grab the identity from the LHS and do an
-    # anti-join against the RHS.
-    src_ref = pathctx.get_path_identity_var(
-        qry, path_id=path_id, env=ctx.env)
-    pathctx.get_path_identity_output(
-        rhs, path_id=path_id, env=ctx.env)
-    cond_expr = astutils.new_binop(src_ref, rhs, 'NOT IN')
-    qry.where_clause = astutils.extend_binop(
-        qry.where_clause, cond_expr)
-
-    return qry
+    if path_id:
+        # grab the identity from the LHS and do an
+        # anti-join against the RHS.
+        src_ref = pathctx.get_path_identity_var(
+            lhs, path_id=path_id, env=ctx.env)
+        pathctx.get_path_identity_output(
+            rhs, path_id=path_id, env=ctx.env)
+        cond_expr: pgast.BaseExpr = astutils.new_binop(
+            src_ref, rhs, 'NOT IN')
+    else:
+        # No path we care about. Just check existance.
+        cond_expr = pgast.SubLink(
+            type=pgast.SubLinkType.NOT_EXISTS, expr=rhs)
+    lhs.where_clause = astutils.extend_binop(
+        lhs.where_clause, cond_expr)
 
 
 def range_from_queryset(
@@ -1070,8 +1075,8 @@ def range_from_queryset(
 
         for op, rarg in set_ops[1:]:
             if op == 'filter':
-                assert path_id
-                qry = rel_filter_out(qry, rarg, path_id, ctx=ctx)
+                qry = wrap_set_op_query(qry, ctx=ctx)
+                anti_join(qry, rarg, path_id, ctx=ctx)
             else:
                 qry = pgast.SelectStmt(
                     op=op,

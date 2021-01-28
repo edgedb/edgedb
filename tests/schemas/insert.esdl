@@ -51,6 +51,9 @@ type Person {
         default := "Nemo";
     };
     optional single property tag -> std::str;
+    required single property tag2 -> std::str {
+	default := "<n/a>";
+    };
     optional multi link notes -> Note;
     optional multi property multi_prop -> std::str {
         constraint std::exclusive;

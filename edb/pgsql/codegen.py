@@ -629,6 +629,8 @@ class SQLSourceGenerator(codegen.SourceGenerator):
     def visit_SubLink(self, node):
         if node.type == pgast.SubLinkType.EXISTS:
             self.write('EXISTS')
+        elif node.type == pgast.SubLinkType.NOT_EXISTS:
+            self.write('NOT EXISTS')
         elif node.type == pgast.SubLinkType.ALL:
             self.write('ALL')
         elif node.type == pgast.SubLinkType.ANY:

@@ -733,6 +733,7 @@ class JoinExpr(BaseRangeVar):
 
 class SubLinkType(enum.IntEnum):
     EXISTS = enum.auto()
+    NOT_EXISTS = enum.auto()
     ALL = enum.auto()
     ANY = enum.auto()
 

@@ -536,10 +536,10 @@ def __infer_insert_stmt(
         ir.result, is_mutation=True, scope_tree=new_scope, ctx=ctx
     )
 
-    if ir.on_conflict and ir.on_conflict.else_ir:
-        for part in [ir.on_conflict.else_ir.select,
-                     ir.on_conflict.else_ir.body]:
-            infer_multiplicity(part, scope_tree=scope_tree, ctx=ctx)
+    if ir.on_conflict:
+        for part in [ir.on_conflict.select_ir, ir.on_conflict.else_ir]:
+            if part:
+                infer_multiplicity(part, scope_tree=scope_tree, ctx=ctx)
 
     return ONE
 

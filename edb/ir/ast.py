@@ -759,14 +759,10 @@ class MutatingStmt(Stmt):
     subject: Set
 
 
-class OnConflictElse(Base):
-    select: Set
-    body: Set
-
-
 class OnConflictClause(Base):
     constraint: typing.Optional[ConstraintRef]
-    else_ir: typing.Optional[OnConflictElse]
+    select_ir: typing.Optional[Set]
+    else_ir: typing.Optional[Set]
 
 
 class InsertStmt(MutatingStmt):
