@@ -123,6 +123,7 @@ class DDLQuery(BaseQuery):
     single_unit: bool = False
     drop_db: Optional[str] = None
     has_role_ddl: bool = False
+    ddl_stmt_id: Optional[str] = None
 
 
 @dataclasses.dataclass(frozen=True)

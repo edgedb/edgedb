@@ -27,6 +27,7 @@ import dataclasses
 import json
 import hashlib
 import pickle
+import textwrap
 import uuid
 
 import asyncpg
@@ -862,6 +863,37 @@ class Compiler(BaseCompiler):
         else:
             sql = (block.to_string().encode('utf-8'),)
 
+            ddl_stmt_id: Optional[str] = None
+
+            if new_types:
+                # Inject a query returning backend OIDs for the newly
+                # created types.
+                ddl_stmt_id = str(uuidgen.uuid1mc())
+                new_type_ids = [
+                    f'{pg_common.quote_literal(tid)}::uuid'
+                    for tid in new_types
+                ]
+                sql = sql + (textwrap.dedent(f'''\
+                    SELECT
+                        json_build_object(
+                            'ddl_stmt_id',
+                            {pg_common.quote_literal(ddl_stmt_id)},
+                            'new_types',
+                            (SELECT
+                                json_object_agg(
+                                    "id"::text,
+                                    "backend_id"
+                                )
+                                FROM
+                                edgedb."_SchemaScalarType"
+                                WHERE
+                                    "id" = any(ARRAY[
+                                        {', '.join(new_type_ids)}
+                                    ])
+                            )
+                        )::text;
+                ''').encode('utf-8'),)
+
         drop_db = None
         if isinstance(stmt, qlast.DropDatabase):
             drop_db = stmt.name.name
@@ -873,10 +905,15 @@ class Compiler(BaseCompiler):
         return dbstate.DDLQuery(
             sql=sql,
             is_transactional=is_transactional,
-            single_unit=(not is_transactional) or (drop_db is not None),
+            single_unit=(
+                (not is_transactional)
+                or (drop_db is not None)
+                or new_types
+            ),
             new_types=new_types,
             drop_db=drop_db,
             has_role_ddl=isinstance(stmt, qlast.RoleCommand),
+            ddl_stmt_id=ddl_stmt_id,
         )
 
     def _compile_ql_migration(
