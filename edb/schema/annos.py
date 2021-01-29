@@ -92,55 +92,6 @@ class AnnotationValue(
         else:
             return vn
 
-    @classmethod
-    def _maybe_fix_name(
-        cls,
-        name: sn.QualName,
-        *,
-        schema: s_schema.Schema,
-        context: so.ComparisonContext,
-    ) -> sn.Name:
-        obj = schema.get(name, type=AnnotationValue)
-
-        base = obj.get_annotation(schema)
-        base_name = context.get_obj_name(schema, base)
-
-        quals = list(sn.quals_from_fullname(name))
-        return sn.QualName(
-            name=sn.get_specialized_name(base_name, *quals),
-            module=name.module,
-        )
-
-    @classmethod
-    def compare_field_value(
-        cls,
-        field: so.Field[Type[so.T]],
-        our_value: so.T,
-        their_value: so.T,
-        *,
-        our_schema: s_schema.Schema,
-        their_schema: s_schema.Schema,
-        context: so.ComparisonContext,
-    ) -> float:
-        # When comparing names, patch up the names to take into
-        # account renames of the base abstract annotations.
-        if field.name == 'name':
-            assert isinstance(our_value, sn.QualName)
-            assert isinstance(their_value, sn.QualName)
-            our_value = cls._maybe_fix_name(  # type: ignore
-                our_value, schema=our_schema, context=context)
-            their_value = cls._maybe_fix_name(  # type: ignore
-                their_value, schema=their_schema, context=context)
-
-        return super().compare_field_value(
-            field,
-            our_value,
-            their_value,
-            our_schema=our_schema,
-            their_schema=their_schema,
-            context=context,
-        )
-
 
 class AnnotationSubject(so.Object):
 
@@ -220,6 +171,10 @@ class RenameAnnotation(AnnotationCommand, sd.RenameObject[Annotation]):
                 scls, scls_type=AnnotationValue, field_name='annotation'))
 
         for ref in annot_vals:
+            if ref.get_implicit_bases(schema):
+                # This annotation value is inherited, and presumably
+                # the rename in parent will propagate.
+                continue
             ref_name = ref.get_name(schema)
             quals = list(sn.quals_from_fullname(ref_name))
             new_ref_name = sn.QualName(
