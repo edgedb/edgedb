@@ -198,8 +198,10 @@ def delta_objects(
             y_name = y.get_name(old_schema)
             if (
                 0.6 < s < 1.0
-                or not can_create(x_name)
-                or not can_delete(y_name)
+                or (
+                    (not can_create(x_name) or not can_delete(y_name))
+                    and can_alter(y_name, x_name)
+                )
                 or x_name in renames_x
             ):
                 if (
