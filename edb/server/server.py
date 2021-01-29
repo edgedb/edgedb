@@ -39,6 +39,7 @@ from edb.edgeql import parser as ql_parser
 
 from edb.server import config
 from edb.server import connpool
+from edb.server import compiler_pool
 from edb.server import defines
 from edb.server import http
 from edb.server import http_edgeql_port
@@ -163,6 +164,15 @@ class Server:
         self._dbindex = await dbview.DatabaseIndex.init(self)
         await self._introspect_dbs()
 
+        self._compiler_pool = await compiler_pool.create_compiler_pool(
+            dbindex=self._dbindex,
+            runstate_dir=self._runstate_dir,
+            backend_runtime_params=self.get_backend_runtime_params(),
+            std_schema=self._std_schema,
+            refl_schema=self._refl_schema,
+            schema_class_layout=self._schema_class_layout,
+        )
+
         self._populate_sys_auth()
 
         cfg = self._dbindex.get_sys_config()
@@ -191,6 +201,9 @@ class Server:
 
     def _get_pgaddr(self):
         return self._cluster.get_connection_spec()
+
+    def get_compiler_pool(self):
+        return self._compiler_pool
 
     async def acquire_pgcon(self, dbname):
         return await self._pg_pool.acquire(dbname)

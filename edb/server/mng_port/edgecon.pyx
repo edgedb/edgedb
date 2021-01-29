@@ -747,10 +747,12 @@ cdef class EdgeConnection:
         if self.dbview.in_tx_error():
             self.dbview.raise_in_tx_error()
 
+        compiler_pool = self.port.get_server().get_compiler_pool()
+
         if self.dbview.in_tx():
-            return await self.get_backend().compiler.call(
-                'compile_in_tx',
-                self.dbview.txid,
+            units, self.last_state = await compiler_pool.compile_in_tx(
+                self.dbview,
+                self.last_state,
                 query_req.source,
                 query_req.io_format,
                 query_req.expect_one,
@@ -760,9 +762,8 @@ cdef class EdgeConnection:
                 stmt_mode,
             )
         else:
-            return await self.get_backend().compiler.call(
-                'compile',
-                self.dbview.dbver,
+            units, self.last_state = await compiler_pool.compile(
+                self.dbview,
                 query_req.source,
                 self.dbview.get_modaliases(),
                 self.dbview.get_session_config(),
@@ -773,6 +774,7 @@ cdef class EdgeConnection:
                 query_req.inline_typenames,
                 stmt_mode,
             )
+        return units
 
     async def _compile_script(
         self,
@@ -786,10 +788,12 @@ cdef class EdgeConnection:
         if self.dbview.in_tx_error():
             self.dbview.raise_in_tx_error()
 
+        compiler_pool = self.port.get_server().get_compiler_pool()
+
         if self.dbview.in_tx():
-            return await self.get_backend().compiler.call(
-                'compile_in_tx',
-                self.dbview.txid,
+            units, self.last_state = await compiler_pool.compile_in_tx(
+                self.dbview,
+                self.last_state,
                 source,
                 FMT_SCRIPT,
                 False,
@@ -799,9 +803,8 @@ cdef class EdgeConnection:
                 stmt_mode,
             )
         else:
-            return await self.get_backend().compiler.call(
-                'compile',
-                self.dbview.dbver,
+            units, self.last_state = await compiler_pool.compile(
+                self.dbview,
                 source,
                 self.dbview.get_modaliases(),
                 self.dbview.get_session_config(),
@@ -812,6 +815,7 @@ cdef class EdgeConnection:
                 False,
                 stmt_mode,
             )
+        return units
 
     async def _compile_rollback(self, bytes eql):
         assert self.dbview.in_tx_error()
@@ -989,7 +993,7 @@ cdef class EdgeConnection:
                 # query units).  In the end, if we're still in transaction
                 # after executing the script and there were new types added
                 # we want to update type IDs in the linked compiler.
-                await self._update_type_ids(new_type_ids, conn)
+                await self._update_type_ids(new_type_ids, conn)  # XXX
         finally:
             self.maybe_release_pgcon(conn)
 
@@ -1422,7 +1426,7 @@ cdef class EdgeConnection:
             self.write(self.make_command_complete_msg(query_unit))
 
             if query_unit.new_types and self.dbview.in_tx():
-                await self._update_type_ids(query_unit.new_types, conn)
+                await self._update_type_ids(query_unit.new_types, conn)  # XXX
         finally:
             self.maybe_release_pgcon(conn)
 
@@ -1439,7 +1443,7 @@ cdef class EdgeConnection:
         else:
             return None
 
-    async def _update_type_ids(self, new_types, conn):
+    async def _update_type_ids(self, new_types, conn):  # XXX
         # Inform the compiler process about the newly
         # appearing types, so type descriptors contain
         # the necessary backend data.  We only do this

@@ -226,6 +226,14 @@ cdef class DatabaseConnectionView:
         def __get__(self):
             return self._db.name
 
+    property user_schema:
+        def __get__(self):
+            return self._db.user_schema
+
+    property reflection_cache:
+        def __get__(self):
+            return self._db.reflection_cache
+
     cdef in_tx(self):
         return self._in_tx
 

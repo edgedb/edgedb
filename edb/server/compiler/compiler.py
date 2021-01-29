@@ -243,7 +243,8 @@ class BaseCompiler:
         self,
         connect_args: dict,
         *,
-        backend_runtime_params: Any = pgcluster.get_default_runtime_params(),
+        backend_runtime_params: pgcluster.BackendRuntimeParams=
+            pgcluster.get_default_runtime_params(),
     ):
         self._connect_args = connect_args
         self._dbname = None
@@ -349,6 +350,19 @@ class BaseCompiler:
             self._config_spec = config.load_spec_from_schema(
                 self._std_schema)
             config.set_settings(self._config_spec)
+
+    def ensure_initialized2(
+        self,
+        std_schema,
+        refl_schema,
+        schema_class_layout
+    ) -> None:
+        self._std_schema = std_schema
+        self._refl_schema = refl_schema
+        self._schema_class_layout = schema_class_layout
+        self._config_spec = config.load_spec_from_schema(
+            self._std_schema)
+        config.set_settings(self._config_spec)
 
     def get_std_schema(self) -> s_schema.Schema:
         if self._std_schema is None:
@@ -1761,6 +1775,9 @@ class Compiler(BaseCompiler):
         return ctx
 
     def _load_state(self, txid: int) -> dbstate.CompilerConnectionState:
+        # XXX this should be removed before merging, along
+        # with the _current_db_state attr.
+
         if self._current_db_state is None:  # pragma: no cover
             raise errors.InternalServerError(
                 f'failed to lookup transaction with id={txid}')
@@ -1922,6 +1939,91 @@ class Compiler(BaseCompiler):
         )
 
         return self._compile(ctx=ctx, source=source)
+
+    async def compile2(
+        self,
+        dbver: bytes,
+        user_schema: s_schema.Schema,
+        reflection_cache: Mapping[str, Tuple[str, ...]],
+        source: edgeql.Source,
+        sess_modaliases: Optional[immutables.Map],
+        sess_config: Optional[immutables.Map],
+        io_format: enums.IoFormat,
+        expect_one: bool,
+        implicit_limit: int,
+        inline_typeids: bool,
+        inline_typenames: bool,
+        stmt_mode: enums.CompileStatementMode,
+        json_parameters: bool=False,
+    ) -> Tuple[List[dbstate.QueryUnit],
+               Optional[dbstate.CompilerConnectionState]]:
+
+        if sess_config is None:
+            sess_config = EMPTY_MAP
+        if sess_modaliases is None:
+            sess_modaliases = DEFAULT_MODULE_ALIASES_MAP
+
+        assert isinstance(sess_modaliases, immutables.Map)
+        assert isinstance(sess_config, immutables.Map)
+
+        state = dbstate.CompilerConnectionState(
+            dbver,
+            user_schema,
+            sess_modaliases,
+            sess_config,
+            reflection_cache,
+        )
+
+        ctx = CompileContext(
+            state=state,
+            output_format=io_format,
+            expected_cardinality_one=expect_one,
+            implicit_limit=implicit_limit,
+            inline_typeids=inline_typeids,
+            inline_typenames=inline_typenames,
+            stmt_mode=enums.CompileStatementMode(stmt_mode),
+            json_parameters=json_parameters,
+            source=source,
+        )
+
+        units = self._compile(ctx=ctx, source=source)
+        tx_control = False
+        for unit in units:
+            if unit.tx_id:
+                tx_control = True
+                break
+
+        if tx_control:
+            return units, ctx.state
+        else:
+            return units, None
+
+    async def compile_in_tx2(
+        self,
+        state: dbstate.CompilerConnectionState,
+        txid: int,
+        source: edgeql.Source,
+        io_format: enums.IoFormat,
+        expect_one: bool,
+        implicit_limit: int,
+        inline_typeids: bool,
+        inline_typenames: bool,
+        stmt_mode: enums.CompileStatementMode,
+    ) -> Tuple[List[dbstate.QueryUnit], dbstate.CompilerConnectionState]:
+        self._current_db_state = state  # XXX
+
+        ctx = CompileContext(
+            state=self._load_state(txid),  # XXX
+            output_format=io_format,
+            expected_cardinality_one=expect_one,
+            implicit_limit=implicit_limit,
+            inline_typeids=inline_typeids,
+            inline_typenames=inline_typenames,
+            stmt_mode=enums.CompileStatementMode(stmt_mode),
+            source=source,
+        )
+
+        return self._compile(ctx=ctx, source=source), ctx.state
 
     async def interpret_backend_error(self, dbver, fields):
         db = await self._get_database(dbver)

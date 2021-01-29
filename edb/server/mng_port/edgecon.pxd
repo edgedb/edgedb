@@ -106,6 +106,8 @@ cdef class EdgeConnection:
         tuple max_protocol
         object timer
 
+        object last_state
+
         pgcon.PGConnection _pinned_pgcon
         bint _pinned_pgcon_in_tx
 
