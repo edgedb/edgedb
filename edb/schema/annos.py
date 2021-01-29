@@ -345,7 +345,10 @@ class AlterAnnotationValue(
         astnode: qlast.DDLOperation,
         context: sd.CommandContext
     ) -> AlterAnnotationValue:
-        assert isinstance(astnode, qlast.AlterAnnotationValue)
+        assert isinstance(
+            astnode,
+            (qlast.CreateAnnotationValue, qlast.AlterAnnotationValue),
+        )
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         assert isinstance(cmd, AlterAnnotationValue)
 
