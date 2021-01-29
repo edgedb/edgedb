@@ -478,7 +478,10 @@ class CreateLink(
         return cmd
 
 
-class RenameLink(LinkCommand, sd.RenameObject[Link]):
+class RenameLink(
+    LinkCommand,
+    referencing.RenameReferencedInheritingObject[Link],
+):
     pass
 
 
