@@ -308,6 +308,62 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         ''')
         await self.migrate(schema)
 
+    async def test_edgeql_migration_describe_reject_01(self):
+        await self.migrate('''
+            type Foo;
+        ''')
+
+        await self.start_migration('''
+            type Bar;
+        ''')
+
+        await self.assert_describe_migration({
+            'proposed': {
+                'statements': [{
+                    'text': """
+                        ALTER TYPE test::Foo RENAME TO test::Bar;
+                    """
+                }]
+            }
+        })
+
+        await self.con.execute('''
+            ALTER CURRENT MIGRATION REJECT PROPOSED;
+        ''')
+
+        await self.assert_describe_migration({
+            'proposed': {
+                'statements': [{
+                    'text': """
+                        CREATE TYPE test::Bar;
+                    """
+                }]
+            }
+        })
+
+        await self.con.execute('''
+            ALTER CURRENT MIGRATION REJECT PROPOSED;
+        ''')
+
+        await self.assert_describe_migration({
+            'proposed': {
+                'statements': [{
+                    'text': """
+                        DROP TYPE test::Foo;
+                    """
+                }]
+            }
+        })
+
+        await self.con.execute('''
+            ALTER CURRENT MIGRATION REJECT PROPOSED;
+        ''')
+
+        await self.assert_describe_migration({
+            'proposed': None,
+            'complete': False,
+        })
+
     async def test_edgeql_migration_describe_reject_02(self):
         await self.con.execute('''
             START MIGRATION TO {
