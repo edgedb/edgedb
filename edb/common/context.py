@@ -63,7 +63,7 @@ class ParserContext(markup.MarkupExceptionContext):
 
     def __getstate__(self):
         dic = self.__dict__.copy()
-        dic.pop('_points')
+        dic['_points'] = None
         return dic
 
     def _calc_points(self):
@@ -95,13 +95,14 @@ class ParserContext(markup.MarkupExceptionContext):
         line_numbers = []
         start = self.start_point
 
+        buf_bytes = self.buffer.encode('utf-8')
         offset = 0
         buf_lines = []
-        line_offsets = []
-        for match in NEW_LINE.finditer(self.buffer):
-            line_offsets.append(offset)
-            buf_lines.append(self.buffer[offset:match.start()])
+        line_offsets = [0]
+        for match in NEW_LINE.finditer(buf_bytes):
+            buf_lines.append(buf_bytes[offset:match.start()].decode('utf-8'))
             offset = match.end()
+            line_offsets.append(offset)
 
         if start.line > 1:
             ctx_line, _ = self._get_line_snippet(
