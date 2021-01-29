@@ -27,7 +27,6 @@ from edb.edgeql import qltypes
 
 from edb.schema import links as s_links
 from edb.schema import lproperties as s_props
-from edb.schema import modules as s_mod
 from edb.schema import pointers as s_pointers
 from edb.schema import pseudo as s_pseudo
 from edb.schema import scalars as s_scalars
@@ -240,7 +239,6 @@ def type_to_typeref(
             name = typename
         else:
             name = tname
-        module = schema.get_global(s_mod.Module, tname.module)
 
         common_parent_ref: Optional[irast.TypeRef]
         if union_of:
@@ -287,7 +285,6 @@ def type_to_typeref(
 
         result = irast.TypeRef(
             id=t.id,
-            module_id=module.id,
             name_hint=name,
             material_type=material_typeref,
             base_type=base_typeref,
@@ -493,9 +490,6 @@ def ptrref_from_ptrcls(  # NoQA: F811
     elif isinstance(ptrcls, s_pointers.Pointer):
         ircls = irast.PointerRef
         kwargs['id'] = ptrcls.id
-        name = ptrcls.get_name(schema)
-        kwargs['module_id'] = schema.get_global(
-            s_mod.Module, name.module).id
     else:
         raise AssertionError(f'unexpected pointer class: {ptrcls}')
 

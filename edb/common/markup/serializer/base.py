@@ -19,6 +19,8 @@
 
 from __future__ import annotations
 
+from typing import *
+
 import collections
 import collections.abc
 import decimal
@@ -49,11 +51,14 @@ RUN_OVERFLOW_BARIER = 5000  # XXX Configurable?
 __all__ = 'serialize',
 
 
-def no_ref_detect(func):
+T = TypeVar('T')
+
+
+def no_ref_detect(func: T) -> T:
     """Serializer decorated with ``no_ref_detect`` will be executed without
     prior checking the memo if object was already serialized"""
 
-    func.no_ref_detect = True
+    func.no_ref_detect = True  # type: ignore
     return func
 
 

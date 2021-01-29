@@ -111,10 +111,12 @@ class ViewShapeMetadata(Base):
 
 
 class TypeRef(ImmutableBase):
+    # Hide ancestors and descendants from debug spew because they are
+    # incredibly noisy.
+    __ast_hidden__ = {'ancestors', 'descendants'}
+
     # The id of the referenced type
     id: uuid.UUID
-    # The module id of the referenced type
-    module_id: uuid.UUID
     # Full name of the type, not necessarily schema-addressable,
     # used for annotations only.
     name_hint: sn.Name
@@ -161,6 +163,9 @@ class TypeRef(ImmutableBase):
     # True, if this describes an opaque union type
     is_opaque_union: bool = False
 
+    def __repr__(self) -> str:
+        return f'<ir.TypeRef \'{self.name_hint}\' at 0x{id(self):x}>'
+
 
 class AnyTypeRef(TypeRef):
     pass
@@ -179,23 +184,25 @@ class BasePointerRef(ImmutableBase):
     # cardinality fields need to be mutable for lazy cardinality inference.
     __ast_mutable_fields__ = frozenset(('dir_cardinality', 'out_cardinality'))
 
+    # The defaults set here are mostly to try to reduce debug spew output.
     name: sn.QualName
     shortname: sn.QualName
     path_id_name: typing.Optional[sn.QualName]
     std_parent_name: sn.QualName
     out_source: TypeRef
     out_target: TypeRef
-    direction: s_pointers.PointerDirection
-    source_ptr: PointerRef
+    direction: s_pointers.PointerDirection = (
+        s_pointers.PointerDirection.Outbound)
+    source_ptr: typing.Optional[PointerRef]
     base_ptr: typing.Optional[BasePointerRef]
-    material_ptr: BasePointerRef
+    material_ptr: typing.Optional[BasePointerRef]
     descendants: typing.FrozenSet[BasePointerRef]
     union_components: typing.Set[BasePointerRef]
     intersection_components: typing.Set[BasePointerRef]
-    union_is_concrete: bool
-    has_properties: bool
-    is_derived: bool
-    is_computable: bool
+    union_is_concrete: bool = False
+    has_properties: bool = False
+    is_derived: bool = False
+    is_computable: bool = False
     # Relation cardinality in the direction specified
     # by *direction*.
     dir_cardinality: qltypes.Cardinality
@@ -224,18 +231,17 @@ class BasePointerRef(ImmutableBase):
     def is_inbound(self) -> bool:
         return self.direction is self.direction.Inbound
 
+    def __repr__(self) -> str:
+        return f'<ir.{type(self).__name__} \'{self.name}\' at 0x{id(self):x}>'
+
 
 class PointerRef(BasePointerRef):
-
     id: uuid.UUID
-    module_id: uuid.UUID
 
 
 class ConstraintRef(ImmutableBase):
     # The id of the constraint
     id: uuid.UUID
-    # The module id of the constraint
-    module_id: uuid.UUID
 
 
 class TupleIndirectionLink(s_pointers.PseudoPointer):
