@@ -126,6 +126,43 @@ Format:
 See the :ref:`list of error codes <ref_protocol_error_codes>` for all possible
 error codes.
 
+Known headers:
+
+* 0x0001 ``HINT``: ``str`` -- error hint.
+* 0x0002 ``DETAILS``: ``str`` -- error details.
+* 0x0101 ``SERVER_TRACEBACK``: ``str`` -- error traceback from server
+  (is only sent in dev mode).
+* 0xFFF1 ``POSITION_START`` -- byte offset of the start of the error span.
+* 0xFFF2 ``POSITION_END`` -- byte offset of the end of the error span.
+* 0xFFF3 ``LINE_START`` -- one-based line number of the start of the
+  error span.
+* 0xFFF4 ``COLUMN_START`` -- one-based column number of the start of the
+  error span.
+* 0xFFF5 ``UTF16_COLUMN_START`` -- zero-based column number in UTF-16
+  encoding of the start of the error span.
+* 0xFFF6 ``LINE_END`` -- one-based line number of the start of the
+  error span.
+* 0xFFF7 ``COLUMN_END`` -- one-based column number of the start of the
+  error span.
+* 0xFFF8 ``UTF16_COLUMN_END`` -- zero-based column number in UTF-16
+  encoding of the end of the error span.
+* 0xFFF9 ``CHARACTER_START`` -- zero-based offset of the error span in
+  terms of Unicode code points.
+* 0xFFFA ``CHARACTER_END`` -- zero-based offset of the end of the error
+  span.
+
+Notes:
+
+1. Error span is the range of characters (or equivalent bytes) of the
+   original query that compiler points to as the source of the error.
+2. ``COLUMN_*`` is defined in terms of width of characters defined by
+   Unicode Standard Annex #11, in other words, the column number in the
+   text if rendered with monospace font, e.g. in a terminal.
+3. ``UTF16_COLUMN_*`` is defined as number of UTF-16 code units (i.e. two
+   byte-pairs) that precede target character on the same line.
+4. ``*_END`` points to a next character after the last character of the
+   error span.
+
 
 .. _ref_protocol_msg_log:
 
