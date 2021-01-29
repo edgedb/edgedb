@@ -4071,10 +4071,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Derived extending Base;
         """])
 
-    @test.xfail('''
-        AssertionError:
-        assert isinstance(astnode, qlast.AlterAnnotationValue)
-    ''')
     def test_schema_migrations_equivalence_annotation_05(self):
         self._assert_migration_equivalence([r"""
             abstract inheritable annotation my_anno;
