@@ -4049,10 +4049,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Derived extending Base;
         """])
 
-    @test.xfail('''
-        edb.errors.InvalidReferenceError:
-        schema item 'default::default|foo_anno@default|Derived' does not exist
-    ''')
     def test_schema_migrations_equivalence_annotation_04(self):
         self._assert_migration_equivalence([r"""
             type Base;
