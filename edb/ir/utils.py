@@ -298,10 +298,30 @@ def get_iterator_sets(stmt: irast.Stmt) -> Sequence[irast.Set]:
     return iterators
 
 
-def contains_dml(stmt: irast.Base) -> bool:
+class ContainsDMLVisitor(ast.NodeVisitor):
+    skip_hidden = True
+
+    def __init__(self, *, skip_bindings: bool) -> None:
+        super().__init__()
+        self.skip_bindings = skip_bindings
+
+    def combine_field_results(self, xs: List[Optional[bool]]) -> bool:
+        return any(x is True for x in xs)
+
+    def visit_MutatingStmt(self, stmt: irast.MutatingStmt) -> bool:
+        return True
+
+    def visit_Set(self, node: irast.Set) -> bool:
+        if self.skip_bindings and node.is_binding:
+            return False
+
+        # Visit sub-trees
+        return bool(self.generic_visit(node))
+
+
+def contains_dml(stmt: irast.Base, *, skip_bindings: bool=False) -> bool:
     """Check whether a statement contains any DML in a subtree."""
-    # If this ends up being a perf problem, we can use a visitor
-    # directly and cache.
-    res = ast.find_children(stmt, lambda x: isinstance(x, irast.MutatingStmt),
-                            terminate_early=True)
-    return bool(res)
+    # TODO: Make this caching.
+    visitor = ContainsDMLVisitor(skip_bindings=skip_bindings)
+    res = visitor.visit(stmt) is True
+    return res
