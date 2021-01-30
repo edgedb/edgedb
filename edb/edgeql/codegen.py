@@ -1551,6 +1551,20 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.visit(node.cast_expr)
                 self.write(')')
 
+    def visit_SetPointerCardinality(
+        self,
+        node: qlast.SetPointerCardinality,
+    ) -> None:
+        if node.value is None:
+            self.write('RESET CARDINALITY')
+        else:
+            value = self._eval_enum_expr(node.value, qltypes.SchemaCardinality)
+            self.write(f'SET {value.to_edgeql()}')
+        if node.conv_expr is not None:
+            self.write(' USING (')
+            self.visit(node.conv_expr)
+            self.write(')')
+
     def visit_SetPointerOptionality(
         self,
         node: qlast.SetPointerOptionality,

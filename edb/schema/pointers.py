@@ -1853,6 +1853,31 @@ class AlterPointerUpperCardinality(
 ):
     """Handler for the "cardinality" field changes."""
 
+    conv_expr = struct.Field(s_expr.Expression, default=None)
+
+    def get_friendly_description(
+        self,
+        *,
+        parent_op: Optional[sd.Command] = None,
+        schema: Optional[s_schema.Schema] = None,
+        object: Any = None,
+        object_desc: Optional[str] = None,
+    ) -> str:
+        object_desc = self.get_friendly_object_name_for_description(
+            parent_op=parent_op,
+            schema=schema,
+            object=object,
+            object_desc=object_desc,
+        )
+        new_card = self.get_attribute_value('cardinality')
+        if new_card is None:
+            # RESET CARDINALITY (to default)
+            new_card = qltypes.SchemaCardinality.One
+        return (
+            f"convert {object_desc} to"
+            f" {new_card.as_ptr_qual()!r} cardinality"
+        )
+
     def is_data_safe(self) -> bool:
         old_val = self.get_orig_attribute_value('cardinality')
         new_val = self.get_attribute_value('cardinality')
@@ -1875,16 +1900,63 @@ class AlterPointerUpperCardinality(
 
         orig_card = scls.get_cardinality(orig_schema)
         new_card = scls.get_cardinality(schema)
+        is_computed = 'cardinality' in scls.get_computed_fields(schema)
 
-        if orig_card == new_card:
+        if orig_card == new_card or is_computed:
             # The actual value hasn't changed, nothing to do here.
             return schema
 
-        vn = scls.get_verbosename(schema, with_parent=True)
-        schema = self._propagate_if_expr_refs(
-            schema, context, action=f'alter the cardinality of {vn}')
-
         if not context.canonical:
+            vn = scls.get_verbosename(schema, with_parent=True)
+            desc = self.get_friendly_description(schema=schema)
+            ptr_op = self.get_parent_op(context)
+            src_op = self.get_referrer_context_or_die(context).op
+
+            if self._needs_conv_expr(
+                schema=schema,
+                ptr_op=ptr_op,
+                src_op=src_op,
+            ):
+                vn = scls.get_verbosename(schema, with_parent=True)
+                raise errors.SchemaError(
+                    f'cannot automatically {desc}',
+                    hint=(
+                        'You need to specify a conversion '
+                        'expression in a USING clause'
+                    ),
+                    context=self.source_context,
+                )
+
+            if self.conv_expr is not None:
+                self.conv_expr = self._compile_expr(
+                    schema=orig_schema,
+                    context=context,
+                    expr=self.conv_expr,
+                    target_as_singleton=False,
+                    singleton_result_expected=True,
+                    expr_description=(
+                        f'the USING clause for the alteration of {vn}'
+                    ),
+                )
+
+                using_type = self.conv_expr.stype
+                ptr_type = scls.get_target(schema)
+                assert ptr_type is not None
+                if not using_type.assignment_castable_to(
+                    ptr_type,
+                    self.conv_expr.schema,
+                ):
+                    ot = using_type.get_verbosename(self.conv_expr.schema)
+                    nt = ptr_type.get_verbosename(schema)
+                    raise errors.SchemaError(
+                        f'result of USING clause for the alteration of '
+                        f'{vn} cannot be cast automatically from '
+                        f'{ot} to {nt} ',
+                        hint='You might need to add an explicit cast.',
+                        context=self.source_context,
+                    )
+
+            schema = self._propagate_if_expr_refs(schema, context, action=desc)
             schema = self._propagate_ref_field_alter_in_inheritance(
                 schema,
                 context,
@@ -1892,6 +1964,118 @@ class AlterPointerUpperCardinality(
             )
 
         return schema
+
+    def record_diff_annotations(
+        self,
+        schema: s_schema.Schema,
+        orig_schema: Optional[s_schema.Schema],
+        context: so.ComparisonContext,
+    ) -> None:
+        super().record_diff_annotations(
+            schema=schema,
+            orig_schema=orig_schema,
+            context=context,
+        )
+
+        if orig_schema is None:
+            return
+
+        if not context.generate_prompts:
+            return
+
+        assert len(context.parent_ops) > 1
+        ptr_op = context.parent_ops[-1]
+        src_op = context.parent_ops[-2]
+
+        needs_conv_expr = self._needs_conv_expr(
+            schema=schema,
+            ptr_op=ptr_op,
+            src_op=src_op,
+        )
+
+        if needs_conv_expr:
+            placeholder_name = context.get_placeholder('conv_expr')
+            desc = self.get_friendly_description(schema=schema)
+            prompt = (
+                f'Please specify an expression in order to {desc}'
+            )
+            self.set_annotation('required_input', {
+                placeholder_name: prompt,
+            })
+
+            self.conv_expr = s_expr.Expression.from_ast(
+                qlast.Placeholder(name=placeholder_name),
+                schema,
+            )
+
+    def _needs_conv_expr(
+        self,
+        *,
+        schema: s_schema.Schema,
+        ptr_op: sd.ObjectCommand[so.Object],
+        src_op: sd.ObjectCommand[so.Object],
+    ) -> bool:
+        old_card = (
+            self.get_orig_attribute_value('cardinality')
+            or qltypes.SchemaCardinality.One
+        )
+        new_card = (
+            self.get_attribute_value('cardinality')
+            or qltypes.SchemaCardinality.One
+        )
+        return (
+            old_card is qltypes.SchemaCardinality.Many
+            and new_card is qltypes.SchemaCardinality.One
+            and not self.is_attribute_computed('cardinality')
+            and not ptr_op.maybe_get_object_aux_data('from_alias')
+            and self.conv_expr is None
+            and not (
+                ptr_op.get_attribute_value('declared_overloaded')
+                or isinstance(src_op, sd.CreateObject)
+            )
+        )
+
+    @classmethod
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> sd.Command:
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        assert isinstance(cmd, AlterPointerUpperCardinality)
+        if (
+            isinstance(astnode, qlast.SetPointerCardinality)
+            and astnode.conv_expr is not None
+        ):
+            cmd.conv_expr = s_expr.Expression.from_ast(
+                astnode.conv_expr,
+                schema,
+                context.modaliases,
+                context.localnames,
+            )
+
+        return cmd
+
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
+        set_field = super()._get_ast(schema, context, parent_node=parent_node)
+        if set_field is None:
+            return None
+        else:
+            assert isinstance(set_field, qlast.SetField)
+            return qlast.SetPointerCardinality(
+                value=set_field.value,
+                conv_expr=(
+                    self.conv_expr.qlast
+                    if self.conv_expr is not None else None
+                )
+            )
 
 
 class AlterPointerLowerCardinality(

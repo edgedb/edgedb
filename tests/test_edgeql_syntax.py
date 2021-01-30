@@ -4130,6 +4130,24 @@ aa';
         };
         """
 
+    def test_edgeql_syntax_ddl_type_17(self):
+        """
+        ALTER TYPE Foo {
+            ALTER LINK bar {
+                SET SINGLE USING (SELECT '123');
+            };
+        };
+        """
+
+    def test_edgeql_syntax_ddl_type_18(self):
+        """
+        ALTER TYPE Foo {
+            ALTER LINK bar {
+                RESET CARDINALITY USING (SELECT '123');
+            };
+        };
+        """
+
     def test_edgeql_syntax_set_command_01(self):
         """
         SET MODULE default;

@@ -643,6 +643,12 @@ class SetPointerType(SetField):
     cast_expr: typing.Optional[Expr]
 
 
+class SetPointerCardinality(SetField):
+    name: str = 'cardinality'
+    special_syntax: bool = True
+    conv_expr: typing.Optional[Expr]
+
+
 class SetPointerOptionality(SetField):
     name: str = 'required'
     special_syntax: bool = True

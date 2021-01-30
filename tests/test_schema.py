@@ -821,9 +821,9 @@ _123456789_123456789_123456789 -> str
 
         with self.assertRaisesRegex(
             errors.SchemaDefinitionError,
-            "cannot alter the cardinality of property 'foo1' of object type "
-            "'test::Foo' because this affects expression of property 'bar1' "
-            "of object type 'test::Foo'"
+            "cannot convert property 'foo1' of object type 'test::Foo' to "
+            "'multi' cardinality because this affects expression of "
+            "property 'bar1' of object type 'test::Foo'"
         ):
             self.run_ddl(schema, '''
                 ALTER TYPE Foo ALTER PROPERTY foo1 SET MULTI
@@ -2751,31 +2751,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Base {
                 # increase link cardinality
                 multi link bar -> Child;
-            }
-        """])
-
-    def test_schema_migrations_equivalence_25(self):
-        self._assert_migration_equivalence([r"""
-            type Child;
-
-            type Base {
-                multi link bar -> Child;
-            }
-        """, r"""
-            type Child;
-
-            type Base {
-                # reduce link cardinality
-                link bar -> Child;
-            }
-        """, r"""
-            type Child;
-
-            type Base {
-                link bar -> Child {
-                    # further restrict the link
-                    constraint exclusive
-                }
             }
         """])
 

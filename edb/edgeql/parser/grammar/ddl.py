@@ -284,10 +284,18 @@ def commands_block(parent, *commands, opt=True):
 
 
 class UsingStmt(Nonterm):
+
     def reduce_USING_ParenExpr(self, *kids):
         self.val = qlast.SetField(
             name='expr',
             value=kids[1].val,
+            special_syntax=True,
+        )
+
+    def reduce_RESET_EXPRESSION(self, *kids):
+        self.val = qlast.SetField(
+            name='expr',
+            value=None,
             special_syntax=True,
         )
 
@@ -296,34 +304,17 @@ class SetFieldStmt(Nonterm):
     # field := <expr>
     def reduce_SET_Identifier_ASSIGN_Expr(self, *kids):
         self.val = qlast.SetField(
-            name=kids[1].val,
+            name=kids[1].val.lower(),
             value=kids[3].val,
         )
 
 
 class ResetFieldStmt(Nonterm):
     # RESET field
-    def reduce_RESET_Identifier(self, *kids):
-        fname = kids[1].val.lower()
-        special_syntax = True
-        if fname == 'expression':
-            fname = 'expr'
-        elif fname == 'abstract':
-            fname = 'abstract'
-        elif fname == 'final':
-            fname = 'final'
-        elif fname == 'optionality':
-            fname = 'required'
-        elif fname == 'type':
-            fname = 'target'
-        elif fname in ('delegated', 'cardinality'):
-            pass
-        else:
-            special_syntax = False
+    def reduce_RESET_IDENT(self, *kids):
         self.val = qlast.SetField(
-            name=fname,
+            name=kids[1].val.lower(),
             value=None,
-            special_syntax=special_syntax,
         )
 
 
@@ -400,6 +391,13 @@ class AlterAbstract(Nonterm):
             special_syntax=True,
         )
 
+    def reduce_RESET_ABSTRACT(self, *kids):
+        self.val = qlast.SetField(
+            name='abstract',
+            value=None,
+            special_syntax=True,
+        )
+
 
 class AlterFinal(Nonterm):
 
@@ -422,6 +420,13 @@ class AlterFinal(Nonterm):
         self.val = qlast.SetField(
             name='final',
             value=qlast.BooleanConstant.from_python(True),
+            special_syntax=True,
+        )
+
+    def reduce_RESET_FINAL(self, *kids):
+        self.val = qlast.SetField(
+            name='final',
+            value=None,
             special_syntax=True,
         )
 
@@ -722,6 +727,13 @@ class SetDelegatedStmt(Nonterm):
             special_syntax=True,
         )
 
+    def reduce_RESET_DELEGATED(self, *kids):
+        self.val = qlast.SetField(
+            name='delegated',
+            value=None,
+            special_syntax=True,
+        )
+
 
 commands_block(
     'AlterConcreteConstraint',
@@ -990,14 +1002,6 @@ class DropIndexStmt(Nonterm):
         )
 
 
-class OptAlterUsingClause(Nonterm):
-    def reduce_USING_ParenExpr(self, *kids):
-        self.val = kids[1].val
-
-    def reduce_empty(self):
-        self.val = None
-
-
 #
 # CREATE PROPERTY
 #
@@ -1127,25 +1131,43 @@ class CreateConcretePropertyStmt(Nonterm):
 
 
 #
-# ALTER LINK ... { ALTER PROPERTY
+# ALTER LINK/PROPERTY
 #
+
+
+class OptAlterUsingClause(Nonterm):
+    def reduce_USING_ParenExpr(self, *kids):
+        self.val = kids[1].val
+
+    def reduce_empty(self):
+        self.val = None
+
 
 class SetCardinalityStmt(Nonterm):
 
-    def reduce_SET_SINGLE(self, *kids):
-        self.val = qlast.SetField(
+    def reduce_SET_SINGLE_OptAlterUsingClause(self, *kids):
+        self.val = qlast.SetPointerCardinality(
             name='cardinality',
             value=qlast.StringConstant.from_python(
                 qltypes.SchemaCardinality.One),
             special_syntax=True,
+            conv_expr=kids[2].val,
         )
 
     def reduce_SET_MULTI(self, *kids):
-        self.val = qlast.SetField(
+        self.val = qlast.SetPointerCardinality(
             name='cardinality',
             value=qlast.StringConstant.from_python(
                 qltypes.SchemaCardinality.Many),
             special_syntax=True,
+        )
+
+    def reduce_RESET_CARDINALITY_OptAlterUsingClause(self, *kids):
+        self.val = qlast.SetPointerCardinality(
+            name='cardinality',
+            value=None,
+            special_syntax=True,
+            conv_expr=kids[2].val,
         )
 
 
@@ -1174,6 +1196,13 @@ class SetRequiredStmt(Nonterm):
             special_syntax=True,
         )
 
+    def reduce_RESET_OPTIONALITY(self, *kids):
+        self.val = qlast.SetPointerOptionality(
+            name='required',
+            value=None,
+            special_syntax=True,
+        )
+
 
 class SetPointerTypeStmt(Nonterm):
 
@@ -1181,6 +1210,11 @@ class SetPointerTypeStmt(Nonterm):
         self.val = qlast.SetPointerType(
             value=kids[1].val,
             cast_expr=kids[2].val,
+        )
+
+    def reduce_RESET_TYPE(self, *kids):
+        self.val = qlast.SetPointerType(
+            value=None,
         )
 
 

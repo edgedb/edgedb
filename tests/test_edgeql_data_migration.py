@@ -3438,7 +3438,9 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 # reduce link cardinality
                 link bar -> Child;
             }
-        """)
+        """, user_input=[
+            '(SELECT .bar LIMIT 1)'
+        ])
 
         await self.assert_query_result(
             r"""
@@ -5502,12 +5504,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [{'foo': {'@bar': 3}}],
         )
 
-    @test.xfail('''
-        The "complete" flag is not set even though the DDL from
-        "proposed" list is used.
-
-        This happens on the second migration.
-    ''')
     async def test_edgeql_migration_eq_linkprops_04(self):
         await self.migrate(r"""
             type Child;
@@ -5577,7 +5573,9 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                     property bar -> str
                 }
             };
-        """)
+        """, user_input=[
+            'SELECT .foo LIMIT 1'
+        ])
 
         await self.assert_query_result(
             r"""
@@ -8061,10 +8059,10 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             'confirmed': [],
             'proposed': {
                 'statements': [{
-                    'text': """
+                    'text': r"""
                         ALTER TYPE test::Obj11 {
                             ALTER PROPERTY name {
-                                SET SINGLE;
+                                SET SINGLE USING (\(conv_expr));
                             };
                         };
                     """,
@@ -8073,7 +8071,11 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             },
         })
 
-        await self.fast_forward_describe_migration()
+        await self.fast_forward_describe_migration(
+            user_input=[
+                '(SELECT .name LIMIT 1)'
+            ]
+        )
 
     async def test_edgeql_migration_prompt_id_01(self):
         await self.start_migration('''
@@ -8148,6 +8150,36 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                     'prompt': (
                         "Please specify a conversion expression"
                         " to alter the type of property 'foo'"
+                    ),
+                }],
+            },
+        })
+
+    async def test_edgeql_migration_user_input_02(self):
+        await self.migrate('''
+            type Bar { multi property foo -> str };
+        ''')
+
+        await self.start_migration('''
+            type Bar { single property foo -> str };
+        ''')
+
+        await self.assert_describe_migration({
+            'proposed': {
+                'statements': [{
+                    'text': '''
+                        ALTER TYPE test::Bar {
+                            ALTER PROPERTY foo {
+                                SET SINGLE USING (\\(conv_expr));
+                            };
+                        };
+                    '''
+                }],
+                'required_user_input': [{
+                    'placeholder': 'conv_expr',
+                    'prompt': (
+                        "Please specify an expression in order to convert"
+                        " property 'foo' to 'single' cardinality"
                     ),
                 }],
             },

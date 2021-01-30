@@ -250,11 +250,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         # Change it back.
         await self.con.execute("""
             ALTER TYPE test::Object6 {
-                ALTER LINK a SET SINGLE;
+                ALTER LINK a SET SINGLE USING (SELECT .a LIMIT 1);
             };
 
             ALTER TYPE test::Object6 {
-                ALTER PROPERTY b SET SINGLE;
+                ALTER PROPERTY b SET SINGLE USING (SELECT .b LIMIT 1);
             };
         """)
 
@@ -2606,6 +2606,87 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             await self.con.execute("""
                 WITH MODULE test
                 ALTER TYPE Foo ALTER LINK l SET TYPE Spam USING (SELECT Spam)
+            """)
+
+    async def test_edgeql_ddl_ptr_set_cardinality_validation(self):
+        await self.con.execute(r"""
+            SET MODULE test;
+            CREATE TYPE Bar;
+            CREATE TYPE Egg;
+            CREATE TYPE Foo {
+                CREATE MULTI PROPERTY p -> str;
+                CREATE MULTI LINK l -> Bar {
+                    CREATE PROPERTY lp -> str;
+                };
+            };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaError,
+            r"cannot automatically convert property 'p' of object type"
+            r" 'test::Foo' to 'single' cardinality"
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER PROPERTY p SET SINGLE;
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaError,
+            r"result of USING clause for the alteration of"
+            r" property 'p' of object type 'test::Foo' cannot be cast"
+            r" automatically from scalar type 'std::float64' to scalar"
+            r" type 'std::int64'"
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER PROPERTY p
+                    SET TYPE int64 USING (<float64>.p)
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaError,
+            r"possibly more than one element returned by the USING clause for"
+            r" the alteration of property 'p' of object type 'test::Foo',"
+            r" while a singleton is expected"
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER PROPERTY p SET SINGLE USING ({1, 2})
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaError,
+            r"cannot automatically convert link 'l' of object type"
+            r" 'test::Foo' to 'single' cardinality"
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER LINK l SET SINGLE;
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaError,
+            r"result of USING clause for the alteration of"
+            r" link 'l' of object type 'test::Foo' cannot be cast"
+            r" automatically from object type 'test::Egg'"
+            r" to object type 'test::Bar'"
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER LINK l
+                    SET SINGLE USING (SELECT Egg LIMIT 1);
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaError,
+            r"possibly more than one element returned by the USING clause for"
+            r" the alteration of link 'l' of object type 'test::Foo', while"
+            r" a singleton is expected"
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                ALTER TYPE Foo ALTER LINK l SET SINGLE USING (SELECT Bar)
             """)
 
     async def test_edgeql_ddl_ptr_set_required_01(self):
