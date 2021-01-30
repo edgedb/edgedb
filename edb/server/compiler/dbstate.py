@@ -474,10 +474,10 @@ class CompilerConnectionState:
         self._current_tx = Transaction(
             self, schema, modaliases, config, cached_reflection)
 
-    def can_rollback_to_savepoint(self, spid):
+    def can_sync_to_savepoint(self, spid):
         return spid in self._savepoints_log
 
-    def rollback_to_savepoint(self, spid):
+    def sync_to_savepoint(self, spid):
         if spid not in self._savepoints_log:
             raise RuntimeError(
                 f'failed to lookup savepoint with id={spid}')
@@ -539,12 +539,12 @@ class CompilerConnectionState:
 
         return latest_state
 
-    def advance_tx(self, txid: int) -> None:
+    def sync_tx(self, txid: int) -> None:
         if self._current_tx.id == txid:
             return
 
-        if self.can_rollback_to_savepoint(txid):
-            self.rollback_to_savepoint(txid)
+        if self.can_sync_to_savepoint(txid):
+            self.sync_to_savepoint(txid)
             return
 
         raise errors.InternalServerError(

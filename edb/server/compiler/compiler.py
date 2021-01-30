@@ -1822,7 +1822,7 @@ class Compiler(BaseCompiler):
             raise errors.InternalServerError(
                 f'failed to lookup transaction with id={txid}')
 
-        self._current_db_state.advance_tx(txid)
+        self._current_db_state.sync_tx(txid)
 
     # API
 

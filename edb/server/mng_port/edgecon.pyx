@@ -1909,7 +1909,8 @@ cdef class EdgeConnection:
             raise errors.BinaryProtocolError(
                 f'unexpected message type {chr(mtype)!r}')
 
-    cdef WriteBuffer recode_bind_args(self,
+    cdef WriteBuffer recode_bind_args(
+        self,
         bytes bind_args,
         CompiledQuery query,
     ):
