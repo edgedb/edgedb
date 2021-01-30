@@ -27,6 +27,7 @@ import dataclasses
 import json
 import hashlib
 import pickle
+import textwrap
 import uuid
 
 import asyncpg
@@ -802,12 +803,43 @@ class Compiler(BaseCompiler):
         # will also update the schema.
         block, new_types = self._process_delta(ctx, delta)
 
+        ddl_stmt_id: Optional[str] = None
+
         is_transactional = block.is_transactional()
         if not is_transactional:
             sql = tuple(stmt.encode('utf-8')
                         for stmt in block.get_statements())
         else:
             sql = (block.to_string().encode('utf-8'),)
+
+            if new_types:
+                # Inject a query returning backend OIDs for the newly
+                # created types.
+                ddl_stmt_id = str(uuidgen.uuid1mc())
+                new_type_ids = [
+                    f'{pg_common.quote_literal(tid)}::uuid'
+                    for tid in new_types
+                ]
+                sql = sql + (textwrap.dedent(f'''\
+                    SELECT
+                        json_build_object(
+                            'ddl_stmt_id',
+                            {pg_common.quote_literal(ddl_stmt_id)},
+                            'new_types',
+                            (SELECT
+                                json_object_agg(
+                                    "id"::text,
+                                    "backend_id"
+                                )
+                                FROM
+                                edgedb."_SchemaScalarType"
+                                WHERE
+                                    "id" = any(ARRAY[
+                                        {', '.join(new_type_ids)}
+                                    ])
+                            )
+                        )::text;
+                ''').encode('utf-8'),)
 
         create_db = None
         drop_db = None
@@ -823,11 +855,17 @@ class Compiler(BaseCompiler):
         return dbstate.DDLQuery(
             sql=sql,
             is_transactional=is_transactional,
-            single_unit=(not is_transactional) or (drop_db is not None),
+            single_unit=(
+                (not is_transactional)
+                or (drop_db is not None)
+                or (create_db is not None)
+                or new_types
+            ),
             new_types=new_types,
             create_db=create_db,
             drop_db=drop_db,
             has_role_ddl=isinstance(stmt, qlast.Role),
+            ddl_stmt_id=ddl_stmt_id,
         )
 
     def _compile_ql_migration(self, ctx: CompileContext, ql: qlast.Migration):
@@ -1570,7 +1608,9 @@ class Compiler(BaseCompiler):
                 unit.create_db = comp.create_db
                 unit.drop_db = comp.drop_db
                 unit.has_role_ddl = comp.has_role_ddl
-                if comp.drop_db or comp.create_db:
+                unit.ddl_stmt_id = comp.ddl_stmt_id
+
+                if comp.single_unit:
                     units.append(unit)
                     unit = None
 
@@ -1782,16 +1822,7 @@ class Compiler(BaseCompiler):
             raise errors.InternalServerError(
                 f'failed to lookup transaction with id={txid}')
 
-        if self._current_db_state.current_tx().id == txid:
-            return self._current_db_state
-
-        if self._current_db_state.can_rollback_to_savepoint(txid):
-            self._current_db_state.rollback_to_savepoint(txid)
-            return self._current_db_state
-
-        raise errors.InternalServerError(
-            f'failed to lookup transaction or savepoint with id={txid}'
-        )  # pragma: no cover
+        self._current_db_state.advance_tx(txid)
 
     # API
 

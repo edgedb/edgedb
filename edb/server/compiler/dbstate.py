@@ -116,6 +116,7 @@ class DDLQuery(BaseQuery):
     create_db: Optional[str] = None
     drop_db: Optional[str] = None
     has_role_ddl: bool = False
+    ddl_stmt_id: Optional[str] = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -210,6 +211,10 @@ class QueryUnit:
     # close all inactive unused pooled connections to it.
     create_db: Optional[str] = None
     drop_db: Optional[str] = None
+
+    # If non-None, the DDL statement will emit data packets marked
+    # with the indicated ID.
+    ddl_stmt_id: Optional[str] = None
 
     # Cardinality of the result set.  Set to NO_RESULT if the
     # unit represents multiple queries compiled as one script.
@@ -533,3 +538,15 @@ class CompilerConnectionState:
             latest_state.cached_reflection)
 
         return latest_state
+
+    def advance_tx(self, txid: int) -> None:
+        if self._current_tx.id == txid:
+            return
+
+        if self.can_rollback_to_savepoint(txid):
+            self.rollback_to_savepoint(txid)
+            return
+
+        raise errors.InternalServerError(
+            f'failed to lookup transaction or savepoint with id={txid}'
+        )  # pragma: no cover

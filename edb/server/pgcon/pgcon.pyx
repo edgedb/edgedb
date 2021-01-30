@@ -855,6 +855,35 @@ cdef class PGConnection:
         finally:
             self.after_command()
 
+    async def run_ddl(
+        self,
+        object query_unit,
+        bytes state=None
+    ):
+        self.before_command()
+        try:
+            sql = b';'.join(query_unit.sql)
+            ignore_data = query_unit.ddl_stmt_id is None
+            data =  await self._simple_query(
+                sql,
+                ignore_data,
+                state,
+            )
+
+            if query_unit.ddl_stmt_id:
+                if data:
+                    ret = json.loads(data[0][0])
+                    if ret['ddl_stmt_id'] != query_unit.ddl_stmt_id:
+                        raise RuntimeError(
+                            'unrecognized data packet after a DDL command: '
+                            'data_stmt_id do not match')
+                    return ret
+                else:
+                    raise RuntimeError(
+                        'missing the required data packet after a DDL command')
+        finally:
+            self.after_command()
+
     async def _dump(self, block, output_queue, fragment_suggested_size):
         cdef:
             WriteBuffer buf

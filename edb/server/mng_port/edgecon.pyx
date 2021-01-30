@@ -929,9 +929,10 @@ cdef class EdgeConnection:
                     errors.DisabledCapabilityError,
                 )
 
-        conn = await self.get_pgcon()
         if not self.dbview.in_tx():
             state = self.dbview.serialize_state()
+        new_types = None
+        conn = await self.get_pgcon()
         try:
             new_type_ids = frozenset()
             for query_unit in units:
@@ -944,7 +945,11 @@ cdef class EdgeConnection:
                     if query_unit.system_config:
                         await self._execute_system_config(query_unit, conn)
                     else:
-                        if query_unit.is_transactional:
+                        if query_unit.ddl_stmt_id:
+                            ddl_ret = await conn.run_ddl(query_unit, state)
+                            if ddl_ret and ddl_ret['new_types']:
+                                new_types = ddl_ret['new_types']
+                        elif query_unit.is_transactional:
                             await conn.simple_query(
                                 b';'.join(query_unit.sql),
                                 ignore_data=True,
@@ -1376,11 +1381,10 @@ cdef class EdgeConnection:
                 self.maybe_release_pgcon(conn)
             return
 
-        bound_args_buf = self.recode_bind_args(bind_args, compiled)
-
-        conn = await self.get_pgcon()
         if not self.dbview.in_tx():
             state = self.dbview.serialize_state()
+        new_types = None
+        conn = await self.get_pgcon()
         try:
             self.dbview.start(query_unit)
             if query_unit.drop_db:
@@ -1389,13 +1393,19 @@ cdef class EdgeConnection:
             if query_unit.system_config:
                 await self._execute_system_config(query_unit, conn)
             else:
-                await conn.parse_execute(
-                    query_unit,         # =query
-                    self,               # =edgecon
-                    bound_args_buf,     # =bind_data
-                    use_prep_stmt,      # =use_prep_stmt
-                    state,              # =state
-                )
+                if query_unit.ddl_stmt_id:
+                    ddl_ret = await conn.run_ddl(query_unit, state)
+                    if ddl_ret and ddl_ret['new_types']:
+                        new_types = ddl_ret['new_types']
+                else:
+                    bound_args_buf = self.recode_bind_args(bind_args, compiled)
+                    await conn.parse_execute(
+                        query_unit,         # =query
+                        self,               # =edgecon
+                        bound_args_buf,     # =bind_data
+                        use_prep_stmt,      # =use_prep_stmt
+                        state,              # =state
+                    )
 
                 if query_unit.create_db:
                     await self.port.get_server().introspect_db(
@@ -1425,8 +1435,8 @@ cdef class EdgeConnection:
 
             self.write(self.make_command_complete_msg(query_unit))
 
-            if query_unit.new_types and self.dbview.in_tx():
-                await self._update_type_ids(query_unit.new_types, conn)  # XXX
+            if new_types and self.dbview.in_tx():
+                await self._update_type_ids2(new_types)
         finally:
             self.maybe_release_pgcon(conn)
 
@@ -1442,6 +1452,11 @@ cdef class EdgeConnection:
             return json.loads(json_data.decode('utf-8'))
         else:
             return None
+
+    def _update_type_ids2(self, new_types):
+        assert self.dbview.in_tx()
+        print('!!!!!!!', new_types)
+
 
     async def _update_type_ids(self, new_types, conn):  # XXX
         # Inform the compiler process about the newly
