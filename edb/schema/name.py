@@ -25,6 +25,7 @@ import functools
 import re
 
 from edb import errors
+from edb.common import markup
 
 
 NameT = TypeVar("NameT", bound="Name")
@@ -254,3 +255,11 @@ def compat_name_remangle(name: str) -> Name:
         return QualName(name=compat_sn, module=qname.module)
     else:
         return name_from_string(name)
+
+
+@markup.serializer.no_ref_detect
+@markup.serializer.serializer.register(Name)
+def _serialize_to_markup(obj: Name, *, ctx: markup.Context) -> markup.Markup:
+    return markup.elements.lang.Object(
+        id=id(obj), class_module=type(obj).__module__,
+        classname=type(obj).__name__, repr=str(obj))
