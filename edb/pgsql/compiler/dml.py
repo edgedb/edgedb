@@ -592,11 +592,8 @@ def process_insert_body(
             ptr_info = pg_types.get_ptrref_storage_info(
                 ptrref, resolve_type=True, link_bias=False)
 
-            props_only = False
-
             # First, process all local link inserts.
             if ptr_info.table_type == 'ObjectType':
-                props_only = True
                 field = pgast.ColumnRef(name=[ptr_info.column_name])
                 cols.append(field)
 
@@ -622,7 +619,7 @@ def process_insert_body(
                 ptrref, resolve_type=False, link_bias=True)
 
             if ptr_info and ptr_info.table_type == 'link':
-                external_inserts.append((shape_el, props_only))
+                external_inserts.append(shape_el)
 
         if iterator is not None:
             cols.append(pgast.ColumnRef(name=['__edb_token']))
@@ -647,11 +644,10 @@ def process_insert_body(
     toplevel.ctes.append(insert_cte)
 
     # Process necessary updates to the link tables.
-    for shape_el, props_only in external_inserts:
+    for shape_el in external_inserts:
         process_link_update(
             ir_stmt=ir_stmt,
             ir_set=shape_el,
-            props_only=props_only,
             wrapper=wrapper,
             dml_cte=insert_cte,
             source_typeref=typeref,
@@ -855,13 +851,11 @@ def process_update_body(
 
                     update_stmt.targets.append(updtarget)
 
-            props_only = is_props_only_update(shape_el, ctx=subctx)
-
             ptr_info = pg_types.get_ptrref_storage_info(
                 actual_ptrref, resolve_type=False, link_bias=True)
 
             if ptr_info and ptr_info.table_type == 'link':
-                external_updates.append((shape_el, shape_op, props_only))
+                external_updates.append((shape_el, shape_op))
 
     if not update_stmt.targets:
         # No updates directly to the set target table,
@@ -885,11 +879,10 @@ def process_update_body(
     toplevel.ctes.append(update_cte)
 
     # Process necessary updates to the link tables.
-    for expr, shape_op, _ in external_updates:
+    for expr, shape_op in external_updates:
         process_link_update(
             ir_stmt=ir_stmt,
             ir_set=expr,
-            props_only=False,
             wrapper=wrapper,
             dml_cte=update_cte,
             iterator=None,
@@ -900,30 +893,10 @@ def process_update_body(
         )
 
 
-def is_props_only_update(shape_el: irast.Set, *,
-                         ctx: context.CompilerContextLevel) -> bool:
-    """Determine whether a link update is a property-only update.
-
-    :param shape_el:
-        IR of the shape element representing a link update.
-
-    :return:
-        `True` if *shape_el* represents a link property-only update.
-    """
-    return (
-        bool(shape_el.shape)
-        and all(
-            el.rptr is not None and el.rptr.ptrref.source_ptr is not None
-            for el, _ in shape_el.shape
-        )
-    )
-
-
 def process_link_update(
     *,
     ir_stmt: irast.MutatingStmt,
     ir_set: irast.Set,
-    props_only: bool,
     is_insert: bool,
     shape_op: qlast.ShapeOp = qlast.ShapeOp.ASSIGN,
     source_typeref: irast.TypeRef,
@@ -938,8 +911,6 @@ def process_link_update(
         IR of the statement.
     :param ir_set:
         IR of the INSERT/UPDATE body element.
-    :param props_only:
-        Whether this link update only touches link properties.
     :param wrapper:
         Top-level SQL query.
     :param dml_cte:
