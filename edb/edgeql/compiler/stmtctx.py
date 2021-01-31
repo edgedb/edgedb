@@ -182,13 +182,10 @@ def fini_expression(
                             'std::BaseObject', type=s_types.Type),
                     )
 
-                if not hasattr(vptr, 'get_pointers'):
+                if not isinstance(vptr, s_sources.Source):
                     continue
-                # type ignore below, because we check above if vptr has
-                # a get_pointers attribute
-                vptr_own_pointers = vptr.get_pointers(  # type: ignore
-                    ctx.env.schema
-                )
+
+                vptr_own_pointers = vptr.get_pointers(ctx.env.schema)
                 for vlprop in vptr_own_pointers.objects(ctx.env.schema):
                     _elide_derived_ancestors(vlprop, ctx=ctx)
                     ctx.env.schema = vlprop.set_field_value(
@@ -518,13 +515,20 @@ def declare_view(
                 basename = s_name.QualName(
                     module='__derived__', name=alias.name)
 
-            view_name = s_name.QualName(
-                module=ctx.derived_target_module or '__derived__',
-                name=s_name.get_specialized_name(
-                    basename,
-                    ctx.aliases.get('w')
+            if (
+                isinstance(alias, s_name.QualName)
+                and subctx.env.options.schema_view_mode
+            ):
+                view_name = basename
+                subctx.recompiling_schema_alias = True
+            else:
+                view_name = s_name.QualName(
+                    module=ctx.derived_target_module or '__derived__',
+                    name=s_name.get_specialized_name(
+                        basename,
+                        ctx.aliases.get('w')
+                    )
                 )
-            )
 
         subctx.toplevel_result_view_name = view_name
 

@@ -780,12 +780,13 @@ def _normalize_view_ptr_expr(
             ctx=ctx,
         )
 
-        existing: Optional[s_objects.Object] = (
-            ctx.env.schema.get(derived_name, None))
+        existing = ctx.env.schema.get(
+            derived_name, default=None, type=s_pointers.Pointer)
         if existing is not None:
-            assert isinstance(existing, s_pointers.Pointer)
             existing_target = existing.get_target(ctx.env.schema)
             assert existing_target is not None
+            if ctx.recompiling_schema_alias:
+                ptr_cardinality = existing.get_cardinality(ctx.env.schema)
             if ptr_target == existing_target:
                 ptrcls = existing
             elif ptr_target.implicitly_castable_to(
@@ -794,41 +795,21 @@ def _normalize_view_ptr_expr(
                     ctx.env.schema, ptr_target)
                 ptrcls = existing
             else:
-                target_rptr_set = (
-                    ptr_target.get_rptr(ctx.env.schema) is not None
+                vnp = existing.get_verbosename(
+                    ctx.env.schema, with_parent=True)
+
+                t1_vn = existing_target.get_verbosename(ctx.env.schema)
+                t2_vn = ptr_target.get_verbosename(ctx.env.schema)
+
+                if compexpr is not None:
+                    source_context = compexpr.context
+                else:
+                    source_context = shape_el.expr.steps[-1].context
+                raise errors.SchemaError(
+                    f'cannot redefine {vnp} as {t2_vn}',
+                    details=f'{vnp} is defined as {t1_vn}',
+                    context=source_context,
                 )
-
-                if target_rptr_set:
-                    ctx.env.schema = ptr_target.set_field_value(
-                        ctx.env.schema,
-                        'rptr',
-                        None,
-                    )
-
-                ctx.env.schema = existing.delete(ctx.env.schema)
-
-                try:
-                    ptrcls = schemactx.derive_ptr(
-                        derive_from, src_scls, ptr_target,
-                        is_insert=is_insert,
-                        is_update=is_update,
-                        derived_name=derived_name,
-                        inheritance_merge=True,
-                        ctx=ctx,
-                    )
-                except errors.SchemaError as e:
-                    if compexpr is not None:
-                        e.set_source_context(compexpr.context)
-                    else:
-                        e.set_source_context(shape_el.expr.steps[-1].context)
-                    raise
-
-                if target_rptr_set:
-                    ctx.env.schema = ptr_target.set_field_value(
-                        ctx.env.schema,
-                        'rptr',
-                        ptrcls,
-                    )
         else:
             ptrcls = schemactx.derive_ptr(
                 derive_from, src_scls, ptr_target,

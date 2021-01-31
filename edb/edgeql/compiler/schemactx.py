@@ -203,16 +203,27 @@ def derive_view(
         )
 
     elif isinstance(stype, s_obj.DerivableInheritingObject):
-        ctx.env.schema, derived = stype.derive_subtype(
-            ctx.env.schema,
-            name=derived_name,
-            inheritance_merge=inheritance_merge,
-            inheritance_refdicts={'pointers'},
-            mark_derived=True,
-            transient=True,
-            preserve_path_id=preserve_path_id,
-            attrs=attrs,
-        )
+        existing = ctx.env.schema.get(
+            derived_name, default=None, type=type(stype))
+        if existing is not None:
+            if ctx.recompiling_schema_alias:
+                derived = existing
+            else:
+                raise AssertionError(
+                    f'{type(stype).get_schema_class_displayname()}'
+                    f' {derived_name!r} already exists',
+                )
+        else:
+            ctx.env.schema, derived = stype.derive_subtype(
+                ctx.env.schema,
+                name=derived_name,
+                inheritance_merge=inheritance_merge,
+                inheritance_refdicts={'pointers'},
+                mark_derived=True,
+                transient=True,
+                preserve_path_id=preserve_path_id,
+                attrs=attrs,
+            )
 
         if (not stype.generic(ctx.env.schema)
                 and isinstance(derived, s_sources.Source)):
