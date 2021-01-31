@@ -115,6 +115,7 @@ cdef class DatabaseConnectionView:
         self._in_tx_config = None
         self._in_tx_user_schema = None
         self._in_tx_new_types = {}
+        self._in_compiled_new_types = {}
 
         # Whenever we are in a transaction that had executed a
         # DDL command, we use this cache for compiled queries.
@@ -201,17 +202,19 @@ cdef class DatabaseConnectionView:
             self._in_tx_user_schema = new_user_schema
 
     def resolve_array_type_id(self, type_id):
-
-        print("RESOLVE", type_id, self._in_tx_new_types)
-
         try:
-            return int(self._in_tx_new_types[str(type_id)])
+            return int(self._in_compiled_new_types[str(type_id)])
         except KeyError:
             pass
 
+        if self._in_tx:
+            try:
+                return int(self._in_tx_new_types[str(type_id)])
+            except KeyError:
+                pass
+
         schema = self.get_schema()
         t = schema.get_by_id(type_id)
-        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!', t)
         tid = t.get_backend_id(schema)
         if tid is None:
             raise RuntimeError(
@@ -341,12 +344,30 @@ cdef class DatabaseConnectionView:
             if query_unit.user_schema is not None:
                 self._in_tx_user_schema = query_unit.user_schema
 
+    cdef enter_compiled_context(self):
+        self._in_compiled_new_types = {}
+
+    cdef exit_compiled_context(self, bint errored):
+        if self._in_compiled_new_types and not errored:
+            if self._in_tx:
+                self._in_tx_new_types.update(self._in_compiled_new_types)
+            else:
+                user_schema = self.get_user_schema()
+                user_schema_upd = self._apply_new_types(
+                    user_schema, self._in_compiled_new_types)
+                if user_schema is not user_schema_upd:
+                    self._db._set_and_signal_new_user_schema(user_schema_upd)
+
+        self._in_compiled_new_types = {}
+
     cdef on_error(self, query_unit):
         self.tx_error()
 
     cdef on_success(self, query_unit, new_types):
-        print('on_success', new_types)
         side_effects = 0
+
+        if new_types:
+            self._in_compiled_new_types.update(new_types)
 
         if query_unit.tx_savepoint_rollback:
             # Need to invalidate the cache in case there were
@@ -427,14 +448,12 @@ cdef class DatabaseConnectionView:
         return side_effects
 
     cdef _apply_new_types(self, schema, dict new_types):
-        print("APPLY NEW TYPES", new_types)
         for type_id, backend_tid in new_types.items():
             t = schema.get_by_id(
                 uuidgen.UUID(type_id), default=None)
             if t is not None:
                 schema = t.set_field_value(
                     schema, 'backend_id', backend_tid)
-                print('+++', t, backend_tid, t.get_backend_id(schema))
         return schema
 
     def sync_new_types(self, dict new_types):

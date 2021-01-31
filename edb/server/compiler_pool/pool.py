@@ -41,7 +41,7 @@ from . import amsg
 from . import state
 
 
-DEFAULT_POOL_SIZE = max(os.cpu_count() // 2, 2)
+DEFAULT_POOL_SIZE = max(os.cpu_count(), 2)
 PROCESS_INITIAL_RESPONSE_TIMEOUT = 60.0
 KILL_TIMEOUT = 10.0
 WORKER_MOD = __name__.rpartition('.')[0] + '.worker'
@@ -95,7 +95,7 @@ class Worker:
         new_user_schema,
         new_reflection_cache
     ):
-        self._dbs.set(dbname, state.DatabaseState(
+        self._dbs = self._dbs.set(dbname, state.DatabaseState(
             name=dbname,
             dbver=new_dbver,
             user_schema=new_user_schema,
@@ -319,30 +319,24 @@ class Pool:
         worker = await self._workers_queue.get()
         try:
             worker_db = worker._dbs.get(dbview.dbname)
-            needs_sync = False
 
             if worker_db is None or worker_db.dbver != dbview.dbver:
-                needs_sync = True
                 preargs = (
                     dbview.dbname, dbview.dbver,
                     dbview.get_user_schema(), dbview.reflection_cache
                 )
+                worker._update_db(*preargs)
             else:
                 preargs = (
                     dbview.dbname, dbview.dbver,
                     None, None
                 )
 
-            r = await worker.call(
+            return await worker.call(
                 'compile2',
                 *preargs,
                 *compile_args
             )
-
-            if needs_sync:
-                worker._update_db(*preargs)
-
-            return r
 
         finally:
             self._workers_queue.put_nowait(worker)
@@ -350,14 +344,12 @@ class Pool:
     async def compile_in_tx(self, dbview, state, *compile_args):
         worker = await self._workers_queue.get()
         try:
-            r = await worker.call(
+            return await worker.call(
                 'compile_in_tx2',
                 state,
                 dbview.txid,
                 *compile_args
             )
-
-            return r
 
         finally:
             self._workers_queue.put_nowait(worker)

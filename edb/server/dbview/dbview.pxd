@@ -77,6 +77,7 @@ cdef class DatabaseConnectionView:
         bint _in_tx_with_dbconfig
         bint _in_tx_with_set
         bint _tx_error
+        object _in_compiled_new_types
 
         object __weakref__
 
@@ -111,3 +112,6 @@ cdef class DatabaseConnectionView:
     cdef bytes serialize_state(self)
 
     cdef _apply_new_types(self, schema, dict new_types)
+
+    cdef enter_compiled_context(self)
+    cdef exit_compiled_context(self, bint errored)
