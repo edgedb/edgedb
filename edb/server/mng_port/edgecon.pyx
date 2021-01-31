@@ -922,6 +922,9 @@ cdef class EdgeConnection:
         with self.timer.timed("Query compilation"):
             units = await self._compile_script(eql, stmt_mode=stmt_mode)
 
+        from edb.common import markup
+        markup.dump(units)
+
         for query_unit in units:
             if query_unit.capabilities & ~allow_capabilities:
                 raise query_unit.capabilities.make_error(
@@ -931,11 +934,12 @@ cdef class EdgeConnection:
 
         if not self.dbview.in_tx():
             state = self.dbview.serialize_state()
-        new_types = None
+
         conn = await self.get_pgcon()
+        all_new_types = {}
         try:
-            new_type_ids = frozenset()
             for query_unit in units:
+                new_types = None
                 self.dbview.start(query_unit)
                 try:
                     if query_unit.drop_db:
@@ -949,6 +953,7 @@ cdef class EdgeConnection:
                             ddl_ret = await conn.run_ddl(query_unit, state)
                             if ddl_ret and ddl_ret['new_types']:
                                 new_types = ddl_ret['new_types']
+                                all_new_types.update(new_types)
                         elif query_unit.is_transactional:
                             await conn.simple_query(
                                 b';'.join(query_unit.sql),
@@ -985,20 +990,14 @@ cdef class EdgeConnection:
                         await self.recover_current_tx_info(conn)
                     raise
                 else:
-                    side_effects = self.dbview.on_success(query_unit)
+                    side_effects = self.dbview.on_success(
+                        query_unit, new_types)
                     if side_effects:
                         await self.signal_side_effects(side_effects)
 
-                    if query_unit.new_types:
-                        new_type_ids |= query_unit.new_types
-
-            if new_type_ids and self.dbview.in_tx():
-                # This is a single script, potentially containing multiple
-                # transactions (each of which would consist of multiple
-                # query units).  In the end, if we're still in transaction
-                # after executing the script and there were new types added
-                # we want to update type IDs in the linked compiler.
-                await self._update_type_ids(new_type_ids, conn)  # XXX
+            if all_new_types:
+                print("ALL NEW TYPES", all_new_types)
+                self.dbview.sync_new_types(all_new_types)
         finally:
             self.maybe_release_pgcon(conn)
 
@@ -1429,14 +1428,11 @@ cdef class EdgeConnection:
                 await self.recover_current_tx_info(conn)
             raise
         else:
-            side_effects = self.dbview.on_success(query_unit)
+            side_effects = self.dbview.on_success(query_unit, new_types)
             if side_effects:
                 await self.signal_side_effects(side_effects)
 
             self.write(self.make_command_complete_msg(query_unit))
-
-            if new_types and self.dbview.in_tx():
-                await self._update_type_ids2(new_types)
         finally:
             self.maybe_release_pgcon(conn)
 
@@ -1452,35 +1448,6 @@ cdef class EdgeConnection:
             return json.loads(json_data.decode('utf-8'))
         else:
             return None
-
-    def _update_type_ids2(self, new_types):
-        assert self.dbview.in_tx()
-        print('!!!!!!!', new_types)
-
-
-    async def _update_type_ids(self, new_types, conn):  # XXX
-        # Inform the compiler process about the newly
-        # appearing types, so type descriptors contain
-        # the necessary backend data.  We only do this
-        # when in a transaction, since otherwise the entire
-        # schema will reload anyway due to a bumped dbver.
-        try:
-            ret = await self._get_backend_tids(new_types, conn)
-        except Exception:
-            if self.dbview.in_tx():
-                self.dbview.abort_tx()
-            raise
-        else:
-            typemap = {}
-            if ret:
-                for entry in ret:
-                    if entry['backend_id'] is not None:
-                        typemap[entry['id']] = entry['backend_id']
-            if typemap:
-                return await self.get_backend().compiler.call(
-                    'update_type_ids',
-                    self.dbview.txid,
-                    typemap)
 
     async def execute(self):
         cdef:
@@ -1766,6 +1733,8 @@ cdef class EdgeConnection:
 
         if self.debug:
             self.debug_print('EXCEPTION', type(exc).__name__, exc)
+            from edb.common.markup import dump
+            dump(exc)
 
         if debug.flags.server:
             self.loop.call_exception_handler({
@@ -1832,16 +1801,10 @@ cdef class EdgeConnection:
 
             # only use the backend if schema is required
             if static_exc is errormech.SchemaRequired:
-                if self.dbview.in_tx():
-                    exc = await self.get_backend().compiler.call(
-                        'interpret_backend_error_in_tx',
-                        self.dbview.txid,
-                        exc.fields)
-                else:
-                    exc = await self.get_backend().compiler.call(
-                        'interpret_backend_error',
-                        self.dbview.dbver,
-                        exc.fields)
+                exc = errormech.interpret_backend_error(
+                    self.dbview.get_schema(),
+                    exc.fields
+                )
             else:
                 exc = static_exc
 
@@ -1922,7 +1885,6 @@ cdef class EdgeConnection:
             ssize_t in_len
             ssize_t i
             const char *data
-            object array_tid
             has_reserved = self.protocol_version >= (0, 8)
 
         assert cpython.PyBytes_CheckExact(bind_args)
@@ -1967,10 +1929,12 @@ cdef class EdgeConnection:
                     data = frb_read(&in_buf, in_len)
                     # Ensure all array parameters have correct element OIDs as
                     # per Postgres' expectations.
-                    if param.array_tid is not None:
+                    if param.array_type_id is not None:
                         # ndimensions + flags
+                        array_tid = self.dbview.resolve_array_type_id(
+                            param.array_type_id)
                         out_buf.write_cstr(data, 8)
-                        out_buf.write_int32(<int32_t>param.array_tid)
+                        out_buf.write_int32(<int32_t>array_tid)
                         out_buf.write_cstr(&data[12], in_len - 12)
                     else:
                         out_buf.write_cstr(data, in_len)

@@ -28,6 +28,8 @@ import immutables
 
 from edb import errors
 
+from edb.common import uuidgen
+
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
@@ -110,6 +112,7 @@ class SessionStateQuery(BaseQuery):
 @dataclasses.dataclass(frozen=True)
 class DDLQuery(BaseQuery):
 
+    user_schema: s_schema.Schema
     new_types: FrozenSet[str] = frozenset()
     is_transactional: bool = True
     single_unit: bool = False
@@ -129,6 +132,8 @@ class TxControlQuery(BaseQuery):
     is_transactional: bool = True
     single_unit: bool = False
 
+    user_schema: Optional[s_schema.Schema] = None
+
 
 @dataclasses.dataclass(frozen=True)
 class MigrationControlQuery(BaseQuery):
@@ -142,12 +147,15 @@ class MigrationControlQuery(BaseQuery):
     is_transactional: bool = True
     single_unit: bool = False
 
+    user_schema: Optional[s_schema.Schema] = None
+    ddl_stmt_id: Optional[str] = None
+
 
 @dataclasses.dataclass(frozen=True)
 class Param:
     name: str
     required: bool
-    array_tid: Optional[int]
+    array_type_id: Optional[uuidgen.UUID]
 
 
 #############################
@@ -239,6 +247,10 @@ class QueryUnit:
     config_ops: List[config.Operation] = (
         dataclasses.field(default_factory=list))
     modaliases: Optional[immutables.Map] = None
+
+    # If present, represents the future schema state after
+    # the command is run.
+    user_schema: Optional[s_schema.Schema] = None
 
     @property
     def has_ddl(self) -> bool:
@@ -414,6 +426,9 @@ class Transaction:
             self._stack[-1].schema
         )
 
+    def get_user_schema(self) -> s_schema.Schema:
+        return self._stack[-1].schema
+
     def get_modaliases(self) -> immutables.Map:
         return self._stack[-1].modaliases
 
@@ -495,7 +510,10 @@ class CompilerConnectionState:
         # of the recovered savepoint.
         new_tx._id = spid
 
-        self._savepoints_log.clear()
+        for id in tuple(self._savepoints_log):
+            if id > spid:
+                self._savepoints_log.pop(id)
+
         self._current_tx = new_tx
 
     @property

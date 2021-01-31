@@ -28,10 +28,9 @@ cpdef enum SideEffects:
 cdef class DatabaseIndex:
     cdef:
         dict _dbs
-
         object _server
-
         object _sys_config
+        object _std_schema
 
 
 cdef class Database:
@@ -46,6 +45,7 @@ cdef class Database:
         readonly object user_schema
         readonly object reflection_cache
 
+    cdef _set_and_signal_new_user_schema(self, new_schema)
     cdef _signal_ddl(self, new_dbver)
     cdef _invalidate_caches(self)
     cdef _cache_compiled_query(self, key, query_unit)
@@ -68,6 +68,8 @@ cdef class DatabaseConnectionView:
 
         object _txid
         object _in_tx_config
+        object _in_tx_user_schema
+        object _in_tx_new_types
         bint _in_tx
         bint _in_tx_with_ddl
         bint _in_tx_with_role_ddl
@@ -95,7 +97,7 @@ cdef class DatabaseConnectionView:
 
     cdef start(self, query_unit)
     cdef on_error(self, query_unit)
-    cdef on_success(self, query_unit)
+    cdef on_success(self, query_unit, new_types)
 
     cdef get_session_config(self)
     cdef set_session_config(self, new_conf)
@@ -103,4 +105,9 @@ cdef class DatabaseConnectionView:
     cdef set_modaliases(self, new_aliases)
     cdef get_modaliases(self)
 
+    # cdef get_user_schema(self)
+    cdef set_user_schema(self, new_user_schema)
+
     cdef bytes serialize_state(self)
+
+    cdef _apply_new_types(self, schema, dict new_types)

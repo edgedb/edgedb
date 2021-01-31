@@ -325,7 +325,7 @@ class Pool:
                 needs_sync = True
                 preargs = (
                     dbview.dbname, dbview.dbver,
-                    dbview.user_schema, dbview.reflection_cache
+                    dbview.get_user_schema(), dbview.reflection_cache
                 )
             else:
                 preargs = (

@@ -703,15 +703,16 @@ class Compiler(BaseCompiler):
                         and not ctx.standalone_mode
                     ):
                         el_type = param.schema_type.get_element_type(ir.schema)
-                        array_tid = el_type.get_backend_id(ir.schema)
-                        if array_tid is None:
-                            assert array_tid is not None
+                        array_tid = el_type.id
+                        # array_tid = el_type.get_backend_id(ir.schema)
+                        # if array_tid is None:
+                        #     assert array_tid is not None
 
                     subtypes[idx] = (param.name, param.schema_type)
                     in_type_args[idx] = dbstate.Param(
                         name=param.name,
                         required=sql_param.required,
-                        array_tid=array_tid,
+                        array_type_id=array_tid,
                     )
 
                 ir.schema, params_type = s_types.Tuple.create(
@@ -788,6 +789,7 @@ class Compiler(BaseCompiler):
 
             return dbstate.DDLQuery(
                 sql=(b'SELECT LIMIT 0',),
+                user_schema=current_tx.get_user_schema(),
                 is_transactional=True,
                 single_unit=False,
             )
@@ -866,6 +868,7 @@ class Compiler(BaseCompiler):
             drop_db=drop_db,
             has_role_ddl=isinstance(stmt, qlast.Role),
             ddl_stmt_id=ddl_stmt_id,
+            user_schema=current_tx.get_user_schema(),
         )
 
     def _compile_ql_migration(self, ctx: CompileContext, ql: qlast.Migration):
@@ -1178,11 +1181,13 @@ class Compiler(BaseCompiler):
             query = dbstate.MigrationControlQuery(
                 sql=ddl_query.sql + tx_query.sql,
                 new_types=ddl_query.new_types,
+                ddl_stmt_id=ddl_query.ddl_stmt_id,
                 action=dbstate.MigrationAction.COMMIT,
                 tx_action=tx_query.action,
                 cacheable=False,
                 modaliases=None,
                 single_unit=True,
+                user_schema=ctx.state.current_tx().get_user_schema(),
             )
 
         elif isinstance(ql, qlast.AbortMigration):
@@ -1216,6 +1221,7 @@ class Compiler(BaseCompiler):
         single_unit = False
 
         modaliases = None
+        final_user_schema: Optional[s_schema.Schema] = None
 
         if isinstance(ql, qlast.StartTransaction):
             ctx.state.start_tx()
@@ -1236,6 +1242,7 @@ class Compiler(BaseCompiler):
         elif isinstance(ql, qlast.CommitTransaction):
             new_state: dbstate.TransactionState = ctx.state.commit_tx()
             modaliases = new_state.modaliases
+            final_user_schema = ctx.state.current_tx().get_user_schema()
 
             sql = (b'COMMIT',)
             single_unit = True
@@ -1301,7 +1308,9 @@ class Compiler(BaseCompiler):
             action=action,
             cacheable=cacheable,
             single_unit=single_unit,
-            modaliases=modaliases)
+            modaliases=modaliases,
+            user_schema=final_user_schema,
+        )
 
     def _compile_ql_sess_state(self, ctx: CompileContext,
                                ql: qlast.BaseSessionCommand):
@@ -1609,6 +1618,7 @@ class Compiler(BaseCompiler):
                 unit.drop_db = comp.drop_db
                 unit.has_role_ddl = comp.has_role_ddl
                 unit.ddl_stmt_id = comp.ddl_stmt_id
+                unit.user_schema = comp.user_schema
 
                 if comp.single_unit:
                     units.append(unit)
@@ -1617,6 +1627,7 @@ class Compiler(BaseCompiler):
             elif isinstance(comp, dbstate.TxControlQuery):
                 unit.sql += comp.sql
                 unit.cacheable = comp.cacheable
+                unit.user_schema = comp.user_schema
 
                 if comp.modaliases is not None:
                     unit.modaliases = comp.modaliases
@@ -1641,6 +1652,8 @@ class Compiler(BaseCompiler):
                 unit.sql += comp.sql
                 unit.cacheable = comp.cacheable
                 unit.new_types = comp.new_types
+                unit.user_schema = comp.user_schema
+                unit.ddl_stmt_id = comp.ddl_stmt_id
 
                 if comp.modaliases is not None:
                     unit.modaliases = comp.modaliases
@@ -1704,7 +1717,9 @@ class Compiler(BaseCompiler):
             na_cardinality = (
                 unit.cardinality is enums.ResultCardinality.NO_RESULT
             )
-            if unit.cacheable and (unit.config_ops or unit.modaliases):
+            if unit.cacheable and (
+                unit.config_ops or unit.modaliases or unit.user_schema
+            ):
                 raise errors.InternalServerError(
                     f'QueryUnit {unit!r} is cacheable but has config/aliases')
             if not unit.sql:
@@ -2042,9 +2057,10 @@ class Compiler(BaseCompiler):
         stmt_mode: enums.CompileStatementMode,
     ) -> Tuple[List[dbstate.QueryUnit], dbstate.CompilerConnectionState]:
         self._current_db_state = state  # XXX
+        state.sync_tx(txid)
 
         ctx = CompileContext(
-            state=self._load_state(txid),  # XXX
+            state=state,
             output_format=io_format,
             expected_cardinality_one=expect_one,
             implicit_limit=implicit_limit,

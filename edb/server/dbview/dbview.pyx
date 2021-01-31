@@ -26,6 +26,7 @@ import immutables
 
 from edb import errors
 from edb.common import lru, uuidgen
+from edb.schema import schema as s_schema
 from edb.server import defines, config
 from edb.server.compiler import dbstate
 from edb.pgsql import dbops
@@ -64,6 +65,12 @@ cdef class Database:
 
         self.user_schema = user_schema
         self.reflection_cache = reflection_cache
+
+    cdef _set_and_signal_new_user_schema(self, new_schema):
+        assert new_schema is not self.user_schema
+        self.dbver = uuidgen.uuid1mc().bytes # XXX
+        self.user_schema = new_schema
+        self._invalidate_caches()
 
     cdef _signal_ddl(self, new_dbver):
         if new_dbver is None:
@@ -106,6 +113,8 @@ cdef class DatabaseConnectionView:
         self._config = DEFAULT_CONFIG
         self._session_state_cache = None
         self._in_tx_config = None
+        self._in_tx_user_schema = None
+        self._in_tx_new_types = {}
 
         # Whenever we are in a transaction that had executed a
         # DDL command, we use this cache for compiled queries.
@@ -127,6 +136,8 @@ cdef class DatabaseConnectionView:
         self._in_tx_with_sysconfig = False
         self._in_tx_with_dbconfig = False
         self._in_tx_with_set = False
+        self._in_tx_user_schema = None
+        self._in_tx_new_types = {}
         self._tx_error = False
         self._invalidate_local_cache()
 
@@ -171,6 +182,41 @@ cdef class DatabaseConnectionView:
             return self._in_tx_modaliases
         else:
             return self._modaliases
+
+    def get_user_schema(self):
+        if self._in_tx:
+            return self._in_tx_user_schema
+        else:
+            return self._db.user_schema
+
+    def get_schema(self):
+        user_schema = self.get_user_schema()
+        return s_schema.ChainedSchema(
+            self._db._index._std_schema,
+            user_schema
+        )
+
+    cdef set_user_schema(self, new_user_schema):
+        if self._in_tx:
+            self._in_tx_user_schema = new_user_schema
+
+    def resolve_array_type_id(self, type_id):
+
+        print("RESOLVE", type_id, self._in_tx_new_types)
+
+        try:
+            return int(self._in_tx_new_types[str(type_id)])
+        except KeyError:
+            pass
+
+        schema = self.get_schema()
+        t = schema.get_by_id(type_id)
+        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!', t)
+        tid = t.get_backend_id(schema)
+        if tid is None:
+            raise RuntimeError(
+                f'failed to resolve array OID for type {type_id}')
+        return tid
 
     cdef bytes serialize_state(self):
         cdef list state
@@ -226,10 +272,6 @@ cdef class DatabaseConnectionView:
         def __get__(self):
             return self._db.name
 
-    property user_schema:
-        def __get__(self):
-            return self._db.user_schema
-
     property reflection_cache:
         def __get__(self):
             return self._db.reflection_cache
@@ -280,6 +322,7 @@ cdef class DatabaseConnectionView:
             self._txid = query_unit.tx_id
             self._in_tx_config = self._config
             self._in_tx_modaliases = self._modaliases
+            self._in_tx_user_schema = self._db.user_schema
 
         if self._in_tx and not self._txid:
             raise errors.InternalServerError('unset txid in transaction')
@@ -295,11 +338,14 @@ cdef class DatabaseConnectionView:
                 self._in_tx_with_set = True
             if query_unit.has_role_ddl:
                 self._in_tx_with_role_ddl = True
+            if query_unit.user_schema is not None:
+                self._in_tx_user_schema = query_unit.user_schema
 
     cdef on_error(self, query_unit):
         self.tx_error()
 
-    cdef on_success(self, query_unit):
+    cdef on_success(self, query_unit, new_types):
+        print('on_success', new_types)
         side_effects = 0
 
         if query_unit.tx_savepoint_rollback:
@@ -308,15 +354,29 @@ cdef class DatabaseConnectionView:
             self._invalidate_local_cache()
 
         if not self._in_tx:
-            if query_unit.has_ddl:
-                self._db._signal_ddl(None)
+            user_schema = self._db.user_schema
+            if (
+                query_unit.user_schema is not None and
+                query_unit.user_schema is not user_schema
+            ):
+                user_schema = query_unit.user_schema
+            if new_types:
+                user_schema = self._apply_new_types(user_schema, new_types)
+            if user_schema is not self._db.user_schema:
+                self._db._set_and_signal_new_user_schema(user_schema)
                 side_effects |= SideEffects.SchemaChanges
+#            if query_unit.has_ddl:
+#                self._db._signal_ddl(None)
+#                side_effects |= SideEffects.SchemaChanges
             if query_unit.system_config:
                 side_effects |= SideEffects.SystemConfigChanges
             if query_unit.database_config:
                 side_effects |= SideEffects.DatabaseConfigChanges
             if query_unit.has_role_ddl:
                 side_effects |= SideEffects.RoleChanges
+        else:
+            if new_types:
+                self._in_tx_new_types.update(new_types)
 
         if query_unit.modaliases is not None:
             self.set_modaliases(query_unit.modaliases)
@@ -329,9 +389,25 @@ cdef class DatabaseConnectionView:
                     '"commit" outside of a transaction')
             self._config = self._in_tx_config
             self._modaliases = self._in_tx_modaliases
-            if self._in_tx_with_ddl:
-                self._db._signal_ddl(None)
+
+            user_schema = self._db.user_schema
+            if (
+                query_unit.user_schema is not None and
+                query_unit.user_schema is not user_schema
+            ):
+                user_schema = query_unit.user_schema
+
+            if self._in_tx_new_types:
+                user_schema = self._apply_new_types(
+                    user_schema, self._in_tx_new_types)
+
+            if user_schema is not self._db.user_schema:
+                self._db._set_and_signal_new_user_schema(user_schema)
                 side_effects |= SideEffects.SchemaChanges
+
+#            if self._in_tx_with_ddl:
+#                self._db._signal_ddl(None)
+#                side_effects |= SideEffects.SchemaChanges
             if self._in_tx_with_sysconfig:
                 side_effects |= SideEffects.SystemConfigChanges
             if self._in_tx_with_dbconfig:
@@ -349,6 +425,23 @@ cdef class DatabaseConnectionView:
             self._reset_tx_state()
 
         return side_effects
+
+    cdef _apply_new_types(self, schema, dict new_types):
+        print("APPLY NEW TYPES", new_types)
+        for type_id, backend_tid in new_types.items():
+            t = schema.get_by_id(
+                uuidgen.UUID(type_id), default=None)
+            if t is not None:
+                schema = t.set_field_value(
+                    schema, 'backend_id', backend_tid)
+                print('+++', t, backend_tid, t.get_backend_id(schema))
+        return schema
+
+    def sync_new_types(self, dict new_types):
+        user_schema = self.get_user_schema()
+        upd_user_schema = self._apply_new_types(user_schema, new_types)
+        if upd_user_schema != user_schema:
+            self._db._set_and_signal_new_user_schema(upd_user_schema)
 
     async def apply_config_ops(self, conn, ops):
         settings = config.get_settings()
@@ -375,15 +468,16 @@ cdef class DatabaseConnectionView:
 cdef class DatabaseIndex:
 
     @classmethod
-    async def init(cls, server) -> DatabaseIndex:
-        state = cls(server)
+    async def init(cls, server, std_schema) -> DatabaseIndex:
+        state = cls(server, std_schema)
         await state.reload_config()
         return state
 
-    def __init__(self, server):
+    def __init__(self, server, std_schema):
         self._dbs = {}
         self._server = server
         self._sys_config = None
+        self._std_schema = std_schema
 
     def count_connections(self, dbname: str):
         try:

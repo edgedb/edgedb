@@ -161,7 +161,7 @@ class Server:
 
         await self._load_instance_data()
         await self._fetch_roles()
-        self._dbindex = await dbview.DatabaseIndex.init(self)
+        self._dbindex = await dbview.DatabaseIndex.init(self, self._std_schema)
         await self._introspect_dbs()
 
         self._compiler_pool = await compiler_pool.create_compiler_pool(
