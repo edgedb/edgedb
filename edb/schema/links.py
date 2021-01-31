@@ -666,8 +666,12 @@ class DeleteLink(
                 and target.is_view(schema)
                 and target.get_alias_is_persistent(schema)):
 
-            del_cmd = target.init_delta_command(schema, sd.DeleteObject)
-            assert isinstance(del_cmd, sd.DeleteObject)
+            del_cmd = target.init_delta_command(
+                schema,
+                sd.DeleteObject,
+                expiring_refs={scls},
+                if_unused=True,
+            )
             subcmds = del_cmd._canonicalize(schema, context, target)
             del_cmd.update(subcmds)
             commands.append(del_cmd)

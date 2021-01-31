@@ -6578,12 +6578,6 @@ type test::Foo {
             DROP ABSTRACT LINK test::abs_link;
         """)
 
-    @test.xfail('''
-        Fails with the below on "CREATE ALIAS Alias2":
-
-        edb.errors.InvalidReferenceError: schema item
-        'test::__test|Alias1@@w~1__user2' does not exist
-    ''')
     async def test_edgeql_ddl_alias_01(self):
         # Issue #1184
         await self.con.execute(r"""
@@ -6602,16 +6596,40 @@ type test::Foo {
             };
 
             CREATE ALIAS Alias2 := Alias1;
+
+            INSERT Award { user := (INSERT User { name := 'Corvo' }) };
         """)
 
-        # TODO: Add an actual INSERT/SELECT test.
+        await self.assert_query_result(
+            r'''
+                SELECT Alias1 {
+                    user2: {
+                        name2
+                    }
+                }
+            ''',
+            [{
+                'user2': {
+                    'name2': 'Corvo!',
+                },
+            }],
+        )
 
-    @test.xfail('''
-        Fails with the below on "CREATE ALIAS Alias2":
+        await self.assert_query_result(
+            r'''
+                SELECT Alias2 {
+                    user2: {
+                        name2
+                    }
+                }
+            ''',
+            [{
+                'user2': {
+                    'name2': 'Corvo!',
+                },
+            }],
+        )
 
-        edgedb.errors.SchemaError: ObjectType 'test::test|User@@view~1'
-        is already present in the schema <Schema gen:4121 at 0x109f222d0>
-    ''')
     async def test_edgeql_ddl_alias_02(self):
         # Issue #1184
         await self.con.execute(r"""
@@ -6630,9 +6648,40 @@ type test::Foo {
             };
 
             CREATE ALIAS Alias2 := Alias1;
+
+            INSERT User { name := 'Corvo' };
+            INSERT Award { name := 'Rune' };
         """)
 
-        # TODO: Add an actual INSERT/SELECT test.
+        await self.assert_query_result(
+            r'''
+                SELECT Alias1 {
+                    a_user: {
+                        name
+                    }
+                }
+            ''',
+            [{
+                'a_user': {
+                    'name': 'Corvo',
+                },
+            }],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT Alias2 {
+                    a_user: {
+                        name
+                    }
+                }
+            ''',
+            [{
+                'a_user': {
+                    'name': 'Corvo',
+                },
+            }],
+        )
 
     async def test_edgeql_ddl_alias_03(self):
         await self.con.execute(r"""
@@ -6740,15 +6789,6 @@ type test::Foo {
             }]
         )
 
-    @test.xfail('''
-        See test_edgeql_ddl_alias_08 first.
-
-        Fails to create "BT06Alias3":
-
-        edgedb.errors.SchemaError: ObjectType
-        'test::test|BT06Alias1@@w~1' is already present in the
-        schema <Schema gen:3431 at 0x7fe1a7b69880>
-    ''')
     async def test_edgeql_ddl_alias_06(self):
         # Issue #1184
         await self.con.execute(r"""
@@ -6756,6 +6796,14 @@ type test::Foo {
 
             CREATE TYPE BaseType06 {
                 CREATE PROPERTY name -> str;
+            };
+
+            INSERT BaseType06 {
+                name := 'bt06',
+            };
+
+            INSERT BaseType06 {
+                name := 'bt06_1',
             };
 
             CREATE ALIAS BT06Alias1 := BaseType06 {
@@ -6771,7 +6819,46 @@ type test::Foo {
             };
         """)
 
-        # TODO: Add an actual INSERT/SELECT test.
+        await self.assert_query_result(
+            r'''
+                SELECT BT06Alias1 {name, a} FILTER .name = 'bt06';
+            ''',
+            [{
+                'name': 'bt06',
+                'a': 'bt06_a',
+            }],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT BT06Alias2 {name, a, b} FILTER .name = 'bt06';
+            ''',
+            [{
+                'name': 'bt06',
+                'a': 'bt06_a',
+                'b': 'bt06_a_b',
+            }],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT BT06Alias3 {
+                    name,
+                    b: {name, a} ORDER BY .name
+                }
+                FILTER .name = 'bt06';
+            ''',
+            [{
+                'name': 'bt06',
+                'b': [{
+                    'name': 'bt06',
+                    'a': 'bt06_a',
+                }, {
+                    'name': 'bt06_1',
+                    'a': 'bt06_1_a',
+                }],
+            }],
+        )
 
     async def test_edgeql_ddl_alias_07(self):
         # Issue #1187
@@ -6785,46 +6872,56 @@ type test::Foo {
                 CREATE ALIAS IllegalAlias07 := Object {a := IllegalAlias07};
             """)
 
-    @test.xfail('''
-        Fails to create "BT06Alias3":
-
-        edgedb.errors.SchemaError: ObjectType
-        'test::test|BT06Alias1@@w~1' is already present in the
-        schema <Schema gen:3431 at 0x7fe1a7b69880>
-
-        This is actually causing the same issue as test_edgeql_ddl_alias_06,
-        but it means that the implicit aliases don't get cleaned up.
-
-        This means that this should be fixed first before it gets
-        masked by the fix to the other bug.
-    ''')
     async def test_edgeql_ddl_alias_08(self):
         # Issue #1184
         await self.con.execute(r"""
             SET MODULE test;
 
-            CREATE TYPE BaseType06 {
+            CREATE TYPE BaseType08 {
                 CREATE PROPERTY name -> str;
             };
 
-            CREATE ALIAS BT06Alias1 := BaseType06 {
+            INSERT BaseType08 {
+                name := 'bt08',
+            };
+
+            CREATE ALIAS BT08Alias1 := BaseType08 {
                 a := .name ++ '_a'
             };
 
-            CREATE ALIAS BT06Alias2 := BT06Alias1 {
+            CREATE ALIAS BT08Alias2 := BT08Alias1 {
                 b := .a ++ '_b'
             };
 
             # drop the freshly created alias
-            DROP ALIAS BT06Alias2;
+            DROP ALIAS BT08Alias2;
 
             # re-create the alias that was just dropped
-            CREATE ALIAS BT06Alias2 := BT06Alias1 {
-                b := .a ++ '_b'
+            CREATE ALIAS BT08Alias2 := BT08Alias1 {
+                b := .a ++ '_bb'
             };
         """)
 
-        # TODO: Add an actual INSERT/SELECT test.
+        await self.assert_query_result(
+            r'''
+                SELECT BT08Alias1 {name, a} FILTER .name = 'bt08';
+            ''',
+            [{
+                'name': 'bt08',
+                'a': 'bt08_a',
+            }],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT BT08Alias2 {name, a, b} FILTER .name = 'bt08';
+            ''',
+            [{
+                'name': 'bt08',
+                'a': 'bt08_a',
+                'b': 'bt08_a_bb',
+            }],
+        )
 
     @test.xfail('''
        ISE: relation "<blah>" does not exist

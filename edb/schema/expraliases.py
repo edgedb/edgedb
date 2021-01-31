@@ -170,7 +170,7 @@ class AliasCommand(
         for vt in ir.views.values():
             if isinstance(vt, s_types.Collection):
                 coll_expr_aliases.append(vt)
-            else:
+            elif is_alter or not schema.has_object(vt.id):
                 new_schema = vt.set_field_value(
                     new_schema, 'alias_is_persistent', True)
 

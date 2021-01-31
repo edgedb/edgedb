@@ -79,18 +79,6 @@ class ReferencedObject(so.DerivableObject):
     def get_referrer(self, schema: s_schema.Schema) -> Optional[so.Object]:
         return self.get_subject(schema)
 
-    def delete(self, schema: s_schema.Schema) -> s_schema.Schema:
-        context = sd.CommandContext(
-            modaliases={},
-            schema=schema,
-            disable_dep_verification=True,
-        )
-        delta, _, _ = self.init_delta_branch(
-            schema, context, cmdtype=sd.DeleteObject)
-        root = sd.DeltaRoot()
-        root.add(delta)
-        return delta.apply(schema, context)
-
     def derive_ref(
         self: ReferencedT,
         schema: s_schema.Schema,
