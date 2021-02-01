@@ -4815,8 +4815,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             alias Alias2 := (SELECT Note.note);
             alias Alias3 := Note { command := .note ++ "!" };
 
-            type Foo {
-                link a -> Alias1;
+            alias Foo := Note {
+                a := Alias1
             };
         """, r"""
             type Note {
@@ -4826,8 +4826,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             alias Blias2 := (SELECT Note.note);
             alias Blias3 := Note { command := .note ++ "!" };
 
-            type Foo {
-                link a -> Blias1;
+            alias Foo := Note {
+                a := Blias1
             };
         """])
 

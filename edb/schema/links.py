@@ -248,6 +248,18 @@ class LinkCommand(
                 context=srcctx,
             )
 
+        if (
+            not scls.is_pure_computable(schema)
+            and not scls.get_from_alias(schema)
+            and target.is_view(schema)
+        ):
+            srcctx = self.get_attribute_source_context('target')
+            raise errors.InvalidLinkTargetError(
+                f'invalid link type: {target.get_displayname(schema)!r}'
+                f' is an expression alias, not a proper object type',
+                context=srcctx,
+            )
+
     def _get_ast(
         self,
         schema: s_schema.Schema,
