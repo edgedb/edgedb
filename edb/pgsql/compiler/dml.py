@@ -32,7 +32,6 @@
 
 from __future__ import annotations
 
-import collections
 from typing import *
 
 from edb.edgeql import ast as qlast
@@ -79,11 +78,12 @@ def init_dml_stmt(
 ) -> DMLParts:
     """Prepare the common structure of the query representing a DML stmt.
 
-    :param ir_stmt:
-        IR of the DML statement.
+    Args:
+        ir_stmt:
+            IR of the DML statement.
 
-    :return:
-        A DMLParts tuple containing a map of DML CTEs as well as the
+    Returns:
+        A ``DMLParts`` tuple containing a map of DML CTEs as well as the
         common range CTE for UPDATE/DELETE statements.
     """
     clauses.init_stmt(ir_stmt, ctx, parent_ctx)
@@ -93,7 +93,7 @@ def init_dml_stmt(
 
     if isinstance(ir_stmt, (irast.UpdateStmt, irast.DeleteStmt)):
         # UPDATE and DELETE operate over a range, so generate
-        # the corresponding CTE and connect it to the DML stetements.
+        # the corresponding CTE and connect it to the DML statements.
         range_cte = get_dml_range(ir_stmt, ctx=ctx)
         range_rvar = pgast.RelRangeVar(
             relation=range_cte,
@@ -418,12 +418,11 @@ def get_dml_range(
 ) -> pgast.CommonTableExpr:
     """Create a range CTE for the given DML statement.
 
-    :param ir_stmt:
-        IR of the statement.
-    :param dml_stmt:
-        SQL DML node instance.
+    Args:
+        ir_stmt:
+            IR of the DML statement.
 
-    :return:
+    Returns:
         A CommonTableExpr node representing the range affected
         by the DML statement.
     """
@@ -516,22 +515,24 @@ def compile_iterator_ctes(
 
 
 def process_insert_body(
-        ir_stmt: irast.InsertStmt,
-        wrapper: pgast.SelectStmt,
-        insert_cte: pgast.CommonTableExpr,
-        insert_rvar: pgast.PathRangeVar,
-        else_cte_rvar: Optional[
-            Tuple[pgast.CommonTableExpr, pgast.PathRangeVar]],
-        *,
-        ctx: context.CompilerContextLevel) -> None:
+    *,
+    ir_stmt: irast.InsertStmt,
+    insert_cte: pgast.CommonTableExpr,
+    else_cte_rvar: Optional[Tuple[pgast.CommonTableExpr, pgast.PathRangeVar]],
+    ctx: context.CompilerContextLevel,
+) -> None:
     """Generate SQL DML CTEs from an InsertStmt IR.
 
-    :param ir_stmt:
-        IR of the statement.
-    :param wrapper:
-        Top-level SQL query.
-    :param insert_cte:
-        CTE representing the SQL INSERT to the main relation of the Object.
+    Args:
+        ir_stmt:
+            IR of the DML statement.
+        insert_cte:
+            A CommonTableExpr node representing the SQL INSERT into
+            the main relation of the DML subject.
+        else_cte_rvar:
+            If present, a tuple containing a CommonTableExpr and
+            a RangeVar for it, which represent the body of an
+            ELSE clause in an UNLESS CONFLICT construct.
     """
     cols = [pgast.ColumnRef(name=['__type__'])]
     select = pgast.SelectStmt(target_list=[])
@@ -626,8 +627,11 @@ def process_insert_body(
                 cols.append(field)
 
                 rel = compile_insert_shape_element(
-                    insert_stmt, wrapper, ir_stmt, shape_el, inner_iterator_id,
-                    ctx=ctx)
+                    ir_stmt=ir_stmt,
+                    shape_el=shape_el,
+                    iterator_id=inner_iterator_id,
+                    ctx=ctx,
+                )
 
                 insvalue = pathctx.get_path_value_var(
                     rel, shape_el.path_id, env=ctx.env)
@@ -671,11 +675,9 @@ def process_insert_body(
         process_link_update(
             ir_stmt=ir_stmt,
             ir_set=shape_el,
-            wrapper=wrapper,
             dml_cte=insert_cte,
             source_typeref=typeref,
             iterator=iterator,
-            is_insert=True,
             ctx=ctx,
         )
 
@@ -827,12 +829,12 @@ def compile_insert_else_body(
 
 
 def compile_insert_shape_element(
-        insert_stmt: pgast.InsertStmt,
-        wrapper: pgast.Query,
-        ir_stmt: irast.MutatingStmt,
-        shape_el: irast.Set,
-        iterator_id: Optional[pgast.BaseExpr], *,
-        ctx: context.CompilerContextLevel) -> pgast.Query:
+    *,
+    ir_stmt: irast.MutatingStmt,
+    shape_el: irast.Set,
+    iterator_id: Optional[pgast.BaseExpr],
+    ctx: context.CompilerContextLevel,
+) -> pgast.Query:
 
     with ctx.newscope() as insvalctx:
         # This method is only called if the upper cardinality of
@@ -861,23 +863,26 @@ def compile_insert_shape_element(
 
 
 def process_update_body(
-    ir_stmt: irast.MutatingStmt,
-    wrapper: pgast.Query,
-    update_cte: pgast.CommonTableExpr,
-    typeref: irast.TypeRef,
     *,
+    ir_stmt: irast.MutatingStmt,
+    update_cte: pgast.CommonTableExpr,
+    dml_parts: DMLParts,
+    typeref: irast.TypeRef,
     ctx: context.CompilerContextLevel,
 ) -> None:
     """Generate SQL DML CTEs from an UpdateStmt IR.
 
-    :param ir_stmt:
-        IR of the statement.
-    :param wrapper:
-        Top-level SQL query.
-    :param update_cte:
-        CTE representing the SQL UPDATE to the main relation of the Object.
-    :param typeref:
-        The specific TypeRef of a set being updated.
+    Args:
+        ir_stmt:
+            IR of the DML statement.
+        update_cte:
+            CTE representing the SQL UPDATE to the main relation of the UPDATE
+            subject.
+        dml_parts:
+            A DMLParts tuple returned by init_dml_stmt().
+        typeref:
+            A TypeRef corresponding the the type of a subject being updated
+            by the update_cte.
     """
     update_stmt = update_cte.query
     assert isinstance(update_stmt, pgast.UpdateStmt)
@@ -988,10 +993,7 @@ def process_update_body(
         process_link_update(
             ir_stmt=ir_stmt,
             ir_set=expr,
-            wrapper=wrapper,
             dml_cte=update_cte,
-            iterator=None,
-            is_insert=False,
             shape_op=shape_op,
             source_typeref=typeref,
             ctx=ctx,
@@ -1002,30 +1004,34 @@ def process_link_update(
     *,
     ir_stmt: irast.MutatingStmt,
     ir_set: irast.Set,
-    is_insert: bool,
     shape_op: qlast.ShapeOp = qlast.ShapeOp.ASSIGN,
     source_typeref: irast.TypeRef,
-    wrapper: pgast.Query,
     dml_cte: pgast.CommonTableExpr,
-    iterator: Optional[pgast.IteratorCTE],
+    iterator: Optional[pgast.IteratorCTE] = None,
     ctx: context.CompilerContextLevel,
-) -> pgast.CommonTableExpr:
+) -> Optional[pgast.CommonTableExpr]:
     """Perform updates to a link relation as part of a DML statement.
 
-    :param ir_stmt:
-        IR of the statement.
-    :param ir_set:
-        IR of the INSERT/UPDATE body element.
-    :param wrapper:
-        Top-level SQL query.
-    :param dml_cte:
-        CTE representing the SQL INSERT or UPDATE to the main
-        relation of the Object.
-    :param iterator:
-        IR and CTE representing the iterator range in the FOR clause of the
-        EdgeQL DML statement.
+    Args:
+        ir_stmt:
+            IR of the DML statement.
+        ir_set:
+            IR of the INSERT/UPDATE body element.
+        shape_op:
+            The operation of the UPDATE body element (:=, +=, -=).  For
+            INSERT this should always be :=.
+        source_typeref:
+            An ir.TypeRef instance representing the specific type of an object
+            being updated.
+        dml_cte:
+            CTE representing the SQL INSERT or UPDATE to the main
+            relation of the DML subject.
+        iterator:
+            IR and CTE representing the iterator range in the FOR clause
+            of the EdgeQL DML statement (if present).
     """
     toplevel = ctx.toplevel_stmt
+    is_insert = isinstance(ir_stmt, irast.InsertStmt)
 
     rptr = ir_set.rptr
     assert rptr is not None
@@ -1053,19 +1059,12 @@ def process_link_update(
         )
     )
 
-    col_data = {
-        'source': pathctx.get_rvar_path_identity_var(
-            dml_cte_rvar, ir_stmt.subject.path_id, env=ctx.env)
-    }
-
     # Turn the IR of the expression on the right side of :=
     # into a subquery returning records for the link table.
     data_cte, specified_cols = process_link_values(
         ir_stmt=ir_stmt,
         ir_expr=ir_set,
-        col_data=col_data,
         dml_rvar=dml_cte_rvar,
-        sources=[],
         source_typeref=source_typeref,
         target_is_scalar=target_is_scalar,
         dml_cte=dml_cte,
@@ -1091,6 +1090,13 @@ def process_link_update(
     )
 
     if not is_insert and shape_op is not qlast.ShapeOp.APPEND:
+
+        source_ref = pathctx.get_rvar_path_identity_var(
+            dml_cte_rvar,
+            ir_stmt.subject.path_id,
+            env=ctx.env,
+        )
+
         if shape_op is qlast.ShapeOp.SUBTRACT:
             data_rvar = relctx.rvar_for_rel(data_select, ctx=ctx)
 
@@ -1099,7 +1105,7 @@ def process_link_update(
                 relation=target_rvar,
                 where_clause=astutils.new_binop(
                     lexpr=astutils.new_binop(
-                        lexpr=col_data['source'],
+                        lexpr=source_ref,
                         op='=',
                         rexpr=pgast.ColumnRef(
                             name=[target_alias, 'source'],
@@ -1133,7 +1139,7 @@ def process_link_update(
             delqry = pgast.DeleteStmt(
                 relation=target_rvar,
                 where_clause=astutils.new_binop(
-                    lexpr=col_data['source'],
+                    lexpr=source_ref,
                     op='=',
                     rexpr=pgast.ColumnRef(
                         name=[target_alias, 'source'],
@@ -1286,108 +1292,49 @@ def process_link_update(
         ptrref, 'union', updcte, dml_stmts=ctx.dml_stmt_stack, ctx=ctx)
     toplevel.ctes.append(updcte)
 
-    return data_cte
-
-
-def process_linkprop_update(
-        ir_stmt: irast.MutatingStmt, ir_expr: irast.Set,
-        wrapper: pgast.Query, dml_cte: pgast.CommonTableExpr, *,
-        ctx: context.CompilerContextLevel) -> None:
-    """Perform link property updates to a link relation.
-
-    :param ir_stmt:
-        IR of the statement.
-    :param ir_expr:
-        IR of the UPDATE body element.
-    :param wrapper:
-        Top-level SQL query.
-    :param dml_cte:
-        CTE representing the SQL UPDATE to the main relation of the Object.
-    """
-    toplevel = ctx.toplevel_stmt
-
-    rptr = ir_expr.rptr
-    assert rptr is not None
-    ptrref = rptr.ptrref
-
-    if ptrref.material_ptr:
-        ptrref = ptrref.material_ptr
-
-    target_tab = relctx.range_for_ptrref(
-        ptrref, for_mutation=True, ctx=ctx)
-
-    dml_cte_rvar = pgast.RelRangeVar(
-        relation=dml_cte,
-        alias=pgast.Alias(
-            aliasname=ctx.env.aliases.get('m')
-        )
-    )
-
-    cond = astutils.new_binop(
-        pathctx.get_rvar_path_identity_var(
-            dml_cte_rvar, ir_stmt.subject.path_id, env=ctx.env),
-        astutils.get_column(target_tab, 'source', nullable=False),
-        op='=',
-    )
-
-    targets = []
-    for prop_el, shape_op in ir_expr.shape:
-        assert shape_op is qlast.ShapeOp.ASSIGN
-        assert prop_el.rptr is not None
-        ptrname = prop_el.rptr.ptrref.shortname
-        with ctx.new() as input_rel_ctx:
-            input_rel_ctx.expr_exposed = False
-            input_rel = dispatch.compile(prop_el.expr, ctx=input_rel_ctx)
-            targets.append(
-                pgast.UpdateTarget(
-                    name=ptrname.name,
-                    val=input_rel
-                )
-            )
-
-    updstmt = pgast.UpdateStmt(
-        relation=target_tab,
-        where_clause=cond,
-        targets=targets,
-        from_clause=[dml_cte_rvar]
-    )
-
-    updcte = pgast.CommonTableExpr(
-        query=updstmt,
-        name=ctx.env.aliases.get(ptrref.shortname.name)
-    )
-
-    toplevel.ctes.append(updcte)
+    return None
 
 
 def process_link_values(
     *,
     ir_stmt: irast.MutatingStmt,
     ir_expr: irast.Set,
-    col_data: Mapping[str, pgast.BaseExpr],
     dml_rvar: pgast.PathRangeVar,
-    sources: Iterable[pgast.BaseRangeVar],
+    dml_cte: pgast.CommonTableExpr,
     source_typeref: irast.TypeRef,
     target_is_scalar: bool,
-    dml_cte: pgast.CommonTableExpr,
     iterator: Optional[pgast.IteratorCTE],
     ctx: context.CompilerContextLevel,
 ) -> Tuple[pgast.CommonTableExpr, List[str]]:
-    """Unpack data from an update expression into a series of selects.
+    """Produce a pointer relation for a given body element of an INSERT/UPDATE.
 
-    :param ir_expr:
-        IR of the INSERT/UPDATE body element.
-    :param col_data:
-        Expressions used to populate well-known columns of the link
-        table such as `source` and `__type__`.
-    :param sources:
-        A list of relations which must be joined into the data query
-        to resolve expressions in *col_data*.
-    :param target_is_scalar:
-        Whether the link target is an ScalarType.
-    :param iterator:
-        IR and CTE representing the iterator range in the FOR clause of the
-        EdgeQL DML statement.
+    Given an INSERT/UPDATE body shape element that mutates a MULTI pointer,
+    produce a (source, target [, link properties]) relation as a CTE and
+    return it along with a list of relation attribute names.
+
+    Args:
+        ir_stmt:
+            IR of the DML statement.
+        ir_set:
+            IR of the INSERT/UPDATE body element.
+        dml_rvar:
+            The RangeVar over the SQL INSERT/UPDATE of the main relation
+            of the object being updated.
+        dml_cte:
+            CTE representing the SQL INSERT or UPDATE to the main
+            relation of the DML subject.
+        source_typeref:
+            An ir.TypeRef instance representing the specific type of an object
+            being updated.
+        target_is_scalar:
+            True, if mutating a property, False if a link.
+        iterator:
+            IR and CTE representing the iterator range in the FOR clause
+            of the EdgeQL DML statement (if present).
+
+    Returns:
+        A tuple containing the pointer relation CTE and a list of attribute
+        names in it.
     """
     old_dml_count = len(ctx.dml_stmts)
     with ctx.newrel() as subrelctx:
@@ -1505,19 +1452,30 @@ def process_link_values(
             input_rvar, path_id, env=ctx.env)
         source_data['target'] = target_ref
 
-    specified_cols = []
-    for col, expr in collections.ChainMap(col_data, source_data).items():
-        row_query.target_list.append(pgast.ResTarget(
-            val=expr,
-            name=col
-        ))
-        specified_cols.append(col)
+    row_query.target_list.append(
+        pgast.ResTarget(
+            name='source',
+            val=pathctx.get_rvar_path_identity_var(
+                dml_rvar,
+                ir_stmt.subject.path_id,
+                env=ctx.env,
+            ),
+        ),
+    )
 
-    row_query.from_clause += list(sources)
+    specified_cols = ['source']
+    for col, expr in source_data.items():
+        row_query.target_list.append(
+            pgast.ResTarget(
+                val=expr,
+                name=col,
+            ),
+        )
+        specified_cols.append(col)
 
     link_rows = pgast.CommonTableExpr(
         query=row_query,
-        name=ctx.env.aliases.get(hint='r')
+        name=ctx.env.aliases.get(hint='r'),
     )
 
     return link_rows, specified_cols
