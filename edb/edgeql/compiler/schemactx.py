@@ -207,6 +207,8 @@ def derive_view(
             derived_name, default=None, type=type(stype))
         if existing is not None:
             if ctx.recompiling_schema_alias:
+                # When recompiling schema alias, we, essentially
+                # re-derive the already-existing objects exactly.
                 derived = existing
             else:
                 raise AssertionError(

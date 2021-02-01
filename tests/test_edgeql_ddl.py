@@ -6923,12 +6923,6 @@ type test::Foo {
             }],
         )
 
-    @test.xfail('''
-       ISE: relation "<blah>" does not exist
-
-       (Is the bug that we fail to create the table or that we don't
-        reject an alias being used there?)
-    ''')
     async def test_edgeql_ddl_alias_09(self):
         await self.con.execute(r"""
             CREATE ALIAS test::CreateAlias09 := (
@@ -6938,11 +6932,16 @@ type test::Foo {
             );
         """)
 
-        await self.con.execute(r"""
-            CREATE TYPE test::AliasType09 {
-                CREATE OPTIONAL SINGLE LINK a -> test::CreateAlias09;
-            }
-        """)
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidLinkTargetError,
+            "invalid link type: 'test::CreateAlias09' is an expression alias,"
+            " not a proper object type",
+        ):
+            await self.con.execute(r"""
+                CREATE TYPE test::AliasType09 {
+                    CREATE OPTIONAL SINGLE LINK a -> test::CreateAlias09;
+                }
+            """)
 
     async def test_edgeql_ddl_inheritance_alter_01(self):
         await self.con.execute(r"""

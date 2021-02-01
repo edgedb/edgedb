@@ -3021,8 +3021,10 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
                 ref.func = ((new_shortname.module, new_shortname.name)
                             if isinstance(new_shortname, sn.QualName)
                             else new_shortname.name)
-            elif isinstance(ref, qlast.ObjectRef):
-                assert ref.name == old_shortname, (ref.name, old_shortname)
+            elif (
+                isinstance(ref, qlast.ObjectRef)
+                and ref.name == old_shortname
+            ):
                 ref.name = new_shortname.name
                 if (
                     isinstance(new_shortname, sn.QualName)
