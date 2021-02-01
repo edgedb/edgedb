@@ -357,21 +357,25 @@ structure:
 
     struct Duration {
         int64   microseconds;
+        
+        // deprecated, is always 0
         int32   days;
+        
+        // deprecated, is always 0
         int32   months;
     };
 
-For example, the ``duration`` value ``'2 months 3 days 1 hour'`` is
+For example, the ``duration`` value ``'48 hours 45 minutes 7.6 seconds'`` is
 encoded as:
 
 .. code-block:: c
 
     // microseconds
-    0x00 0x00 0x00 0x00 0xd6 0x93 0xa4 0x00
+    0x00 0x00 0x00 0x28 0xdd 0x11 0x72 0x80
     // days
-    0x00 0x00 0x00 0x03
+    0x00 0x00 0x00 0x00
     // months
-    0x00 0x00 0x00 0x02
+    0x00 0x00 0x00 0x00
 
 
 .. _ref_protocol_fmt_json:
