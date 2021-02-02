@@ -727,7 +727,8 @@ def compile_insert_else_body(
     else_branch = on_conflict.else_ir
 
     assert not (needs_conflict_cte and not else_select), (
-        "Nested DML into single pointers requires UNLESS CONFLICT ON for now")
+        "Nested DML into single pointers with UNLESS CONFLICT doesn't support "
+        "object constraints yet")
 
     if not else_select:
         return None

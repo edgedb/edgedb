@@ -2531,6 +2531,32 @@ class TestInsert(tb.QueryTestCase):
             }]
         )
 
+    async def test_edgeql_insert_unless_conflict_10(self):
+        await self.con.execute(r'''
+            WITH MODULE test
+            INSERT Person {
+                name := "Foo",
+                case_name := "Foo",
+            };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+            WITH MODULE test
+            SELECT (
+                INSERT Person {
+                    name := "Bar",
+                    case_name := "foo",
+                }
+                UNLESS CONFLICT ON (.case_name)
+                ELSE (SELECT Person)
+            ) {name, case_name};
+            ''',
+            [{
+                'name': 'Foo', 'case_name': 'Foo',
+            }]
+        )
+
     async def test_edgeql_insert_dependent_01(self):
         query = r'''
             WITH MODULE test
@@ -2990,7 +3016,6 @@ class TestInsert(tb.QueryTestCase):
             [1],
         )
 
-    @test.xfail('''Doesn't work without ON yet''')
     async def test_edgeql_insert_dependent_15(self):
         query = r'''
             WITH MODULE test
@@ -3018,7 +3043,6 @@ class TestInsert(tb.QueryTestCase):
             [1],
         )
 
-    @test.xfail('''Doesn't work without ON yet''')
     async def test_edgeql_insert_dependent_16(self):
         await self.assert_query_result(
             r'''
@@ -3168,6 +3192,71 @@ class TestInsert(tb.QueryTestCase):
         await self.assert_query_result(
             query,
             [{"name": "bar", "tag2": "tag!"}]
+        )
+
+        # Make sure only 1 insert into Note happened
+        await self.assert_query_result(
+            r'''SELECT count(test::Note)''',
+            [1],
+        )
+
+    async def test_edgeql_insert_dependent_21(self):
+        # test with an empty set as one of the values
+        query = r'''
+            WITH MODULE test
+            SELECT (
+                INSERT Person {
+                    name := "Test",
+                    note := (INSERT Note {name := "tag!" }),
+                    multi_prop := {},
+                } UNLESS CONFLICT
+            ) {name};
+        '''
+
+        await self.assert_query_result(
+            query,
+            [{"name": "Test"}]
+        )
+
+        await self.assert_query_result(
+            query,
+            [],
+        )
+
+        # Make sure only 1 insert into Note happened
+        await self.assert_query_result(
+            r'''SELECT count(test::Note)''',
+            [1],
+        )
+
+    async def test_edgeql_insert_dependent_22(self):
+        # test with a constraint that has a nontrivial subjectexpr
+        await self.assert_query_result(
+            r'''
+            WITH MODULE test
+            SELECT (
+                INSERT Person {
+                    name := "Test",
+                    note := (INSERT Note {name := "tag!" }),
+                    case_name := "Foo",
+                } UNLESS CONFLICT
+            ) {name};
+            ''',
+            [{"name": "Test"}]
+        )
+
+        await self.assert_query_result(
+            r'''
+            WITH MODULE test
+            SELECT (
+                INSERT Person {
+                    name := "Test2",
+                    note := (INSERT Note {name := "tag!" }),
+                    case_name := "foo",
+                } UNLESS CONFLICT
+            ) {name};
+            ''',
+            [],
         )
 
         # Make sure only 1 insert into Note happened
