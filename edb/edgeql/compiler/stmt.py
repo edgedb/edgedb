@@ -315,7 +315,7 @@ def compile_insert_unless_conflict(
     ctx.env.schema = schema
 
     # Produce a query that finds the conflicting objects
-    nobe = qlast.SelectQuery(
+    select_ast = qlast.SelectQuery(
         result=insert_subject,
         where=qlast.BinOp(
             op='=',
@@ -323,7 +323,7 @@ def compile_insert_unless_conflict(
             right=anchor
         ),
     )
-    select_ir = dispatch.compile(nobe, ctx=ctx)
+    select_ir = dispatch.compile(select_ast, ctx=ctx)
     select_ir = setgen.scoped_set(
         select_ir, force_reassign=True, ctx=ctx)
     assert isinstance(select_ir, irast.Set)
