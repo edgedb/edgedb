@@ -157,7 +157,7 @@ def compile_InsertStmt(
         dml.process_insert_body(
             ir_stmt=stmt,
             insert_cte=insert_cte,
-            else_cte_rvar=parts.else_cte,
+            dml_parts=parts,
             ctx=ctx,
         )
 

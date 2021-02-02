@@ -218,14 +218,10 @@ def _process_view(
                                     'std::sequence',
                                     type=s_objects.SubclassableObject)):
                             continue
-
-                        what = 'property'
-                    else:
-                        what = 'link'
+                    vn = ptrcls.get_verbosename(
+                        ctx.env.schema, with_parent=True)
                     raise errors.MissingRequiredError(
-                        f'missing value for required {what} '
-                        f'{stype.get_displayname(ctx.env.schema)}.'
-                        f'{ptrcls.get_displayname(ctx.env.schema)}')
+                        f'missing value for required {vn}')
                 else:
                     continue
 

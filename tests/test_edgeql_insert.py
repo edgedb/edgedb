@@ -33,9 +33,11 @@ class TestInsert(tb.QueryTestCase):
                           'insert.esdl')
 
     async def test_edgeql_insert_fail_1(self):
-        err = 'missing value for required property ' + \
-              'test::InsertTest.l2'
-        with self.assertRaisesRegex(edgedb.MissingRequiredError, err):
+        with self.assertRaisesRegex(
+            edgedb.MissingRequiredError,
+            r"missing value for required property"
+            r" 'l2' of object type 'test::InsertTest'",
+        ):
             await self.con.execute('''
                 INSERT test::InsertTest;
             ''')

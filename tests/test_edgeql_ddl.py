@@ -8606,18 +8606,20 @@ type test::Foo {
         """)
 
         with self.assertRaisesRegex(
-                edgedb.MissingRequiredError,
-                r'Base.foo'):
-
+            edgedb.MissingRequiredError,
+            f"missing value for required property"
+            r" 'foo' of object type 'test::Base'",
+        ):
             async with self.con.transaction():
                 await self.con.execute("""
                     INSERT Base;
                 """)
 
         with self.assertRaisesRegex(
-                edgedb.MissingRequiredError,
-                r'Derived.foo'):
-
+            edgedb.MissingRequiredError,
+            f"missing value for required property"
+            r" 'foo' of object type 'test::Derived'",
+        ):
             async with self.con.transaction():
                 await self.con.execute("""
                     INSERT Derived;
@@ -8642,9 +8644,10 @@ type test::Foo {
         )
 
         with self.assertRaisesRegex(
-                edgedb.MissingRequiredError,
-                r'Derived.foo'):
-
+            edgedb.MissingRequiredError,
+            f"missing value for required property"
+            r" 'foo' of object type 'test::Derived'",
+        ):
             async with self.con.transaction():
                 await self.con.execute("""
                     INSERT Derived;
@@ -8687,9 +8690,10 @@ type test::Foo {
         """)
 
         with self.assertRaisesRegex(
-                edgedb.MissingRequiredError,
-                r'Derived.foo'):
-
+            edgedb.MissingRequiredError,
+            f"missing value for required property"
+            r" 'foo' of object type 'test::Derived'",
+        ):
             async with self.con.transaction():
                 await self.con.execute("""
                     INSERT Derived;
@@ -8706,9 +8710,10 @@ type test::Foo {
         )
 
         with self.assertRaisesRegex(
-                edgedb.MissingRequiredError,
-                r'Derived.foo'):
-
+            edgedb.MissingRequiredError,
+            f"missing value for required property"
+            r" 'foo' of object type 'test::Derived'",
+        ):
             async with self.con.transaction():
                 await self.con.execute("""
                     INSERT Derived;
@@ -8732,9 +8737,6 @@ type test::Foo {
             [1],
         )
 
-    @test.xfail('''
-        MissingRequiredError not raised
-    ''')
     async def test_edgeql_ddl_required_10(self):
         # Test normal that required qualifier behavior.
 
@@ -8744,25 +8746,39 @@ type test::Foo {
             };
         """)
 
-        with self.assertRaisesRegex(
-                edgedb.MissingRequiredError,
-                r'Base.name'):
+        async with self.assertRaisesRegexTx(
+            edgedb.MissingRequiredError,
+            r"missing value for required property 'name'"
+            r" of object type 'test::Base'",
+        ):
             async with self.con.transaction():
                 await self.con.execute("""
                     INSERT test::Base;
                 """)
 
-        with self.assertRaisesRegex(
-                edgedb.MissingRequiredError,
-                r'Base.name'):
+        async with self.assertRaisesRegexTx(
+            edgedb.MissingRequiredError,
+            r"missing value for required property 'name'"
+            r" of object type 'test::Base'",
+        ):
             async with self.con.transaction():
                 await self.con.execute("""
                     INSERT test::Base {name := {}};
                 """)
 
-    @test.xfail('''
-        MissingRequiredError not raised
-    ''')
+        async with self.assertRaisesRegexTx(
+            edgedb.MissingRequiredError,
+            r"missing value for required property 'name'"
+            r" of object type 'test::Base'",
+        ):
+            async with self.con.transaction():
+                await self.con.execute("""
+                    WITH names := {'A', 'B'}
+                    INSERT test::Base {
+                        name := (SELECT names FILTER names = 'C'),
+                    };
+                """)
+
     async def test_edgeql_ddl_required_11(self):
         # Test normal that required qualifier behavior.
 
@@ -8774,19 +8790,35 @@ type test::Foo {
         """)
 
         with self.assertRaisesRegex(
-                edgedb.MissingRequiredError,
-                r'Base.children'):
+            edgedb.MissingRequiredError,
+            r"missing value for required link 'children'"
+            r" of object type 'test::Base'"
+        ):
             async with self.con.transaction():
                 await self.con.execute("""
                     INSERT test::Base;
                 """)
 
         with self.assertRaisesRegex(
-                edgedb.MissingRequiredError,
-                r'Base.children'):
+            edgedb.MissingRequiredError,
+            r"missing value for required link 'children'"
+            r" of object type 'test::Base'"
+        ):
             async with self.con.transaction():
                 await self.con.execute("""
                     INSERT test::Base {children := {}};
+                """)
+
+        with self.assertRaisesRegex(
+            edgedb.MissingRequiredError,
+            r"missing value for required link 'children'"
+            r" of object type 'test::Base'"
+        ):
+            async with self.con.transaction():
+                await self.con.execute("""
+                    INSERT test::Base {
+                        children := (SELECT test::Child FILTER false)
+                    };
                 """)
 
     async def test_edgeql_ddl_prop_alias(self):
@@ -9802,7 +9834,8 @@ type test::Foo {
 
         async with self.assertRaisesRegexTx(
             edgedb.MissingRequiredError,
-            'missing value for required property test::Foo.a',
+            r"missing value for required property"
+            r" 'a' of object type 'test::Foo'",
         ):
             await self.con.execute(r"""
                 INSERT Foo;

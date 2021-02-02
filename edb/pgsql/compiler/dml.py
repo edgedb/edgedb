@@ -69,6 +69,10 @@ class DMLParts(NamedTuple):
 
     range_cte: Optional[pgast.CommonTableExpr]
 
+    #: A list of CTEs that implement constraint validation at the
+    #: query level.
+    check_ctes: List[pgast.CommonTableExpr]
+
 
 def init_dml_stmt(
     ir_stmt: irast.MutatingStmt,
@@ -156,6 +160,7 @@ def init_dml_stmt(
         dml_ctes=dml_map,
         range_cte=range_cte,
         else_cte=else_cte,
+        check_ctes=[],
     )
 
 
@@ -376,6 +381,25 @@ def fini_dml_stmt(
 
     relctx.include_rvar(ctx.rel, union_rvar, ir_stmt.subject.path_id, ctx=ctx)
 
+    # Scan the check CTEs to enforce constraints that are checked
+    # as explicit queries and not Postgres constraints or triggers.
+    for check_cte in parts.check_ctes:
+        # We want the CTE to be MATERIALIZED, because otherwise
+        # Postgres might choose not to scan it, since check_ctes
+        # are simply joined and are not referenced in any target
+        # list.
+        check_cte.materialized = True
+        check = pgast.SelectStmt(
+            target_list=[
+                pgast.FuncCall(name=('count',), args=[pgast.Star()]),
+            ],
+            from_clause=[
+                relctx.rvar_for_rel(check_cte, ctx=ctx),
+            ],
+        )
+        check_rvar = relctx.rvar_for_rel(check, ctx=ctx)
+        ctx.rel.from_clause.append(check_rvar)
+
     # Record the effect of this insertion in the relation overlay
     # context to ensure that the RETURNING clause potentially
     # referencing this class yields the expected results.
@@ -518,7 +542,7 @@ def process_insert_body(
     *,
     ir_stmt: irast.InsertStmt,
     insert_cte: pgast.CommonTableExpr,
-    else_cte_rvar: Optional[Tuple[pgast.CommonTableExpr, pgast.PathRangeVar]],
+    dml_parts: DMLParts,
     ctx: context.CompilerContextLevel,
 ) -> None:
     """Generate SQL DML CTEs from an InsertStmt IR.
@@ -533,6 +557,8 @@ def process_insert_body(
             If present, a tuple containing a CommonTableExpr and
             a RangeVar for it, which represent the body of an
             ELSE clause in an UNLESS CONFLICT construct.
+        dml_parts:
+            A DMLParts tuple returned by init_dml_stmt().
     """
     cols = [pgast.ColumnRef(name=['__type__'])]
     select = pgast.SelectStmt(target_list=[])
@@ -578,8 +604,12 @@ def process_insert_body(
         assert not insert_stmt.on_conflict
 
         on_conflict_fake_iterator = compile_insert_else_body(
-            insert_stmt, ir_stmt, ir_stmt.on_conflict, else_cte_rvar,
-            ctx=ctx)
+            insert_stmt,
+            ir_stmt,
+            ir_stmt.on_conflict,
+            dml_parts.else_cte,
+            ctx=ctx,
+        )
 
     # Compile the shape
     external_inserts = []
@@ -672,7 +702,7 @@ def process_insert_body(
 
     # Process necessary updates to the link tables.
     for shape_el in external_inserts:
-        process_link_update(
+        check_cte = process_link_update(
             ir_stmt=ir_stmt,
             ir_set=shape_el,
             dml_cte=insert_cte,
@@ -680,6 +710,8 @@ def process_insert_body(
             iterator=iterator,
             ctx=ctx,
         )
+        if check_cte is not None:
+            dml_parts.check_ctes.append(check_cte)
 
 
 def insert_needs_conflict_cte(
@@ -991,7 +1023,7 @@ def process_update_body(
 
     # Process necessary updates to the link tables.
     for expr, shape_op in external_updates:
-        process_link_update(
+        check_cte = process_link_update(
             ir_stmt=ir_stmt,
             ir_set=expr,
             dml_cte=update_cte,
@@ -999,6 +1031,9 @@ def process_update_body(
             source_typeref=typeref,
             ctx=ctx,
         )
+
+        if check_cte is not None:
+            dml_parts.check_ctes.append(check_cte)
 
 
 def process_link_update(
@@ -1068,6 +1103,7 @@ def process_link_update(
         dml_rvar=dml_cte_rvar,
         source_typeref=source_typeref,
         target_is_scalar=target_is_scalar,
+        enforce_cardinality=(shape_op is qlast.ShapeOp.ASSIGN),
         dml_cte=dml_cte,
         iterator=iterator,
         ctx=ctx,
@@ -1174,7 +1210,47 @@ def process_link_update(
         delqry = None
 
     if shape_op is qlast.ShapeOp.SUBTRACT:
-        return data_cte
+        if mptrref.dir_cardinality.can_be_zero():
+            # The pointer is OPTIONAL, no checks or further processing
+            # is needed.
+            return None
+        else:
+            # The pointer is REQUIRED, so we must take the result of
+            # the subtraction produced by the "delcte" above, apply it
+            # as a subtracting overlay, and re-compute the pointer relation
+            # to see if there are any newly created empty sets.
+            #
+            # The actual work is done via raise_on_null injection performed
+            # by "process_link_values()" below (hence "enforce_cardinality").
+
+            # Turn `foo := <expr>` into just `foo`.
+            ptr_ref_set = irast.Set(
+                path_id=ir_set.path_id,
+                path_scope_id=ir_set.path_scope_id,
+                typeref=ir_set.typeref,
+                rptr=ir_set.rptr,
+            )
+
+            with ctx.new() as subctx:
+                subctx.ptr_rel_overlays = ctx.ptr_rel_overlays.copy()
+                relctx.add_ptr_rel_overlay(
+                    ptrref, 'except', delcte, ctx=subctx)
+
+                check_cte, _ = process_link_values(
+                    ir_stmt=ir_stmt,
+                    ir_expr=ptr_ref_set,
+                    dml_rvar=dml_cte_rvar,
+                    source_typeref=source_typeref,
+                    target_is_scalar=target_is_scalar,
+                    enforce_cardinality=True,
+                    dml_cte=dml_cte,
+                    iterator=iterator,
+                    ctx=subctx,
+                )
+
+                toplevel.ctes.append(check_cte)
+
+            return check_cte
 
     cols = [pgast.ColumnRef(name=[col]) for col in specified_cols]
     conflict_cols = ['source', 'target']
@@ -1304,6 +1380,7 @@ def process_link_values(
     dml_cte: pgast.CommonTableExpr,
     source_typeref: irast.TypeRef,
     target_is_scalar: bool,
+    enforce_cardinality: bool,
     iterator: Optional[pgast.IteratorCTE],
     ctx: context.CompilerContextLevel,
 ) -> Tuple[pgast.CommonTableExpr, List[str]]:
@@ -1329,6 +1406,9 @@ def process_link_values(
             being updated.
         target_is_scalar:
             True, if mutating a property, False if a link.
+        enforce_cardinality:
+            Whether an explicit empty set check should be generated.
+            Used for REQUIRED pointers.
         iterator:
             IR and CTE representing the iterator range in the FOR clause
             of the EdgeQL DML statement (if present).
@@ -1351,6 +1431,14 @@ def process_link_values(
 
         merge_iterator(iterator, row_query, ctx=subrelctx)
 
+        ir_rptr = ir_expr.rptr
+        assert ir_rptr is not None
+        ptrref = ir_rptr.ptrref
+        if ptrref.material_ptr is not None:
+            ptrref = ptrref.material_ptr
+        assert isinstance(ptrref, irast.PointerRef)
+        ptr_is_required = not ptrref.dir_cardinality.can_be_zero()
+
         with subrelctx.newscope() as sctx, sctx.subrel() as input_rel_ctx:
             input_rel = input_rel_ctx.rel
             input_rel_ctx.expr_exposed = False
@@ -1358,6 +1446,10 @@ def process_link_values(
                 lambda: pathctx.get_path_identity_var(
                     row_query, ir_stmt.subject.path_id,
                     env=input_rel_ctx.env),)
+
+            if ptr_is_required and enforce_cardinality:
+                input_rel_ctx.force_optional.add(ir_expr.path_id)
+
             dispatch.visit(ir_expr, ctx=input_rel_ctx)
 
             if (
@@ -1438,6 +1530,12 @@ def process_link_values(
             actual_rptr = irtyputils.find_actual_ptrref(source_typeref, rptr)
             ptr_info = pg_types.get_ptrref_storage_info(actual_rptr)
             source_data.setdefault(ptr_info.column_name, val)
+
+        if not target_is_scalar and 'target' not in source_data:
+            target_ref = pathctx.get_rvar_path_identity_var(
+                input_rvar, path_id, env=ctx.env)
+            source_data['target'] = target_ref
+
     else:
         if target_is_scalar:
             target_ref = pathctx.get_rvar_path_value_var(
@@ -1448,10 +1546,22 @@ def process_link_values(
 
         source_data['target'] = target_ref
 
-    if not target_is_scalar and 'target' not in source_data:
-        target_ref = pathctx.get_rvar_path_identity_var(
-            input_rvar, path_id, env=ctx.env)
-        source_data['target'] = target_ref
+    if ptr_is_required and enforce_cardinality:
+        source_data['target'] = pgast.FuncCall(
+            name=('edgedb', 'raise_on_null'),
+            args=[
+                source_data['target'],
+                pgast.StringConstant(val='not_null_violation'),
+                pgast.NamedFuncArg(
+                    name='msg',
+                    val=pgast.StringConstant(val='missing value'),
+                ),
+                pgast.NamedFuncArg(
+                    name='column',
+                    val=pgast.StringConstant(val=str(ptrref.id)),
+                ),
+            ],
+        )
 
     row_query.target_list.append(
         pgast.ResTarget(
