@@ -24,7 +24,6 @@ from typing import *
 import asyncio
 import logging
 
-from edb.common import taskgroup
 from edb.common import windowedsum
 
 from edb.server import baseport
@@ -44,7 +43,6 @@ class BaseHttpPort(baseport.Port):
                  **kwargs):
 
         super().__init__(**kwargs)
-        self._compiler_pool_size = 0
 
         if protocol != self.get_proto_name():
             raise RuntimeError(f'unknown protocol {protocol!r}')
@@ -52,9 +50,6 @@ class BaseHttpPort(baseport.Port):
             raise RuntimeError(
                 f'concurrency must be greater than 0 and '
                 f'less than {defines.HTTP_PORT_MAX_CONCURRENCY}')
-
-        self._compilers: asyncio.LifoQueue[Any] = asyncio.LifoQueue()
-        self._compilers_list: List[Any] = []
 
         self._nethost = nethost
         self._netport = netport
@@ -69,39 +64,24 @@ class BaseHttpPort(baseport.Port):
         self._query_cache = cache.StatementsCache(
             maxsize=defines.HTTP_PORT_QUERY_CACHE_SIZE)
 
-    @property
-    def compilers(self):
-        return self._compilers
-
     @classmethod
     def get_proto_name(cls):
         raise NotImplementedError
 
+    def get_db(self):
+        return self._dbindex.get_db(self.database)
+
     def get_dbver(self):
         return self._dbindex.get_dbver(self.database)
 
-    def get_compiler_worker_cls(self):
-        raise NotImplementedError
-
-    def get_compiler_worker_name(self):
-        return f'compiler-{self._netport}'
+    def get_global_schema(self):
+        return self._dbindex.get_global_schema()
 
     def build_protocol(self):
         raise NotImplementedError
 
     async def start(self):
-        compilers = []
         await super().start()
-
-        async with taskgroup.TaskGroup() as g:
-            for _ in range(self.concurrency):
-                compilers.append(
-                    g.create_task(self.new_compiler(
-                        self.database, self.get_dbver())))
-
-        for com_task in compilers:
-            self._compilers.put_nowait(com_task.result())
-            self._compilers_list.append(com_task.result())
 
         nethost = await self._fix_localhost(self._nethost, self._netport)
         self._http_proto_server = await self._loop.create_server(
@@ -120,11 +100,6 @@ class BaseHttpPort(baseport.Port):
                 await srv.wait_closed()
         finally:
             try:
-                async with taskgroup.TaskGroup() as g:
-                    for cmp in self._compilers_list:
-                        g.create_task(cmp.close())
-                    self._compilers_list.clear()
-
                 if self._http_request_logger is not None:
                     self._http_request_logger.cancel()
                     await self._http_request_logger

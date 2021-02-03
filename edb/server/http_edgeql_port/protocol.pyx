@@ -43,8 +43,8 @@ ALLOWED_CAPABILITIES = (
 
 cdef class Protocol(http.HttpProtocol):
 
-    def __init__(self, loop, server, query_cache):
-        http.HttpProtocol.__init__(self, loop, server)
+    def __init__(self, loop, port, query_cache):
+        http.HttpProtocol.__init__(self, loop, port)
         self.query_cache = query_cache
 
     async def handle_request(self, http.HttpRequest request,
@@ -131,29 +131,31 @@ cdef class Protocol(http.HttpProtocol):
         else:
             response.body = b'{"data":' + result + b'}'
 
-    async def compile(self, dbver, bytes query):
-        comp = await self.server.compilers.get()
-        try:
-            units = await comp.call(
-                'compile',
-                dbver,
-                edgeql.Source.from_string(query.decode('utf-8')),
-                None,           # modaliases
-                None,           # session config
-                IoFormat.JSON,  # json mode
-                False,          # expected cardinality is MANY
-                0,              # no implicit limit
-                False,          # no inlining of type IDs
-                False,          # no inlining of type names
-                compiler.CompileStatementMode.SINGLE,
-                True,           # json parameters
-            )
-            return units[0]
-        finally:
-            self.server.compilers.put_nowait(comp)
+    async def compile(self, bytes query):
+        db = self.port.get_db()
+        compiler_pool = self.port.get_server().get_compiler_pool()
+
+        units, _ = await compiler_pool.compile(
+            db.name,
+            db.dbver,
+            db.user_schema,
+            self.port.get_global_schema(),
+            db.reflection_cache,
+            edgeql.Source.from_string(query.decode('utf-8')),
+            None,           # modaliases
+            None,           # session config
+            IoFormat.JSON,  # json mode
+            False,          # expected cardinality is MANY
+            0,              # no implicit limit
+            False,          # no inlining of type IDs
+            False,          # no inlining of type names
+            compiler.CompileStatementMode.SINGLE,
+            True,           # json parameters
+        )
+        return units[0]
 
     async def execute(self, bytes query, variables):
-        dbver = self.server.get_dbver()
+        dbver = self.port.get_dbver()
         cache_key = (query, dbver)
         use_prep_stmt = False
 
@@ -161,7 +163,7 @@ cdef class Protocol(http.HttpProtocol):
             cache_key, None)
 
         if query_unit is None:
-            query_unit = await self.compile(dbver, query)
+            query_unit = await self.compile(query)
             if query_unit.capabilities & ~ALLOWED_CAPABILITIES:
                 raise query_unit.capabilities.make_error(
                     ALLOWED_CAPABILITIES,
@@ -185,14 +187,14 @@ cdef class Protocol(http.HttpProtocol):
                             f'parameter ${param.name} is required')
                     args.append(value)
 
-        pgcon = await self.server.get_server().acquire_pgcon(
-            self.server.database)
+        pgcon = await self.port.get_server().acquire_pgcon(
+            self.port.database)
         try:
             data = await pgcon.parse_execute_json(
                 query_unit.sql[0], query_unit.sql_hash, query_unit.dbver,
                 use_prep_stmt, args)
         finally:
-            self.server.get_server().release_pgcon(self.server.database, pgcon)
+            self.port.get_server().release_pgcon(self.port.database, pgcon)
 
         if data is None:
             raise errors.InternalServerError(

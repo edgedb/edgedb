@@ -344,7 +344,7 @@ def compile_bootstrap_script(
 ) -> Tuple[s_schema.Schema, str]:
 
     ctx = edbcompiler.new_compiler_context(
-        schema=schema,
+        user_schema=schema,
         single_statement=single_statement,
         expected_cardinality_one=expected_cardinality_one,
         json_parameters=True,
@@ -444,14 +444,13 @@ async def _make_stdlib(testmode: bool, global_ids) -> StdlibBits:
     compiler = edbcompiler.new_compiler(
         std_schema=schema,
         reflection_schema=reflschema,
-        schema_class_layout=reflection.class_layout,
+        schema_class_layout=reflection.class_layout,  # type: ignore
     )
 
     compilerctx = edbcompiler.new_compiler_context(
-        reflschema,
+        user_schema=reflschema,
         bootstrap_mode=True,
     )
-
     for std_plan in std_plans:
         compiler._compile_schema_storage_in_delta(
             ctx=compilerctx,
@@ -460,11 +459,10 @@ async def _make_stdlib(testmode: bool, global_ids) -> StdlibBits:
         )
 
     compilerctx = edbcompiler.new_compiler_context(
-        reflschema,
+        user_schema=reflschema,
         bootstrap_mode=True,
         internal_schema_mode=True,
     )
-
     compiler._compile_schema_storage_in_delta(
         ctx=compilerctx,
         delta=reflection.intro_schema_delta,
@@ -474,7 +472,7 @@ async def _make_stdlib(testmode: bool, global_ids) -> StdlibBits:
     sqltext = current_block.to_string()
 
     compilerctx = edbcompiler.new_compiler_context(
-        reflschema,
+        user_schema=reflschema,
         schema_reflection_mode=True,
         output_format=edbcompiler.IoFormat.JSON_ELEMENTS,
     )
@@ -504,7 +502,16 @@ async def _make_stdlib(testmode: bool, global_ids) -> StdlibBits:
         )
 
     local_intro_sql = ' UNION ALL '.join(sql_intro_local_parts)
+    local_intro_sql = f'''
+        WITH intro(c) AS ({local_intro_sql})
+        SELECT json_agg(intro.c) FROM intro
+    '''
+
     global_intro_sql = ' UNION ALL '.join(sql_intro_global_parts)
+    global_intro_sql = f'''
+        WITH intro(c) AS ({global_intro_sql})
+        SELECT json_agg(intro.c) FROM intro
+    '''
 
     return StdlibBits(
         stdschema=schema,
@@ -549,16 +556,12 @@ async def _amend_stdlib(
     compiler = edbcompiler.new_compiler(
         std_schema=schema,
         reflection_schema=reflschema,
-        schema_class_layout=stdlib.classlayout,
+        schema_class_layout=stdlib.classlayout,  # type: ignore
     )
 
     compilerctx = edbcompiler.new_compiler_context(
-        schema,
-        bootstrap_mode=True,
+        user_schema=schema
     )
-
-    compilerctx = edbcompiler.new_compiler_context(schema)
-
     for plan in plans:
         compiler._compile_schema_storage_in_delta(
             ctx=compilerctx,
@@ -824,6 +827,7 @@ async def _populate_data(schema, compiler, conn):
 
 
 async def _configure(
+    std_schema: s_schema.Schema,
     schema: s_schema.Schema,
     compiler: edbcompiler.Compiler,
     conn: asyncpg_con.Connection,
@@ -874,7 +878,7 @@ async def _configure(
 async def _compile_sys_queries(schema, compiler, cluster):
     queries = {}
 
-    schema, sql = compile_bootstrap_script(
+    _, sql = compile_bootstrap_script(
         compiler,
         schema,
         'SELECT cfg::get_config_json()',
@@ -884,6 +888,16 @@ async def _compile_sys_queries(schema, compiler, cluster):
 
     queries['config'] = sql
 
+    _, sql = compile_bootstrap_script(
+        compiler,
+        schema,
+        'SELECT (SELECT sys::Database FILTER NOT .builtin).name',
+        expected_cardinality_one=False,
+        single_statement=True,
+    )
+
+    queries['listdbs'] = sql
+
     role_query = '''
         SELECT sys::Role {
             name,
@@ -891,7 +905,7 @@ async def _compile_sys_queries(schema, compiler, cluster):
             password,
         };
     '''
-    schema, sql = compile_bootstrap_script(
+    _, sql = compile_bootstrap_script(
         compiler,
         schema,
         role_query,
@@ -906,7 +920,7 @@ async def _compile_sys_queries(schema, compiler, cluster):
             backend_id,
         } FILTER .id IN <uuid>json_array_unpack(<json>$ids);
     '''
-    schema, sql = compile_bootstrap_script(
+    _, sql = compile_bootstrap_script(
         compiler,
         schema,
         tids_query,
@@ -1143,14 +1157,16 @@ async def _bootstrap(
         )
         await _bootstrap_config_spec(std_schema, cluster)
         await _compile_sys_queries(refl_schema, compiler, cluster)
-        schema = await _init_defaults(std_schema, compiler, conn)
-        schema = await _populate_data(std_schema, compiler, conn)
-        await _configure(schema, compiler, conn, cluster,
+
+        schema = s_schema.FlatSchema()
+        schema = await _init_defaults(schema, compiler, conn)
+        schema = await _populate_data(schema, compiler, conn)
+        await _configure(std_schema, schema, compiler, conn, cluster,
                          insecure=args['insecure'])
     finally:
         await conn.close()
 
-    system_db = schema.get_global(s_db.Database, edbdef.EDGEDB_SYSTEM_DB)
+    system_db = std_schema.get_global(s_db.Database, edbdef.EDGEDB_SYSTEM_DB)
     await _create_edgedb_database(
         pgconn,
         edbdef.EDGEDB_SYSTEM_DB,

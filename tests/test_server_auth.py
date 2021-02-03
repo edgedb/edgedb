@@ -59,11 +59,14 @@ class TestServerAuth(tb.ConnectedTestCase):
 
         try:
             # bad password, but the trust method doesn't care
-            conn = await self.connect(
-                user='foo',
-                password='wrong',
-            )
-            await conn.aclose()
+            async for tr in self.try_until_succeeds(
+                    ignore=edgedb.AuthenticationError):
+                async with tr:
+                    conn = await self.connect(
+                        user='foo',
+                        password='wrong',
+                    )
+                    await conn.aclose()
 
             # insert password auth with a higher priority
             await self.con.query('''
@@ -74,14 +77,15 @@ class TestServerAuth(tb.ConnectedTestCase):
                 }
             ''')
 
-            # bad password is bad again
-            with self.assertRaisesRegex(
-                    edgedb.AuthenticationError,
-                    'authentication failed'):
-                await self.connect(
-                    user='foo',
-                    password='wrong',
-                )
+            async for tr in self.try_until_fails(
+                    wait_for=edgedb.AuthenticationError):
+                async with tr:
+                    # bad password is bad again
+                    await self.connect(
+                        user='foo',
+                        password='wrong',
+                    )
+
         finally:
             await self.con.query('''
                 CONFIGURE SYSTEM RESET Auth FILTER .comment = 'test'
@@ -105,23 +109,32 @@ class TestServerAuth(tb.ConnectedTestCase):
         ''')  # noqa
 
         try:
-            conn = await self.connect(
-                user='bar',
-                password='bar-pass',
-            )
-            await conn.aclose()
+            async for tr in self.try_until_succeeds(
+                    ignore=edgedb.AuthenticationError):
+                async with tr:
+                    conn = await self.connect(
+                        user='bar',
+                        password='bar-pass',
+                    )
+                    await conn.aclose()
 
-            await self.con.query('''
-                ALTER ROLE bar {
-                    SET password_hash := 'SCRAM-SHA-256$4096:mWDBY53yzQ4aDet5erBmbg==$ZboQEMuUhC6+1SChp2bx1qSRBZGAnyV4I8T/iK+qeEs=:B7yF2k10tTH2RHayOg3rw4Q6wqf+Fj5CuXR/9CyZ8n8=';
-                }
-            ''')  # noqa
+            async for tr in self.try_until_succeeds(
+                    ignore=edgedb.InvalidReferenceError):
+                async with tr:
+                    await self.con.query('''
+                        ALTER ROLE bar {
+                            SET password_hash := 'SCRAM-SHA-256$4096:mWDBY53yzQ4aDet5erBmbg==$ZboQEMuUhC6+1SChp2bx1qSRBZGAnyV4I8T/iK+qeEs=:B7yF2k10tTH2RHayOg3rw4Q6wqf+Fj5CuXR/9CyZ8n8=';
+                        }
+                    ''')  # noqa
 
-            conn = await self.connect(
-                user='bar',
-                password='bar-pass-2',
-            )
-            await conn.aclose()
+            async for tr in self.try_until_succeeds(
+                    ignore=edgedb.AuthenticationError):
+                async with tr:
+                    conn = await self.connect(
+                        user='bar',
+                        password='bar-pass-2',
+                    )
+                    await conn.aclose()
 
             # bad (old) password
             with self.assertRaisesRegex(

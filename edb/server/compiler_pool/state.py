@@ -1,7 +1,7 @@
 #
 # This source file is part of the EdgeDB open source project.
 #
-# Copyright 2019-present MagicStack Inc. and the EdgeDB authors.
+# Copyright 2020-present MagicStack Inc. and the EdgeDB authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,18 +17,21 @@
 #
 
 
-from __future__ import annotations
+import typing
 
-from edb.server import http
+import immutables
 
-from . import protocol  # type: ignore[attr-defined]
+from edb.schema import schema
 
 
-class HttpEdgeQLPort(http.BaseHttpPort):
+ReflectionCache = typing.Mapping[str, typing.Tuple[str, ...]]
 
-    def build_protocol(self):
-        return protocol.Protocol(self._loop, self, self._query_cache)
 
-    @classmethod
-    def get_proto_name(cls):
-        return 'edgeql+http'
+class DatabaseState(typing.NamedTuple):
+    name: str
+    dbver: bytes
+    user_schema: schema.FlatSchema
+    reflection_cache: ReflectionCache
+
+
+DatabasesState = immutables.Map[str, DatabaseState]

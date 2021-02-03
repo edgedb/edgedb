@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-__all__ = ['create_manager', 'BUFFER_POOL_SIZE']
+from .pool import create_compiler_pool
 
 
-from .pool import create_manager, BUFFER_POOL_SIZE
+__all__ = ('create_compiler_pool',)
