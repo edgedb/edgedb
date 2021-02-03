@@ -59,6 +59,9 @@ type Person {
         constraint std::exclusive;
     };
     optional single link note -> Note;
+    property case_name -> str {
+        constraint exclusive on (str_lower(__subject__));
+    }
 }
 
 type PersonWrapper {
