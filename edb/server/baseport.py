@@ -23,7 +23,6 @@ import collections.abc
 import socket
 
 from edb.common import devmode
-from edb.server import procpool
 
 
 class Port:
@@ -44,7 +43,6 @@ class Port:
 
         self._compiler_manager = None
         self._serving = False
-        self._compiler_pool_size = procpool.BUFFER_POOL_SIZE
 
     def in_dev_mode(self):
         return self._devmode
@@ -55,47 +53,12 @@ class Port:
     def get_server(self):
         return self._server
 
-    def get_compiler_worker_cls(self):
-        raise NotImplementedError
-
-    def get_compiler_worker_args(self):
-        return {
-            'connect_args': self._pg_addr,
-            'backend_runtime_params': (
-                self.get_server().get_backend_runtime_params()
-            ),
-        }
-
-    def get_compiler_worker_name(self):
-        raise NotImplementedError
-
-    async def new_compiler(self, dbname, dbver):
-        compiler_worker = await self._compiler_manager.spawn_worker()
-        try:
-            await compiler_worker.call('connect', dbname, dbver)
-        except Exception:
-            await compiler_worker.close()
-            raise
-        return compiler_worker
-
     async def start(self):
         if self._serving:
             raise RuntimeError('already serving')
         self._serving = True
 
-        self._compiler_manager = await procpool.create_manager(
-            runstate_dir=self._internal_runstate_dir,
-            worker_args=self.get_compiler_worker_args(),
-            worker_cls=self.get_compiler_worker_cls(),
-            name=self.get_compiler_worker_name(),
-            pool_size=self._compiler_pool_size,
-        )
-
     async def stop(self):
-        if self._compiler_manager is not None:
-            await self._compiler_manager.stop()
-            self._compiler_manager = None
-        self._compiler_manager = None
         self._serving = False
 
     async def _fix_localhost(self, host, port):

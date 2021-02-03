@@ -37,8 +37,8 @@ class TestServerCompiler(tb.BaseSchemaLoadTest):
     def test_server_compiler_compile_edgeql_script(self):
         compiler = tb.new_compiler()
         context = edbcompiler.new_compiler_context(
+            user_schema=self.schema,
             modaliases={None: 'test'},
-            schema=self.schema,
         )
 
         edbcompiler.compile_edgeql_script(

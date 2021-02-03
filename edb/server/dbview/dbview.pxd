@@ -23,31 +23,41 @@ cpdef enum SideEffects:
     DatabaseConfigChanges = 1 << 1
     SystemConfigChanges = 1 << 2
     RoleChanges = 1 << 3
+    GlobalSchemaChanges = 1 << 4
 
 
 cdef class DatabaseIndex:
     cdef:
         dict _dbs
-
         object _server
-
         object _sys_config
+        object _std_schema
+        object _global_schema
 
 
 cdef class Database:
 
     cdef:
-        str _name
-        object _dbver
         object _eql_to_compiled
         DatabaseIndex _index
         object _views
 
-    cdef _signal_ddl(self, new_dbver)
+        readonly str name
+        readonly object dbver
+        readonly object user_schema
+        readonly object reflection_cache
+        readonly object backend_ids
+
     cdef _invalidate_caches(self)
     cdef _cache_compiled_query(self, key, query_unit)
     cdef _new_view(self, user, query_cache)
-
+    cdef _update_backend_ids(self, new_types)
+    cdef _set_and_signal_new_user_schema(
+        self,
+        new_schema,
+        reflection_cache=?,
+        backend_ids=?
+    )
 
 cdef class DatabaseConnectionView:
 
@@ -65,6 +75,8 @@ cdef class DatabaseConnectionView:
 
         object _txid
         object _in_tx_config
+        object _in_tx_user_schema
+        object _in_tx_new_types
         bint _in_tx
         bint _in_tx_with_ddl
         bint _in_tx_with_role_ddl
@@ -92,12 +104,15 @@ cdef class DatabaseConnectionView:
 
     cdef start(self, query_unit)
     cdef on_error(self, query_unit)
-    cdef on_success(self, query_unit)
+    cdef on_success(self, query_unit, new_types)
 
     cdef get_session_config(self)
     cdef set_session_config(self, new_conf)
 
     cdef set_modaliases(self, new_aliases)
     cdef get_modaliases(self)
+
+    # cdef get_user_schema(self)
+    cdef set_user_schema(self, new_user_schema)
 
     cdef bytes serialize_state(self)

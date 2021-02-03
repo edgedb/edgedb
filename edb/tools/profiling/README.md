@@ -167,7 +167,7 @@ entry points with the functools patch:
 
 * edb/tools/edb.py (for the `edb` CLI command)
 
-* edb/server/procpool/worker.py (for worker subprocesses like the EdgeQL
+* edb/server/compiler_pool/worker.py (for worker subprocesses like the EdgeQL
   compiler)
 
 ## Profiling caveats

@@ -130,9 +130,6 @@ class flags(metaclass=FlagsMeta):
     disable_docs_edgeql_validation = Flag(
         doc="Disable validation of edgeql in docs (for site build)")
 
-    parallelize_tests_better = Flag(
-        doc="Improve test run parallelization by making copies of test dbs")
-
 
 @contextlib.contextmanager
 def timeit(title='block'):

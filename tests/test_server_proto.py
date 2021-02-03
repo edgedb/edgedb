@@ -21,16 +21,12 @@ import decimal
 import json
 import uuid
 import struct
-import subprocess
-import sys
-import tempfile
 import unittest
 
 import edgedb
 
 from edb.common import devmode
 from edb.common import taskgroup as tg
-from edb.server import main as server_main
 from edb.testbase import server as tb
 from edb.tools import test
 from edb.server.compiler import enums
@@ -1251,6 +1247,61 @@ class TestServerProto(tb.QueryTestCase):
         finally:
             await con.execute('ROLLBACK')
 
+    async def test_server_proto_tx_savepoint_10(self):
+        con = self.con
+
+        with self.assertRaises(edgedb.DivisionByZeroError):
+            await con.execute('''
+                START TRANSACTION;
+                DECLARE SAVEPOINT t1;
+                DECLARE SAVEPOINT t2;
+                SELECT 1/0;
+            ''')
+
+        try:
+            with self.assertRaises(edgedb.DivisionByZeroError):
+                await con.execute('''
+                    ROLLBACK TO SAVEPOINT t2;
+                    SELECT 1/0;
+                ''')
+
+            await con.execute('''
+                ROLLBACK TO SAVEPOINT t1;
+            ''')
+
+            self.assertEqual(
+                await con.query('SELECT 42+1+1+1'),
+                [45])
+        finally:
+            await con.execute('ROLLBACK')
+
+    async def test_server_proto_tx_savepoint_11(self):
+        con = self.con
+
+        with self.assertRaises(edgedb.DivisionByZeroError):
+            await con.execute('''
+                START TRANSACTION;
+                DECLARE SAVEPOINT t1;
+                DECLARE SAVEPOINT t2;
+                SELECT 1/0;
+                COMMIT;
+
+                START TRANSACTION;
+                DECLARE SAVEPOINT z1;
+                SELECT 42;
+            ''')
+
+        try:
+            await con.execute('''
+                ROLLBACK TO SAVEPOINT t2;
+            ''')
+
+            self.assertEqual(
+                await con.query_one('SELECT 42+1+1+1+1'),
+                46)
+        finally:
+            await con.execute('ROLLBACK')
+
     async def test_server_proto_tx_01(self):
         await self.con.execute('''
             START TRANSACTION;
@@ -1979,16 +2030,6 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
     async def test_server_proto_ddlprop_01(self):
         conargs = self.get_connect_args()
 
-        settings = self.con.get_settings()
-        pgaddr = settings.get('pgaddr')
-        if pgaddr is None:
-            raise RuntimeError('test requires devmode')
-        pgaddr = json.loads(pgaddr)
-        pgdsn = (
-            f'postgres:///?user={pgaddr["user"]}&port={pgaddr["port"]}'
-            f'&host={pgaddr["host"]}'
-        )
-
         await self.con.execute('''
             CREATE TYPE Test {
                 CREATE PROPERTY foo -> int16;
@@ -2002,110 +2043,82 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
             123
         )
 
-        with tempfile.TemporaryDirectory() as tmp:
-            other_port = server_main.PortType.find_available_port()
-            cmd = [
-                sys.executable, '-m', 'edb.server.main',
-                '--postgres-dsn', pgdsn,
-                '--runstate-dir', tmp,
-                '--port', str(other_port),
-                '--max-backend-connections', '5',
-            ]
+        async with tb.start_edgedb_server(adjacent_to=self.con) as sd:
 
-            # Note: for debug comment "stderr=subprocess.PIPE".
-            proc: asyncio.Process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stderr=subprocess.PIPE,
-                stdout=subprocess.PIPE,
+            con2 = await edgedb.async_connect(
+                host=sd.host,
+                port=sd.port,
+                user=conargs.get('user'),
+                password=conargs.get('password'),
+                database=self.get_database_name(),
             )
 
             try:
-                attempt = 0
-                while True:
-                    attempt += 1
-                    try:
-                        con2 = await edgedb.async_connect(
-                            host=tmp,
-                            port=other_port,
-                            user=conargs.get('user'),
-                            password=conargs.get('password'),
-                            database=self.get_database_name(),
-                        )
-                    except (ConnectionError, edgedb.ClientConnectionError):
-                        if attempt >= 100:
-                            raise
-                        await asyncio.sleep(0.1)
-                        continue
-                    else:
-                        break
-
-                try:
-                    self.assertEqual(
-                        await con2.query_one('SELECT Test.foo LIMIT 1'),
-                        123
-                    )
-
-                    await self.con.execute('''
-                        CREATE TYPE Test2 {
-                            CREATE PROPERTY foo -> str;
-                        };
-
-                        INSERT Test2 { foo := 'text' };
-                    ''')
-
-                    self.assertEqual(
-                        await self.con.query_one('SELECT Test2.foo LIMIT 1'),
-                        'text'
-                    )
-
-                    self.assertEqual(
-                        await con2.query_one('SELECT Test2.foo LIMIT 1'),
-                        'text'
-                    )
-                finally:
-                    await con2.aclose()
+                self.assertEqual(
+                    await con2.query_one('SELECT Test.foo LIMIT 1'),
+                    123
+                )
 
                 await self.con.execute('''
-                    CREATE SUPERUSER ROLE ddlprop01 {
-                        SET password := 'aaaa';
-                    }
+                    CREATE TYPE Test2 {
+                        CREATE PROPERTY foo -> str;
+                    };
+
+                    INSERT Test2 { foo := 'text' };
                 ''')
 
-                attempt = 0
-                while True:
-                    attempt += 1
-                    try:
-                        con3 = await edgedb.async_connect(
-                            host=tmp,
-                            port=other_port,
-                            user='ddlprop01',
-                            password='aaaa',
-                            database=self.get_database_name(),
-                        )
-                    except (ConnectionError, edgedb.ClientConnectionError,
-                            edgedb.AuthenticationError):
-                        if attempt >= 100:
-                            raise
-                        await asyncio.sleep(0.1)
-                        continue
-                    else:
-                        break
-                try:
-                    self.assertEqual(
-                        await con3.query_one('SELECT 42'),
-                        42
-                    )
-                finally:
-                    await con3.aclose()
+                self.assertEqual(
+                    await self.con.query_one('SELECT Test2.foo LIMIT 1'),
+                    'text'
+                )
 
-                    await self.con.execute('''
-                        DROP ROLE ddlprop01;
-                    ''')
+                # Give some time for the other server to re-introspect the
+                # schema: the first attempt of querying Test2 might fail.
+                # We'll give it generous 5 seconds to accomodate slow CI.
+                async for tr in self.try_until_succeeds(
+                    ignore=edgedb.InvalidReferenceError
+                ):
+                    async with tr:
+                        self.assertEqual(
+                            await con2.query_one('SELECT Test2.foo LIMIT 1'),
+                            'text'
+                        )
 
             finally:
-                if proc.returncode is None:
-                    proc.terminate()
-                    await proc.wait()
+                await con2.aclose()
+
+            await self.con.execute('''
+                CREATE SUPERUSER ROLE ddlprop01 {
+                    SET password := 'aaaa';
+                }
+            ''')
+
+            # Give some time for the other server to receive the
+            # updated roles notification and re-fetch them.
+            # We'll give it generous 5 seconds to accomodate slow CI.
+            async for tr in self.try_until_succeeds(
+                ignore=edgedb.AuthenticationError
+            ):
+                async with tr:
+                    con3 = await edgedb.async_connect(
+                        host=sd.host,
+                        port=sd.port,
+                        user='ddlprop01',
+                        password='aaaa',
+                        database=self.get_database_name(),
+                    )
+
+            try:
+                self.assertEqual(
+                    await con3.query_one('SELECT 42'),
+                    42
+                )
+            finally:
+                await con3.aclose()
+
+                await self.con.execute('''
+                    DROP ROLE ddlprop01;
+                ''')
 
 
 class TestServerProtoDDL(tb.DDLTestCase):
@@ -2724,6 +2737,50 @@ class TestServerProtoDDL(tb.DDLTestCase):
             await self.con.execute('''
                 ROLLBACK;
                 DROP SCALAR TYPE tid_prop_081;
+            ''')
+
+    async def test_server_proto_backend_tid_propagation_09(self):
+        try:
+            await self.con.execute('''
+                START TRANSACTION;
+                CREATE SCALAR TYPE tid_prop_091 EXTENDING str;
+                COMMIT;
+
+                # This CREATE will be part of the transaction
+                # that explicitly starts *after* it
+                # (this semantics is inherited from Postgres.)
+                CREATE SCALAR TYPE tid_prop_092 EXTENDING str;
+                START TRANSACTION;
+            ''')
+
+            await self.con.execute('''
+                CREATE SCALAR TYPE tid_prop_093 EXTENDING str;
+            ''')
+
+            await self.con.execute('''
+                COMMIT;
+            ''')
+
+            result = await self.con.query_one('''
+                SELECT (<array<tid_prop_091>>$input)[0]
+            ''', input=['A', 'C'])
+            self.assertEqual(result, 'A')
+
+            result = await self.con.query_one('''
+                SELECT (<array<tid_prop_092>>$input)[1]
+            ''', input=['A', 'C'])
+            self.assertEqual(result, 'C')
+
+            result = await self.con.query_one('''
+                SELECT (<array<tid_prop_093>>$input)[1]
+            ''', input=['A', 'Z'])
+            self.assertEqual(result, 'Z')
+
+        finally:
+            await self.con.execute('''
+                DROP SCALAR TYPE tid_prop_091;
+                DROP SCALAR TYPE tid_prop_092;
+                DROP SCALAR TYPE tid_prop_093;
             ''')
 
     async def test_server_proto_fetch_limit_01(self):

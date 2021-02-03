@@ -28,6 +28,8 @@ import sys
 import asyncpg
 import click
 
+from edb.schema import schema as s_schema
+
 from edb.common import topological
 from edb.tools.edb import edbcommands
 
@@ -165,15 +167,15 @@ async def do_wipe(
 async def _get_dbs_and_roles(pgconn) -> Tuple[List[str], List[str]]:
     compiler = edbcompiler.Compiler({})
     await compiler.ensure_initialized(pgconn)
-    schema = compiler.get_std_schema()
     compilerctx = edbcompiler.new_compiler_context(
-        schema,
+        user_schema=s_schema.FlatSchema(),
+        global_schema=s_schema.FlatSchema(),
         expected_cardinality_one=False,
         single_statement=True,
         output_format=edbcompiler.IoFormat.JSON,
     )
 
-    schema, get_databases_sql = edbcompiler.compile_edgeql_script(
+    _, get_databases_sql = edbcompiler.compile_edgeql_script(
         compiler,
         compilerctx,
         'SELECT sys::Database.name',
@@ -184,7 +186,7 @@ async def _get_dbs_and_roles(pgconn) -> Tuple[List[str], List[str]]:
         key=lambda dname: dname == edbdef.EDGEDB_TEMPLATE_DB,
     ))
 
-    schema, get_roles_sql = edbcompiler.compile_edgeql_script(
+    _, get_roles_sql = edbcompiler.compile_edgeql_script(
         compiler,
         compilerctx,
         '''SELECT sys::Role {
