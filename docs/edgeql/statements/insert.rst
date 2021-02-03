@@ -12,8 +12,8 @@ INSERT
 
     [ WITH <with-spec> [ ,  ... ] ]
     INSERT <expression> [ <insert-shape> ]
-    [ UNLESS CONFLICT ON <property>
-        [ ELSE <alternative> ]
+    [ UNLESS CONFLICT
+        [ ON <property> [ ELSE <alternative> ] ]
     ] ;
 
 
@@ -49,16 +49,22 @@ See :ref:`Usage of FOR statement <ref_eql_forstatement>` for more details.
         INSERT <expression>
         [ "{" <link> := <insert-value-expr> [, ...]  "}" ]
 
-:eql:synopsis:`UNLESS CONFLICT ON <property>`
+:eql:synopsis:`UNLESS CONFLICT [ ON <property> ]`
     :index: unless conflict
 
     Handler of conflicts.
 
     This clause allows to handle specific conflicts arising during
     execution of ``INSERT`` without producing an error.  If the
-    conflict arises due to constraints on the specified *property*,
-    then instead of failing with an error the ``INSERT`` statement
-    produces an empty set (or an alternative result).
+    conflict arises due to exclusive constraints on the specified
+    *property*, then instead of failing with an error the ``INSERT``
+    statement produces an empty set (or an alternative result).
+
+    A caveat, however, is that ``UNLESS CONFLICT`` will not prevent
+    conflicts caused between multiple DML operations in the same
+    query; inserting two conflicting objects (through use of ``FOR``
+    or simply with two ``INSERT`` statements) will cause a constraint
+    error.
 
     Example:
 

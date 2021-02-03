@@ -3415,6 +3415,64 @@ class TestInsert(tb.QueryTestCase):
             [2],
         )
 
+    async def test_edgeql_insert_unless_conflict_self_01(self):
+        # It would also be a reasonable semantics for this test to
+        # return two objects
+        query = r'''
+            WITH MODULE test
+            SELECT (
+              FOR x in {"Phil Emarg", "Phil Emarg"} UNION (
+                INSERT Person {name := x}
+                UNLESS CONFLICT ON (.name)
+                ELSE (SELECT Person)
+              )
+            ) { name }
+            ORDER BY .name;
+        '''
+
+        with self.assertRaisesRegex(edgedb.ConstraintViolationError,
+                                    "violates exclusivity constraint"):
+            await self.con.execute(query)
+
+    async def test_edgeql_insert_unless_conflict_self_02(self):
+        # It would also be a reasonable semantics for this test to
+        # not fail
+        query = r'''
+            WITH MODULE test
+            SELECT (
+              (INSERT Person {name := "Emmanuel Villip"} UNLESS CONFLICT),
+              (INSERT Person {name := "Emmanuel Villip"} UNLESS CONFLICT),
+            )
+        '''
+
+        with self.assertRaisesRegex(edgedb.ConstraintViolationError,
+                                    "violates exclusivity constraint"):
+            await self.con.execute(query)
+
+    async def test_edgeql_insert_unless_conflict_self_03(self):
+        # It would also be a reasonable semantics for this test to
+        # not fail
+        query = r'''
+            WITH MODULE test
+            INSERT Person {
+                name := "Madeline Hatch",
+                note := (
+                    INSERT Note {
+                        name := "wtvr",
+                        subject := (
+                            DETACHED (
+                                INSERT Person { name := "Madeline Hatch" })
+                        ),
+                     }
+                )
+            }
+            UNLESS CONFLICT;
+        '''
+
+        with self.assertRaisesRegex(edgedb.ConstraintViolationError,
+                                    "violates exclusivity constraint"):
+            await self.con.execute(query)
+
     async def test_edgeql_insert_nested_volatile_01(self):
         await self.con.execute('''
             INSERT test::Subordinate {

@@ -761,7 +761,7 @@ class MutatingStmt(Stmt):
 
 class OnConflictClause(Base):
     constraint: typing.Optional[ConstraintRef]
-    select_ir: typing.Optional[Set]
+    select_ir: Set
     else_ir: typing.Optional[Set]
 
 
