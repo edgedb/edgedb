@@ -681,7 +681,7 @@ class ObjectMeta(type):
                         ftype.schema_restore
                     ),
                 ) -> Any:
-                    data = schema.get_obj_data_raw(self.id)
+                    data = schema.get_obj_data_raw(self)
                     v = data[_fi]
                     if v is not None:
                         return _sr(v)
@@ -706,7 +706,7 @@ class ObjectMeta(type):
                     _fn: str = field.name,
                     _fi: int = findex,
                 ) -> Any:
-                    data = schema.get_obj_data_raw(self.id)
+                    data = schema.get_obj_data_raw(self)
                     v = data[_fi]
                     if v is not None:
                         return v
@@ -1129,7 +1129,7 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         field = type(self).get_field(field_name)
 
         if isinstance(field, SchemaField):
-            data = schema.get_obj_data_raw(self.id)
+            data = schema.get_obj_data_raw(self)
             val = data[field.index]
             if val is not None:
                 if field.is_reducible:
@@ -1159,7 +1159,7 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         field = type(self).get_field(field_name)
 
         if isinstance(field, SchemaField):
-            data = schema.get_obj_data_raw(self.id)
+            data = schema.get_obj_data_raw(self)
             val = data[field.index]
             if val is not None:
                 if field.is_reducible:
@@ -1189,10 +1189,10 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         assert field.is_schema_field
 
         if value is None:
-            return schema.unset_obj_field(self.id, name)
+            return schema.unset_obj_field(self, name)
         else:
             value = field.coerce_value(schema, value)
-            return schema.set_obj_field(self.id, name, value)
+            return schema.set_obj_field(self, name, value)
 
     def update(
         self, schema: s_schema.Schema, updates: Dict[str, Any]
@@ -1209,7 +1209,7 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
                 new_val = field.coerce_value(schema, new_val)
                 updates[field_name] = new_val
 
-        return schema.update_obj(self.id, updates)
+        return schema.update_obj(self, updates)
 
     def is_type(self) -> bool:
         return False

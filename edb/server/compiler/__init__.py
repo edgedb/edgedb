@@ -19,7 +19,8 @@
 
 from __future__ import annotations
 
-from .compiler import Compiler, BaseCompiler, CompilerDatabaseState
+from .compiler import Compiler, BaseCompiler
+from .compiler import CompileContext, CompilerDatabaseState
 from .compiler import compile_edgeql_script
 from .compiler import load_std_schema
 from .compiler import new_compiler, new_compiler_context
@@ -29,7 +30,10 @@ from .enums import IoFormat
 
 
 __all__ = (
-    'Compiler', 'BaseCompiler', 'CompilerDatabaseState',
+    'Compiler',
+    'CompileContext',
+    'BaseCompiler',
+    'CompilerDatabaseState',
     'QueryUnit',
     'Capability', 'CompileStatementMode', 'ResultCardinality', 'IoFormat',
     'compile_edgeql_script',

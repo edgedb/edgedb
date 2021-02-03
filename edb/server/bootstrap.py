@@ -354,6 +354,17 @@ def compile_bootstrap_script(
     return edbcompiler.compile_edgeql_script(compiler, ctx, eql)
 
 
+def compile_single_query(
+    eql: str,
+    compiler: edbcompiler.Compiler,
+    compilerctx: edbcompiler.CompileContext,
+) -> str:
+    ql_source = edgeql.Source.from_string(eql)
+    units = compiler._compile(ctx=compilerctx, source=ql_source)
+    assert len(units) == 1 and len(units[0].sql) == 1
+    return units[0].sql[0].decode()
+
+
 class StdlibBits(NamedTuple):
 
     #: User-visible std.
@@ -366,8 +377,10 @@ class StdlibBits(NamedTuple):
     types: Set[uuid.UUID]
     #: Schema class reflection layout.
     classlayout: Dict[Type[s_obj.Object], s_refl.SchemaTypeLayout]
-    #: Schema introspection query (SQL).
-    introquery: str
+    #: Schema introspection SQL query.
+    local_intro_query: str
+    #: Global object introspection SQL query.
+    global_intro_query: str
 
 
 async def _make_stdlib(testmode: bool, global_ids) -> StdlibBits:
@@ -419,8 +432,9 @@ async def _make_stdlib(testmode: bool, global_ids) -> StdlibBits:
 
     schema = await _execute_edgeql_ddl(schema, stdglobals)
 
-    refldelta, classlayout, introparts = s_refl.generate_structure(schema)
-    reflschema, reflplan = _process_delta(refldelta, schema)
+    reflection = s_refl.generate_structure(schema)
+    reflschema, reflplan = _process_delta(
+        reflection.intro_schema_delta, schema)
 
     assert current_block is not None
     reflplan.generate(current_block)
@@ -429,7 +443,7 @@ async def _make_stdlib(testmode: bool, global_ids) -> StdlibBits:
     compiler = edbcompiler.new_compiler(
         std_schema=schema,
         reflection_schema=reflschema,
-        schema_class_layout=classlayout,
+        schema_class_layout=reflection.class_layout,
     )
 
     compilerctx = edbcompiler.new_compiler_context(
@@ -452,7 +466,7 @@ async def _make_stdlib(testmode: bool, global_ids) -> StdlibBits:
 
     compiler._compile_schema_storage_in_delta(
         ctx=compilerctx,
-        delta=refldelta,
+        delta=reflection.intro_schema_delta,
         block=subblock,
     )
 
@@ -468,24 +482,37 @@ async def _make_stdlib(testmode: bool, global_ids) -> StdlibBits:
     # because it's a large UNION and we currently generate SQL
     # that is much harder for Posgres to plan as opposed to a
     # straight flat UNION.
-    sql_introparts = []
+    sql_intro_local_parts = []
+    sql_intro_global_parts = []
+    for intropart in reflection.local_intro_parts:
+        sql_intro_local_parts.append(
+            compile_single_query(
+                intropart,
+                compiler=compiler,
+                compilerctx=compilerctx,
+            ),
+        )
 
-    for intropart in introparts:
-        intro_source = edgeql.Source.from_string(intropart)
-        units = compiler._compile(ctx=compilerctx, source=intro_source)
-        assert len(units) == 1 and len(units[0].sql) == 1
-        sql_intropart = units[0].sql[0].decode()
-        sql_introparts.append(sql_intropart)
+    for intropart in reflection.global_intro_parts:
+        sql_intro_global_parts.append(
+            compile_single_query(
+                intropart,
+                compiler=compiler,
+                compilerctx=compilerctx,
+            ),
+        )
 
-    introsql = ' UNION ALL '.join(sql_introparts)
+    local_intro_sql = ' UNION ALL '.join(sql_intro_local_parts)
+    global_intro_sql = ' UNION ALL '.join(sql_intro_global_parts)
 
     return StdlibBits(
         stdschema=schema,
         reflschema=reflschema,
         sqltext=sqltext,
         types=types,
-        classlayout=classlayout,
-        introquery=introsql,
+        classlayout=reflection.class_layout,
+        local_intro_query=local_intro_sql,
+        global_intro_query=global_intro_sql,
     )
 
 
@@ -703,8 +730,14 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
 
     await _store_static_text_cache(
         cluster,
-        'introquery',
-        stdlib.introquery,
+        'local_intro_query',
+        stdlib.local_intro_query,
+    )
+
+    await _store_static_text_cache(
+        cluster,
+        'global_intro_query',
+        stdlib.global_intro_query,
     )
 
     await metaschema.generate_support_views(conn, stdlib.reflschema)
