@@ -8,6 +8,10 @@ GraphQL
     The types used in these queries are defined :ref:`here
     <ref_cheatsheet_types>`.
 
+
+----------
+
+
 For configuring :ref:`GraphQL <ref_graphql_index>` access, :ref:`see
 here <ref_cheatsheet_admin_graphql>`.
 
@@ -22,6 +26,10 @@ Select all users in the system:
             image
         }
     }
+
+
+----------
+
 
 Select a movie by title and release year with associated actors
 ordered by last name:
@@ -52,6 +60,10 @@ ordered by last name:
         }
     }
 
+
+----------
+
+
 Select movies with Keanu Reeves:
 
 .. code-block:: graphql
@@ -68,6 +80,10 @@ Select movies with Keanu Reeves:
             description
         }
     }
+
+
+
+----------
 
 
 Select a movie by title and year with top 3 most recent reviews (this
@@ -103,6 +119,10 @@ reviews):
         }
     }
 
+
+----------
+
+
 Use :ref:`MovieAlias <ref_cheatsheet_aliases>` in order to find
 movies that have no reviews:
 
@@ -121,6 +141,10 @@ movies that have no reviews:
         }
     }
 
+
+----------
+
+
 Use a GraphQL :ref:`mutation <ref_graphql_mutations>` to add a user:
 
 .. code-block:: graphql
@@ -132,6 +156,10 @@ Use a GraphQL :ref:`mutation <ref_graphql_mutations>` to add a user:
             id
         }
     }
+
+
+----------
+
 
 Use a GraphQL :ref:`mutation <ref_graphql_mutations>` to add a review
 by an existing user:
@@ -162,6 +190,10 @@ by an existing user:
             body
         }
     }
+
+
+----------
+
 
 Use a GraphQL :ref:`mutation <ref_graphql_mutations>` to add an
 actress to a movie:

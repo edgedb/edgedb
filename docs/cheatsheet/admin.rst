@@ -10,12 +10,20 @@ Create a database:
     db> CREATE DATABASE my_new_project;
     CREATE
 
+
+----------
+
+
 Create a role:
 
 .. code-block:: edgeql-repl
 
     db> CREATE SUPERUSER ROLE project;
     CREATE
+
+
+----------
+
 
 Configure passwordless access (such as to a local development database):
 
@@ -31,6 +39,10 @@ Configure passwordless access (such as to a local development database):
     ... };
     CONFIGURE SYSTEM
 
+
+----------
+
+
 Set a password for a role:
 
 .. code-block:: edgeql-repl
@@ -38,6 +50,10 @@ Set a password for a role:
     db> ALTER ROLE project
     ...     SET password := 'super-password';
     ALTER
+
+
+----------
+
 
 Configure access that checks password (with a higher priority):
 
@@ -50,6 +66,10 @@ Configure access that checks password (with a higher priority):
     ... };
     CONFIGURE SYSTEM
 
+
+----------
+
+
 Remove a specific authentication method:
 
 .. code-block:: edgeql-repl
@@ -57,6 +77,10 @@ Remove a specific authentication method:
     db> CONFIGURE SYSTEM RESET Auth
     ... FILTER .comment = 'password is required';
     CONFIGURE SYSTEM
+
+
+----------
+
 
 Configure a port for accessing ``my_new_project`` database using EdgeQL:
 
@@ -71,6 +95,10 @@ Configure a port for accessing ``my_new_project`` database using EdgeQL:
     ...     concurrency := 4,
     ... };
     CONFIGURE SYSTEM
+
+
+----------
+
 
 .. _ref_cheatsheet_admin_graphql:
 
@@ -87,6 +115,10 @@ Configure a port for accessing ``my_new_project`` database using GraphQL:
     ...     concurrency := 4,
     ... };
     CONFIGURE SYSTEM
+
+
+----------
+
 
 Run a script from command line:
 

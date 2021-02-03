@@ -8,12 +8,20 @@ Delete
     The types used in these queries are defined :ref:`here
     <ref_cheatsheet_types>`.
 
+
+----------
+
+
 Delete all reviews from a specific user:
 
 .. code-block:: edgeql
 
     DELETE Review
     FILTER .author.name = 'trouble2020'
+
+
+----------
+
 
 Alternative way to delete all reviews from a specific user:
 

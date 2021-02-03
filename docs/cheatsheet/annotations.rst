@@ -17,6 +17,10 @@ Use annotations to add descriptions to types and links:
         };
     }
 
+
+----------
+
+
 Retrieving the annotations can be done via an introspection query:
 
 .. code-block:: edgeql-repl
@@ -53,7 +57,11 @@ Retrieving the annotations can be done via an introspection query:
     }
 
 
-Alternatively, the annotations can be viewed by the following REPL command:
+----------
+
+
+Alternatively, the annotations can be viewed by the following REPL
+command:
 
 .. code-block:: edgeql-repl
 

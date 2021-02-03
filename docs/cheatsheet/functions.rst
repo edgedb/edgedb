@@ -18,11 +18,19 @@ Define a function for counting reviews given a user name:
         )
     $$
 
+
+----------
+
+
 Drop a user-defined function:
 
 .. code-block:: edgeql
 
     DROP FUNCTION review_count(name: str);
+
+
+----------
+
 
 Define and use polymorphic function:
 
