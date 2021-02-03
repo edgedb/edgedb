@@ -83,7 +83,7 @@ class Server:
 
     _std_schema: s_schema.Schema
     _refl_schema: s_schema.Schema
-    _schema_class_layout: s_refl.SchemaClassLayout
+    _schema_class_layout: s_refl.SchemaTypeLayout
 
     def __init__(
         self,

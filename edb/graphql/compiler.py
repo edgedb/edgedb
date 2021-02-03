@@ -50,9 +50,9 @@ class CompiledOperation:
 
 @functools.lru_cache()
 def _get_gqlcore(
-    std_schema: s_schema.Schema,
-    user_schema: s_schema.Schema,
-    global_schema: s_schema.Schema,
+    std_schema: s_schema.FlatSchema,
+    user_schema: s_schema.FlatSchema,
+    global_schema: s_schema.FlatSchema,
 ) -> graphql.GQLCoreSchema:
     return graphql.GQLCoreSchema(
         s_schema.ChainedSchema(
@@ -65,9 +65,9 @@ def _get_gqlcore(
 
 def compile_graphql(
     dbver: bytes,
-    std_schema: s_schema.Schema,
-    user_schema: s_schema.Schema,
-    global_schema: s_schema.Schema,
+    std_schema: s_schema.FlatSchema,
+    user_schema: s_schema.FlatSchema,
+    global_schema: s_schema.FlatSchema,
     gql: str,
     tokens: Optional[
         List[Tuple[gql_lexer.TokenKind, int, int, int, int, str]]],

@@ -207,8 +207,8 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
                                 f'{expected_val!r})') from e
                 raise
 
+    @staticmethod
     def try_until_succeeds(
-        self,
         *,
         ignore: Union[Type[Exception], Tuple[Type[Exception]]],
         delay: float=0.5,
@@ -230,8 +230,8 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
             ignore=ignore,
         )
 
+    @staticmethod
     def try_until_fails(
-        self,
         *,
         wait_for: Union[Type[Exception], Tuple[Type[Exception]]],
         delay: float=0.5,
@@ -974,10 +974,16 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
 
                 if not class_set_up or cls.uses_database_copies():
                     dbname = cls.get_database_name()
-                    script = f'DROP DATABASE {dbname};'
 
-                    cls.loop.run_until_complete(
-                        cls.admin_conn.execute(script))
+                    async def drop_db():
+                        async for tr in cls.try_until_succeeds(
+                            ignore=edgedb.InvalidReferenceError
+                        ):
+                            async with tr:
+                                await cls.admin_conn.execute(
+                                    f'DROP DATABASE {dbname};')
+
+                    cls.loop.run_until_complete(drop_db())
 
             finally:
                 try:

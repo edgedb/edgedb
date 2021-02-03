@@ -19,6 +19,8 @@
 
 import typing
 
+import immutables
+
 from edb.schema import schema
 
 
@@ -28,8 +30,8 @@ ReflectionCache = typing.Mapping[str, typing.Tuple[str, ...]]
 class DatabaseState(typing.NamedTuple):
     name: str
     dbver: bytes
-    user_schema: schema.Schema
+    user_schema: schema.FlatSchema
     reflection_cache: ReflectionCache
 
 
-DatabasesState = typing.Mapping[str, DatabaseState]
+DatabasesState = immutables.Map[str, DatabaseState]

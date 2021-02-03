@@ -17,14 +17,15 @@
 #
 
 
-from .reader import parse_into  # NoQA
-from .structure import generate_structure  # NoQA
-from .structure import SchemaTypeLayout  # NoQA
-from .writer import write_meta  # NoQA
+from .reader import parse_into, SchemaClassLayout
+from .structure import generate_structure
+from .structure import SchemaTypeLayout
+from .writer import write_meta
 
 __all__ = (
     'generate_structure',
     'write_meta',
     'parse_into',
     'SchemaTypeLayout',
+    'SchemaClassLayout',
 )

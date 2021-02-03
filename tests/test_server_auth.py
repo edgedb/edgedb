@@ -118,11 +118,14 @@ class TestServerAuth(tb.ConnectedTestCase):
                     )
                     await conn.aclose()
 
-            await self.con.query('''
-                ALTER ROLE bar {
-                    SET password_hash := 'SCRAM-SHA-256$4096:mWDBY53yzQ4aDet5erBmbg==$ZboQEMuUhC6+1SChp2bx1qSRBZGAnyV4I8T/iK+qeEs=:B7yF2k10tTH2RHayOg3rw4Q6wqf+Fj5CuXR/9CyZ8n8=';
-                }
-            ''')  # noqa
+            async for tr in self.try_until_succeeds(
+                    ignore=edgedb.InvalidReferenceError):
+                async with tr:
+                    await self.con.query('''
+                        ALTER ROLE bar {
+                            SET password_hash := 'SCRAM-SHA-256$4096:mWDBY53yzQ4aDet5erBmbg==$ZboQEMuUhC6+1SChp2bx1qSRBZGAnyV4I8T/iK+qeEs=:B7yF2k10tTH2RHayOg3rw4Q6wqf+Fj5CuXR/9CyZ8n8=';
+                        }
+                    ''')  # noqa
 
             async for tr in self.try_until_succeeds(
                     ignore=edgedb.AuthenticationError):

@@ -51,8 +51,8 @@ BACKEND_RUNTIME_PARAMS: pgcluster.BackendRuntimeParams = \
     pgcluster.get_default_runtime_params()
 COMPILER: compiler.Compiler
 LAST_STATE = None
-STD_SCHEMA: s_schema.Schema
-GLOBAL_SCHEMA: s_schema.Schema
+STD_SCHEMA: s_schema.FlatSchema
+GLOBAL_SCHEMA: s_schema.FlatSchema
 
 
 async def __init_worker__(
@@ -82,15 +82,13 @@ async def __init_worker__(
     )
 
 
-async def compile(
+def __sync__(
     dbname: str,
     dbver: bytes,
-    user_schema: Optional[s_schema.Schema],
+    user_schema: Optional[s_schema.FlatSchema],
     reflection_cache: Optional[state.ReflectionCache],
-    global_schema: Optional[s_schema.Schema],
-    *compile_args: Any,
-    **compile_kwargs: Any,
-):
+    global_schema: Optional[s_schema.FlatSchema],
+) -> state.DatabaseState:
     global DBS
 
     db = DBS.get(dbname)
@@ -99,13 +97,27 @@ async def compile(
             raise RuntimeError(
                 'dbver has changed but the user_schema was not sent')
         db = state.DatabaseState(
-            dbname, dbver, user_schema, reflection_cache
+            dbname, dbver, user_schema, reflection_cache  # type: ignore
         )
         DBS = DBS.set(dbname, db)
 
     global GLOBAL_SCHEMA
     if global_schema is not None:
         GLOBAL_SCHEMA = global_schema
+
+    return db
+
+
+async def compile(
+    dbname: str,
+    dbver: bytes,
+    user_schema: Optional[s_schema.FlatSchema],
+    reflection_cache: Optional[state.ReflectionCache],
+    global_schema: Optional[s_schema.FlatSchema],
+    *compile_args: Any,
+    **compile_kwargs: Any,
+):
+    db = __sync__(dbname, dbver, user_schema, reflection_cache, global_schema)
 
     units, cstate = await COMPILER.compile(
         db.dbver,
@@ -134,27 +146,13 @@ async def compile_in_tx(state, *args, **kwargs):
 async def compile_notebook(
     dbname: str,
     dbver: bytes,
-    user_schema: Optional[s_schema.Schema],
+    user_schema: Optional[s_schema.FlatSchema],
     reflection_cache: Optional[state.ReflectionCache],
-    global_schema: Optional[s_schema.Schema],
+    global_schema: Optional[s_schema.FlatSchema],
     *compile_args: Any,
     **compile_kwargs: Any,
 ):
-    global DBS
-
-    db = DBS.get(dbname)
-    if db is None or db.dbver != dbver:
-        if user_schema is None:
-            raise RuntimeError(
-                'dbver has changed but the user_schema was not sent')
-        db = state.DatabaseState(
-            dbname, dbver, user_schema, reflection_cache
-        )
-        DBS = DBS.set(dbname, db)
-
-    global GLOBAL_SCHEMA
-    if global_schema is not None:
-        GLOBAL_SCHEMA = global_schema
+    db = __sync__(dbname, dbver, user_schema, reflection_cache, global_schema)
 
     return await COMPILER.compile_notebook(
         db.dbver,
@@ -176,27 +174,13 @@ async def try_compile_rollback(
 async def compile_graphql(
     dbname: str,
     dbver: bytes,
-    user_schema: Optional[s_schema.Schema],
+    user_schema: Optional[s_schema.FlatSchema],
     reflection_cache: Optional[state.ReflectionCache],
-    global_schema: Optional[s_schema.Schema],
+    global_schema: Optional[s_schema.FlatSchema],
     *compile_args: Any,
     **compile_kwargs: Any,
 ):
-    global DBS
-
-    db = DBS.get(dbname)
-    if db is None or db.dbver != dbver:
-        if user_schema is None:
-            raise RuntimeError(
-                'dbver has changed but the user_schema was not sent')
-        db = state.DatabaseState(
-            dbname, dbver, user_schema, reflection_cache
-        )
-        DBS = DBS.set(dbname, db)
-
-    global GLOBAL_SCHEMA
-    if global_schema is not None:
-        GLOBAL_SCHEMA = global_schema
+    db = __sync__(dbname, dbver, user_schema, reflection_cache, global_schema)
 
     return graphql.compile_graphql(
         dbver,

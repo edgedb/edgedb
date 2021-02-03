@@ -443,7 +443,7 @@ async def _make_stdlib(testmode: bool, global_ids) -> StdlibBits:
     compiler = edbcompiler.new_compiler(
         std_schema=schema,
         reflection_schema=reflschema,
-        schema_class_layout=reflection.class_layout,
+        schema_class_layout=reflection.class_layout,  # type: ignore
     )
 
     compilerctx = edbcompiler.new_compiler_context(
@@ -555,7 +555,7 @@ async def _amend_stdlib(
     compiler = edbcompiler.new_compiler(
         std_schema=schema,
         reflection_schema=reflschema,
-        schema_class_layout=stdlib.classlayout,
+        schema_class_layout=stdlib.classlayout,  # type: ignore
     )
 
     compilerctx = edbcompiler.new_compiler_context(

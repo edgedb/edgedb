@@ -41,10 +41,10 @@ from . import amsg
 from . import state
 
 
-DEFAULT_POOL_SIZE = max(os.cpu_count(), 2)
-PROCESS_INITIAL_RESPONSE_TIMEOUT = 60.0
-KILL_TIMEOUT = 10.0
-WORKER_MOD = __name__.rpartition('.')[0] + '.worker'
+DEFAULT_POOL_SIZE: int = max(os.cpu_count() or 0, 2)
+PROCESS_INITIAL_RESPONSE_TIMEOUT: float = 60.0
+KILL_TIMEOUT: float = 10.0
+WORKER_MOD: str = __name__.rpartition('.')[0] + '.worker'
 
 
 logger = logging.getLogger("edb.server")
@@ -195,6 +195,7 @@ class Worker:
 class Pool:
 
     _workers_queue: asyncio.Queue
+    _workers: Set[Worker]
 
     def __init__(
         self,

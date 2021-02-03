@@ -1489,10 +1489,10 @@ class ChainedSchema(Schema):
         self._top_schema = top_schema
         self._global_schema = global_schema
 
-    def get_top_schema(self):
+    def get_top_schema(self) -> FlatSchema:
         return self._top_schema
 
-    def get_global_schema(self):
+    def get_global_schema(self) -> FlatSchema:
         return self._global_schema
 
     def add_raw(

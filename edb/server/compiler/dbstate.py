@@ -23,12 +23,11 @@ from typing import *  # NoQA
 import dataclasses
 import enum
 import time
+import uuid
 
 import immutables
 
 from edb import errors
-
-from edb.common import uuidgen
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
@@ -120,7 +119,7 @@ class SessionStateQuery(BaseQuery):
 @dataclasses.dataclass(frozen=True)
 class DDLQuery(BaseQuery):
 
-    user_schema: s_schema.Schema
+    user_schema: s_schema.FlatSchema
     global_schema_updates: bool = False
     new_types: FrozenSet[str] = frozenset()
     is_transactional: bool = True
@@ -141,7 +140,7 @@ class TxControlQuery(BaseQuery):
     is_transactional: bool = True
     single_unit: bool = False
 
-    user_schema: Optional[s_schema.Schema] = None
+    user_schema: Optional[s_schema.FlatSchema] = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -156,7 +155,7 @@ class MigrationControlQuery(BaseQuery):
     is_transactional: bool = True
     single_unit: bool = False
 
-    user_schema: Optional[s_schema.Schema] = None
+    user_schema: Optional[s_schema.FlatSchema] = None
     ddl_stmt_id: Optional[str] = None
 
 
@@ -164,7 +163,7 @@ class MigrationControlQuery(BaseQuery):
 class Param:
     name: str
     required: bool
-    array_type_id: Optional[uuidgen.UUID]
+    array_type_id: Optional[uuid.UUID]
 
 
 #############################
@@ -259,7 +258,7 @@ class QueryUnit:
 
     # If present, represents the future schema state after
     # the command is run.
-    user_schema: Optional[s_schema.Schema] = None
+    user_schema: Optional[s_schema.FlatSchema] = None
 
     # Whether the global schema would be updated if this query
     # unit is executed or not.
@@ -315,8 +314,8 @@ class TransactionState(NamedTuple):
 
     id: int
     name: Optional[str]
-    user_schema: s_schema.Schema
-    global_schema: s_schema.Schema
+    user_schema: s_schema.FlatSchema
+    global_schema: s_schema.FlatSchema
     modaliases: immutables.Map
     config: immutables.Map
     cached_reflection: immutables.Map[str, Tuple[str, ...]]
@@ -332,8 +331,8 @@ class Transaction:
     def __init__(
         self,
         constate,
-        user_schema: s_schema.Schema,
-        global_schema: s_schema.Schema,
+        user_schema: s_schema.FlatSchema,
+        global_schema: s_schema.FlatSchema,
         modaliases: immutables.Map,
         config: immutables.Map,
         cached_reflection: immutables.Map[str, Tuple[str, ...]],
@@ -412,7 +411,7 @@ class Transaction:
 
         self._savepoints.pop(sp_id)
 
-    def get_schema(self, std_schema: s_schema.Schema) -> s_schema.Schema:
+    def get_schema(self, std_schema: s_schema.FlatSchema) -> s_schema.Schema:
         assert isinstance(std_schema, s_schema.FlatSchema)
         return s_schema.ChainedSchema(
             std_schema,
@@ -420,10 +419,10 @@ class Transaction:
             self._current.global_schema,
         )
 
-    def get_user_schema(self) -> s_schema.Schema:
+    def get_user_schema(self) -> s_schema.FlatSchema:
         return self._current.user_schema
 
-    def get_global_schema(self) -> s_schema.Schema:
+    def get_global_schema(self) -> s_schema.FlatSchema:
         return self._current.global_schema
 
     def get_modaliases(self) -> immutables.Map:
