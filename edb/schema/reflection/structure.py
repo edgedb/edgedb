@@ -85,6 +85,14 @@ class SchemaFieldDesc(NamedTuple):
 SchemaTypeLayout = Dict[str, SchemaFieldDesc]
 
 
+class SchemaReflectionParts(NamedTuple):
+
+    intro_schema_delta: sd.Command
+    class_layout: Dict[Type[s_obj.Object], SchemaTypeLayout]
+    local_intro_parts: List[str]
+    global_intro_parts: List[str]
+
+
 def _run_ddl(
     ddl_text: str,
     *,
@@ -205,13 +213,11 @@ def get_default_base_for_pycls(py_cls: Type[s_obj.Object]) -> sn.Name:
         return sn.QualName(module='schema', name='Object')
 
 
-def generate_structure(
-    schema: s_schema.Schema,
-) -> Tuple[sd.Command, Dict[Type[s_obj.Object], SchemaTypeLayout], List[str]]:
+def generate_structure(schema: s_schema.Schema) -> SchemaReflectionParts:
     """Generate schema reflection structure from Python schema classes.
 
     Returns:
-        A triple containing:
+        A quadruple (as a SchemaReflectionParts instance) containing:
             - Delta, which, when applied to stdlib, yields an enhanced
               version of the `schema` module that contains all types
               and properties, not just those that are publicly exposed
@@ -219,7 +225,9 @@ def generate_structure(
             - A mapping, containing type layout description for all
               schema classes.
             - A sequence of EdgeQL queries necessary to introspect
-              the schema.
+              a database schema.
+            - A sequence of EdgeQL queries necessary to introspect
+              global objects, such as roles and databases.
     """
 
     delta = sd.DeltaRoot()
@@ -303,7 +311,7 @@ def generate_structure(
 
         py_classes.append(py_cls)
 
-    read_sets: Dict[sn.Name, List[str]] = {}
+    read_sets: Dict[Type[s_obj.Object], List[str]] = {}
 
     for py_cls in py_classes:
         rschema_name = get_schema_name_for_pycls(py_cls)
@@ -397,7 +405,7 @@ def generate_structure(
                 f'non-abstract ancestors'
             )
 
-        read_shape = read_sets[rschema_name] = []
+        read_shape = read_sets[py_cls] = []
 
         if is_concrete:
             read_shape.append(
@@ -642,7 +650,7 @@ def generate_structure(
         schema_cls = schema.get(rschema_name, type=s_objtypes.ObjectType)
 
         is_concrete = not schema_cls.get_abstract(schema)
-        read_shape = read_sets[rschema_name]
+        read_shape = read_sets[py_cls]
 
         for refdict in py_cls.get_refdicts():
             if py_cls not in classlayout:
@@ -756,34 +764,40 @@ def generate_structure(
 
                 read_shape.append(read_ptr)
 
-    union_parts = []
-    for objname, shape_els in read_sets.items():
-        str_objname = str(objname)
+    local_parts = []
+    global_parts = []
+    for py_cls, shape_els in read_sets.items():
         if (
             not shape_els
             # The CollectionExprAlias family needs to be excluded
             # because TupleExprAlias and ArrayExprAlias inherit from
             # concrete classes and so are picked up from those.
-            or str_objname in {
-                'schema::CollectionExprAlias',
-                'schema::TupleExprAlias',
-                'schema::ArrayExprAlias',
-            }
+            or issubclass(py_cls, s_types.CollectionExprAlias)
         ):
             continue
 
+        rschema_name = get_schema_name_for_pycls(py_cls)
         shape = ',\n'.join(shape_els)
         qry = f'''
-            SELECT {objname} {{
+            SELECT {rschema_name} {{
                 {shape}
             }}
         '''
-        if str_objname not in {'schema::Tuple', 'schema::Array'}:
+        if not issubclass(py_cls, (s_types.Collection, s_obj.GlobalObject)):
             qry += ' FILTER NOT .builtin'
-        union_parts.append(qry)
+
+        if issubclass(py_cls, s_obj.GlobalObject):
+            global_parts.append(qry)
+        else:
+            local_parts.append(qry)
 
     delta.canonical = True
-    return delta, classlayout, union_parts
+    return SchemaReflectionParts(
+        intro_schema_delta=delta,
+        class_layout=classlayout,
+        local_intro_parts=local_parts,
+        global_intro_parts=global_parts,
+    )
 
 
 def _get_reflected_link_props(

@@ -97,7 +97,7 @@ class Schema(abc.ABC):
     @abc.abstractmethod
     def update_obj(
         self: Schema_T,
-        obj_id: uuid.UUID,
+        obj: so.Object,
         updates: Mapping[str, Any],
     ) -> Schema_T:
         raise NotImplementedError
@@ -105,21 +105,21 @@ class Schema(abc.ABC):
     @abc.abstractmethod
     def maybe_get_obj_data_raw(
         self,
-        obj_id: uuid.UUID,
+        obj: so.Object,
     ) -> Optional[Tuple[Any, ...]]:
         raise NotImplementedError
 
     @abc.abstractmethod
     def get_obj_data_raw(
         self,
-        obj_id: uuid.UUID,
+        obj: so.Object,
     ) -> Tuple[Any, ...]:
         raise NotImplementedError
 
     @abc.abstractmethod
     def set_obj_field(
         self: Schema_T,
-        obj_id: uuid.UUID,
+        obj: so.Object,
         field: str,
         value: Any,
     ) -> Schema_T:
@@ -128,7 +128,7 @@ class Schema(abc.ABC):
     @abc.abstractmethod
     def unset_obj_field(
         self: Schema_T,
-        obj_id: uuid.UUID,
+        obj: so.Object,
         field: str,
     ) -> Schema_T:
         raise NotImplementedError
@@ -587,13 +587,14 @@ class FlatSchema(Schema):
 
     def update_obj(
         self,
-        obj_id: uuid.UUID,
+        obj: so.Object,
         updates: Mapping[str, Any],
     ) -> FlatSchema:
         if not updates:
             return self
 
-        sclass = so.ObjectMeta.get_schema_class(self._id_to_type[obj_id])
+        obj_id = obj.id
+        sclass = type(obj)
         all_fields = sclass.get_schema_fields()
         object_ref_fields = sclass.get_object_reference_fields()
         reducible_fields = sclass.get_reducible_fields()
@@ -649,27 +650,29 @@ class FlatSchema(Schema):
 
     def maybe_get_obj_data_raw(
         self,
-        obj_id: uuid.UUID,
+        obj: so.Object,
     ) -> Optional[Tuple[Any, ...]]:
-        return self._id_to_data.get(obj_id)
+        return self._id_to_data.get(obj.id)
 
     def get_obj_data_raw(
         self,
-        obj_id: uuid.UUID,
+        obj: so.Object,
     ) -> Tuple[Any, ...]:
         try:
-            return self._id_to_data[obj_id]
+            return self._id_to_data[obj.id]
         except KeyError:
-            err = (f'cannot get item data: item {str(obj_id)!r} '
+            err = (f'cannot get item data: item {str(obj.id)!r} '
                    f'is not present in the schema {self!r}')
             raise errors.SchemaError(err) from None
 
     def set_obj_field(
         self,
-        obj_id: uuid.UUID,
+        obj: so.Object,
         fieldname: str,
         value: Any,
     ) -> FlatSchema:
+        obj_id = obj.id
+
         try:
             data = self._id_to_data[obj_id]
         except KeyError:
@@ -725,15 +728,17 @@ class FlatSchema(Schema):
 
     def unset_obj_field(
         self,
-        obj_id: uuid.UUID,
+        obj: so.Object,
         fieldname: str,
     ) -> FlatSchema:
+        obj_id = obj.id
+
         try:
-            data = self._id_to_data[obj_id]
+            data = self._id_to_data[obj.id]
         except KeyError:
             return self
 
-        sclass = so.ObjectMeta.get_schema_class(self._id_to_type[obj_id])
+        sclass = so.ObjectMeta.get_schema_class(self._id_to_type[obj.id])
         field = sclass.get_schema_field(fieldname)
         findex = field.index
 
@@ -1355,6 +1360,7 @@ class FlatSchema(Schema):
         self,
         *,
         exclude_stdlib: bool = False,
+        exclude_global: bool = False,
         included_modules: Optional[Iterable[sn.Name]] = None,
         excluded_modules: Optional[Iterable[sn.Name]] = None,
         included_items: Optional[Iterable[sn.Name]] = None,
@@ -1366,6 +1372,7 @@ class FlatSchema(Schema):
             self,
             self._id_to_type,
             exclude_stdlib=exclude_stdlib,
+            exclude_global=exclude_global,
             included_modules=included_modules,
             excluded_modules=excluded_modules,
             included_items=included_items,
@@ -1396,6 +1403,7 @@ class SchemaIterator(Generic[so.Object_T]):
         object_ids: Iterable[uuid.UUID],
         *,
         exclude_stdlib: bool = False,
+        exclude_global: bool = False,
         included_modules: Optional[Iterable[sn.Name]],
         excluded_modules: Optional[Iterable[sn.Name]],
         included_items: Optional[Iterable[sn.Name]] = None,
@@ -1445,6 +1453,11 @@ class SchemaIterator(Generic[so.Object_T]):
                 lambda schema, obj: not isinstance(obj, s_pseudo.PseudoType)
             )
 
+        if exclude_global:
+            filters.append(
+                lambda schema, obj: not isinstance(obj, so.GlobalObject)
+            )
+
         # Extra filters are last, because they might depend on type.
         filters.extend(extra_filters)
 
@@ -1464,15 +1477,17 @@ class SchemaIterator(Generic[so.Object_T]):
 
 class ChainedSchema(Schema):
 
-    __slots__ = ('_base_schema', '_top_schema')
+    __slots__ = ('_base_schema', '_top_schema', '_global_schema')
 
     def __init__(
         self,
         base_schema: FlatSchema,
         top_schema: FlatSchema,
+        global_schema: FlatSchema
     ) -> None:
         self._base_schema = base_schema
         self._top_schema = top_schema
+        self._global_schema = global_schema
 
     def add_raw(
         self,
@@ -1480,10 +1495,18 @@ class ChainedSchema(Schema):
         sclass: Type[so.Object],
         data: Tuple[Any, ...],
     ) -> ChainedSchema:
-        return ChainedSchema(
-            self._base_schema,
-            self._top_schema.add_raw(id, sclass, data),
-        )
+        if issubclass(sclass, so.GlobalObject):
+            return ChainedSchema(
+                self._base_schema,
+                self._top_schema,
+                self._global_schema.add_raw(id, sclass, data),
+            )
+        else:
+            return ChainedSchema(
+                self._base_schema,
+                self._top_schema.add_raw(id, sclass, data),
+                self._global_schema,
+            )
 
     def add(
         self,
@@ -1491,80 +1514,141 @@ class ChainedSchema(Schema):
         sclass: Type[so.Object],
         data: Tuple[Any, ...],
     ) -> ChainedSchema:
-        return ChainedSchema(
-            self._base_schema,
-            self._top_schema.add(id, sclass, data),
-        )
+        if issubclass(sclass, so.GlobalObject):
+            return ChainedSchema(
+                self._base_schema,
+                self._top_schema,
+                self._global_schema.add(id, sclass, data),
+            )
+        else:
+            return ChainedSchema(
+                self._base_schema,
+                self._top_schema.add(id, sclass, data),
+                self._global_schema,
+            )
 
     def discard(self, obj: so.Object) -> ChainedSchema:
-        return ChainedSchema(
-            self._base_schema,
-            self._top_schema.discard(obj),
-        )
+        if isinstance(obj, so.GlobalObject):
+            return ChainedSchema(
+                self._base_schema,
+                self._top_schema,
+                self._global_schema.discard(obj),
+            )
+        else:
+            return ChainedSchema(
+                self._base_schema,
+                self._top_schema.discard(obj),
+                self._global_schema,
+            )
 
     def delete(self, obj: so.Object) -> ChainedSchema:
-        return ChainedSchema(
-            self._base_schema,
-            self._top_schema.delete(obj),
-        )
+        if isinstance(obj, so.GlobalObject):
+            return ChainedSchema(
+                self._base_schema,
+                self._top_schema,
+                self._global_schema.delete(obj),
+            )
+        else:
+            return ChainedSchema(
+                self._base_schema,
+                self._top_schema.delete(obj),
+                self._global_schema,
+            )
 
     def update_obj(
         self,
-        obj_id: uuid.UUID,
+        obj: so.Object,
         updates: Mapping[str, Any],
     ) -> ChainedSchema:
-        base_obj = self._base_schema.get_by_id(obj_id, default=None)
-        if base_obj is not None and not self._top_schema.has_object(obj_id):
-            top_schema = self._top_schema.add_raw(
-                obj_id, type(base_obj), self._base_schema._id_to_data[obj_id])
+        if isinstance(obj, so.GlobalObject):
+            return ChainedSchema(
+                self._base_schema,
+                self._top_schema,
+                self._global_schema.update_obj(obj, updates),
+            )
         else:
-            top_schema = self._top_schema
+            obj_id = obj.id
+            base_obj = self._base_schema.get_by_id(obj_id, default=None)
+            if (
+                base_obj is not None
+                and not self._top_schema.has_object(obj_id)
+            ):
+                top_schema = self._top_schema.add_raw(
+                    obj_id,
+                    type(base_obj),
+                    self._base_schema._id_to_data[obj_id],
+                )
+            else:
+                top_schema = self._top_schema
 
-        return ChainedSchema(
-            self._base_schema,
-            top_schema.update_obj(obj_id, updates),
-        )
+            return ChainedSchema(
+                self._base_schema,
+                top_schema.update_obj(obj, updates),
+                self._global_schema,
+            )
 
     def maybe_get_obj_data_raw(
         self,
-        obj_id: uuid.UUID,
+        obj: so.Object,
     ) -> Optional[Tuple[Any, ...]]:
-        top = self._top_schema.maybe_get_obj_data_raw(obj_id)
-        if top is not None:
-            return top
+        if isinstance(obj, so.GlobalObject):
+            return self._global_schema.maybe_get_obj_data_raw(obj)
         else:
-            return self._base_schema.maybe_get_obj_data_raw(obj_id)
+            top = self._top_schema.maybe_get_obj_data_raw(obj)
+            if top is not None:
+                return top
+            else:
+                return self._base_schema.maybe_get_obj_data_raw(obj)
 
     def get_obj_data_raw(
         self,
-        obj_id: uuid.UUID,
+        obj: so.Object,
     ) -> Tuple[Any, ...]:
-        top = self._top_schema.maybe_get_obj_data_raw(obj_id)
-        if top is not None:
-            return top
+        if isinstance(obj, so.GlobalObject):
+            return self._global_schema.get_obj_data_raw(obj)
         else:
-            return self._base_schema.get_obj_data_raw(obj_id)
+            top = self._top_schema.maybe_get_obj_data_raw(obj)
+            if top is not None:
+                return top
+            else:
+                return self._base_schema.get_obj_data_raw(obj)
 
     def set_obj_field(
         self,
-        obj_id: uuid.UUID,
+        obj: so.Object,
         fieldname: str,
         value: Any,
     ) -> ChainedSchema:
-        return ChainedSchema(
-            self._base_schema,
-            self._top_schema.set_obj_field(obj_id, fieldname, value),
-        )
+        if isinstance(obj, so.GlobalObject):
+            return ChainedSchema(
+                self._base_schema,
+                self._top_schema,
+                self._global_schema.set_obj_field(obj, fieldname, value),
+            )
+        else:
+            return ChainedSchema(
+                self._base_schema,
+                self._top_schema.set_obj_field(obj, fieldname, value),
+                self._global_schema,
+            )
 
     def unset_obj_field(
         self,
-        obj_id: uuid.UUID,
+        obj: so.Object,
         field: str,
     ) -> ChainedSchema:
-        return ChainedSchema(
-            self._base_schema,
-            self._top_schema.unset_obj_field(obj_id, field),
-        )
+        if isinstance(obj, so.GlobalObject):
+            return ChainedSchema(
+                self._base_schema,
+                self._top_schema,
+                self._global_schema.unset_obj_field(obj, field),
+            )
+        else:
+            return ChainedSchema(
+                self._base_schema,
+                self._top_schema.unset_obj_field(obj, field),
+                self._global_schema,
+            )
 
     def get_functions(
         self,
@@ -1656,6 +1740,11 @@ class ChainedSchema(Schema):
                 scls_type=scls_type,
                 field_name=field_name,
             )
+            | self._global_schema.get_referrers(
+                scls,
+                scls_type=scls_type,
+                field_name=field_name,
+            )
         )
 
     def get_referrers_ex(
@@ -1669,8 +1758,13 @@ class ChainedSchema(Schema):
     ]:
         base = self._base_schema.get_referrers_ex(scls, scls_type=scls_type)
         top = self._top_schema.get_referrers_ex(scls, scls_type=scls_type)
+        gl = self._global_schema.get_referrers_ex(scls, scls_type=scls_type)
         return {
-            k: base.get(k, frozenset()) | top.get(k, frozenset())
+            k: (
+                base.get(k, frozenset())
+                | top.get(k, frozenset())
+                | gl.get(k, frozenset())
+            )
             for k in itertools.chain(base, top)
         }
 
@@ -1713,10 +1807,12 @@ class ChainedSchema(Schema):
     ) -> Optional[so.Object_T]:
         obj = self._top_schema.get_by_id(obj_id, type=type, default=None)
         if obj is None:
-            return self._base_schema.get_by_id(
-                obj_id, default=default, type=type)
-        else:
-            return obj
+            obj = self._base_schema.get_by_id(
+                obj_id, default=None, type=type)
+            if obj is None:
+                obj = self._global_schema.get_by_id(
+                    obj_id, default=default, type=type)
+        return obj
 
     @overload
     def get_global(
@@ -1742,10 +1838,15 @@ class ChainedSchema(Schema):
         name: Union[str, sn.Name],
         default: Union[so.Object_T, so.NoDefaultT, None] = so.NoDefault,
     ) -> Optional[so.Object_T]:
-        try:
-            return self._top_schema.get_global(objtype, name)
-        except errors.InvalidReferenceError:
-            return self._base_schema.get_global(objtype, name, default=default)
+        if issubclass(objtype, so.GlobalObject):
+            return self._global_schema.get_global(  # type: ignore
+                objtype, name, default=default)
+        else:
+            try:
+                return self._top_schema.get_global(objtype, name)
+            except errors.InvalidReferenceError:
+                return self._base_schema.get_global(
+                    objtype, name, default=default)
 
     def get_generic(  # NoQA: F811
         self,
@@ -1784,6 +1885,7 @@ class ChainedSchema(Schema):
         return (
             self._base_schema.has_object(object_id)
             or self._top_schema.has_object(object_id)
+            or self._global_schema.has_object(object_id)
         )
 
     def has_module(self, module: str) -> bool:
@@ -1796,6 +1898,7 @@ class ChainedSchema(Schema):
         self,
         *,
         exclude_stdlib: bool = False,
+        exclude_global: bool = False,
         included_modules: Optional[Iterable[sn.Name]] = None,
         excluded_modules: Optional[Iterable[sn.Name]] = None,
         included_items: Optional[Iterable[sn.Name]] = None,
@@ -1808,7 +1911,9 @@ class ChainedSchema(Schema):
             itertools.chain(
                 self._base_schema._id_to_type,
                 self._top_schema._id_to_type,
+                self._global_schema._id_to_type,
             ),
+            exclude_global=exclude_global,
             exclude_stdlib=exclude_stdlib,
             included_modules=included_modules,
             excluded_modules=excluded_modules,

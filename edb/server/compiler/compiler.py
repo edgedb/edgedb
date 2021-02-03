@@ -214,11 +214,11 @@ async def load_std_schema(backend_conn) -> s_schema.Schema:
     return await load_cached_schema(backend_conn, 'stdschema')
 
 
-async def load_schema_intro_query(backend_conn) -> str:
+async def load_schema_intro_query(backend_conn, kind: str) -> str:
     return await backend_conn.fetchval(f'''\
         SELECT text FROM edgedbinstdata.instdata
-        WHERE key = 'introquery';
-    ''')
+        WHERE key = $1::text;
+    ''', kind)
 
 
 async def load_schema_class_layout(backend_conn) -> s_schema.Schema:
@@ -252,7 +252,8 @@ class BaseCompiler:
         self._refl_schema = None
         self._config_spec = None
         self._schema_class_layout = None
-        self._intro_query = None
+        self._local_intro_query = None
+        self._global_intro_query = None
         self._backend_runtime_params = backend_runtime_params
 
     def _hash_sql(self, sql: bytes, **kwargs: bytes):
@@ -289,15 +290,22 @@ class BaseCompiler:
         self,
         connection: asyncpg.Connection,
     ) -> s_schema.Schema:
-        data = await connection.fetch(self._intro_query)
+        local_data = await connection.fetch(self._local_intro_query)
+        global_data = await connection.fetch(self._global_intro_query)
         return s_schema.ChainedSchema(
             self._std_schema,
             s_refl.parse_into(
                 base_schema=self._std_schema,
                 schema=s_schema.FlatSchema(),
-                data=[r[0] for r in data],
+                data=[r[0] for r in local_data],
                 schema_class_layout=self._schema_class_layout,
-            )
+            ),
+            s_refl.parse_into(
+                base_schema=self._std_schema,
+                schema=s_schema.FlatSchema(),
+                data=[r[0] for r in global_data],
+                schema_class_layout=self._schema_class_layout,
+            ),
         )
 
     async def _load_reflection_cache(
@@ -344,8 +352,13 @@ class BaseCompiler:
         if self._schema_class_layout is None:
             self._schema_class_layout = await load_schema_class_layout(con)
 
-        if self._intro_query is None:
-            self._intro_query = await load_schema_intro_query(con)
+        if self._local_intro_query is None:
+            self._local_intro_query = await load_schema_intro_query(
+                con, 'local_intro_query')
+
+        if self._global_intro_query is None:
+            self._global_intro_query = await load_schema_intro_query(
+                con, 'global_intro_query')
 
         if self._config_spec is None:
             self._config_spec = config.load_spec_from_schema(
@@ -2048,7 +2061,10 @@ class Compiler(BaseCompiler):
         schema_ddl = s_ddl.ddl_text_from_schema(
             schema, include_migrations=True)
 
-        all_objects = schema.get_objects(exclude_stdlib=True)
+        all_objects = schema.get_objects(
+            exclude_stdlib=True,
+            exclude_global=True,
+        )
         ids = []
         for obj in all_objects:
             if isinstance(obj, s_obj.QualifiedObject):
