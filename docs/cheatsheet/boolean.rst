@@ -6,6 +6,10 @@ Boolean Expressions
 Boolean expressions can be tricky sometimes, so here are a handful of
 tips and gotchas.
 
+
+----------
+
+
 There's a fundamental difference in how ``{}`` is treated by
 :eql:op:`AND` and :eql:op:`OR` vs :eql:func:`all` and :eql:func:`any`.
 The operators :eql:op:`AND` and :eql:op:`OR` require both operands
@@ -44,11 +48,19 @@ they are mathematically consistent):
     db> SELECT any(<bool>{});
     {false}
 
+
+----------
+
+
 There's no direct analogue to the boolean operator "short-circuiting"
 that's implemented in many other languages because in EdgeQL the order
 of evaluation of subexpressions is generally not defined. However,
 there are expressions that achieve the same end goal for which
 "short-circuiting" is used.
+
+
+----------
+
 
 The most basic filtering doesn't even require any "short-circuiting"
 guards because these are already implied by EdgeQL. For example, *"get
@@ -57,6 +69,10 @@ all accounts that completed 5 steps of the process"*:
 .. code-block:: edgeql
 
     SELECT Account FILTER .steps = 5;
+
+
+----------
+
 
 When there's a need to express that a field is initialized, but not
 equal to some particular value "short-circuiting" is often used to
@@ -68,6 +84,10 @@ have not completed 5 steps of the process"*:
 .. code-block:: edgeql
 
     SELECT Account FILTER .steps != 5;
+
+
+----------
+
 
 If the task boils down to annotating every element as opposed to
 selecting specific ones, the use of :eql:op:`?= <COALEQ>` instead
@@ -81,6 +101,10 @@ completeness status"*:
         completed := .steps ?= 5
     };
 
+
+----------
+
+
 Sometimes the condition that needs to be evaluated is not a simple
 equality comparison. The :eql:op:`??<COALESCE>` can help out in these
 cases. For example, *"get all accounts and annotate them on whether or
@@ -92,6 +116,10 @@ not they are half-way completed"*:
         completed := (.steps > 2) ?? false
     };
 
+
+----------
+
+
 The above trick can also be useful for filtering based on some boolean
 condition that's not just a plain equality. For example, *"get only the
 accounts that are less than half-way completed"*:
@@ -101,6 +129,10 @@ accounts that are less than half-way completed"*:
     SELECT Account {
         too_few_steps := (.steps <= 2) ?? true
     } FILTER .too_few_steps;
+
+
+----------
+
 
 The above will end up including the computable flag ``too_few_steps``
 in the output, but this is sometimes undesirable. In order to avoid
@@ -118,6 +150,10 @@ including it, the query can be refactored like this:
         email,
         # whatever other relevant data is needed
     };
+
+
+----------
+
 
 When using :eql:op:`?=<COALEQ>`, :eql:op:`?=<COALNEQ>`, or
 :eql:op:`??<COALESCE>` it is important to keep in mind how they
@@ -159,6 +195,10 @@ are a good way to handle complex expressions or filters. When only
 objects with specific properties are relevant, path expressions are a
 good compact way of handling this.
 
+
+----------
+
+
 There's also another way to evaluate something on a per-object basis
 and that's by using a :eql:stmt:`FOR` query. For example, let's
 rewrite *"get only the accounts that are less than half-way completed"*:
@@ -170,6 +210,10 @@ rewrite *"get only the accounts that are less than half-way completed"*:
         SELECT A
         FILTER (.steps <= 2) ?? true
     );
+
+
+----------
+
 
 The gotchas in using a :eql:stmt:`FOR` query can arise from using path
 expressions combined with :eql:op:`?? <COALESCE>`, :eql:op:`?=
@@ -217,6 +261,10 @@ either use the trick we used before with shapes or we can add another
             UNION (.steps < 3) ?? true
         )
     );
+
+
+----------
+
 
 Note that the :ref:`FILTER <ref_eql_statements_select_filter>` clause
 behaves as an implicit :eql:func:`any`. This means that the following

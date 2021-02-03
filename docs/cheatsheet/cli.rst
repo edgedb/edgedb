@@ -9,6 +9,10 @@ Create a database instance ``my_instance``:
 
     $ edgedb server init my_instance
 
+
+----------
+
+
 Create a database:
 
 .. code-block:: bash
@@ -16,12 +20,20 @@ Create a database:
     $ edgedb -I my_instance create-database my_new_project
     OK: CREATE
 
+
+----------
+
+
 Create a new role (other than default ``edgedb``):
 
 .. code-block:: bash
 
     $ edgedb -I my_instance create-superuser-role project
     OK: CREATE
+
+
+----------
+
 
 Configure passwordless access (such as to a local development database):
 
@@ -33,6 +45,10 @@ Configure passwordless access (such as to a local development database):
     > --method Trust
     OK: CONFIGURE SYSTEM
 
+
+----------
+
+
 Set a password for a role:
 
 .. code-block:: bash
@@ -41,6 +57,10 @@ Set a password for a role:
     New password for 'project':
     Confirm password for 'project':
     OK: ALTER
+
+
+----------
+
 
 Configure access that checks password (with a higher priority):
 
@@ -51,6 +71,10 @@ Configure access that checks password (with a higher priority):
     > --priority 0 \
     > --method SCRAM
     OK: CONFIGURE SYSTEM
+
+
+----------
+
 
 Configure a port for accessing ``my_new_project`` database using EdgeQL:
 
@@ -64,6 +88,10 @@ Configure a port for accessing ``my_new_project`` database using EdgeQL:
     > --user project \
     > --concurrency 4
     OK: CONFIGURE SYSTEM
+
+
+----------
+
 
 .. _ref_cheatsheet_admin_graphql:
 
@@ -79,6 +107,10 @@ Configure a port for accessing ``my_new_project`` database using GraphQL:
     > --user project \
     > --concurrency 4
     OK: CONFIGURE SYSTEM
+
+
+----------
+
 
 Connect to the database:
 

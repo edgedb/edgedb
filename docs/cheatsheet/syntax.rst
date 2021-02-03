@@ -26,6 +26,10 @@ There are several kinds of strings:
     ...     line continuation';
     {'A string with line continuation'}
 
+
+----------
+
+
 Literals for limited range/precision numbers (like
 :eql:type:`std::int64` and :eql:type:`std::float64`):
 
@@ -35,6 +39,10 @@ Literals for limited range/precision numbers (like
     {42}
     db> SELECT 12.3;
     {12.3}
+
+
+----------
+
 
 Literals for unlimited range/precision numbers (like
 :eql:type:`std::bigint` and :eql:type:`std::decimal`):
@@ -50,6 +58,10 @@ Literals for unlimited range/precision numbers (like
     db> SELECT 12.300000000000000000000000000000045n;
     {12.300000000000000000000000000000045n}
 
+
+----------
+
+
 It's possible to quote odd identifiers:
 
 .. code-block:: edgeql
@@ -62,6 +74,10 @@ It's possible to quote odd identifiers:
     # typical alphanumerics can also be created by
     # quoting.
     SELECT `Odd-Type-Name`.value;
+
+
+----------
+
 
 Link properties are accessed by using the ``@``:
 

@@ -8,6 +8,10 @@ Insert
     The types used in these queries are defined :ref:`here
     <ref_cheatsheet_types>`.
 
+
+----------
+
+
 Insert basic movie stub:
 
 .. code-block:: edgeql
@@ -22,6 +26,10 @@ Insert basic movie stub:
                 .full_name = 'Denis Villeneuve'
         )
     }
+
+
+----------
+
 
 Alternatively, insert a movie using JSON input value:
 
@@ -53,6 +61,10 @@ Alternatively, insert a movie using JSON input value:
         )
     }
 
+
+----------
+
+
 Insert several nested objects at once:
 
 .. code-block:: edgeql
@@ -80,6 +92,10 @@ Insert several nested objects at once:
             }
         )
     }
+
+
+----------
+
 
 "Upserts" as well as and other combinations of :eql:stmt:`INSERT` and
 some alternative operation are possible:

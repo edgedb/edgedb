@@ -8,6 +8,10 @@ Select
     The types used in these queries are defined :ref:`here
     <ref_cheatsheet_types>`.
 
+
+----------
+
+
 Select a Movie with associated actors and reviews with their authors:
 
 .. code-block:: edgeql
@@ -35,6 +39,10 @@ Select a Movie with associated actors and reviews with their authors:
     }
     FILTER .id = <uuid>'09c34154-4148-11ea-9c68-5375ca908326'
 
+
+----------
+
+
 Select movies with Keanu Reeves:
 
 .. code-block:: edgeql
@@ -46,6 +54,10 @@ Select movies with Keanu Reeves:
         description,
     }
     FILTER .actors.full_name = 'Keanu Reeves'
+
+
+----------
+
 
 Select all actors that share the last name with other actors and
 include the same-last-name actor list as well:
@@ -72,7 +84,12 @@ include the same-last-name actor list as well:
     }
     FILTER EXISTS .same_last_name
 
-The same query can be refactored moving the ``WITH`` block to the top-level:
+
+----------
+
+
+The same query can be refactored moving the ``WITH`` block to the
+top-level:
 
 .. code-block:: edgeql
 
@@ -97,6 +114,10 @@ The same query can be refactored moving the ``WITH`` block to the top-level:
     }
     FILTER EXISTS .same_last_name
 
+
+----------
+
+
 Select user names and the number of reviews they have:
 
 .. code-block:: edgeql
@@ -105,6 +126,10 @@ Select user names and the number of reviews they have:
         User.name,
         count(User.<author[IS Review])
     )
+
+
+----------
+
 
 For every user and movie combination, select whether the user has
 reviewed the movie (beware, in practice this maybe a very large
@@ -117,6 +142,10 @@ result):
         Movie.title,
         Movie IN User.<author[IS Review].movie
     )
+
+
+----------
+
 
 Perform a set intersection of all actors with all directors:
 

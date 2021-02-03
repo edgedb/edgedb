@@ -8,6 +8,10 @@ Update
     The types used in these queries are defined :ref:`here
     <ref_cheatsheet_types>`.
 
+
+----------
+
+
 Flag all reviews to a specific movie:
 
 .. code-block:: edgeql
@@ -20,6 +24,10 @@ Flag all reviews to a specific movie:
     SET {
         flag := True
     }
+
+
+----------
+
 
 Using a ``FOR`` query to set a specific ordering of the actors list:
 
@@ -45,6 +53,10 @@ Using a ``FOR`` query to set a specific ordering of the actors list:
         )
     }
 
+
+----------
+
+
 Updating a multi link by adding one more item:
 
 .. code-block:: edgeql
@@ -63,6 +75,10 @@ Updating a multi link by adding one more item:
             }
         )
     }
+
+
+----------
+
 
 Updating a multi link by removing an item:
 
