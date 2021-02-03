@@ -46,7 +46,6 @@ import click
 import edgedb
 
 from edb.common import devmode
-from edb.common import debug
 from edb.testbase import server as tb
 
 from . import mproc_fixes

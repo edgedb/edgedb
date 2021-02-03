@@ -55,7 +55,6 @@ from edb.edgeql import quote as qlquote
 from edb.server import cluster as edgedb_cluster
 from edb.server import defines as edgedb_defines
 
-from edb.common import debug
 from edb.common import taskgroup
 
 from edb.testbase import serutils
