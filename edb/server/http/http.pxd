@@ -39,7 +39,7 @@ cdef class HttpResponse:
 
 cdef class HttpProtocol:
 
-    cdef public object server
+    cdef public object port
     cdef:
         object loop
         object parser

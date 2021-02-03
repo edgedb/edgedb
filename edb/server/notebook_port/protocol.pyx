@@ -44,8 +44,8 @@ ALLOWED_CAPABILITIES = (
 
 cdef class Protocol(http.HttpProtocol):
 
-    def __init__(self, loop, server, query_cache):
-        http.HttpProtocol.__init__(self, loop, server)
+    def __init__(self, loop, port, query_cache):
+        http.HttpProtocol.__init__(self, loop, port)
         self.query_cache = query_cache
 
     cdef handle_error(self, http.HttpRequest request,
@@ -115,34 +115,33 @@ cdef class Protocol(http.HttpProtocol):
             response.body = b'{"kind": "results", "results":' + result + b'}'
 
     async def heartbeat_check(self):
-        pgcon = await self.server.get_server().acquire_pgcon(
-            self.server.database)
+        pgcon = await self.port.get_server().acquire_pgcon(
+            self.port.database)
         try:
             await pgcon.simple_query(b"SELECT 'OK';", True)
         finally:
-            self.server.get_server().release_pgcon(self.server.database, pgcon)
+            self.port.get_server().release_pgcon(self.port.database, pgcon)
 
-    async def compile(self, dbver, list queries):
-        comp = await self.server.compilers.get()
-        try:
-            # TODO(tailhook) check capabilities
-            return await comp.call(
-                'compile_notebook',
-                dbver,
-                queries,
-                0,  # implicit limit
-            )
-        finally:
-            self.server.compilers.put_nowait(comp)
+    async def compile(self, list queries):
+        db = self.port.get_db()
+        compiler_pool = self.port.get_server().get_compiler_pool()
+        # TODO(tailhook) check capabilities
+        return await compiler_pool.compile_notebook(
+            db.name,
+            db.dbver,
+            db.user_schema,
+            self.port.get_global_schema(),
+            db.reflection_cache,
+            queries,
+            50,  # implicit limit
+        )
 
     async def execute(self, queries: list):
-        dbver = self.server.get_dbver()
-
-        units = await self.compile(dbver, queries)
+        units = await self.compile(queries)
         result = []
 
-        pgcon = await self.server.get_server().acquire_pgcon(
-            self.server.database)
+        pgcon = await self.port.get_server().acquire_pgcon(
+            self.port.database)
         try:
             await pgcon.simple_query(b'START TRANSACTION;', True)
 
@@ -197,7 +196,7 @@ cdef class Protocol(http.HttpProtocol):
             try:
                 await pgcon.simple_query(b'ROLLBACK;', True)
             finally:
-                self.server.get_server().release_pgcon(
-                    self.server.database, pgcon)
+                self.port.get_server().release_pgcon(
+                    self.port.database, pgcon)
 
         return json.dumps(result).encode()

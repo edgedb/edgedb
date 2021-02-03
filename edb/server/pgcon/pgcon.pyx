@@ -239,6 +239,7 @@ cdef class PGConnection:
         assert self.dbname == defines.EDGEDB_SYSTEM_DB
         event = json.dumps({
             'event': event,
+            'server_id': self.server._server_id,
             'args': kwargs,
         })
         query = f"""
@@ -855,6 +856,35 @@ cdef class PGConnection:
         finally:
             self.after_command()
 
+    async def run_ddl(
+        self,
+        object query_unit,
+        bytes state=None
+    ):
+        self.before_command()
+        try:
+            sql = b';'.join(query_unit.sql)
+            ignore_data = query_unit.ddl_stmt_id is None
+            data =  await self._simple_query(
+                sql,
+                ignore_data,
+                state,
+            )
+
+            if query_unit.ddl_stmt_id:
+                if data:
+                    ret = json.loads(data[0][0])
+                    if ret['ddl_stmt_id'] != query_unit.ddl_stmt_id:
+                        raise RuntimeError(
+                            'unrecognized data packet after a DDL command: '
+                            'data_stmt_id do not match')
+                    return ret
+                else:
+                    raise RuntimeError(
+                        'missing the required data packet after a DDL command')
+        finally:
+            self.after_command()
+
     async def _dump(self, block, output_queue, fragment_suggested_size):
         cdef:
             WriteBuffer buf
@@ -1213,18 +1243,33 @@ cdef class PGConnection:
             finally:
                 self.buffer.finish_message()
 
+    def is_healthy_to_go_back_to_pool(self):
+        return (
+            self.connected and
+            self.idle and
+            not self.waiting_for_sync and
+            not self.in_tx()
+        )
+
     cdef before_command(self):
         if not self.connected:
-            raise RuntimeError('not connected')
+            raise RuntimeError(
+                'pgcon: cannot issue new command: not connected')
 
         if self.waiting_for_sync:
-            raise RuntimeError('cannot issue new command')
+            raise RuntimeError(
+                'pgcon: cannot issue new command; waiting for sync')
 
-        assert self.idle
+        if not self.idle:
+            raise RuntimeError(
+                'pgcon: cannot issue new command; '
+                'another command is in progress')
+
         self.idle = False
 
     cdef after_command(self):
-        assert not self.idle
+        if self.idle:
+            raise RuntimeError('pgcon: idle while running a command')
         self.idle = True
 
     cdef write(self, buf):
@@ -1264,11 +1309,20 @@ cdef class PGConnection:
             payload = self.buffer.read_null_str().decode()
             self.buffer.finish_message()
 
+            if self.server is None:
+                # The server is still initializing.
+                return True
+
             if channel == '__edgedb_sysevent__':
                 event_data = json.loads(payload)
                 event = event_data.get('event')
+
+                server_id = event_data.get('server_id')
+
                 event_payload = event_data.get('args')
                 if event == 'schema-changes':
+                    if server_id == self.server._server_id:
+                        return True
                     dbname = event_payload['dbname']
                     dbver = bytes.fromhex(event_payload['dbver'])
                     self.server._on_remote_ddl(dbname, dbver)
@@ -1279,6 +1333,8 @@ cdef class PGConnection:
                     self.server._on_remote_system_config_change()
                 elif event == 'role-changes':
                     self.server._on_role_change()
+                elif event == 'global-schema-changes':
+                    self.server._on_global_schema_change()
                 else:
                     raise AssertionError(f'unexpected system event: {event!r}')
 

@@ -21,7 +21,6 @@ from __future__ import annotations
 
 from edb.server import http
 
-from . import compiler
 from . import protocol  # type: ignore
 
 
@@ -29,9 +28,6 @@ class HttpGraphQLPort(http.BaseHttpPort):
 
     def build_protocol(self):
         return protocol.Protocol(self._loop, self, self._query_cache)
-
-    def get_compiler_worker_cls(self):
-        return compiler.Compiler
 
     @classmethod
     def get_proto_name(cls):

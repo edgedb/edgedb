@@ -39,6 +39,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 import uuid
 
@@ -207,6 +208,52 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
                                 f'{expected_val!r})') from e
                 raise
 
+    def try_until_succeeds(
+        self,
+        *,
+        ignore: Union[Type[Exception], Tuple[Type[Exception]]],
+        delay: float=0.5,
+        timeout: float=5
+    ):
+        """Retry a block of code a few times ignoring the specified errors.
+
+        Example:
+
+            async for tr in self.try_until_succeeds(
+                    ignore_errors=edgedb.AuthenticationError):
+                async with tr:
+                    await edgedb.connect(...)
+
+        """
+        return _TryFewTimes(
+            delay=delay,
+            timeout=timeout,
+            ignore=ignore,
+        )
+
+    def try_until_fails(
+        self,
+        *,
+        wait_for: Union[Type[Exception], Tuple[Type[Exception]]],
+        delay: float=0.5,
+        timeout: float=5
+    ):
+        """Retry a block of code a few times until the specified error happens.
+
+        Example:
+
+            async for tr in self.try_until_fails(
+                    ignore_errors=edgedb.AuthenticationError):
+                async with tr:
+                    await edgedb.connect(...)
+
+        """
+        return _TryFewTimes(
+            delay=delay,
+            timeout=timeout,
+            wait_for=wait_for,
+        )
+
     def __getstate__(self):
         # TestCases get pickled when run in in separate OS processes
         # via `edb test -jN`. If they reference any unpickleable objects,
@@ -229,6 +276,94 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
             '_cleanups': [],
             '_type_equality_funcs': self._type_equality_funcs,
         }
+
+
+class _TryFewTimes:
+
+    def __init__(
+        self,
+        *,
+        delay: float,
+        timeout: float,
+        ignore: Optional[Union[Type[Exception],
+                               Tuple[Type[Exception]]]] = None,
+        wait_for: Optional[Union[Type[Exception],
+                                 Tuple[Type[Exception]]]]=None,
+    ) -> None:
+        self._delay = delay
+        self._timeout = timeout
+        self._ignore = ignore
+        self._wait_for = wait_for
+        self._started_at = 0
+        self._stop_request = False
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        if self._stop_request:
+            raise StopAsyncIteration
+
+        if self._started_at == 0:
+            # First run
+            self._started_at = time.monotonic()
+        else:
+            # Second or greater run -- delay before yielding
+            await asyncio.sleep(self._delay)
+
+        return _TryRunner(self)
+
+
+class _TryRunner:
+
+    def __init__(self, controller: _TryFewTimes):
+        self._controller = controller
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, et, e, tb):
+        elapsed = time.monotonic() - self._controller._started_at
+
+        if self._controller._ignore is not None:
+            # Mode 1: Try until we don't get errors matching `ignore`
+
+            if et is None:
+                self._controller._stop_request = True
+                return
+
+            if not isinstance(e, self._controller._ignore):
+                # Propagate, it's not the error we expected.
+                return
+
+            if elapsed > self._controller._timeout:
+                # Propagate -- we've run it enough times.
+                return
+
+            # Ignore the exception until next run.
+            return True
+
+        else:
+            # Mode 2: Try until we fail with an error matching `wait_for`
+
+            assert self._controller._wait_for is not None
+
+            if et is not None:
+                if isinstance(e, self._controller._wait_for):
+                    # We're done, we've got what we waited for.
+                    self._controller._stop_request = True
+                    return True
+                else:
+                    # Propagate, it's not the error we expected.
+                    return
+
+            if elapsed > self._controller._timeout:
+                raise AssertionError(
+                    f'exception matching {self._controller._wait_for!r} '
+                    f'has not happen in {self._controller._timeout} seconds')
+
+            # Ignore the exception until next run.
+            return True
 
 
 _default_cluster = None
@@ -868,7 +1003,6 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
         return (
             os.environ.get('EDGEDB_TEST_PARALLEL')
             and cls.get_parallelism_granularity() == 'database'
-            and debug.flags.parallelize_tests_better
         )
 
     @classmethod
@@ -1209,3 +1343,130 @@ def gen_lock_key():
     global _lock_cnt
     _lock_cnt += 1
     return os.getpid() * 1000 + _lock_cnt
+
+
+class _EdgeDBServerData(NamedTuple):
+
+    host: str
+    port: int
+    server_data: Any
+
+
+class _EdgeDBServer:
+
+    proc: Optional[asyncio.Process]
+
+    def __init__(
+        self,
+        *,
+        bootstrap_command: Optional[str],
+        auto_shutdown: bool,
+        adjacent_to: Optional[edgedb.AsyncIOConnection],
+        max_allowed_connections: int,
+    ) -> None:
+        self.auto_shutdown = auto_shutdown
+        self.bootstrap_command = bootstrap_command
+        self.adjacent_to = adjacent_to
+        self.max_allowed_connections = max_allowed_connections
+        self.proc = None
+
+    async def _read_runtime_info(self, stdout: asyncio.StreamReader):
+        while True:
+            line = await stdout.readline()
+            if not line:
+                raise RuntimeError("EdgeDB server terminated")
+            if line.startswith(b'EDGEDB_SERVER_DATA:'):
+                break
+
+        dataline = line.decode().split('EDGEDB_SERVER_DATA:', 1)[1]
+        data = json.loads(dataline)
+        return data
+
+    async def _shutdown(self):
+        if self.proc is None:
+            return
+        if self.proc.returncode is None:
+            self.proc.kill()
+        await self.proc.wait()
+
+        # asyncio, hello?
+        # Workaround SubprocessProtocol.__del__ weirdly
+        # complaining that loop is closed.
+        self.proc._transport.close()
+
+        self.proc = None
+
+    async def __aenter__(self):
+        cmd = [
+            sys.executable, '-m', 'edb.server.main',
+            '--port', 'auto',
+            '--testmode',
+            '--echo-runtime-info',
+            '--max-backend-connections', str(self.max_allowed_connections),
+        ]
+
+        if self.adjacent_to is not None:
+            settings = self.adjacent_to.get_settings()
+            pgaddr = settings.get('pgaddr')
+            if pgaddr is None:
+                raise RuntimeError('test requires devmode')
+            pgaddr = json.loads(pgaddr)
+            pgdsn = (
+                f'postgres:///?user={pgaddr["user"]}&port={pgaddr["port"]}'
+                f'&host={pgaddr["host"]}'
+            )
+            cmd += [
+                '--postgres-dsn', pgdsn
+            ]
+        else:
+            cmd += ['--temp-dir']
+
+        if self.bootstrap_command is not None:
+            cmd += [
+                '--bootstrap-command', self.bootstrap_command,
+            ]
+
+        if self.auto_shutdown:
+            cmd += ['--auto-shutdown']
+
+        # Note: for debug comment "stderr=subprocess.PIPE".
+        self.proc: asyncio.Process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stderr=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+        )
+
+        try:
+            data = await asyncio.wait_for(
+                self._read_runtime_info(self.proc.stdout),
+                timeout=240,
+            )
+        except (Exception, asyncio.CancelledError):
+            try:
+                await self._shutdown()
+            finally:
+                raise
+
+        return _EdgeDBServerData(
+            host=data['runstate_dir'],
+            port=data['port'],
+            server_data=data
+        )
+
+    async def __aexit__(self, *exc):
+        await self._shutdown()
+
+
+def start_edgedb_server(
+    *,
+    auto_shutdown: bool=False,
+    bootstrap_command: Optional[str]=None,
+    max_allowed_connections: int=5,
+    adjacent_to: Optional[edgedb.AsyncIOConnection]=None,
+):
+    return _EdgeDBServer(
+        auto_shutdown=auto_shutdown,
+        bootstrap_command=bootstrap_command,
+        max_allowed_connections=max_allowed_connections,
+        adjacent_to=adjacent_to,
+    )

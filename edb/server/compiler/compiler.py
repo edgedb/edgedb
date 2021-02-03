@@ -27,6 +27,7 @@ import dataclasses
 import json
 import hashlib
 import pickle
+import textwrap
 import uuid
 
 import asyncpg
@@ -83,7 +84,8 @@ from . import status
 class CompilerDatabaseState:
 
     dbver: bytes
-    schema: s_schema.Schema
+    user_schema: s_schema.Schema
+    global_schema: s_schema.Schema
     cached_reflection: immutables.Map[str, Tuple[str, ...]]
 
 
@@ -136,16 +138,16 @@ def compile_edgeql_script(
 ) -> Tuple[s_schema.Schema, str]:
 
     sql, argmap = compiler._compile_ql_script(ctx, eql)
-    new_schema = ctx.state.current_tx().get_schema()
-
-    return new_schema, sql
+    new_schema = ctx.state.current_tx().get_schema(compiler._std_schema)
+    assert isinstance(new_schema, s_schema.ChainedSchema)
+    return new_schema.get_top_schema(), sql
 
 
 def new_compiler(
     *,
     std_schema: s_schema.Schema,
     reflection_schema: s_schema.Schema,
-    schema_class_layout: Dict[Type[s_obj.Object], s_refl.SchemaTypeLayout],
+    schema_class_layout: Dict[Type[s_obj.Object], s_refl.SchemaClassLayout],
 ) -> Compiler:
     """Create and return an ad-hoc compiler instance."""
 
@@ -158,8 +160,9 @@ def new_compiler(
 
 
 def new_compiler_context(
-    schema: s_schema.Schema,
     *,
+    user_schema: s_schema.Schema,
+    global_schema: s_schema.Schema=s_schema.FlatSchema(),
     single_statement: bool = False,
     modaliases: Optional[Mapping[Optional[str], str]] = None,
     expected_cardinality_one: bool = False,
@@ -173,11 +176,12 @@ def new_compiler_context(
     """Create and return an ad-hoc compiler context."""
 
     state = dbstate.CompilerConnectionState(
-        0,
-        schema,
-        immutables.Map(modaliases) if modaliases else EMPTY_MAP,
-        EMPTY_MAP,
-        EMPTY_MAP,
+        dbver=0,
+        user_schema=user_schema,
+        global_schema=global_schema,
+        modaliases=immutables.Map(modaliases) if modaliases else EMPTY_MAP,
+        config=EMPTY_MAP,
+        cached_reflection=EMPTY_MAP,
     )
 
     ctx = CompileContext(
@@ -221,7 +225,7 @@ async def load_schema_intro_query(backend_conn, kind: str) -> str:
     ''', kind)
 
 
-async def load_schema_class_layout(backend_conn) -> s_schema.Schema:
+async def load_schema_class_layout(backend_conn) -> s_refl.SchemaClassLayout:
     data = await backend_conn.fetchval(f'''\
         SELECT bin FROM edgedbinstdata.instdata
         WHERE key = 'classlayout';
@@ -243,7 +247,8 @@ class BaseCompiler:
         self,
         connect_args: dict,
         *,
-        backend_runtime_params: Any = pgcluster.get_default_runtime_params(),
+        backend_runtime_params: pgcluster.BackendRuntimeParams=
+            pgcluster.get_default_runtime_params(),
     ):
         self._connect_args = connect_args
         self._dbname = None
@@ -266,13 +271,16 @@ class BaseCompiler:
     def _wrap_schema(
         self,
         dbver: bytes,
-        schema: s_schema.Schema,
+        user_schema: s_schema.Schema,
+        global_schema: s_schema.Schema,
         cached_reflection: immutables.Map[str, Tuple[str, ...]],
     ) -> CompilerDatabaseState:
+        assert isinstance(user_schema, s_schema.FlatSchema)
         assert isinstance(dbver, bytes)
         return CompilerDatabaseState(
             dbver=dbver,
-            schema=schema,
+            user_schema=user_schema,
+            global_schema=global_schema,
             cached_reflection=cached_reflection,
         )
 
@@ -290,23 +298,23 @@ class BaseCompiler:
         self,
         connection: asyncpg.Connection,
     ) -> s_schema.Schema:
-        local_data = await connection.fetch(self._local_intro_query)
-        global_data = await connection.fetch(self._global_intro_query)
-        return s_schema.ChainedSchema(
-            self._std_schema,
-            s_refl.parse_into(
-                base_schema=self._std_schema,
-                schema=s_schema.FlatSchema(),
-                data=[r[0] for r in local_data],
-                schema_class_layout=self._schema_class_layout,
-            ),
-            s_refl.parse_into(
-                base_schema=self._std_schema,
-                schema=s_schema.FlatSchema(),
-                data=[r[0] for r in global_data],
-                schema_class_layout=self._schema_class_layout,
-            ),
+        local_data = await connection.fetchval(self._local_intro_query)
+        global_data = await connection.fetchval(self._global_intro_query)
+
+        user_schema = s_refl.parse_into(
+            base_schema=self._std_schema,
+            schema=s_schema.FlatSchema(),
+            data=[r[0] for r in local_data],
+            schema_class_layout=self._schema_class_layout,
         )
+        global_schema = s_refl.parse_into(
+            base_schema=self._std_schema,
+            schema=s_schema.FlatSchema(),
+            data=[r[0] for r in global_data],
+            schema_class_layout=self._schema_class_layout,
+        )
+
+        return user_schema, global_schema
 
     async def _load_reflection_cache(
         self,
@@ -334,9 +342,10 @@ class BaseCompiler:
         con = await self.new_connection()
         try:
             await self.ensure_initialized(con)
-            schema = await self.introspect(con)
+            user_schema, global_schema = await self.introspect(con)
             cached_reflection = await self._load_reflection_cache(con)
-            db = self._wrap_schema(dbver, schema, cached_reflection)
+            db = self._wrap_schema(
+                dbver, user_schema, global_schema, cached_reflection)
             self._cached_db = db
             return db
         finally:
@@ -364,6 +373,19 @@ class BaseCompiler:
             self._config_spec = config.load_spec_from_schema(
                 self._std_schema)
             config.set_settings(self._config_spec)
+
+    def ensure_initialized2(
+        self,
+        std_schema,
+        refl_schema,
+        schema_class_layout
+    ) -> None:
+        self._std_schema = std_schema
+        self._refl_schema = refl_schema
+        self._schema_class_layout = schema_class_layout
+        self._config_spec = config.load_spec_from_schema(
+            self._std_schema)
+        config.set_settings(self._config_spec)
 
     def get_std_schema(self) -> s_schema.Schema:
         if self._std_schema is None:
@@ -421,7 +443,7 @@ class Compiler(BaseCompiler):
         """Adapt and process the delta command."""
 
         current_tx = ctx.state.current_tx()
-        schema = current_tx.get_schema()
+        schema = current_tx.get_schema(self._std_schema)
 
         if debug.flags.delta_plan:
             debug.header('Canonical Delta Plan')
@@ -467,7 +489,7 @@ class Compiler(BaseCompiler):
     ):
 
         current_tx = ctx.state.current_tx()
-        schema = current_tx.get_schema()
+        schema = current_tx.get_schema(self._std_schema)
 
         meta_blocks: List[Tuple[str, Dict[str, Any]]] = []
 
@@ -532,11 +554,19 @@ class Compiler(BaseCompiler):
         eql: str,
     ) -> Tuple[str, Dict[str, int]]:
 
-        schema = ctx.state.current_tx().get_schema()
+        schema = ctx.state.current_tx().get_schema(self._std_schema)
 
         try:
             # Switch to the shadow introspection/reflection schema.
-            ctx.state.current_tx().update_schema(self._refl_schema)
+            ctx.state.current_tx().update_schema(
+                # Trick dbstate to set the effective schema
+                # to _refl_schema.
+                s_schema.ChainedSchema(
+                    self._std_schema,
+                    self._refl_schema,
+                    s_schema.FlatSchema()
+                )
+            )
 
             newctx = CompileContext(
                 state=ctx.state,
@@ -650,7 +680,7 @@ class Compiler(BaseCompiler):
 
         ir = qlcompiler.compile_ast_to_ir(
             ql,
-            schema=current_tx.get_schema(),
+            schema=current_tx.get_schema(self._std_schema),
             options=qlcompiler.CompilerOptions(
                 modaliases=current_tx.get_modaliases(),
                 implicit_tid_in_shapes=(
@@ -740,15 +770,16 @@ class Compiler(BaseCompiler):
                         and not ctx.standalone_mode
                     ):
                         el_type = param.schema_type.get_element_type(ir.schema)
-                        array_tid = el_type.get_backend_id(ir.schema)
-                        if array_tid is None:
-                            assert array_tid is not None
+                        array_tid = el_type.id
+                        # array_tid = el_type.get_backend_id(ir.schema)
+                        # if array_tid is None:
+                        #     assert array_tid is not None
 
                     subtypes[idx] = (param.name, param.schema_type)
                     in_type_args[idx] = dbstate.Param(
                         name=param.name,
                         required=sql_param.required,
-                        array_tid=array_tid,
+                        array_type_id=array_tid,
                     )
 
                 ir.schema, params_type = s_types.Tuple.create(
@@ -801,7 +832,7 @@ class Compiler(BaseCompiler):
             self._assert_not_in_migration_block(ctx, stmt)
 
         current_tx = ctx.state.current_tx()
-        schema = current_tx.get_schema()
+        schema = current_tx.get_schema(self._std_schema)
 
         delta = s_ddl.delta_from_ddl(
             stmt,
@@ -853,13 +884,14 @@ class Compiler(BaseCompiler):
 
             return dbstate.DDLQuery(
                 sql=(b'SELECT LIMIT 0',),
+                user_schema=current_tx.get_user_schema(),
                 is_transactional=True,
                 single_unit=False,
             )
 
         # Do a dry-run on test_schema to canonicalize
         # the schema delta-commands.
-        test_schema = current_tx.get_schema()
+        test_schema = current_tx.get_schema(self._std_schema)
         context = self._new_delta_context(ctx)
         delta.apply(test_schema, context=context)
         delta.canonical = True
@@ -868,6 +900,8 @@ class Compiler(BaseCompiler):
         # will also update the schema.
         block, new_types = self._process_delta(ctx, delta)
 
+        ddl_stmt_id: Optional[str] = None
+
         is_transactional = block.is_transactional()
         if not is_transactional:
             sql = tuple(stmt.encode('utf-8')
@@ -875,21 +909,66 @@ class Compiler(BaseCompiler):
         else:
             sql = (block.to_string().encode('utf-8'),)
 
+            if new_types:
+                # Inject a query returning backend OIDs for the newly
+                # created types.
+                ddl_stmt_id = str(uuidgen.uuid1mc())
+                new_type_ids = [
+                    f'{pg_common.quote_literal(tid)}::uuid'
+                    for tid in new_types
+                ]
+                sql = sql + (textwrap.dedent(f'''\
+                    SELECT
+                        json_build_object(
+                            'ddl_stmt_id',
+                            {pg_common.quote_literal(ddl_stmt_id)},
+                            'new_types',
+                            (SELECT
+                                json_object_agg(
+                                    "id"::text,
+                                    "backend_id"
+                                )
+                                FROM
+                                edgedb."_SchemaScalarType"
+                                WHERE
+                                    "id" = any(ARRAY[
+                                        {', '.join(new_type_ids)}
+                                    ])
+                            )
+                        )::text;
+                ''').encode('utf-8'),)
+
+        create_db = None
         drop_db = None
         if isinstance(stmt, qlast.DropDatabase):
             drop_db = stmt.name.name
+        elif isinstance(stmt, qlast.CreateDatabase):
+            create_db = stmt.name.name
 
         if debug.flags.delta_execute:
             debug.header('Delta Script')
             debug.dump_code(b'\n'.join(sql), lexer='sql')
 
+        global_schema_updates = False
+        if isinstance(stmt, (qlast.DatabaseCommand, qlast.RoleCommand)):
+            global_schema_updates = True
+
         return dbstate.DDLQuery(
             sql=sql,
             is_transactional=is_transactional,
-            single_unit=(not is_transactional) or (drop_db is not None),
+            single_unit=(
+                (not is_transactional)
+                or (drop_db is not None)
+                or (create_db is not None)
+                or new_types
+            ),
             new_types=new_types,
+            create_db=create_db,
             drop_db=drop_db,
             has_role_ddl=isinstance(stmt, qlast.RoleCommand),
+            ddl_stmt_id=ddl_stmt_id,
+            user_schema=current_tx.get_user_schema(),
+            global_schema_updates=global_schema_updates,
         )
 
     def _compile_ql_migration(
@@ -898,7 +977,7 @@ class Compiler(BaseCompiler):
         ql: qlast.MigrationCommand,
     ):
         current_tx = ctx.state.current_tx()
-        schema = current_tx.get_schema()
+        schema = current_tx.get_schema(self._std_schema)
 
         if isinstance(ql, qlast.CreateMigration):
             self._assert_not_in_migration_block(ctx, ql)
@@ -1204,11 +1283,13 @@ class Compiler(BaseCompiler):
             query = dbstate.MigrationControlQuery(
                 sql=ddl_query.sql + tx_query.sql,
                 new_types=ddl_query.new_types,
+                ddl_stmt_id=ddl_query.ddl_stmt_id,
                 action=dbstate.MigrationAction.COMMIT,
                 tx_action=tx_query.action,
                 cacheable=False,
                 modaliases=None,
                 single_unit=True,
+                user_schema=ctx.state.current_tx().get_user_schema(),
             )
 
         elif isinstance(ql, qlast.AbortMigration):
@@ -1236,6 +1317,7 @@ class Compiler(BaseCompiler):
         single_unit = False
 
         modaliases = None
+        final_user_schema: Optional[s_schema.Schema] = None
 
         if isinstance(ql, qlast.StartTransaction):
             self._assert_not_in_migration_block(ctx, ql)
@@ -1260,6 +1342,7 @@ class Compiler(BaseCompiler):
 
             new_state: dbstate.TransactionState = ctx.state.commit_tx()
             modaliases = new_state.modaliases
+            final_user_schema = ctx.state.current_tx().get_user_schema()
 
             sql = (b'COMMIT',)
             single_unit = True
@@ -1325,12 +1408,14 @@ class Compiler(BaseCompiler):
             action=action,
             cacheable=cacheable,
             single_unit=single_unit,
-            modaliases=modaliases)
+            modaliases=modaliases,
+            user_schema=final_user_schema,
+        )
 
     def _compile_ql_sess_state(self, ctx: CompileContext,
                                ql: qlast.BaseSessionCommand):
         current_tx = ctx.state.current_tx()
-        schema = current_tx.get_schema()
+        schema = current_tx.get_schema(self._std_schema)
 
         aliases = ctx.state.current_tx().get_modaliases()
 
@@ -1409,7 +1494,7 @@ class Compiler(BaseCompiler):
     def _compile_ql_config_op(self, ctx: CompileContext, ql: qlast.Base):
 
         current_tx = ctx.state.current_tx()
-        schema = current_tx.get_schema()
+        schema = current_tx.get_schema(self._std_schema)
 
         modaliases = ctx.state.current_tx().get_modaliases()
         session_config = ctx.state.current_tx().get_session_config()
@@ -1483,13 +1568,8 @@ class Compiler(BaseCompiler):
                 return (query, enums.Capability.DDL)
             else:  # DESCRIBE CURRENT MIGRATION
                 return (query, enums.Capability(0))
-        elif isinstance(ql, qlast.DatabaseCommand):
-            return (
-                self._compile_and_apply_ddl_stmt(ctx, ql),
-                enums.Capability.DDL,
-            )
 
-        elif isinstance(ql, qlast.DDL):
+        elif isinstance(ql, (qlast.DatabaseCommand, qlast.DDL)):
             return (
                 self._compile_and_apply_ddl_stmt(ctx, ql),
                 enums.Capability.DDL,
@@ -1650,15 +1730,21 @@ class Compiler(BaseCompiler):
             elif isinstance(comp, dbstate.DDLQuery):
                 unit.sql += comp.sql
                 unit.new_types = comp.new_types
+                unit.create_db = comp.create_db
                 unit.drop_db = comp.drop_db
                 unit.has_role_ddl = comp.has_role_ddl
-                if comp.drop_db:
+                unit.ddl_stmt_id = comp.ddl_stmt_id
+                unit.user_schema = comp.user_schema
+                unit.global_schema_updates = comp.global_schema_updates
+
+                if comp.single_unit:
                     units.append(unit)
                     unit = None
 
             elif isinstance(comp, dbstate.TxControlQuery):
                 unit.sql += comp.sql
                 unit.cacheable = comp.cacheable
+                unit.user_schema = comp.user_schema
 
                 if comp.modaliases is not None:
                     unit.modaliases = comp.modaliases
@@ -1683,6 +1769,8 @@ class Compiler(BaseCompiler):
                 unit.sql += comp.sql
                 unit.cacheable = comp.cacheable
                 unit.new_types = comp.new_types
+                unit.user_schema = comp.user_schema
+                unit.ddl_stmt_id = comp.ddl_stmt_id
 
                 if comp.modaliases is not None:
                     unit.modaliases = comp.modaliases
@@ -1749,7 +1837,9 @@ class Compiler(BaseCompiler):
             na_cardinality = (
                 unit.cardinality is enums.ResultCardinality.NO_RESULT
             )
-            if unit.cacheable and (unit.config_ops or unit.modaliases):
+            if unit.cacheable and (
+                unit.config_ops or unit.modaliases or unit.user_schema
+            ):
                 raise errors.InternalServerError(
                     f'QueryUnit {unit!r} is cacheable but has config/aliases')
             if not na_cardinality and (
@@ -1783,7 +1873,7 @@ class Compiler(BaseCompiler):
         inline_typeids: bool=False,
         inline_typenames: bool=False,
         json_parameters: bool=False,
-        schema: Optional[s_schema.Schema] = None,
+        top_schema: Optional[s_schema.Schema] = None,
         schema_object_ids: Optional[Mapping[s_name.Name, uuid.UUID]] = None,
         compat_ver: Optional[verutils.Version] = None,
     ) -> CompileContext:
@@ -1796,16 +1886,16 @@ class Compiler(BaseCompiler):
         assert isinstance(modaliases, immutables.Map)
         assert isinstance(session_config, immutables.Map)
 
-        if schema is None:
+        if top_schema is None:
             db = await self._get_database(dbver)
-            schema = db.schema
+            top_schema = db.user_schema
             cached_reflection = db.cached_reflection
         else:
             cached_reflection = immutables.Map()
 
         self._current_db_state = dbstate.CompilerConnectionState(
             dbver,
-            schema,
+            top_schema,
             modaliases,
             session_config,
             cached_reflection,
@@ -1857,24 +1947,19 @@ class Compiler(BaseCompiler):
         return ctx
 
     def _load_state(self, txid: int) -> dbstate.CompilerConnectionState:
+        # XXX this should be removed before merging, along
+        # with the _current_db_state attr.
+
         if self._current_db_state is None:  # pragma: no cover
             raise errors.InternalServerError(
                 f'failed to lookup transaction with id={txid}')
 
-        if self._current_db_state.current_tx().id == txid:
-            return self._current_db_state
-
-        if self._current_db_state.can_rollback_to_savepoint(txid):
-            self._current_db_state.rollback_to_savepoint(txid)
-            return self._current_db_state
-
-        raise errors.InternalServerError(
-            f'failed to lookup transaction or savepoint with id={txid}'
-        )  # pragma: no cover
+        self._current_db_state.sync_tx(txid)
 
     # API
 
-    async def try_compile_rollback(self, dbver: bytes, eql: bytes):
+    @staticmethod
+    def try_compile_rollback(dbver: bytes, eql: bytes):
         statements = edgeql.parse_block(eql.decode())
 
         stmt = statements[0]
@@ -1907,24 +1992,33 @@ class Compiler(BaseCompiler):
     async def compile_notebook(
         self,
         dbver: bytes,
+        user_schema: s_schema.Schema,
+        global_schema: s_schema.Schema,
+        reflection_cache: Mapping[str, Tuple[str, ...]],
         queries: List[str],
         implicit_limit: int = 0,
     ) -> List[dbstate.QueryUnit]:
 
-        ctx = await self._ctx_new_con_state(
-            dbver=dbver,
-            io_format=enums.IoFormat.BINARY,
-            expect_one=False,
+        state = dbstate.CompilerConnectionState(
+            dbver,
+            user_schema,
+            global_schema,
+            DEFAULT_MODULE_ALIASES_MAP,
+            EMPTY_MAP,
+            reflection_cache,
+        )
+
+        ctx = CompileContext(
+            state=state,
+            output_format=enums.IoFormat.BINARY,
+            expected_cardinality_one=False,
             implicit_limit=implicit_limit,
             inline_typenames=True,
-            modaliases=DEFAULT_MODULE_ALIASES_MAP,
-            session_config=EMPTY_MAP,
             stmt_mode=enums.CompileStatementMode.SINGLE,
             json_parameters=False,
         )
 
         ctx.state.start_tx()
-        txid = ctx.state.current_tx().id
 
         result: List[
             Tuple[
@@ -1936,16 +2030,19 @@ class Compiler(BaseCompiler):
         for query in queries:
             try:
                 source = edgeql.Source.from_string(query)
-                ctx = await self._ctx_from_con_state(
-                    source=source,
-                    txid=txid,
-                    io_format=enums.IoFormat.BINARY,
-                    expect_one=False,
+
+                ctx = CompileContext(
+                    state=state,
+                    output_format=enums.IoFormat.BINARY,
+                    expected_cardinality_one=False,
                     implicit_limit=implicit_limit,
                     inline_typeids=False,
                     inline_typenames=True,
                     stmt_mode=enums.CompileStatementMode.SINGLE,
+                    json_parameters=False,
+                    source=source
                 )
+
                 result.append(
                     (False, self._compile(ctx=ctx, source=source)[0]))
             except Exception as ex:
@@ -1958,8 +2055,6 @@ class Compiler(BaseCompiler):
                 result.append(
                     (True, (typename, str(ex), fields)))
                 break
-
-        ctx.state.rollback_tx()
 
         return result
 
@@ -2019,44 +2114,126 @@ class Compiler(BaseCompiler):
 
         return self._compile(ctx=ctx, source=source)
 
+    async def compile2(
+        self,
+        dbver: bytes,
+        user_schema: s_schema.Schema,
+        global_schema: s_schema.Schema,
+        reflection_cache: Mapping[str, Tuple[str, ...]],
+        source: edgeql.Source,
+        sess_modaliases: Optional[immutables.Map],
+        sess_config: Optional[immutables.Map],
+        io_format: enums.IoFormat,
+        expect_one: bool,
+        implicit_limit: int,
+        inline_typeids: bool,
+        inline_typenames: bool,
+        stmt_mode: enums.CompileStatementMode,
+        json_parameters: bool=False,
+    ) -> Tuple[List[dbstate.QueryUnit],
+               Optional[dbstate.CompilerConnectionState]]:
+
+        if sess_config is None:
+            sess_config = EMPTY_MAP
+        if sess_modaliases is None:
+            sess_modaliases = DEFAULT_MODULE_ALIASES_MAP
+
+        assert isinstance(sess_modaliases, immutables.Map)
+        assert isinstance(sess_config, immutables.Map)
+
+        state = dbstate.CompilerConnectionState(
+            dbver,
+            user_schema,
+            global_schema,
+            sess_modaliases,
+            sess_config,
+            reflection_cache,
+        )
+
+        ctx = CompileContext(
+            state=state,
+            output_format=io_format,
+            expected_cardinality_one=expect_one,
+            implicit_limit=implicit_limit,
+            inline_typeids=inline_typeids,
+            inline_typenames=inline_typenames,
+            stmt_mode=enums.CompileStatementMode(stmt_mode),
+            json_parameters=json_parameters,
+            source=source,
+        )
+
+        units = self._compile(ctx=ctx, source=source)
+        tx_control = False
+        for unit in units:
+            if unit.tx_id:
+                tx_control = True
+                break
+
+        if tx_control:
+            return units, ctx.state
+        else:
+            return units, None
+
+    async def compile_in_tx2(
+        self,
+        state: dbstate.CompilerConnectionState,
+        txid: int,
+        source: edgeql.Source,
+        io_format: enums.IoFormat,
+        expect_one: bool,
+        implicit_limit: int,
+        inline_typeids: bool,
+        inline_typenames: bool,
+        stmt_mode: enums.CompileStatementMode,
+    ) -> Tuple[List[dbstate.QueryUnit], dbstate.CompilerConnectionState]:
+        self._current_db_state = state  # XXX
+        state.sync_tx(txid)
+
+        ctx = CompileContext(
+            state=state,
+            output_format=io_format,
+            expected_cardinality_one=expect_one,
+            implicit_limit=implicit_limit,
+            inline_typeids=inline_typeids,
+            inline_typenames=inline_typenames,
+            stmt_mode=enums.CompileStatementMode(stmt_mode),
+            source=source,
+        )
+
+        return self._compile(ctx=ctx, source=source), ctx.state
+
     async def interpret_backend_error(self, dbver, fields):
         db = await self._get_database(dbver)
-        return errormech.interpret_backend_error(db.schema, fields)
+        schema = s_schema.ChainedSchema(
+            self._std_schema,
+            db.user_schema
+        )
+        return errormech.interpret_backend_error(schema, fields)
 
     async def interpret_backend_error_in_tx(self, txid, fields):
         state = self._load_state(txid)
         return errormech.interpret_backend_error(
-            state.current_tx().get_schema(), fields)
+            state.current_tx().get_schema(self._std_schema), fields)
 
     async def update_type_ids(self, txid, typemap):
         state = self._load_state(txid)
         tx = state.current_tx()
-        schema = tx.get_schema()
+        schema = tx.get_schema(self._std_schema)
         for tid, backend_tid in typemap.items():
             t = schema.get_by_id(uuidgen.UUID(tid))
             schema = t.set_field_value(schema, 'backend_id', backend_tid)
         state.current_tx().update_schema(schema)
 
-    async def _introspect_schema_in_snapshot(
-        self,
-        tx_snapshot_id: str
-    ) -> s_schema.Schema:
-        con = await self.new_connection()
-        try:
-            async with con.transaction(isolation='serializable',
-                                       readonly=True):
-                await con.execute(
-                    f'SET TRANSACTION SNAPSHOT {pg_ql(tx_snapshot_id)};')
-
-                return await self.introspect(con)
-        finally:
-            await con.close()
-
     async def describe_database_dump(
         self,
-        tx_snapshot_id: str
+        user_schema: s_schema.Schema,
+        global_schema: s_schema.Schema
     ) -> DumpDescriptor:
-        schema = await self._introspect_schema_in_snapshot(tx_snapshot_id)
+        schema = s_schema.ChainedSchema(
+            self._std_schema,
+            user_schema,
+            global_schema
+        )
 
         schema_ddl = s_ddl.ddl_text_from_schema(
             schema, include_migrations=True)
@@ -2243,7 +2420,8 @@ class Compiler(BaseCompiler):
 
     async def describe_database_restore(
         self,
-        tx_snapshot_id: str,
+        user_schema: s_schema.Schema,
+        global_schema: s_schema.Schema,
         dump_server_ver_str: Optional[str],
         schema_ddl: bytes,
         schema_ids: List[Tuple[str, str, bytes]],
@@ -2264,19 +2442,24 @@ class Compiler(BaseCompiler):
         else:
             dump_server_ver = None
 
-        schema = await self._introspect_schema_in_snapshot(tx_snapshot_id)
-        ctx = await self._ctx_new_con_state(
+        state = dbstate.CompilerConnectionState(
             dbver=b'',
-            io_format=enums.IoFormat.BINARY,
-            expect_one=False,
+            user_schema=user_schema,
+            global_schema=global_schema,
             modaliases=DEFAULT_MODULE_ALIASES_MAP,
-            session_config=EMPTY_MAP,
-            stmt_mode=enums.CompileStatementMode.ALL,
-            json_parameters=False,
-            schema=schema,
-            schema_object_ids=schema_object_ids,
-            compat_ver=dump_server_ver,
+            config=EMPTY_MAP,
+            cached_reflection=EMPTY_MAP,
         )
+
+        ctx = CompileContext(
+            state=state,
+            output_format=enums.IoFormat.BINARY,
+            expected_cardinality_one=False,
+            stmt_mode=enums.CompileStatementMode.ALL,
+            compat_ver=dump_server_ver,
+            schema_object_ids=schema_object_ids
+        )
+
         ctx.state.start_tx()
 
         dump_with_extraneous_computables = (
@@ -2288,7 +2471,7 @@ class Compiler(BaseCompiler):
 
         ddl_source = edgeql.Source.from_string(schema_ddl.decode('utf-8'))
         units = self._compile(ctx=ctx, source=ddl_source)
-        schema = ctx.state.current_tx().get_schema()
+        schema = ctx.state.current_tx().get_schema(self._std_schema)
 
         restore_blocks = []
         tables = []

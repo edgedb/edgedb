@@ -27,6 +27,7 @@ from graphql.language import lexer as gql_lexer
 
 from edb import _graphql_rewrite
 from edb import errors
+from edb import graphql
 from edb.graphql import errors as gql_errors
 from edb.server.pgcon import errors as pgerrors
 
@@ -37,7 +38,6 @@ from edb.server.http import http
 from edb.server.http cimport http
 
 from . import explore
-from . import compiler
 
 
 logger = logging.getLogger(__name__)
@@ -55,13 +55,13 @@ cdef class CacheRedirect:
         self.key_vars = key_vars
 
 
-CacheEntry = Union[CacheRedirect, compiler.CompiledOperation]
+CacheEntry = Union[CacheRedirect, graphql.CompiledOperation]
 
 
 cdef class Protocol(http.HttpProtocol):
 
-    def __init__(self, loop, server, query_cache):
-        http.HttpProtocol.__init__(self, loop, server)
+    def __init__(self, loop, port, query_cache):
+        http.HttpProtocol.__init__(self, loop, port)
         self.query_cache = query_cache
 
     async def handle_request(self, http.HttpRequest request,
@@ -170,28 +170,29 @@ cdef class Protocol(http.HttpProtocol):
             response.body = b'{"data":' + result + b'}'
 
     async def compile(self,
-            dbver: int,
-            query: str,
-            tokens: Optional[List[Tuple[int, int, int, str]]],
-            substitutions: Optional[Dict[str, Tuple[str, int, int]]],
-            operation_name: Optional[str],
-            variables: Dict[str, Any],
-        ):
-        compiler = await self.server.compilers.get()
-        try:
-            return await compiler.call(
-                'compile_graphql',
-                dbver,
-                query,
-                tokens,
-                substitutions,
-                operation_name,
-                variables)
-        finally:
-            self.server.compilers.put_nowait(compiler)
+        query: str,
+        tokens: Optional[List[Tuple[int, int, int, str]]],
+        substitutions: Optional[Dict[str, Tuple[str, int, int]]],
+        operation_name: Optional[str],
+        variables: Dict[str, Any],
+    ):
+        db = self.port.get_db()
+        compiler_pool = self.port.get_server().get_compiler_pool()
+        return await compiler_pool.compile_graphql(
+            db.name,
+            db.dbver,
+            db.user_schema,
+            self.port.get_global_schema(),
+            db.reflection_cache,
+            query,
+            tokens,
+            substitutions,
+            operation_name,
+            variables,
+        )
 
     async def execute(self, query, operation_name, variables):
-        dbver = self.server.get_dbver()
+        dbver = self.port.get_dbver()
 
         if variables:
             for var_name in variables:
@@ -248,13 +249,13 @@ cdef class Protocol(http.HttpProtocol):
         if entry is None:
             if rewritten is not None:
                 op = await self.compile(
-                    dbver, query,
+                    query,
                     rewritten.tokens(gql_lexer.TokenKind),
                     rewritten.substitutions(),
                     operation_name, vars)
             else:
                 op = await self.compile(
-                    dbver, query, None, None, operation_name, vars)
+                    query, None, None, operation_name, vars)
 
             key_var_set = set(key_var_names)
             if op.cache_deps_vars and op.cache_deps_vars != key_var_set:
@@ -285,14 +286,14 @@ cdef class Protocol(http.HttpProtocol):
                 else:
                     args.append(vars[name])
 
-        pgcon = await self.server.get_server().acquire_pgcon(
-            self.server.database)
+        pgcon = await self.port.get_server().acquire_pgcon(
+            self.port.database)
         try:
             data = await pgcon.parse_execute_json(
                 op.sql, op.sql_hash, op.dbver,
                 use_prep_stmt, args)
         finally:
-            self.server.get_server().release_pgcon(self.server.database, pgcon)
+            self.port.get_server().release_pgcon(self.port.database, pgcon)
 
         if data is None:
             raise errors.InternalServerError(

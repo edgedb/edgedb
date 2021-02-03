@@ -18,15 +18,17 @@
 
 
 from __future__ import annotations
+from typing import *  # NoQA
 
 import dataclasses
 import enum
 import time
-from typing import *
 
 import immutables
 
 from edb import errors
+
+from edb.common import uuidgen
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
@@ -118,11 +120,15 @@ class SessionStateQuery(BaseQuery):
 @dataclasses.dataclass(frozen=True)
 class DDLQuery(BaseQuery):
 
+    user_schema: s_schema.Schema
+    global_schema_updates: bool = False
     new_types: FrozenSet[str] = frozenset()
     is_transactional: bool = True
     single_unit: bool = False
+    create_db: Optional[str] = None
     drop_db: Optional[str] = None
     has_role_ddl: bool = False
+    ddl_stmt_id: Optional[str] = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -134,6 +140,8 @@ class TxControlQuery(BaseQuery):
     modaliases: Optional[immutables.Map]
     is_transactional: bool = True
     single_unit: bool = False
+
+    user_schema: Optional[s_schema.Schema] = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -148,12 +156,15 @@ class MigrationControlQuery(BaseQuery):
     is_transactional: bool = True
     single_unit: bool = False
 
+    user_schema: Optional[s_schema.Schema] = None
+    ddl_stmt_id: Optional[str] = None
+
 
 @dataclasses.dataclass(frozen=True)
 class Param:
     name: str
     required: bool
-    array_tid: Optional[int]
+    array_type_id: Optional[uuidgen.UUID]
 
 
 #############################
@@ -212,9 +223,15 @@ class QueryUnit:
     cacheable: bool = False
 
     # If non-None, contains a name of the DB that is about to be
-    # deleted. The server should close all inactive unused pooled
-    # connections to it.
+    # created/deleted. If it's the former, the IO process needs to
+    # introspect the new db. If it's the later, the server should
+    # close all inactive unused pooled connections to it.
+    create_db: Optional[str] = None
     drop_db: Optional[str] = None
+
+    # If non-None, the DDL statement will emit data packets marked
+    # with the indicated ID.
+    ddl_stmt_id: Optional[str] = None
 
     # Cardinality of the result set.  Set to NO_RESULT if the
     # unit represents multiple queries compiled as one script.
@@ -239,6 +256,14 @@ class QueryUnit:
     config_ops: List[config.Operation] = (
         dataclasses.field(default_factory=list))
     modaliases: Optional[immutables.Map] = None
+
+    # If present, represents the future schema state after
+    # the command is run.
+    user_schema: Optional[s_schema.Schema] = None
+
+    # Whether the global schema would be updated if this query
+    # unit is executed or not.
+    global_schema_updates: bool = False
 
     @property
     def has_ddl(self) -> bool:
@@ -290,19 +315,25 @@ class TransactionState(NamedTuple):
 
     id: int
     name: Optional[str]
-    schema: s_schema.Schema
+    user_schema: s_schema.Schema
+    global_schema: s_schema.Schema
     modaliases: immutables.Map
     config: immutables.Map
     cached_reflection: immutables.Map[str, Tuple[str, ...]]
+    tx: Transaction
     migration_state: Optional[MigrationState] = None
 
 
 class Transaction:
 
+    _savepoints: Dict[int, TransactionState]
+    _constate: CompilerConnectionState
+
     def __init__(
         self,
         constate,
-        schema: s_schema.Schema,
+        user_schema: s_schema.Schema,
+        global_schema: s_schema.Schema,
         modaliases: immutables.Map,
         config: immutables.Map,
         cached_reflection: immutables.Map[str, Tuple[str, ...]],
@@ -310,43 +341,30 @@ class Transaction:
         implicit=True,
     ) -> None:
 
+        assert not isinstance(user_schema, s_schema.ChainedSchema)
+
         self._constate = constate
-        self._id = time.monotonic_ns()
+
+        self._id = constate._new_txid()
         self._implicit = implicit
-        self._stack = []
 
-        # Save the very first state -- we can use it to rollback
-        # the transaction completely.
-        self._stack.append(
-            TransactionState(
-                id=self._id,
-                name=None,
-                schema=schema,
-                modaliases=modaliases,
-                config=config,
-                cached_reflection=cached_reflection))
+        self._current = TransactionState(
+            id=self._id,
+            name=None,
+            user_schema=user_schema,
+            global_schema=global_schema,
+            modaliases=modaliases,
+            config=config,
+            cached_reflection=cached_reflection,
+            tx=self,
+        )
 
-        # The top of the stack is the "current" state.
-        self._stack.append(
-            TransactionState(
-                id=self._id,
-                name=None,
-                schema=schema,
-                modaliases=modaliases,
-                config=config,
-                cached_reflection=cached_reflection))
+        self._state0 = self._current
+        self._savepoints = {}
 
     @property
     def id(self):
         return self._id
-
-    def copy(self):
-        tr = Transaction.__new__(Transaction)
-        tr._id = self._id
-        tr._constate = self._constate
-        tr._implicit = self._implicit
-        tr._stack = self._stack.copy()
-        return tr
 
     def is_implicit(self):
         return self._implicit
@@ -362,55 +380,22 @@ class Transaction:
             raise errors.TransactionError(
                 'savepoints can only be used in transaction blocks')
 
-        sp_id = time.monotonic_ns()
-
-        # Save the savepoint state so that we can rollback to it.
-        self._stack.append(
-            TransactionState(
-                id=sp_id,
-                name=name,
-                schema=self.get_schema(),
-                modaliases=self.get_modaliases(),
-                config=self.get_session_config(),
-                cached_reflection=self.get_cached_reflection(),
-                migration_state=self.get_migration_state(),
-            ),
-        )
-
-        # The top of the stack is the "current" state.
-        self._stack.append(
-            TransactionState(
-                id=sp_id,
-                name=None,
-                schema=self.get_schema(),
-                modaliases=self.get_modaliases(),
-                config=self.get_session_config(),
-                cached_reflection=self.get_cached_reflection(),
-                migration_state=self.get_migration_state(),
-            ),
-        )
-
-        copy = self.copy()
-        self._constate._savepoints_log[sp_id] = copy
-
+        sp_id = self._constate._new_txid()
+        sp_state = self._current._replace(id=sp_id, name=name)
+        self._savepoints[sp_id] = sp_state
+        self._constate._savepoints_log[sp_id] = sp_state
         return sp_id
 
-    def rollback_to_savepoint(self, name: str):
+    def rollback_to_savepoint(self, name: str) -> TransactionState:
         if self.is_implicit():
             raise errors.TransactionError(
                 'savepoints can only be used in transaction blocks')
 
-        new_stack = self._stack.copy()
-        while new_stack:
-            top_new_state = new_stack[-1]
-            if top_new_state.name == name:
-                self._stack = new_stack
-                # Add a nameless copy of the savepoint's state -- new
-                # "working" state.
-                self._stack.append(self._stack[-1]._replace(name=None))
-                return self._stack[-1]
-            else:
-                new_stack.pop()
+        for sp in reversed(self._savepoints.values()):
+            if sp.name == name:
+                self._current = sp
+                return sp
+
         raise errors.TransactionError(f'there is no {name!r} savepoint')
 
     def release_savepoint(self, name: str):
@@ -418,100 +403,129 @@ class Transaction:
             raise errors.TransactionError(
                 'savepoints can only be used in transaction blocks')
 
-        new_stack = []
-        released = False
-        for st in reversed(self._stack):
-            if not released and st.name == name:
-                released = True
-                continue
-            else:
-                new_stack.append(st)
-        if not released:
-            raise errors.TransactionError(f'there is no {name!r} savepoint')
+        for sp in reversed(self._savepoints.values()):
+            if sp.name == name:
+                sp_id = sp.id
+                break
         else:
-            self._stack = new_stack[::-1]
+            raise errors.TransactionError(f'there is no {name!r} savepoint')
 
-    def get_schema(self) -> s_schema.Schema:
-        return self._stack[-1].schema
+        self._savepoints.pop(sp_id)
+
+    def get_schema(self, std_schema: s_schema.Schema) -> s_schema.Schema:
+        assert isinstance(std_schema, s_schema.FlatSchema)
+        return s_schema.ChainedSchema(
+            std_schema,
+            self._current.user_schema,
+            self._current.global_schema,
+        )
+
+    def get_user_schema(self) -> s_schema.Schema:
+        return self._current.user_schema
+
+    def get_global_schema(self) -> s_schema.Schema:
+        return self._current.global_schema
 
     def get_modaliases(self) -> immutables.Map:
-        return self._stack[-1].modaliases
+        return self._current.modaliases
 
     def get_session_config(self) -> immutables.Map:
-        return self._stack[-1].config
+        return self._current.config
 
     def get_cached_reflection(self) -> immutables.Map[str, Tuple[str, ...]]:
-        return self._stack[-1].cached_reflection
+        return self._current.cached_reflection
 
     def get_migration_state(self) -> Optional[MigrationState]:
-        return self._stack[-1].migration_state
+        return self._current.migration_state
 
     def update_schema(self, new_schema: s_schema.Schema):
-        self._stack[-1] = self._stack[-1]._replace(schema=new_schema)
+        assert isinstance(new_schema, s_schema.ChainedSchema)
+        self._current = self._current._replace(
+            user_schema=new_schema.get_top_schema(),
+            global_schema=new_schema.get_global_schema(),
+        )
 
     def update_modaliases(self, new_modaliases: immutables.Map):
-        self._stack[-1] = self._stack[-1]._replace(modaliases=new_modaliases)
+        self._current = self._current._replace(modaliases=new_modaliases)
 
     def update_session_config(self, new_config: immutables.Map):
-        self._stack[-1] = self._stack[-1]._replace(config=new_config)
+        self._current = self._current._replace(config=new_config)
 
     def update_cached_reflection(
         self,
         new: immutables.Map[str, Tuple[str, ...]],
     ) -> None:
-        self._stack[-1] = self._stack[-1]._replace(cached_reflection=new)
+        self._current = self._current._replace(cached_reflection=new)
 
     def update_migration_state(
         self, mstate: Optional[MigrationState]
     ) -> None:
-        self._stack[-1] = self._stack[-1]._replace(migration_state=mstate)
+        self._current = self._current._replace(migration_state=mstate)
 
 
 class CompilerConnectionState:
 
-    _savepoints_log: Mapping[int, Transaction]
+    __slots__ = ('_savepoints_log', '_dbver', '_current_tx', '_tx_count',)
 
-    __slots__ = ('_savepoints_log', '_dbver', '_current_tx')
+    _savepoints_log: Dict[int, TransactionState]
 
     def __init__(
         self,
         dbver: bytes,
-        schema: s_schema.Schema,
+        user_schema: s_schema.Schema,
+        global_schema: s_schema.Schema,
         modaliases: immutables.Map,
         config: immutables.Map,
-        cached_reflection: FrozenSet[str],
+        cached_reflection: FrozenSet[str]
     ):
+        self._tx_count = time.monotonic_ns()
         self._dbver = dbver
+        self._init_current_tx(
+            user_schema, global_schema, modaliases, config, cached_reflection)
         self._savepoints_log = {}
-        self._init_current_tx(schema, modaliases, config, cached_reflection)
 
-    def _init_current_tx(self, schema, modaliases, config, cached_reflection):
+    def _new_txid(self):
+        self._tx_count += 1
+        return self._tx_count
+
+    def _init_current_tx(
+        self,
+        user_schema,
+        global_schema,
+        modaliases,
+        config,
+        cached_reflection
+    ):
+        assert isinstance(user_schema, s_schema.FlatSchema)
         self._current_tx = Transaction(
-            self, schema, modaliases, config, cached_reflection)
+            self, user_schema, global_schema,
+            modaliases, config, cached_reflection)
 
-    def can_rollback_to_savepoint(self, spid):
+    def can_sync_to_savepoint(self, spid):
         return spid in self._savepoints_log
 
-    def rollback_to_savepoint(self, spid):
-        if spid not in self._savepoints_log:
-            raise RuntimeError(
-                f'failed to lookup savepoint with id={spid}')
+    def sync_to_savepoint(self, spid: int) -> None:
+        """Synchronize the compiler state with the current DB state."""
 
-        new_tx = self._savepoints_log[spid]
-        # This is tricky -- the server now thinks that this *spid*
-        # is the new ID *of the current transaction* (txid).
-        #
-        # (see DatabaseConnectionView.rollback_tx_to_savepoint())
-        #
-        # This is done this way to avoid one extra call to the compiler
-        # process to infer the "proper" transaction ID; it's easier
-        # to just say that in the case of failed transaction and
-        # ROLLBACK TO SAVEPOINT the ID of transaction changes to that
-        # of the recovered savepoint.
-        new_tx._id = spid
+        if not self.can_sync_to_savepoint(spid):
+            raise RuntimeError(f'failed to lookup savepoint with id={spid}')
 
-        self._savepoints_log.clear()
-        self._current_tx = new_tx
+        sp = self._savepoints_log[spid]
+        self._current_tx = sp.tx
+        self._current_tx._current = sp
+        self._current_tx._id = spid
+
+        # Cleanup all savepoints declared after the one we rolled back to
+        # in the transaction we have now set as current.
+        for id in tuple(self._current_tx._savepoints):
+            if id > spid:
+                self._current_tx._savepoints.pop(id)
+
+        # Cleanup all savepoints declared after the one we rolled back to
+        # in the global savepoints log.
+        for id in tuple(self._savepoints_log):
+            if id > spid:
+                self._savepoints_log.pop(id)
 
     @property
     def dbver(self):
@@ -530,10 +544,11 @@ class CompilerConnectionState:
         # Note that we might not be in a transaction as we allow
         # ROLLBACKs outside of transaction blocks (just like Postgres).
 
-        prior_state = self._current_tx._stack[0]
+        prior_state = self._current_tx._state0
 
         self._init_current_tx(
-            prior_state.schema,
+            prior_state.user_schema,
+            prior_state.global_schema,
             prior_state.modaliases,
             prior_state.config,
             prior_state.cached_reflection)
@@ -544,12 +559,25 @@ class CompilerConnectionState:
         if self._current_tx.is_implicit():
             raise errors.TransactionError('cannot commit: not in transaction')
 
-        latest_state = self._current_tx._stack[-1]
+        latest_state = self._current_tx._current
 
         self._init_current_tx(
-            latest_state.schema,
+            latest_state.user_schema,
+            latest_state.global_schema,
             latest_state.modaliases,
             latest_state.config,
             latest_state.cached_reflection)
 
         return latest_state
+
+    def sync_tx(self, txid: int) -> None:
+        if self._current_tx.id == txid:
+            return
+
+        if self.can_sync_to_savepoint(txid):
+            self.sync_to_savepoint(txid)
+            return
+
+        raise errors.InternalServerError(
+            f'failed to lookup transaction or savepoint with id={txid}'
+        )  # pragma: no cover

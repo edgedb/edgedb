@@ -82,7 +82,6 @@ cdef class EdgeConnection:
 
         object port
 
-        object _backend
         object loop
         readonly dbview.DatabaseConnectionView dbview
 
@@ -105,6 +104,8 @@ cdef class EdgeConnection:
         tuple protocol_version
         tuple max_protocol
         object timer
+
+        object last_state
 
         pgcon.PGConnection _pinned_pgcon
         bint _pinned_pgcon_in_tx
@@ -135,8 +136,6 @@ cdef class EdgeConnection:
     cdef write_headers(self, WriteBuffer buf, dict headers)
 
     cdef write_log(self, EdgeSeverity severity, uint32_t code, str message)
-
-    cdef get_backend(self)
 
     cdef uint64_t _parse_implicit_limit(self, bytes v) except <uint64_t>-1
 

@@ -25,11 +25,9 @@ import logging
 import os
 import os.path
 import stat
-import weakref
 
 from edb.common import taskgroup
 from edb.server import baseport
-from edb.server import compiler
 
 from . import edgecon  # type: ignore[attr-defined]
 
@@ -74,7 +72,6 @@ class ManagementPort(baseport.Port):
         self._num_connections = 0
 
         self._servers = []
-        self._backends = weakref.WeakSet()  # type: ignore[var-annotated]
 
         self._auto_shutdown = auto_shutdown
         self._accepting = False
@@ -84,17 +81,6 @@ class ManagementPort(baseport.Port):
     def new_view(self, *, dbname, user, query_cache):
         return self._dbindex.new_view(
             dbname, user=user, query_cache=query_cache)
-
-    def get_compiler_worker_cls(self):
-        return compiler.Compiler
-
-    def get_compiler_worker_name(self):
-        return 'compiler-mng'
-
-    async def new_backend(self, *, dbname: str, dbver: int):
-        backend = Backend(await self.new_compiler(dbname, dbver))
-        self._backends.add(backend)
-        return backend
 
     def on_client_connected(self) -> str:
         self._edgecon_id += 1
@@ -189,13 +175,7 @@ class ManagementPort(baseport.Port):
                     g.create_task(srv.wait_closed())
                 self._servers.clear()
         finally:
-            try:
-                async with taskgroup.TaskGroup() as g:
-                    for backend in self._backends:
-                        g.create_task(backend.close())
-                    self._backends.clear()
-            finally:
-                await super().stop()
+            await super().stop()
 
     def _report_connections(self, *, action: str = "open"):
         action = action.capitalize()

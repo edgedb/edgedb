@@ -21,8 +21,11 @@ from __future__ import annotations
 from typing import *
 
 import asyncio
+import binascii
 import json
 import logging
+import pickle
+import uuid
 
 import immutables
 
@@ -30,10 +33,14 @@ from edb import errors
 
 from edb.common import taskgroup
 
+from edb.schema import reflection as s_refl
+from edb.schema import schema as s_schema
+
 from edb.edgeql import parser as ql_parser
 
 from edb.server import config
 from edb.server import connpool
+from edb.server import compiler_pool
 from edb.server import defines
 from edb.server import http
 from edb.server import http_edgeql_port
@@ -71,6 +78,12 @@ class Server:
     _roles: Mapping[str, RoleDescriptor]
     _instance_data: Mapping[str, str]
     _sys_queries: Mapping[str, str]
+    _local_intro_query: bytes
+    _global_intro_query: bytes
+
+    _std_schema: s_schema.Schema
+    _refl_schema: s_schema.Schema
+    _schema_class_layout: s_refl.SchemaClassLayout
 
     def __init__(
         self,
@@ -89,6 +102,9 @@ class Server:
     ):
 
         self._loop = loop
+
+        # Used to tag PG notifications to later disambiguate them.
+        self._server_id = str(uuid.uuid4())
 
         self._serving = False
 
@@ -144,14 +160,31 @@ class Server:
 
     async def init(self):
         self.__sys_pgcon = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)
-        await self.__sys_pgcon.set_server(self)
+
         self._sys_pgcon_waiters = asyncio.Queue()
         self._sys_pgcon_waiters.put_nowait(self.__sys_pgcon)
 
         await self._load_instance_data()
-        await self._load_sys_queries()
         await self._fetch_roles()
-        self._dbindex = await dbview.DatabaseIndex.init(self)
+
+        global_schema = await self.introspect_global_schema()
+        self._dbindex = await dbview.DatabaseIndex.init(
+            self, self._std_schema, global_schema)
+
+        await self._introspect_dbs()
+
+        # Now, once all DBs have been introspected, start listening on
+        # any notifications about schema/roles/etc changes.
+        await self.__sys_pgcon.set_server(self)
+
+        self._compiler_pool = await compiler_pool.create_compiler_pool(
+            dbindex=self._dbindex,
+            runstate_dir=self._runstate_dir,
+            backend_runtime_params=self.get_backend_runtime_params(),
+            std_schema=self._std_schema,
+            refl_schema=self._refl_schema,
+            schema_class_layout=self._schema_class_layout,
+        )
 
         self._populate_sys_auth()
 
@@ -182,13 +215,120 @@ class Server:
     def _get_pgaddr(self):
         return self._cluster.get_connection_spec()
 
+    def get_compiler_pool(self):
+        return self._compiler_pool
+
     async def acquire_pgcon(self, dbname):
         return await self._pg_pool.acquire(dbname)
 
     def release_pgcon(self, dbname, conn, *, discard=False):
-        if not conn.is_connected() or conn.in_tx():
+        if not conn.is_healthy_to_go_back_to_pool():
+            # TODO: Add warning. This shouldn't happen.
             discard = True
         self._pg_pool.release(dbname, conn, discard=discard)
+
+    async def introspect_global_schema(self):
+        syscon = await self._acquire_sys_pgcon()
+        try:
+            json_data = await syscon.parse_execute_json(
+                self._global_intro_query, b'__global_intro_db',
+                dbver=b'', use_prep_stmt=True, args=(),
+            )
+        finally:
+            self._release_sys_pgcon()
+
+        return s_refl.parse_into(
+            base_schema=self._std_schema,
+            schema=s_schema.FlatSchema(),
+            data=json_data,
+            schema_class_layout=self._schema_class_layout,
+        )
+
+    async def _reintrospect_global_schema(self):
+        new_global_schema = await self.introspect_global_schema()
+        self._dbindex.update_global_schema(new_global_schema)
+
+    async def introspect_user_schema(self, conn):
+        json_data = await conn.parse_execute_json(
+            self._local_intro_query, b'__local_intro_db',
+            dbver=b'', use_prep_stmt=True, args=(),
+        )
+
+        return s_refl.parse_into(
+            base_schema=self._std_schema,
+            schema=s_schema.FlatSchema(),
+            data=json_data,
+            schema_class_layout=self._schema_class_layout,
+        )
+
+    async def introspect_db(self, dbname, *, refresh=False):
+        conn = await self.acquire_pgcon(dbname)
+        try:
+            user_schema = await self.introspect_user_schema(conn)
+
+            reflection_cache_json = await conn.parse_execute_json(
+                b'''
+                    SELECT json_agg(o.c)
+                    FROM (
+                        SELECT
+                            json_build_object(
+                                'eql_hash', t.eql_hash,
+                                'argnames', array_to_json(t.argnames)
+                            ) AS c
+                        FROM
+                            ROWS FROM(edgedb._get_cached_reflection())
+                                AS t(eql_hash text, argnames text[])
+                    ) AS o;
+                ''',
+                b'__reflection_cache',
+                dbver=b'',
+                use_prep_stmt=True,
+                args=(),
+            )
+
+            reflection_cache = immutables.Map({
+                r['eql_hash']: tuple(r['argnames'])
+                for r in json.loads(reflection_cache_json)
+            })
+
+            backend_ids_json = await conn.parse_execute_json(
+                b'''
+                SELECT
+                    json_object_agg(
+                        "id"::text,
+                        "backend_id"
+                    )::text
+                FROM
+                    edgedb."_SchemaScalarType"
+                ''',
+                b'__backend_ids_fetch',
+                dbver=b'',
+                use_prep_stmt=True,
+                args=(),
+            )
+            backend_ids = json.loads(backend_ids_json)
+
+            self._dbindex.register_db(
+                dbname, user_schema, reflection_cache, backend_ids,
+                refresh=refresh)
+        finally:
+            self.release_pgcon(dbname, conn)
+
+    async def _introspect_dbs(self):
+        syscon = await self._acquire_sys_pgcon()
+        try:
+            dbs_query = self.get_sys_query('listdbs')
+            json_data = await syscon.parse_execute_json(
+                dbs_query, b'__listdbs',
+                dbver=b'', use_prep_stmt=True, args=(),
+            )
+            dbnames = json.loads(json_data)
+        finally:
+            self._release_sys_pgcon()
+
+        async with taskgroup.TaskGroup(name='introspect DBs') as g:
+            for dbname in dbnames:
+                g.create_task(self.introspect_db(dbname))
 
     async def _fetch_roles(self):
         syscon = await self._acquire_sys_pgcon()
@@ -212,12 +352,7 @@ class Server:
             ''', ignore_data=False)
             self._instance_data = immutables.Map(
                 json.loads(result[0][0].decode('utf-8')))
-        finally:
-            self._release_sys_pgcon()
 
-    async def _load_sys_queries(self):
-        syscon = await self._acquire_sys_pgcon()
-        try:
             result = await syscon.simple_query(b'''\
                 SELECT json FROM edgedbinstdata.instdata
                 WHERE key = 'sysqueries';
@@ -225,20 +360,56 @@ class Server:
             queries = json.loads(result[0][0].decode('utf-8'))
             self._sys_queries = immutables.Map(
                 {k: q.encode() for k, q in queries.items()})
+
+            result = await syscon.simple_query(b'''\
+                SELECT text FROM edgedbinstdata.instdata
+                WHERE key = 'local_intro_query';
+            ''', ignore_data=False)
+            self._local_intro_query = result[0][0]
+
+            result = await syscon.simple_query(b'''\
+                SELECT text FROM edgedbinstdata.instdata
+                WHERE key = 'global_intro_query';
+            ''', ignore_data=False)
+            self._global_intro_query = result[0][0]
+
+            result = await syscon.simple_query(b'''\
+                SELECT bin FROM edgedbinstdata.instdata
+                WHERE key = 'stdschema';
+            ''', ignore_data=False)
+            try:
+                data = binascii.a2b_hex(result[0][0][2:])
+                self._std_schema = pickle.loads(data)
+            except Exception as e:
+                raise RuntimeError(
+                    'could not load std schema pickle') from e
+
+            result = await syscon.simple_query(b'''\
+                SELECT bin FROM edgedbinstdata.instdata
+                WHERE key = 'reflschema';
+            ''', ignore_data=False)
+            try:
+                data = binascii.a2b_hex(result[0][0][2:])
+                self._refl_schema = pickle.loads(data)
+            except Exception as e:
+                raise RuntimeError(
+                    'could not load refl schema pickle') from e
+
+            result = await syscon.simple_query(b'''\
+                SELECT bin FROM edgedbinstdata.instdata
+                WHERE key = 'classlayout';
+            ''', ignore_data=False)
+            try:
+                data = binascii.a2b_hex(result[0][0][2:])
+                self._schema_class_layout = pickle.loads(data)
+            except Exception as e:
+                raise RuntimeError(
+                    'could not load schema class layout pickle') from e
         finally:
             self._release_sys_pgcon()
 
     def get_roles(self):
         return self._roles
-
-    async def new_compiler(self, dbname, dbver):
-        compiler_worker = await self._compiler_manager.spawn_worker()
-        try:
-            await compiler_worker.call('connect', dbname, dbver)
-        except Exception:
-            await compiler_worker.close()
-            raise
-        return compiler_worker
 
     def _new_port(self, portcls, **kwargs):
         return portcls(
@@ -420,20 +591,25 @@ class Server:
     def _on_remote_ddl(self, dbname, dbver):
         # Triggered by a postgres notification event 'schema-changes'
         # on the __edgedb_sysevent__ channel
-        self._dbindex._on_remote_ddl(dbname, dbver)
+        self._loop.create_task(
+            self.introspect_db(dbname, refresh=True)
+        )
 
     def _on_remote_database_config_change(self, dbname):
         # Triggered by a postgres notification event 'database-config-changes'
         # on the __edgedb_sysevent__ channel
-        self._dbindex._on_remote_database_config_change(dbname)
+        pass
 
     def _on_remote_system_config_change(self):
         # Triggered by a postgres notification event 'ystem-config-changes'
         # on the __edgedb_sysevent__ channel
-        self._dbindex._on_remote_system_config_change()
+        pass
 
     def _on_role_change(self):
         self._loop.create_task(self._fetch_roles())
+
+    def _on_global_schema_change(self):
+        self._loop.create_task(self._reintrospect_global_schema())
 
     def add_port(self, portcls, **kwargs):
         if self._serving:

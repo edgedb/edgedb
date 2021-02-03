@@ -926,11 +926,7 @@ class ParallelTextTestRunner:
         return result
 
     def _sort_tests(self, cases):
-        if debug.flags.parallelize_tests_better:
-            non_parallelizable = ('system',)
-        else:
-            non_parallelizable = ('system', 'database',)
-
+        non_parallelizable = ('system',)
         serialized_suites = {
             casecls: unittest.TestSuite(tests)
             for casecls, tests in cases.items()

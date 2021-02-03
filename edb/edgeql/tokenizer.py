@@ -63,6 +63,9 @@ class Source:
     def from_string(cls, text: str) -> Source:
         return cls(text=text, tokens=tokenize(text))
 
+    def __repr__(self):
+        return f'<edgeql.Source text={self._text!r}>'
+
 
 class NormalizedSource(Source):
 

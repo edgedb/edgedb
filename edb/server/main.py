@@ -633,11 +633,11 @@ def server_main(*, insecure=False, bootstrap, **kwargs):
 
     if kwargs['temp_dir']:
         if kwargs['data_dir']:
-            abort('--temp-data-dir is incompatible with --data-dir/-D')
+            abort('--temp-dir is incompatible with --data-dir/-D')
         if kwargs['runstate_dir']:
-            abort('--temp-data-dir is incompatible with --runstate-dir')
+            abort('--temp-dir is incompatible with --runstate-dir')
         if kwargs['postgres_dsn']:
-            abort('--temp-data-dir is incompatible with --postgres-dsn')
+            abort('--temp-dir is incompatible with --postgres-dsn')
         kwargs['data_dir'] = kwargs['runstate_dir'] = pathlib.Path(
             tempfile.mkdtemp())
     else:
