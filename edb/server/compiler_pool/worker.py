@@ -107,7 +107,7 @@ async def compile(
     if global_schema is not None:
         GLOBAL_SCHEMA = global_schema
 
-    units, cstate = await COMPILER.compile2(
+    units, cstate = await COMPILER.compile(
         db.dbver,
         db.user_schema,
         GLOBAL_SCHEMA,
@@ -120,18 +120,18 @@ async def compile(
     return units, pickle.dumps(cstate)
 
 
-async def compile_in_tx2(state, *args, **kwargs):
+async def compile_in_tx(state, *args, **kwargs):
     global LAST_STATE
     if state == 'LAST':
         state = LAST_STATE
     else:
         state = pickle.loads(state)
-    units, state = await COMPILER.compile_in_tx2(state, *args, **kwargs)
+    units, state = await COMPILER.compile_in_tx(state, *args, **kwargs)
     LAST_STATE = state
     return units, pickle.dumps(state)
 
 
-async def compile_notebook2(
+async def compile_notebook(
     dbname: str,
     dbver: bytes,
     user_schema: Optional[s_schema.Schema],
@@ -228,15 +228,15 @@ async def worker(sockname):
                     if not INITED:
                         raise RuntimeError(
                             'call on uninitialized compiler worker')
-                    if methname == 'compile2':
+                    if methname == 'compile':
                         meth = compile
-                    elif methname == 'compile_in_tx2':
-                        meth = compile_in_tx2
-                    elif methname == 'compile_notebook2':
-                        meth = compile_notebook2
+                    elif methname == 'compile_in_tx':
+                        meth = compile_in_tx
+                    elif methname == 'compile_notebook':
+                        meth = compile_notebook
                     elif methname == 'compile_graphql':
                         meth = compile_graphql
-                    elif methname == 'try_compile_rollback2':
+                    elif methname == 'try_compile_rollback':
                         meth = try_compile_rollback
                     else:
                         meth = getattr(COMPILER, methname)

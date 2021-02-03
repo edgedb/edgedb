@@ -347,7 +347,7 @@ class Pool:
                 preargs += (None,)
 
             units, state = await worker.call(
-                'compile2',
+                'compile',
                 *preargs,
                 *compile_args
             )
@@ -369,7 +369,7 @@ class Pool:
 
         try:
             units, new_state = await worker.call(
-                'compile_in_tx2',
+                'compile_in_tx',
                 state,
                 txid,
                 *compile_args
@@ -410,7 +410,7 @@ class Pool:
                 preargs += (None,)
 
             return await worker.call(
-                'compile_notebook2',
+                'compile_notebook',
                 *preargs,
                 *compile_args
             )
@@ -422,7 +422,7 @@ class Pool:
         worker = await self._workers_queue.get()
         try:
             return await worker.call(
-                'try_compile_rollback2',
+                'try_compile_rollback',
                 dbver,
                 eql
             )
