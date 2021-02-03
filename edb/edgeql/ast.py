@@ -42,6 +42,12 @@ ObjectDDL_T = typing.TypeVar(
 )
 
 
+Base_T = typing.TypeVar(
+    'Base_T',
+    bound='Base',
+)
+
+
 class SortOrder(s_enum.StrEnum):
     Asc = 'ASC'
     Desc = 'DESC'

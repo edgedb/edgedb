@@ -232,10 +232,8 @@ def compile_GroupQuery(
         context=expr.context)
 
 
-TBase = TypeVar('TBase', bound=qlast.Base)
-
-
-def subject_substitute(ast: TBase, new_subject: qlast.Expr) -> TBase:
+def subject_substitute(
+        ast: qlast.Base_T, new_subject: qlast.Expr) -> qlast.Base_T:
     ast = copy.deepcopy(ast)
     paths: List[qlast.Path] = ast_visitor.find_children(
         ast,
