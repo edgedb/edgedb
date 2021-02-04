@@ -616,30 +616,53 @@ class OptPtrTarget(Nonterm):
 
 
 class ConcretePropertyBlock(Nonterm):
+    def _extract_target(self, target, cmds, context, *, overloaded=False):
+        if target:
+            return target, cmds
+
+        for cmd in cmds:
+            if isinstance(cmd, qlast.SetField) and cmd.name == 'expr':
+                if target is not None:
+                    raise errors.EdgeQLSyntaxError(
+                        f'computable property with more than one expression',
+                        context=context)
+                target = cmd.value
+
+        if not overloaded and target is None:
+            raise errors.EdgeQLSyntaxError(
+                f'computable property without expression',
+                context=context)
+
+        return target, cmds
+
     def reduce_CreateRegularProperty(self, *kids):
         """%reduce
             PROPERTY ShortNodeName OptExtendingSimple
-            PtrTarget CreateConcretePropertySDLCommandsBlock
+            OptPtrTarget CreateConcretePropertySDLCommandsBlock
         """
+        target, cmds = self._extract_target(
+            kids[3].val, kids[4].val, kids[1].context)
         self.val = qlast.CreateConcreteProperty(
             name=kids[1].val,
             bases=kids[2].val,
-            target=kids[3].val,
-            commands=kids[4].val,
+            target=target,
+            commands=cmds,
         )
 
     def reduce_CreateRegularQualifiedProperty(self, *kids):
         """%reduce
             PtrQuals PROPERTY ShortNodeName OptExtendingSimple
-            PtrTarget CreateConcretePropertySDLCommandsBlock
+            OptPtrTarget CreateConcretePropertySDLCommandsBlock
         """
+        target, cmds = self._extract_target(
+            kids[4].val, kids[5].val, kids[1].context)
         self.val = qlast.CreateConcreteProperty(
             name=kids[2].val,
             bases=kids[3].val,
             is_required=kids[0].val.required,
             cardinality=kids[0].val.cardinality,
-            target=kids[4].val,
-            commands=kids[5].val,
+            target=target,
+            commands=cmds,
         )
 
     def reduce_CreateOverloadedProperty(self, *kids):
@@ -647,14 +670,16 @@ class ConcretePropertyBlock(Nonterm):
             OVERLOADED OptPtrQuals PROPERTY ShortNodeName OptExtendingSimple
             OptPtrTarget CreateConcretePropertySDLCommandsBlock
         """
+        target, cmds = self._extract_target(
+            kids[5].val, kids[6].val, kids[3].context, overloaded=True)
         self.val = qlast.CreateConcreteProperty(
             name=kids[3].val,
             bases=kids[4].val,
             declared_overloaded=True,
             is_required=kids[1].val.required,
             cardinality=kids[1].val.cardinality,
-            target=kids[5].val,
-            commands=kids[6].val,
+            target=target,
+            commands=cmds,
         )
 
 
@@ -781,31 +806,54 @@ class ConcreteLinkBlock(Nonterm):
                 else:
                     on_target_delete = cmd
 
+    def _extract_target(self, target, cmds, context, *, overloaded=False):
+        if target:
+            return target, cmds
+
+        for cmd in cmds:
+            if isinstance(cmd, qlast.SetField) and cmd.name == 'expr':
+                if target is not None:
+                    raise errors.EdgeQLSyntaxError(
+                        f'computable link with more than one expression',
+                        context=context)
+                target = cmd.value
+
+        if not overloaded and target is None:
+            raise errors.EdgeQLSyntaxError(
+                f'computable link without expression',
+                context=context)
+
+        return target, cmds
+
     def reduce_CreateRegularLink(self, *kids):
         """%reduce
             LINK ShortNodeName OptExtendingSimple
-            PtrTarget CreateConcreteLinkSDLCommandsBlock
+            OptPtrTarget CreateConcreteLinkSDLCommandsBlock
         """
+        target, cmds = self._extract_target(
+            kids[3].val, kids[4].val, kids[1].context)
         self.val = qlast.CreateConcreteLink(
             name=kids[1].val,
             bases=kids[2].val,
-            target=kids[3].val,
-            commands=kids[4].val,
+            target=target,
+            commands=cmds,
         )
         self._validate()
 
     def reduce_CreateRegularQualifiedLink(self, *kids):
         """%reduce
             PtrQuals LINK ShortNodeName OptExtendingSimple
-            PtrTarget CreateConcreteLinkSDLCommandsBlock
+            OptPtrTarget CreateConcreteLinkSDLCommandsBlock
         """
+        target, cmds = self._extract_target(
+            kids[4].val, kids[5].val, kids[2].context)
         self.val = qlast.CreateConcreteLink(
             is_required=kids[0].val.required,
             cardinality=kids[0].val.cardinality,
             name=kids[2].val,
             bases=kids[3].val,
-            target=kids[4].val,
-            commands=kids[5].val,
+            target=target,
+            commands=cmds,
         )
         self._validate()
 
@@ -814,14 +862,16 @@ class ConcreteLinkBlock(Nonterm):
             OVERLOADED OptPtrQuals LINK ShortNodeName OptExtendingSimple
             OptPtrTarget CreateConcreteLinkSDLCommandsBlock
         """
+        target, cmds = self._extract_target(
+            kids[5].val, kids[6].val, kids[3].context, overloaded=True)
         self.val = qlast.CreateConcreteLink(
             is_required=kids[1].val.required,
             cardinality=kids[1].val.cardinality,
             declared_overloaded=True,
             name=kids[3].val,
             bases=kids[4].val,
-            target=kids[5].val,
-            commands=kids[6].val,
+            target=target,
+            commands=cmds,
         )
         self._validate()
 

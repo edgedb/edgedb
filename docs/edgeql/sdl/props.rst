@@ -76,6 +76,17 @@ commands <ref_eql_ddl_props>`.
     [{required | optional}] [{single | multi}]
       property <name> := <expression>;
 
+    # Computable property form used inside type declaration (extended):
+    [ overloaded ] [{required | optional}] [{single | multi}]
+      property <name>
+      [ extending <base> [, ...] ] [-> <type>]
+      [ "{"
+          USING (<expression>) ;
+          [ <annotation-declarations> ]
+          [ <constraint-declarations> ]
+          ...
+        "}" ]
+
     # Abstract property form:
     abstract property [<module>::]<name> [extending <base> [, ...]]
     [ "{"

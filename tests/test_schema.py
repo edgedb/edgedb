@@ -2285,6 +2285,22 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema, multi_module=True)
 
+    def test_schema_get_migration_default_ptrs_01(self):
+        schema = r'''
+        type Foo {
+            property name {
+                using (1);
+                annotation title := "foo";
+            };
+            link everything {
+                using (Object);
+                annotation title := "bar";
+            };
+        }
+        '''
+
+        self._assert_migration_consistency(schema)
+
     def test_schema_migrations_equivalence_01(self):
         self._assert_migration_equivalence([r"""
             type Base;
