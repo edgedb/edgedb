@@ -244,6 +244,7 @@ def _load_std_schema():
             schema = s_schema.FlatSchema()
             for modname in s_schema.STD_LIB + ('stdgraphql',):
                 schema = s_std.load_std_module(schema, modname)
+            schema, _ = s_std.make_schema_version(schema)
 
         if devmode.is_in_dev_mode():
             buildmeta.write_data_cache(

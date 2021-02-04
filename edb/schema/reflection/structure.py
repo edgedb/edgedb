@@ -337,6 +337,10 @@ def generate_structure(schema: s_schema.Schema) -> SchemaReflectionParts:
             as_abstract = (
                 reflection is s_obj.ReflectionMethod.REGULAR
                 and not is_simple_wrapper
+                and (
+                    py_cls is s_obj.InternalObject
+                    or not issubclass(py_cls, s_obj.InternalObject)
+                )
             )
 
             schema = _run_ddl(

@@ -2500,42 +2500,6 @@ class TestServerProtoDDL(tb.DDLTestCase):
         finally:
             await con2.aclose()
 
-    @test.xfail("concurrent DDL isn't yet supported")
-    async def test_server_proto_query_cache_invalidate_08(self):
-        typename_prefix = 'CacheInvMulti_'
-        ntasks = 5
-
-        async with tg.TaskGroup() as g:
-            cons_tasks = [
-                g.create_task(self.connect(database=self.con.dbname))
-                for _ in range(ntasks)
-            ]
-
-        cons = [c.result() for c in cons_tasks]
-
-        try:
-            async with tg.TaskGroup() as g:
-                for i, con in enumerate(cons):
-                    g.create_task(con.execute(f'''
-                        CREATE TYPE test::{typename_prefix}{i} {{
-                            CREATE REQUIRED PROPERTY prop1 -> std::int64;
-                        }};
-
-                        INSERT test::{typename_prefix}{i} {{
-                            prop1 := {i}
-                        }};
-                    '''))
-
-            for i, con in enumerate(cons):
-                ret = await con.query(
-                    f'SELECT test::{typename_prefix}{i}.prop1')
-                self.assertEqual(ret, i)
-
-        finally:
-            async with tg.TaskGroup() as g:
-                for con in cons:
-                    g.create_task(con.aclose())
-
     async def test_server_proto_query_cache_invalidate_09(self):
         typename = 'CacheInv_09'
 
@@ -2581,6 +2545,42 @@ class TestServerProtoDDL(tb.DDLTestCase):
 
         finally:
             await self.con.execute('ROLLBACK')
+
+    async def test_server_proto_concurrent_ddl(self):
+        typename_prefix = 'ConcurrentDDL'
+        ntasks = 5
+
+        async with tg.TaskGroup() as g:
+            cons_tasks = [
+                g.create_task(self.connect(database=self.con.dbname))
+                for _ in range(ntasks)
+            ]
+
+        cons = [c.result() for c in cons_tasks]
+
+        try:
+            async with tg.TaskGroup() as g:
+                for i, con in enumerate(cons):
+                    g.create_task(con.execute(f'''
+                        CREATE TYPE test::{typename_prefix}{i} {{
+                            CREATE REQUIRED PROPERTY prop1 -> std::int64;
+                        }};
+
+                        INSERT test::{typename_prefix}{i} {{
+                            prop1 := {i}
+                        }};
+                    '''))
+        except tg.TaskGroupError as e:
+            self.assertIn(
+                edgedb.TransactionSerializationError,
+                e.get_error_types(),
+            )
+        else:
+            self.fail("TransactionSerializationError not raised")
+        finally:
+            async with tg.TaskGroup() as g:
+                for con in cons:
+                    g.create_task(con.aclose())
 
     async def test_server_proto_backend_tid_propagation_01(self):
         async with self._run_and_rollback():
@@ -2707,11 +2707,8 @@ class TestServerProtoDDL(tb.DDLTestCase):
                 CREATE SCALAR TYPE tid_prop_081 EXTENDING str;
                 COMMIT;
 
-                # This CREATE will be part of the transaction
-                # that explicitly starts *after* it
-                # (this semantics is inherited from Postgres.)
-                CREATE SCALAR TYPE tid_prop_082 EXTENDING str;
                 START TRANSACTION;
+                CREATE SCALAR TYPE tid_prop_082 EXTENDING str;
             ''')
 
             await self.con.execute('''
@@ -2746,11 +2743,8 @@ class TestServerProtoDDL(tb.DDLTestCase):
                 CREATE SCALAR TYPE tid_prop_091 EXTENDING str;
                 COMMIT;
 
-                # This CREATE will be part of the transaction
-                # that explicitly starts *after* it
-                # (this semantics is inherited from Postgres.)
-                CREATE SCALAR TYPE tid_prop_092 EXTENDING str;
                 START TRANSACTION;
+                CREATE SCALAR TYPE tid_prop_092 EXTENDING str;
             ''')
 
             await self.con.execute('''

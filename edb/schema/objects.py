@@ -1936,6 +1936,13 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         return f'<{type(self).__name__} {self.id} at 0x{id(self):#x}>'
 
 
+class InternalObject(Object):
+    """A schema object that is used by the system internally.
+
+    Instances of InternalObject should not appear in schema dumps.
+    """
+
+
 class QualifiedObject(Object):
 
     name = SchemaField(

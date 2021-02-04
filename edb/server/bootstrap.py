@@ -319,12 +319,17 @@ def _process_delta(delta, schema):
         debug.header('Delta Plan')
         debug.dump(delta, schema=schema)
 
-    delta = delta_cmds.CommandMeta.adapt(delta)
-
     context = sd.CommandContext()
     context.stdmode = True
 
-    schema = delta.apply(schema, context)
+    if not delta.canonical:
+        # Canonicalize
+        sd.apply(delta, schema=schema)
+
+    delta = delta_cmds.CommandMeta.adapt(delta)
+    context = sd.CommandContext()
+    context.stdmode = True
+    schema = sd.apply(delta, schema=schema, context=context)
 
     if debug.flags.delta_pgsql_plan:
         debug.header('PgSQL Delta Plan')
@@ -420,6 +425,11 @@ async def _make_stdlib(testmode: bool, global_ids) -> StdlibBits:
 
         types.update(plan.new_types)
         plan.generate(current_block)
+
+    _, schema_version = s_std.make_schema_version(schema)
+    schema, plan = _process_delta(schema_version, schema)
+    std_plans.append(schema_version)
+    plan.generate(current_block)
 
     stdglobals = '\n'.join([
         f'''CREATE SUPERUSER ROLE {edbdef.EDGEDB_SUPERUSER} {{

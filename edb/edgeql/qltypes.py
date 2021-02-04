@@ -203,6 +203,7 @@ class SchemaObjectClass(s_enum.StrEnum):
     SCALAR_TYPE = 'SCALAR TYPE'
     TUPLE_TYPE = 'TUPLE TYPE'
     TYPE = 'TYPE'
+    SCHEMA_VERSION = 'SCHEMA VERSION'
 
 
 class LinkTargetDeleteAction(s_enum.StrEnum):

@@ -24,8 +24,12 @@ from typing import *
 
 from edb import lib as stdlib
 from edb import errors
+from edb.common import uuidgen
 
 from edb import schema
+from edb.schema import delta as sd
+from edb.schema import version as s_ver
+
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import parser as qlparser
 
@@ -84,3 +88,15 @@ def load_std_module(
         modaliases={},
         stdmode=True,
     )
+
+
+def make_schema_version(
+    schema: s_schema.Schema,
+) -> Tuple[s_schema.Schema, s_ver.CreateSchemaVersion]:
+    sv = sn.UnqualName('__schema_version__')
+    schema_version = s_ver.CreateSchemaVersion(classname=sv)
+    schema_version.set_attribute_value('name', sv)
+    schema_version.set_attribute_value('version', uuidgen.uuid1mc())
+    schema_version.set_attribute_value('internal', True)
+    schema = sd.apply(schema_version, schema=schema)
+    return schema, schema_version

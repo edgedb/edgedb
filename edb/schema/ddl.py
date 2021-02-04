@@ -23,6 +23,7 @@ from typing import *
 from collections import defaultdict
 
 from edb import edgeql
+from edb.common import uuidgen
 from edb.edgeql import ast as qlast
 from edb.edgeql import declarative as s_decl
 from edb.server import defines
@@ -38,6 +39,7 @@ from . import objtypes as s_objtypes
 from . import ordering as s_ordering
 from . import pseudo as s_pseudo
 from . import schema as s_schema
+from . import version as s_ver
 
 
 if TYPE_CHECKING:
@@ -615,6 +617,14 @@ def _delta_from_ddl(
             testmode=testmode,
         )
         schema = cmd.apply(schema, context)
+
+        if not stdmode and not isinstance(cmd, sd.GlobalObjectCommand):
+            ver = schema.get_global(s_ver.SchemaVersion, '__schema_version__')
+            ver_cmd = ver.init_delta_command(schema, sd.AlterObject)
+            ver_cmd.set_attribute_value('version', uuidgen.uuid1mc())
+            schema = ver_cmd.apply(schema, context)
+            delta.add(ver_cmd)
+
         delta.add(cmd)
 
     delta.canonical = True
