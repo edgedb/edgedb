@@ -536,6 +536,51 @@ class RaiseExceptionOnNullFunction(dbops.Function):
         )
 
 
+class RaiseExceptionOnNotNullFunction(dbops.Function):
+    """Return the passed value or raise an exception if it's NOT NULL."""
+    text = '''
+        SELECT
+            CASE
+            WHEN val IS NULL THEN
+                val
+            ELSE
+                edgedb.raise(
+                    val,
+                    exc,
+                    msg => msg,
+                    detail => detail,
+                    hint => hint,
+                    "column" => "column",
+                    "constraint" => "constraint",
+                    "datatype" => "datatype",
+                    "table" => "table",
+                    "schema" => "schema"
+                )
+            END
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'raise_on_not_null'),
+            args=[
+                ('val', ('anyelement',)),
+                ('exc', ('text',)),
+                ('msg', ('text',)),
+                ('detail', ('text',), "''"),
+                ('hint', ('text',), "''"),
+                ('column', ('text',), "''"),
+                ('constraint', ('text',), "''"),
+                ('datatype', ('text',), "''"),
+                ('table', ('text',), "''"),
+                ('schema', ('text',), "''"),
+            ],
+            returns=('anyelement',),
+            # Same volatility as raise()
+            volatility='stable',
+            text=self.text,
+        )
+
+
 class RaiseExceptionOnEmptyStringFunction(dbops.Function):
     """Return the passed string or raise an exception if it's empty."""
     text = '''
@@ -2713,6 +2758,7 @@ async def bootstrap(conn: asyncpg.Connection) -> None:
         dbops.CreateFunction(GetSharedObjectMetadata()),
         dbops.CreateFunction(RaiseExceptionFunction()),
         dbops.CreateFunction(RaiseExceptionOnNullFunction()),
+        dbops.CreateFunction(RaiseExceptionOnNotNullFunction()),
         dbops.CreateFunction(RaiseExceptionOnEmptyStringFunction()),
         dbops.CreateFunction(AssertJSONTypeFunction()),
         dbops.CreateFunction(ExtractJSONScalarFunction()),
