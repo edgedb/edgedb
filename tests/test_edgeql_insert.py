@@ -3267,6 +3267,154 @@ class TestInsert(tb.QueryTestCase):
             [1],
         )
 
+    async def test_edgeql_insert_dependent_23(self):
+        await self.con.execute('''
+            WITH MODULE test
+            INSERT Person2a {
+                first := "Madeline",
+                last := "Hatch1",
+            }
+        ''')
+
+        # test with something that has an object constraint
+        query = r'''
+            WITH MODULE test
+            SELECT (
+                INSERT Person2a {
+                    first := "Phil",
+                    last := "Emarg",
+                    note := (INSERT Note {name := "tag!" }),
+                } UNLESS CONFLICT
+            ) {first, last};
+        '''
+
+        await self.assert_query_result(
+            query,
+            [{"first": "Phil", "last": "Emarg"}]
+        )
+
+        await self.assert_query_result(
+            query,
+            [],
+        )
+
+        # Make sure only 1 insert into Note happened
+        await self.assert_query_result(
+            r'''SELECT count(test::Note)''',
+            [1],
+        )
+
+    async def test_edgeql_insert_dependent_24(self):
+        # test with something that has a computed constraint
+        await self.con.execute('''
+            WITH MODULE test
+            INSERT Person2b {
+                first := "Madeline",
+                last := "Hatch2",
+            }
+        ''')
+
+        query = r'''
+            WITH MODULE test
+            SELECT (
+                INSERT Person2b {
+                    first := "Phil",
+                    last := "Emarg",
+                    note := (INSERT Note {name := "tag!" }),
+                } UNLESS CONFLICT
+            ) {name};
+        '''
+
+        await self.assert_query_result(
+            query,
+            [{"name": "Phil Emarg"}]
+        )
+
+        await self.assert_query_result(
+            query,
+            [],
+        )
+
+        # Make sure only 1 insert into Note happened
+        await self.assert_query_result(
+            r'''SELECT count(test::Note)''',
+            [1],
+        )
+
+    async def test_edgeql_insert_dependent_25(self):
+        await self.con.execute('''
+            WITH MODULE test
+            INSERT Person2b {
+                first := "Madeline",
+                last := "Hatch3",
+            }
+        ''')
+        # test with something that has a computed constraint using ON
+        query = r'''
+            WITH MODULE test
+            SELECT (
+                INSERT Person2b {
+                    first := "Phil",
+                    last := "Emarg",
+                    note := (INSERT Note {name := "tag!" }),
+                }
+                UNLESS CONFLICT ON (.name)
+                ELSE (SELECT Person2b)
+            ) {name};
+        '''
+
+        await self.assert_query_result(
+            query,
+            [{"name": "Phil Emarg"}]
+        )
+
+        await self.assert_query_result(
+            query,
+            [{"name": "Phil Emarg"}]
+        )
+
+        # Make sure only 1 insert into Note happened
+        await self.assert_query_result(
+            r'''SELECT count(test::Note)''',
+            [1],
+        )
+
+    async def test_edgeql_insert_dependent_26(self):
+        # test that it works with an empty value in a computed prop
+        await self.con.execute('''
+            WITH MODULE test
+            INSERT Person2b {
+                first := "Madeline",
+                last := "Hatch4",
+            }
+        ''')
+
+        query = r'''
+            WITH MODULE test
+            SELECT (
+                INSERT Person2b {
+                    first := "Phil",
+                    note := (INSERT Note {name := "tag!" }),
+                } UNLESS CONFLICT
+            ) {first, name};
+        '''
+
+        await self.assert_query_result(
+            query,
+            [{"first": "Phil", "name": None}]
+        )
+
+        await self.assert_query_result(
+            query,
+            [{"first": "Phil", "name": None}]
+        )
+
+        # No conflict (because last was empty), so two inserts
+        await self.assert_query_result(
+            r'''SELECT count(test::Note)''',
+            [2],
+        )
+
     async def test_edgeql_insert_nested_volatile_01(self):
         await self.con.execute('''
             INSERT test::Subordinate {

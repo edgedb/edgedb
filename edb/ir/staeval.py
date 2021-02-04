@@ -145,6 +145,10 @@ def evaluate_OperatorCall(
             raise UnsupportedExpressionError(
                 f'non-singleton operations are not supported',
                 context=opcall.context)
+        if arg_val is None:
+            raise UnsupportedExpressionError(
+                f'empty operations are not supported',
+                context=opcall.context)
 
         args.append(arg_val)
 

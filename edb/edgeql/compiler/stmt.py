@@ -232,24 +232,13 @@ def compile_GroupQuery(
         context=expr.context)
 
 
-def subject_substitute(
-        ast: qlast.Base_T, new_subject: qlast.Expr) -> qlast.Base_T:
-    ast = copy.deepcopy(ast)
-    paths: List[qlast.Path] = ast_visitor.find_children(
-        ast,
-        lambda x: isinstance(x, qlast.Path),
-    )
-    for path in paths:
-        if isinstance(path.steps[0], qlast.Subject):
-            path.steps[0] = new_subject
-    return ast
-
-
 def compile_insert_unless_conflict_select(
     stmt: irast.InsertStmt,
     insert_subject: qlast.Path,
-    cnstrs: Dict[str, Tuple[s_pointers.Pointer, List[s_constr.Constraint]]],
+    subject_typ: s_objtypes.ObjectType,
     *,
+    obj_constrs: Sequence[s_constr.Constraint],
+    constrs: Dict[str, Tuple[s_pointers.Pointer, List[s_constr.Constraint]]],
     parser_context: pctx.ParserContext,
     ctx: context.ContextLevel,
 ) -> irast.Set:
@@ -257,35 +246,68 @@ def compile_insert_unless_conflict_select(
 
     `cnstrs` contains the constraints to consider.
     """
-    matches = []
-    # Find the IR corresponding to our fields
+    # Find which pointers we need to grab
+    needed_ptrs = set(constrs)
+    for constr in obj_constrs:
+        subjexpr = constr.get_subjectexpr(ctx.env.schema)
+        assert subjexpr
+        needed_ptrs |= qlutils.find_subject_ptrs(subjexpr.qlast)
+
+    wl = list(needed_ptrs)
+    ptr_anchors = {}
+    while wl:
+        p = wl.pop()
+        ptr = subject_typ.getptr(ctx.env.schema, s_name.UnqualName(p))
+        if expr := ptr.get_expr(ctx.env.schema):
+            assert isinstance(expr.qlast, qlast.Expr)
+            ptr_anchors[p] = expr.qlast
+            for ref in qlutils.find_subject_ptrs(expr.qlast):
+                if ref not in needed_ptrs:
+                    wl.append(ref)
+                    needed_ptrs.add(ref)
+
+    ctx.anchors = ctx.anchors.copy()
+
+    # Find the IR corresponding to the fields we care about and
+    # produce anchors for them
     for elem, _ in stmt.subject.shape:
         assert elem.rptr is not None
         name = elem.rptr.ptrref.shortname.name
-        if name in cnstrs:
-            key = elem.expr
-            assert key
-            matches.append((name, key))
+        if name in needed_ptrs and name not in ptr_anchors:
+            assert elem.expr
+            # FIXME: The wrong thing will definitely happen if there are
+            # volatile entries here
+            source_alias = ctx.aliases.get(name)
+            ctx.anchors[source_alias] = setgen.ensure_set(elem.expr, ctx=ctx)
+            ptr_anchors[name] = (
+                qlast.Path(steps=[qlast.ObjectRef(name=source_alias)]))
 
-    if not matches:
+    # Fill in empty sets for pointers that are needed but not present
+    present_ptrs = set(ptr_anchors)
+    for p in (needed_ptrs - present_ptrs):
+        ptr = subject_typ.getptr(ctx.env.schema, s_name.UnqualName(p))
+        typ = ptr.get_target(ctx.env.schema)
+        assert typ
+        ptr_anchors[p] = qlast.TypeCast(
+            expr=qlast.Set(elements=[]),
+            type=typegen.type_to_ql_typeref(typ, ctx=ctx))
+
+    if not ptr_anchors:
         raise errors.QueryError(
             'INSERT UNLESS CONFLICT property requires matching shape',
             context=parser_context,
         )
 
-    ctx.anchors = ctx.anchors.copy()
-
     conds: List[qlast.Expr] = []
-    for ptrname, key in matches:
-        # FIXME: The wrong thing will definitely happen if there are
-        # volatile entries here
-        source_alias = ctx.aliases.get('a')
-        ctx.anchors[source_alias] = setgen.ensure_set(key, ctx=ctx)
-        anchor = qlast.Path(steps=[qlast.ObjectRef(name=source_alias)])
+    for ptrname, (ptr, ptr_cnstrs) in constrs.items():
+        if ptrname not in present_ptrs:
+            continue
+        anchor = qlutils.subject_paths_substitute(
+            ptr_anchors[ptrname], ptr_anchors)
         ptr_val = qlast.Path(partial=True, steps=[
             qlast.Ptr(ptr=qlast.ObjectRef(name=ptrname))
         ])
-        ptr, ptr_cnstrs = cnstrs[ptrname]
+        ptr, ptr_cnstrs = constrs[ptrname]
         ptr_card = ptr.get_cardinality(ctx.env.schema)
 
         for cnstr in ptr_cnstrs:
@@ -295,13 +317,20 @@ def compile_insert_unless_conflict_select(
             # for __subject__ in the subjectexpr and compare *that*
             if (subjectexpr := cnstr.get_subjectexpr(ctx.env.schema)):
                 assert isinstance(subjectexpr.qlast, qlast.Expr)
-                lhs = subject_substitute(subjectexpr.qlast, lhs)
-                rhs = subject_substitute(subjectexpr.qlast, rhs)
+                lhs = qlutils.subject_substitute(subjectexpr.qlast, lhs)
+                rhs = qlutils.subject_substitute(subjectexpr.qlast, rhs)
 
             conds.append(qlast.BinOp(
                 op='=' if ptr_card.is_single() else 'IN',
                 left=lhs, right=rhs,
             ))
+
+    for constr in obj_constrs:
+        subjectexpr = constr.get_subjectexpr(ctx.env.schema)
+        assert subjectexpr and isinstance(subjectexpr.qlast, qlast.Expr)
+        lhs = qlutils.subject_paths_substitute(subjectexpr.qlast, ptr_anchors)
+        rhs = qlutils.subject_substitute(subjectexpr.qlast, insert_subject)
+        conds.append(qlast.BinOp(op='=', left=lhs, right=rhs))
 
     # We use `any` to compute the disjunction here because some might
     # be empty.
@@ -318,6 +347,7 @@ def compile_insert_unless_conflict_select(
         result=insert_subject,
         where=cond,
     )
+
     select_ir = dispatch.compile(select_ast, ctx=ctx)
     select_ir = setgen.scoped_set(
         select_ir, force_reassign=True, ctx=ctx)
@@ -341,6 +371,7 @@ def compile_insert_unless_conflict(
 
     schema, typ = typeutils.ir_typeref_to_type(schema, stmt.subject.typeref)
     assert isinstance(typ, s_objtypes.ObjectType)
+    real_typ = typ.get_nearest_non_derived_parent(schema)
     pointers = {}
 
     exclusive_constr = schema.get('std::exclusive', type=s_constr.Constraint)
@@ -355,15 +386,13 @@ def compile_insert_unless_conflict(
 
     ctx.env.schema = schema
 
-    obj_constrs = typ.get_constraints(schema).objects(schema)
-    if obj_constrs:
-        # We don't support synthesizing a conditional for object
-        # exclusive constraints yet, so we can't produce a select IR
-        select_ir = None
-    else:
-        select_ir = compile_insert_unless_conflict_select(
-            stmt, insert_subject, pointers,
-            parser_context=stmt.context, ctx=ctx)
+    obj_constrs = real_typ.get_constraints(schema).objects(schema)
+
+    select_ir = compile_insert_unless_conflict_select(
+        stmt, insert_subject, real_typ,
+        constrs=pointers,
+        obj_constrs=obj_constrs,
+        parser_context=stmt.context, ctx=ctx)
 
     return irast.OnConflictClause(
         constraint=None, select_ir=select_ir, else_ir=None)
@@ -399,6 +428,10 @@ def compile_insert_unless_conflict_on(
         )
 
     schema = ctx.env.schema
+    schema, typ = typeutils.ir_typeref_to_type(schema, stmt.subject.typeref)
+    assert isinstance(typ, s_objtypes.ObjectType)
+    real_typ = typ.get_nearest_non_derived_parent(schema)
+
     schema, ptr = (
         typeutils.ptrcls_from_ptrref(cspec_res.rptr.ptrref,
                                      schema=schema))
@@ -432,7 +465,8 @@ def compile_insert_unless_conflict_on(
     field_name = cspec_res.rptr.ptrref.shortname
     ds = {field_name.name: (ptr, ex_cnstrs)}
     select_ir = compile_insert_unless_conflict_select(
-        stmt, insert_subject, ds, parser_context=stmt.context, ctx=ctx)
+        stmt, insert_subject, real_typ, constrs=ds, obj_constrs=[],
+        parser_context=stmt.context, ctx=ctx)
 
     # Compile an else branch
     else_ir = None
