@@ -7501,6 +7501,29 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             ['newtest']
         )
 
+    async def test_edgeql_migration_inherited_optionality_01(self):
+        await self.migrate(r"""
+            type User;
+
+            type Message {
+                required link author -> User;
+                required property body -> str;
+            };
+        """)
+
+        await self.start_migration(r"""
+            type User;
+
+            type BaseMessage {
+                required link author -> User;
+                required property body -> str;
+            }
+
+            type Message extending BaseMessage;
+        """)
+
+        await self.fast_forward_describe_migration()
+
     async def test_edgeql_migration_rename_type_02(self):
         await self.migrate(r"""
             type Note {
@@ -8179,7 +8202,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                     'placeholder': 'conv_expr',
                     'prompt': (
                         "Please specify an expression in order to convert"
-                        " property 'foo' to 'single' cardinality"
+                        " property 'foo' of object type 'test::Bar' to"
+                        " 'single' cardinality"
                     ),
                 }],
             },

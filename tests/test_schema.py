@@ -5123,6 +5123,57 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
+    def test_schema_migrations_computed_optionality_01(self):
+        self._assert_migration_equivalence([r"""
+            abstract type Removable {
+                optional single property removed := EXISTS(
+                    .<element[IS Tombstone]
+                );
+            };
+            type Topic extending Removable {
+                multi link defs := .<topic[IS Definition];
+            };
+            alias VisibleTopic := (
+                SELECT Topic {
+                    defs := (
+                        SELECT .<topic[IS Definition] FILTER NOT .removed
+                    ),
+                }
+                FILTER NOT .removed
+            );
+            type Definition extending Removable {
+                required link topic -> Topic;
+            };
+            type Tombstone {
+                required link element -> Removable {
+                    constraint exclusive;
+                }
+            };
+        """, r"""
+            abstract type Removable {
+                property removed := EXISTS(.<element[IS Tombstone]);
+            };
+            type Topic extending Removable {
+                multi link defs := .<topic[IS Definition];
+            };
+            alias VisibleTopic := (
+                SELECT Topic {
+                    defs := (
+                        SELECT .<topic[IS Definition] FILTER NOT .removed
+                    ),
+                }
+                FILTER NOT .removed
+            );
+            type Definition extending Removable {
+                required link topic -> Topic;
+            };
+            type Tombstone {
+                required link element -> Removable {
+                    constraint exclusive;
+                }
+            };
+        """])
+
 
 class TestDescribe(tb.BaseSchemaLoadTest):
     """Test the DESCRIBE command."""

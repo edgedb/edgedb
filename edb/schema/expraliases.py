@@ -101,9 +101,7 @@ class AliasCommand(
             schema=schema,
             options=qlcompiler.CompilerOptions(
                 derived_target_module=classname.module,
-                result_view_name=classname,
                 modaliases=context.modaliases,
-                schema_view_mode=True,
                 in_ddl_context_name='alias definition',
                 track_schema_ref_exprs=track_schema_ref_exprs,
             ),
