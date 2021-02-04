@@ -21,7 +21,14 @@ from __future__ import annotations
 from edb import errors
 from edb.common import debug, parsing
 
-from .grammar import rust_lexer
+from .grammar import rust_lexer, tokens
+from .grammar import expressions as gr_exprs
+from .grammar import commondl as gr_commondl
+
+
+def a(word):
+    article = 'an' if word[0] in 'aeiou' else 'a'
+    return f'{article} {word}'
 
 
 class EdgeQLParserBase(parsing.Parser):
@@ -30,23 +37,157 @@ class EdgeQLParserBase(parsing.Parser):
 
     def get_exception(self, native_err, context, token=None):
         msg = native_err.args[0]
+        hint = None
 
         if isinstance(native_err, errors.EdgeQLSyntaxError):
             return native_err
         else:
             if msg.startswith('Unexpected token: '):
                 token = token or getattr(native_err, 'token', None)
+                token_kind = token.kind()
+                ltok = self.parser._stack[-1][0]
 
-                if not token or token.kind() == 'EOF':
+                # Look at the parsing stack and use tokens and
+                # non-terminals to infer the parser rule when the
+                # error occurred.
+                rule = ''
+                # The last valid token was a closing
+                # brace/parent/bracket, so we need to find a match for
+                # it before deciding what rule context we're in.
+                need_match = isinstance(ltok, (tokens.T_RBRACE,
+                                               tokens.T_RPAREN,
+                                               tokens.T_RBRACKET))
+                for i, (el, _) in enumerate(reversed(self.parser._stack)):
+                    if isinstance(el, tokens.Token):
+                        # We'll need the element right before "{", "[", or "(".
+                        prevel = self.parser._stack[-2 - i][0]
+
+                        if isinstance(el, tokens.T_LBRACE):
+                            if need_match and isinstance(ltok,
+                                                         tokens.T_RBRACE):
+                                # This is matched, while we're looking
+                                # for unmatched braces.
+                                need_match = False
+                                continue
+
+                            elif isinstance(prevel, gr_commondl.OptExtending):
+                                # This is some SDL/DDL
+                                rule = 'definition'
+                            elif (
+                                isinstance(prevel, gr_exprs.Expr) or
+                                (
+                                    isinstance(prevel, tokens.T_COLON) and
+                                    isinstance(self.parser._stack[-3 - i][0],
+                                               gr_exprs.ShapePointer)
+                                )
+                            ):
+                                # This is some kind of shape.
+                                rule = 'shape'
+                            break
+                        elif isinstance(el, tokens.T_LPAREN):
+                            if need_match and isinstance(ltok,
+                                                         tokens.T_RPAREN):
+                                # This is matched, while we're looking
+                                # for unmatched parentheses.
+                                need_match = False
+                                continue
+                            # This could be an argument list or a tuple.
+                            elif isinstance(prevel, gr_exprs.NodeName):
+                                rule = 'list of arguments'
+                            else:
+                                rule = 'tuple'
+                            break
+                        elif isinstance(el, tokens.T_LBRACKET):
+                            if need_match and isinstance(ltok,
+                                                         tokens.T_RBRACKET):
+                                # This is matched, while we're looking
+                                # for unmatched brackets.
+                                need_match = False
+                                continue
+                            # This is either an array literal or
+                            # array index.
+                            elif isinstance(prevel, gr_exprs.Expr):
+                                rule = 'array slice'
+                            else:
+                                rule = 'array'
+                            break
+
+                if not token or token_kind == 'EOF':
                     msg = 'Unexpected end of line'
+                elif (
+                    rule == 'shape' and
+                    token_kind == 'IDENT' and
+                    isinstance(ltok, parsing.Nonterm)
+                ):
+                    # Make sure that the previous element in the stack
+                    # is some kind of Nonterminal, because if it's
+                    # not, this is probably not an issue of a missing
+                    # COMMA.
+                    hint = (f"It appears that a ',' is missing in {a(rule)} "
+                            f"before {token.text()!r}")
+                elif (
+                    rule == 'list of arguments' and
+                    # The stack is like <NodeName> LPAREN <AnyIdentifier>
+                    i == 1 and
+                    isinstance(ltok, (gr_exprs.AnyIdentifier,
+                                      tokens.T_WITH,
+                                      tokens.T_SELECT,
+                                      tokens.T_FOR,
+                                      tokens.T_INSERT,
+                                      tokens.T_UPDATE,
+                                      tokens.T_DELETE))
+                ):
+                    hint = ("Statement used as an expression must be "
+                            "enclosed in a set of parentheses")
+                    # We want the error context correspond to the
+                    # statement keyword
+                    context = ltok.context
+                    token = None
+                elif (
+                    rule == 'array slice' and
+                    # The offending token was something that could
+                    # make an expression
+                    token_kind in {'IDENT', 'ICONST'} and
+                    not isinstance(ltok, tokens.T_COLON)
+                ):
+                    hint = (f"It appears that a ':' is missing in {a(rule)} "
+                            f"before {token.text()!r}")
+                elif (
+                    rule in {'list of arguments', 'tuple', 'array'} and
+                    # The offending token was something that could
+                    # make an expression
+                    token_kind in {
+                        'IDENT', 'TRUE', 'FALSE',
+                        'ICONST', 'FCONST', 'NICONST', 'NFCONST',
+                        'BCONST', 'SCONST',
+                    } and
+                    not isinstance(ltok, tokens.T_COMMA)
+                ):
+                    hint = (f"It appears that a ',' is missing in {a(rule)} "
+                            f"before {token.text()!r}")
+                elif (
+                    rule == 'definition' and
+                    token_kind == 'IDENT'
+                ):
+                    # Something went wrong in a definition, so check
+                    # if the last successful token is a keyword.
+                    if (
+                        isinstance(ltok, gr_exprs.Identifier) and
+                        ltok.val.upper() == 'INDEX'
+                    ):
+                        msg = (f"Expected 'ON', but got {token.text()!r} "
+                               f"instead")
+                    else:
+                        msg = f'Unexpected {token.text()!r}'
                 elif hasattr(token, 'val'):
                     msg = f'Unexpected {token.val!r}'
-                elif token.kind() == 'NL':
+                elif token_kind == 'NL':
                     msg = 'Unexpected end of line'
                 else:
                     msg = f'Unexpected {token.text()!r}'
 
-        return errors.EdgeQLSyntaxError(msg, context=context, token=token)
+        return errors.EdgeQLSyntaxError(
+            msg, hint=hint, context=context, token=token)
 
     def get_lexer(self):
         return rust_lexer.EdgeQLLexer()

@@ -666,9 +666,8 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         };
         """
 
-    # FIXME: obscure error message
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected 'prop'", line=4, col=23)
+                  r"Expected 'ON', but got 'prop' instead", line=4, col=23)
     def test_eschema_syntax_index_03(self):
         """
         module test {
@@ -1480,6 +1479,19 @@ abstract property test::foo {
         };
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+b',
+                  hint=r"It appears that a ',' is missing in a list of "
+                       r"arguments before 'b'",
+                  line=3, col=34)
+    def test_eschema_syntax_function_21(self):
+        """
+        module test {
+            function len1(a: str b: str) ->  std::str {
+                using SQL function 'length1'
+            }
+        """
+
     def test_eschema_syntax_alias_01(self):
         """
         module test {
@@ -1518,6 +1530,46 @@ abstract property test::foo {
                 SELECT Foo
                 FILTER Foo.bar = 'baz'
             );
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+baz',
+                  hint=r"It appears that a ',' is missing in a shape "
+                       r"before 'baz'",
+                  line=5, col=17)
+    def test_eschema_syntax_alias_04(self):
+        """
+        module test {
+            alias FooBaz := Foo {
+                val := 1
+                baz := .bar + 2
+            }
+            );
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+2',
+                  hint=r"It appears that a ',' is missing in a tuple "
+                       r"before '2'",
+                  line=3, col=32)
+    def test_eschema_syntax_alias_05(self):
+        """
+        module test {
+            alias FooBaz := (1 2);
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+2',
+                  hint=r"It appears that a ',' is missing in an array "
+                       r"before '2'",
+                  line=3, col=32)
+    def test_eschema_syntax_alias_06(self):
+        """
+        module test {
+            alias FooBaz := [1 2];
         };
         """
 
