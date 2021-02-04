@@ -946,8 +946,15 @@ class PointerCommandOrFragment(
         # RESET. This is kind of unfortunate.
         if (
             isinstance(self, sd.AlterObject)
-            and (self.has_attribute_value('cardinality')
-                 or self.has_attribute_value('required'))
+            and (
+                (
+                    self.has_attribute_value('cardinality')
+                    and not self.is_attribute_inherited('cardinality')
+                ) or (
+                    self.has_attribute_value('required')
+                    and not self.is_attribute_inherited('required')
+                )
+            )
             and not self.has_attribute_value('expr')
             and (expr := self.scls.get_expr(schema)) is not None
         ):
@@ -1995,7 +2002,8 @@ class AlterPointerUpperCardinality(
 
         if needs_conv_expr:
             placeholder_name = context.get_placeholder('conv_expr')
-            desc = self.get_friendly_description(schema=schema)
+            desc = self.get_friendly_description(
+                schema=schema, parent_op=src_op)
             prompt = (
                 f'Please specify an expression in order to {desc}'
             )
@@ -2027,6 +2035,7 @@ class AlterPointerUpperCardinality(
             old_card is qltypes.SchemaCardinality.Many
             and new_card is qltypes.SchemaCardinality.One
             and not self.is_attribute_computed('cardinality')
+            and not self.is_attribute_inherited('cardinality')
             and not ptr_op.maybe_get_object_aux_data('from_alias')
             and self.conv_expr is None
             and not (
@@ -2197,7 +2206,8 @@ class AlterPointerLowerCardinality(
 
         if needs_fill_expr:
             placeholder_name = context.get_placeholder('fill_expr')
-            desc = self.get_friendly_description(schema=schema)
+            desc = self.get_friendly_description(
+                schema=schema, parent_op=src_op)
             prompt = (
                 f'Please specify an expression to populate existing objects '
                 f'in order to {desc}'
@@ -2218,9 +2228,12 @@ class AlterPointerLowerCardinality(
         ptr_op: sd.ObjectCommand[so.Object],
         src_op: sd.ObjectCommand[so.Object],
     ) -> bool:
+        old_required = self.get_orig_attribute_value('required') or False
+        new_required = self.get_attribute_value('required') or False
         return (
-            self.get_attribute_value('required')
+            not old_required and new_required
             and not self.is_attribute_computed('required')
+            and not self.is_attribute_inherited('required')
             and not ptr_op.maybe_get_object_aux_data('from_alias')
             and self.fill_expr is None
             and not (
