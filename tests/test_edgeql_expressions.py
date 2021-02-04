@@ -2825,6 +2825,16 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT [];
             """)
 
+    async def test_edgeql_expr_array_05(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"index indirection cannot be applied to "
+                r"scalar type 'std::int64'"):
+
+            await self.con.query_json("""
+                SELECT [0, 1, 2][[1][0] [2][0]];
+            """)
+
     async def test_edgeql_expr_array_concat_01(self):
         await self.assert_query_result(
             '''
