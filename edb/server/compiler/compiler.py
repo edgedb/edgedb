@@ -82,7 +82,6 @@ from . import status
 @dataclasses.dataclass(frozen=True)
 class CompilerDatabaseState:
 
-    dbver: bytes
     user_schema: s_schema.Schema
     global_schema: s_schema.Schema
     cached_reflection: immutables.Map[str, Tuple[str, ...]]
@@ -175,7 +174,6 @@ def new_compiler_context(
     """Create and return an ad-hoc compiler context."""
 
     state = dbstate.CompilerConnectionState(
-        dbver=0,
         user_schema=user_schema,
         global_schema=global_schema,
         modaliases=immutables.Map(modaliases) if modaliases else EMPTY_MAP,
@@ -236,7 +234,7 @@ async def load_schema_class_layout(backend_conn) -> s_refl.SchemaClassLayout:
             'could not load schema class layout pickle') from e
 
 
-class BaseCompiler:
+class Compiler:
 
     _connect_args: dict
     _dbname: Optional[str]
@@ -267,90 +265,7 @@ class BaseCompiler:
             h.update(val)
         return h.hexdigest().encode('latin1')
 
-    def _wrap_schema(
-        self,
-        dbver: bytes,
-        user_schema: s_schema.Schema,
-        global_schema: s_schema.Schema,
-        cached_reflection: immutables.Map[str, Tuple[str, ...]],
-    ) -> CompilerDatabaseState:
-        assert isinstance(user_schema, s_schema.FlatSchema)
-        assert isinstance(dbver, bytes)
-        return CompilerDatabaseState(
-            dbver=dbver,
-            user_schema=user_schema,
-            global_schema=global_schema,
-            cached_reflection=cached_reflection,
-        )
-
-    async def new_connection(self):
-        con_args = self._connect_args.copy()
-        con_args['database'] = self._dbname
-        try:
-            return await asyncpg.connect(**con_args)
-        except asyncpg.InvalidCatalogNameError as ex:
-            raise errors.AuthenticationError(str(ex)) from ex
-        except Exception as ex:
-            raise errors.InternalServerError(str(ex)) from ex
-
-    async def introspect(
-        self,
-        connection: asyncpg.Connection,
-    ) -> s_schema.Schema:
-        local_data = await connection.fetchval(self._local_intro_query)
-        global_data = await connection.fetchval(self._global_intro_query)
-
-        user_schema = s_refl.parse_into(
-            base_schema=self._std_schema,
-            schema=s_schema.FlatSchema(),
-            data=[r[0] for r in local_data],
-            schema_class_layout=self._schema_class_layout,
-        )
-        global_schema = s_refl.parse_into(
-            base_schema=self._std_schema,
-            schema=s_schema.FlatSchema(),
-            data=[r[0] for r in global_data],
-            schema_class_layout=self._schema_class_layout,
-        )
-
-        return user_schema, global_schema
-
-    async def _load_reflection_cache(
-        self,
-        connection: asyncpg.Connection,
-    ) -> FrozenSet[str]:
-        data = await connection.fetch('''
-            SELECT
-                eql_hash,
-                argnames
-            FROM
-                ROWS FROM(edgedb._get_cached_reflection())
-                    AS t(eql_hash text, argnames text[])
-        ''')
-
-        return immutables.Map({
-            r['eql_hash']: tuple(r['argnames']) for r in data
-        })
-
-    async def _get_database(self, dbver: bytes) -> CompilerDatabaseState:
-        if self._cached_db is not None and self._cached_db.dbver == dbver:
-            return self._cached_db
-
-        self._cached_db = None
-
-        con = await self.new_connection()
-        try:
-            await self.ensure_initialized(con)
-            user_schema, global_schema = await self.introspect(con)
-            cached_reflection = await self._load_reflection_cache(con)
-            db = self._wrap_schema(
-                dbver, user_schema, global_schema, cached_reflection)
-            self._cached_db = db
-            return db
-        finally:
-            await con.close()
-
-    async def ensure_initialized(self, con: asyncpg.Connection) -> None:
+    async def initialize_from_pg(self, con: asyncpg.Connection) -> None:
         if self._std_schema is None:
             self._std_schema = await load_cached_schema(con, 'stdschema')
 
@@ -373,7 +288,7 @@ class BaseCompiler:
                 self._std_schema)
             config.set_settings(self._config_spec)
 
-    def ensure_initialized2(
+    def initialize(
         self,
         std_schema,
         refl_schema,
@@ -390,33 +305,6 @@ class BaseCompiler:
         if self._std_schema is None:
             raise AssertionError('compiler is not initialized')
         return self._std_schema
-
-    # API
-
-    async def connect(
-        self,
-        dbname: str,
-        dbver: bytes
-    ) -> CompilerDatabaseState:
-        self._dbname = dbname
-        self._cached_db = None
-        await self._get_database(dbver)
-
-
-class Compiler(BaseCompiler):
-
-    def __init__(
-        self,
-        connect_args: dict,
-        *,
-        backend_runtime_params: Any = pgcluster.get_default_runtime_params(),
-    ):
-        super().__init__(
-            connect_args,
-            backend_runtime_params=backend_runtime_params,
-        )
-
-        self._current_db_state = None
 
     def _in_testmode(self, ctx: CompileContext):
         current_tx = ctx.state.current_tx()
@@ -1684,7 +1572,6 @@ class Compiler(BaseCompiler):
 
             if unit is None:
                 unit = dbstate.QueryUnit(
-                    dbver=ctx.state.dbver,
                     sql=(),
                     status=status.get_status(stmt),
                     cardinality=default_cardinality,
@@ -1860,7 +1747,7 @@ class Compiler(BaseCompiler):
     # API
 
     @staticmethod
-    def try_compile_rollback(dbver: bytes, eql: bytes):
+    def try_compile_rollback(eql: bytes):
         statements = edgeql.parse_block(eql.decode())
 
         stmt = statements[0]
@@ -1868,7 +1755,6 @@ class Compiler(BaseCompiler):
         if isinstance(stmt, qlast.RollbackTransaction):
             sql = b'ROLLBACK;'
             unit = dbstate.QueryUnit(
-                dbver=dbver,
                 status=b'ROLLBACK',
                 sql=(sql,),
                 tx_rollback=True,
@@ -1877,7 +1763,6 @@ class Compiler(BaseCompiler):
         elif isinstance(stmt, qlast.RollbackToSavepoint):
             sql = f'ROLLBACK TO {pg_common.quote_ident(stmt.name)};'.encode()
             unit = dbstate.QueryUnit(
-                dbver=dbver,
                 status=b'ROLLBACK TO SAVEPOINT',
                 sql=(sql,),
                 tx_savepoint_rollback=True,
@@ -1892,7 +1777,6 @@ class Compiler(BaseCompiler):
 
     async def compile_notebook(
         self,
-        dbver: bytes,
         user_schema: s_schema.Schema,
         global_schema: s_schema.Schema,
         reflection_cache: Mapping[str, Tuple[str, ...]],
@@ -1901,7 +1785,6 @@ class Compiler(BaseCompiler):
     ) -> List[dbstate.QueryUnit]:
 
         state = dbstate.CompilerConnectionState(
-            dbver,
             user_schema,
             global_schema,
             DEFAULT_MODULE_ALIASES_MAP,
@@ -1961,7 +1844,6 @@ class Compiler(BaseCompiler):
 
     async def compile(
         self,
-        dbver: bytes,
         user_schema: s_schema.Schema,
         global_schema: s_schema.Schema,
         reflection_cache: Mapping[str, Tuple[str, ...]],
@@ -1987,7 +1869,6 @@ class Compiler(BaseCompiler):
         assert isinstance(sess_config, immutables.Map)
 
         state = dbstate.CompilerConnectionState(
-            dbver,
             user_schema,
             global_schema,
             sess_modaliases,
@@ -2031,7 +1912,6 @@ class Compiler(BaseCompiler):
         inline_typenames: bool,
         stmt_mode: enums.CompileStatementMode,
     ) -> Tuple[List[dbstate.QueryUnit], dbstate.CompilerConnectionState]:
-        self._current_db_state = state  # XXX
         state.sync_tx(txid)
 
         ctx = CompileContext(
@@ -2266,7 +2146,6 @@ class Compiler(BaseCompiler):
             dump_server_ver = None
 
         state = dbstate.CompilerConnectionState(
-            dbver=b'',
             user_schema=user_schema,
             global_schema=global_schema,
             modaliases=DEFAULT_MODULE_ALIASES_MAP,

@@ -235,7 +235,7 @@ class Server:
         try:
             json_data = await syscon.parse_execute_json(
                 self._global_intro_query, b'__global_intro_db',
-                dbver=b'', use_prep_stmt=True, args=(),
+                dbver=0, use_prep_stmt=True, args=(),
             )
         finally:
             self._release_sys_pgcon()
@@ -254,7 +254,7 @@ class Server:
     async def introspect_user_schema(self, conn):
         json_data = await conn.parse_execute_json(
             self._local_intro_query, b'__local_intro_db',
-            dbver=b'', use_prep_stmt=True, args=(),
+            dbver=0, use_prep_stmt=True, args=(),
         )
 
         return s_refl.parse_into(
@@ -284,7 +284,7 @@ class Server:
                     ) AS o;
                 ''',
                 b'__reflection_cache',
-                dbver=b'',
+                dbver=0,
                 use_prep_stmt=True,
                 args=(),
             )
@@ -305,7 +305,7 @@ class Server:
                     edgedb."_SchemaScalarType"
                 ''',
                 b'__backend_ids_fetch',
-                dbver=b'',
+                dbver=0,
                 use_prep_stmt=True,
                 args=(),
             )
@@ -323,7 +323,7 @@ class Server:
             dbs_query = self.get_sys_query('listdbs')
             json_data = await syscon.parse_execute_json(
                 dbs_query, b'__listdbs',
-                dbver=b'', use_prep_stmt=True, args=(),
+                dbver=0, use_prep_stmt=True, args=(),
             )
             dbnames = json.loads(json_data)
         finally:
@@ -339,7 +339,7 @@ class Server:
             role_query = self.get_sys_query('roles')
             json_data = await syscon.parse_execute_json(
                 role_query, b'__sys_role',
-                dbver=b'', use_prep_stmt=True, args=(),
+                dbver=0, use_prep_stmt=True, args=(),
             )
             roles = json.loads(json_data)
             self._roles = immutables.Map([(r['name'], r) for r in roles])
@@ -591,7 +591,7 @@ class Server:
         finally:
             self._release_sys_pgcon()
 
-    def _on_remote_ddl(self, dbname, dbver):
+    def _on_remote_ddl(self, dbname):
         # Triggered by a postgres notification event 'schema-changes'
         # on the __edgedb_sysevent__ channel
         self._loop.create_task(

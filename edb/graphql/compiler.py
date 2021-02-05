@@ -42,7 +42,6 @@ class CompiledOperation:
     sql: bytes
     sql_hash: bytes
     sql_args: List[str]
-    dbver: bytes
     cacheable: bool
     cache_deps_vars: Optional[FrozenSet[str]]
     variables: Dict
@@ -64,7 +63,6 @@ def _get_gqlcore(
 
 
 def compile_graphql(
-    dbver: bytes,
     std_schema: s_schema.FlatSchema,
     user_schema: s_schema.FlatSchema,
     global_schema: s_schema.FlatSchema,
@@ -124,7 +122,6 @@ def compile_graphql(
         sql=sql_bytes,
         sql_hash=sql_hash,
         sql_args=args,  # type: ignore[arg-type]  # XXX: optional bug?
-        dbver=dbver,
         cacheable=op.cacheable,
         cache_deps_vars=op.cache_deps_vars,
         variables=op.variables_desc,

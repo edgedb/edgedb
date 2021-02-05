@@ -582,7 +582,8 @@ cdef class PGConnection:
         edgecon.EdgeConnection edgecon,
         WriteBuffer bind_data,
         bint use_prep_stmt,
-        bytes state
+        bytes state,
+        dbver
     ):
         cdef:
             WriteBuffer out
@@ -605,7 +606,7 @@ cdef class PGConnection:
         if use_prep_stmt:
             stmt_name = query.sql_hash
             parse, store_stmt = self.before_prepare(
-                stmt_name, query.dbver, out)
+                stmt_name, dbver, out)
         else:
             stmt_name = b''
 
@@ -709,7 +710,7 @@ cdef class PGConnection:
                         # ParseComplete
                         self.buffer.discard_message()
                         if store_stmt:
-                            self.prep_stmts[stmt_name] = query.dbver
+                            self.prep_stmts[stmt_name] = dbver
 
                     elif mtype == b'E':  ## result
                         # ErrorResponse
@@ -752,7 +753,8 @@ cdef class PGConnection:
         edgecon.EdgeConnection edgecon,
         WriteBuffer bind_data,
         bint use_prep_stmt,
-        bytes state
+        bytes state,
+        int dbver,
     ):
         self.before_command()
         try:
@@ -762,6 +764,7 @@ cdef class PGConnection:
                 bind_data,
                 use_prep_stmt,
                 state,
+                dbver
             )
         finally:
             self.after_command()
@@ -1324,8 +1327,7 @@ cdef class PGConnection:
                     if server_id == self.server._server_id:
                         return True
                     dbname = event_payload['dbname']
-                    dbver = bytes.fromhex(event_payload['dbver'])
-                    self.server._on_remote_ddl(dbname, dbver)
+                    self.server._on_remote_ddl(dbname)
                 elif event == 'database-config-changes':
                     dbname = event_payload['dbname']
                     self.server._on_remote_database_config_change(dbname)

@@ -96,13 +96,11 @@ class Worker:
     def _update_db(
         self,
         dbname,
-        new_dbver,
         new_user_schema,
         new_reflection_cache
     ):
         self._dbs = self._dbs.set(dbname, state.DatabaseState(
             name=dbname,
-            dbver=new_dbver,
             user_schema=new_user_schema,
             reflection_cache=new_reflection_cache
         ))
@@ -242,7 +240,6 @@ class Pool:
                 db.name,
                 state.DatabaseState(
                     name=db.name,
-                    dbver=db.dbver,
                     user_schema=db.user_schema,
                     reflection_cache=db.reflection_cache,
                 )
@@ -300,24 +297,22 @@ class Pool:
         self,
         worker,
         dbname,
-        dbver,
         user_schema,
         global_schema,
         reflection_cache,
     ):
         worker_db = worker._dbs.get(dbname)
 
-        if worker_db is None or worker_db.dbver != dbver:
-            preargs = (
-                dbname, dbver,
+        preargs = (dbname,)
+
+        if worker_db is None or worker_db.user_schema != user_schema:
+            preargs += (
                 _pickle_schema(user_schema), reflection_cache
             )
-            worker._update_db(*preargs)
+            worker._update_db(dbname, user_schema, reflection_cache)
         else:
-            preargs = (
-                dbname, dbver,
-                None, None
-            )
+            preargs += (None, None)
+
         if worker._global_schema is not global_schema:
             preargs += (_pickle_schema(global_schema),)
         else:
@@ -328,7 +323,6 @@ class Pool:
     async def compile(
         self,
         dbname,
-        dbver,
         user_schema,
         global_schema,
         reflection_cache,
@@ -337,7 +331,7 @@ class Pool:
         worker = await self._workers_queue.get()
         try:
             preargs = self._compute_compile_preargs(
-                worker, dbname, dbver, user_schema, global_schema,
+                worker, dbname, user_schema, global_schema,
                 reflection_cache,
             )
 
@@ -378,7 +372,6 @@ class Pool:
     async def compile_notebook(
         self,
         dbname,
-        dbver,
         user_schema,
         global_schema,
         reflection_cache,
@@ -387,7 +380,7 @@ class Pool:
         worker = await self._workers_queue.get()
         try:
             preargs = self._compute_compile_preargs(
-                worker, dbname, dbver, user_schema, global_schema,
+                worker, dbname, user_schema, global_schema,
                 reflection_cache,
             )
 
@@ -400,12 +393,11 @@ class Pool:
         finally:
             self._workers_queue.put_nowait(worker)
 
-    async def try_compile_rollback(self, dbver: bytes, eql: bytes):
+    async def try_compile_rollback(self, eql: bytes):
         worker = await self._workers_queue.get()
         try:
             return await worker.call(
                 'try_compile_rollback',
-                dbver,
                 eql
             )
         finally:
@@ -414,7 +406,6 @@ class Pool:
     async def compile_graphql(
         self,
         dbname,
-        dbver,
         user_schema,
         global_schema,
         reflection_cache,
@@ -423,7 +414,7 @@ class Pool:
         worker = await self._workers_queue.get()
         try:
             preargs = self._compute_compile_preargs(
-                worker, dbname, dbver, user_schema, global_schema,
+                worker, dbname, user_schema, global_schema,
                 reflection_cache,
             )
 
