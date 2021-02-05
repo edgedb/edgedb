@@ -21,6 +21,7 @@ from __future__ import annotations
 from typing import *  # NoQA
 
 import asyncio
+import functools
 import logging
 import os
 import os.path
@@ -54,6 +55,11 @@ log_metrics = logging.getLogger("edb.server.metrics")
 # in unittests.
 _ENV = os.environ.copy()
 _ENV['PYTHONPATH'] = ':'.join(sys.path)
+
+
+@functools.lru_cache(25)
+def _pickle_schema(schema):
+    return pickle.dumps(schema, -1)
 
 
 class Worker:
@@ -290,6 +296,35 @@ class Pool:
             self._stats_killed,
         )
 
+    def _compute_compile_preargs(
+        self,
+        worker,
+        dbname,
+        dbver,
+        user_schema,
+        global_schema,
+        reflection_cache,
+    ):
+        worker_db = worker._dbs.get(dbname)
+
+        if worker_db is None or worker_db.dbver != dbver:
+            preargs = (
+                dbname, dbver,
+                _pickle_schema(user_schema), reflection_cache
+            )
+            worker._update_db(*preargs)
+        else:
+            preargs = (
+                dbname, dbver,
+                None, None
+            )
+        if worker._global_schema is not global_schema:
+            preargs += (_pickle_schema(global_schema),)
+        else:
+            preargs += (None,)
+
+        return preargs
+
     async def compile(
         self,
         dbname,
@@ -301,23 +336,10 @@ class Pool:
     ):
         worker = await self._workers_queue.get()
         try:
-            worker_db = worker._dbs.get(dbname)
-
-            if worker_db is None or worker_db.dbver != dbver:
-                preargs = (
-                    dbname, dbver,
-                    user_schema, reflection_cache
-                )
-                worker._update_db(*preargs)
-            else:
-                preargs = (
-                    dbname, dbver,
-                    None, None
-                )
-            if worker._global_schema is not global_schema:
-                preargs += (global_schema,)
-            else:
-                preargs += (None,)
+            preargs = self._compute_compile_preargs(
+                worker, dbname, dbver, user_schema, global_schema,
+                reflection_cache,
+            )
 
             units, state = await worker.call(
                 'compile',
@@ -364,23 +386,10 @@ class Pool:
     ):
         worker = await self._workers_queue.get()
         try:
-            worker_db = worker._dbs.get(dbname)
-
-            if worker_db is None or worker_db.dbver != dbver:
-                preargs = (
-                    dbname, dbver,
-                    user_schema, reflection_cache
-                )
-                worker._update_db(*preargs)
-            else:
-                preargs = (
-                    dbname, dbver,
-                    None, None
-                )
-            if worker._global_schema is not global_schema:
-                preargs += (global_schema,)
-            else:
-                preargs += (None,)
+            preargs = self._compute_compile_preargs(
+                worker, dbname, dbver, user_schema, global_schema,
+                reflection_cache,
+            )
 
             return await worker.call(
                 'compile_notebook',
@@ -413,23 +422,10 @@ class Pool:
     ):
         worker = await self._workers_queue.get()
         try:
-            worker_db = worker._dbs.get(dbname)
-
-            if worker_db is None or worker_db.dbver != dbver:
-                preargs = (
-                    dbname, dbver,
-                    user_schema, reflection_cache
-                )
-                worker._update_db(*preargs)
-            else:
-                preargs = (
-                    dbname, dbver,
-                    None, None
-                )
-            if worker._global_schema is not global_schema:
-                preargs += (global_schema,)
-            else:
-                preargs += (None,)
+            preargs = self._compute_compile_preargs(
+                worker, dbname, dbver, user_schema, global_schema,
+                reflection_cache,
+            )
 
             return await worker.call(
                 'compile_graphql',

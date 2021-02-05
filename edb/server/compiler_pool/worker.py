@@ -88,9 +88,9 @@ async def __init_worker__(
 def __sync__(
     dbname: str,
     dbver: bytes,
-    user_schema: Optional[s_schema.FlatSchema],
+    user_schema: Optional[bytes],
     reflection_cache: Optional[state.ReflectionCache],
-    global_schema: Optional[s_schema.FlatSchema],
+    global_schema: Optional[bytes],
 ) -> state.DatabaseState:
     global DBS
 
@@ -99,6 +99,7 @@ def __sync__(
         if user_schema is None:
             raise RuntimeError(
                 'dbver has changed but the user_schema was not sent')
+        user_schema = pickle.loads(user_schema)
         db = state.DatabaseState(
             dbname, dbver, user_schema, reflection_cache  # type: ignore
         )
@@ -106,7 +107,7 @@ def __sync__(
 
     global GLOBAL_SCHEMA
     if global_schema is not None:
-        GLOBAL_SCHEMA = global_schema
+        GLOBAL_SCHEMA = pickle.loads(global_schema)
 
     return db
 
@@ -114,9 +115,9 @@ def __sync__(
 async def compile(
     dbname: str,
     dbver: bytes,
-    user_schema: Optional[s_schema.FlatSchema],
+    user_schema: Optional[bytes],
     reflection_cache: Optional[state.ReflectionCache],
-    global_schema: Optional[s_schema.FlatSchema],
+    global_schema: Optional[bytes],
     *compile_args: Any,
     **compile_kwargs: Any,
 ):
@@ -149,9 +150,9 @@ async def compile_in_tx(state, *args, **kwargs):
 async def compile_notebook(
     dbname: str,
     dbver: bytes,
-    user_schema: Optional[s_schema.FlatSchema],
+    user_schema: Optional[bytes],
     reflection_cache: Optional[state.ReflectionCache],
-    global_schema: Optional[s_schema.FlatSchema],
+    global_schema: Optional[bytes],
     *compile_args: Any,
     **compile_kwargs: Any,
 ):
@@ -177,9 +178,9 @@ async def try_compile_rollback(
 async def compile_graphql(
     dbname: str,
     dbver: bytes,
-    user_schema: Optional[s_schema.FlatSchema],
+    user_schema: Optional[bytes],
     reflection_cache: Optional[state.ReflectionCache],
-    global_schema: Optional[s_schema.FlatSchema],
+    global_schema: Optional[bytes],
     *compile_args: Any,
     **compile_kwargs: Any,
 ):
