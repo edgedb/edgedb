@@ -41,7 +41,6 @@ from . import amsg
 from . import state
 
 
-DEFAULT_POOL_SIZE: int = max(os.cpu_count() or 0, 2)
 PROCESS_INITIAL_RESPONSE_TIMEOUT: float = 60.0
 KILL_TIMEOUT: float = 10.0
 WORKER_MOD: str = __name__.rpartition('.')[0] + '.worker'
@@ -207,7 +206,7 @@ class Pool:
         std_schema,
         refl_schema,
         schema_class_layout,
-        pool_size=DEFAULT_POOL_SIZE,
+        pool_size,
     ):
 
         self._loop = loop
@@ -504,6 +503,7 @@ class Pool:
 async def create_compiler_pool(
     *,
     runstate_dir: str,
+    pool_size: int,
     dbindex,
     backend_runtime_params: pgcluster.BackendRuntimeParams,
     std_schema,
@@ -514,6 +514,7 @@ async def create_compiler_pool(
     loop = asyncio.get_running_loop()
     pool = Pool(
         loop=loop,
+        pool_size=pool_size,
         runstate_dir=runstate_dir,
         backend_runtime_params=backend_runtime_params,
         std_schema=std_schema,
