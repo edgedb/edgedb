@@ -257,8 +257,8 @@ class QueryUnit:
     modaliases: Optional[immutables.Map] = None
 
     # If present, represents the future schema state after
-    # the command is run.
-    user_schema: Optional[s_schema.FlatSchema] = None
+    # the command is run. The schema is pickled.
+    user_schema: Optional[bytes] = None
 
     # Whether the global schema would be updated if this query
     # unit is executed or not.
