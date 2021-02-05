@@ -120,6 +120,7 @@ class SessionStateQuery(BaseQuery):
 class DDLQuery(BaseQuery):
 
     user_schema: s_schema.FlatSchema
+    cached_reflection: Any = None
     global_schema_updates: bool = False
     is_transactional: bool = True
     single_unit: bool = False
@@ -140,6 +141,7 @@ class TxControlQuery(BaseQuery):
     single_unit: bool = False
 
     user_schema: Optional[s_schema.FlatSchema] = None
+    cached_reflection: Any = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -154,6 +156,7 @@ class MigrationControlQuery(BaseQuery):
     single_unit: bool = False
 
     user_schema: Optional[s_schema.FlatSchema] = None
+    cached_reflection: Any = None
     ddl_stmt_id: Optional[str] = None
 
 
@@ -252,6 +255,7 @@ class QueryUnit:
     # If present, represents the future schema state after
     # the command is run. The schema is pickled.
     user_schema: Optional[bytes] = None
+    cached_reflection: Optional[bytes] = None
 
     # Whether the global schema would be updated if this query
     # unit is executed or not.
@@ -423,6 +427,12 @@ class Transaction:
 
     def get_session_config(self) -> immutables.Map:
         return self._current.config
+
+    def get_cached_reflection_if_updated(self):
+        if self._current.cached_reflection == self._state0.cached_reflection:
+            return None
+        else:
+            return self._current.cached_reflection
 
     def get_cached_reflection(self) -> immutables.Map[str, Tuple[str, ...]]:
         return self._current.cached_reflection

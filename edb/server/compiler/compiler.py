@@ -854,6 +854,7 @@ class Compiler:
             has_role_ddl=isinstance(stmt, qlast.RoleCommand),
             ddl_stmt_id=ddl_stmt_id,
             user_schema=current_tx.get_user_schema(),
+            cached_reflection=current_tx.get_cached_reflection_if_updated(),
             global_schema_updates=global_schema_updates,
         )
 
@@ -1175,6 +1176,7 @@ class Compiler:
                 modaliases=None,
                 single_unit=True,
                 user_schema=ctx.state.current_tx().get_user_schema(),
+                cached_reflection=current_tx.get_cached_reflection_if_updated()
             )
 
         elif isinstance(ql, qlast.AbortMigration):
@@ -1203,6 +1205,7 @@ class Compiler:
 
         modaliases = None
         final_user_schema: Optional[s_schema.Schema] = None
+        final_cached_reflection = None
 
         if isinstance(ql, qlast.StartTransaction):
             self._assert_not_in_migration_block(ctx, ql)
@@ -1228,6 +1231,8 @@ class Compiler:
             new_state: dbstate.TransactionState = ctx.state.commit_tx()
             modaliases = new_state.modaliases
             final_user_schema = ctx.state.current_tx().get_user_schema()
+            final_cached_reflection = \
+                ctx.state.current_tx().get_cached_reflection_if_updated()
 
             sql = (b'COMMIT',)
             single_unit = True
@@ -1295,6 +1300,7 @@ class Compiler:
             single_unit=single_unit,
             modaliases=modaliases,
             user_schema=final_user_schema,
+            cached_reflection=final_cached_reflection,
         )
 
     def _compile_ql_sess_state(self, ctx: CompileContext,
@@ -1619,6 +1625,9 @@ class Compiler:
                 unit.ddl_stmt_id = comp.ddl_stmt_id
                 if comp.user_schema is not None:
                     unit.user_schema = pickle.dumps(comp.user_schema, -1)
+                if comp.cached_reflection is not None:
+                    unit.cached_reflection = \
+                        pickle.dumps(comp.cached_reflection, -1)
                 unit.global_schema_updates = comp.global_schema_updates
 
                 if comp.single_unit:
@@ -1630,6 +1639,9 @@ class Compiler:
                 unit.cacheable = comp.cacheable
                 if comp.user_schema is not None:
                     unit.user_schema = pickle.dumps(comp.user_schema, -1)
+                if comp.cached_reflection is not None:
+                    unit.cached_reflection = \
+                        pickle.dumps(comp.cached_reflection, -1)
 
                 if comp.modaliases is not None:
                     unit.modaliases = comp.modaliases
@@ -1655,6 +1667,9 @@ class Compiler:
                 unit.cacheable = comp.cacheable
                 if comp.user_schema is not None:
                     unit.user_schema = pickle.dumps(comp.user_schema, -1)
+                if comp.cached_reflection is not None:
+                    unit.cached_reflection = \
+                        pickle.dumps(comp.cached_reflection, -1)
                 unit.ddl_stmt_id = comp.ddl_stmt_id
 
                 if comp.modaliases is not None:
@@ -1723,7 +1738,8 @@ class Compiler:
                 unit.cardinality is enums.ResultCardinality.NO_RESULT
             )
             if unit.cacheable and (
-                unit.config_ops or unit.modaliases or unit.user_schema
+                unit.config_ops or unit.modaliases or unit.user_schema or
+                unit.cached_reflection
             ):
                 raise errors.InternalServerError(
                     f'QueryUnit {unit!r} is cacheable but has config/aliases')
