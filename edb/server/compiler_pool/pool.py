@@ -87,7 +87,7 @@ class Worker:
         self._refl_schema = refl_schema
         self._schema_class_layout = schema_class_layout
         self._global_schema = global_schema
-        self._last_state = None
+        self._last_pickled_state = None
 
         self._manager = manager
         self._server = server
@@ -366,29 +366,60 @@ class Pool:
                 *preargs,
                 *compile_args
             )
-            worker._last_state = state
+            worker._last_pickled_state = state
             return units, state
 
         finally:
             self._workers_queue.release(worker)
 
-    async def compile_in_tx(self, txid, state, *compile_args):
+    async def compile_in_tx(self, txid, pickled_state, *compile_args):
+        # When we compile a query, the compiler returns a tuple:
+        # a QueryUnit and the state the compiler is in if it's in a
+        # transaction.  The state contains the information about all savepoints
+        # and transient schema changes, so the next time we need to
+        # compile a new query in this transaction the state is needed
+        # to be passed to the next compiler compiling it.
+        #
+        # The compile state can be quite heavy and contain multiple versions
+        # of schema, configs, and other session-related data. So the compiler
+        # worker pickles it before sending it to the IO process, and the
+        # IO process doesn't need to ever unpickle it.
+        #
+        # There's one crucial optimization we do here though. We try to
+        # find the compiler process that we used before, that already has
+        # this state unpickled. If we can find it, it means that the
+        # compiler process won't have to waste time unpickling the state.
+        #
+        # We use "is" in `w._last_pickled_state is pickled_state` deliberately,
+        # because `pickled_state` is saved on the Worker instance and
+        # stored in edgecon; we never modify it, so `is` is sufficient and
+        # is faster than `==`.
         worker = await self._workers_queue.acquire(
-            condition=lambda w: (w._last_state is state)
+            condition=lambda w: (w._last_pickled_state is pickled_state)
         )
+
+        if worker._last_pickled_state is pickled_state:
+            # Since we know that this particular worker already has the
+            # state, we don't want to waste resources transferring the
+            # state over the network. So we replace the state with a marker,
+            # that the compiler process will recognize.
+            pickled_state = b'REUSE_LAST_STATE'
+
         try:
-            units, new_state = await worker.call(
+            units, new_pickled_state = await worker.call(
                 'compile_in_tx',
-                state,
+                pickled_state,
                 txid,
                 *compile_args
             )
-            worker._last_state = new_state
-            return units, new_state
+            worker._last_pickled_state = new_pickled_state
+            return units, new_pickled_state
 
         finally:
             # Put the worker at the end of the queue so that the chance
-            # of reusing it later is higher.
+            # of reusing it later (and maximising the chance of
+            # the w._last_pickled_state is pickled_state` check returning
+            # `True` is higher.
             self._workers_queue.release(worker, put_in_front=False)
 
     async def compile_notebook(
