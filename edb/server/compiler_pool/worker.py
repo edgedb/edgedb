@@ -318,7 +318,7 @@ def main():
 
     try:
         run_worker(args.sockname)
-    except amsg.PoolClosedError:
+    except (amsg.PoolClosedError, KeyboardInterrupt):
         exit(0)
 
 
