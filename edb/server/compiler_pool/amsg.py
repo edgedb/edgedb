@@ -219,30 +219,39 @@ async def worker_connect(sockname):
 
 class Server:
 
-    def __init__(self, sockname, loop):
+    def __init__(self, sockname, pool_size, loop):
         self._sockname = sockname
         self._loop = loop
         self._srv = None
         self._pids = {}
         self._pid_waiters = {}
+        self._pool_size = pool_size
+        self._ready_fut = loop.create_future()
 
     def _on_pid_connected(self, proto, tr, pid):
+        assert pid not in self._pids
         self._pids[pid] = HubConnection(tr, proto, self._loop)
-        if pid in self._pid_waiters:
-            waiters = self._pid_waiters.pop(pid)
-            for w in waiters:
-                w.set_result(self._pids[pid])
+        if len(self._pids) == self._pool_size:
+            self._ready_fut.set_result(True)
 
     def _proto_factory(self):
         return HubProtocol(loop=self._loop, on_pid=self._on_pid_connected)
 
-    async def get_by_pid(self, pid):
-        if pid in self._pids:
-            return self._pids[pid]
+    async def wait_until_ready(self):
+        await self._ready_fut
 
-        w = self._loop.create_future()
-        self._pid_waiters.setdefault(pid, []).append(w)
-        return await w
+    def iter_pids(self):
+        return iter(self._pids)
+
+    async def get_by_pid(self, pid):
+        if not self._ready_fut.done():
+            raise RuntimeError(
+                'the message server does not yet have all workers connected')
+
+        # Will raise if it was cancelled of there was an error.
+        self._ready_fut.result()
+
+        return self._pids[pid]
 
     async def start(self):
         self._srv = await self._loop.create_unix_server(

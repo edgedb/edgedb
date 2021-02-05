@@ -25,6 +25,7 @@ import logging
 import os
 import os.path
 import pickle
+import signal
 import subprocess
 import sys
 import time
@@ -34,7 +35,6 @@ import immutables
 from edb.server import pgcluster
 
 from edb.common import debug
-from edb.common import supervisor
 from edb.common import taskgroup
 
 from . import amsg
@@ -69,25 +69,23 @@ class Worker:
         refl_schema,
         schema_class_layout,
         server,
-        command_args
+        pid
     ):
         self._dbs = dbs
+        self._pid = pid
 
         self._backend_runtime_params = backend_runtime_params
         self._std_schema = std_schema
         self._refl_schema = refl_schema
         self._schema_class_layout = schema_class_layout
         self._global_schema = None
+        self._last_state = None
 
         self._manager = manager
         self._server = server
-        self._command_args = command_args
-        self._proc = None
         self._con = None
         self._last_used = time.monotonic()
         self._closed = False
-        self._sup = None
-        self._last_state = None
 
     def _update_db(
         self,
@@ -103,43 +101,10 @@ class Worker:
             reflection_cache=new_reflection_cache
         ))
 
-    async def _kill_proc(self, proc):
-        try:
-            proc.kill()
-        except ProcessLookupError:
-            return
-
-        try:
-            await asyncio.wait_for(proc.wait(), KILL_TIMEOUT)
-        except Exception:
-            proc.terminate()
-            raise
-
-    async def _spawn(self):
+    async def _attach(self):
         self._manager._stats_spawned += 1
 
-        if self._proc is not None:
-            self._manager._sup.create_task(self._kill_proc(self._proc))
-            self._proc = None
-
-        env = _ENV
-        if debug.flags.server:
-            env = {'EDGEDB_DEBUG_SERVER': '1', **_ENV}
-
-        self._proc = await asyncio.create_subprocess_exec(
-            *self._command_args,
-            env=env,
-            stdin=subprocess.DEVNULL)
-        try:
-            self._con = await asyncio.wait_for(
-                self._server.get_by_pid(self._proc.pid),
-                PROCESS_INITIAL_RESPONSE_TIMEOUT)
-        except Exception:
-            try:
-                self._proc.kill()
-            except ProcessLookupError:
-                pass
-            raise
+        self._con = await self._server.get_by_pid(self._pid)
 
         await self.call(
             '__init_worker__',
@@ -151,13 +116,15 @@ class Worker:
         )
 
     def get_pid(self):
-        return self._proc.pid
+        return self._pid
 
     async def call(self, method_name, *args):
         assert not self._closed
 
         if self._con.is_closed():
-            await self._spawn()
+            raise RuntimeError(
+                'the connection to the compiler worker process is '
+                'unexpectedly closed')
 
         msg = pickle.dumps((method_name, args))
         data = await self._con.request(msg)
@@ -185,8 +152,7 @@ class Worker:
         self._manager._workers.discard(self)
         self._manager._report_worker(self, action="kill")
         try:
-            self._proc.terminate()
-            await self._proc.wait()
+            os.kill(self._pid, signal.SIGTERM)
         except ProcessLookupError:
             pass
 
@@ -208,7 +174,6 @@ class Pool:
         schema_class_layout,
         pool_size,
     ):
-
         self._loop = loop
         self._dbindex = dbindex
 
@@ -226,24 +191,18 @@ class Pool:
         self._pool_size = pool_size
         self._workers = set()
 
-        self._server = amsg.Server(self._poolsock_name, loop)
+        self._server = amsg.Server(
+            self._poolsock_name, self._pool_size, loop)
 
-        self._running = False
+        self._running = None
 
         self._stats_spawned = 0
         self._stats_killed = 0
 
-        self._sup = None
-
-        self._worker_command_args = [
-            sys.executable, '-m', WORKER_MOD,
-            '--sockname', self._poolsock_name
-        ]
-
     def is_running(self):
-        return self._running
+        return bool(self._running)
 
-    async def _spawn_worker(self, dbs: state.DatabasesState):
+    async def _attach_worker(self, pid: int, dbs: state.DatabasesState):
         worker = Worker(
             self,
             dbs,
@@ -252,9 +211,9 @@ class Pool:
             self._refl_schema,
             self._schema_class_layout,
             self._server,
-            self._worker_command_args
+            pid,
         )
-        await worker._spawn()
+        await worker._attach()
         self._report_worker(worker)
 
         self._workers.add(worker)
@@ -262,8 +221,11 @@ class Pool:
         return worker
 
     async def start(self):
+        if self._running is not None:
+            raise RuntimeError(
+                'the compiler pool has already been started once')
+
         self._workers_queue = asyncio.Queue()
-        self._sup = await supervisor.Supervisor.create()
 
         await self._server.start()
         self._running = True
@@ -280,27 +242,38 @@ class Pool:
                 )
             )
 
+        env = _ENV
+        if debug.flags.server:
+            env = {'EDGEDB_DEBUG_SERVER': '1', **_ENV}
+        self._first_proc = await asyncio.create_subprocess_exec(
+            *[
+                sys.executable, '-m', WORKER_MOD,
+                '--sockname', self._poolsock_name,
+                '--numproc', str(self._pool_size),
+            ],
+            env=env,
+            stdin=subprocess.DEVNULL,
+        )
+
+        await asyncio.wait_for(
+            self._server.wait_until_ready(),
+            PROCESS_INITIAL_RESPONSE_TIMEOUT
+        )
+
         async with taskgroup.TaskGroup(name='compiler-pool-start') as g:
-            for _ in range(self._pool_size):
-                g.create_task(self._spawn_worker(dbs))
+            for pid in self._server.iter_pids():
+                g.create_task(self._attach_worker(pid, dbs))
 
     async def stop(self):
         if not self._running:
             return
 
-        await self._sup.wait()
-
         await self._server.stop()
         self._server = None
 
-        workers_to_kill = list(self._workers)
         self._workers_queue = asyncio.Queue()
         self._workers.clear()
         self._running = False
-
-        async with taskgroup.TaskGroup(name='compiler-pool-stop') as g:
-            for worker in workers_to_kill:
-                g.create_task(worker.close())
 
     def _report_worker(self, worker: Worker, *, action: str = "spawn"):
         action = action.capitalize()
