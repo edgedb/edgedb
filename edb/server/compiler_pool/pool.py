@@ -74,6 +74,7 @@ class Worker:
         std_schema,
         refl_schema,
         schema_class_layout,
+        global_schema,
         server,
         pid
     ):
@@ -84,7 +85,7 @@ class Worker:
         self._std_schema = std_schema
         self._refl_schema = refl_schema
         self._schema_class_layout = schema_class_layout
-        self._global_schema = None
+        self._global_schema = global_schema
         self._last_state = None
 
         self._manager = manager
@@ -93,18 +94,14 @@ class Worker:
         self._last_used = time.monotonic()
         self._closed = False
 
-    async def _attach(self):
+    async def _attach(self, init_args_pickled: bytes):
         self._manager._stats_spawned += 1
 
         self._con = await self._server.get_by_pid(self._pid)
 
         await self.call(
             '__init_worker__',
-            self._dbs,
-            self._backend_runtime_params,
-            self._std_schema,
-            self._refl_schema,
-            self._schema_class_layout,
+            init_args_pickled,
         )
 
     def get_pid(self):
@@ -194,18 +191,14 @@ class Pool:
     def is_running(self):
         return bool(self._running)
 
-    async def _attach_worker(self, pid: int, dbs: state.DatabasesState):
-        worker = Worker(
+    async def _attach_worker(self, pid: int, init_args, init_args_pickled):
+        worker = Worker(  # type: ignore
             self,
-            dbs,
-            self._backend_runtime_params,
-            self._std_schema,
-            self._refl_schema,
-            self._schema_class_layout,
+            *init_args,
             self._server,
             pid,
         )
-        await worker._attach()
+        await worker._attach(init_args_pickled)
         self._report_worker(worker)
 
         self._workers.add(worker)
@@ -233,6 +226,17 @@ class Pool:
                 )
             )
 
+        init_args = (
+            dbs,
+            self._backend_runtime_params,
+            self._std_schema,
+            self._refl_schema,
+            self._schema_class_layout,
+            self._dbindex.get_global_schema(),
+        )
+        # Pickle once to later send to multiple worker processes.
+        init_args_pickled = pickle.dumps(init_args, -1)
+
         env = _ENV
         if debug.flags.server:
             env = {'EDGEDB_DEBUG_SERVER': '1', **_ENV}
@@ -253,7 +257,9 @@ class Pool:
 
         async with taskgroup.TaskGroup(name='compiler-pool-start') as g:
             for pid in self._server.iter_pids():
-                g.create_task(self._attach_worker(pid, dbs))
+                g.create_task(
+                    self._attach_worker(pid, init_args, init_args_pickled)
+                )
 
     async def stop(self):
         if not self._running:
