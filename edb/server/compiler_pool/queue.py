@@ -40,8 +40,6 @@ class WorkerQueue(typing.Generic[W]):
     _waiters: typing.Deque[asyncio.Future[None]]
     _queue: typing.Deque[W]
 
-    _cached_calibrated_demand: float
-
     def __init__(
         self,
         loop: asyncio.AbstractEventLoop,

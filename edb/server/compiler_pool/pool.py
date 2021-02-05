@@ -403,7 +403,7 @@ class Pool:
             # state, we don't want to waste resources transferring the
             # state over the network. So we replace the state with a marker,
             # that the compiler process will recognize.
-            pickled_state = b'REUSE_LAST_STATE'
+            pickled_state = state.REUSE_LAST_STATE_MARKER
 
         try:
             units, new_pickled_state = await worker.call(
