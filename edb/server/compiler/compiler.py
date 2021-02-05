@@ -149,7 +149,7 @@ def new_compiler(
 ) -> Compiler:
     """Create and return an ad-hoc compiler instance."""
 
-    compiler = Compiler(None)
+    compiler = Compiler()
     compiler._std_schema = std_schema
     compiler._refl_schema = reflection_schema
     compiler._schema_class_layout = schema_class_layout
@@ -236,18 +236,15 @@ async def load_schema_class_layout(backend_conn) -> s_refl.SchemaClassLayout:
 
 class Compiler:
 
-    _connect_args: dict
     _dbname: Optional[str]
     _cached_db: Optional[CompilerDatabaseState]
 
     def __init__(
         self,
-        connect_args: dict,
         *,
         backend_runtime_params: pgcluster.BackendRuntimeParams=
             pgcluster.get_default_runtime_params(),
     ):
-        self._connect_args = connect_args
         self._dbname = None
         self._cached_db = None
         self._std_schema = None
