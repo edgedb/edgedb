@@ -39,6 +39,7 @@ from edb.common import debug
 from edb.common import taskgroup
 
 from . import amsg
+from . import queue
 from . import state
 
 
@@ -148,7 +149,7 @@ class Worker:
 
 class Pool:
 
-    _workers_queue: asyncio.Queue
+    _workers_queue: queue.WorkerQueue[Worker]
     _workers: Set[Worker]
 
     def __init__(
@@ -202,7 +203,7 @@ class Pool:
         self._report_worker(worker)
 
         self._workers.add(worker)
-        self._workers_queue.put_nowait(worker)
+        self._workers_queue.release(worker)
         return worker
 
     async def start(self):
@@ -210,7 +211,7 @@ class Pool:
             raise RuntimeError(
                 'the compiler pool has already been started once')
 
-        self._workers_queue = asyncio.Queue()
+        self._workers_queue = queue.WorkerQueue(self._loop)
 
         await self._server.start()
         self._running = True
@@ -268,7 +269,7 @@ class Pool:
         await self._server.stop()
         self._server = None
 
-        self._workers_queue = asyncio.Queue()
+        self._workers_queue = queue.WorkerQueue(self._loop)
         self._workers.clear()
         self._running = False
 
@@ -353,7 +354,7 @@ class Pool:
         reflection_cache,
         *compile_args
     ):
-        worker = await self._workers_queue.get()
+        worker = await self._workers_queue.acquire()
         try:
             preargs = self._compute_compile_preargs(
                 worker, dbname, user_schema, global_schema,
@@ -369,18 +370,12 @@ class Pool:
             return units, state
 
         finally:
-            self._workers_queue.put_nowait(worker)
+            self._workers_queue.release(worker)
 
     async def compile_in_tx(self, txid, state, *compile_args):
-        for candidate in tuple(self._workers_queue._queue):
-            if candidate._last_state is state:
-                self._workers_queue._queue.remove(candidate)
-                worker = candidate
-                state = 'LAST'
-                break
-        else:
-            worker = await self._workers_queue.get()
-
+        worker = await self._workers_queue.acquire(
+            condition=lambda w: (w._last_state is state)
+        )
         try:
             units, new_state = await worker.call(
                 'compile_in_tx',
@@ -392,7 +387,9 @@ class Pool:
             return units, new_state
 
         finally:
-            self._workers_queue.put_nowait(worker)
+            # Put the worker at the end of the queue so that the chance
+            # of reusing it later is higher.
+            self._workers_queue.release(worker, put_in_front=False)
 
     async def compile_notebook(
         self,
@@ -402,7 +399,7 @@ class Pool:
         reflection_cache,
         *compile_args
     ):
-        worker = await self._workers_queue.get()
+        worker = await self._workers_queue.acquire()
         try:
             preargs = self._compute_compile_preargs(
                 worker, dbname, user_schema, global_schema,
@@ -416,17 +413,17 @@ class Pool:
             )
 
         finally:
-            self._workers_queue.put_nowait(worker)
+            self._workers_queue.release(worker)
 
     async def try_compile_rollback(self, eql: bytes):
-        worker = await self._workers_queue.get()
+        worker = await self._workers_queue.acquire()
         try:
             return await worker.call(
                 'try_compile_rollback',
                 eql
             )
         finally:
-            self._workers_queue.put_nowait(worker)
+            self._workers_queue.release(worker)
 
     async def compile_graphql(
         self,
@@ -436,7 +433,7 @@ class Pool:
         reflection_cache,
         *compile_args
     ):
-        worker = await self._workers_queue.get()
+        worker = await self._workers_queue.acquire()
         try:
             preargs = self._compute_compile_preargs(
                 worker, dbname, user_schema, global_schema,
@@ -450,14 +447,14 @@ class Pool:
             )
 
         finally:
-            self._workers_queue.put_nowait(worker)
+            self._workers_queue.release(worker)
 
     async def describe_database_dump(
         self,
         *args,
         **kwargs
     ):
-        worker = await self._workers_queue.get()
+        worker = await self._workers_queue.acquire()
         try:
             return await worker.call(
                 'describe_database_dump',
@@ -466,14 +463,14 @@ class Pool:
             )
 
         finally:
-            self._workers_queue.put_nowait(worker)
+            self._workers_queue.release(worker)
 
     async def describe_database_restore(
         self,
         *args,
         **kwargs
     ):
-        worker = await self._workers_queue.get()
+        worker = await self._workers_queue.acquire()
         try:
             return await worker.call(
                 'describe_database_restore',
@@ -482,7 +479,7 @@ class Pool:
             )
 
         finally:
-            self._workers_queue.put_nowait(worker)
+            self._workers_queue.release(worker)
 
 
 async def create_compiler_pool(
