@@ -110,7 +110,8 @@ async def new_connection(
     addrs, params, config = con_utils.parse_connect_arguments(
         dsn=dsn, host=host, port=port, user=user, password=password,
         admin=admin, database=database,
-        timeout=timeout, command_timeout=None, server_settings=None)
+        timeout=timeout, command_timeout=None, server_settings=None,
+        wait_until_available=timeout)
 
     loop = asyncio.get_running_loop()
 
