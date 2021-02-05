@@ -22,6 +22,7 @@ from typing import *  # NoQA
 
 import argparse
 import asyncio
+import gc
 import os
 import pickle
 import signal
@@ -31,6 +32,8 @@ import immutables
 import uvloop
 
 from edb import graphql
+
+from edb.edgeql import parser as ql_parser
 
 from edb.schema import schema as s_schema
 
@@ -265,7 +268,7 @@ def on_terminate_worker():
 
 
 def run_worker(sockname):
-    asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+    uvloop.install()
     with devmode.CoverageConfig.enable_coverage_if_requested():
         asyncio.run(worker(sockname))
 
@@ -299,7 +302,19 @@ def clear_exception_frames(er):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--sockname')
+    parser.add_argument('--numproc')
     args = parser.parse_args()
+
+    numproc = int(args.numproc)
+    assert numproc > 1
+
+    ql_parser.preload()
+    gc.freeze()
+
+    for _ in range(int(args.numproc) - 1):
+        if not os.fork():
+            # child process
+            break
 
     try:
         run_worker(args.sockname)
