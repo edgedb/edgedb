@@ -758,7 +758,12 @@ class GlobalObjectCommand(ObjectDDL):
     __abstract_node__ = True
 
 
-class DatabaseCommand(GlobalObjectCommand):
+class ExternalObjectCommand(GlobalObjectCommand):
+
+    __abstract_node__ = True
+
+
+class DatabaseCommand(ExternalObjectCommand):
     __abstract_node__ = True
     object_class: qltypes.SchemaObjectClass = (
         qltypes.SchemaObjectClass.DATABASE)

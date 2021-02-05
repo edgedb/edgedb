@@ -195,6 +195,46 @@ class UpdateMetadata(PutMetadata):
         ''')
 
 
+class UpdateMetadataSection(PutMetadata):
+    def __init__(self, object, metadata, *, section, **kwargs):
+        super().__init__(object, metadata, **kwargs)
+        self.section = section
+
+    def code(self, block: base.PLBlock) -> str:
+        metadata_qry = GetMetadata(self.object).code(block)
+        prefix = ql(defines.EDGEDB_VISIBLE_METADATA_PREFIX)
+        json_v = block.declare_var('jsonb')
+        upd_v = block.declare_var('text')
+        meta_v = block.declare_var('jsonb')
+        block.add_command(f'{json_v} := ({metadata_qry});')
+        upd_metadata = ql(json.dumps(self.metadata))
+        block.add_command(
+            f"{meta_v} := jsonb_strip_nulls(jsonb_build_object(\n"
+            f"    {ql(self.section)},\n"
+            f"    COALESCE({json_v} -> {ql(self.section)}, '{{}}')"
+            f" || {upd_metadata}::jsonb\n"
+            f"))"
+        )
+
+        block.add_command(textwrap.dedent(f'''\
+            IF {json_v} IS NOT NULL THEN
+                {upd_v} := E{prefix} || ({json_v} || {meta_v})::text;
+            ELSE
+                {upd_v} := E{prefix} || {meta_v}::text;
+            END IF;
+        '''))
+
+        object_type = self.object.get_type()
+        object_id = self.object.get_id()
+
+        return textwrap.dedent(f'''\
+            IF {upd_v} IS NOT NULL THEN
+                EXECUTE 'COMMENT ON {object_type} {object_id} IS ' ||
+                    quote_literal({upd_v});
+            END IF;
+        ''')
+
+
 class CreateObject(SchemaObjectOperation):
 
     def __init__(self, object, **kwargs):

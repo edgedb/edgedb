@@ -618,12 +618,24 @@ def _delta_from_ddl(
         )
         schema = cmd.apply(schema, context)
 
-        if not stdmode and not isinstance(cmd, sd.GlobalObjectCommand):
-            ver = schema.get_global(s_ver.SchemaVersion, '__schema_version__')
-            ver_cmd = ver.init_delta_command(schema, sd.AlterObject)
-            ver_cmd.set_attribute_value('version', uuidgen.uuid1mc())
-            schema = ver_cmd.apply(schema, context)
-            delta.add(ver_cmd)
+        if not stdmode:
+            if not isinstance(
+                cmd,
+                (sd.GlobalObjectCommand, sd.ExternalObjectCommand),
+            ):
+                ver = schema.get_global(
+                    s_ver.SchemaVersion, '__schema_version__')
+                ver_cmd = ver.init_delta_command(schema, sd.AlterObject)
+                ver_cmd.set_attribute_value('version', uuidgen.uuid1mc())
+                schema = ver_cmd.apply(schema, context)
+                delta.add(ver_cmd)
+            elif not isinstance(cmd, sd.ExternalObjectCommand):
+                gver = schema.get_global(
+                    s_ver.GlobalSchemaVersion, '__global_schema_version__')
+                g_ver_cmd = gver.init_delta_command(schema, sd.AlterObject)
+                g_ver_cmd.set_attribute_value('version', uuidgen.uuid1mc())
+                schema = g_ver_cmd.apply(schema, context)
+                delta.add(g_ver_cmd)
 
         delta.add(cmd)
 

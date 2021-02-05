@@ -2582,6 +2582,35 @@ class TestServerProtoDDL(tb.DDLTestCase):
                 for con in cons:
                     g.create_task(con.aclose())
 
+    async def test_server_proto_concurrent_global_ddl(self):
+        ntasks = 5
+
+        async with tg.TaskGroup() as g:
+            cons_tasks = [
+                g.create_task(self.connect(database=self.con.dbname))
+                for _ in range(ntasks)
+            ]
+
+        cons = [c.result() for c in cons_tasks]
+
+        try:
+            async with tg.TaskGroup() as g:
+                for i, con in enumerate(cons):
+                    g.create_task(con.execute(f'''
+                        CREATE SUPERUSER ROLE concurrent_{i}
+                    '''))
+        except tg.TaskGroupError as e:
+            self.assertIn(
+                edgedb.TransactionSerializationError,
+                e.get_error_types(),
+            )
+        else:
+            self.fail("TransactionSerializationError not raised")
+        finally:
+            async with tg.TaskGroup() as g:
+                for con in cons:
+                    g.create_task(con.aclose())
+
     async def test_server_proto_backend_tid_propagation_01(self):
         async with self._run_and_rollback():
             await self.con.execute('''

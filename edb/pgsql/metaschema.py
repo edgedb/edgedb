@@ -2158,7 +2158,7 @@ class SysConfigFullFunction(dbops.Function):
             'system override' AS source
         FROM
             jsonb_each(
-                shobj_metadata(
+                edgedb.shobj_metadata(
                     (SELECT oid FROM pg_database
                     WHERE datname = {ql(defines.EDGEDB_TEMPLATE_DB)}),
                     'pg_database'
@@ -2408,7 +2408,7 @@ class SysConfigNoFileAccessFunction(dbops.Function):
             'system override' AS source
         FROM
             jsonb_each(
-                shobj_metadata(
+                edgedb.shobj_metadata(
                     (SELECT oid FROM pg_database
                     WHERE datname = {ql(defines.EDGEDB_TEMPLATE_DB)}),
                     'pg_database'
@@ -3172,6 +3172,55 @@ def _generate_role_views(schema: s_schema.Schema) -> List[dbops.View]:
     return views
 
 
+def _generate_schema_ver_views(schema: s_schema.Schema) -> List[dbops.View]:
+    Ver = schema.get(
+        'sys::GlobalSchemaVersion',
+        type=s_objtypes.ObjectType,
+    )
+
+    view_query = f'''
+        SELECT
+            (v.value->>'id')::uuid
+                AS {qi(ptr_col_name(schema, Ver, 'id'))},
+            (SELECT id FROM edgedb."_SchemaObjectType"
+                 WHERE name = 'sys::GlobalSchemaVersion')
+                AS {qi(ptr_col_name(schema, Ver, '__type__'))},
+            (v.value->>'name')
+                AS {qi(ptr_col_name(schema, Ver, 'name'))},
+            (v.value->>'name')
+                AS {qi(ptr_col_name(schema, Ver, 'name__internal'))},
+            (v.value->>'version')::uuid
+                AS {qi(ptr_col_name(schema, Ver, 'version'))},
+            (v.value->>'builtin')::bool
+                AS {qi(ptr_col_name(schema, Ver, 'builtin'))},
+            (v.value->>'internal')::bool
+                AS {qi(ptr_col_name(schema, Ver, 'internal'))},
+            ARRAY[]::text[]
+                AS {qi(ptr_col_name(schema, Ver, 'computed_fields'))}
+        FROM
+            jsonb_each(
+                edgedb.shobj_metadata(
+                    (SELECT oid FROM pg_database
+                    WHERE datname = {ql(defines.EDGEDB_TEMPLATE_DB)}),
+                    'pg_database'
+                ) -> 'GlobalSchemaVersion'
+            ) AS v
+    '''
+
+    objects = {
+        Ver: view_query
+    }
+
+    views = []
+    for obj, query in objects.items():
+        tabview = dbops.View(name=tabname(schema, obj), query=query)
+        inhview = dbops.View(name=inhviewname(schema, obj), query=query)
+        views.append(tabview)
+        views.append(inhview)
+
+    return views
+
+
 def _make_json_caster(
     schema: s_schema.Schema,
     json_casts: Mapping[s_types.Type, s_casts.Cast],
@@ -3206,15 +3255,15 @@ def _make_json_caster(
     return _cast
 
 
-async def generate_support_views(
-    conn: asyncpg.Connection,
+def _generate_schema_aliases(
     schema: s_schema.Schema,
-) -> None:
-    commands = dbops.CommandGroup()
+    module: s_name.UnqualName,
+) -> List[dbops.View]:
+    views = []
 
     schema_objs = schema.get_objects(
         type=s_objtypes.ObjectType,
-        included_modules=(s_name.UnqualName('schema'),),
+        included_modules=(module,),
     )
 
     for schema_obj in schema_objs:
@@ -3225,9 +3274,14 @@ async def generate_support_views(
             catenate=False,
         )
 
+        if module.name == 'sys' and not schema_obj.get_abstract(schema):
+            bn = ('edgedbss', bn[1])
+
         targets = []
 
         for ptr in schema_obj.get_pointers(schema).objects(schema):
+            if ptr.is_pure_computable(schema):
+                continue
             psi = types.get_pointer_storage_info(ptr, schema=schema)
             if psi.table_type == 'ObjectType':
                 ptr_name = ptr.get_shortname(schema).name
@@ -3236,10 +3290,25 @@ async def generate_support_views(
                     targets.append(f'{qi(col_name)} AS {qi(ptr_name)}')
                 targets.append(f'{qi(col_name)} AS {qi(col_name)}')
 
+        prefix = module.name.capitalize()
         alias_view = dbops.View(
-            name=('edgedb', f'_Schema{schema_obj.get_name(schema).name}'),
+            name=('edgedb', f'_{prefix}{schema_obj.get_name(schema).name}'),
             query=(f'SELECT {", ".join(targets)} FROM {q(*bn)}')
         )
+        views.append(alias_view)
+
+    return views
+
+
+async def generate_support_views(
+    conn: asyncpg.Connection,
+    schema: s_schema.Schema,
+) -> None:
+    commands = dbops.CommandGroup()
+
+    schema_alias_views = _generate_schema_aliases(
+        schema, s_name.UnqualName('schema'))
+    for alias_view in schema_alias_views:
         commands.add_command(dbops.CreateView(alias_view, or_replace=True))
 
     InhObject = schema.get(
@@ -3290,6 +3359,14 @@ async def generate_support_views(
 
     for roleview in _generate_role_views(schema):
         commands.add_command(dbops.CreateView(roleview, or_replace=True))
+
+    for verview in _generate_schema_ver_views(schema):
+        commands.add_command(dbops.CreateView(verview, or_replace=True))
+
+    sys_alias_views = _generate_schema_aliases(
+        schema, s_name.UnqualName('sys'))
+    for alias_view in sys_alias_views:
+        commands.add_command(dbops.CreateView(alias_view, or_replace=True))
 
     block = dbops.PLTopBlock()
     commands.generate(block)

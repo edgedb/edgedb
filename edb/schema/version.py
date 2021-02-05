@@ -21,16 +21,11 @@ from typing import *
 
 import uuid
 
-from edb.edgeql import qltypes
-
 from . import delta as sd
 from . import objects as so
 
 
-class SchemaVersion(
-    so.InternalObject,
-    qlkind=qltypes.SchemaObjectClass.SCHEMA_VERSION,
-):
+class SchemaVersion(so.InternalObject):
 
     version = so.SchemaField(uuid.UUID)
 
@@ -56,5 +51,37 @@ class CreateSchemaVersion(
 class AlterSchemaVersion(
     SchemaVersionCommand,
     sd.AlterObject[SchemaVersion],
+):
+    pass
+
+
+class GlobalSchemaVersion(so.InternalObject, so.GlobalObject):
+
+    version = so.SchemaField(uuid.UUID)
+
+
+class GlobalSchemaVersionCommandContext(
+    sd.ObjectCommandContext[GlobalSchemaVersion],
+):
+    pass
+
+
+class GlobalSchemaVersionCommand(
+    sd.ObjectCommand[GlobalSchemaVersion],
+    context_class=GlobalSchemaVersionCommandContext,
+):
+    pass
+
+
+class CreateGlobalSchemaVersion(
+    GlobalSchemaVersionCommand,
+    sd.CreateObject[GlobalSchemaVersion],
+):
+    pass
+
+
+class AlterGlobalSchemaVersion(
+    GlobalSchemaVersionCommand,
+    sd.AlterObject[GlobalSchemaVersion],
 ):
     pass
