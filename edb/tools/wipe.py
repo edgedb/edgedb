@@ -165,7 +165,7 @@ async def do_wipe(
 
 
 async def _get_dbs_and_roles(pgconn) -> Tuple[List[str], List[str]]:
-    compiler = edbcompiler.Compiler({})
+    compiler = edbcompiler.Compiler()
     await compiler.initialize_from_pg(pgconn)
     compilerctx = edbcompiler.new_compiler_context(
         user_schema=s_schema.FlatSchema(),
