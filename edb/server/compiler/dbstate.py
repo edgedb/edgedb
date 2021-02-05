@@ -121,7 +121,6 @@ class DDLQuery(BaseQuery):
 
     user_schema: s_schema.FlatSchema
     global_schema_updates: bool = False
-    new_types: FrozenSet[str] = frozenset()
     is_transactional: bool = True
     single_unit: bool = False
     create_db: Optional[str] = None
@@ -151,7 +150,6 @@ class MigrationControlQuery(BaseQuery):
     cacheable: bool
 
     modaliases: Optional[immutables.Map]
-    new_types: FrozenSet[str] = frozenset()
     is_transactional: bool = True
     single_unit: bool = False
 
@@ -192,9 +190,6 @@ class QueryUnit:
 
     # Capabilities used in this query
     capabilities: enums.Capability = enums.Capability(0)
-
-    # A set of ids of types added by this unit.
-    new_types: FrozenSet[str] = frozenset()
 
     # True if this unit contains SET commands.
     has_set: bool = False
