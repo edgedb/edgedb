@@ -206,6 +206,15 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
                 };
 
                 property due_date -> datetime;
+
+                property real_time_estimate {
+                    using ((.time_estimate * 2));
+                    annotation title := 'Ha.';
+                };
+                link start_date2 {
+                    using (SELECT datetime::datetime_current());
+                    annotation title := 'awk.';
+                };
             };
         };
         """
@@ -591,6 +600,19 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
             type Bar {
                 property name -> str;
             };
+        };
+        """
+
+    def test_eschema_syntax_type_32(self):
+        """
+        type test::Foo {
+            property lurr {
+                using (20);
+            };
+        }
+% OK %
+        type test::Foo {
+            property lurr := (20);
         };
         """
 

@@ -84,7 +84,18 @@ commands <ref_eql_ddl_links>`.
     [{required | optional}] [{single | multi}]
       link <name> := <expression>;
 
-    # Abstract link form:
+    # Computable link form used inside type declaration (extended):
+    [ overloaded ] [{required | optional}] [{single | multi}]
+      link <name>
+      [ extending <base> [, ...] ] [-> <type>]
+      [ "{"
+          USING (<expression>) ;
+          [ <annotation-declarations> ]
+          [ <constraint-declarations> ]
+          ...
+        "}" ]
+
+   # Abstract link form:
     abstract link <name> [extending <base> [, ...]]
     [ "{"
         [ readonly := {true | false} ; ]

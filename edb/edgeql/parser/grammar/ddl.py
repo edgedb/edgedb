@@ -1103,7 +1103,6 @@ class CreateConcretePropertyStmt(Nonterm):
             OptCreateConcretePropertyCommandsBlock
         """
         cmds = kids[4].val
-        new_cmds = []
         target = None
 
         for cmd in cmds:
@@ -1113,8 +1112,6 @@ class CreateConcretePropertyStmt(Nonterm):
                         f'computable property with more than one expression',
                         context=kids[3].context)
                 target = cmd.value
-            else:
-                new_cmds.append(cmd)
 
         if target is None:
             raise EdgeQLSyntaxError(
@@ -1126,7 +1123,7 @@ class CreateConcretePropertyStmt(Nonterm):
             is_required=kids[1].val.required,
             cardinality=kids[1].val.cardinality,
             target=target,
-            commands=new_cmds,
+            commands=cmds,
         )
 
 
@@ -1404,7 +1401,6 @@ class CreateConcreteLinkStmt(Nonterm):
             OptCreateConcreteLinkCommandsBlock
         """
         cmds = kids[4].val
-        new_cmds = []
         target = None
 
         for cmd in cmds:
@@ -1414,8 +1410,6 @@ class CreateConcreteLinkStmt(Nonterm):
                         f'computable link with more than one expression',
                         context=kids[3].context)
                 target = cmd.value
-            else:
-                new_cmds.append(cmd)
 
         if target is None:
             raise EdgeQLSyntaxError(
@@ -1427,7 +1421,7 @@ class CreateConcreteLinkStmt(Nonterm):
             is_required=kids[1].val.required,
             cardinality=kids[1].val.cardinality,
             target=target,
-            commands=new_cmds,
+            commands=cmds,
         )
 
 
