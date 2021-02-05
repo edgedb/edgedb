@@ -93,6 +93,7 @@ class Server:
         runstate_dir,
         internal_runstate_dir,
         max_backend_connections,
+        compiler_pool_size,
         nethost,
         netport,
         auto_shutdown: bool=False,
@@ -125,6 +126,7 @@ class Server:
         self._runstate_dir = runstate_dir
         self._internal_runstate_dir = internal_runstate_dir
         self._max_backend_connections = max_backend_connections
+        self._compiler_pool_size = compiler_pool_size
 
         self._mgmt_port = None
         self._mgmt_host_addr = nethost
@@ -178,6 +180,7 @@ class Server:
         await self.__sys_pgcon.set_server(self)
 
         self._compiler_pool = await compiler_pool.create_compiler_pool(
+            pool_size=self._compiler_pool_size,
             dbindex=self._dbindex,
             runstate_dir=self._runstate_dir,
             backend_runtime_params=self.get_backend_runtime_params(),
