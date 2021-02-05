@@ -206,12 +206,13 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
                           SCHEMA = '{schemaname}',
                           CONSTRAINT = '{constr}',
                           MESSAGE = '{errmsg}',
-                          DETAIL = 'Key ({esc_plain_expr}) already exists.';
+                          DETAIL = {detail};
                 END IF;
             '''.format(
                 plain_expr=origin_exprdata['plain'],
-                # XXX: do we want plain_expr here at all??
-                esc_plain_expr=origin_exprdata['plain'].replace("'", "''"),
+                detail=common.quote_literal(
+                    f"Key ({origin_exprdata['plain']}) already exists."
+                ),
                 new_expr=exprdata['new'],
                 table=common.qname(
                     schemaname,

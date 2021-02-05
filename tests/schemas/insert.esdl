@@ -79,8 +79,8 @@ type Person2b extending Person2 {
     optional single property last -> std::str;
     property namespace := .first ++ " "; # har, har
     property name {
-	using (.namespace ++ .last);
-	constraint exclusive;
+        using (.namespace ++ .last);
+        constraint exclusive;
     }
 }
 
