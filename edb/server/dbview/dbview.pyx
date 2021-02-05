@@ -41,6 +41,15 @@ cdef DEFAULT_STATE = json.dumps([
     for n, v in DEFAULT_MODALIASES.items()
 ]).encode('utf-8')
 
+cdef int VER_COUNTER = 0
+cdef DICTDEFAULT = (None, None)
+
+
+cdef next_dbver():
+    global VER_COUNTER
+    VER_COUNTER += 1
+    return VER_COUNTER
+
 
 cdef class Database:
 
@@ -56,7 +65,8 @@ cdef class Database:
         object backend_ids
     ):
         self.name = name
-        self.dbver = uuidgen.uuid1mc().bytes
+
+        self.dbver = next_dbver()
 
         self._index = index
         self._views = weakref.WeakSet()
@@ -76,7 +86,9 @@ cdef class Database:
     ):
         if new_schema is None:
             raise AssertionError('new_schema is not supposed to be None')
-        self.dbver = uuidgen.uuid1mc().bytes # XXX
+
+        self.dbver = next_dbver()
+
         self.user_schema = new_schema
         if backend_ids is not None:
             self.backend_ids = backend_ids
@@ -93,12 +105,12 @@ cdef class Database:
     cdef _cache_compiled_query(self, key, compiled: dbstate.QueryUnit):
         assert compiled.cacheable
 
-        existing = self._eql_to_compiled.get(key)
-        if existing is not None and existing.dbver == compiled.dbver:
+        existing, dbver = self._eql_to_compiled.get(key, DICTDEFAULT)
+        if existing is not None and dbver == self.dbver:
             # We already have a cached query for a more recent DB version.
             return
 
-        self._eql_to_compiled[key] = compiled
+        self._eql_to_compiled[key] = compiled, self.dbver
 
     cdef _new_view(self, user, query_cache):
         view = DatabaseConnectionView(self, user=user, query_cache=query_cache)
@@ -117,13 +129,8 @@ cdef class DatabaseConnectionView:
         self._user = user
 
         self._modaliases = DEFAULT_MODALIASES
-        self._in_tx_modaliases = None
         self._config = DEFAULT_CONFIG
         self._session_state_cache = None
-        self._in_tx_config = None
-        self._in_tx_user_schema_pickled = None
-        self._in_tx_user_schema = None
-        self._in_tx_new_types = {}
 
         # Whenever we are in a transaction that had executed a
         # DDL command, we use this cache for compiled queries.
@@ -149,6 +156,7 @@ cdef class DatabaseConnectionView:
         self._in_tx_user_schema_pickled = None
         self._in_tx_new_types = {}
         self._tx_error = False
+        self._in_tx_dbver = 0
         self._invalidate_local_cache()
 
     cdef rollback_tx_to_savepoint(self, spid, modaliases, config):
@@ -281,10 +289,6 @@ cdef class DatabaseConnectionView:
         def __get__(self):
             return self._user
 
-    property dbver:
-        def __get__(self):
-            return self._db.dbver
-
     property dbname:
         def __get__(self):
             return self._db.name
@@ -292,6 +296,12 @@ cdef class DatabaseConnectionView:
     property reflection_cache:
         def __get__(self):
             return self._db.reflection_cache
+
+    property dbver:
+        def __get__(self):
+            if self._in_tx and self._in_tx_dbver:
+                return self._in_tx_dbver
+            return self._db.dbver
 
     cdef in_tx(self):
         return self._in_tx
@@ -320,8 +330,9 @@ cdef class DatabaseConnectionView:
         if self._in_tx_with_ddl or self._in_tx_with_set:
             query_unit = self._eql_to_compiled.get(key)
         else:
-            query_unit = self._db._eql_to_compiled.get(key)
-            if query_unit is not None and query_unit.dbver != self.dbver:
+            query_unit, qu_dbver = self._db._eql_to_compiled.get(
+                key, DICTDEFAULT)
+            if query_unit is not None and qu_dbver != self._db.dbver:
                 query_unit = None
 
         return query_unit
@@ -377,6 +388,7 @@ cdef class DatabaseConnectionView:
             if new_types:
                 self._db._update_backend_ids(new_types)
             if query_unit.has_ddl:
+                self._in_tx_dbver = next_dbver()
                 self._db._set_and_signal_new_user_schema(
                     pickle.loads(query_unit.user_schema))
                 side_effects |= SideEffects.SchemaChanges
@@ -484,10 +496,6 @@ cdef class DatabaseIndex:
 
     def get_sys_config(self):
         return self._sys_config
-
-    def get_dbver(self, dbname):
-        db = self.get_db(dbname)
-        return (<Database>db).dbver
 
     def get_db(self, dbname):
         return self._dbs[dbname]

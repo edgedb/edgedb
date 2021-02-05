@@ -1104,7 +1104,7 @@ async def _init_config(cluster: pgcluster.BaseCluster) -> None:
     try:
         await _check_data_dir_compatibility(conn)
         compiler = edbcompiler.Compiler({})
-        await compiler.ensure_initialized(conn)
+        await compiler.initialize_from_pg(conn)
         std_schema = compiler.get_std_schema()
         config_spec = config.load_spec_from_schema(std_schema)
 

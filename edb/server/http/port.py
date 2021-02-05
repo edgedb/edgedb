@@ -71,9 +71,6 @@ class BaseHttpPort(baseport.Port):
     def get_db(self):
         return self._dbindex.get_db(self.database)
 
-    def get_dbver(self):
-        return self._dbindex.get_dbver(self.database)
-
     def get_global_schema(self):
         return self._dbindex.get_global_schema()
 

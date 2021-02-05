@@ -180,7 +180,6 @@ cdef class Protocol(http.HttpProtocol):
         compiler_pool = self.port.get_server().get_compiler_pool()
         return await compiler_pool.compile_graphql(
             db.name,
-            db.dbver,
             db.user_schema,
             self.port.get_global_schema(),
             db.reflection_cache,
@@ -192,7 +191,7 @@ cdef class Protocol(http.HttpProtocol):
         )
 
     async def execute(self, query, operation_name, variables):
-        dbver = self.port.get_dbver()
+        dbver = self.port.get_db().dbver
 
         if variables:
             for var_name in variables:
@@ -290,7 +289,7 @@ cdef class Protocol(http.HttpProtocol):
             self.port.database)
         try:
             data = await pgcon.parse_execute_json(
-                op.sql, op.sql_hash, op.dbver,
+                op.sql, op.sql_hash, dbver,
                 use_prep_stmt, args)
         finally:
             self.port.get_server().release_pgcon(self.port.database, pgcon)
