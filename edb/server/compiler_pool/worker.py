@@ -59,17 +59,23 @@ GLOBAL_SCHEMA: s_schema.FlatSchema
 
 
 async def __init_worker__(
-    dbs: state.DatabasesState,
-    backend_runtime_params: pgcluster.BackendRuntimeParams,
-    std_schema,
-    refl_schema,
-    schema_class_layout,
+    init_args_pickled: bytes,
 ) -> None:
     global INITED
     global DBS
     global BACKEND_RUNTIME_PARAMS
     global COMPILER
     global STD_SCHEMA
+    global GLOBAL_SCHEMA
+
+    (
+        dbs,
+        backend_runtime_params,
+        std_schema,
+        refl_schema,
+        schema_class_layout,
+        global_schema,
+    ) = pickle.loads(init_args_pickled)
 
     INITED = True
     DBS = dbs
@@ -78,6 +84,7 @@ async def __init_worker__(
         backend_runtime_params=BACKEND_RUNTIME_PARAMS,
     )
     STD_SCHEMA = std_schema
+    GLOBAL_SCHEMA = global_schema
 
     COMPILER.initialize(
         std_schema, refl_schema, schema_class_layout,
