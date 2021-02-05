@@ -75,6 +75,7 @@ cdef class DatabaseConnectionView:
 
         object _txid
         object _in_tx_config
+        object _in_tx_user_schema_pickled
         object _in_tx_user_schema
         object _in_tx_new_types
         bint _in_tx
