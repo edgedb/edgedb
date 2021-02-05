@@ -979,26 +979,30 @@ cdef class EdgeConnection:
 
     async def signal_side_effects(self, side_effects):
         if side_effects & dbview.SideEffects.SchemaChanges:
-            await self.port.get_server()._signal_sysevent(
-                'schema-changes',
-                dbname=self.dbview.dbname,
+            self.loop.create_task(
+                self.port.get_server()._signal_sysevent(
+                    'schema-changes',
+                    dbname=self.dbview.dbname,
+                ),
             )
         if side_effects & dbview.SideEffects.GlobalSchemaChanges:
-            await self.port.get_server()._signal_sysevent(
-                'global-schema-changes',
+            self.loop.create_task(
+                self.port.get_server()._signal_sysevent(
+                    'global-schema-changes',
+                ),
             )
         if side_effects & dbview.SideEffects.DatabaseConfigChanges:
-            await self.port.get_server()._signal_sysevent(
-                'database-config-changes',
-                dbname=self.dbview.dbname,
+            self.loop.create_task(
+                self.port.get_server()._signal_sysevent(
+                    'database-config-changes',
+                    dbname=self.dbview.dbname,
+                ),
             )
         if side_effects & dbview.SideEffects.SystemConfigChanges:
-            await self.port.get_server()._signal_sysevent(
-                'system-config-changes',
-            )
-        if side_effects & dbview.SideEffects.RoleChanges:
-            await self.port.get_server()._signal_sysevent(
-                'role-changes',
+            self.loop.create_task(
+                self.port.get_server()._signal_sysevent(
+                    'system-config-changes',
+                ),
             )
 
     def _tokenize(self, eql: bytes) -> edgeql.Source:
@@ -2004,7 +2008,7 @@ cdef class EdgeConnection:
             )
 
             user_schema = await server.introspect_user_schema(pgcon)
-            global_schema = await server.introspect_global_schema()
+            global_schema = await server.introspect_global_schema(pgcon)
             schema_ddl, schema_ids, blocks = \
                 await compiler_pool.describe_database_dump(
                     user_schema, global_schema)
@@ -2116,7 +2120,7 @@ cdef class EdgeConnection:
         server = self.port.get_server()
         compiler_pool = server.get_compiler_pool()
 
-        global_schema = await server.introspect_global_schema()
+        global_schema = self.dbview.get_global_schema()
 
         dump_server_ver_str = None
         headers_num = self.buffer.read_int16()

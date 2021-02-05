@@ -154,6 +154,8 @@ cdef class DatabaseConnectionView:
         self._in_tx_with_set = False
         self._in_tx_user_schema = None
         self._in_tx_user_schema_pickled = None
+        self._in_tx_global_schema = None
+        self._in_tx_global_schema_pickled = None
         self._in_tx_new_types = {}
         self._tx_error = False
         self._in_tx_dbver = 0
@@ -212,7 +214,14 @@ cdef class DatabaseConnectionView:
             return self._db.user_schema
 
     def get_global_schema(self):
-        return self._db._index._global_schema
+        if self._in_tx:
+            if self._in_tx_global_schema_pickled:
+                self._in_tx_global_schema = pickle.loads(
+                    self._in_tx_global_schema_pickled)
+                self._in_tx_global_schema_pickled = None
+            return self._in_tx_global_schema
+        else:
+            return self._db._index._global_schema
 
     def get_schema(self):
         user_schema = self.get_user_schema()
@@ -345,6 +354,7 @@ cdef class DatabaseConnectionView:
             self._in_tx_config = self._config
             self._in_tx_modaliases = self._modaliases
             self._in_tx_user_schema = self._db.user_schema
+            self._in_tx_global_schema = self._db._index._global_schema
 
         if self._in_tx and not self._txid:
             raise errors.InternalServerError('unset txid in transaction')
@@ -363,15 +373,15 @@ cdef class DatabaseConnectionView:
             if query_unit.user_schema is not None:
                 self._in_tx_user_schema_pickled = query_unit.user_schema
                 self._in_tx_user_schema = None
+            if query_unit.global_schema is not None:
+                self._in_tx_global_schema_pickled = query_unit.global_schema
+                self._in_tx_global_schema = None
 
     cdef on_error(self, query_unit):
         self.tx_error()
 
     cdef on_success(self, query_unit, new_types):
         side_effects = 0
-
-        if query_unit.global_schema_updates:
-            side_effects |= SideEffects.GlobalSchemaChanges
 
         if query_unit.tx_savepoint_rollback:
             # Need to invalidate the cache in case there were
@@ -381,7 +391,7 @@ cdef class DatabaseConnectionView:
         if not self._in_tx:
             if new_types:
                 self._db._update_backend_ids(new_types)
-            if query_unit.has_ddl:
+            if query_unit.user_schema is not None:
                 self._in_tx_dbver = next_dbver()
                 self._db._set_and_signal_new_user_schema(
                     pickle.loads(query_unit.user_schema),
@@ -394,8 +404,13 @@ cdef class DatabaseConnectionView:
                 side_effects |= SideEffects.SystemConfigChanges
             if query_unit.database_config:
                 side_effects |= SideEffects.DatabaseConfigChanges
+            if query_unit.global_schema is not None:
+                side_effects |= SideEffects.GlobalSchemaChanges
+                self._db._index.update_global_schema(
+                    pickle.loads(query_unit.global_schema))
             if query_unit.has_role_ddl:
                 side_effects |= SideEffects.RoleChanges
+                self._db._index._server._fetch_roles()
         else:
             if new_types:
                 self._in_tx_new_types.update(new_types)
@@ -414,7 +429,7 @@ cdef class DatabaseConnectionView:
 
             if self._in_tx_new_types:
                 self._db._update_backend_ids(self._in_tx_new_types)
-            if self._in_tx_with_ddl:
+            if query_unit.user_schema is not None:
                 self._db._set_and_signal_new_user_schema(
                     pickle.loads(query_unit.user_schema),
                     pickle.loads(query_unit.cached_reflection)
@@ -426,6 +441,11 @@ cdef class DatabaseConnectionView:
                 side_effects |= SideEffects.SystemConfigChanges
             if self._in_tx_with_dbconfig:
                 side_effects |= SideEffects.DatabaseConfigChanges
+            if query_unit.global_schema is not None:
+                side_effects |= SideEffects.GlobalSchemaChanges
+                self._db._index.update_global_schema(
+                    pickle.loads(query_unit.global_schema))
+                self._db._index._server._fetch_roles()
             if self._in_tx_with_role_ddl:
                 side_effects |= SideEffects.RoleChanges
 

@@ -164,10 +164,6 @@ class BaseCluster:
         )
 
     def get_connection_addr(self):
-        status = self.get_status()
-        if status != 'running':
-            raise ClusterError('cluster is not running')
-
         return self._get_connection_addr()
 
     def set_default_session_authorization(self, rolename: str) -> None:

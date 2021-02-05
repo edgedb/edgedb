@@ -35,7 +35,7 @@ from . import schema as s_schema
 
 
 class Database(
-    so.GlobalObject,
+    so.ExternalObject,
     s_anno.AnnotationSubject,
     s_abc.Database,
     qlkind=qltypes.SchemaObjectClass.DATABASE,
@@ -49,7 +49,7 @@ class DatabaseCommandContext(sd.ObjectCommandContext[Database]):
 
 
 class DatabaseCommand(
-    sd.GlobalObjectCommand[Database],
+    sd.ExternalObjectCommand[Database],
     context_class=DatabaseCommandContext,
 ):
 
@@ -73,7 +73,7 @@ class DatabaseCommand(
         return schema
 
 
-class CreateDatabase(DatabaseCommand, sd.CreateObject[Database]):
+class CreateDatabase(DatabaseCommand, sd.CreateExternalObject[Database]):
 
     astnode = qlast.CreateDatabase
     template = struct.Field(str, default=None)
@@ -104,5 +104,5 @@ class AlterDatabase(DatabaseCommand, sd.AlterObject[Database]):
     astnode = qlast.AlterDatabase
 
 
-class DropDatabase(DatabaseCommand, sd.DeleteObject[Database]):
+class DropDatabase(DatabaseCommand, sd.DeleteExternalObject[Database]):
     astnode = qlast.DropDatabase

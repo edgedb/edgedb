@@ -651,6 +651,7 @@ class ParallelTextTestResult(unittest.result.TestResult):
 
     def addError(self, test, err):
         super().addError(test, err)
+        print('>>>>', test, err)
         self.report_progress(test, Markers.errored)
         if self.failfast:
             self.suite.stop_requested = True

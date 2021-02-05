@@ -70,6 +70,7 @@ from edb.ir import utils as irutils
 from edb.pgsql import common
 from edb.pgsql import dbops
 
+from edb.server import defines as edbdef
 from edb.server import pgcluster
 
 from . import ast as pg_ast
@@ -330,6 +331,121 @@ class AlterSchemaVersion(
             '''
         )
         self.pgops.add(check)
+        return schema
+
+
+class GlobalSchemaVersionCommand(ObjectMetaCommand):
+    pass
+
+
+class CreateGlobalSchemaVersion(
+    ObjectMetaCommand,
+    adapts=s_ver.CreateGlobalSchemaVersion,
+):
+
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = s_ver.CreateGlobalSchemaVersion.apply(self, schema, context)
+        schema = ObjectMetaCommand.apply(self, schema, context)
+        ver_id = str(self.scls.id)
+        ver_name = str(self.scls.get_name(schema))
+        self.pgops.add(
+            dbops.UpdateMetadataSection(
+                dbops.Database(name=edbdef.EDGEDB_TEMPLATE_DB),
+                section='GlobalSchemaVersion',
+                metadata={
+                    ver_id: {
+                        'id': ver_id,
+                        'name': ver_name,
+                        'version': str(self.scls.get_version(schema)),
+                        'builtin': self.scls.get_builtin(schema),
+                        'internal': self.scls.get_internal(schema),
+                    }
+                }
+            )
+        )
+
+        return schema
+
+
+class AlterGlobalSchemaVersion(
+    ObjectMetaCommand,
+    adapts=s_ver.AlterGlobalSchemaVersion,
+):
+
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = s_ver.AlterGlobalSchemaVersion.apply(self, schema, context)
+        schema = ObjectMetaCommand.apply(self, schema, context)
+        ver_id = str(self.scls.id)
+        ver_name = str(self.scls.get_name(schema))
+
+        expected_ver = self.get_orig_attribute_value('version')
+        lock = dbops.Query(
+            f'''
+                SELECT
+                    description
+                FROM
+                    pg_catalog.pg_shdescription
+                WHERE
+                    objoid = (
+                        SELECT oid
+                        FROM pg_database
+                        WHERE datname = {ql(edbdef.EDGEDB_TEMPLATE_DB)}
+                    )
+                    AND classoid = 'pg_database'::regclass::oid
+                FOR UPDATE
+                INTO _dummy_text
+            '''
+        )
+        self.pgops.add(lock)
+
+        check = dbops.Query(
+            f'''
+                SELECT
+                    edgedb.raise_on_not_null(
+                        (SELECT NULLIF(
+                            (SELECT
+                                version::text
+                            FROM
+                                edgedb."_SysGlobalSchemaVersion"
+                            ),
+                            {ql(str(expected_ver))}
+                        )),
+                        'serialization_failure',
+                        msg => (
+                            'Cannot serialize global DDL: '
+                            || (SELECT version::text FROM
+                                edgedb."_SysGlobalSchemaVersion")
+                        )
+                    )
+                INTO _dummy_text
+            '''
+        )
+        self.pgops.add(check)
+
+        self.pgops.add(
+            dbops.UpdateMetadataSection(
+                dbops.Database(name=edbdef.EDGEDB_TEMPLATE_DB),
+                section='GlobalSchemaVersion',
+                metadata={
+                    ver_id: {
+                        'id': ver_id,
+                        'name': ver_name,
+                        'version': str(self.scls.get_version(schema)),
+                        'builtin': self.scls.get_builtin(schema),
+                        'internal': self.scls.get_internal(schema),
+                    }
+                }
+            )
+        )
+
         return schema
 
 
@@ -4570,7 +4686,7 @@ class CreateDatabase(ObjectMetaCommand, adapts=s_db.CreateDatabase):
                     str(self.classname),
                     metadata=dict(
                         id=str(db.id),
-                        builtin=db.get_builtin(schema),
+                        builtin=self.get_attribute_value('builtin'),
                     ),
                     template=self.template,
                 )

@@ -28,7 +28,7 @@ from edb.pgsql import common
 from edb.pgsql import dbops
 
 
-class SchemaDBObjectMeta(adapter.Adapter, type(s_obj.Object)):  # type: ignore
+class SchemaDBObjectMeta(adapter.Adapter):  # type: ignore
     def __init__(cls, name, bases, dct, *, adapts=None):
         adapter.Adapter.__init__(cls, name, bases, dct, adapts=adapts)
         type(s_obj.Object).__init__(cls, name, bases, dct)

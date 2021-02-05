@@ -62,6 +62,8 @@ class PGErrorCode(enum.Enum):
 
     InvalidCatalogNameError = '3D000'
 
+    DuplicateDatabaseError = '42P04'
+
     ObjectInUse = '55006'
 
 
@@ -322,10 +324,13 @@ def static_interpret_backend_error(fields):
         return errors.TransactionDeadlockError(err_details.message)
 
     elif err_details.code == PGErrorCode.InvalidCatalogNameError:
-        return errors.AuthenticationError(err_details.message)
+        return errors.UnknownDatabaseError(err_details.message)
 
     elif err_details.code == PGErrorCode.ObjectInUse:
         return errors.ExecutionError(err_details.message)
+
+    elif err_details.code == PGErrorCode.DuplicateDatabaseError:
+        return errors.DuplicateDatabaseDefinitionError(err_details.message)
 
     return errors.InternalServerError(err_details.message)
 

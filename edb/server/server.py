@@ -34,6 +34,7 @@ from edb import errors
 from edb.common import taskgroup
 
 from edb.schema import reflection as s_refl
+from edb.schema import roles as s_role
 from edb.schema import schema as s_schema
 
 from edb.edgeql import parser as ql_parser
@@ -167,12 +168,12 @@ class Server:
         self._sys_pgcon_waiters.put_nowait(self.__sys_pgcon)
 
         await self._load_instance_data()
-        await self._fetch_roles()
 
         global_schema = await self.introspect_global_schema()
         self._dbindex = await dbview.DatabaseIndex.init(
             self, self._std_schema, global_schema)
 
+        self._fetch_roles()
         await self._introspect_dbs()
 
         # Now, once all DBs have been introspected, start listening on
@@ -230,15 +231,21 @@ class Server:
             discard = True
         self._pg_pool.release(dbname, conn, discard=discard)
 
-    async def introspect_global_schema(self):
-        syscon = await self._acquire_sys_pgcon()
-        try:
-            json_data = await syscon.parse_execute_json(
+    async def introspect_global_schema(self, conn=None):
+        if conn is not None:
+            json_data = await conn.parse_execute_json(
                 self._global_intro_query, b'__global_intro_db',
                 dbver=0, use_prep_stmt=True, args=(),
             )
-        finally:
-            self._release_sys_pgcon()
+        else:
+            syscon = await self._acquire_sys_pgcon()
+            try:
+                json_data = await syscon.parse_execute_json(
+                    self._global_intro_query, b'__global_intro_db',
+                    dbver=0, use_prep_stmt=True, args=(),
+                )
+            finally:
+                self._release_sys_pgcon()
 
         return s_refl.parse_into(
             base_schema=self._std_schema,
@@ -250,6 +257,7 @@ class Server:
     async def _reintrospect_global_schema(self):
         new_global_schema = await self.introspect_global_schema()
         self._dbindex.update_global_schema(new_global_schema)
+        self._fetch_roles()
 
     async def introspect_user_schema(self, conn):
         json_data = await conn.parse_execute_json(
@@ -333,18 +341,19 @@ class Server:
             for dbname in dbnames:
                 g.create_task(self.introspect_db(dbname))
 
-    async def _fetch_roles(self):
-        syscon = await self._acquire_sys_pgcon()
-        try:
-            role_query = self.get_sys_query('roles')
-            json_data = await syscon.parse_execute_json(
-                role_query, b'__sys_role',
-                dbver=0, use_prep_stmt=True, args=(),
-            )
-            roles = json.loads(json_data)
-            self._roles = immutables.Map([(r['name'], r) for r in roles])
-        finally:
-            self._release_sys_pgcon()
+    def _fetch_roles(self):
+        global_schema = self._dbindex.get_global_schema()
+
+        roles = {}
+        for role in global_schema.get_objects(type=s_role.Role):
+            role_name = str(role.get_name(global_schema))
+            roles[role_name] = {
+                'name': role_name,
+                'superuser': role.get_superuser(global_schema),
+                'password': role.get_password(global_schema),
+            }
+
+        self._roles = immutables.Map(roles)
 
     async def _load_instance_data(self):
         syscon = await self._acquire_sys_pgcon()
@@ -607,9 +616,6 @@ class Server:
         # Triggered by a postgres notification event 'ystem-config-changes'
         # on the __edgedb_sysevent__ channel
         pass
-
-    def _on_role_change(self):
-        self._loop.create_task(self._fetch_roles())
 
     def _on_global_schema_change(self):
         self._loop.create_task(self._reintrospect_global_schema())

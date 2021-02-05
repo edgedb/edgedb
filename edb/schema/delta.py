@@ -2669,6 +2669,10 @@ class GlobalObjectCommand(ObjectCommand[so.GlobalObject_T]):
     pass
 
 
+class ExternalObjectCommand(ObjectCommand[so.ExternalObject_T]):
+    pass
+
+
 class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
     _delta_action = 'create'
 
@@ -2867,6 +2871,58 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
             objctx.scls = self.scls
             schema = self._create_innards(schema, context)
             schema = self._create_finalize(schema, context)
+        return schema
+
+
+class CreateExternalObject(
+    CreateObject[so.ExternalObject_T],
+    ExternalObjectCommand[so.ExternalObject_T],
+):
+
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> s_schema.Schema:
+        with self.new_context(schema, context, _dummy_object):  # type: ignore
+            if self.if_not_exists:
+                raise NotImplementedError(
+                    'if_not_exists not implemented for external objects')
+
+            schema = self._create_begin(schema, context)
+            schema = self._create_innards(schema, context)
+            schema = self._create_finalize(schema, context)
+
+        return schema
+
+    def _create_begin(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> s_schema.Schema:
+        self._validate_legal_command(schema, context)
+
+        if not context.canonical:
+            schema = self.populate_ddl_identity(schema, context)
+            schema = self.canonicalize_attributes(schema, context)
+            self.validate_create(schema, context)
+            computed_status = self._get_computed_status_of_fields(
+                schema, context)
+            computed_fields = {n for n, v in computed_status.items() if v}
+            if computed_fields:
+                self.set_attribute_value(
+                    'computed_fields', frozenset(computed_fields))
+
+        props = self.get_resolved_attributes(schema, context)
+        metaclass = self.get_schema_metaclass()
+
+        obj_id = props.get('id')
+        if obj_id is None:
+            obj_id = metaclass._prepare_id(schema, props)
+            self.set_attribute_value('id', obj_id)
+
+        self.scls = metaclass._create_from_id(obj_id)
+
         return schema
 
 
@@ -3442,6 +3498,49 @@ class DeleteObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
 
                 return schema
 
+            schema = self._delete_begin(schema, context)
+            schema = self._delete_innards(schema, context)
+            schema = self._delete_finalize(schema, context)
+
+        return schema
+
+
+class DeleteExternalObject(
+    DeleteObject[so.ExternalObject_T],
+    ExternalObjectCommand[so.ExternalObject_T],
+):
+    def _delete_begin(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> s_schema.Schema:
+        return schema
+
+    def _delete_innards(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> s_schema.Schema:
+        for op in self.get_subcommands(metaclass=so.Object):
+            schema = op.apply(schema, context=context)
+
+        return schema
+
+    def _delete_finalize(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> s_schema.Schema:
+        return schema
+
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> s_schema.Schema:
+        self.scls = _dummy_object  # type: ignore
+
+        with self.new_context(schema, context, self.scls):
             schema = self._delete_begin(schema, context)
             schema = self._delete_innards(schema, context)
             schema = self._delete_finalize(schema, context)
