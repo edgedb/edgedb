@@ -128,7 +128,6 @@ cdef class Protocol(http.HttpProtocol):
         # TODO(tailhook) check capabilities
         return await compiler_pool.compile_notebook(
             db.name,
-            db.dbver,
             db.user_schema,
             self.port.get_global_schema(),
             db.reflection_cache,
@@ -137,6 +136,7 @@ cdef class Protocol(http.HttpProtocol):
         )
 
     async def execute(self, queries: list):
+        dbver = self.port.get_db().dbver
         units = await self.compile(queries)
         result = []
 
@@ -160,7 +160,7 @@ cdef class Protocol(http.HttpProtocol):
                         )
                     try:
                         data = await pgcon.parse_execute_notebook(
-                            query_unit.sql[0], query_unit.dbver)
+                            query_unit.sql[0], dbver)
                     except Exception as ex:
                         if debug.flags.server:
                             markup.dump(ex)

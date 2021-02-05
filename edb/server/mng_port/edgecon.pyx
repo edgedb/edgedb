@@ -739,7 +739,6 @@ cdef class EdgeConnection:
         else:
             units, self.last_state = await compiler_pool.compile(
                 self.dbview.dbname,
-                self.dbview.dbver,
                 self.dbview.get_user_schema(),
                 self.dbview.get_global_schema(),
                 self.dbview.reflection_cache,  # XXX
@@ -784,7 +783,6 @@ cdef class EdgeConnection:
         else:
             units, self.last_state = await compiler_pool.compile(
                 self.dbview.dbname,
-                self.dbview.dbver,
                 self.dbview.get_user_schema(),
                 self.dbview.get_global_schema(),
                 self.dbview.reflection_cache,  # XXX
@@ -804,8 +802,7 @@ cdef class EdgeConnection:
         assert self.dbview.in_tx_error()
         try:
             compiler_pool = self.port.get_server().get_compiler_pool()
-            return await compiler_pool.try_compile_rollback(
-                self.dbview.dbver, eql)
+            return await compiler_pool.try_compile_rollback(eql)
         except Exception:
             self.dbview.raise_in_tx_error()
 
@@ -985,7 +982,6 @@ cdef class EdgeConnection:
             await self.port.get_server()._signal_sysevent(
                 'schema-changes',
                 dbname=self.dbview.dbname,
-                dbver=self.dbview.dbver.hex(),
             )
         if side_effects & dbview.SideEffects.GlobalSchemaChanges:
             await self.port.get_server()._signal_sysevent(
@@ -1391,6 +1387,7 @@ cdef class EdgeConnection:
                             bound_args_buf,     # =bind_data
                             use_prep_stmt,      # =use_prep_stmt
                             state,              # =state
+                            self.dbview.dbver,  # =dbver
                         )
 
                 if query_unit.create_db:

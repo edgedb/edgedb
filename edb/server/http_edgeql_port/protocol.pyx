@@ -137,7 +137,6 @@ cdef class Protocol(http.HttpProtocol):
 
         units, _ = await compiler_pool.compile(
             db.name,
-            db.dbver,
             db.user_schema,
             self.port.get_global_schema(),
             db.reflection_cache,
@@ -155,7 +154,7 @@ cdef class Protocol(http.HttpProtocol):
         return units[0]
 
     async def execute(self, bytes query, variables):
-        dbver = self.port.get_dbver()
+        dbver = self.port.get_db().dbver
         cache_key = (query, dbver)
         use_prep_stmt = False
 
@@ -191,7 +190,7 @@ cdef class Protocol(http.HttpProtocol):
             self.port.database)
         try:
             data = await pgcon.parse_execute_json(
-                query_unit.sql[0], query_unit.sql_hash, query_unit.dbver,
+                query_unit.sql[0], query_unit.sql_hash, dbver,
                 use_prep_stmt, args)
         finally:
             self.port.get_server().release_pgcon(self.port.database, pgcon)

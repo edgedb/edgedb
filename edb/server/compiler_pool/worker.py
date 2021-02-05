@@ -80,14 +80,13 @@ async def __init_worker__(
     )
     STD_SCHEMA = std_schema
 
-    COMPILER.ensure_initialized2(
+    COMPILER.initialize(
         std_schema, refl_schema, schema_class_layout,
     )
 
 
 def __sync__(
     dbname: str,
-    dbver: bytes,
     user_schema: Optional[bytes],
     reflection_cache: Optional[state.ReflectionCache],
     global_schema: Optional[bytes],
@@ -95,13 +94,10 @@ def __sync__(
     global DBS
 
     db = DBS.get(dbname)
-    if db is None or db.dbver != dbver:
-        if user_schema is None:
-            raise RuntimeError(
-                'dbver has changed but the user_schema was not sent')
+    if user_schema is not None:
         user_schema = pickle.loads(user_schema)
         db = state.DatabaseState(
-            dbname, dbver, user_schema, reflection_cache  # type: ignore
+            dbname, user_schema, reflection_cache  # type: ignore
         )
         DBS = DBS.set(dbname, db)
 
@@ -114,17 +110,15 @@ def __sync__(
 
 async def compile(
     dbname: str,
-    dbver: bytes,
     user_schema: Optional[bytes],
     reflection_cache: Optional[state.ReflectionCache],
     global_schema: Optional[bytes],
     *compile_args: Any,
     **compile_kwargs: Any,
 ):
-    db = __sync__(dbname, dbver, user_schema, reflection_cache, global_schema)
+    db = __sync__(dbname, user_schema, reflection_cache, global_schema)
 
     units, cstate = await COMPILER.compile(
-        db.dbver,
         db.user_schema,
         GLOBAL_SCHEMA,
         db.reflection_cache,
@@ -149,17 +143,15 @@ async def compile_in_tx(state, *args, **kwargs):
 
 async def compile_notebook(
     dbname: str,
-    dbver: bytes,
     user_schema: Optional[bytes],
     reflection_cache: Optional[state.ReflectionCache],
     global_schema: Optional[bytes],
     *compile_args: Any,
     **compile_kwargs: Any,
 ):
-    db = __sync__(dbname, dbver, user_schema, reflection_cache, global_schema)
+    db = __sync__(dbname, user_schema, reflection_cache, global_schema)
 
     return await COMPILER.compile_notebook(
-        db.dbver,
         db.user_schema,
         GLOBAL_SCHEMA,
         db.reflection_cache,
@@ -169,25 +161,22 @@ async def compile_notebook(
 
 
 async def try_compile_rollback(
-    dbver: bytes,
     eql: bytes
 ):
-    return COMPILER.try_compile_rollback(dbver, eql)
+    return COMPILER.try_compile_rollback(eql)
 
 
 async def compile_graphql(
     dbname: str,
-    dbver: bytes,
     user_schema: Optional[bytes],
     reflection_cache: Optional[state.ReflectionCache],
     global_schema: Optional[bytes],
     *compile_args: Any,
     **compile_kwargs: Any,
 ):
-    db = __sync__(dbname, dbver, user_schema, reflection_cache, global_schema)
+    db = __sync__(dbname, user_schema, reflection_cache, global_schema)
 
     return graphql.compile_graphql(
-        dbver,
         STD_SCHEMA,
         db.user_schema,
         GLOBAL_SCHEMA,

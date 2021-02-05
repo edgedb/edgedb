@@ -170,8 +170,6 @@ class Param:
 @dataclasses.dataclass
 class QueryUnit:
 
-    dbver: bytes
-
     sql: Tuple[bytes, ...]
 
     # Status-line for the compiled command; returned to front-end
@@ -459,13 +457,12 @@ class Transaction:
 
 class CompilerConnectionState:
 
-    __slots__ = ('_savepoints_log', '_dbver', '_current_tx', '_tx_count',)
+    __slots__ = ('_savepoints_log', '_current_tx', '_tx_count',)
 
     _savepoints_log: Dict[int, TransactionState]
 
     def __init__(
         self,
-        dbver: bytes,
         user_schema: s_schema.Schema,
         global_schema: s_schema.Schema,
         modaliases: immutables.Map,
@@ -473,7 +470,6 @@ class CompilerConnectionState:
         cached_reflection: FrozenSet[str]
     ):
         self._tx_count = time.monotonic_ns()
-        self._dbver = dbver
         self._init_current_tx(
             user_schema, global_schema, modaliases, config, cached_reflection)
         self._savepoints_log = {}
@@ -520,10 +516,6 @@ class CompilerConnectionState:
         for id in tuple(self._savepoints_log):
             if id > spid:
                 self._savepoints_log.pop(id)
-
-    @property
-    def dbver(self):
-        return self._dbver
 
     def current_tx(self) -> Transaction:
         return self._current_tx

@@ -78,6 +78,7 @@ cdef class DatabaseConnectionView:
         object _in_tx_user_schema_pickled
         object _in_tx_user_schema
         object _in_tx_new_types
+        int _in_tx_dbver
         bint _in_tx
         bint _in_tx_with_ddl
         bint _in_tx_with_role_ddl
