@@ -1368,11 +1368,13 @@ class _EdgeDBServer:
         auto_shutdown: bool,
         adjacent_to: Optional[edgedb.AsyncIOConnection],
         max_allowed_connections: int,
+        compiler_pool_size: int,
     ) -> None:
         self.auto_shutdown = auto_shutdown
         self.bootstrap_command = bootstrap_command
         self.adjacent_to = adjacent_to
         self.max_allowed_connections = max_allowed_connections
+        self.compiler_pool_size = compiler_pool_size
         self.proc = None
 
     async def _read_runtime_info(self, stdout: asyncio.StreamReader):
@@ -1407,6 +1409,7 @@ class _EdgeDBServer:
             '--port', 'auto',
             '--testmode',
             '--echo-runtime-info',
+            '--compiler-pool-size', str(self.compiler_pool_size),
             '--max-backend-connections', str(self.max_allowed_connections),
         ]
 
@@ -1466,7 +1469,8 @@ def start_edgedb_server(
     *,
     auto_shutdown: bool=False,
     bootstrap_command: Optional[str]=None,
-    max_allowed_connections: int=5,
+    max_allowed_connections: int=10,
+    compiler_pool_size: int=2,
     adjacent_to: Optional[edgedb.AsyncIOConnection]=None,
 ):
     return _EdgeDBServer(
@@ -1474,4 +1478,5 @@ def start_edgedb_server(
         bootstrap_command=bootstrap_command,
         max_allowed_connections=max_allowed_connections,
         adjacent_to=adjacent_to,
+        compiler_pool_size=compiler_pool_size
     )

@@ -221,6 +221,7 @@ def _run_server(cluster, args: ServerConfig,
         runstate_dir=runstate_dir,
         internal_runstate_dir=internal_runstate_dir,
         max_backend_connections=args.max_backend_connections,
+        compiler_pool_size=args.compiler_pool_size,
         nethost=args.bind_address,
         netport=args.port,
         auto_shutdown=args.auto_shutdown,
@@ -438,6 +439,7 @@ class ServerConfig(typing.NamedTuple):
     daemon_group: str
     runstate_dir: pathlib.Path
     max_backend_connections: int
+    compiler_pool_size: int
     echo_runtime_info: bool
     temp_dir: bool
     auto_shutdown: bool
@@ -484,6 +486,22 @@ def _protocol_version(
             f"{mng_port.MIN_PROTOCOL[0]}.{mng_port.MIN_PROTOCOL[1]} - "
             f"{mng_port.CURRENT_PROTOCOL[0]}.{mng_port.CURRENT_PROTOCOL[1]}")
     return ver
+
+
+def _validate_max_backend_connections(ctx, param, value):
+    if value < defines.BACKEND_CONNECTIONS_MIN:
+        raise click.BadParameter(
+            f'the minimum number of backend connections '
+            f'is {defines.BACKEND_CONNECTIONS_MIN}')
+    return value
+
+
+def _validate_compiler_pool_size(ctx, param, value):
+    if value < defines.BACKEND_COMPILER_POOL_SIZE_MIN:
+        raise click.BadParameter(
+            f'the minimum value for the compiler pool size option '
+            f'is {defines.BACKEND_COMPILER_POOL_SIZE_MIN}')
+    return value
 
 
 _server_options = [
@@ -554,7 +572,13 @@ _server_options = [
              f'runtime files will be placed ({_get_runstate_dir_default()} '
              f'by default)'),
     click.option(
-        '--max-backend-connections', type=int, default=100),
+        '--max-backend-connections', type=int,
+        default=defines.BACKEND_CONNECTIONS_DEFAULT,
+        callback=_validate_max_backend_connections),
+    click.option(
+        '--compiler-pool-size', type=int,
+        default=defines.BACKEND_COMPILER_POOL_SIZE_DEFAULT,
+        callback=_validate_compiler_pool_size),
     click.option(
         '--echo-runtime-info', type=bool, default=False, is_flag=True,
         help='echo runtime info to stdout; the format is JSON, prefixed by ' +
