@@ -57,8 +57,8 @@ _ENV = os.environ.copy()
 _ENV['PYTHONPATH'] = ':'.join(sys.path)
 
 
-@functools.lru_cache(25)
-def _pickle_schema(schema):
+@functools.lru_cache()
+def _pickle_memoized(schema):
     return pickle.dumps(schema, -1)
 
 
@@ -92,18 +92,6 @@ class Worker:
         self._con = None
         self._last_used = time.monotonic()
         self._closed = False
-
-    def _update_db(
-        self,
-        dbname,
-        new_user_schema,
-        new_reflection_cache
-    ):
-        self._dbs = self._dbs.set(dbname, state.DatabaseState(
-            name=dbname,
-            user_schema=new_user_schema,
-            reflection_cache=new_reflection_cache
-        ))
 
     async def _attach(self):
         self._manager._stats_spawned += 1
@@ -302,21 +290,52 @@ class Pool:
         reflection_cache,
     ):
         worker_db = worker._dbs.get(dbname)
-
         preargs = (dbname,)
 
-        if worker_db is None or worker_db.user_schema != user_schema:
+        if worker_db is None:
             preargs += (
-                _pickle_schema(user_schema), reflection_cache
+                _pickle_memoized(user_schema),
+                _pickle_memoized(reflection_cache),
+                _pickle_memoized(global_schema),
             )
-            worker._update_db(dbname, user_schema, reflection_cache)
+            worker._dbs = worker._dbs.set(dbname, state.DatabaseState(
+                name=dbname,
+                user_schema=user_schema,
+                reflection_cache=reflection_cache
+            ))
+            worker._global_schema = global_schema
         else:
-            preargs += (None, None)
+            if worker_db.user_schema is not user_schema:
+                preargs += (
+                    _pickle_memoized(user_schema),
+                )
+                worker._dbs = worker._dbs.set(dbname, state.DatabaseState(
+                    name=dbname,
+                    user_schema=user_schema,
+                    reflection_cache=worker_db.reflection_cache
+                ))
+            else:
+                preargs += (None,)
 
-        if worker._global_schema is not global_schema:
-            preargs += (_pickle_schema(global_schema),)
-        else:
-            preargs += (None,)
+            if worker_db.reflection_cache is not reflection_cache:
+                preargs += (
+                    _pickle_memoized(reflection_cache),
+                )
+                worker._dbs = worker._dbs.set(dbname, state.DatabaseState(
+                    name=dbname,
+                    user_schema=worker_db.user_schema,
+                    reflection_cache=reflection_cache
+                ))
+            else:
+                preargs += (None,)
+
+            if worker._global_schema is not global_schema:
+                preargs += (
+                    _pickle_memoized(global_schema),
+                )
+                worker._global_schema = global_schema
+            else:
+                preargs += (None,)
 
         return preargs
 

@@ -88,18 +88,33 @@ async def __init_worker__(
 def __sync__(
     dbname: str,
     user_schema: Optional[bytes],
-    reflection_cache: Optional[state.ReflectionCache],
+    reflection_cache: Optional[bytes],
     global_schema: Optional[bytes],
 ) -> state.DatabaseState:
     global DBS
 
     db = DBS.get(dbname)
-    if user_schema is not None:
-        user_schema = pickle.loads(user_schema)
+    if db is None:
+        user_schema_unpacked = pickle.loads(user_schema)
+        reflection_cache_unpacked = pickle.loads(reflection_cache)
         db = state.DatabaseState(
-            dbname, user_schema, reflection_cache  # type: ignore
+            dbname, user_schema_unpacked, reflection_cache_unpacked
         )
         DBS = DBS.set(dbname, db)
+    else:
+        if user_schema is not None:
+            user_schema_unpacked = pickle.loads(user_schema)
+            db = state.DatabaseState(
+                dbname, user_schema_unpacked, db.reflection_cache
+            )
+            DBS = DBS.set(dbname, db)
+
+        if reflection_cache is not None:
+            reflection_cache_unpacked = pickle.loads(reflection_cache)
+            db = state.DatabaseState(
+                dbname, db.user_schema, reflection_cache_unpacked
+            )
+            DBS = DBS.set(dbname, db)
 
     global GLOBAL_SCHEMA
     if global_schema is not None:
@@ -111,7 +126,7 @@ def __sync__(
 async def compile(
     dbname: str,
     user_schema: Optional[bytes],
-    reflection_cache: Optional[state.ReflectionCache],
+    reflection_cache: Optional[bytes],
     global_schema: Optional[bytes],
     *compile_args: Any,
     **compile_kwargs: Any,
@@ -144,7 +159,7 @@ async def compile_in_tx(state, *args, **kwargs):
 async def compile_notebook(
     dbname: str,
     user_schema: Optional[bytes],
-    reflection_cache: Optional[state.ReflectionCache],
+    reflection_cache: Optional[bytes],
     global_schema: Optional[bytes],
     *compile_args: Any,
     **compile_kwargs: Any,
@@ -169,7 +184,7 @@ async def try_compile_rollback(
 async def compile_graphql(
     dbname: str,
     user_schema: Optional[bytes],
-    reflection_cache: Optional[state.ReflectionCache],
+    reflection_cache: Optional[bytes],
     global_schema: Optional[bytes],
     *compile_args: Any,
     **compile_kwargs: Any,
