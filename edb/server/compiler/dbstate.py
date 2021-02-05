@@ -120,8 +120,8 @@ class SessionStateQuery(BaseQuery):
 class DDLQuery(BaseQuery):
 
     user_schema: s_schema.FlatSchema
+    global_schema: Optional[s_schema.FlatSchema] = None
     cached_reflection: Any = None
-    global_schema_updates: bool = False
     is_transactional: bool = True
     single_unit: bool = False
     create_db: Optional[str] = None
@@ -141,6 +141,7 @@ class TxControlQuery(BaseQuery):
     single_unit: bool = False
 
     user_schema: Optional[s_schema.FlatSchema] = None
+    global_schema: Optional[s_schema.FlatSchema] = None
     cached_reflection: Any = None
 
 
@@ -257,9 +258,9 @@ class QueryUnit:
     user_schema: Optional[bytes] = None
     cached_reflection: Optional[bytes] = None
 
-    # Whether the global schema would be updated if this query
-    # unit is executed or not.
-    global_schema_updates: bool = False
+    # If present, represents the future global schema state
+    # after the command is run. The schema is pickled.
+    global_schema: Optional[bytes] = None
 
     @property
     def has_ddl(self) -> bool:

@@ -976,12 +976,9 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                     dbname = cls.get_database_name()
 
                     async def drop_db():
-                        async for tr in cls.try_until_succeeds(
-                            ignore=edgedb.InvalidReferenceError
-                        ):
-                            async with tr:
-                                await cls.admin_conn.execute(
-                                    f'DROP DATABASE {dbname};')
+                        await cls.admin_conn.execute(
+                            f'DROP DATABASE {dbname};'
+                        )
 
                     cls.loop.run_until_complete(drop_db())
 

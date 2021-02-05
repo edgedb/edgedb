@@ -1323,9 +1323,16 @@ cdef class PGConnection:
                 server_id = event_data.get('server_id')
 
                 event_payload = event_data.get('args')
+                if (
+                    event in {
+                        'schema-changes',
+                        'global-schema-changes',
+                    }
+                    and server_id == self.server._server_id
+                ):
+                    return True
+
                 if event == 'schema-changes':
-                    if server_id == self.server._server_id:
-                        return True
                     dbname = event_payload['dbname']
                     self.server._on_remote_ddl(dbname)
                 elif event == 'database-config-changes':
@@ -1333,8 +1340,6 @@ cdef class PGConnection:
                     self.server._on_remote_database_config_change(dbname)
                 elif event == 'system-config-changes':
                     self.server._on_remote_system_config_change()
-                elif event == 'role-changes':
-                    self.server._on_role_change()
                 elif event == 'global-schema-changes':
                     self.server._on_global_schema_change()
                 else:

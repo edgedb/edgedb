@@ -100,3 +100,15 @@ def make_schema_version(
     schema_version.set_attribute_value('internal', True)
     schema = sd.apply(schema_version, schema=schema)
     return schema, schema_version
+
+
+def make_global_schema_version(
+    schema: s_schema.Schema,
+) -> Tuple[s_schema.Schema, s_ver.CreateGlobalSchemaVersion]:
+    sv = sn.UnqualName('__global_schema_version__')
+    schema_version = s_ver.CreateGlobalSchemaVersion(classname=sv)
+    schema_version.set_attribute_value('name', sv)
+    schema_version.set_attribute_value('version', uuidgen.uuid1mc())
+    schema_version.set_attribute_value('internal', True)
+    schema = sd.apply(schema_version, schema=schema)
+    return schema, schema_version

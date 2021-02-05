@@ -833,9 +833,10 @@ class Compiler:
             debug.header('Delta Script')
             debug.dump_code(b'\n'.join(sql), lexer='sql')
 
-        global_schema_updates = False
-        if isinstance(stmt, (qlast.DatabaseCommand, qlast.RoleCommand)):
-            global_schema_updates = True
+        global_schema_updates = (
+            isinstance(stmt, qlast.GlobalObjectCommand)
+            and not isinstance(stmt, qlast.ExternalObjectCommand)
+        )
 
         return dbstate.DDLQuery(
             sql=sql,
@@ -852,7 +853,11 @@ class Compiler:
             ddl_stmt_id=ddl_stmt_id,
             user_schema=current_tx.get_user_schema(),
             cached_reflection=current_tx.get_cached_reflection_if_updated(),
-            global_schema_updates=global_schema_updates,
+            global_schema=(
+                current_tx.get_global_schema()
+                if global_schema_updates
+                else None
+            ),
         )
 
     def _compile_ql_migration(
@@ -1203,6 +1208,7 @@ class Compiler:
         modaliases = None
         final_user_schema: Optional[s_schema.Schema] = None
         final_cached_reflection = None
+        final_global_schema: Optional[s_schema.Schema] = None
 
         if isinstance(ql, qlast.StartTransaction):
             self._assert_not_in_migration_block(ctx, ql)
@@ -1227,9 +1233,10 @@ class Compiler:
 
             new_state: dbstate.TransactionState = ctx.state.commit_tx()
             modaliases = new_state.modaliases
-            final_user_schema = ctx.state.current_tx().get_user_schema()
-            final_cached_reflection = \
-                ctx.state.current_tx().get_cached_reflection_if_updated()
+            cur_tx = ctx.state.current_tx()
+            final_user_schema = cur_tx.get_user_schema()
+            final_cached_reflection = cur_tx.get_cached_reflection_if_updated()
+            final_global_schema = cur_tx.get_global_schema()
 
             sql = (b'COMMIT',)
             single_unit = True
@@ -1298,6 +1305,7 @@ class Compiler:
             modaliases=modaliases,
             user_schema=final_user_schema,
             cached_reflection=final_cached_reflection,
+            global_schema=final_global_schema,
         )
 
     def _compile_ql_sess_state(self, ctx: CompileContext,
@@ -1625,7 +1633,8 @@ class Compiler:
                 if comp.cached_reflection is not None:
                     unit.cached_reflection = \
                         pickle.dumps(comp.cached_reflection, -1)
-                unit.global_schema_updates = comp.global_schema_updates
+                if comp.global_schema is not None:
+                    unit.global_schema = pickle.dumps(comp.global_schema, -1)
 
                 if comp.single_unit:
                     units.append(unit)

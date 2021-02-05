@@ -908,11 +908,6 @@ class ObjectMeta(type):
     def get_reflection_link(cls) -> Optional[str]:
         return cls._reflection_link
 
-    def is_abstract(cls) -> bool:
-        """Return True if this type does NOT represent a concrete schema class.
-        """
-        return cls.get_ql_class() is None
-
 
 class FieldValueNotFoundError(Exception):
     pass
@@ -1033,6 +1028,12 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
             return f"{clsname} '{dname}' of {parent}"
         else:
             return f"{clsname} '{dname}'"
+
+    @classmethod
+    def is_abstract(cls) -> bool:
+        """Return True if this type does NOT represent a concrete schema class.
+        """
+        return cls.get_ql_class() is None
 
     def get_shortname(self, schema: s_schema.Schema) -> sn.Name:
         return type(self).get_shortname_static(self.get_name(schema))
@@ -1942,6 +1943,12 @@ class InternalObject(Object):
     Instances of InternalObject should not appear in schema dumps.
     """
 
+    @classmethod
+    def is_abstract(cls) -> bool:
+        """Return True if this type does NOT represent a concrete schema class.
+        """
+        return cls is InternalObject
+
 
 class QualifiedObject(Object):
 
@@ -1975,6 +1982,14 @@ class GlobalObject(Object):
 
 
 GlobalObject_T = TypeVar('GlobalObject_T', bound='GlobalObject')
+
+
+class ExternalObject(GlobalObject):
+    """An object that is not tracked in a schema, but some external state."""
+    pass
+
+
+ExternalObject_T = TypeVar('ExternalObject_T', bound='ExternalObject')
 
 
 class DerivableObject(QualifiedObject):
