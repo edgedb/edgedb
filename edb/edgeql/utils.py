@@ -125,6 +125,61 @@ def inline_anchors(
     inliner.visit(ql_expr)
 
 
+def find_paths(ql: qlast.Base) -> List[qlast.Path]:
+    paths: List[qlast.Path] = ast.find_children(
+        ql,
+        lambda x: isinstance(x, qlast.Path),
+    )
+    return paths
+
+
+def find_subject_ptrs(ast: qlast.Base) -> Set[str]:
+    ptrs = set()
+    for path in find_paths(ast):
+        if path.partial:
+            p = path.steps[0]
+        elif isinstance(path.steps[0], qlast.Subject) and len(path.steps) > 1:
+            p = path.steps[1]
+        else:
+            continue
+
+        if isinstance(p, qlast.Ptr):
+            ptrs.add(p.ptr.name)
+    return ptrs
+
+
+def subject_paths_substitute(
+    ast: qlast.Base_T,
+    subject_ptrs: Dict[str, qlast.Expr],
+) -> qlast.Base_T:
+    ast = copy.deepcopy(ast)
+    for path in find_paths(ast):
+        if path.partial and isinstance(path.steps[0], qlast.Ptr):
+            path.steps[0] = subject_paths_substitute(
+                subject_ptrs[path.steps[0].ptr.name],
+                subject_ptrs,
+            )
+        elif (
+            isinstance(path.steps[0], qlast.Subject)
+            and len(path.steps)
+            and isinstance(path.steps[1], qlast.Ptr)
+        ):
+            path.steps[0:2] = [subject_paths_substitute(
+                subject_ptrs[path.steps[1].ptr.name],
+                subject_ptrs,
+            )]
+    return ast
+
+
+def subject_substitute(
+        ast: qlast.Base_T, new_subject: qlast.Expr) -> qlast.Base_T:
+    ast = copy.deepcopy(ast)
+    for path in find_paths(ast):
+        if isinstance(path.steps[0], qlast.Subject):
+            path.steps[0] = new_subject
+    return ast
+
+
 def contains_dml(ql_expr: qlast.Base) -> bool:
     """Check whether a expression contains any DML in a subtree."""
     # If this ends up being a perf problem, we can use a visitor

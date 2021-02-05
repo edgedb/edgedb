@@ -64,6 +64,26 @@ type Person {
     }
 }
 
+type Person2 {
+    required single property first -> std::str;
+    optional single link note -> Note;
+    optional multi link notes -> Note;
+}
+
+type Person2a extending Person2 {
+    required single property last -> std::str;
+    constraint exclusive on ((__subject__.first, __subject__.last));
+}
+
+type Person2b extending Person2 {
+    optional single property last -> std::str;
+    property namespace := .first ++ " "; # har, har
+    property name {
+        using (.namespace ++ .last);
+        constraint exclusive;
+    }
+}
+
 type PersonWrapper {
     required single link person -> Person;
 }
