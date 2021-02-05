@@ -75,7 +75,6 @@ async def __init_worker__(
     DBS = dbs
     BACKEND_RUNTIME_PARAMS = backend_runtime_params
     COMPILER = compiler.Compiler(
-        {},  # XXX
         backend_runtime_params=BACKEND_RUNTIME_PARAMS,
     )
     STD_SCHEMA = std_schema

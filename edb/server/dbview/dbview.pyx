@@ -212,7 +212,6 @@ cdef class DatabaseConnectionView:
             return self._db.user_schema
 
     def get_global_schema(self):
-        # XXX
         return self._db._index._global_schema
 
     def get_schema(self):
