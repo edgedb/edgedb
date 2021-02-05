@@ -1733,7 +1733,8 @@ class Compiler(BaseCompiler):
                 unit.drop_db = comp.drop_db
                 unit.has_role_ddl = comp.has_role_ddl
                 unit.ddl_stmt_id = comp.ddl_stmt_id
-                unit.user_schema = comp.user_schema
+                if comp.user_schema is not None:
+                    unit.user_schema = pickle.dumps(comp.user_schema, -1)
                 unit.global_schema_updates = comp.global_schema_updates
 
                 if comp.single_unit:
@@ -1743,7 +1744,8 @@ class Compiler(BaseCompiler):
             elif isinstance(comp, dbstate.TxControlQuery):
                 unit.sql += comp.sql
                 unit.cacheable = comp.cacheable
-                unit.user_schema = comp.user_schema
+                if comp.user_schema is not None:
+                    unit.user_schema = pickle.dumps(comp.user_schema, -1)
 
                 if comp.modaliases is not None:
                     unit.modaliases = comp.modaliases
@@ -1768,7 +1770,8 @@ class Compiler(BaseCompiler):
                 unit.sql += comp.sql
                 unit.cacheable = comp.cacheable
                 unit.new_types = comp.new_types
-                unit.user_schema = comp.user_schema
+                if comp.user_schema is not None:
+                    unit.user_schema = pickle.dumps(comp.user_schema, -1)
                 unit.ddl_stmt_id = comp.ddl_stmt_id
 
                 if comp.modaliases is not None:

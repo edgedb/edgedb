@@ -132,7 +132,7 @@ async def compile(
     )
     global LAST_STATE
     LAST_STATE = cstate
-    return units, pickle.dumps(cstate)
+    return units, pickle.dumps(cstate, -1)
 
 
 async def compile_in_tx(state, *args, **kwargs):
@@ -143,7 +143,7 @@ async def compile_in_tx(state, *args, **kwargs):
         state = pickle.loads(state)
     units, state = await COMPILER.compile_in_tx(state, *args, **kwargs)
     LAST_STATE = state
-    return units, pickle.dumps(state)
+    return units, pickle.dumps(state, -1)
 
 
 async def compile_notebook(
@@ -251,11 +251,11 @@ async def worker(sockname):
                     )
 
             try:
-                pickled = pickle.dumps(data)
+                pickled = pickle.dumps(data, -1)
             except Exception as ex:
                 ex_tb = traceback.format_exc()
                 ex_str = f'{ex}:\n\n{ex_tb}'
-                pickled = pickle.dumps((2, ex_str))
+                pickled = pickle.dumps((2, ex_str), -1)
 
             await con.reply(pickled)
     finally:
