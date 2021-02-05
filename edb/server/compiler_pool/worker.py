@@ -153,7 +153,7 @@ async def compile(
 
 async def compile_in_tx(state, *args, **kwargs):
     global LAST_STATE
-    if state == 'LAST':
+    if state == b'REUSE_LAST_STATE':
         state = LAST_STATE
     else:
         state = pickle.loads(state)
