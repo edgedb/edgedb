@@ -34,3 +34,6 @@ class DatabaseState(typing.NamedTuple):
 
 
 DatabasesState = immutables.Map[str, DatabaseState]
+
+
+REUSE_LAST_STATE_MARKER = b'REUSE_LAST_STATE_MARKER'
