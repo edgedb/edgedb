@@ -223,11 +223,6 @@ cdef class DatabaseConnectionView:
             self._db._index._global_schema,
         )
 
-    cdef set_user_schema(self, new_user_schema):
-        if self._in_tx:
-            self._in_tx_user_schema_pickled = None
-            self._in_tx_user_schema = new_user_schema
-
     def resolve_array_type_id(self, type_id):
         type_id = str(type_id)
 
@@ -390,7 +385,11 @@ cdef class DatabaseConnectionView:
             if query_unit.has_ddl:
                 self._in_tx_dbver = next_dbver()
                 self._db._set_and_signal_new_user_schema(
-                    pickle.loads(query_unit.user_schema))
+                    pickle.loads(query_unit.user_schema),
+                    pickle.loads(query_unit.cached_reflection)
+                        if query_unit.cached_reflection is not None
+                        else None
+                )
                 side_effects |= SideEffects.SchemaChanges
             if query_unit.system_config:
                 side_effects |= SideEffects.SystemConfigChanges
@@ -418,7 +417,11 @@ cdef class DatabaseConnectionView:
                 self._db._update_backend_ids(self._in_tx_new_types)
             if self._in_tx_with_ddl:
                 self._db._set_and_signal_new_user_schema(
-                    pickle.loads(query_unit.user_schema))
+                    pickle.loads(query_unit.user_schema),
+                    pickle.loads(query_unit.cached_reflection)
+                        if query_unit.cached_reflection is not None
+                        else None
+                )
                 side_effects |= SideEffects.SchemaChanges
             if self._in_tx_with_sysconfig:
                 side_effects |= SideEffects.SystemConfigChanges

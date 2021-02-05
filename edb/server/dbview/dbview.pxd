@@ -114,7 +114,4 @@ cdef class DatabaseConnectionView:
     cdef set_modaliases(self, new_aliases)
     cdef get_modaliases(self)
 
-    # cdef get_user_schema(self)
-    cdef set_user_schema(self, new_user_schema)
-
     cdef bytes serialize_state(self)

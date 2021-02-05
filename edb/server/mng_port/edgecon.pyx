@@ -741,7 +741,7 @@ cdef class EdgeConnection:
                 self.dbview.dbname,
                 self.dbview.get_user_schema(),
                 self.dbview.get_global_schema(),
-                self.dbview.reflection_cache,  # XXX
+                self.dbview.reflection_cache,
                 query_req.source,
                 self.dbview.get_modaliases(),
                 self.dbview.get_session_config(),
@@ -785,7 +785,7 @@ cdef class EdgeConnection:
                 self.dbview.dbname,
                 self.dbview.get_user_schema(),
                 self.dbview.get_global_schema(),
-                self.dbview.reflection_cache,  # XXX
+                self.dbview.reflection_cache,
                 source,
                 self.dbview.get_modaliases(),
                 self.dbview.get_session_config(),
