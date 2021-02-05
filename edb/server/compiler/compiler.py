@@ -961,7 +961,6 @@ class Compiler(BaseCompiler):
                 or (create_db is not None)
                 or new_types
             ),
-            new_types=new_types,
             create_db=create_db,
             drop_db=drop_db,
             has_role_ddl=isinstance(stmt, qlast.RoleCommand),
@@ -1281,7 +1280,6 @@ class Compiler(BaseCompiler):
 
             query = dbstate.MigrationControlQuery(
                 sql=ddl_query.sql + tx_query.sql,
-                new_types=ddl_query.new_types,
                 ddl_stmt_id=ddl_query.ddl_stmt_id,
                 action=dbstate.MigrationAction.COMMIT,
                 tx_action=tx_query.action,
@@ -1728,7 +1726,6 @@ class Compiler(BaseCompiler):
 
             elif isinstance(comp, dbstate.DDLQuery):
                 unit.sql += comp.sql
-                unit.new_types = comp.new_types
                 unit.create_db = comp.create_db
                 unit.drop_db = comp.drop_db
                 unit.has_role_ddl = comp.has_role_ddl
@@ -1769,7 +1766,6 @@ class Compiler(BaseCompiler):
             elif isinstance(comp, dbstate.MigrationControlQuery):
                 unit.sql += comp.sql
                 unit.cacheable = comp.cacheable
-                unit.new_types = comp.new_types
                 if comp.user_schema is not None:
                     unit.user_schema = pickle.dumps(comp.user_schema, -1)
                 unit.ddl_stmt_id = comp.ddl_stmt_id
