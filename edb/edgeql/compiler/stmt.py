@@ -25,11 +25,9 @@ from typing import *
 
 from collections import defaultdict
 import textwrap
-import copy
 
 from edb import errors
 from edb.common import context as pctx
-from edb.common.ast import visitor as ast_visitor
 
 from edb.ir import ast as irast
 from edb.ir import typeutils
