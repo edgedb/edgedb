@@ -146,20 +146,25 @@ async def compile(
         *compile_args,
         **compile_kwargs
     )
+
     global LAST_STATE
     LAST_STATE = cstate
-    return units, pickle.dumps(cstate, -1)
+    pickled_state = None
+    if cstate is not None:
+        pickled_state = pickle.dumps(cstate, -1)
+
+    return units, pickled_state
 
 
-async def compile_in_tx(state, *args, **kwargs):
+async def compile_in_tx(cstate, *args, **kwargs):
     global LAST_STATE
-    if state == b'REUSE_LAST_STATE':
-        state = LAST_STATE
+    if cstate == state.REUSE_LAST_STATE_MARKER:
+        cstate = LAST_STATE
     else:
-        state = pickle.loads(state)
-    units, state = await COMPILER.compile_in_tx(state, *args, **kwargs)
-    LAST_STATE = state
-    return units, pickle.dumps(state, -1)
+        cstate = pickle.loads(cstate)
+    units, cstate = await COMPILER.compile_in_tx(cstate, *args, **kwargs)
+    LAST_STATE = cstate
+    return units, pickle.dumps(cstate, -1)
 
 
 async def compile_notebook(
