@@ -2543,7 +2543,6 @@ aa';
         ELSE (SELECT Foo);
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=4, col=27)
     def test_edgeql_syntax_insert_21(self):
         """
         INSERT Foo {
