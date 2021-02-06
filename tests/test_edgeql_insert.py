@@ -2264,43 +2264,39 @@ class TestInsert(tb.QueryTestCase):
         self.assertNotEqual(res, res3)
 
     async def test_edgeql_insert_unless_conflict_02(self):
-        async with self._run_and_rollback():
-            with self.assertRaisesRegex(
-                    edgedb.QueryError,
-                    "UNLESS CONFLICT argument must be a property"):
-                await self.con.query(r'''
-                    INSERT test::Person {name := "hello"}
-                    UNLESS CONFLICT ON 20;
-                ''')
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "UNLESS CONFLICT argument must be a property"):
+            await self.con.query(r'''
+                INSERT test::Person {name := "hello"}
+                UNLESS CONFLICT ON 20;
+            ''')
 
-        async with self._run_and_rollback():
-            with self.assertRaisesRegex(
-                    edgedb.QueryError,
-                    "UNLESS CONFLICT argument must be a property of "
-                    "the type being inserted"):
-                await self.con.query(r'''
-                    INSERT test::Person {name := "hello"}
-                    UNLESS CONFLICT ON test::Note.name;
-                ''')
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "UNLESS CONFLICT argument must be a property of "
+                "the type being inserted"):
+            await self.con.query(r'''
+                INSERT test::Person {name := "hello"}
+                UNLESS CONFLICT ON test::Note.name;
+            ''')
 
-        async with self._run_and_rollback():
-            with self.assertRaisesRegex(
-                    edgedb.QueryError,
-                    "UNLESS CONFLICT property must have a "
-                    "single exclusive constraint"):
-                await self.con.query(r'''
-                    INSERT test::Note {name := "hello"}
-                    UNLESS CONFLICT ON .name;
-                ''')
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "UNLESS CONFLICT property must have a "
+                "single exclusive constraint"):
+            await self.con.query(r'''
+                INSERT test::Note {name := "hello"}
+                UNLESS CONFLICT ON .name;
+            ''')
 
-        async with self._run_and_rollback():
-            with self.assertRaisesRegex(
-                    edgedb.QueryError,
-                    "UNLESS CONFLICT property must be a SINGLE property"):
-                await self.con.query(r'''
-                    INSERT test::Person {name := "hello", multi_prop := "lol"}
-                    UNLESS CONFLICT ON .multi_prop;
-                ''')
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "UNLESS CONFLICT property must be a SINGLE property"):
+            await self.con.query(r'''
+                INSERT test::Person {name := "hello", multi_prop := "lol"}
+                UNLESS CONFLICT ON .multi_prop;
+            ''')
 
     async def test_edgeql_insert_unless_conflict_03(self):
         query = r'''
@@ -2728,23 +2724,22 @@ class TestInsert(tb.QueryTestCase):
         )
 
     async def test_edgeql_insert_dependent_07(self):
-        async with self._run_and_rollback():
-            with self.assertRaisesRegex(
-                    edgedb.QueryError,
-                    "invalid mutation in a shape computable"):
-                await self.con.execute(
-                    r"""
-                        WITH MODULE test
-                        SELECT Person {
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "invalid mutation in a shape computable"):
+            await self.con.execute(
+                r"""
+                    WITH MODULE test
+                    SELECT Person {
+                        name,
+                        foo := (
+                            INSERT Note {name := 'NoteDep07'}
+                        ) {
                             name,
-                            foo := (
-                                INSERT Note {name := 'NoteDep07'}
-                            ) {
-                                name,
-                            }
-                        };
-                    """
-                )
+                        }
+                    };
+                """
+            )
 
     async def test_edgeql_insert_dependent_08(self):
         await self.con.execute(r"""
