@@ -1042,14 +1042,19 @@ def __infer_insert_stmt(
         return ONE
     # ... except if UNLESS CONFLICT is used
     else:
-        if ir.on_conflict.select_ir:
-            infer_cardinality(
-                ir.on_conflict.select_ir, scope_tree=scope_tree, ctx=ctx)
+        select_card = infer_cardinality(
+            ir.on_conflict.select_ir, scope_tree=scope_tree, ctx=ctx)
 
         card = AT_MOST_ONE
         if ir.on_conflict.else_ir:
-            else_card = infer_cardinality(
+            base_else_card = infer_cardinality(
                 ir.on_conflict.else_ir, scope_tree=scope_tree, ctx=ctx)
+            # We treat the SELECT as having at least cardinality ONE
+            # despite that not strictly being true, because we only
+            # care about the case where the INSERT failed.
+            else_card = cartesian_cardinality((
+                max_cardinality((ONE, select_card)),
+                base_else_card))
             card = max_cardinality((card, else_card))
 
         return card
