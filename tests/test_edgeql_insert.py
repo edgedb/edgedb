@@ -2559,12 +2559,115 @@ class TestInsert(tb.QueryTestCase):
             }]
         )
 
+    async def test_edgeql_insert_unless_conflict_11(self):
+        query = r'''
+            WITH MODULE test
+            SELECT (
+                INSERT Person {name := "test"}
+                UNLESS CONFLICT ELSE Person
+            ) {name};
+        '''
+
+        await self.assert_query_result(
+            query,
+            [{"name": "test"}],
+        )
+
+        await self.assert_query_result(
+            query,
+            [{"name": "test"}],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT count(test::Person)''',
+            [1],
+        )
+
+    async def test_edgeql_insert_unless_conflict_12(self):
+        # ELSE without ON, using computed property
+        query = r'''
+            WITH MODULE test
+            SELECT (
+                INSERT Person2b {first := "foo", last := "bar"}
+                UNLESS CONFLICT ELSE Person2b
+            ) {first, last, name};
+        '''
+
+        await self.assert_query_result(
+            query,
+            [{"first": "foo", "last": "bar", "name": "foo bar"}],
+        )
+
+        await self.assert_query_result(
+            query,
+            [{"first": "foo", "last": "bar", "name": "foo bar"}],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT count(test::Person2b)''',
+            [1],
+        )
+
+    async def test_edgeql_insert_unless_conflict_13(self):
+        # ELSE without ON, using computed property
+        await self.assert_query_result(
+            r'''
+            WITH MODULE test
+            SELECT (
+                INSERT Person2b {first := "foo ", last := "bar"}
+                UNLESS CONFLICT ELSE Person2b
+            ) {first, last, name};
+            ''',
+            [{"first": "foo ", "last": "bar", "name": "foo  bar"}],
+        )
+
+        await self.assert_query_result(
+            r'''
+            WITH MODULE test
+            SELECT (
+                INSERT Person2b {first := "foo", last := " bar"}
+                UNLESS CONFLICT ELSE Person2b
+            ) {first, last, name};
+            ''',
+            [{"first": "foo ", "last": "bar", "name": "foo  bar"}],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT count(test::Person2b)''',
+            [1],
+        )
+
+    async def test_edgeql_insert_unless_conflict_14(self):
+        # ELSE without ON, using object constraint
+        query = r'''
+            WITH MODULE test
+            SELECT (
+                INSERT Person2a {first := "foo", last := "bar"}
+                UNLESS CONFLICT ELSE Person2a
+            ) {first, last};
+        '''
+
+        await self.assert_query_result(
+            query,
+            [{"first": "foo", "last": "bar"}],
+        )
+
+        await self.assert_query_result(
+            query,
+            [{"first": "foo", "last": "bar"}],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT count(test::Person2a)''',
+            [1],
+        )
+
     async def test_edgeql_insert_dependent_01(self):
         query = r'''
             WITH MODULE test
             SELECT (
                 INSERT Person {
-                    name :=  "Test",
+                    name := "Test",
                     notes := (INSERT Note {name := "tag!" })
                 } UNLESS CONFLICT
             ) {name};

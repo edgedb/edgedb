@@ -354,9 +354,30 @@ def compile_insert_unless_conflict_select(
     return select_ir
 
 
+def compile_insert_unless_conflict_else(
+    stmt: irast.InsertStmt,
+    else_branch: Optional[qlast.Expr],
+    *, ctx: context.ContextLevel,
+) -> Optional[irast.Set]:
+    # Compile an UNLESS CONFLICT ELSE branch
+    if else_branch:
+        # The ELSE needs to be able to reference the subject in an
+        # UPDATE, even though that would normally be prohibited.
+        ctx.path_scope.factoring_allowlist.add(stmt.subject.path_id)
+
+        # Compile else
+        else_ir = dispatch.compile(
+            astutils.ensure_qlstmt(else_branch), ctx=ctx)
+        assert isinstance(else_ir, irast.Set)
+        return else_ir
+    else:
+        return None
+
+
 def compile_insert_unless_conflict(
     stmt: irast.InsertStmt,
     insert_subject: qlast.Path,
+    else_branch: Optional[qlast.Expr],
     *, ctx: context.ContextLevel,
 ) -> irast.OnConflictClause:
     """Compile an UNLESS CONFLICT clause with no ON
@@ -392,8 +413,10 @@ def compile_insert_unless_conflict(
         obj_constrs=obj_constrs,
         parser_context=stmt.context, ctx=ctx)
 
+    else_ir = compile_insert_unless_conflict_else(stmt, else_branch, ctx=ctx)
+
     return irast.OnConflictClause(
-        constraint=None, select_ir=select_ir, else_ir=None)
+        constraint=None, select_ir=select_ir, else_ir=else_ir)
 
 
 def compile_insert_unless_conflict_on(
@@ -466,17 +489,7 @@ def compile_insert_unless_conflict_on(
         stmt, insert_subject, real_typ, constrs=ds, obj_constrs=[],
         parser_context=stmt.context, ctx=ctx)
 
-    # Compile an else branch
-    else_ir = None
-    if else_branch:
-        # The ELSE needs to be able to reference the subject in an
-        # UPDATE, even though that would normally be prohibited.
-        ctx.path_scope.factoring_allowlist.add(stmt.subject.path_id)
-
-        # Compile else
-        else_ir = dispatch.compile(
-            astutils.ensure_qlstmt(else_branch), ctx=ctx)
-        assert isinstance(else_ir, irast.Set)
+    else_ir = compile_insert_unless_conflict_else(stmt, else_branch, ctx=ctx)
 
     return irast.OnConflictClause(
         constraint=irast.ConstraintRef(
@@ -549,7 +562,7 @@ def compile_InsertQuery(
                     stmt, expr.subject, constraint_spec, else_branch, ctx=ictx)
             else:
                 stmt.on_conflict = compile_insert_unless_conflict(
-                    stmt, expr.subject, ctx=ictx)
+                    stmt, expr.subject, else_branch, ctx=ictx)
 
         stmt_subject_stype = setgen.get_set_type(subject, ctx=ictx)
 
