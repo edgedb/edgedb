@@ -221,9 +221,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.write(' ON ')
                 self.visit(on_expr)
 
-                if else_expr:
-                    self.write(' ELSE ')
-                    self.visit(else_expr)
+            if else_expr:
+                self.write(' ELSE ')
+                self.visit(else_expr)
 
         if parenthesise:
             self.write(')')
