@@ -2298,6 +2298,64 @@ class TestInsert(tb.QueryTestCase):
                 UNLESS CONFLICT ON .multi_prop;
             ''')
 
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "object type 'std::Object' has no link or property 'name'"):
+            await self.con.query(r'''
+                SELECT (
+                    INSERT test::Person {name := "hello"}
+                    UNLESS CONFLICT ON .name
+                    ELSE test::DefaultTest1
+                ) {name};
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "possibly more than one element returned by an expression "
+                "for a computable link 'foo' declared as 'single'"):
+            await self.con.query(r'''
+                WITH MODULE test,
+                     X := (
+                        INSERT Person {name := "hello"}
+                        UNLESS CONFLICT ON .name
+                        ELSE (DETACHED Person)
+                    )
+                SELECT stdgraphql::Query {
+                    single foo := X
+                };
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "possibly more than one element returned by an expression "
+                "for a computable link 'foo' declared as 'single'"):
+            await self.con.query(r'''
+                WITH MODULE test,
+                     X := (
+                        INSERT Person {name := "hello"}
+                        UNLESS CONFLICT ON .name
+                        ELSE Note
+                    )
+                SELECT stdgraphql::Query {
+                    single foo := X
+                };
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "possibly an empty set returned by an expression for a "
+                "computable link 'foo' declared as 'required'"):
+            await self.con.query(r'''
+                WITH MODULE test,
+                     X := (
+                        INSERT Person {name := "hello"}
+                        UNLESS CONFLICT ON .name
+                    )
+                SELECT stdgraphql::Query {
+                    required foo := X
+                };
+            ''')
+
     async def test_edgeql_insert_unless_conflict_03(self):
         query = r'''
             SELECT (
@@ -2553,6 +2611,28 @@ class TestInsert(tb.QueryTestCase):
             [{
                 'name': 'Foo', 'case_name': 'Foo',
             }]
+        )
+
+
+    async def test_edgeql_insert_unless_conflict_11(self):
+        # ELSE without ON, using object constraint
+        query = r'''
+            WITH MODULE test
+            SELECT (
+                INSERT Person {name := "Madz"}
+                UNLESS CONFLICT ON (.name)
+                ELSE (INSERT Person {name := "Maddy"})
+            ) {name};
+        '''
+
+        await self.assert_query_result(
+            query,
+            [{"name": "Madz"}],
+        )
+
+        await self.assert_query_result(
+            query,
+            [{"name": "Maddy"}],
         )
 
     async def test_edgeql_insert_dependent_01(self):
