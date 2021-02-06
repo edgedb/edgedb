@@ -150,6 +150,29 @@ _123456789_123456789_123456789 -> str
         """
 
     @tb.must_fail(errors.InvalidReferenceError,
+                  "property 'test::bar' does not exist",
+                  position=59)
+    def test_schema_bad_prop_04(self):
+        """
+            abstract property foo extending bar;
+        """
+
+    @tb.must_fail(errors.InvalidReferenceError,
+                  "link 'test::bar' does not exist",
+                  position=55)
+    def test_schema_bad_prop_05(self):
+        """
+            abstract link foo extending bar;
+        """
+
+    @tb.must_fail(errors.InvalidDefinitionError,
+                  "'test::foo' is defined recursively")
+    def test_schema_bad_prop_06(self):
+        """
+            abstract link foo extending foo;
+        """
+
+    @tb.must_fail(errors.InvalidReferenceError,
                   "type 'test::int' does not exist",
                   position=73)
     def test_schema_bad_type_01(self):
@@ -196,6 +219,63 @@ _123456789_123456789_123456789 -> str
             type Base {
                 property foo -> tuple<str, array<Foo>>;
             }
+        """
+
+    @tb.must_fail(errors.InvalidReferenceError,
+                  "type 'test::Bar' does not exist",
+                  position=46)
+    def test_schema_bad_type_05(self):
+        """
+            type Foo extending Bar;
+        """
+
+    @tb.must_fail(errors.InvalidReferenceError,
+                  "type 'test::Bar' does not exist",
+                  position=66)
+    def test_schema_bad_type_06(self):
+        """
+            type Foo {
+                link val -> Bar;
+            };
+        """
+
+    @tb.must_fail(errors.InvalidReferenceError,
+                  "annotation 'test::bar' does not exist",
+                  position=54)
+    def test_schema_bad_type_07(self):
+        """
+            type Foo {
+                annotation bar := 'Bogus';
+            };
+        """
+
+    @tb.must_fail(errors.InvalidReferenceError,
+                  "constraint 'test::bogus' does not exist",
+                  position=96)
+    def test_schema_bad_type_08(self):
+        """
+            type Foo {
+                property val -> str {
+                    constraint bogus(5);
+                }
+            };
+        """
+
+    @tb.must_fail(errors.InvalidDefinitionError,
+                  "'test::Foo' is defined recursively")
+    def test_schema_bad_type_09(self):
+        """
+            type Foo extending Foo;
+        """
+
+    @tb.must_fail(errors.InvalidDefinitionError,
+                  "'test::Foo0' is defined recursively")
+    def test_schema_bad_type_10(self):
+        """
+            type Foo0 extending Foo1;
+            type Foo1 extending Foo2;
+            type Foo2 extending Foo3;
+            type Foo3 extending Foo0;
         """
 
     def test_schema_computable_cardinality_inference_01(self):

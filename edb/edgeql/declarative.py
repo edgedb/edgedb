@@ -45,8 +45,12 @@ from edb.edgeql import codegen as qlcodegen
 from edb.edgeql import parser as qlparser
 from edb.edgeql import tracer as qltracer
 
+from edb.schema import annos as s_anno
+from edb.schema import constraints as s_constr
+from edb.schema import links as s_links
 from edb.schema import name as s_name
 from edb.schema import objects as s_obj
+from edb.schema import lproperties as s_lprops
 from edb.schema import schema as s_schema
 from edb.schema import sources as s_sources
 from edb.schema import types as s_types
@@ -524,13 +528,23 @@ def _trace_item_layout(
                 decl, obj=ptr, fq_name=ptr_name, ctx=ctx)
 
         elif isinstance(decl, qlast.CreateConcreteConstraint):
+            # Validate that the constraint exists at all.
+            _validate_schema_ref(decl, ctx=ctx)
             _, con_fq_name = ctx.get_fq_name(decl)
+
             con_name = s_name.QualName(
                 module=fq_name.module,
                 name=f'{fq_name.name}@{con_fq_name}',
             )
             ctx.objects[con_name] = qltracer.ConcreteConstraint(con_name)
             ctx.constraints[fq_name].add(con_name)
+
+        elif isinstance(decl, qlast.CreateAnnotationValue):
+            # Validate that the constraint exists at all.
+            _validate_schema_ref(decl, ctx=ctx)
+
+
+RECURSION_GUARD: Set[s_name.QualName] = set()
 
 
 def get_ancestors(
@@ -542,8 +556,13 @@ def get_ancestors(
 
     # value already computed
     result = ancestors.get(fq_name, set())
-    if result:
+    if result is RECURSION_GUARD:
+        raise errors.InvalidDefinitionError(
+            f'{str(fq_name)!r} is defined recursively')
+    elif result:
         return result
+
+    ancestors[fq_name] = RECURSION_GUARD
 
     parent_set = parents.get(fq_name, set())
     # base case: include the parents
@@ -998,7 +1017,7 @@ def _get_hard_deps(
 
 
 def _get_bases(
-    decl: qlast.DDLOperation,
+    decl: qlast.CreateObject,
     *,
     ctx: LayoutTraceContext
 ) -> List[s_name.QualName]:
@@ -1031,8 +1050,22 @@ def _get_bases(
 
         else:
             for base_ref in decl.bases:
-                base_name = ctx.get_ref_name(base_ref.maintype)
-                bases.append(base_name)
+                # Validate that the base actually exists.
+                tracer_type, real_type = _get_tracer_and_real_type(decl)
+                assert tracer_type is not None
+                assert real_type is not None
+                obj = _resolve_type_name(
+                    base_ref.maintype,
+                    tracer_type=tracer_type,
+                    real_type=real_type,
+                    ctx=ctx
+                )
+                name = obj.get_name(ctx.schema)
+                if not isinstance(name, s_name.QualName):
+                    qname = s_name.QualName.from_string(name.name)
+                else:
+                    qname = name
+                bases.append(qname)
 
     return bases
 
@@ -1049,21 +1082,15 @@ def _resolve_type_expr(
                 name=s_name.QualName(module='__coll__', name=texpr.name),
             )
         else:
-            refname = ctx.get_ref_name(texpr.maintype)
-            local_obj = ctx.objects.get(refname)
-            obj: qltracer.TypeLike
-            if local_obj is not None:
-                assert isinstance(local_obj, qltracer.Type)
-                obj = local_obj
-            else:
-                obj = _resolve_schema_ref(
-                    refname,
-                    type=s_types.Type,
-                    sourcectx=texpr.context,
+            return cast(
+                qltracer.TypeLike,
+                _resolve_type_name(
+                    texpr.maintype,
+                    tracer_type=qltracer.Type,
+                    real_type=s_types.Type,
                     ctx=ctx,
                 )
-
-            return obj
+            )
 
     elif isinstance(texpr, qlast.TypeOp):
 
@@ -1080,6 +1107,88 @@ def _resolve_type_expr(
     else:
         raise NotImplementedError(
             f'unsupported type expression: {texpr!r}'
+        )
+
+
+def _resolve_type_name(
+    ref: qlast.BaseObjectRef,
+    *,
+    tracer_type: Type[qltracer.NamedObject],
+    real_type: Type[s_obj.Object_T],
+    ctx: LayoutTraceContext,
+) -> qltracer.ObjectLike:
+
+    refname = ctx.get_ref_name(ref)
+    local_obj = ctx.objects.get(refname)
+    obj: qltracer.ObjectLike
+    if local_obj is not None:
+        assert isinstance(local_obj, tracer_type)
+        obj = local_obj
+    else:
+        obj = _resolve_schema_ref(
+            refname,
+            type=real_type,
+            sourcectx=ref.context,
+            ctx=ctx,
+        )
+
+    return obj
+
+
+def _get_tracer_and_real_type(
+    decl: qlast.CreateObject,
+) -> Tuple[Optional[Type[qltracer.NamedObject]],
+           Optional[Type[s_obj.Object]]]:
+
+    tracer_type: Optional[Type[qltracer.NamedObject]] = None
+    real_type: Optional[Type[s_obj.Object]] = None
+
+    if isinstance(decl, (qlast.CreateObjectType,
+                         qlast.CreateScalarType)):
+        tracer_type = qltracer.Type
+        real_type = s_types.Type
+    elif isinstance(decl, (qlast.CreateConstraint,
+                           qlast.CreateConcreteConstraint)):
+        tracer_type = qltracer.Constraint
+        real_type = s_constr.Constraint
+    elif isinstance(decl, (qlast.CreateAnnotation,
+                           qlast.CreateAnnotationValue)):
+        tracer_type = qltracer.Annotation
+        real_type = s_anno.Annotation
+    elif isinstance(decl, (qlast.CreateProperty,
+                           qlast.CreateConcreteProperty)):
+        tracer_type = qltracer.Pointer
+        real_type = s_lprops.Property
+    elif isinstance(decl, (qlast.CreateLink,
+                           qlast.CreateConcreteLink)):
+        tracer_type = qltracer.Pointer
+        real_type = s_links.Link
+
+    return tracer_type, real_type
+
+
+def _validate_schema_ref(
+    decl: qlast.CreateObject,
+    *,
+    ctx: LayoutTraceContext,
+) -> None:
+    refname = ctx.get_ref_name(decl.name)
+    tracer_type, real_type = _get_tracer_and_real_type(decl)
+    if tracer_type is None:
+        # Bail out and rely on some other validation mechanism
+        return
+
+    local_obj = ctx.objects.get(refname)
+
+    if local_obj is not None:
+        assert isinstance(local_obj, tracer_type)
+    else:
+        assert real_type is not None
+        _resolve_schema_ref(
+            refname,
+            type=real_type,
+            sourcectx=decl.context,
+            ctx=ctx,
         )
 
 
