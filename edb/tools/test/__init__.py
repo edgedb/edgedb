@@ -72,6 +72,8 @@ __all__ = ('not_implemented', 'xfail', 'skip')
               help='do not run tests which match the given regular expression')
 @click.option('-x', '--failfast', is_flag=True,
               help='stop tests after a first failure/error')
+@click.option('--shuffle', is_flag=True,
+              help='shuffle the order in which tests are run')
 @click.option('--repeat', type=int, default=1,
               help='repeat tests N times or until first unsuccessful run')
 @click.option('--cov', type=str, multiple=True,
@@ -79,7 +81,7 @@ __all__ = ('not_implemented', 'xfail', 'skip')
                    'can be specified multiple times '
                    '(e.g --cov edb.common --cov edb.server)')
 def test(*, files, jobs, include, exclude, verbose, quiet, debug,
-         output_format, warnings, failfast, cov, repeat):
+         output_format, warnings, failfast, shuffle, cov, repeat):
     """Run EdgeDB test suite.
 
     Discovers and runs tests in the specified files or directories.
@@ -136,6 +138,7 @@ def test(*, files, jobs, include, exclude, verbose, quiet, debug,
         output_format=output_format,
         warnings=warnings,
         failfast=failfast,
+        shuffle=shuffle,
         repeat=repeat,
     )
 
@@ -211,7 +214,7 @@ def _coverage_wrapper(paths):
 
 
 def _run(*, include, exclude, verbosity, files, jobs, output_format,
-         warnings, failfast, repeat):
+         warnings, failfast, shuffle, repeat):
     suite = unittest.TestSuite()
 
     total = 0
@@ -260,7 +263,8 @@ def _run(*, include, exclude, verbosity, files, jobs, output_format,
 
         test_runner = runner.ParallelTextTestRunner(
             verbosity=verbosity, output_format=output_format,
-            warnings=warnings, num_workers=jobs, failfast=failfast)
+            warnings=warnings, num_workers=jobs,
+            failfast=failfast, shuffle=shuffle)
 
         result = test_runner.run(suite)
 
