@@ -219,7 +219,7 @@ async def worker(sockname):
     try:
         while True:
             try:
-                req = await con.next_request()
+                req_id, req = await con.next_request()
             except amsg.PoolClosedError:
                 os._exit(0)
 
@@ -273,7 +273,7 @@ async def worker(sockname):
                 ex_str = f'{ex}:\n\n{ex_tb}'
                 pickled = pickle.dumps((2, ex_str), -1)
 
-            await con.reply(pickled)
+            await con.reply(req_id, pickled)
     finally:
         con.abort()
 
