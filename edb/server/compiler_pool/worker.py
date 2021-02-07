@@ -98,33 +98,37 @@ def __sync__(
     global_schema: Optional[bytes],
 ) -> state.DatabaseState:
     global DBS
+    global GLOBAL_SCHEMA
 
-    db = DBS.get(dbname)
-    if db is None:
-        user_schema_unpacked = pickle.loads(user_schema)
-        reflection_cache_unpacked = pickle.loads(reflection_cache)
-        db = state.DatabaseState(
-            dbname, user_schema_unpacked, reflection_cache_unpacked
-        )
-        DBS = DBS.set(dbname, db)
-    else:
-        if user_schema is not None:
+    try:
+        db = DBS.get(dbname)
+        if db is None:
             user_schema_unpacked = pickle.loads(user_schema)
-            db = state.DatabaseState(
-                dbname, user_schema_unpacked, db.reflection_cache
-            )
-            DBS = DBS.set(dbname, db)
-
-        if reflection_cache is not None:
             reflection_cache_unpacked = pickle.loads(reflection_cache)
             db = state.DatabaseState(
-                dbname, db.user_schema, reflection_cache_unpacked
+                dbname, user_schema_unpacked, reflection_cache_unpacked
             )
             DBS = DBS.set(dbname, db)
+        else:
+            if user_schema is not None:
+                user_schema_unpacked = pickle.loads(user_schema)
+                db = state.DatabaseState(
+                    dbname, user_schema_unpacked, db.reflection_cache
+                )
+                DBS = DBS.set(dbname, db)
 
-    global GLOBAL_SCHEMA
-    if global_schema is not None:
-        GLOBAL_SCHEMA = pickle.loads(global_schema)
+            if reflection_cache is not None:
+                reflection_cache_unpacked = pickle.loads(reflection_cache)
+                db = state.DatabaseState(
+                    dbname, db.user_schema, reflection_cache_unpacked
+                )
+                DBS = DBS.set(dbname, db)
+
+        if global_schema is not None:
+            GLOBAL_SCHEMA = pickle.loads(global_schema)
+    except Exception as ex:
+        raise state.FailedStateSync(
+            f'failed to sync worker state: {type(ex).__name__}({ex})') from ex
 
     return db
 
