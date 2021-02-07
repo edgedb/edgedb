@@ -108,7 +108,7 @@ class Worker:
     def get_pid(self):
         return self._pid
 
-    async def call(self, method_name, *args):
+    async def call(self, method_name, *args, sync_state=None):
         assert not self._closed
 
         if self._con.is_closed():
@@ -123,9 +123,14 @@ class Worker:
         self._last_used = time.monotonic()
 
         if status == 0:
+            if sync_state is not None:
+                sync_state()
             return data[0]
         elif status == 1:
             exc, tb = data
+            if (sync_state is not None and
+                    not isinstance(exc, state.FailedStateSync)):
+                sync_state()
             exc.__formatted_error__ = tb
             raise exc
         else:
@@ -296,8 +301,52 @@ class Pool:
         global_schema,
         reflection_cache,
     ):
+
+        def sync_worker_state_cb(
+            *,
+            worker,
+            dbname,
+            user_schema=None,
+            reflection_cache=None,
+            global_schema=None
+        ):
+            worker_db = worker._dbs.get(dbname)
+            if worker_db is None:
+                assert user_schema is not None
+                assert reflection_cache is not None
+                assert global_schema is not None
+
+                worker._dbs = worker._dbs.set(dbname, state.DatabaseState(
+                    name=dbname,
+                    user_schema=user_schema,
+                    reflection_cache=reflection_cache
+                ))
+                worker._global_schema = global_schema
+            else:
+                if user_schema is not None and reflection_cache is not None:
+                    worker._dbs = worker._dbs.set(dbname, state.DatabaseState(
+                        name=dbname,
+                        user_schema=user_schema,
+                        reflection_cache=reflection_cache
+                    ))
+                elif user_schema is not None:
+                    worker._dbs = worker._dbs.set(dbname, state.DatabaseState(
+                        name=dbname,
+                        user_schema=user_schema,
+                        reflection_cache=worker_db.reflection_cache
+                    ))
+                elif reflection_cache is not None:
+                    worker._dbs = worker._dbs.set(dbname, state.DatabaseState(
+                        name=dbname,
+                        user_schema=worker_db.user_schema,
+                        reflection_cache=reflection_cache
+                    ))
+                if global_schema is not None:
+                    worker._global_schema = global_schema
+
         worker_db = worker._dbs.get(dbname)
         preargs = (dbname,)
+        to_update = {}
 
         if worker_db is None:
             preargs += (
@@ -305,22 +354,17 @@ class Pool:
                 _pickle_memoized(reflection_cache),
                 _pickle_memoized(global_schema),
             )
-            worker._dbs = worker._dbs.set(dbname, state.DatabaseState(
-                name=dbname,
-                user_schema=user_schema,
-                reflection_cache=reflection_cache
-            ))
-            worker._global_schema = global_schema
+            to_update = {
+                'user_schema': user_schema,
+                'reflection_cache': reflection_cache,
+                'global_schema': global_schema,
+            }
         else:
             if worker_db.user_schema is not user_schema:
                 preargs += (
                     _pickle_memoized(user_schema),
                 )
-                worker._dbs = worker._dbs.set(dbname, state.DatabaseState(
-                    name=dbname,
-                    user_schema=user_schema,
-                    reflection_cache=worker_db.reflection_cache
-                ))
+                to_update['user_schema'] = user_schema
             else:
                 preargs += (None,)
 
@@ -328,11 +372,7 @@ class Pool:
                 preargs += (
                     _pickle_memoized(reflection_cache),
                 )
-                worker._dbs = worker._dbs.set(dbname, state.DatabaseState(
-                    name=dbname,
-                    user_schema=worker_db.user_schema,
-                    reflection_cache=reflection_cache
-                ))
+                to_update['reflection_cache'] = reflection_cache
             else:
                 preargs += (None,)
 
@@ -340,11 +380,21 @@ class Pool:
                 preargs += (
                     _pickle_memoized(global_schema),
                 )
-                worker._global_schema = global_schema
+                to_update['global_schema'] = global_schema
             else:
                 preargs += (None,)
 
-        return preargs
+        if to_update:
+            callback = functools.partial(
+                sync_worker_state_cb,
+                worker=worker,
+                dbname=dbname,
+                **to_update
+            )
+        else:
+            callback = None
+
+        return preargs, callback
 
     async def compile(
         self,
@@ -356,7 +406,7 @@ class Pool:
     ):
         worker = await self._workers_queue.acquire()
         try:
-            preargs = self._compute_compile_preargs(
+            preargs, sync_state = self._compute_compile_preargs(
                 worker, dbname, user_schema, global_schema,
                 reflection_cache,
             )
@@ -364,7 +414,8 @@ class Pool:
             units, state = await worker.call(
                 'compile',
                 *preargs,
-                *compile_args
+                *compile_args,
+                sync_state=sync_state
             )
             worker._last_pickled_state = state
             return units, state
@@ -432,7 +483,7 @@ class Pool:
     ):
         worker = await self._workers_queue.acquire()
         try:
-            preargs = self._compute_compile_preargs(
+            preargs, sync_state = self._compute_compile_preargs(
                 worker, dbname, user_schema, global_schema,
                 reflection_cache,
             )
@@ -440,7 +491,8 @@ class Pool:
             return await worker.call(
                 'compile_notebook',
                 *preargs,
-                *compile_args
+                *compile_args,
+                sync_state=sync_state
             )
 
         finally:
@@ -466,7 +518,7 @@ class Pool:
     ):
         worker = await self._workers_queue.acquire()
         try:
-            preargs = self._compute_compile_preargs(
+            preargs, sync_state = self._compute_compile_preargs(
                 worker, dbname, user_schema, global_schema,
                 reflection_cache,
             )
@@ -474,7 +526,8 @@ class Pool:
             return await worker.call(
                 'compile_graphql',
                 *preargs,
-                *compile_args
+                *compile_args,
+                sync_state=sync_state
             )
 
         finally:
