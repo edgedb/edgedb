@@ -28,7 +28,6 @@ import edgedb
 from edb.common import devmode
 from edb.common import taskgroup as tg
 from edb.testbase import server as tb
-from edb.tools import test
 from edb.server.compiler import enums
 
 
@@ -2435,12 +2434,6 @@ class TestServerProtoDDL(tb.DDLTestCase):
         finally:
             await con2.aclose()
 
-    @test.xfail('''
-        The error is:
-        reference to a non-existent schema item
-        3c6145d4-192f-11e9-83b3-edb414a0f9bf in schema
-        <Schema gen:4594 at 0x7f5dbfd68198>
-    ''')
     async def test_server_proto_query_cache_invalidate_07(self):
         typename = 'CacheInv_07'
 
@@ -2455,7 +2448,8 @@ class TestServerProtoDDL(tb.DDLTestCase):
                 }};
 
                 CREATE TYPE test::{typename} {{
-                    CREATE REQUIRED LINK link1 -> test::Foo{typename};
+                    CREATE REQUIRED LINK link1 EXTENDING test::link1
+                        -> test::Foo{typename};
                 }};
 
                 INSERT test::Foo{typename};
@@ -2487,7 +2481,8 @@ class TestServerProtoDDL(tb.DDLTestCase):
 
                 INSERT test::{typename} {{
                     link1 := (
-                        SELECT test::Foo{typename} {{@prop1 := 123}} LIMIT 1
+                        (SELECT test::Foo{typename} LIMIT 1)
+                        {{@prop1 := 123}}
                     )
                 }};
             ''')
