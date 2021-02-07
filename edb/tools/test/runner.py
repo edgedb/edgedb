@@ -722,12 +722,13 @@ class ParallelTextTestRunner:
 
     def __init__(self, *, stream=None, num_workers=1, verbosity=1,
                  output_format=OutputFormat.auto, warnings=True,
-                 failfast=False):
+                 failfast=False, shuffle=False):
         self.stream = stream if stream is not None else sys.stderr
         self.num_workers = num_workers
         self.verbosity = verbosity
         self.warnings = warnings
         self.failfast = failfast
+        self.shuffle = shuffle
         self.output_format = output_format
 
     def run(self, test):
@@ -943,7 +944,11 @@ class ParallelTextTestRunner:
             )
         )
 
-        return list(tests)
+        test_list = list(tests)
+        if self.shuffle:
+            random.shuffle(test_list)
+
+        return test_list
 
 
 # Disable pickling of traceback objects in multiprocessing.

@@ -44,17 +44,28 @@ class TestLoader(unittest.TestLoader):
     def getTestCaseNames(self, caseclass):
         names = super().getTestCaseNames(caseclass)
         unfiltered_len = len(names)
+        cname = caseclass.__name__
 
         if self.include or self.exclude:
             if self.include:
                 names = filter(
-                    lambda n: any(r.search(n) for r in self.include),
-                    names)
+                    lambda n: (
+                        any(r.search(n) for r in self.include)
+                        or any(r.search(f'{cname}.{n}') for r in self.include)
+                    ),
+                    names,
+                )
 
             if self.exclude:
                 names = filter(
-                    lambda n: not any(r.search(n) for r in self.exclude),
-                    names)
+                    lambda n: (
+                        not any(r.search(n) for r in self.exclude)
+                        and not any(
+                            r.search(f'{cname}.{n}') for r in self.exclude
+                        )
+                    ),
+                    names,
+                )
 
             names = list(names)
 
