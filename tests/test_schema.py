@@ -3360,12 +3360,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
-    @test.xfail('''
-        unexpected difference in schema produced by incremental
-        migration on step 2:
-
-        Target types in UserAlias don't agree
-    ''')
     def test_schema_migrations_equivalence_44(self):
         # change a link used in a computable
         self._assert_migration_equivalence([r"""
@@ -3394,12 +3388,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
-    @test.xfail('''
-        unexpected difference in schema produced by incremental
-        migration on step 2:
-
-        ... from_alias = None | True
-    ''')
     def test_schema_migrations_equivalence_45(self):
         # change a link used in a computable
         self._assert_migration_equivalence([r"""
@@ -3450,12 +3438,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
-    @test.xfail('''
-        unexpected difference in schema produced by incremental
-        migration on step 2:
-
-        Target types in UserAlias don't agree
-    ''')
     def test_schema_migrations_equivalence_46(self):
         # change a link used in a computable
         self._assert_migration_equivalence([r"""

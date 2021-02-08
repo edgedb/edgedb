@@ -1563,7 +1563,15 @@ class CreatePointer(
             referrer=referrer,
         )
 
-        if isinstance(referrer, s_types.Type) and referrer.is_view(schema):
+        if (
+            (
+                isinstance(referrer, s_types.Type)
+                and referrer.is_view(schema)
+            ) or (
+                isinstance(referrer, Pointer)
+                and referrer.get_from_alias(schema)
+            )
+        ):
             cmd.set_attribute_value('from_alias', True)
 
         return cmd
