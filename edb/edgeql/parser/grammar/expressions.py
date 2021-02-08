@@ -592,9 +592,6 @@ class UnlessConflictSpecifier(Nonterm):
     def reduce_ON_Expr(self, *kids):
         self.val = (kids[1].val, None)
 
-    def reduce_ELSE_Expr(self, *kids):
-        self.val = (None, kids[1].val)
-
     def reduce_empty(self, *kids):
         self.val = (None, None)
 

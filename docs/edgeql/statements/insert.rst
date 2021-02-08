@@ -12,8 +12,7 @@ INSERT
 
     [ WITH <with-spec> [ ,  ... ] ]
     INSERT <expression> [ <insert-shape> ]
-    [ UNLESS CONFLICT
-        [ ON <property> ]
+    [ UNLESS CONFLICT ON <property>
         [ ELSE <alternative> ]
     ] ;
 
