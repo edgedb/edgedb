@@ -531,7 +531,7 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
         """
         WITH MODULE test
         INSERT User {name := "Johnny"}
-        UNLESS CONFLICT
+        UNLESS CONFLICT ON (.name)
         ELSE User
 % OK %
         ONE
@@ -541,7 +541,7 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
         """
         WITH MODULE test
         INSERT User {name := "Spike"}
-        UNLESS CONFLICT
+        UNLESS CONFLICT ON (.name)
         ELSE Card
 % OK %
         MANY
@@ -551,7 +551,7 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
         """
         WITH MODULE test
         INSERT User {name := "Madz"}
-        UNLESS CONFLICT
+        UNLESS CONFLICT ON (.name)
         ELSE (INSERT User {name := "Madz2"})
 % OK %
         ONE

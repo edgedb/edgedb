@@ -2356,22 +2356,6 @@ class TestInsert(tb.QueryTestCase):
                 };
             ''')
 
-        async with self.assertRaisesRegexTx(
-                edgedb.QueryError,
-                "possibly more than one element returned by an expression "
-                "for a computable link 'foo' declared as 'single'"):
-            await self.con.query(r'''
-                WITH MODULE test,
-                    X := (INSERT Person {
-                        name := "Test",
-                        case_name := "Foo",
-                    }
-                UNLESS CONFLICT ELSE Person),
-                SELECT stdgraphql::Query {
-                    single foo := X
-                };
-            ''')
-
     async def test_edgeql_insert_unless_conflict_03(self):
         query = r'''
             SELECT (
@@ -2628,7 +2612,6 @@ class TestInsert(tb.QueryTestCase):
                 'name': 'Foo', 'case_name': 'Foo',
             }]
         )
-
 
     async def test_edgeql_insert_unless_conflict_11(self):
         # ELSE without ON, using object constraint
