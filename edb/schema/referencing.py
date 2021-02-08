@@ -913,11 +913,18 @@ class ReferencedInheritingObjectCommand(
             refname: sn.Name,
         ) -> None:
             s_t = type(self)(classname=alter_cmd.classname)
-            s_t.set_attribute_value(field_name, value)
+            orig_value = scls.get_explicit_field_value(
+                schema, field_name, default=None)
+            s_t.set_attribute_value(
+                field_name,
+                value,
+                orig_value=orig_value,
+                inherited=True,
+            )
             alter_cmd.add(s_t)
 
         schema = self._propagate_ref_op(
-            schema, context, self.scls, cb=_propagate)
+            schema, context, scls, cb=_propagate)
 
         return schema
 

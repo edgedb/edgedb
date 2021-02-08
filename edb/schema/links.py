@@ -449,6 +449,8 @@ class CreateLink(
         src_prop.set_attribute_value('readonly', True)
         src_prop.set_attribute_value('final', True)
         src_prop.set_attribute_value('owned', True)
+        src_prop.set_attribute_value('from_alias',
+                                     self.scls.get_from_alias(schema))
         src_prop.set_attribute_value('cardinality',
                                      qltypes.SchemaCardinality.One)
 
@@ -482,6 +484,8 @@ class CreateLink(
         tgt_prop.set_attribute_value('readonly', True)
         tgt_prop.set_attribute_value('final', True)
         tgt_prop.set_attribute_value('owned', True)
+        tgt_prop.set_attribute_value('from_alias',
+                                     self.scls.get_from_alias(schema))
         tgt_prop.set_attribute_value('cardinality',
                                      qltypes.SchemaCardinality.One)
 

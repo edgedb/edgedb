@@ -250,7 +250,7 @@ class PropertyCommand(
 
 class CreateProperty(
     PropertyCommand,
-    referencing.CreateReferencedInheritingObject[Property],
+    pointers.CreatePointer[Property],
 ):
     astnode = [qlast.CreateConcreteProperty,
                qlast.CreateProperty]
