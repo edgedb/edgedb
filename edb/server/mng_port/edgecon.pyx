@@ -716,8 +716,6 @@ cdef class EdgeConnection:
     async def _compile(
         self,
         query_req: QueryRequestInfo,
-        *,
-        stmt_mode: str = 'single',
     ):
         if self.dbview.in_tx_error():
             self.dbview.raise_in_tx_error()
@@ -734,7 +732,7 @@ cdef class EdgeConnection:
                 query_req.implicit_limit,
                 query_req.inline_typeids,
                 query_req.inline_typenames,
-                stmt_mode,
+                'single',
             )
         else:
             units, self.last_state = await compiler_pool.compile(
@@ -750,7 +748,7 @@ cdef class EdgeConnection:
                 query_req.implicit_limit,
                 query_req.inline_typeids,
                 query_req.inline_typenames,
-                stmt_mode,
+                'single',
             )
         return units
 
@@ -758,7 +756,7 @@ cdef class EdgeConnection:
         self,
         query: bytes,
         *,
-        stmt_mode: str = 'single',
+        stmt_mode,
     ):
         with self.timer.timed("Query tokenization"):
             source = edgeql.Source.from_string(query.decode('utf-8'))
@@ -873,6 +871,7 @@ cdef class EdgeConnection:
         if self.debug:
             self.debug_print('SIMPLE QUERY', eql)
 
+        stmt_mode = 'all'
         if self.dbview.in_tx_error():
             stmt_mode, query_unit = await self._recover_script_error(
                 eql,
@@ -887,7 +886,9 @@ cdef class EdgeConnection:
                 self.flush()
                 return
 
-        query_unit = await self._simple_query(eql, allow_capabilities)
+        assert stmt_mode in {'all', 'skip_first'}
+        query_unit = await self._simple_query(
+            eql, allow_capabilities, stmt_mode)
 
         packet = WriteBuffer.new()
         packet.write_buffer(self.make_command_complete_msg(query_unit))
@@ -895,12 +896,16 @@ cdef class EdgeConnection:
         self.write(packet)
         self.flush()
 
-    async def _simple_query(self, eql: bytes, allow_capabilities: uint64_t):
+    async def _simple_query(
+        self,
+        eql: bytes,
+        allow_capabilities: uint64_t,
+        stmt_mode: str,
+    ):
         cdef:
             bytes state = None
             int i
 
-        stmt_mode = 'all'
         with self.timer.timed("Query compilation"):
             units = await self._compile_script(eql, stmt_mode=stmt_mode)
 
@@ -1046,7 +1051,6 @@ cdef class EdgeConnection:
                 with self.timer.timed("Query compilation"):
                     query_unit = await self._compile(
                         query_req,
-                        stmt_mode='single',
                     )
                 query_unit = query_unit[0]
             if query_unit.capabilities & ~query_req.allow_capabilities:
