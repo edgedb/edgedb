@@ -859,7 +859,7 @@ cdef class EdgeConnection:
         if self.protocol_version < minimum_version:
             raise errors.BinaryProtocolError(
                 f'{feature} is supported since protocol '
-                f'{minimum_version[0].minimum_version[1]}, current is '
+                f'{minimum_version[0]}.{minimum_version[1]}, current is '
                 f'{self.protocol_version[0]}.{self.protocol_version[1]}'
             )
 
