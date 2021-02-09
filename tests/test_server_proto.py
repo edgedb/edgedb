@@ -1985,6 +1985,28 @@ class TestServerProto(tb.QueryTestCase):
             self.assertEqual(
                 result, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 
+    async def test_server_proto_tx_20(self):
+        await self.con.execute(f'''
+            START TRANSACTION;
+        ''')
+        try:
+            with self.assertRaisesRegex(
+                edgedb.QueryError,
+                'cannot execute CREATE DATABASE in a transaction'
+            ):
+                await self.con.execute('CREATE DATABASE t1;')
+        finally:
+            await self.con.execute('ROLLBACK;')
+
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            'cannot execute CREATE DATABASE with other commands'
+        ):
+            await self.con.execute('''
+                SELECT 1;
+                CREATE DATABASE t1;
+            ''')
+
 
 class TestServerProtoMigration(tb.QueryTestCase):
 

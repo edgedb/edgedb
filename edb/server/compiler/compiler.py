@@ -1593,6 +1593,20 @@ class Compiler:
             unit.capabilities |= capabilities
 
             if not comp.is_transactional:
+                if statements_len > 1:
+                    raise errors.QueryError(
+                        f'cannot execute {status.get_status(stmt).decode()} '
+                        f'with other commands in one block',
+                        context=stmt.context,
+                    )
+
+                if not ctx.state.current_tx().is_implicit():
+                    raise errors.QueryError(
+                        f'cannot execute {status.get_status(stmt).decode()} '
+                        f'in a transaction',
+                        context=stmt.context,
+                    )
+
                 if not comp.single_unit:
                     raise errors.InternalServerError(
                         'non-transactional compilation units must '
