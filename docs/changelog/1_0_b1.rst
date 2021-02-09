@@ -38,7 +38,7 @@ We create a directory ``app_schema`` and write the above into a
 ``app_schema/schema.esdl`` file inside it. Then we can initialize our
 project database by running ``edgedb create-migration``:
 
-.. code-block:: bash
+.. code-block::
 
     $ edgedb create-migration --schema-dir app_schema
     did you create object type 'default::User'? [y,n,l,c,b,s,q,?]
@@ -64,7 +64,7 @@ This creates the first migration file
 sure everything is in order, we can apply the migration with the
 following command:
 
-.. code-block:: bash
+.. code-block::
 
     $ edgedb migrate --schema-dir app_schema
     Applied m1ufwaxcqiwcq3ttcujnxv6f3jewhfrywc442z6gjk3sm3e5fgyr4q
@@ -104,7 +104,7 @@ schema to be:
 And we apply the changes by using ``create-migration`` and ``migrate``
 commands again:
 
-.. code-block:: bash
+.. code-block::
 
     $ edgedb create-migration --schema-dir app_schema
     did you create object type 'default::Channel'? [y,n,l,c,b,s,q,?]
@@ -125,7 +125,7 @@ At this point we may want to actually create a default channel "Main"
 and make the ``channel`` link required. So we alter the schema to make
 the link required and run ``create-migration`` again:
 
-.. code-block:: bash
+.. code-block::
 
     $ edgedb create-migration --schema-dir app_schema
     did you make link 'channel' of object type 'default::Message'
@@ -142,7 +142,7 @@ default::Channel {title := 'Main'};`` at the beginning of the
 migration block in the ``app_schema/migrations/00003.edgeql`` file.
 Now we can actually apply the changes:
 
-.. code-block:: bash
+.. code-block::
 
     $ edgedb migrate --schema-dir app_schema
     edgedb error: could not read migrations in app_schema/migrations:
@@ -163,7 +163,7 @@ that we need to adjust the migration hash in order to proceed and even
 supplies us with the new hash. After adjusting the migration file, we
 can now apply it:
 
-.. code-block:: bash
+.. code-block::
 
     $ edgedb migrate --schema-dir app_schema
     Applied m1jmrmawu4uty53clhbat7nvzjbogexyarh2zue6w6ind2kpfalwva
@@ -173,7 +173,7 @@ So let's make a minor tweak by renaming the ``friends`` link into
 ``circle``. After updating our ``app_schema/schema.esdl`` file we can
 apply the changes:
 
-.. code-block:: bash
+.. code-block::
 
     $ edgedb create-migration --schema-dir app_schema
     did you rename link 'friends' of object type 'default::User' to
