@@ -32,7 +32,7 @@ import click
 
 import edb
 from edb.common import devmode
-
+from edb.testbase.server import get_test_cases
 from edb.tools.edb import edbcommands
 
 from .decorators import not_implemented
@@ -66,6 +66,9 @@ __all__ = ('not_implemented', 'xfail', 'skip')
 @click.option('-j', '--jobs', type=int,
               default=lambda: (os.cpu_count() or 0) // 2,
               help='number of parallel processes to use')
+@click.option('-s', '--shard', type=str,
+              default='1/1',
+              help='run tests in shards (current/total)')
 @click.option('-k', '--include', type=str, multiple=True, metavar='REGEXP',
               help='only run tests which match the given regular expression')
 @click.option('-e', '--exclude', type=str, multiple=True, metavar='REGEXP',
@@ -80,8 +83,13 @@ __all__ = ('not_implemented', 'xfail', 'skip')
               help='package name to measure code coverage for, '
                    'can be specified multiple times '
                    '(e.g --cov edb.common --cov edb.server)')
-def test(*, files, jobs, include, exclude, verbose, quiet, debug,
-         output_format, warnings, failfast, shuffle, cov, repeat):
+@click.option('--time-file', type=click.File('a+'), metavar='FILEPATH',
+              help='Maintain a running time file at FILEPATH')
+@click.option('--list', 'list_tests', is_flag=True,
+              help='list all the tests and exit')
+def test(*, files, jobs, shard, include, exclude, verbose, quiet, debug,
+         output_format, warnings, failfast, shuffle, cov, repeat, time_file,
+         list_tests):
     """Run EdgeDB test suite.
 
     Discovers and runs tests in the specified files or directories.
@@ -128,6 +136,16 @@ def test(*, files, jobs, include, exclude, verbose, quiet, debug,
                 f'Error: test path {file!r} does not exist', fg='red')
             sys.exit(1)
 
+    try:
+        current_shard, total_shards = map(int, shard.split('/'))
+    except Exception:
+        click.secho(f'Error: --shard {shard} must match format e.g. 2/5')
+        sys.exit(1)
+
+    if current_shard < 1 or current_shard > total_shards:
+        click.secho(f'Error: --shard {shard} is out of bound')
+        sys.exit(1)
+
     run = functools.partial(
         _run,
         include=include,
@@ -140,6 +158,10 @@ def test(*, files, jobs, include, exclude, verbose, quiet, debug,
         failfast=failfast,
         shuffle=shuffle,
         repeat=repeat,
+        current_shard=current_shard,
+        total_shards=total_shards,
+        time_file=time_file,
+        list_tests=list_tests,
     )
 
     if cov:
@@ -214,7 +236,8 @@ def _coverage_wrapper(paths):
 
 
 def _run(*, include, exclude, verbosity, files, jobs, output_format,
-         warnings, failfast, shuffle, repeat):
+         warnings, failfast, shuffle, repeat, current_shard, total_shards,
+         time_file, list_tests):
     suite = unittest.TestSuite()
 
     total = 0
@@ -226,7 +249,8 @@ def _run(*, include, exclude, verbosity, files, jobs, output_format,
             total += n
             total_unfiltered += unfiltered_n
             click.echo(styles.status(
-                f'Collected {total}/{total_unfiltered} tests.\r'), nl=False)
+                f'Collected {total}/{total_unfiltered} tests.\r'),
+                nl=False, err=list_tests)
     else:
         _update_progress = None
 
@@ -248,6 +272,14 @@ def _run(*, include, exclude, verbosity, files, jobs, output_format,
 
         suite.addTest(tests)
 
+    if list_tests:
+        click.echo(err=True)
+        cases = get_test_cases([suite])
+        for tests in cases.values():
+            for test in tests:
+                click.echo(str(test))
+        return 0
+
     jobs = max(min(total, jobs), 1)
 
     if verbosity > 0:
@@ -266,7 +298,7 @@ def _run(*, include, exclude, verbosity, files, jobs, output_format,
             warnings=warnings, num_workers=jobs,
             failfast=failfast, shuffle=shuffle)
 
-        result = test_runner.run(suite)
+        result = test_runner.run(suite, current_shard, total_shards, time_file)
 
         if not result.wasSuccessful():
             return 1

@@ -21,6 +21,7 @@ from __future__ import annotations
 from typing import *
 
 import collections.abc
+import csv
 import enum
 import io
 import itertools
@@ -731,9 +732,18 @@ class ParallelTextTestRunner:
         self.shuffle = shuffle
         self.output_format = output_format
 
-    def run(self, test):
+    def run(self, test, current_shard, total_shards, time_file):
         session_start = time.monotonic()
         cases = tb.get_test_cases([test])
+        stats = {}
+        if time_file:
+            time_file.seek(0)
+            stats = {
+                k: (float(v), int(c)) for k, v, c in csv.reader(time_file)
+            }
+        cases = tb.get_cases_by_shard(
+            cases, current_shard, total_shards, self.verbosity, stats,
+        )
         setup = tb.get_test_cases_setup(cases)
         bootstrap_time_taken = 0
         tests_time_taken = 0
@@ -805,6 +815,17 @@ class ParallelTextTestRunner:
             self._echo()
             suite.run(result)
 
+            if time_file:
+                for test, stat in result.test_stats:
+                    name = str(test)
+                    t = stat['running-time']
+                    at, c = stats.get(name, (0, 0))
+                    stats[name] = (at + (t - at) / (c + 1), c + 1)
+                time_file.seek(0)
+                time_file.truncate()
+                writer = csv.writer(time_file)
+                for k, v in stats.items():
+                    writer.writerow((k, ) + v)
             tests_time_taken = time.monotonic() - start
 
         except KeyboardInterrupt:
