@@ -623,13 +623,13 @@ class ParallelTextTestResult(unittest.result.TestResult):
             self.ren = SimpleRenderer(tests=tests, stream=stream)
 
     def report_progress(self, test, marker, description=None):
+        self.currently_running.pop(test, None)
         self.ren.report(
             test,
             marker,
             description,
             currently_running=list(self.currently_running),
         )
-        self.currently_running.pop(test, None)
 
     def record_test_stats(self, test, stats):
         self.test_stats.append((test, stats))
