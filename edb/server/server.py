@@ -593,6 +593,35 @@ class Server:
     def _release_sys_pgcon(self):
         self._sys_pgcon_waiters.put_nowait(self.__sys_pgcon)
 
+    async def _cancel_pgcon_operation(self, pgcon) -> bool:
+        syscon = await self._acquire_sys_pgcon()
+        try:
+            if pgcon.idle:
+                # pgcon could have received the query results while we
+                # were acquiring a system connection to cancel it.
+                return False
+
+            if pgcon.is_cancelling():
+                # Somehow the connection is already being cancelled and
+                # we don't want to have to cancellations go in parallel.
+                return False
+
+            pgcon.start_pg_cancellation()
+            try:
+                # Returns True if the `pid` exists and it was able to send it a
+                # SIGINT.  Will throw an exception if the priveleges aren't
+                # sufficient.
+                result = await syscon.simple_query(
+                    f'SELECT pg_cancel_backend({pgcon.backend_pid});'.encode(),
+                    ignore_data=False
+                )
+            finally:
+                pgcon.finish_pg_cancellation()
+
+            return result[0][0] == b't'
+        finally:
+            self._release_sys_pgcon()
+
     async def _signal_sysevent(self, event, **kwargs):
         pgcon = await self._acquire_sys_pgcon()
         try:

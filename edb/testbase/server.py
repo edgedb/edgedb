@@ -850,6 +850,18 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
     # library (e.g. declaring casts).
     INTERNAL_TESTMODE = True
 
+    # If True, the tearDownClass method will retry `DROP DATABASE`
+    # if it raises ExecutionError(database X is being accessed by other users).
+    # This helps to mask issues in some of the concurrent DDL tests we have,
+    # specifically where we cancel open EdgeDB connections with a TaskGroup.
+    # Cancellations like that act rather abruptly -- the connection is killed,
+    # but it might take some time for the server to actually shut it down.
+    # Which leads to the situation where the client side thinks that there are
+    # no open connections to some particular DB, whereas the server is actually
+    # still closing them down; if the client want some database dropped, it
+    # would get the aforementioned ExecutionError.
+    RETRY_DROP_DATABASE = False
+
     BASE_TEST_CLASS = True
 
     con: Any  # XXX: the real type?
@@ -976,9 +988,19 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                     dbname = cls.get_database_name()
 
                     async def drop_db():
-                        await cls.admin_conn.execute(
-                            f'DROP DATABASE {dbname};'
-                        )
+                        if cls.RETRY_DROP_DATABASE:
+                            async for tr in cls.try_until_succeeds(
+                                ignore=edgedb.ExecutionError,
+                                timeout=5
+                            ):
+                                async with tr:
+                                    await cls.admin_conn.execute(
+                                        f'DROP DATABASE {dbname};'
+                                    )
+                        else:
+                            await cls.admin_conn.execute(
+                                f'DROP DATABASE {dbname};'
+                            )
 
                     cls.loop.run_until_complete(drop_db())
 

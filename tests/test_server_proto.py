@@ -772,6 +772,9 @@ class TestServerProto(tb.QueryTestCase):
                 await asyncio.sleep(0.1)
                 await con2.aclose()
 
+            # Give the server some time to actually close the connection.
+            await asyncio.sleep(2)
+
         finally:
             k = await self.con.query(
                 'select sys::_advisory_unlock(<int64>$0)', lock_key)
@@ -2563,71 +2566,6 @@ class TestServerProtoDDL(tb.DDLTestCase):
         finally:
             await self.con.execute('ROLLBACK')
 
-    async def test_server_proto_concurrent_ddl(self):
-        typename_prefix = 'ConcurrentDDL'
-        ntasks = 5
-
-        async with tg.TaskGroup() as g:
-            cons_tasks = [
-                g.create_task(self.connect(database=self.con.dbname))
-                for _ in range(ntasks)
-            ]
-
-        cons = [c.result() for c in cons_tasks]
-
-        try:
-            async with tg.TaskGroup() as g:
-                for i, con in enumerate(cons):
-                    g.create_task(con.execute(f'''
-                        CREATE TYPE test::{typename_prefix}{i} {{
-                            CREATE REQUIRED PROPERTY prop1 -> std::int64;
-                        }};
-
-                        INSERT test::{typename_prefix}{i} {{
-                            prop1 := {i}
-                        }};
-                    '''))
-        except tg.TaskGroupError as e:
-            self.assertIn(
-                edgedb.TransactionSerializationError,
-                e.get_error_types(),
-            )
-        else:
-            self.fail("TransactionSerializationError not raised")
-        finally:
-            async with tg.TaskGroup() as g:
-                for con in cons:
-                    g.create_task(con.aclose())
-
-    async def test_server_proto_concurrent_global_ddl(self):
-        ntasks = 5
-
-        async with tg.TaskGroup() as g:
-            cons_tasks = [
-                g.create_task(self.connect(database=self.con.dbname))
-                for _ in range(ntasks)
-            ]
-
-        cons = [c.result() for c in cons_tasks]
-
-        try:
-            async with tg.TaskGroup() as g:
-                for i, con in enumerate(cons):
-                    g.create_task(con.execute(f'''
-                        CREATE SUPERUSER ROLE concurrent_{i}
-                    '''))
-        except tg.TaskGroupError as e:
-            self.assertIn(
-                edgedb.TransactionSerializationError,
-                e.get_error_types(),
-            )
-        else:
-            self.fail("TransactionSerializationError not raised")
-        finally:
-            async with tg.TaskGroup() as g:
-                for con in cons:
-                    g.create_task(con.aclose())
-
     async def test_server_proto_backend_tid_propagation_01(self):
         async with self._run_and_rollback():
             await self.con.execute('''
@@ -2984,6 +2922,83 @@ class TestServerProtoDDL(tb.DDLTestCase):
             SELECT {"test1", "test2"}
         ''')
         self.assertEqual(result, ['"test1"', '"test2"'])
+
+
+class TestServerProtoConcurrentDDL(tb.DDLTestCase):
+
+    TRANSACTION_ISOLATION = False
+    RETRY_DROP_DATABASE = True
+
+    async def test_server_proto_concurrent_ddl(self):
+        typename_prefix = 'ConcurrentDDL'
+        ntasks = 5
+
+        async with tg.TaskGroup() as g:
+            cons_tasks = [
+                g.create_task(self.connect(database=self.con.dbname))
+                for _ in range(ntasks)
+            ]
+
+        cons = [c.result() for c in cons_tasks]
+
+        try:
+            async with tg.TaskGroup() as g:
+                for i, con in enumerate(cons):
+                    g.create_task(con.execute(f'''
+                        CREATE TYPE test::{typename_prefix}{i} {{
+                            CREATE REQUIRED PROPERTY prop1 -> std::int64;
+                        }};
+
+                        INSERT test::{typename_prefix}{i} {{
+                            prop1 := {i}
+                        }};
+                    '''))
+        except tg.TaskGroupError as e:
+            self.assertIn(
+                edgedb.TransactionSerializationError,
+                e.get_error_types(),
+            )
+        else:
+            self.fail("TransactionSerializationError not raised")
+        finally:
+            async with tg.TaskGroup() as g:
+                for con in cons:
+                    g.create_task(con.aclose())
+
+
+class TestServerProtoConcurrentDDLAA(tb.DDLTestCase):
+
+    TRANSACTION_ISOLATION = False
+    RETRY_DROP_DATABASE = True
+
+    async def test_server_proto_concurrent_global_ddl(self):
+        ntasks = 5
+
+        async with tg.TaskGroup() as g:
+            cons_tasks = [
+                g.create_task(self.connect(database=self.con.dbname))
+                for _ in range(ntasks)
+            ]
+
+        cons = [c.result() for c in cons_tasks]
+
+        try:
+            async with tg.TaskGroup() as g:
+                for i, con in enumerate(cons):
+                    g.create_task(con.execute(f'''
+                        CREATE SUPERUSER ROLE concurrent_{i}
+                    '''))
+        except tg.TaskGroupError as e:
+            self.assertIn(
+                edgedb.TransactionSerializationError,
+                e.get_error_types(),
+            )
+        else:
+            self.fail("TransactionSerializationError not raised")
+        finally:
+            async with tg.TaskGroup() as g:
+                for con in cons:
+                    g.create_task(con.aclose())
 
 
 class TestServerCapabilities(tb.QueryTestCase):
