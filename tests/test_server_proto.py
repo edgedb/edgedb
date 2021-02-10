@@ -2111,11 +2111,16 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
             finally:
                 await con2.aclose()
 
-            await self.con.execute('''
-                CREATE SUPERUSER ROLE ddlprop01 {
-                    SET password := 'aaaa';
-                }
-            ''')
+            # Other tests mutate global DDL, hence try a few times.
+            async for tr in self.try_until_succeeds(
+                ignore=edgedb.TransactionSerializationError
+            ):
+                async with tr:
+                    await self.con.execute('''
+                        CREATE SUPERUSER ROLE ddlprop01 {
+                            SET password := 'aaaa';
+                        }
+                    ''')
 
             # Give some time for the other server to receive the
             # updated roles notification and re-fetch them.
@@ -2140,9 +2145,14 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
             finally:
                 await con3.aclose()
 
-                await self.con.execute('''
-                    DROP ROLE ddlprop01;
-                ''')
+                # Other tests mutate global DDL, hence try a few times.
+                async for tr in self.try_until_succeeds(
+                    ignore=edgedb.TransactionSerializationError
+                ):
+                    async with tr:
+                        await self.con.execute('''
+                            DROP ROLE ddlprop01;
+                        ''')
 
 
 class TestServerProtoDDL(tb.DDLTestCase):
