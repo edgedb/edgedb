@@ -2264,43 +2264,97 @@ class TestInsert(tb.QueryTestCase):
         self.assertNotEqual(res, res3)
 
     async def test_edgeql_insert_unless_conflict_02(self):
-        async with self._run_and_rollback():
-            with self.assertRaisesRegex(
-                    edgedb.QueryError,
-                    "UNLESS CONFLICT argument must be a property"):
-                await self.con.query(r'''
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "UNLESS CONFLICT argument must be a property"):
+            await self.con.query(r'''
+                INSERT test::Person {name := "hello"}
+                UNLESS CONFLICT ON 20;
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "UNLESS CONFLICT argument must be a property of "
+                "the type being inserted"):
+            await self.con.query(r'''
+                INSERT test::Person {name := "hello"}
+                UNLESS CONFLICT ON test::Note.name;
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "UNLESS CONFLICT property must have a "
+                "single exclusive constraint"):
+            await self.con.query(r'''
+                INSERT test::Note {name := "hello"}
+                UNLESS CONFLICT ON .name;
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "UNLESS CONFLICT property must be a SINGLE property"):
+            await self.con.query(r'''
+                INSERT test::Person {name := "hello", multi_prop := "lol"}
+                UNLESS CONFLICT ON .multi_prop;
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "object type 'std::Object' has no link or property 'name'"):
+            await self.con.query(r'''
+                SELECT (
                     INSERT test::Person {name := "hello"}
-                    UNLESS CONFLICT ON 20;
-                ''')
+                    UNLESS CONFLICT ON .name
+                    ELSE test::DefaultTest1
+                ) {name};
+            ''')
 
-        async with self._run_and_rollback():
-            with self.assertRaisesRegex(
-                    edgedb.QueryError,
-                    "UNLESS CONFLICT argument must be a property of "
-                    "the type being inserted"):
-                await self.con.query(r'''
-                    INSERT test::Person {name := "hello"}
-                    UNLESS CONFLICT ON test::Note.name;
-                ''')
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "possibly more than one element returned by an expression "
+                "for a computable link 'foo' declared as 'single'"):
+            await self.con.query(r'''
+                WITH MODULE test,
+                     X := (
+                        INSERT Person {name := "hello"}
+                        UNLESS CONFLICT ON .name
+                        ELSE (DETACHED Person)
+                    )
+                SELECT stdgraphql::Query {
+                    single foo := X
+                };
+            ''')
 
-        async with self._run_and_rollback():
-            with self.assertRaisesRegex(
-                    edgedb.QueryError,
-                    "UNLESS CONFLICT property must have a "
-                    "single exclusive constraint"):
-                await self.con.query(r'''
-                    INSERT test::Note {name := "hello"}
-                    UNLESS CONFLICT ON .name;
-                ''')
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "possibly more than one element returned by an expression "
+                "for a computable link 'foo' declared as 'single'"):
+            await self.con.query(r'''
+                WITH MODULE test,
+                     X := (
+                        INSERT Person {name := "hello"}
+                        UNLESS CONFLICT ON .name
+                        ELSE Note
+                    )
+                SELECT stdgraphql::Query {
+                    single foo := X
+                };
+            ''')
 
-        async with self._run_and_rollback():
-            with self.assertRaisesRegex(
-                    edgedb.QueryError,
-                    "UNLESS CONFLICT property must be a SINGLE property"):
-                await self.con.query(r'''
-                    INSERT test::Person {name := "hello", multi_prop := "lol"}
-                    UNLESS CONFLICT ON .multi_prop;
-                ''')
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "possibly an empty set returned by an expression for a "
+                "computable link 'foo' declared as 'required'"):
+            await self.con.query(r'''
+                WITH MODULE test,
+                     X := (
+                        INSERT Person {name := "hello"}
+                        UNLESS CONFLICT ON .name
+                    )
+                SELECT stdgraphql::Query {
+                    required foo := X
+                };
+            ''')
 
     async def test_edgeql_insert_unless_conflict_03(self):
         query = r'''
@@ -2559,6 +2613,27 @@ class TestInsert(tb.QueryTestCase):
             }]
         )
 
+    async def test_edgeql_insert_unless_conflict_11(self):
+        # ELSE without ON, using object constraint
+        query = r'''
+            WITH MODULE test
+            SELECT (
+                INSERT Person {name := "Madz"}
+                UNLESS CONFLICT ON (.name)
+                ELSE (INSERT Person {name := "Maddy"})
+            ) {name};
+        '''
+
+        await self.assert_query_result(
+            query,
+            [{"name": "Madz"}],
+        )
+
+        await self.assert_query_result(
+            query,
+            [{"name": "Maddy"}],
+        )
+
     async def test_edgeql_insert_dependent_01(self):
         query = r'''
             WITH MODULE test
@@ -2728,23 +2803,22 @@ class TestInsert(tb.QueryTestCase):
         )
 
     async def test_edgeql_insert_dependent_07(self):
-        async with self._run_and_rollback():
-            with self.assertRaisesRegex(
-                    edgedb.QueryError,
-                    "invalid mutation in a shape computable"):
-                await self.con.execute(
-                    r"""
-                        WITH MODULE test
-                        SELECT Person {
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "invalid mutation in a shape computable"):
+            await self.con.execute(
+                r"""
+                    WITH MODULE test
+                    SELECT Person {
+                        name,
+                        foo := (
+                            INSERT Note {name := 'NoteDep07'}
+                        ) {
                             name,
-                            foo := (
-                                INSERT Note {name := 'NoteDep07'}
-                            ) {
-                                name,
-                            }
-                        };
-                    """
-                )
+                        }
+                    };
+                """
+            )
 
     async def test_edgeql_insert_dependent_08(self):
         await self.con.execute(r"""

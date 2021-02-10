@@ -150,7 +150,6 @@ def init_dml_stmt(
         dml_rvar = relctx.rvar_for_rel(dml_cte, ctx=ctx)
         else_cte = (dml_cte, dml_rvar)
 
-    pathctx.put_path_bond(ctx.rel, ir_stmt.subject.path_id)
     if ctx.enclosing_cte_iterator:
         pathctx.put_path_bond(ctx.rel, ctx.enclosing_cte_iterator.path_id)
 
@@ -780,7 +779,6 @@ def compile_insert_else_body(
         clauses.setup_iterator_volatility(ctx.enclosing_cte_iterator,
                                           is_cte=True, ctx=ictx)
 
-        pathctx.put_path_bond(ictx.rel, subject_id)
         dispatch.compile(else_select, ctx=ictx)
         pathctx.put_path_id_map(ictx.rel, subject_id, else_select.path_id)
 
@@ -798,7 +796,7 @@ def compile_insert_else_body(
             ictx.path_scope[subject_id] = ictx.rel
 
             relctx.include_rvar(ictx.rel, else_select_rvar,
-                                path_id=subject_id, ctx=ictx)
+                                path_id=else_select.path_id, ctx=ictx)
 
             ictx.enclosing_cte_iterator = pgast.IteratorCTE(
                 path_id=else_select.path_id, cte=else_select_cte,

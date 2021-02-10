@@ -342,6 +342,21 @@ def __infer_stmt(
 
 
 @_infer_type.register
+def __infer_insert_stmt(
+    ir: irast.InsertStmt,
+    env: context.Environment,
+) -> s_types.Type:
+    irs: List[irast.Base] = [ir.result]
+    if ir.on_conflict and ir.on_conflict.else_ir:
+        irs.append(ir.on_conflict.else_ir)
+    typ = _infer_common_type(irs, env)
+    if typ is None:
+        raise errors.QueryError('could not determine INSERT type',
+                                context=ir.context)
+    return typ
+
+
+@_infer_type.register
 def __infer_config_insert(
     ir: irast.ConfigInsert,
     env: context.Environment,

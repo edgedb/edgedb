@@ -517,3 +517,42 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 % OK %
         fire_deck: MANY
         """
+
+    def test_edgeql_ir_card_inference_50(self):
+        """
+        WITH MODULE test
+        INSERT User {name := "Timmy"}
+        UNLESS CONFLICT
+% OK %
+        AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_51(self):
+        """
+        WITH MODULE test
+        INSERT User {name := "Johnny"}
+        UNLESS CONFLICT ON (.name)
+        ELSE User
+% OK %
+        ONE
+        """
+
+    def test_edgeql_ir_card_inference_52(self):
+        """
+        WITH MODULE test
+        INSERT User {name := "Spike"}
+        UNLESS CONFLICT ON (.name)
+        ELSE Card
+% OK %
+        MANY
+        """
+
+    def test_edgeql_ir_card_inference_53(self):
+        """
+        WITH MODULE test
+        INSERT User {name := "Madz"}
+        UNLESS CONFLICT ON (.name)
+        ELSE (INSERT User {name := "Madz2"})
+% OK %
+        ONE
+        """

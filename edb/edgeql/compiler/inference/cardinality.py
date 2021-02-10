@@ -1035,15 +1035,25 @@ def __infer_insert_stmt(
         ir.result, is_mutation=True, scope_tree=new_scope, ctx=ctx
     )
 
-    if ir.on_conflict:
-        for part in [ir.on_conflict.select_ir, ir.on_conflict.else_ir]:
-            if part:
-                infer_cardinality(part, scope_tree=scope_tree, ctx=ctx)
-
     assert not ir.iterator_stmt, "InsertStmt shouldn't ever have an iterator"
 
     # INSERT without a FOR is always a singleton.
-    return ONE
+    if not ir.on_conflict:
+        return ONE
+    # ... except if UNLESS CONFLICT is used
+    else:
+        # Note: If we start supporting ELSE without ON, we'll need to
+        # factor the cardinality of this into the else_card below
+        infer_cardinality(
+            ir.on_conflict.select_ir, scope_tree=scope_tree, ctx=ctx)
+
+        card = AT_MOST_ONE
+        if ir.on_conflict.else_ir:
+            else_card = infer_cardinality(
+                ir.on_conflict.else_ir, scope_tree=scope_tree, ctx=ctx)
+            card = max_cardinality((card, else_card))
+
+        return card
 
 
 @_infer_cardinality.register
