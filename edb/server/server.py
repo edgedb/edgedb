@@ -86,6 +86,8 @@ class Server:
     _refl_schema: s_schema.Schema
     _schema_class_layout: s_refl.SchemaTypeLayout
 
+    _sys_pgcon_waiter: asyncio.Lock
+
     def __init__(
         self,
         *,
@@ -109,6 +111,7 @@ class Server:
         self._server_id = str(uuid.uuid4())
 
         self._serving = False
+        self._initing = False
 
         self._cluster = cluster
         self._pg_addr = self._get_pgaddr()
@@ -149,7 +152,6 @@ class Server:
         # Never use `self.__sys_pgcon` directly; get it via
         # `await self._acquire_sys_pgcon()`.
         self.__sys_pgcon = None
-        self._sys_pgcon_waiters = None
 
         self._roles = immutables.Map()
         self._instance_data = immutables.Map()
@@ -162,54 +164,56 @@ class Server:
         conn.terminate()
 
     async def init(self):
-        self.__sys_pgcon = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)
+        self._initing = True
+        try:
+            self.__sys_pgcon = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)
+            self._sys_pgcon_waiter = asyncio.Lock()
 
-        self._sys_pgcon_waiters = asyncio.Queue()
-        self._sys_pgcon_waiters.put_nowait(self.__sys_pgcon)
+            await self._load_instance_data()
 
-        await self._load_instance_data()
+            global_schema = await self.introspect_global_schema()
+            self._dbindex = await dbview.DatabaseIndex.init(
+                self, self._std_schema, global_schema)
 
-        global_schema = await self.introspect_global_schema()
-        self._dbindex = await dbview.DatabaseIndex.init(
-            self, self._std_schema, global_schema)
+            self._fetch_roles()
+            await self._introspect_dbs()
 
-        self._fetch_roles()
-        await self._introspect_dbs()
+            # Now, once all DBs have been introspected, start listening on
+            # any notifications about schema/roles/etc changes.
+            await self.__sys_pgcon.set_server(self)
 
-        # Now, once all DBs have been introspected, start listening on
-        # any notifications about schema/roles/etc changes.
-        await self.__sys_pgcon.set_server(self)
+            self._compiler_pool = await compiler_pool.create_compiler_pool(
+                pool_size=self._compiler_pool_size,
+                dbindex=self._dbindex,
+                runstate_dir=self._runstate_dir,
+                backend_runtime_params=self.get_backend_runtime_params(),
+                std_schema=self._std_schema,
+                refl_schema=self._refl_schema,
+                schema_class_layout=self._schema_class_layout,
+            )
 
-        self._compiler_pool = await compiler_pool.create_compiler_pool(
-            pool_size=self._compiler_pool_size,
-            dbindex=self._dbindex,
-            runstate_dir=self._runstate_dir,
-            backend_runtime_params=self.get_backend_runtime_params(),
-            std_schema=self._std_schema,
-            refl_schema=self._refl_schema,
-            schema_class_layout=self._schema_class_layout,
-        )
+            self._populate_sys_auth()
 
-        self._populate_sys_auth()
+            cfg = self._dbindex.get_sys_config()
 
-        cfg = self._dbindex.get_sys_config()
+            if not self._mgmt_host_addr:
+                self._mgmt_host_addr = (
+                    config.lookup('listen_addresses', cfg) or 'localhost')
 
-        if not self._mgmt_host_addr:
-            self._mgmt_host_addr = (
-                config.lookup('listen_addresses', cfg) or 'localhost')
+            if not self._mgmt_port_no:
+                self._mgmt_port_no = (
+                    config.lookup('listen_port', cfg) or defines.EDGEDB_PORT)
 
-        if not self._mgmt_port_no:
-            self._mgmt_port_no = (
-                config.lookup('listen_port', cfg) or defines.EDGEDB_PORT)
-
-        self._mgmt_port = self._new_port(
-            mng_port.ManagementPort,
-            nethost=self._mgmt_host_addr,
-            netport=self._mgmt_port_no,
-            auto_shutdown=self._auto_shutdown,
-            max_protocol=self._mgmt_protocol_max,
-            startup_script=self._startup_script,
-        )
+            self._mgmt_port = self._new_port(
+                mng_port.ManagementPort,
+                nethost=self._mgmt_host_addr,
+                netport=self._mgmt_port_no,
+                auto_shutdown=self._auto_shutdown,
+                max_protocol=self._mgmt_protocol_max,
+                startup_script=self._startup_script,
+            )
+        finally:
+            self._initing = False
 
     def _populate_sys_auth(self):
         cfg = self._dbindex.get_sys_config()
@@ -586,12 +590,25 @@ class Server:
         pass
 
     async def _acquire_sys_pgcon(self):
-        if self._sys_pgcon_waiters is None:
-            raise RuntimeError('invalid request to acquire a system pgcon')
-        return await self._sys_pgcon_waiters.get()
+        if not self._initing and not self._serving:
+            return None
+
+        await self._sys_pgcon_waiter.acquire()
+
+        if not self._initing and not self._serving:
+            self._sys_pgcon_waiter.release()
+            return None
+
+        if (self.__sys_pgcon is None or
+                not self.__sys_pgcon.is_healthy_to_go_back_to_pool()):
+            self.__sys_pgcon.abort()
+            self.__sys_pgcon = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)
+            await self.__sys_pgcon.set_server(self)
+
+        return self.__sys_pgcon
 
     def _release_sys_pgcon(self):
-        self._sys_pgcon_waiters.put_nowait(self.__sys_pgcon)
+        self._sys_pgcon_waiter.release()
 
     async def _cancel_pgcon_operation(self, pgcon) -> bool:
         syscon = await self._acquire_sys_pgcon()
@@ -648,6 +665,23 @@ class Server:
 
     def _on_global_schema_change(self):
         self._loop.create_task(self._reintrospect_global_schema())
+
+    def _on_sys_pgcon_connection_lost(self):
+        if not self._serving:
+            # The server is shutting down.
+            return
+        self.__sys_pgcon = None
+
+        async def reconnect():
+            conn = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)
+            if self.__sys_pgcon is not None or not self._serving:
+                conn.abort()
+                return
+
+            self.__sys_pgcon = conn
+            await self.__sys_pgcon.set_server(self)
+
+        self._loop.create_task(reconnect())
 
     def add_port(self, portcls, **kwargs):
         if self._serving:
@@ -706,10 +740,10 @@ class Server:
                 g.create_task(self._mgmt_port.stop())
                 self._mgmt_port = None
         finally:
-            pgcon = await self._acquire_sys_pgcon()
-            self._sys_pgcon_waiters = None
-            self.__sys_pgcon = None
-            pgcon.terminate()
+            if self.__sys_pgcon is not None:
+                self.__sys_pgcon.terminate()
+                self.__sys_pgcon = None
+            self._sys_pgcon_waiter = None
 
     async def get_auth_method(self, user):
         authlist = self._sys_auth
