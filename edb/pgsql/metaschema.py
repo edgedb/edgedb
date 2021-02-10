@@ -2160,7 +2160,7 @@ class SysConfigFullFunction(dbops.Function):
             jsonb_each(
                 edgedb.shobj_metadata(
                     (SELECT oid FROM pg_database
-                    WHERE datname = {ql(defines.EDGEDB_TEMPLATE_DB)}),
+                    WHERE datname = {ql(defines.EDGEDB_SYSTEM_DB)}),
                     'pg_database'
                 ) -> 'sysconfig'
             ) s
@@ -2410,7 +2410,7 @@ class SysConfigNoFileAccessFunction(dbops.Function):
             jsonb_each(
                 edgedb.shobj_metadata(
                     (SELECT oid FROM pg_database
-                    WHERE datname = {ql(defines.EDGEDB_TEMPLATE_DB)}),
+                    WHERE datname = {ql(defines.EDGEDB_SYSTEM_DB)}),
                     'pg_database'
                 ) -> 'sysconfig'
             ) s

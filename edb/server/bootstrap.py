@@ -626,6 +626,7 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
         src_hash, tpldbdump_cache, source_dir=cache_dir, pickled=False)
 
     if stdlib is None:
+        logger.info('Compiling the standard library...')
         stdlib = await _make_stdlib(in_dev_mode or testmode, global_ids)
 
     logger.info('Creating the necessary PostgreSQL extensions...')
@@ -634,7 +635,7 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
     if tpldbdump is None:
         logger.info('Populating internal SQL structures...')
         await metaschema.bootstrap(conn)
-        logger.info('Building the standard library...')
+        logger.info('Executing the standard library...')
         await _execute_ddl(conn, stdlib.sqltext)
 
         if in_dev_mode or specified_cache_dir:
@@ -864,11 +865,9 @@ async def _populate_data(schema, compiler, conn):
 
 
 async def _configure(
-    std_schema: s_schema.Schema,
     schema: s_schema.Schema,
     compiler: edbcompiler.Compiler,
     conn: asyncpg_con.Connection,
-    cluster: pgcluster.BaseCluster,
     *,
     insecure: bool = False,
 ) -> None:
@@ -905,7 +904,7 @@ async def _configure(
     config_json = config.to_json(config_spec, settings, include_source=False)
     block = dbops.PLTopBlock()
     dbops.UpdateMetadata(
-        dbops.Database(name=edbdef.EDGEDB_TEMPLATE_DB),
+        dbops.Database(name=edbdef.EDGEDB_SYSTEM_DB),
         {'sysconfig': json.loads(config_json)},
     ).generate(block)
 
@@ -1040,7 +1039,6 @@ async def _create_edgedb_database(
     database,
     owner,
     *,
-    cluster,
     builtin: bool = False,
     objid: Optional[uuid.UUID] = None,
 ) -> uuid.UUID:
@@ -1176,7 +1174,6 @@ async def _bootstrap(
         cluster, pgconn)
 
     conn = await cluster.connect(database=edbdef.EDGEDB_TEMPLATE_DB)
-    conn.add_log_listener(_pg_log_listener)
 
     try:
         conn.add_log_listener(_pg_log_listener)
@@ -1198,8 +1195,6 @@ async def _bootstrap(
         schema = s_schema.FlatSchema()
         schema = await _init_defaults(schema, compiler, conn)
         schema = await _populate_data(schema, compiler, conn)
-        await _configure(stdlib.stdschema, schema, compiler, conn, cluster,
-                         insecure=args['insecure'])
     finally:
         await conn.close()
 
@@ -1207,15 +1202,21 @@ async def _bootstrap(
         pgconn,
         edbdef.EDGEDB_SYSTEM_DB,
         edbdef.EDGEDB_SUPERUSER,
-        cluster=cluster,
         builtin=True,
     )
+
+    conn = await cluster.connect(database=edbdef.EDGEDB_SYSTEM_DB)
+
+    try:
+        conn.add_log_listener(_pg_log_listener)
+        await _configure(schema, compiler, conn, insecure=args['insecure'])
+    finally:
+        await conn.close()
 
     await _create_edgedb_database(
         pgconn,
         edbdef.EDGEDB_SUPERUSER_DB,
         edbdef.EDGEDB_SUPERUSER,
-        cluster=cluster,
     )
 
     if (
@@ -1242,7 +1243,6 @@ async def _bootstrap(
             pgconn,
             args['default_database'],
             args['default_database_user'] or edbdef.EDGEDB_SUPERUSER,
-            cluster=cluster,
         )
 
 

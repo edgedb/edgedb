@@ -565,7 +565,7 @@ cdef class DatabaseIndex:
         )
         block = dbops.PLTopBlock()
         dbops.UpdateMetadata(
-            dbops.Database(name=defines.EDGEDB_TEMPLATE_DB),
+            dbops.Database(name=defines.EDGEDB_SYSTEM_DB),
             {'sysconfig': json.loads(data)},
         ).generate(block)
         await conn.simple_query(block.to_string().encode(), True)
