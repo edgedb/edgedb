@@ -26,3 +26,7 @@ class BackendError(Exception):
         msg = fields.get('M', f'error code {fields["C"]}')
         self.fields = fields
         super().__init__(msg)
+
+
+class BackendQueryCancelledError(BackendError):
+    pass

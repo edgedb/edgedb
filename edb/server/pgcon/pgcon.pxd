@@ -84,10 +84,11 @@ cdef class PGConnection:
         object pgaddr
         object server
 
-        bint idle
+        readonly bint idle
+
+        object cancel_fut
 
     cdef before_command(self)
-    cdef after_command(self)
 
     cdef write(self, buf)
 

@@ -201,6 +201,7 @@ cdef class EdgeConnection:
         self._transport = None
         self.buffer = ReadBuffer()
 
+        self._cancelled = False
 
         self._main_task = None
         self._msg_take_waiter = None
@@ -231,7 +232,7 @@ cdef class EdgeConnection:
         if self.dbview.in_tx():
             if not self._pinned_pgcon_in_tx or self._pinned_pgcon is None:
                 raise RuntimeError(
-                    'get_pgcon(): in dbview transaction, but self._pinned_pgcon_in_tx '
+                    'get_pgcon(): in dbview transaction, but `_pinned_pgcon` '
                     'is None')
             return self._pinned_pgcon
         if self._pinned_pgcon is not None:
@@ -472,6 +473,7 @@ cdef class EdgeConnection:
             await conn._simple_query(
                 script.encode('utf-8'),
                 ALL_CAPABILITIES,
+                'all',
             )
         except pgerror.BackendError as e:
             exc = await conn._interpret_backend_error(e)
@@ -886,6 +888,9 @@ cdef class EdgeConnection:
                 self.flush()
                 return
 
+        if self._cancelled:
+            raise ConnectionAbortedError
+
         assert stmt_mode in {'all', 'skip_first'}
         query_unit = await self._simple_query(
             eql, allow_capabilities, stmt_mode)
@@ -909,6 +914,9 @@ cdef class EdgeConnection:
         with self.timer.timed("Query compilation"):
             units = await self._compile_script(eql, stmt_mode=stmt_mode)
 
+        if self._cancelled:
+            raise ConnectionAbortedError
+
         for query_unit in units:
             if query_unit.capabilities & ~allow_capabilities:
                 raise query_unit.capabilities.make_error(
@@ -922,6 +930,9 @@ cdef class EdgeConnection:
         conn = await self.get_pgcon()
         try:
             for query_unit in units:
+                if self._cancelled:
+                    raise ConnectionAbortedError
+
                 new_types = None
                 self.dbview.start(query_unit)
                 try:
@@ -961,8 +972,6 @@ cdef class EdgeConnection:
                             await self.dbview.apply_config_ops(
                                 conn,
                                 query_unit.config_ops)
-                except ConnectionAbortedError:
-                    raise
                 except Exception:
                     self.dbview.on_error(query_unit)
                     if not conn.in_tx() and self.dbview.in_tx():
@@ -1407,9 +1416,7 @@ cdef class EdgeConnection:
                     await self.dbview.apply_config_ops(
                         conn,
                         query_unit.config_ops)
-        except ConnectionAbortedError:
-            raise
-        except Exception:
+        except Exception as ex:
             self.dbview.on_error(query_unit)
 
             if not conn.in_tx() and self.dbview.in_tx():
@@ -1498,6 +1505,8 @@ cdef class EdgeConnection:
             compiled = await self._parse(query, query_req)
             self._last_anon_compiled = compiled
             query_unit = compiled.query_unit
+            if self._cancelled:
+                raise ConnectionAbortedError
         else:
             compiled = CompiledQuery(
                 query_unit=query_unit,
@@ -1526,6 +1535,8 @@ cdef class EdgeConnection:
             # some other query.
             compiled = await self._parse(query, query_req)
             self._last_anon_compiled = compiled
+            if self._cancelled:
+                raise ConnectionAbortedError
             return
 
         if self.debug:
@@ -1581,6 +1592,10 @@ cdef class EdgeConnection:
 
         try:
             while True:
+                if self._cancelled:
+                    self.abort()
+                    return
+
                 if not self.buffer.take_message():
                     await self.wait_for_message()
                 mtype = self.buffer.get_message_type()
@@ -1630,6 +1645,18 @@ cdef class EdgeConnection:
                     raise
 
                 except Exception as ex:
+                    if self._cancelled and \
+                            isinstance(ex, pgerror.BackendQueryCancelledError):
+                        # If we are cancelling the protocol (means that the
+                        # client side of the connection has dropped and we
+                        # need to gracefull cleanup and abort) we want to
+                        # propagate the BackendQueryCancelledError exception.
+                        #
+                        # If we're not cancelling, we'll treat it just like
+                        # any other error coming from Postgres (a query
+                        # might get cancelled due to a variety of reasons.)
+                        raise
+
                     # The connection has been aborted; there's nothing
                     # we can do except shutting this down.
                     if self._con_status == EDGECON_BAD:
@@ -1663,7 +1690,8 @@ cdef class EdgeConnection:
             # in this situation we just silently exit.
             self.abort()
 
-        except ConnectionAbortedError:
+        except (ConnectionAbortedError, pgerror.BackendQueryCancelledError):
+            self.abort()
             return
 
         except Exception as ex:
@@ -1683,6 +1711,13 @@ cdef class EdgeConnection:
             })
 
             self.abort()
+
+        finally:
+            if self._pinned_pgcon is not None:
+                self._pinned_pgcon.abort()
+                self.port.get_server().release_pgcon(
+                    self.dbview.dbname, self._pinned_pgcon, discard=True)
+                self._pinned_pgcon = None
 
     async def recover_from_error(self):
         # Consume all messages until sync.
@@ -1931,26 +1966,80 @@ cdef class EdgeConnection:
         self._main_task = self.loop.create_task(self.main())
 
     def connection_lost(self, exc):
-        if self._pinned_pgcon is not None:
-            self.port.get_server().release_pgcon(
-                self.dbview.dbname, self._pinned_pgcon, discard=True)
-            self._pinned_pgcon = None
-
         if self.authed:
             self.port.on_client_disconnected()
 
+        # Let's talk about cancellation.
+        #
+        # 1. Since we need to synchronize the state between Postgres and
+        #    EdgeDB, we need to make sure we never do straight asyncio
+        #    cancellation while some operation in pgcon is in flight.
+        #
+        #    Doing that can lead to the following few bad scenarios:
+        #
+        #       * pgcon connction being wrecked by asyncio.CancelledError;
+        #
+        #       * pgcon completing its operation and then, a rogue
+        #         CancelledError preventing us to apply the new state
+        #         to dbview/server config/etc.
+        #
+        # 2. It is safe to cancel `_msg_take_waiter` though. Cancelling it
+        #    would abort protocol parsing, but there's no global state that
+        #    needs syncing in protocol messages.
+        #
+        # 3. We can interrupt some operations like auth with a CancelledError.
+        #    Again, those operations don't mutate global state.
+
         if (self._msg_take_waiter is not None and
                 not self._msg_take_waiter.done()):
-            self._msg_take_waiter.set_exception(ConnectionAbortedError())
-            self._msg_take_waiter = None
+            # We're parsing the protocol. We can abort that.
+            self._msg_take_waiter.cancel()
 
-        if self._write_waiter and not self._write_waiter.done():
-            self._write_waiter.set_exception(ConnectionAbortedError())
+        if (self._main_task is not None and
+                not self._main_task.done() and
+                not self._cancelled):
 
-        if self._main_task is not None and not self._main_task.done():
-            self._main_task.cancel()
+            # The main connection handling task is up and running.
 
-        self.abort()
+            # First, let's set a flag to signal that we should cancel soon;
+            # after all the client has already disconnected.
+            self._cancelled = True
+
+            if not self.authed:
+                # We must be still authenticating. We can abort that.
+                self._main_task.cancel()
+            else:
+                if (self._pinned_pgcon is not None and
+                        not self._pinned_pgcon.idle):
+                    # Looks like we have a Postgres connection acquired and
+                    # it's actively running some command for us. Let's
+                    # cancel it gently.
+                    self.loop.create_task(
+                        self.port.get_server()._cancel_pgcon_operation(
+                            self._pinned_pgcon)
+                    )
+
+                # In all other cases, we can just wait until the `main()`
+                # coroutine notices that `self._cancelled` was set.
+                # It would be a mistake to cancel the main task here, as it
+                # could be unpacking results from pgcon and applying them
+                # to the global state.
+                #
+                # Ultimately, the main() coroutine will be aborted, eventually,
+                # and will call `self.abort()` to shut all things down.
+        else:
+            # The `main()` coroutine isn't running, it means that the
+            # connection is already pretty much dead. Let's double check that
+            # we don't have any pgcons pinned to this dying connection.
+            if self._pinned_pgcon is not None:
+                self._pinned_pgcon.abort()
+                self.port.get_server().release_pgcon(
+                    self.dbview.dbname, self._pinned_pgcon, discard=True)
+                self._pinned_pgcon = None
+
+            # For a good measure, let's also make sure that our transport
+            # is terminated.
+            self.abort()
 
     def data_received(self, data):
         self.buffer.feed_data(data)
@@ -2064,6 +2153,9 @@ cdef class EdgeConnection:
 
                 nstops = 0
                 while True:
+                    if self._cancelled:
+                        raise ConnectionAbortedError
+
                     out = await output_queue.get()
                     if out is None:
                         nstops += 1
