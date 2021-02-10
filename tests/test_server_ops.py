@@ -64,7 +64,8 @@ class TestServerOps(tb.TestCase):
             self.assertEqual(await con2.query_one('SELECT 42'), 42)
             await con2.aclose()
 
-            with self.assertRaises(ConnectionError):
+            with self.assertRaises(
+                    (ConnectionError, edgedb.ClientConnectionError)):
                 # Since both con1 and con2 are now disconnected and
                 # the cluster was started with an "--auto-shutdown"
                 # option, we expect this connection to be rejected
