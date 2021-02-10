@@ -214,11 +214,11 @@ def compile_ast_to_ir(
     if options is None:
         options = CompilerOptions()
 
-    if debug.flags.edgeql_compile:
-        debug.header('EdgeQL AST')
-        debug.dump(tree, schema=schema)
+    if debug.flags.edgeql_compile or debug.flags.edgeql_compile_edgeql_ast:
         debug.header('Compiler Options')
         debug.dump(options.__dict__)
+        debug.header('EdgeQL AST')
+        debug.dump(tree, schema=schema)
 
     ctx = stmtctx_mod.init_context(schema=schema, options=options)
 
@@ -237,12 +237,13 @@ def compile_ast_to_ir(
                     f'missing {missing_args_repr} positional argument'
                     f'{"s" if len(missing_args) > 1 else ""}')
 
-    if debug.flags.edgeql_compile:
+    if debug.flags.edgeql_compile or debug.flags.edgeql_compile_scope:
         debug.header('Scope Tree')
         if ctx.path_scope is not None:
             print(ctx.path_scope.pdebugformat())
         else:
             print('N/A')
+    if debug.flags.edgeql_compile or debug.flags.edgeql_compile_ir:
         debug.header('EdgeDB IR')
         debug.dump(ir_expr, schema=getattr(ir_expr, 'schema', None))
 

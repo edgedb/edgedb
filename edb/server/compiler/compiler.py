@@ -592,7 +592,11 @@ class Compiler:
 
         sql_text, argmap = pg_compiler.compile_ir_to_sql(
             ir,
-            pretty=debug.flags.edgeql_compile or debug.flags.delta_execute,
+            pretty=(
+                debug.flags.edgeql_compile
+                or debug.flags.edgeql_compile_sql_text
+                or debug.flags.delta_execute
+            ),
             expected_cardinality_one=ctx.expected_cardinality_one,
             output_format=_convert_format(ctx.output_format),
         )
@@ -1433,7 +1437,8 @@ class Compiler:
 
         sql_text, _ = pg_compiler.compile_ir_to_sql(
             ir,
-            pretty=debug.flags.edgeql_compile,
+            pretty=(debug.flags.edgeql_compile
+                    or debug.flags.edgeql_compile_sql_text),
         )
 
         sql = (sql_text.encode(),)

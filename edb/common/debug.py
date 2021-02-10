@@ -85,6 +85,21 @@ class flags(metaclass=FlagsMeta):
     edgeql_compile = Flag(
         doc="Dump EdgeQL/IR/SQL ASTs.")
 
+    edgeql_compile_edgeql_ast = Flag(
+        doc="Dump EdgeQL AST (subset of `edgeql_compile').")
+
+    edgeql_compile_scope = Flag(
+        doc="Dump EdgeQL scope tree (subset of `edgeql_compile').")
+
+    edgeql_compile_ir = Flag(
+        doc="Dump EdgeQL IR (subset of `edgeql_compile').")
+
+    edgeql_compile_sql_ast = Flag(
+        doc="Dump generated SQL AST (subset of `edgeql_compile').")
+
+    edgeql_compile_sql_text = Flag(
+        doc="Dump generated SQL text (subset of `edgeql_compile').")
+
     edgeql_disable_normalization = Flag(
         doc="Disable EdgeQL normalization (constant extraction etc)")
 
