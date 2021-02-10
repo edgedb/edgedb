@@ -927,6 +927,26 @@ async def _compile_sys_queries(schema, compiler, cluster):
     _, sql = compile_bootstrap_script(
         compiler,
         schema,
+        "SELECT cfg::get_config_json(sources := ['database'])",
+        expected_cardinality_one=True,
+        single_statement=True,
+    )
+
+    queries['dbconfig'] = sql
+
+    _, sql = compile_bootstrap_script(
+        compiler,
+        schema,
+        "SELECT cfg::get_config_json(max_source := 'system override')",
+        expected_cardinality_one=True,
+        single_statement=True,
+    )
+
+    queries['sysconfig'] = sql
+
+    _, sql = compile_bootstrap_script(
+        compiler,
+        schema,
         'SELECT (SELECT sys::Database FILTER NOT .builtin).name',
         expected_cardinality_one=False,
         single_statement=True,

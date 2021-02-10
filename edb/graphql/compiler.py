@@ -66,6 +66,8 @@ def compile_graphql(
     std_schema: s_schema.FlatSchema,
     user_schema: s_schema.FlatSchema,
     global_schema: s_schema.FlatSchema,
+    database_config: Mapping[str, Any],
+    system_config: Mapping[str, Any],
     gql: str,
     tokens: Optional[
         List[Tuple[gql_lexer.TokenKind, int, int, int, int, str]]],

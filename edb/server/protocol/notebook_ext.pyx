@@ -132,6 +132,8 @@ async def compile(db, server, list queries):
         db.user_schema,
         server.get_global_schema(),
         db.reflection_cache,
+        db.db_config,
+        server.get_compilation_system_config(),
         queries,
         50,  # implicit limit
     )

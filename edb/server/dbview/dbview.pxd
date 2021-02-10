@@ -31,6 +31,7 @@ cdef class DatabaseIndex:
         dict _dbs
         object _server
         object _sys_config
+        object _comp_sys_config
         object _std_schema
         object _global_schema
 
@@ -44,6 +45,7 @@ cdef class Database:
 
         readonly str name
         readonly object dbver
+        readonly object db_config
         readonly object user_schema
         readonly object reflection_cache
         readonly object backend_ids
@@ -56,7 +58,8 @@ cdef class Database:
         self,
         new_schema,
         reflection_cache=?,
-        backend_ids=?
+        backend_ids=?,
+        db_config=?,
     )
 
 cdef class DatabaseConnectionView:
@@ -67,6 +70,7 @@ cdef class DatabaseConnectionView:
         object _user
 
         object _config
+        object _db_config
         object _modaliases
         object _in_tx_modaliases
         tuple _session_state_cache
@@ -75,6 +79,7 @@ cdef class DatabaseConnectionView:
 
         object _txid
         object _in_tx_config
+        object _in_tx_db_config
         object _in_tx_user_schema_pickled
         object _in_tx_user_schema
         object _in_tx_global_schema_pickled
@@ -112,6 +117,12 @@ cdef class DatabaseConnectionView:
 
     cdef get_session_config(self)
     cdef set_session_config(self, new_conf)
+
+    cdef get_database_config(self)
+    cdef set_database_config(self, new_conf)
+
+    cdef get_system_config(self)
+    cdef get_compilation_system_config(self)
 
     cdef set_modaliases(self, new_aliases)
     cdef get_modaliases(self)

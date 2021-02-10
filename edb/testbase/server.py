@@ -829,8 +829,8 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
     TEARDOWN: Optional[str] = None
     SCHEMA: Optional[Union[str, pathlib.Path]] = None
 
-    SETUP_METHOD = None
-    TEARDOWN_METHOD = None
+    SETUP_METHOD: Optional[str] = None
+    TEARDOWN_METHOD: Optional[str] = None
 
     # Some tests may want to manage transactions manually,
     # or affect non-transactional state, in which case

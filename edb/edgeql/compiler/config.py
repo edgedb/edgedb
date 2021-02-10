@@ -53,6 +53,7 @@ class SettingInfo(NamedTuple):
     cardinality: qltypes.SchemaCardinality
     requires_restart: bool
     backend_setting: str
+    affects_compilation: bool
 
 
 @dispatch.compile.register
@@ -327,6 +328,15 @@ def _validate_op(
     else:
         backend_setting = None
 
+    compilation_attr = ptr.get_annotations(ctx.env.schema).get(
+        ctx.env.schema, sn.QualName('cfg', 'affects_compilation'), None)
+
+    if compilation_attr is not None:
+        affects_compilation = (
+            json.loads(compilation_attr.get_value(ctx.env.schema)))
+    else:
+        affects_compilation = False
+
     if system and expr.scope is not qltypes.ConfigScope.SYSTEM:
         raise errors.ConfigurationError(
             f'{name!r} is a system-level configuration parameter; '
@@ -336,4 +346,5 @@ def _validate_op(
                        param_type=cfg_type,
                        cardinality=cardinality,
                        requires_restart=requires_restart,
-                       backend_setting=backend_setting)
+                       backend_setting=backend_setting,
+                       affects_compilation=affects_compilation)

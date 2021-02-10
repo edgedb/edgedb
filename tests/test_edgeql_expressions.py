@@ -169,7 +169,7 @@ def get_test_items(**flags):
 
 class TestExpressionsWithoutConstantFolding(tb.QueryTestCase):
 
-    SETUP = """
+    SETUP_METHOD = """
         CONFIGURE SESSION SET __internal_no_const_folding := true;
     """
 

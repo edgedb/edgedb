@@ -76,6 +76,7 @@ class Worker:
         refl_schema,
         schema_class_layout,
         global_schema,
+        system_config,
         server,
         pid
     ):
@@ -87,6 +88,7 @@ class Worker:
         self._refl_schema = refl_schema
         self._schema_class_layout = schema_class_layout
         self._global_schema = global_schema
+        self._system_config = system_config
         self._last_pickled_state = None
 
         self._manager = manager
@@ -229,6 +231,7 @@ class Pool:
                     name=db.name,
                     user_schema=db.user_schema,
                     reflection_cache=db.reflection_cache,
+                    database_config=db.db_config,
                 )
             )
 
@@ -239,6 +242,7 @@ class Pool:
             self._refl_schema,
             self._schema_class_layout,
             self._dbindex.get_global_schema(),
+            self._dbindex.get_compilation_system_config(),
         )
         # Pickle once to later send to multiple worker processes.
         init_args_pickled = pickle.dumps(init_args, -1)
@@ -300,6 +304,8 @@ class Pool:
         user_schema,
         global_schema,
         reflection_cache,
+        database_config,
+        system_config,
     ):
 
         def sync_worker_state_cb(
@@ -307,42 +313,47 @@ class Pool:
             worker,
             dbname,
             user_schema=None,
+            global_schema=None,
             reflection_cache=None,
-            global_schema=None
+            database_config=None,
+            system_config=None,
         ):
             worker_db = worker._dbs.get(dbname)
             if worker_db is None:
                 assert user_schema is not None
                 assert reflection_cache is not None
                 assert global_schema is not None
+                assert database_config is not None
+                assert system_config is not None
 
                 worker._dbs = worker._dbs.set(dbname, state.DatabaseState(
                     name=dbname,
                     user_schema=user_schema,
-                    reflection_cache=reflection_cache
+                    reflection_cache=reflection_cache,
+                    database_config=database_config,
                 ))
                 worker._global_schema = global_schema
+                worker._system_config = system_config
             else:
-                if user_schema is not None and reflection_cache is not None:
+                if (
+                    user_schema is not None
+                    or reflection_cache is not None
+                    or database_config is not None
+                ):
                     worker._dbs = worker._dbs.set(dbname, state.DatabaseState(
                         name=dbname,
-                        user_schema=user_schema,
-                        reflection_cache=reflection_cache
+                        user_schema=(
+                            user_schema or worker_db.user_schema),
+                        reflection_cache=(
+                            reflection_cache or worker_db.reflection_cache),
+                        database_config=(
+                            database_config or worker_db.database_config),
                     ))
-                elif user_schema is not None:
-                    worker._dbs = worker._dbs.set(dbname, state.DatabaseState(
-                        name=dbname,
-                        user_schema=user_schema,
-                        reflection_cache=worker_db.reflection_cache
-                    ))
-                elif reflection_cache is not None:
-                    worker._dbs = worker._dbs.set(dbname, state.DatabaseState(
-                        name=dbname,
-                        user_schema=worker_db.user_schema,
-                        reflection_cache=reflection_cache
-                    ))
+
                 if global_schema is not None:
                     worker._global_schema = global_schema
+                if system_config is not None:
+                    worker._system_config = system_config
 
         worker_db = worker._dbs.get(dbname)
         preargs = (dbname,)
@@ -353,11 +364,15 @@ class Pool:
                 _pickle_memoized(user_schema),
                 _pickle_memoized(reflection_cache),
                 _pickle_memoized(global_schema),
+                _pickle_memoized(database_config),
+                _pickle_memoized(system_config),
             )
             to_update = {
                 'user_schema': user_schema,
                 'reflection_cache': reflection_cache,
                 'global_schema': global_schema,
+                'database_config': database_config,
+                'system_config': system_config,
             }
         else:
             if worker_db.user_schema is not user_schema:
@@ -384,6 +399,22 @@ class Pool:
             else:
                 preargs += (None,)
 
+            if worker_db.database_config is not database_config:
+                preargs += (
+                    _pickle_memoized(database_config),
+                )
+                to_update['database_config'] = database_config
+            else:
+                preargs += (None,)
+
+            if worker._system_config is not system_config:
+                preargs += (
+                    _pickle_memoized(system_config),
+                )
+                to_update['system_config'] = system_config
+            else:
+                preargs += (None,)
+
         if to_update:
             callback = functools.partial(
                 sync_worker_state_cb,
@@ -402,13 +433,20 @@ class Pool:
         user_schema,
         global_schema,
         reflection_cache,
+        database_config,
+        system_config,
         *compile_args
     ):
         worker = await self._workers_queue.acquire()
         try:
             preargs, sync_state = self._compute_compile_preargs(
-                worker, dbname, user_schema, global_schema,
+                worker,
+                dbname,
+                user_schema,
+                global_schema,
                 reflection_cache,
+                database_config,
+                system_config,
             )
 
             units, state = await worker.call(
@@ -479,13 +517,20 @@ class Pool:
         user_schema,
         global_schema,
         reflection_cache,
+        database_config,
+        system_config,
         *compile_args
     ):
         worker = await self._workers_queue.acquire()
         try:
             preargs, sync_state = self._compute_compile_preargs(
-                worker, dbname, user_schema, global_schema,
+                worker,
+                dbname,
+                user_schema,
+                global_schema,
                 reflection_cache,
+                database_config,
+                system_config,
             )
 
             return await worker.call(
@@ -514,13 +559,20 @@ class Pool:
         user_schema,
         global_schema,
         reflection_cache,
+        database_config,
+        system_config,
         *compile_args
     ):
         worker = await self._workers_queue.acquire()
         try:
             preargs, sync_state = self._compute_compile_preargs(
-                worker, dbname, user_schema, global_schema,
+                worker,
+                dbname,
+                user_schema,
+                global_schema,
                 reflection_cache,
+                database_config,
+                system_config,
             )
 
             return await worker.call(

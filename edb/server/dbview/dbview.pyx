@@ -60,7 +60,9 @@ cdef class Database:
         self,
         DatabaseIndex index,
         str name,
+        *,
         object user_schema,
+        object db_config,
         object reflection_cache,
         object backend_ids
     ):
@@ -74,6 +76,7 @@ cdef class Database:
         self._eql_to_compiled = lru.LRUMapping(
             maxsize=defines._MAX_QUERIES_CACHE)
 
+        self.db_config = db_config
         self.user_schema = user_schema
         self.reflection_cache = reflection_cache
         self.backend_ids = backend_ids
@@ -82,7 +85,8 @@ cdef class Database:
         self,
         new_schema,
         reflection_cache=None,
-        backend_ids=None
+        backend_ids=None,
+        db_config=None,
     ):
         if new_schema is None:
             raise AssertionError('new_schema is not supposed to be None')
@@ -94,6 +98,8 @@ cdef class Database:
             self.backend_ids = backend_ids
         if reflection_cache is not None:
             self.reflection_cache = reflection_cache
+        if db_config is not None:
+            self.db_config = db_config
         self._invalidate_caches()
 
     cdef _update_backend_ids(self, new_types):
@@ -117,6 +123,7 @@ cdef class Database:
         self._views.add(view)
         return view
 
+
 cdef class DatabaseConnectionView:
 
     _eql_to_compiled: typing.Mapping[bytes, dbstate.QueryUnit]
@@ -130,6 +137,7 @@ cdef class DatabaseConnectionView:
 
         self._modaliases = DEFAULT_MODALIASES
         self._config = DEFAULT_CONFIG
+        self._db_config = db.db_config
         self._session_state_cache = None
 
         # Whenever we are in a transaction that had executed a
@@ -146,6 +154,7 @@ cdef class DatabaseConnectionView:
         self._txid = None
         self._in_tx = False
         self._in_tx_config = None
+        self._in_tx_db_config = None
         self._in_tx_modaliases = None
         self._in_tx_with_ddl = False
         self._in_tx_with_role_ddl = False
@@ -190,6 +199,24 @@ cdef class DatabaseConnectionView:
             self._in_tx_config = new_conf
         else:
             self._config = new_conf
+
+    cdef get_database_config(self):
+        if self._in_tx:
+            return self._in_tx_db_config
+        else:
+            return self._db_config
+
+    cdef set_database_config(self, new_conf):
+        if self._in_tx:
+            self._in_tx_db_config = new_conf
+        else:
+            self._db_config = new_conf
+
+    cdef get_system_config(self):
+        return self._db._index.get_sys_config()
+
+    cdef get_compilation_system_config(self):
+        return self._db._index.get_compilation_system_config()
 
     cdef set_modaliases(self, new_aliases):
         if self._in_tx:
@@ -352,6 +379,7 @@ cdef class DatabaseConnectionView:
             self._in_tx = True
             self._txid = query_unit.tx_id
             self._in_tx_config = self._config
+            self._in_tx_db_config = self._db_config
             self._in_tx_modaliases = self._modaliases
             self._in_tx_user_schema = self._db.user_schema
             self._in_tx_global_schema = self._db._index._global_schema
@@ -425,6 +453,7 @@ cdef class DatabaseConnectionView:
                 raise errors.InternalServerError(
                     '"commit" outside of a transaction')
             self._config = self._in_tx_config
+            self._db_config = self._in_tx_db_config
             self._modaliases = self._in_tx_modaliases
 
             if self._in_tx_new_types:
@@ -470,6 +499,10 @@ cdef class DatabaseConnectionView:
 
             if op.scope is config.ConfigScope.SYSTEM:
                 await self._db._index.apply_system_config_op(conn, op)
+            elif op.scope is config.ConfigScope.DATABASE:
+                self.set_database_config(
+                    op.apply(settings, self.get_database_config()),
+                )
             elif op.scope is config.ConfigScope.SESSION:
                 self.set_session_config(
                     op.apply(settings, self.get_session_config()),
@@ -484,16 +517,11 @@ cdef class DatabaseConnectionView:
 
 cdef class DatabaseIndex:
 
-    @classmethod
-    async def init(cls, server, std_schema, global_schema) -> DatabaseIndex:
-        state = cls(server, std_schema, global_schema)
-        await state.reload_config()
-        return state
-
-    def __init__(self, server, std_schema, global_schema):
+    def __init__(self, server, *, std_schema, global_schema, sys_config):
         self._dbs = {}
         self._server = server
-        self._sys_config = None
+        self._sys_config = sys_config
+        self._comp_sys_config = config.get_compilation_config(sys_config)
         self._std_schema = std_schema
         self._global_schema = global_schema
 
@@ -505,19 +533,15 @@ cdef class DatabaseIndex:
 
         return len((<Database>db)._views)
 
-    async def reload_config(self):
-        pgcon = await self._server._acquire_sys_pgcon()
-        try:
-            query = self._server.get_sys_query('config')
-            result = await pgcon.simple_query(query, ignore_data=False)
-        finally:
-            self._server._release_sys_pgcon()
-
-        config_json = result[0][0].decode('utf-8')
-        self._sys_config = config.from_json(config.get_settings(), config_json)
-
     def get_sys_config(self):
         return self._sys_config
+
+    def get_compilation_system_config(self):
+        return self._comp_sys_config
+
+    def update_sys_config(self, sys_config):
+        self._sys_config = sys_config
+        self._comp_sys_config = config.get_compilation_config(sys_config)
 
     def get_db(self, dbname):
         return self._dbs[dbname]
@@ -531,10 +555,11 @@ cdef class DatabaseIndex:
     def register_db(
         self,
         dbname,
+        *,
         user_schema,
+        db_config,
         reflection_cache,
         backend_ids,
-        *,
         refresh=False
     ):
         cdef Database db
@@ -547,7 +572,13 @@ cdef class DatabaseIndex:
                 user_schema, reflection_cache, backend_ids)
         else:
             db = Database(
-                self, dbname, user_schema, reflection_cache, backend_ids)
+                self,
+                dbname,
+                user_schema=user_schema,
+                db_config=db_config,
+                reflection_cache=reflection_cache,
+                backend_ids=backend_ids,
+            )
             self._dbs[dbname] = db
 
     def unregister_db(self, dbname):

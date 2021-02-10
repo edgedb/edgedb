@@ -218,8 +218,14 @@ class Server:
             await self._load_instance_data()
 
             global_schema = await self.introspect_global_schema()
-            self._dbindex = await dbview.DatabaseIndex.init(
-                self, self._std_schema, global_schema)
+            sys_config = await self.load_sys_config()
+
+            self._dbindex = dbview.DatabaseIndex(
+                self,
+                std_schema=self._std_schema,
+                global_schema=global_schema,
+                sys_config=sys_config,
+            )
 
             self._fetch_roles()
             await self._introspect_dbs()
@@ -240,15 +246,17 @@ class Server:
 
             self._populate_sys_auth()
 
-            cfg = self._dbindex.get_sys_config()
-
             if not self._listen_host:
                 self._listen_host = (
-                    config.lookup('listen_addresses', cfg) or 'localhost')
+                    config.lookup('listen_addresses', sys_config)
+                    or 'localhost'
+                )
 
             if not self._listen_port:
                 self._listen_port = (
-                    config.lookup('listen_port', cfg) or defines.EDGEDB_PORT)
+                    config.lookup('listen_port', sys_config)
+                    or defines.EDGEDB_PORT
+                )
 
             self._http_request_logger = asyncio.create_task(
                 self._request_stats_logger()
@@ -279,6 +287,9 @@ class Server:
     def get_global_schema(self):
         return self._dbindex.get_global_schema()
 
+    def get_compilation_system_config(self):
+        return self._dbindex.get_compilation_system_config()
+
     async def acquire_pgcon(self, dbname):
         return await self._pg_pool.acquire(dbname)
 
@@ -287,6 +298,22 @@ class Server:
             # TODO: Add warning. This shouldn't happen.
             discard = True
         self._pg_pool.release(dbname, conn, discard=discard)
+
+    async def load_sys_config(self):
+        syscon = await self._acquire_sys_pgcon()
+        try:
+            query = self.get_sys_query('sysconfig')
+            sys_config_json = await syscon.parse_execute_json(
+                query,
+                b'__backend_sysconfig',
+                dbver=0,
+                use_prep_stmt=True,
+                args=(),
+            )
+        finally:
+            self._release_sys_pgcon()
+
+        return config.from_json(config.get_settings(), sys_config_json)
 
     async def introspect_global_schema(self, conn=None):
         if conn is not None:
@@ -376,9 +403,24 @@ class Server:
             )
             backend_ids = json.loads(backend_ids_json)
 
+            query = self.get_sys_query('dbconfig')
+            result = await conn.parse_execute_json(
+                query,
+                b'__backend_dbconfig',
+                dbver=0,
+                use_prep_stmt=True,
+                args=(),
+            )
+            db_config = config.from_json(config.get_settings(), result)
+
             self._dbindex.register_db(
-                dbname, user_schema, reflection_cache, backend_ids,
-                refresh=refresh)
+                dbname,
+                user_schema=user_schema,
+                db_config=db_config,
+                reflection_cache=reflection_cache,
+                backend_ids=backend_ids,
+                refresh=refresh,
+            )
         finally:
             self.release_pgcon(dbname, conn)
 
