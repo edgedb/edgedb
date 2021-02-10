@@ -32,6 +32,7 @@ import immutables
 from edb import errors
 
 from edb import edgeql
+from edb import _edgeql_rust
 from edb.edgeql import ast as qlast
 
 from edb.common import context as parser_context
@@ -779,24 +780,18 @@ async def _execute_ddl(conn, sql_text):
         point = None
 
         if position is not None:
-            position = int(position)
-            point = parser_context.SourcePoint(
-                None, None, position)
+            point = int(position)
             text = e.query
             if text is None:
                 # Parse errors
                 text = sql_text
 
         elif internal_position is not None:
-            internal_position = int(internal_position)
-            point = parser_context.SourcePoint(
-                None, None, internal_position)
+            point = int(internal_position)
             text = e.internal_query
 
         elif pl_func_line:
-            point = parser_context.SourcePoint(
-                pl_func_line, None, None
-            )
+            point = _edgeql_rust.offset_of_line(sql_text, pl_func_line)
             text = sql_text
 
         if point is not None:

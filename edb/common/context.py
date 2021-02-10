@@ -33,29 +33,23 @@ contexts through the AST structure.
 
 from __future__ import annotations
 
+import re
 import bisect
+
+from edb import _edgeql_rust
 
 from edb.common import ast
 from edb.common import markup
 from edb.common import typeutils
 
 
-class SourcePoint:
-    def __init__(self, line, column, pointer):
-        self.line = line
-        self.column = column
-        self.pointer = pointer
-
-    def __repr__(self):
-        return f'source@({self.line}:{self.column}:{self.pointer})'
-
-    __str__ = __repr__
+NEW_LINE = re.compile(br'\r\n?|\n')
 
 
 class ParserContext(markup.MarkupExceptionContext):
     title = 'Source Context'
 
-    def __init__(self, name, buffer, start, end, document=None, *,
+    def __init__(self, name, buffer, start: int, end: int, document=None, *,
                  filename=None):
         self.name = name
         self.buffer = buffer
@@ -63,45 +57,32 @@ class ParserContext(markup.MarkupExceptionContext):
         self.end = end
         self.document = document
         self.filename = filename
-        if start.line is None and start.pointer is not None:
-            start.line, start.column = self.line_col_from_offset(start.pointer)
-        if end.line is None and end.pointer is not None:
-            end.line, end.column = self.line_col_from_offset(end.pointer)
-        if start.pointer is None and start.column is None:
-            start.pointer, start.column = self.offset_col_from_line(start.line)
-        if end.pointer is None and end.column is None:
-            end.pointer, end.column = self.offset_col_from_line(end.line)
+        self._points = None
+        assert start is not None
+        assert end is not None
 
-    def line_col_from_offset(self, offset):
-        line_no = 1
-        col_no = 1
-        remaining = offset
+    def __getstate__(self):
+        dic = self.__dict__.copy()
+        dic['_points'] = None
+        return dic
 
-        for line in self.buffer.split('\n'):
-            line_length = len(line) + 1
-            if line_length < remaining:
-                remaining -= line_length
-            else:
-                col_no = remaining
-                break
-            line_no += 1
+    def _calc_points(self):
+        self._points = _edgeql_rust.SourcePoint.from_offsets(
+            self.buffer.encode('utf-8'),
+            [self.start, self.end]
+        )
 
-        return line_no, col_no
+    @property
+    def start_point(self):
+        if self._points is None:
+            self._calc_points()
+        return self._points[0]
 
-    def offset_col_from_line(self, line_no):
-        offset = 0
-        col_no = 1
-
-        for i, line in enumerate(self.buffer.split('\n'), start=1):
-            line_length = len(line) + 1
-
-            if i == line_no:
-                col_no = line_length - len(line.lstrip())
-                break
-
-            offset += line_length
-
-        return offset, col_no
+    @property
+    def end_point(self):
+        if self._points is None:
+            self._calc_points()
+        return self._points[1]
 
     @classmethod
     @markup.serializer.no_ref_detect
@@ -112,37 +93,40 @@ class ParserContext(markup.MarkupExceptionContext):
 
         lines = []
         line_numbers = []
+        start = self.start_point
 
-        buf_lines = self.buffer.split('\n')
-        line_offsets = []
-        i = 0
-        for line in buf_lines:
-            line_offsets.append(i)
-            i += len(line) + 1
+        buf_bytes = self.buffer.encode('utf-8')
+        offset = 0
+        buf_lines = []
+        line_offsets = [0]
+        for match in NEW_LINE.finditer(buf_bytes):
+            buf_lines.append(buf_bytes[offset:match.start()].decode('utf-8'))
+            offset = match.end()
+            line_offsets.append(offset)
 
-        if self.start.line > 1:
-            ctx_line, _ = self.get_line_snippet(
-                self.start, offset=-1, line_offsets=line_offsets)
+        if start.line > 1:
+            ctx_line, _ = self._get_line_snippet(
+                start, offset=-1, line_offsets=line_offsets)
             lines.append(ctx_line)
-            line_numbers.append(self.start.line - 1)
+            line_numbers.append(start.line - 1)
 
-        snippet, offset = self.get_line_snippet(
-            self.start, line_offsets=line_offsets)
+        snippet, _ = self._get_line_snippet(
+            start, line_offsets=line_offsets)
         lines.append(snippet)
-        line_numbers.append(self.start.line)
+        line_numbers.append(start.line)
 
         try:
-            ctx_line, _ = self.get_line_snippet(
-                self.start, offset=1, line_offsets=line_offsets)
+            ctx_line, _ = self._get_line_snippet(
+                start, offset=1, line_offsets=line_offsets)
         except ValueError:
             pass
         else:
             lines.append(ctx_line)
-            line_numbers.append(self.start.line + 1)
+            line_numbers.append(start.line + 1)
 
         tbp = me.lang.TracebackPoint(
-            name=self.name, filename=self.name, lineno=self.start.line,
-            colno=self.start.column, lines=lines, line_numbers=line_numbers,
+            name=self.name, filename=self.name, lineno=start.line,
+            colno=start.column, lines=lines, line_numbers=line_numbers,
             context=True)
 
         body.append(tbp)
@@ -156,7 +140,7 @@ class ParserContext(markup.MarkupExceptionContext):
             else:
                 return 0, len(self.buffer)
 
-        line_no = bisect.bisect_right(line_offsets, point.pointer) - 1 + offset
+        line_no = bisect.bisect_right(line_offsets, point.offset) - 1 + offset
         if line_no >= len(line_offsets):
             raise ValueError('not enough lines in buffer')
 
@@ -168,21 +152,21 @@ class ParserContext(markup.MarkupExceptionContext):
 
         return linestart, lineend
 
-    def get_line_snippet(
+    def _get_line_snippet(
             self, point, max_length=120, *, offset=0, line_offsets):
         line_start, line_end = self._find_line(
             point, offset=offset, line_offsets=line_offsets)
         line_len = line_end - line_start
 
         if line_len > max_length:
-            before = min(max_length // 2, point.pointer - line_start)
+            before = min(max_length // 2, point.offset - line_start)
             after = max_length - before
         else:
-            before = point.pointer - line_start
+            before = point.offset - line_start
             after = line_len - before
 
-        start = point.pointer - before
-        end = point.pointer + after
+        start = point.offset - before
+        end = point.offset + after
 
         return self.buffer[start:end], before
 
@@ -211,8 +195,8 @@ def empty_context():
     return ParserContext(
         name='<empty>',
         buffer='',
-        start=SourcePoint(0, 0, 0),
-        end=SourcePoint(0, 0, 0),
+        start=0,
+        end=0,
     )
 
 
@@ -224,25 +208,24 @@ def get_context(*kids):
         return None
 
     return ParserContext(
-        name=start_ctx.name, buffer=start_ctx.buffer,
-        start=SourcePoint(
-            start_ctx.start.line, start_ctx.start.column,
-            start_ctx.start.pointer), end=SourcePoint(
-                end_ctx.end.line, end_ctx.end.column, end_ctx.end.pointer))
+        name=start_ctx.name,
+        buffer=start_ctx.buffer,
+        start=start_ctx.start,
+        end=end_ctx.end,
+    )
 
 
 def merge_context(ctxlist):
-    ctxlist.sort(key=lambda x: (x.start.pointer, x.end.pointer))
+    ctxlist.sort(key=lambda x: (x.start, x.end))
 
     # assume same name and buffer apply to all
     #
     return ParserContext(
-        name=ctxlist[0].name, buffer=ctxlist[0].buffer,
-        start=SourcePoint(
-            ctxlist[0].start.line, ctxlist[0].start.column,
-            ctxlist[0].start.pointer), end=SourcePoint(
-                ctxlist[-1].end.line, ctxlist[-1].end.column,
-                ctxlist[-1].end.pointer))
+        name=ctxlist[0].name,
+        buffer=ctxlist[0].buffer,
+        start=ctxlist[0].start,
+        end=ctxlist[-1].end,
+    )
 
 
 def force_context(node, context):
@@ -283,42 +266,8 @@ def has_context(func):
     return wrapper
 
 
-def rebase_context(base, context, *, offset_column=0, indent=0):
-    if not context:
-        return
-
-    context.name = base.name
-    context.buffer = base.buffer
-
-    if context.start.line == 1:
-        context.start.column += base.start.column - 1 + offset_column
-    # indentation is always added
-    context.start.column += indent
-    context.start.line += base.start.line - 1
-    context.start.pointer += base.start.pointer + offset_column + indent
-
-
 class ContextVisitor(ast.NodeVisitor):
     pass
-
-
-class ContextRebaser(ContextVisitor):
-    def __init__(self, base, *, offset_column=0, indent=0):
-        super().__init__()
-        self._base = base
-        self._offset_column = offset_column
-        self._indent = indent
-
-    def generic_visit(self, node):
-        rebase_context(self._base, node.context,
-                       offset_column=self._offset_column,
-                       indent=self._indent)
-        super().generic_visit(node)
-
-
-def rebase_ast_context(base, root, *, offset_column=0, indent=0):
-    return ContextRebaser.run(root, base=base, offset_column=offset_column,
-                              indent=indent)
 
 
 class ContextPropagator(ContextVisitor):

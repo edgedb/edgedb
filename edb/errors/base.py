@@ -100,8 +100,8 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
         return cls._code
 
     def set_linecol(self, line, col):
-        self._attrs[FIELD_LINE] = str(line)
-        self._attrs[FIELD_COLUMN] = str(col)
+        self._attrs[FIELD_LINE_START] = str(line)
+        self._attrs[FIELD_COLUMN_START] = str(col)
 
     def set_hint_and_details(self, hint, details=None):
         ex.replace_context(
@@ -113,12 +113,20 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
             self._attrs[FIELD_DETAILS] = details
 
     def set_source_context(self, context):
-        self.set_linecol(context.start.line, context.start.column)
+        start = context.start_point
+        end = context.end_point
         ex.replace_context(self, context)
 
-        if context.start is not None:
-            self._attrs[FIELD_POSITION_START] = str(context.start.pointer)
-            self._attrs[FIELD_POSITION_END] = str(context.end.pointer)
+        self._attrs[FIELD_POSITION_START] = str(start.offset)
+        self._attrs[FIELD_POSITION_END] = str(end.offset)
+        self._attrs[FIELD_CHARACTER_START] = str(start.char_offset)
+        self._attrs[FIELD_CHARACTER_END] = str(end.char_offset)
+        self._attrs[FIELD_LINE_START] = str(start.line)
+        self._attrs[FIELD_COLUMN_START] = str(start.column)
+        self._attrs[FIELD_UTF16_COLUMN_START] = str(start.utf16column)
+        self._attrs[FIELD_LINE_END] = str(end.line)
+        self._attrs[FIELD_COLUMN_END] = str(end.column)
+        self._attrs[FIELD_UTF16_COLUMN_END] = str(end.utf16column)
 
     def set_position(self, line: int, column: int, pointer: int):
         self.set_linecol(line, column)
@@ -127,11 +135,11 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
 
     @property
     def line(self):
-        return int(self._attrs.get(FIELD_LINE, -1))
+        return int(self._attrs.get(FIELD_LINE_START, -1))
 
     @property
     def col(self):
-        return int(self._attrs.get(FIELD_COLUMN, -1))
+        return int(self._attrs.get(FIELD_COLUMN_START, -1))
 
     @property
     def position(self):
@@ -153,5 +161,11 @@ FIELD_SERVER_TRACEBACK = 0x_01_01
 # XXX: Subject to be changed/deprecated.
 FIELD_POSITION_START = 0x_FF_F1
 FIELD_POSITION_END = 0x_FF_F2
-FIELD_LINE = 0x_FF_F3
-FIELD_COLUMN = 0x_FF_F4
+FIELD_LINE_START = 0x_FF_F3
+FIELD_COLUMN_START = 0x_FF_F4
+FIELD_UTF16_COLUMN_START = 0x_FF_F5
+FIELD_LINE_END = 0x_FF_F6
+FIELD_COLUMN_END = 0x_FF_F7
+FIELD_UTF16_COLUMN_END = 0x_FF_F8
+FIELD_CHARACTER_START = 0x_FF_F9
+FIELD_CHARACTER_END = 0x_FF_FA
