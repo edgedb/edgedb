@@ -1469,6 +1469,9 @@ cdef class PGConnection:
         self.connected_fut = None
 
     def connection_lost(self, exc):
+        if self.server is not None:
+            self.server._on_sys_pgcon_connection_lost()
+
         if self.connected_fut is not None and not self.connected_fut.done():
             self.connected_fut.set_exception(ConnectionAbortedError())
             return
