@@ -38,6 +38,7 @@ from edb.edgeql import parser as ql_parser
 from edb.schema import schema as s_schema
 
 from edb.server import compiler
+from edb.server import config
 from edb.server import pgcluster
 
 from edb.common import debug
@@ -56,6 +57,7 @@ COMPILER: compiler.Compiler
 LAST_STATE = None
 STD_SCHEMA: s_schema.FlatSchema
 GLOBAL_SCHEMA: s_schema.FlatSchema
+SYSTEM_CONFIG: immutables.Map[str, config.SettingValue]
 
 
 def __init_worker__(
@@ -67,6 +69,7 @@ def __init_worker__(
     global COMPILER
     global STD_SCHEMA
     global GLOBAL_SCHEMA
+    global SYSTEM_CONFIG
 
     (
         dbs,
@@ -75,6 +78,7 @@ def __init_worker__(
         refl_schema,
         schema_class_layout,
         global_schema,
+        system_config,
     ) = pickle.loads(init_args_pickled)
 
     INITED = True
@@ -85,6 +89,7 @@ def __init_worker__(
     )
     STD_SCHEMA = std_schema
     GLOBAL_SCHEMA = global_schema
+    SYSTEM_CONFIG = system_config
 
     COMPILER.initialize(
         std_schema, refl_schema, schema_class_layout,
@@ -96,36 +101,49 @@ def __sync__(
     user_schema: Optional[bytes],
     reflection_cache: Optional[bytes],
     global_schema: Optional[bytes],
+    database_config: Optional[bytes],
+    system_config: Optional[bytes],
 ) -> state.DatabaseState:
     global DBS
     global GLOBAL_SCHEMA
+    global SYSTEM_CONFIG
 
     try:
         db = DBS.get(dbname)
         if db is None:
+            assert user_schema is not None
+            assert reflection_cache is not None
+            assert database_config is not None
             user_schema_unpacked = pickle.loads(user_schema)
             reflection_cache_unpacked = pickle.loads(reflection_cache)
+            database_config_unpacked = pickle.loads(database_config)
             db = state.DatabaseState(
-                dbname, user_schema_unpacked, reflection_cache_unpacked
+                dbname,
+                user_schema_unpacked,
+                reflection_cache_unpacked,
+                database_config_unpacked,
             )
             DBS = DBS.set(dbname, db)
         else:
-            if user_schema is not None:
-                user_schema_unpacked = pickle.loads(user_schema)
-                db = state.DatabaseState(
-                    dbname, user_schema_unpacked, db.reflection_cache
-                )
-                DBS = DBS.set(dbname, db)
+            updates = {}
 
+            if user_schema is not None:
+                updates['user_schema'] = pickle.loads(user_schema)
             if reflection_cache is not None:
-                reflection_cache_unpacked = pickle.loads(reflection_cache)
-                db = state.DatabaseState(
-                    dbname, db.user_schema, reflection_cache_unpacked
-                )
+                updates['reflection_cache'] = pickle.loads(reflection_cache)
+            if database_config is not None:
+                updates['database_config'] = pickle.loads(database_config)
+
+            if updates:
+                db = db._replace(**updates)
                 DBS = DBS.set(dbname, db)
 
         if global_schema is not None:
             GLOBAL_SCHEMA = pickle.loads(global_schema)
+
+        if system_config is not None:
+            SYSTEM_CONFIG = pickle.loads(system_config)
+
     except Exception as ex:
         raise state.FailedStateSync(
             f'failed to sync worker state: {type(ex).__name__}({ex})') from ex
@@ -138,15 +156,26 @@ def compile(
     user_schema: Optional[bytes],
     reflection_cache: Optional[bytes],
     global_schema: Optional[bytes],
+    database_config: Optional[bytes],
+    system_config: Optional[bytes],
     *compile_args: Any,
     **compile_kwargs: Any,
 ):
-    db = __sync__(dbname, user_schema, reflection_cache, global_schema)
+    db = __sync__(
+        dbname,
+        user_schema,
+        reflection_cache,
+        global_schema,
+        database_config,
+        system_config,
+    )
 
     units, cstate = COMPILER.compile(
         db.user_schema,
         GLOBAL_SCHEMA,
         db.reflection_cache,
+        db.database_config,
+        SYSTEM_CONFIG,
         *compile_args,
         **compile_kwargs
     )
@@ -176,15 +205,26 @@ def compile_notebook(
     user_schema: Optional[bytes],
     reflection_cache: Optional[bytes],
     global_schema: Optional[bytes],
+    database_config: Optional[bytes],
+    system_config: Optional[bytes],
     *compile_args: Any,
     **compile_kwargs: Any,
 ):
-    db = __sync__(dbname, user_schema, reflection_cache, global_schema)
+    db = __sync__(
+        dbname,
+        user_schema,
+        reflection_cache,
+        global_schema,
+        database_config,
+        system_config,
+    )
 
     return COMPILER.compile_notebook(
         db.user_schema,
         GLOBAL_SCHEMA,
         db.reflection_cache,
+        db.database_config,
+        SYSTEM_CONFIG,
         *compile_args,
         **compile_kwargs
     )
@@ -201,15 +241,26 @@ def compile_graphql(
     user_schema: Optional[bytes],
     reflection_cache: Optional[bytes],
     global_schema: Optional[bytes],
+    database_config: Optional[bytes],
+    system_config: Optional[bytes],
     *compile_args: Any,
     **compile_kwargs: Any,
 ):
-    db = __sync__(dbname, user_schema, reflection_cache, global_schema)
+    db = __sync__(
+        dbname,
+        user_schema,
+        reflection_cache,
+        global_schema,
+        database_config,
+        system_config,
+    )
 
     return graphql.compile_graphql(
         STD_SCHEMA,
         db.user_schema,
         GLOBAL_SCHEMA,
+        db.database_config,
+        SYSTEM_CONFIG,
         *compile_args,
         **compile_kwargs
     )

@@ -136,6 +136,8 @@ async def compile(db, server, bytes query):
         db.user_schema,
         server.get_global_schema(),
         db.reflection_cache,
+        db.db_config,
+        server.get_compilation_system_config(),
         edgeql.Source.from_string(query.decode('utf-8')),
         None,           # modaliases
         None,           # session config

@@ -315,7 +315,9 @@ class TransactionState(NamedTuple):
     user_schema: s_schema.FlatSchema
     global_schema: s_schema.FlatSchema
     modaliases: immutables.Map
-    config: immutables.Map
+    session_config: immutables.Map
+    database_config: immutables.Map
+    system_config: immutables.Map
     cached_reflection: immutables.Map[str, Tuple[str, ...]]
     tx: Transaction
     migration_state: Optional[MigrationState] = None
@@ -329,13 +331,15 @@ class Transaction:
     def __init__(
         self,
         constate,
+        *,
         user_schema: s_schema.FlatSchema,
         global_schema: s_schema.FlatSchema,
         modaliases: immutables.Map,
-        config: immutables.Map,
+        session_config: immutables.Map,
+        database_config: immutables.Map,
+        system_config: immutables.Map,
         cached_reflection: immutables.Map[str, Tuple[str, ...]],
-        *,
-        implicit=True,
+        implicit: bool = True,
     ) -> None:
 
         assert not isinstance(user_schema, s_schema.ChainedSchema)
@@ -351,7 +355,9 @@ class Transaction:
             user_schema=user_schema,
             global_schema=global_schema,
             modaliases=modaliases,
-            config=config,
+            session_config=session_config,
+            database_config=database_config,
+            system_config=system_config,
             cached_reflection=cached_reflection,
             tx=self,
         )
@@ -427,7 +433,13 @@ class Transaction:
         return self._current.modaliases
 
     def get_session_config(self) -> immutables.Map:
-        return self._current.config
+        return self._current.session_config
+
+    def get_database_config(self) -> immutables.Map:
+        return self._current.database_config
+
+    def get_system_config(self) -> immutables.Map:
+        return self._current.system_config
 
     def get_cached_reflection_if_updated(self):
         if self._current.cached_reflection == self._state0.cached_reflection:
@@ -452,7 +464,10 @@ class Transaction:
         self._current = self._current._replace(modaliases=new_modaliases)
 
     def update_session_config(self, new_config: immutables.Map):
-        self._current = self._current._replace(config=new_config)
+        self._current = self._current._replace(session_config=new_config)
+
+    def update_database_config(self, new_config: immutables.Map):
+        self._current = self._current._replace(database_config=new_config)
 
     def update_cached_reflection(
         self,
@@ -474,15 +489,25 @@ class CompilerConnectionState:
 
     def __init__(
         self,
+        *,
         user_schema: s_schema.Schema,
         global_schema: s_schema.Schema,
         modaliases: immutables.Map,
-        config: immutables.Map,
+        session_config: immutables.Map,
+        database_config: immutables.Map,
+        system_config: immutables.Map,
         cached_reflection: FrozenSet[str]
     ):
         self._tx_count = time.monotonic_ns()
         self._init_current_tx(
-            user_schema, global_schema, modaliases, config, cached_reflection)
+            user_schema=user_schema,
+            global_schema=global_schema,
+            modaliases=modaliases,
+            session_config=session_config,
+            database_config=database_config,
+            system_config=system_config,
+            cached_reflection=cached_reflection,
+        )
         self._savepoints_log = {}
 
     def _new_txid(self):
@@ -491,16 +516,26 @@ class CompilerConnectionState:
 
     def _init_current_tx(
         self,
+        *,
         user_schema,
         global_schema,
         modaliases,
-        config,
+        session_config,
+        database_config,
+        system_config,
         cached_reflection
     ):
         assert isinstance(user_schema, s_schema.FlatSchema)
         self._current_tx = Transaction(
-            self, user_schema, global_schema,
-            modaliases, config, cached_reflection)
+            self,
+            user_schema=user_schema,
+            global_schema=global_schema,
+            modaliases=modaliases,
+            session_config=session_config,
+            database_config=database_config,
+            system_config=system_config,
+            cached_reflection=cached_reflection,
+        )
 
     def can_sync_to_savepoint(self, spid):
         return spid in self._savepoints_log
@@ -544,11 +579,14 @@ class CompilerConnectionState:
         prior_state = self._current_tx._state0
 
         self._init_current_tx(
-            prior_state.user_schema,
-            prior_state.global_schema,
-            prior_state.modaliases,
-            prior_state.config,
-            prior_state.cached_reflection)
+            user_schema=prior_state.user_schema,
+            global_schema=prior_state.global_schema,
+            modaliases=prior_state.modaliases,
+            session_config=prior_state.session_config,
+            database_config=prior_state.database_config,
+            system_config=prior_state.system_config,
+            cached_reflection=prior_state.cached_reflection,
+        )
 
         return prior_state
 
@@ -559,11 +597,14 @@ class CompilerConnectionState:
         latest_state = self._current_tx._current
 
         self._init_current_tx(
-            latest_state.user_schema,
-            latest_state.global_schema,
-            latest_state.modaliases,
-            latest_state.config,
-            latest_state.cached_reflection)
+            user_schema=latest_state.user_schema,
+            global_schema=latest_state.global_schema,
+            modaliases=latest_state.modaliases,
+            session_config=latest_state.session_config,
+            database_config=latest_state.database_config,
+            system_config=latest_state.system_config,
+            cached_reflection=latest_state.cached_reflection,
+        )
 
         return latest_state
 

@@ -23,6 +23,7 @@ CREATE ABSTRACT INHERITABLE ANNOTATION cfg::backend_setting;
 CREATE ABSTRACT INHERITABLE ANNOTATION cfg::internal;
 CREATE ABSTRACT INHERITABLE ANNOTATION cfg::requires_restart;
 CREATE ABSTRACT INHERITABLE ANNOTATION cfg::system;
+CREATE ABSTRACT INHERITABLE ANNOTATION cfg::affects_compilation;
 
 CREATE ABSTRACT TYPE cfg::ConfigObject EXTENDING std::BaseObject;
 
@@ -144,16 +145,16 @@ CREATE TYPE cfg::DatabaseConfig EXTENDING cfg::AbstractConfig;
 CREATE FUNCTION
 cfg::get_config_json(
     NAMED ONLY sources: OPTIONAL array<std::str> = {},
-    NAMED ONLY min_source: OPTIONAL std::str = {}
+    NAMED ONLY max_source: OPTIONAL std::str = {}
 ) -> std::json
 {
     USING SQL $$
     SELECT
-        jsonb_object_agg(cfg.name, cfg)
+        coalesce(jsonb_object_agg(cfg.name, cfg), '{}'::jsonb)
     FROM
         edgedb._read_sys_config(
             sources::edgedb._sys_config_source_t[],
-            min_source::edgedb._sys_config_source_t
+            max_source::edgedb._sys_config_source_t
         ) AS cfg
     $$;
 };

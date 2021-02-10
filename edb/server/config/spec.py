@@ -41,6 +41,7 @@ class Setting:
     internal: bool = False
     requires_restart: bool = False
     backend_setting: Optional[str] = None
+    affects_compilation: bool = False
 
     def __post_init__(self):
         if (self.type not in {str, int, bool} and
@@ -160,6 +161,8 @@ def load_spec_from_schema(schema):
             system=attributes.get('cfg::system', False),
             requires_restart=attributes.get('cfg::requires_restart', False),
             backend_setting=attributes.get('cfg::backend_setting', None),
+            affects_compilation=attributes.get(
+                'cfg::affects_compilation', False),
             default=deflt,
         )
 

@@ -79,6 +79,9 @@ from . import sertypes
 from . import status
 
 
+EMPTY_MAP = immutables.Map()
+
+
 @dataclasses.dataclass(frozen=True)
 class CompilerDatabaseState:
 
@@ -109,7 +112,6 @@ class CompileContext:
     standalone_mode: bool = False
 
 
-EMPTY_MAP = immutables.Map()
 DEFAULT_MODULE_ALIASES_MAP = immutables.Map(
     {None: defines.DEFAULT_MODULE_ALIAS})
 _IO_FORMAT_MAP = {
@@ -177,7 +179,9 @@ def new_compiler_context(
         user_schema=user_schema,
         global_schema=global_schema,
         modaliases=immutables.Map(modaliases) if modaliases else EMPTY_MAP,
-        config=EMPTY_MAP,
+        session_config=EMPTY_MAP,
+        database_config=EMPTY_MAP,
+        system_config=EMPTY_MAP,
         cached_reflection=EMPTY_MAP,
     )
 
@@ -543,7 +547,6 @@ class Compiler:
     ) -> dbstate.BaseQuery:
 
         current_tx = ctx.state.current_tx()
-        session_config = current_tx.get_session_config()
 
         native_out_format = (
             ctx.output_format is enums.IoFormat.BINARY
@@ -556,10 +559,9 @@ class Compiler:
             single_stmt_mode
         )
 
-        disable_constant_folding = config.lookup(
+        disable_constant_folding = self.get_config_val(
+            ctx,
             '__internal_no_const_folding',
-            session_config,
-            allow_unrecognized=True,
         )
 
         ir = qlcompiler.compile_ast_to_ir(
@@ -1392,8 +1394,9 @@ class Compiler:
         current_tx = ctx.state.current_tx()
         schema = current_tx.get_schema(self._std_schema)
 
-        modaliases = ctx.state.current_tx().get_modaliases()
-        session_config = ctx.state.current_tx().get_session_config()
+        modaliases = current_tx.get_modaliases()
+        session_config = current_tx.get_session_config()
+        database_config = current_tx.get_database_config()
 
         if ql.scope is not qltypes.ConfigScope.SESSION:
             self._assert_not_in_migration_block(ctx, ql)
@@ -1428,11 +1431,18 @@ class Compiler:
 
             session_config = config_op.apply(
                 config.get_settings(),
-                session_config)
-            ctx.state.current_tx().update_session_config(session_config)
+                session_config,
+            )
+            current_tx.update_session_config(session_config)
 
         elif ql.scope is qltypes.ConfigScope.DATABASE:
             config_op = ireval.evaluate_to_config_op(ir, schema=schema)
+
+            database_config = config_op.apply(
+                config.get_settings(),
+                database_config,
+            )
+            current_tx.update_database_config(database_config)
 
         elif ql.scope is qltypes.ConfigScope.SYSTEM:
             try:
@@ -1816,16 +1826,20 @@ class Compiler:
         user_schema: s_schema.Schema,
         global_schema: s_schema.Schema,
         reflection_cache: Mapping[str, Tuple[str, ...]],
+        database_config: Mapping[str, config.SettingValue],
+        system_config: Mapping[str, config.SettingValue],
         queries: List[str],
         implicit_limit: int = 0,
     ) -> List[dbstate.QueryUnit]:
 
         state = dbstate.CompilerConnectionState(
-            user_schema,
-            global_schema,
-            DEFAULT_MODULE_ALIASES_MAP,
-            EMPTY_MAP,
-            reflection_cache,
+            user_schema=user_schema,
+            global_schema=global_schema,
+            modaliases=DEFAULT_MODULE_ALIASES_MAP,
+            session_config=EMPTY_MAP,
+            database_config=database_config,
+            system_config=system_config,
+            cached_reflection=reflection_cache,
         )
 
         ctx = CompileContext(
@@ -1883,6 +1897,8 @@ class Compiler:
         user_schema: s_schema.Schema,
         global_schema: s_schema.Schema,
         reflection_cache: Mapping[str, Tuple[str, ...]],
+        database_config: Optional[Mapping[str, config.SettingValue]],
+        system_config: Optional[Mapping[str, config.SettingValue]],
         source: edgeql.Source,
         sess_modaliases: Optional[immutables.Map],
         sess_config: Optional[immutables.Map],
@@ -1898,6 +1914,13 @@ class Compiler:
 
         if sess_config is None:
             sess_config = EMPTY_MAP
+
+        if database_config is None:
+            database_config = EMPTY_MAP
+
+        if system_config is None:
+            system_config = EMPTY_MAP
+
         if sess_modaliases is None:
             sess_modaliases = DEFAULT_MODULE_ALIASES_MAP
 
@@ -1905,11 +1928,13 @@ class Compiler:
         assert isinstance(sess_config, immutables.Map)
 
         state = dbstate.CompilerConnectionState(
-            user_schema,
-            global_schema,
-            sess_modaliases,
-            sess_config,
-            reflection_cache,
+            user_schema=user_schema,
+            global_schema=global_schema,
+            modaliases=sess_modaliases,
+            session_config=sess_config,
+            database_config=database_config,
+            system_config=system_config,
+            cached_reflection=reflection_cache,
         )
 
         ctx = CompileContext(
@@ -2185,7 +2210,9 @@ class Compiler:
             user_schema=user_schema,
             global_schema=global_schema,
             modaliases=DEFAULT_MODULE_ALIASES_MAP,
-            config=EMPTY_MAP,
+            session_config=EMPTY_MAP,
+            database_config=EMPTY_MAP,
+            system_config=EMPTY_MAP,
             cached_reflection=EMPTY_MAP,
         )
 
@@ -2331,6 +2358,20 @@ class Compiler:
             units=units,
             blocks=restore_blocks,
             tables=tables,
+        )
+
+    def get_config_val(
+        self,
+        ctx: CompileContext,
+        name: str,
+    ) -> Any:
+        current_tx = ctx.state.current_tx()
+        return config.lookup(
+            name,
+            current_tx.get_session_config(),
+            current_tx.get_database_config(),
+            current_tx.get_system_config(),
+            allow_unrecognized=True,
         )
 
 

@@ -180,6 +180,8 @@ async def compile(
         db.user_schema,
         server.get_global_schema(),
         db.reflection_cache,
+        db.db_config,
+        server.get_compilation_system_config(),
         query,
         tokens,
         substitutions,
