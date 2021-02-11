@@ -1,8 +1,10 @@
 .. eql:section-intro-page:: cheatsheet
 
-==============================
-Cheatsheets: EdgeDB by example
-==============================
+===========
+Cheatsheets
+===========
+
+:edb-alt-title: Cheatsheets: EdgeDB by example
 
 Just getting started? Keep an eye on this collection of cheatsheets with
 handy examples for what you'll need to get started with EdgeDB.
