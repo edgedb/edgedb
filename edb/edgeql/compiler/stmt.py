@@ -37,7 +37,6 @@ from edb.schema import ddl as s_ddl
 from edb.schema import functions as s_func
 from edb.schema import links as s_links
 from edb.schema import lproperties as s_lprops
-from edb.schema import modules as s_mod
 from edb.schema import name as s_name
 from edb.schema import objects as s_obj
 from edb.schema import objtypes as s_objtypes
@@ -457,9 +456,6 @@ def compile_insert_unless_conflict_on(
             context=constraint_spec.context,
         )
 
-    module_id = schema.get_global(
-        s_mod.Module, ptr.get_name(schema).module).id
-
     field_name = cspec_res.rptr.ptrref.shortname
     ds = {field_name.name: (ptr, ex_cnstrs)}
     select_ir = compile_insert_unless_conflict_select(
@@ -479,8 +475,7 @@ def compile_insert_unless_conflict_on(
         assert isinstance(else_ir, irast.Set)
 
     return irast.OnConflictClause(
-        constraint=irast.ConstraintRef(
-            id=ex_cnstrs[0].id, module_id=module_id),
+        constraint=irast.ConstraintRef(id=ex_cnstrs[0].id),
         select_ir=select_ir,
         else_ir=else_ir
     )
