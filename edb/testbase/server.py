@@ -42,6 +42,7 @@ import tempfile
 import time
 import unittest
 import uuid
+import warnings
 
 from datetime import timedelta
 
@@ -132,7 +133,10 @@ class TestCaseMeta(type(unittest.TestCase)):
                         raise
                     else:
                         self.loop.run_until_complete(self.xact.rollback())
-                        self.xact = self.con.transaction()
+                        # TODO: we should actually fix this!
+                        with warnings.catch_warnings():
+                            warnings.simplefilter("ignore")
+                            self.xact = self.con.transaction()
                         self.loop.run_until_complete(self.xact.start())
 
                         try_no += 1
@@ -504,6 +508,12 @@ class ConnectedTestCaseMixin:
     def _run_and_rollback(self):
         return RollbackChanges(self)
 
+    def _get_tx(self):
+        # TODO: we should actually fix this!
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            return self.con.transaction()
+
     async def assert_query_result(self, query,
                                   exp_result_json,
                                   exp_result_binary=...,
@@ -512,7 +522,7 @@ class ConnectedTestCaseMixin:
         fetch_args = variables if isinstance(variables, tuple) else ()
         fetch_kw = variables if isinstance(variables, dict) else {}
         try:
-            tx = self.con.transaction()
+            tx = self._get_tx()
             await tx.start()
             try:
                 res = await self.con.query_json(query, *fetch_args, **fetch_kw)
@@ -873,7 +883,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                     'CONFIGURE SESSION SET __internal_testmode := true;'))
 
         if self.TRANSACTION_ISOLATION:
-            self.xact = self.con.transaction()
+            self.xact = self._get_tx()
             self.loop.run_until_complete(self.xact.start())
 
         if self.SETUP_METHOD:
@@ -1100,7 +1110,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
 
         with super().assertRaisesRegex(exception, regex, msg=msg):
             try:
-                tx = self.con.transaction()
+                tx = self._get_tx()
                 await tx.start()
                 yield
             except BaseException as e:
@@ -1117,7 +1127,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                 await tx.rollback()
 
     async def migrate(self, migration, *, module: str = 'test'):
-        async with self.con.transaction():
+        async with self._get_tx():
             await self.con.execute(f"""
                 START MIGRATION TO {{
                     module {module} {{
