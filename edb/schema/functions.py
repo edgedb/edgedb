@@ -1192,7 +1192,7 @@ class Function(
         expr.Expression, default=None, compcoef=0.4, coerce=True)
 
     has_dml = so.SchemaField(
-        bool, default=False, allow_ddl_set=True)
+        bool, default=False)
 
     def has_inlined_defaults(self, schema: s_schema.Schema) -> bool:
         # This can be relaxed to just `language is EdgeQL` when we

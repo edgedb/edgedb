@@ -18,49 +18,11 @@
 
 
 import os.path
-import tempfile
 
 from edb.testbase import server as tb
 
 
-class TestDump02(tb.QueryTestCase, tb.CLITestCaseMixin):
-
-    SCHEMA_DEFAULT = os.path.join(os.path.dirname(__file__), 'schemas',
-                                  'dump02_default.esdl')
-
-    SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
-                         'dump02_setup.edgeql')
-
-    TRANSACTION_ISOLATION = False
-
-    async def test_dump02_basic(self):
-        await self.ensure_schema_data_integrity()
-
-    async def test_dump02_dump_restore(self):
-        assert type(self).__name__.startswith('Test')
-        # The name of the database created for this test case by
-        # the test runner:
-        dbname = f'{type(self).__name__[4:].lower()}'
-
-        with tempfile.NamedTemporaryFile() as f:
-            self.run_cli('-d', dbname, 'dump', f.name)
-
-            await self.con.execute(f'CREATE DATABASE `💯{dbname}_restored`')
-            try:
-                self.run_cli('-d', f'💯{dbname}_restored', 'restore', f.name)
-                con2 = await self.connect(database=f'💯{dbname}_restored')
-            except Exception:
-                await self.con.execute(f'DROP DATABASE `💯{dbname}_restored`')
-                raise
-
-        oldcon = self.con
-        self.__class__.con = con2
-        try:
-            await self.ensure_schema_data_integrity()
-        finally:
-            self.__class__.con = oldcon
-            await con2.aclose()
-            await self.con.execute(f'DROP DATABASE `💯{dbname}_restored`')
+class DumpTestCaseMixin:
 
     async def ensure_schema_data_integrity(self):
         tx = self.con.transaction()
@@ -261,3 +223,25 @@ class TestDump02(tb.QueryTestCase, tb.CLITestCaseMixin):
             ''',
             [2],
         )
+
+
+class TestDump02(tb.StableDumpTestCase, DumpTestCaseMixin):
+
+    SCHEMA_DEFAULT = os.path.join(os.path.dirname(__file__), 'schemas',
+                                  'dump02_default.esdl')
+
+    SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
+                         'dump02_setup.edgeql')
+
+    async def test_dump02_dump_restore(self):
+        await self.check_dump_restore(
+            DumpTestCaseMixin.ensure_schema_data_integrity)
+
+
+class TestDump02Compat(
+    tb.DumpCompatTestCase,
+    DumpTestCaseMixin,
+    dump_subdir='dump02',
+    check_method=DumpTestCaseMixin.ensure_schema_data_integrity,
+):
+    pass
