@@ -990,7 +990,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                 cls.loop.run_until_complete(cls.con.aclose())
 
                 if not class_set_up or cls.uses_database_copies():
-                    dbname = cls.get_database_name()
+                    dbname = qlquote.quote_ident(cls.get_database_name())
 
                     async def drop_db():
                         if cls.RETRY_DROP_DATABASE:
@@ -1203,12 +1203,13 @@ class DumpCompatTestCaseMeta(TestCaseMeta):
         async def check_dump_restore_compat(self, *, dumpfn: pathlib.Path):
 
             dbname = f"{type(self).__name__}_{dumpfn.stem}"
-            await self.con.execute(f'CREATE DATABASE `{dbname}`')
+            qdbname = qlquote.quote_ident(dbname)
+            await self.con.execute(f'CREATE DATABASE {qdbname}')
             try:
                 self.run_cli('-d', dbname, 'restore', str(dumpfn))
                 con2 = await self.connect(database=dbname)
             except Exception:
-                await self.con.execute(f'DROP DATABASE `{dbname}`')
+                await self.con.execute(f'DROP DATABASE {qdbname}')
                 raise
 
             oldcon = self.__class__.con
@@ -1218,7 +1219,7 @@ class DumpCompatTestCaseMeta(TestCaseMeta):
             finally:
                 self.__class__.con = oldcon
                 await con2.aclose()
-                await self.con.execute(f'DROP DATABASE `{dbname}`')
+                await self.con.execute(f'DROP DATABASE {qdbname}')
 
         for entry in dumps_dir.iterdir():
             if not entry.is_file() or not entry.name.endswith(".dump"):
@@ -1249,16 +1250,18 @@ class StableDumpTestCase(QueryTestCase, CLITestCaseMixin):
     TRANSACTION_ISOLATION = False
 
     async def check_dump_restore(self, check_method):
-        dbname = self.get_database_name()
+        src_dbname = self.get_database_name()
+        tgt_dbname = f'{src_dbname}_restored'
+        q_tgt_dbname = qlquote.quote_ident(tgt_dbname)
         with tempfile.NamedTemporaryFile() as f:
-            self.run_cli('-d', dbname, 'dump', f.name)
+            self.run_cli('-d', src_dbname, 'dump', f.name)
 
-            await self.con.execute(f'CREATE DATABASE {dbname}_restored')
+            await self.con.execute(f'CREATE DATABASE {q_tgt_dbname}')
             try:
-                self.run_cli('-d', f'{dbname}_restored', 'restore', f.name)
-                con2 = await self.connect(database=f'{dbname}_restored')
+                self.run_cli('-d', tgt_dbname, 'restore', f.name)
+                con2 = await self.connect(database=tgt_dbname)
             except Exception:
-                await self.con.execute(f'DROP DATABASE {dbname}_restored')
+                await self.con.execute(f'DROP DATABASE {q_tgt_dbname}')
                 raise
 
         oldcon = self.con
@@ -1268,7 +1271,7 @@ class StableDumpTestCase(QueryTestCase, CLITestCaseMixin):
         finally:
             self.__class__.con = oldcon
             await con2.aclose()
-            await self.con.execute(f'DROP DATABASE {dbname}_restored')
+            await self.con.execute(f'DROP DATABASE {q_tgt_dbname}')
 
 
 def get_test_cases_setup(
@@ -1341,7 +1344,9 @@ async def _setup_database(dbname, setup_script, conn_args):
         ) from ex
 
     try:
-        await admin_conn.execute(f'CREATE DATABASE {dbname};')
+        await admin_conn.execute(
+            f'CREATE DATABASE {qlquote.quote_ident(dbname)};'
+        )
     except Exception as ex:
         raise RuntimeError(
             f'exception during creation of {dbname!r} test DB: '

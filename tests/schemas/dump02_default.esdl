@@ -69,3 +69,10 @@ type Tree {
     link children := .<parent[IS Tree];
     property child_vals := .children.val;
 }
+
+# DML containing functions are prohibited in b1+, but we still
+# allow them in historical dumps to preserve continuity until
+# we figure out a migration path to mutation callables.
+function insert_tree() -> Tree using (
+    INSERT Tree { val := 'foo' }
+);
