@@ -837,17 +837,17 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
     # TRANSACTION_ISOLATION must be set to False
     TRANSACTION_ISOLATION = True
 
-    # By default, tests from the same testsuite may be ran
-    # in parallel in several test worker processes.  However,
-    # certain cases might exhibit pathological locking behavior,
-    # or are parallel-unsafe altogether, in which case
-    # PARALLELISM_GRANULARITY must be set to 'database' or 'system'.
-    # The 'database' granularity signals that no two runners may
-    # execute tests on the same database in parallel, although the
-    # tests may still run on copies of the test database.
-    # The 'system' granularity means that the test suite is not
-    # parallelizable at all and must run sequentially in the same
-    # worker process.
+    # By default, tests from the same testsuite may be ran in parallel in
+    # several test worker processes.  However, certain cases might exhibit
+    # pathological locking behavior, or are parallel-unsafe altogether, in
+    # which case PARALLELISM_GRANULARITY must be set to 'database', 'suite',
+    # or 'system'.  The 'database' granularity signals that no two runners
+    # may execute tests on the same database in parallel, although the tests
+    # may still run on copies of the test database.  The 'suite' granularity
+    # means that only one test worker is allowed to execute tests from this
+    # suite.  Finally, the 'system' granularity means that the test suite
+    # is not parallelizable at all and must run sequentially with respect
+    # to *all other* suites with 'system' granularity.
     PARALLELISM_GRANULARITY = 'default'
 
     # Turns on "EdgeDB developer" mode which allows using restricted
