@@ -2976,7 +2976,7 @@ class TestServerProtoConcurrentDDL(tb.DDLTestCase):
                     g.create_task(con.aclose())
 
 
-class TestServerProtoConcurrentDDLAA(tb.DDLTestCase):
+class TestServerProtoConcurrentGlobalDDL(tb.DDLTestCase):
 
     TRANSACTION_ISOLATION = False
     RETRY_DROP_DATABASE = True
