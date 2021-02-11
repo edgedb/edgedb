@@ -948,22 +948,30 @@ class ParallelTextTestRunner:
         return result
 
     def _sort_tests(self, cases):
-        non_parallelizable = ('system',)
-        serialized_suites = {
-            casecls: unittest.TestSuite(tests)
-            for casecls, tests in cases.items()
-            if (
-                (gg := getattr(casecls, 'get_parallelism_granularity', None))
-                and gg() in non_parallelizable
-            )
-        }
+        serialized_suites = {}
+        exclusive_suites = set()
+        exclusive_tests = []
+
+        for casecls, tests in cases.items():
+            gg = getattr(casecls, 'get_parallelism_granularity', None)
+            granularity = gg() if gg is not None else 'default'
+
+            if granularity == 'suite':
+                serialized_suites[casecls] = unittest.TestSuite(tests)
+            elif granularity == 'system':
+                exclusive_tests.extend(tests)
+                exclusive_suites.add(casecls)
 
         tests = itertools.chain(
             serialized_suites.values(),
             itertools.chain.from_iterable(
                 tests for casecls, tests in cases.items()
-                if casecls not in serialized_suites
-            )
+                if (
+                    casecls not in serialized_suites
+                    and casecls not in exclusive_suites
+                )
+            ),
+            [unittest.TestSuite(exclusive_tests)],
         )
 
         test_list = list(tests)
