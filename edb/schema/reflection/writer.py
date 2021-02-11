@@ -956,7 +956,7 @@ def write_meta_delete_object(
 
             blocks.append((parent_update_query, parent_variables))
 
-        # We need to delete any links create via reflection_proxy
+        # We need to delete any links created via reflection_proxy
         layout = classlayout[mcls]
         proxy_links = [
             link for link, layout_entry in layout.items()
