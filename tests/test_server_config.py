@@ -28,6 +28,7 @@ import immutables
 import edgedb
 
 from edb import errors
+from edb.edgeql import qltypes
 
 from edb.testbase import server as tb
 from edb.schema import objects as s_obj
@@ -115,6 +116,7 @@ class TestServerConfigUtils(unittest.TestCase):
                 name=s.name,
                 value=s.default,
                 source='system override',
+                scope=qltypes.ConfigScope.SYSTEM,
             ) for s in testspec1.values()
         })
 
@@ -126,41 +128,49 @@ class TestServerConfigUtils(unittest.TestCase):
                     'name': 'bool',
                     'value': True,
                     'source': 'system override',
+                    'scope': qltypes.ConfigScope.SYSTEM,
                 },
                 'bools': {
                     'name': 'bools',
                     'value': [],
                     'source': 'system override',
+                    'scope': qltypes.ConfigScope.SYSTEM,
                 },
                 'int': {
                     'name': 'int',
                     'value': 0,
                     'source': 'system override',
+                    'scope': qltypes.ConfigScope.SYSTEM,
                 },
                 'ints': {
                     'name': 'ints',
                     'value': [],
                     'source': 'system override',
+                    'scope': qltypes.ConfigScope.SYSTEM,
                 },
                 'port': {
                     'name': 'port',
                     'value': testspec1['port'].default.to_json_value(),
                     'source': 'system override',
+                    'scope': qltypes.ConfigScope.SYSTEM,
                 },
                 'ports': {
                     'name': 'ports',
                     'value': [],
                     'source': 'system override',
+                    'scope': qltypes.ConfigScope.SYSTEM,
                 },
                 'str': {
                     'name': 'str',
                     'value': 'hello',
                     'source': 'system override',
+                    'scope': qltypes.ConfigScope.SYSTEM,
                 },
                 'strings': {
                     'name': 'strings',
                     'value': [],
                     'source': 'system override',
+                    'scope': qltypes.ConfigScope.SYSTEM,
                 },
             }
         )
@@ -1038,4 +1048,71 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
             await self.con.execute('''
                 CONFIGURE SYSTEM
                 RESET TestSystemConfig FILTER .name = 'cliconf';
+            ''')
+
+    async def test_server_proto_configure_compilation(self):
+        try:
+            await self.con.execute('''
+                CREATE TYPE Foo;
+            ''')
+
+            async with self.assertRaisesRegexTx(
+                edgedb.InvalidFunctionDefinitionError,
+                'data-modifying statements are not allowed in function bodies'
+            ):
+                await self.con.execute('''
+                    CREATE FUNCTION foo() -> Foo USING (INSERT Foo);
+                ''')
+
+            async with self._run_and_rollback():
+                await self.con.execute('''
+                    CONFIGURE SESSION SET allow_dml_in_functions := true;
+                ''')
+
+                await self.con.execute('''
+                    CREATE FUNCTION foo() -> Foo USING (INSERT Foo);
+                ''')
+
+            async with self.assertRaisesRegexTx(
+                edgedb.InvalidFunctionDefinitionError,
+                'data-modifying statements are not allowed in function bodies'
+            ):
+                await self.con.execute('''
+                    CREATE FUNCTION foo() -> Foo USING (INSERT Foo);
+                ''')
+
+            async with self._run_and_rollback():
+                # Session prohibits DML in functions.
+                await self.con.execute('''
+                    CONFIGURE SESSION SET allow_dml_in_functions := false;
+                ''')
+
+                # Database allows it.
+                await self.con.execute('''
+                    CONFIGURE CURRENT DATABASE
+                        SET allow_dml_in_functions := true;
+                ''')
+
+                # Session wins.
+                async with self.assertRaisesRegexTx(
+                    edgedb.InvalidFunctionDefinitionError,
+                    'data-modifying statements are not'
+                    ' allowed in function bodies'
+                ):
+                    await self.con.execute('''
+                        CREATE FUNCTION foo() -> Foo USING (INSERT Foo);
+                    ''')
+
+                await self.con.execute('''
+                    CONFIGURE SESSION RESET allow_dml_in_functions;
+                ''')
+
+                # Now OK.
+                await self.con.execute('''
+                    CREATE FUNCTION foo() -> Foo USING (INSERT Foo);
+                ''')
+
+        finally:
+            await self.con.execute('''
+                DROP TYPE Foo;
             ''')

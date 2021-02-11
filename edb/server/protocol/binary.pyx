@@ -39,6 +39,8 @@ from libc.stdint cimport int8_t, uint8_t, int16_t, uint16_t, \
 import immutables
 
 from edb import edgeql
+from edb.edgeql import qltypes
+
 from edb.server.pgproto cimport hton
 from edb.server.pgproto.pgproto cimport (
     WriteBuffer,
@@ -708,7 +710,13 @@ cdef class EdgeConnection:
                 if stype == b'C':
                     setting = config.get_settings()[sname]
                     pyval = config.value_from_json(setting, svalue)
-                    conf = config.set_value(conf, sname, pyval, 'session')
+                    conf = config.set_value(
+                        conf,
+                        name=sname,
+                        value=pyval,
+                        source='session',
+                        scope=qltypes.ConfigScope.SESSION,
+                    )
                 elif stype == b'A':
                     if not sname:
                         sname = None
@@ -2126,9 +2134,15 @@ cdef class EdgeConnection:
 
             user_schema = await server.introspect_user_schema(pgcon)
             global_schema = await server.introspect_global_schema(pgcon)
-            schema_ddl, schema_ids, blocks = \
+            db_config = await server.introspect_db_config(pgcon)
+
+            schema_ddl, schema_ids, blocks = (
                 await compiler_pool.describe_database_dump(
-                    user_schema, global_schema)
+                    user_schema,
+                    global_schema,
+                    db_config,
+                )
+            )
 
             msg_buf = WriteBuffer.new_message(b'@')
 
@@ -2305,18 +2319,18 @@ cdef class EdgeConnection:
                 )
 
             for query_unit in schema_sql_units:
-                if query_unit.system_config:
-                    raise errors.ProtocolError(
-                        'system config commands are not supported '
-                        'during restore')
-                elif query_unit.config_ops:
-                    raise errors.ProtocolError(
-                        'config commands are not supported '
-                        'during restore')
-                elif query_unit.sql:
+                if query_unit.config_ops:
+                    for op in query_unit.config_ops:
+                        if op.scope is config.ConfigScope.SYSTEM:
+                            raise errors.ProtocolError(
+                                'CONFIGURE SYSTEM cannot be executed'
+                                ' in dump restore'
+                            )
+                if query_unit.sql:
                     await pgcon.simple_query(
                         b';'.join(query_unit.sql),
-                        ignore_data=True)
+                        ignore_data=True,
+                    )
 
             restore_blocks = {
                 b.schema_object_id: b

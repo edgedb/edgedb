@@ -2080,18 +2080,6 @@ class DescribeRolesAsDDLFunction(dbops.Function):
             text=text)
 
 
-class SysConfigValueType(dbops.CompositeType):
-    """Type of values returned by _read_sys_config."""
-    def __init__(self) -> None:
-        super().__init__(name=('edgedb', '_sys_config_val_t'))
-
-        self.add_columns([
-            dbops.Column(name='name', type='text'),
-            dbops.Column(name='value', type='jsonb'),
-            dbops.Column(name='source', type='text'),
-        ])
-
-
 class SysConfigSourceType(dbops.Enum):
     def __init__(self) -> None:
         super().__init__(
@@ -2112,6 +2100,31 @@ class SysConfigSourceType(dbops.Enum):
                 'session',
             ]
         )
+
+
+class SysConfigScopeType(dbops.Enum):
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_sys_config_scope_t'),
+            values=[
+                'SYSTEM',
+                'DATABASE',
+                'SESSION',
+            ]
+        )
+
+
+class SysConfigValueType(dbops.CompositeType):
+    """Type of values returned by _read_sys_config."""
+    def __init__(self) -> None:
+        super().__init__(name=('edgedb', '_sys_config_val_t'))
+
+        self.add_columns([
+            dbops.Column(name='name', type='text'),
+            dbops.Column(name='value', type='jsonb'),
+            dbops.Column(name='source', type='edgedb._sys_config_source_t'),
+            dbops.Column(name='scope', type='edgedb._sys_config_scope_t'),
+        ])
 
 
 class SysConfigFullFunction(dbops.Function):
@@ -2309,12 +2322,20 @@ class SysConfigFullFunction(dbops.Function):
     SELECT
         q.name,
         q.value,
-        q.source
+        q.source,
+        (CASE
+            WHEN q.source < 'database'::edgedb._sys_config_source_t THEN
+                'SYSTEM'
+            WHEN q.source = 'database'::edgedb._sys_config_source_t THEN
+                'DATABASE'
+            ELSE
+                'SESSION'
+        END)::edgedb._sys_config_scope_t AS scope
     FROM
         (SELECT
             u.name,
             u.value,
-            u.source,
+            u.source::edgedb._sys_config_source_t,
             row_number() OVER (
                 PARTITION BY u.name
                 ORDER BY u.source::edgedb._sys_config_source_t DESC
@@ -2805,6 +2826,7 @@ async def bootstrap(conn: asyncpg.Connection) -> None:
         dbops.CreateFunction(StrToBool()),
         dbops.CreateFunction(BytesIndexWithBoundsFunction()),
         dbops.CreateEnum(SysConfigSourceType()),
+        dbops.CreateEnum(SysConfigScopeType()),
         dbops.CreateCompositeType(SysConfigValueType()),
         dbops.CreateFunction(GetBackendCapabilitiesFunction()),
         dbops.CreateFunction(SysConfigFullFunction()),

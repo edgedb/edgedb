@@ -54,6 +54,7 @@ from edb.ir import staeval as ireval
 from edb.schema import database as s_db
 from edb.schema import ddl as s_ddl
 from edb.schema import delta as s_delta
+from edb.schema import functions as s_func
 from edb.schema import links as s_links
 from edb.schema import lproperties as s_props
 from edb.schema import modules as s_mod
@@ -325,6 +326,8 @@ class Compiler:
         context.schema_object_ids = ctx.schema_object_ids
         context.compat_ver = ctx.compat_ver
         context.backend_runtime_params = self._backend_runtime_params
+        context.allow_dml_in_functions = (
+            self.get_config_val(ctx, 'allow_dml_in_functions'))
         return context
 
     def _process_delta(self, ctx: CompileContext, delta):
@@ -725,6 +728,8 @@ class Compiler:
             schema=schema,
             modaliases=current_tx.get_modaliases(),
             testmode=self._in_testmode(ctx),
+            allow_dml_in_functions=(
+                self.get_config_val(ctx, 'allow_dml_in_functions')),
             schema_object_ids=ctx.schema_object_ids,
             compat_ver=ctx.compat_ver,
         )
@@ -891,6 +896,8 @@ class Compiler:
                 ql.target,
                 base_schema=self._std_schema,
                 current_schema=schema,
+                allow_dml_in_functions=(
+                    self.get_config_val(ctx, 'allow_dml_in_functions')),
             )
 
             current_tx.update_migration_state(
@@ -1991,13 +1998,16 @@ class Compiler:
     def describe_database_dump(
         self,
         user_schema: s_schema.Schema,
-        global_schema: s_schema.Schema
+        global_schema: s_schema.Schema,
+        database_config: immutables.Map[str, config.SettingValue],
     ) -> DumpDescriptor:
         schema = s_schema.ChainedSchema(
             self._std_schema,
             user_schema,
             global_schema
         )
+
+        config_ddl = config.to_edgeql(config.get_settings(), database_config)
 
         schema_ddl = s_ddl.ddl_text_from_schema(
             schema, include_migrations=True)
@@ -2031,7 +2041,7 @@ class Compiler:
             descriptors.extend(self._describe_object(schema, objtype))
 
         return DumpDescriptor(
-            schema_ddl=schema_ddl,
+            schema_ddl=config_ddl + '\n' + schema_ddl,
             schema_ids=ids,
             blocks=descriptors,
         )
@@ -2234,9 +2244,37 @@ class Compiler:
 
         dump_with_ptr_item_id = dump_with_extraneous_computables
 
-        ddl_source = edgeql.Source.from_string(schema_ddl.decode('utf-8'))
+        allow_dml_in_functions = (
+            dump_server_ver is None
+            or dump_server_ver < (1, 0, verutils.VersionStage.BETA, 1)
+        )
+
+        schema_ddl_text = schema_ddl.decode('utf-8')
+
+        if allow_dml_in_functions:
+            schema_ddl_text = (
+                'CONFIGURE CURRENT DATABASE '
+                'SET allow_dml_in_functions := true;\n'
+                + schema_ddl_text
+            )
+
+        ddl_source = edgeql.Source.from_string(schema_ddl_text)
         units = self._compile(ctx=ctx, source=ddl_source)
         schema = ctx.state.current_tx().get_schema(self._std_schema)
+
+        if allow_dml_in_functions:
+            # Check if any functions actually contained DML.
+            for func in schema.get_objects(
+                type=s_func.Function,
+                exclude_stdlib=True,
+            ):
+                if func.get_has_dml(schema):
+                    break
+            else:
+                ddl_source = edgeql.Source.from_string(
+                    'CONFIGURE CURRENT DATABASE RESET allow_dml_in_functions;',
+                )
+                units += self._compile(ctx=ctx, source=ddl_source)
 
         restore_blocks = []
         tables = []

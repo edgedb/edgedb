@@ -403,15 +403,7 @@ class Server:
             )
             backend_ids = json.loads(backend_ids_json)
 
-            query = self.get_sys_query('dbconfig')
-            result = await conn.parse_execute_json(
-                query,
-                b'__backend_dbconfig',
-                dbver=0,
-                use_prep_stmt=True,
-                args=(),
-            )
-            db_config = config.from_json(config.get_settings(), result)
+            db_config = await self.introspect_db_config(conn)
 
             self._dbindex.register_db(
                 dbname,
@@ -423,6 +415,17 @@ class Server:
             )
         finally:
             self.release_pgcon(dbname, conn)
+
+    async def introspect_db_config(self, conn):
+        query = self.get_sys_query('dbconfig')
+        result = await conn.parse_execute_json(
+            query,
+            b'__backend_dbconfig',
+            dbver=0,
+            use_prep_stmt=True,
+            args=(),
+        )
+        return config.from_json(config.get_settings(), result)
 
     async def _introspect_dbs(self):
         syscon = await self._acquire_sys_pgcon()

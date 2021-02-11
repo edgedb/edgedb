@@ -233,6 +233,13 @@ class TestDump02(tb.StableDumpTestCase, DumpTestCaseMixin):
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
                          'dump02_setup.edgeql')
 
+    @classmethod
+    def get_setup_script(cls):
+        script = (
+            'CONFIGURE CURRENT DATABASE SET allow_dml_in_functions := true;\n'
+        )
+        return script + super().get_setup_script()
+
     async def test_dump02_dump_restore(self):
         await self.check_dump_restore(
             DumpTestCaseMixin.ensure_schema_data_integrity)

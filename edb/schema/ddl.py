@@ -458,6 +458,7 @@ def apply_sdl(
     current_schema: s_schema.Schema,
     stdmode: bool = False,
     testmode: bool = False,
+    allow_dml_in_functions: bool=False,
 ) -> s_schema.Schema:
     # group declarations by module
     documents: Dict[str, List[qlast.DDL]] = defaultdict(list)
@@ -478,6 +479,7 @@ def apply_sdl(
         stdmode=stdmode,
         testmode=testmode,
         declarative=True,
+        allow_dml_in_functions=allow_dml_in_functions,
     )
 
     target_schema = base_schema
@@ -567,6 +569,7 @@ def delta_from_ddl(
     modaliases: Mapping[Optional[str], str],
     stdmode: bool=False,
     testmode: bool=False,
+    allow_dml_in_functions: bool=False,
     schema_object_ids: Optional[
         Mapping[Tuple[sn.Name, Optional[str]], uuid.UUID]
     ]=None,
@@ -578,6 +581,7 @@ def delta_from_ddl(
         modaliases=modaliases,
         stdmode=stdmode,
         testmode=testmode,
+        allow_dml_in_functions=allow_dml_in_functions,
         schema_object_ids=schema_object_ids,
         compat_ver=compat_ver,
     )
@@ -592,6 +596,7 @@ def _delta_from_ddl(
     stdmode: bool=False,
     internal_schema_mode: bool=False,
     testmode: bool=False,
+    allow_dml_in_functions: bool=False,
     schema_object_ids: Optional[
         Mapping[Tuple[sn.Name, Optional[str]], uuid.UUID]
     ]=None,
@@ -604,6 +609,7 @@ def _delta_from_ddl(
         stdmode=stdmode,
         internal_schema_mode=internal_schema_mode,
         testmode=testmode,
+        allow_dml_in_functions=allow_dml_in_functions,
         schema_object_ids=schema_object_ids,
         compat_ver=compat_ver,
     )
