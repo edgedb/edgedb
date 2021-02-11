@@ -8358,3 +8358,20 @@ class TestEdgeQLDataMigrationNonisolated(tb.DDLTestCase):
             POPULATE MIGRATION;
             COMMIT MIGRATION;
         """)
+
+    async def test_edgeql_ddl_collection_cleanup_06(self):
+        await self.con.execute("SET MODULE test;")
+
+        for _ in range(2):
+            await self.con.execute(r"""
+                CREATE FUNCTION cleanup_06(
+                    a: int64
+                ) -> tuple<int64, tuple<int64>>
+                    USING EdgeQL $$
+                        SELECT (a, ((a + 1),))
+                    $$;
+            """)
+
+            await self.con.execute(r"""
+                DROP FUNCTION cleanup_06(a: int64)
+            """)
