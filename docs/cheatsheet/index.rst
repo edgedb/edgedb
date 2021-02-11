@@ -9,15 +9,15 @@ Cheatsheets
 Just getting started? Keep an eye on this collection of cheatsheets with
 handy examples for what you'll need to get started with EdgeDB.
 After familiarizing yourself with them, feel free to dive into more EdgeDB
-via our longer `interactive tutorial <https://tutorial.edgedb.com>`_ and 
+via our longer `interactive tutorial <https://tutorial.edgedb.com>`_ and
 **much** longer `Easy EdgeDB textbook </easy-edgedb>`_.
 
 CLI/Admin:
 
 * :ref:`CLI Usage <ref_cheatsheet_cli>` -- Getting your database started.
-* :ref:`REPL <ref_cheatsheet_repl>` -- Shortcuts for frequently used 
+* :ref:`REPL <ref_cheatsheet_repl>` -- Shortcuts for frequently used
   commands in the EdgeDB REPL.
-* :ref:`Administration <ref_cheatsheet_admin>` -- Database and role creation, 
+* :ref:`Administration <ref_cheatsheet_admin>` -- Database and role creation,
   passwords, port configuration, etc.
 
 EdgeQL:

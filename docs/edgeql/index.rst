@@ -55,7 +55,7 @@ step by step instead of all at once. The order is important in DDL
 because it involves issuing one command after another instread of
 describing the final form.
 
-So you can't create ``Movie`` first using DDL because it links 
+So you can't create ``Movie`` first using DDL because it links
 to ``Person``.  The two are created in this order:
 
 .. code-block:: edgeql-repl
@@ -88,6 +88,7 @@ set roles, passwords, and so on using EdgeDB.
 
 .. toctree::
     :maxdepth: 3
+    :hidden:
 
     overview
     expressions/__toc__
