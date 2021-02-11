@@ -1296,10 +1296,21 @@ cdef class PGConnection:
     async def after_command(self):
         if self.idle:
             raise RuntimeError('pgcon: idle while running a command')
+
         if self.cancel_fut is not None:
             await self.cancel_fut
             self.cancel_fut = None
-        self.idle = True
+            self.idle = True
+
+            # If we were cancelling a command in Postgres there can be a
+            # race between us calling `pg_cancel_backend()` and us receiving
+            # the results of the successfully executed command.  If this
+            # happens, we might get the *next command* cancelled. To minimize
+            # the chance of that we do another SYNC.
+            await self.sync()
+
+        else:
+            self.idle = True
 
     cdef write(self, buf):
         self.transport.write(buf)
