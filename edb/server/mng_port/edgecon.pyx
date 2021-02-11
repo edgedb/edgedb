@@ -225,6 +225,14 @@ cdef class EdgeConnection:
         self._pinned_pgcon_in_tx = False
         self._get_pgcon_cc = 0
 
+    def __del__(self):
+        if self._pinned_pgcon is not None:
+            # XXX/TODO: add test diagnostics for this and
+            # fail all tests if this ever happens.
+            self.port.get_server().release_pgcon(
+                self.dbview.dbname, self._pinned_pgcon, discard=True)
+            self._pinned_pgcon = None
+
     async def get_pgcon(self) -> pgcon.PGConnection:
         self._get_pgcon_cc += 1
         if self._get_pgcon_cc > 1:
@@ -247,12 +255,20 @@ cdef class EdgeConnection:
         if self._get_pgcon_cc < 0:
             raise RuntimeError(
                 'maybe_release_pgcon() called more times than get_pgcon()')
-
         if self._pinned_pgcon is not conn:
             raise RuntimeError('mismatched released connection')
 
         if self.dbview.in_tx():
-            self._pinned_pgcon_in_tx = True
+            if self._cancelled:
+                # There could be a situation where we cancel the protocol while
+                # it's in a transaction. In which case we want to immediately
+                # return the connection to the pool (where it would be
+                # discarded and re-opened.)
+                self._pinned_pgcon = None
+                self.port.get_server().release_pgcon(
+                    self.dbview.dbname, conn)
+            else:
+                self._pinned_pgcon_in_tx = True
         else:
             self._pinned_pgcon_in_tx = False
             self._pinned_pgcon = None
