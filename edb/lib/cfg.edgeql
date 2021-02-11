@@ -100,6 +100,11 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
         CREATE ANNOTATION cfg::system := 'true';
     };
 
+    CREATE PROPERTY allow_dml_in_functions -> std::bool {
+        SET default := false;
+        CREATE ANNOTATION cfg::affects_compilation := 'true';
+    };
+
     # Exposed backend settings follow.
     # When exposing a new setting, remember to modify
     # the _read_sys_config function to select the value

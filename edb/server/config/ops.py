@@ -29,8 +29,11 @@ from edb import errors
 from edb.common import enum
 from edb.common import typeutils
 
+from edb.edgeql import codegen as qlcodegen
 from edb.edgeql import qltypes
+
 from edb.schema import objects as s_obj
+from edb.schema import utils as s_utils
 
 from . import spec
 from . import types
@@ -49,6 +52,7 @@ class SettingValue(NamedTuple):
     name: str
     value: Any
     source: str
+    scope: qltypes.ConfigScope
 
 
 if TYPE_CHECKING:
@@ -197,7 +201,13 @@ class Operation(NamedTuple):
         else:
             raise AssertionError(f'unexpected config scope: {self.scope}')
 
-        return set_value(storage, self.setting_name, value, source=source)
+        return set_value(
+            storage,
+            self.setting_name,
+            value,
+            source=source,
+            scope=self.scope,
+        )
 
     @classmethod
     def from_json(cls, json_value: str) -> Operation:
@@ -272,6 +282,16 @@ def value_from_json(setting, value: str):
     return value_from_json_value(setting, json.loads(value))
 
 
+def value_to_edgeql_const(setting: spec.Setting, value: Any) -> str:
+    if isinstance(setting.type, types.ConfigType):
+        raise NotImplementedError(
+            'cannot render non-scalar configuration value'
+        )
+
+    ql = s_utils.const_ast_from_python(value)
+    return qlcodegen.generate_source(ql)
+
+
 def to_json(
     spec: spec.Spec,
     storage: Mapping[str, SettingValue],
@@ -288,6 +308,7 @@ def to_json(
                 dct[name] = {
                     'name': name,
                     'source': value.source,
+                    'scope': str(value.scope),
                     'value': val,
                 }
             else:
@@ -314,32 +335,25 @@ def from_json(spec: spec.Spec, js: str) -> SettingsMap:
                 name=key,
                 value=value_from_json_value(setting, value['value']),
                 source=value['source'],
+                scope=qltypes.ConfigScope(value['scope']),
             )
 
     return mm.finish()
 
 
-def from_dict(
+def to_edgeql(
     spec: spec.Spec,
-    values: Mapping[str, Any],
-    source: str,
-) -> Mapping[str, SettingValue]:
+    storage: Mapping[str, SettingValue],
+) -> str:
+    stmts = []
 
-    base: SettingsMap = immutables.Map()
-    with base.mutate() as mm:
-        for key, value in values.items():
-            setting = spec.get(key)
-            if setting is None:
-                raise errors.ConfigurationError(
-                    f'unknown setting name {key!r}')
+    for name, value in storage.items():
+        setting = spec[name]
+        val = value_to_edgeql_const(setting, value.value)
+        stmt = f'CONFIGURE {value.scope.to_edgeql()} SET {name} := {val};'
+        stmts.append(stmt)
 
-            mm[key] = SettingValue(
-                name=key,
-                value=value_from_json_value(setting, value),
-                source=source,
-            )
-
-    return mm.finish()
+    return '\n'.join(stmts)
 
 
 def set_value(
@@ -347,9 +361,10 @@ def set_value(
     name: str,
     value: Any,
     source: str,
+    scope: qltypes.ConfigScope,
 ) -> SettingsMap:
 
     return storage.set(
         name,
-        SettingValue(name=name, value=value, source=source),
+        SettingValue(name=name, value=value, source=source, scope=scope),
     )

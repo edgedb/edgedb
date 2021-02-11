@@ -1069,6 +1069,7 @@ class CommandContext:
         testmode: bool = False,
         internal_schema_mode: bool = False,
         disable_dep_verification: bool = False,
+        allow_dml_in_functions: bool = False,
         descriptive_mode: bool = False,
         schema_object_ids: Optional[
             Mapping[Tuple[sn.Name, Optional[str]], uuid.UUID]
@@ -1088,6 +1089,7 @@ class CommandContext:
         self.testmode = testmode
         self.descriptive_mode = descriptive_mode
         self.disable_dep_verification = disable_dep_verification
+        self.allow_dml_in_functions = allow_dml_in_functions
         self.renames: Dict[sn.Name, sn.Name] = {}
         self.early_renames: Dict[sn.Name, sn.Name] = {}
         self.renamed_objs: Set[so.Object] = set()
