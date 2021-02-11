@@ -956,9 +956,27 @@ def write_meta_delete_object(
 
             blocks.append((parent_update_query, parent_variables))
 
+        # We need to delete any links create via reflection_proxy
+        layout = classlayout[mcls]
+        proxy_links = [
+            link for link, layout_entry in layout.items()
+            if layout_entry.reflection_proxy
+        ]
+
+        operations = []
+        if proxy_links:
+            # Link deletion triggers apparently don't work for the
+            # schema tables, and so we need to clear out the proxy
+            # links manually before we delete them.
+            sets = [f'{link} := {{}}' for link in proxy_links]
+            operations.append(f'(UPDATE D SET {{ {", ".join(sets)} }})')
+
+        to_delete = ['D'] + [f'D.{link}' for link in proxy_links]
+        operations += [f'(DELETE {x})' for x in to_delete]
         query = f'''
-            DELETE schema::{mcls.__name__}
-            FILTER .name__internal = <str>$__classname;
+            WITH D := (SELECT schema::{mcls.__name__}
+                       FILTER .name__internal = <str>$__classname),
+            SELECT {{{", ".join(operations)}}};
         '''
         variables = {'__classname': json.dumps(str(cmd.classname))}
         blocks.append((query, variables))

@@ -9701,6 +9701,8 @@ type test::Foo {
     async def test_edgeql_ddl_collection_cleanup_03(self):
         count_query = "SELECT count(schema::CollectionType);"
         orig_count = await self.con.query_one(count_query)
+        elem_count_query = "SELECT count(schema::TupleElement);"
+        orig_elem_count = await self.con.query_one(elem_count_query)
 
         await self.con.execute(r"""
             SET MODULE test;
@@ -9722,6 +9724,8 @@ type test::Foo {
         """)
 
         self.assertEqual(await self.con.query_one(count_query), orig_count)
+        self.assertEqual(
+            await self.con.query_one(elem_count_query), orig_elem_count)
 
     async def test_edgeql_ddl_collection_cleanup_04(self):
         count_query = "SELECT count(schema::CollectionType);"
