@@ -1,7 +1,7 @@
 #
 # This source file is part of the EdgeDB open source project.
 #
-# Copyright 2019-present MagicStack Inc. and the EdgeDB authors.
+# Copyright 2016-present MagicStack Inc. and the EdgeDB authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,7 +19,11 @@
 
 from __future__ import annotations
 
-from .port import BaseHttpPort
+from . import protocol  # type: ignore
+
+HttpProtocol = protocol.HttpProtocol
+MIN_PROTOCOL = protocol.MIN_PROTOCOL
+CURRENT_PROTOCOL = protocol.CURRENT_PROTOCOL
 
 
-__all__ = ('BaseHttpPort',)
+__all__ = ('HttpProtocol', 'MIN_PROTOCOL', 'CURRENT_PROTOCOL')

@@ -68,7 +68,8 @@ EXPLORE_HTML = (r'''
     <div id="graphiql">Loading...</div>
     <script><!--
       function graphQLFetcher(graphQLParams) {
-        return fetch(window.location.origin, {
+        const root = window.location.toString().replace(/\/explore[\/]*$/, '');
+        return fetch(root, {
           method: 'post',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(graphQLParams),

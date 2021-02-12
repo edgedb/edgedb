@@ -1388,17 +1388,21 @@ class _EdgeDBServer:
         adjacent_to: Optional[edgedb.AsyncIOConnection],
         max_allowed_connections: int,
         compiler_pool_size: int,
+        debug: bool,
     ) -> None:
         self.auto_shutdown = auto_shutdown
         self.bootstrap_command = bootstrap_command
         self.adjacent_to = adjacent_to
         self.max_allowed_connections = max_allowed_connections
         self.compiler_pool_size = compiler_pool_size
+        self.debug = debug
         self.proc = None
 
     async def _read_runtime_info(self, stdout: asyncio.StreamReader):
         while True:
             line = await stdout.readline()
+            if self.debug:
+                print(line.decode())
             if not line:
                 raise RuntimeError("EdgeDB server terminated")
             if line.startswith(b'EDGEDB_SERVER_DATA:'):
@@ -1459,7 +1463,7 @@ class _EdgeDBServer:
         # Note: for debug comment "stderr=subprocess.PIPE".
         self.proc: asyncio.Process = await asyncio.create_subprocess_exec(
             *cmd,
-            stderr=subprocess.PIPE,
+            stderr=subprocess.PIPE if not self.debug else None,
             stdout=subprocess.PIPE,
         )
 
@@ -1491,11 +1495,13 @@ def start_edgedb_server(
     max_allowed_connections: int=10,
     compiler_pool_size: int=2,
     adjacent_to: Optional[edgedb.AsyncIOConnection]=None,
+    debug: bool=False,
 ):
     return _EdgeDBServer(
         auto_shutdown=auto_shutdown,
         bootstrap_command=bootstrap_command,
         max_allowed_connections=max_allowed_connections,
         adjacent_to=adjacent_to,
-        compiler_pool_size=compiler_pool_size
+        compiler_pool_size=compiler_pool_size,
+        debug=debug
     )

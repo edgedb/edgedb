@@ -17,8 +17,8 @@
 #
 
 
-cpdef tuple MIN_PROTOCOL = (0, 7)
-cpdef tuple CURRENT_PROTOCOL = (0, 9)
+MIN_PROTOCOL = (0, 7)
+CURRENT_PROTOCOL = (0, 9)
 
 DEF DUMP_BLOCK_SIZE = 1024 * 1024 * 10
 

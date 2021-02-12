@@ -23,7 +23,6 @@ from .compiler import compile_graphql, CompiledOperation
 from .translator import translate_ast, parse_text, parse_tokens
 from .types import GQLCoreSchema
 
-
 from . import _patch_core
 _patch_core.patch_graphql_core()
 

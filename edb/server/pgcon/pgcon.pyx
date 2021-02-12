@@ -55,7 +55,7 @@ from edb.server import buildmeta
 from edb.server import compiler
 from edb.server import defines
 from edb.server.cache cimport stmt_cache
-from edb.server.mng_port cimport edgecon
+from edb.server.protocol cimport binary as edgecon
 
 from edb.common import debug
 
