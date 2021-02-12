@@ -1811,7 +1811,7 @@ class Compiler:
             'expected a ROLLBACK or ROLLBACK TO SAVEPOINT command'
         )  # pragma: no cover
 
-    async def compile_notebook(
+    def compile_notebook(
         self,
         user_schema: s_schema.Schema,
         global_schema: s_schema.Schema,
@@ -1878,7 +1878,7 @@ class Compiler:
 
         return result
 
-    async def compile(
+    def compile(
         self,
         user_schema: s_schema.Schema,
         global_schema: s_schema.Schema,
@@ -1936,7 +1936,7 @@ class Compiler:
         else:
             return units, None
 
-    async def compile_in_tx(
+    def compile_in_tx(
         self,
         state: dbstate.CompilerConnectionState,
         txid: int,
@@ -1963,7 +1963,7 @@ class Compiler:
 
         return self._compile(ctx=ctx, source=source), ctx.state
 
-    async def describe_database_dump(
+    def describe_database_dump(
         self,
         user_schema: s_schema.Schema,
         global_schema: s_schema.Schema
@@ -2157,7 +2157,7 @@ class Compiler:
                 f'{", ".join(missing_els)}'
             )
 
-    async def describe_database_restore(
+    def describe_database_restore(
         self,
         user_schema: s_schema.Schema,
         global_schema: s_schema.Schema,
