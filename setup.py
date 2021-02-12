@@ -67,7 +67,7 @@ CYTHON_DEPENDENCY = 'Cython==0.29.21'
 
 DOCS_DEPS = [
     'Sphinx~=2.3.1',
-    'lxml~=4.5.1',
+    'lxml~=4.6.2',
     'sphinxcontrib-asyncio~=0.2.0',
 ]
 
