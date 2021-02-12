@@ -325,10 +325,18 @@ def try_fold_associative_binop(
 def compile_NamedTuple(
         expr: qlast.NamedTuple, *, ctx: context.ContextLevel) -> irast.Set:
 
+    names = set()
     elements = []
     for el in expr.elements:
+        name = el.name.name
+        if name in names:
+            raise errors.QueryError(
+                f"named tuple has duplicate field '{name}'",
+                context=el.context)
+        names.add(name)
+
         element = irast.TupleElement(
-            name=el.name.name,
+            name=name,
             val=setgen.ensure_set(dispatch.compile(el.val, ctx=ctx), ctx=ctx)
         )
         elements.append(element)

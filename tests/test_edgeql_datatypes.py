@@ -425,7 +425,7 @@ class TestEdgeQLDT(tb.QueryTestCase):
             [decimal.Decimal('1e100')],
         )
 
-    async def test_edgeql_named_tuple_mismatch_01(self):
+    async def test_edgeql_named_tuple_typing_01(self):
         await self.con.execute(r"""
             CREATE TYPE Foo { CREATE PROPERTY x -> tuple<a: int64, b: int64> };
         """)
@@ -436,3 +436,23 @@ class TestEdgeQLDT(tb.QueryTestCase):
                 "'default::Foo': 'tuple<b: std::int64, a: std::int64>' "
                 "\\(expecting 'tuple<a: std::int64, b: std::int64>'"):
             await self.con.execute("INSERT Foo { x := (b := 1, a := 2) };")
+
+    async def test_edgeql_named_tuple_typing_02(self):
+        await self.assert_query_result(
+            r'''SELECT (b := 1, a := 2) UNION (a := 3, b := 4)''',
+            [[1, 2], [3, 4]],
+            sort=True,
+        )
+
+    async def test_edgeql_named_tuple_typing_03(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "named tuple has duplicate field 'a'"):
+            await self.con.execute("SELECT (a := 1, a := 2);")
+
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "named tuple has duplicate field 'a'"):
+            await self.con.execute("""
+                CREATE TYPE Foo { CREATE PROPERTY x -> tuple<a: int64, a: str> }
+            """)
