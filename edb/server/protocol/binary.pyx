@@ -950,7 +950,7 @@ cdef class EdgeConnection:
                 self.dbview.start(query_unit)
                 try:
                     if query_unit.drop_db:
-                        await self.server._on_drop_db(
+                        await self.server._on_before_drop_db(
                             query_unit.drop_db, self.dbview.dbname)
 
                     if query_unit.system_config:
@@ -980,6 +980,10 @@ cdef class EdgeConnection:
                             await self.server.introspect_db(
                                 query_unit.create_db
                             )
+
+                        if query_unit.drop_db:
+                            self.server._on_after_drop_db(
+                                query_unit.drop_db)
 
                         if query_unit.config_ops:
                             await self.dbview.apply_config_ops(
@@ -1399,7 +1403,7 @@ cdef class EdgeConnection:
         try:
             self.dbview.start(query_unit)
             if query_unit.drop_db:
-                await self.server._on_drop_db(
+                await self.server._on_before_drop_db(
                     query_unit.drop_db, self.dbview.dbname)
             if query_unit.system_config:
                 await self._execute_system_config(query_unit, conn)
@@ -1424,6 +1428,10 @@ cdef class EdgeConnection:
                     await self.server.introspect_db(
                         query_unit.create_db
                     )
+
+                if query_unit.drop_db:
+                    self.server._on_after_drop_db(
+                        query_unit.drop_db)
 
                 if query_unit.config_ops:
                     await self.dbview.apply_config_ops(

@@ -2159,6 +2159,38 @@ class TestServerProtoDDL(tb.DDLTestCase):
 
     TRANSACTION_ISOLATION = False
 
+    async def test_server_proto_create_db_01(self):
+        db = 'test_server_proto_create_db_01'
+
+        con1 = self.con
+
+        cleanup = False
+        try:
+            for _ in range(3):
+                await con1.execute(f'''
+                    CREATE DATABASE {db};
+                ''')
+                cleanup = True
+
+                con2 = await self.connect(database=db)
+                try:
+                    self.assertEqual(
+                        await con2.query_one('SELECT 1'),
+                        1
+                    )
+                finally:
+                    await con2.aclose()
+
+                await con1.execute(f'''
+                    DROP DATABASE {db};
+                ''')
+                cleanup = False
+        finally:
+            if cleanup:
+                await con1.execute(f'''
+                    DROP DATABASE {db};
+                ''')
+
     async def test_server_proto_query_cache_invalidate_01(self):
         typename = 'CacheInv_01'
 
