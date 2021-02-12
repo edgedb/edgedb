@@ -1,7 +1,7 @@
 #
 # This source file is part of the EdgeDB open source project.
 #
-# Copyright 2019-present MagicStack Inc. and the EdgeDB authors.
+# Copyright 2021-present MagicStack Inc. and the EdgeDB authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,13 +17,25 @@
 #
 
 
+include "./consts.pxi"
+
+
 import collections
 import http
+import urllib.parse
 
 import httptools
 
 from edb.common import debug
 from edb.common import markup
+
+from edb.graphql import extension as graphql_ext
+
+from edb.server.protocol import binary
+
+from . import edgeql_ext
+from . import notebook_ext
+
 
 HTTPStatus = http.HTTPStatus
 
@@ -43,15 +55,17 @@ cdef class HttpResponse:
 
 cdef class HttpProtocol:
 
-    def __init__(self, loop, port):
-        self.loop = loop
-        self.port = port
+    def __init__(self, server, *, external_auth: bool=False):
+        self.loop = server.get_loop()
+        self.server = server
         self.transport = None
+        self.external_auth = external_auth
 
-        self.parser = httptools.HttpRequestParser(self)
-        self.current_request = HttpRequest()
+        self.parser = None
+        self.current_request = None
         self.in_response = False
         self.unprocessed = None
+        self.first_data_call = True
 
     def connection_made(self, transport):
         self.transport = transport
@@ -61,6 +75,25 @@ cdef class HttpProtocol:
         self.unprocessed = None
 
     def data_received(self, data):
+        if self.first_data_call:
+            self.first_data_call = False
+
+            if data[0:2] == b'V\x00':
+                # This is, most likely, our binary protocol,
+                # as its first message kind is `V`.
+                #
+                # Switch protocols now (for compatibility).
+                binproto = binary.EdgeConnection(
+                    self.server, self.external_auth)
+                self.transport.set_protocol(binproto)
+                binproto.connection_made(self.transport)
+                binproto.data_received(data)
+                return
+            else:
+                # HTTP.
+                self.parser = httptools.HttpRequestParser(self)
+                self.current_request = HttpRequest()
+
         try:
             self.parser.feed_data(data)
         except Exception as ex:
@@ -95,7 +128,8 @@ cdef class HttpProtocol:
         else:
             self.in_response = True
             self.loop.create_task(self._handle_request(req))
-        self.port.last_minute_requests += 1
+
+        self.server._http_last_minute_requests += 1
 
     cdef close(self):
         self.transport.close()
@@ -175,5 +209,33 @@ cdef class HttpProtocol:
         else:
             self.resume()
 
-    async def handle_request(self, request, response):
-        raise NotImplementedError
+    async def handle_request(self, HttpRequest request, HttpResponse response):
+        path = urllib.parse.unquote(request.url.path.decode('ascii'))
+        path = path.strip('/')
+        path_parts = path.split('/')
+
+        if len(path_parts) >= 3:
+            root, dbname, extname, *args = path_parts
+            db = self.server.get_db(dbname=dbname)
+
+            if root == 'db':
+                if extname == 'graphql':
+                    await graphql_ext.handle_request(
+                        request, response, db, args, self.server
+                    )
+                    return
+                elif extname == 'notebook':
+                    await notebook_ext.handle_request(
+                        request, response, db, args, self.server
+                    )
+                    return
+                elif extname == 'edgeql':
+                    await edgeql_ext.handle_request(
+                        request, response, db, args, self.server
+                    )
+                    return
+
+        response.body = f'Unknown path: {path!r}'.encode()
+        response.status = http.HTTPStatus.NOT_FOUND
+        response.close_connection = True
+        return

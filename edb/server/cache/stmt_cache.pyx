@@ -53,17 +53,17 @@ cdef class StatementsCache:
         self._dict_get = self._dict.get
         self._maxsize = maxsize
 
-    cdef get(self, key, default):
+    cpdef get(self, key, default):
         o = self._dict_get(key, _LRU_MARKER)
         if o is _LRU_MARKER:
             return default
         self._dict_move_to_end(key)  # last=True
         return o
 
-    cdef needs_cleanup(self):
+    cpdef needs_cleanup(self):
         return len(self._dict) > self._maxsize
 
-    cdef cleanup_one(self):
+    cpdef cleanup_one(self):
         k, _ = self._dict.popitem(last=False)
         return k
 

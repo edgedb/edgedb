@@ -30,7 +30,7 @@ cimport cython
 cimport cpython
 
 from typing import Dict, List, Optional, Sequence, Tuple
-from . cimport cpythonx
+from edb.server.protocol cimport cpythonx
 
 from libc.stdint cimport int8_t, uint8_t, int16_t, uint16_t, \
                          int32_t, uint32_t, int64_t, uint64_t, \
@@ -188,11 +188,10 @@ cdef class CompiledQuery:
 @cython.final
 cdef class EdgeConnection:
 
-    def __init__(self, server, external_auth: bool = False,
-            max_protocol: tuple = CURRENT_PROTOCOL):
+    def __init__(self, server, external_auth: bool = False):
         self._con_status = EDGECON_NEW
-        self._id = server.on_client_connected()
-        self.port = server
+        self._id = server.on_binary_client_connected()
+        self.server = server
         self._external_auth = external_auth
 
         self.loop = server.get_loop()
@@ -217,8 +216,8 @@ cdef class EdgeConnection:
 
         self.authed = False
 
-        self.protocol_version = max_protocol
-        self.max_protocol = max_protocol
+        self.protocol_version = CURRENT_PROTOCOL
+        self.max_protocol = CURRENT_PROTOCOL
         self.timer = Timer()
 
         self._pinned_pgcon = None
@@ -229,7 +228,7 @@ cdef class EdgeConnection:
         if self._pinned_pgcon is not None:
             # XXX/TODO: add test diagnostics for this and
             # fail all tests if this ever happens.
-            self.port.get_server().release_pgcon(
+            self.server.release_pgcon(
                 self.dbview.dbname, self._pinned_pgcon, discard=True)
             self._pinned_pgcon = None
 
@@ -245,8 +244,7 @@ cdef class EdgeConnection:
             return self._pinned_pgcon
         if self._pinned_pgcon is not None:
             raise RuntimeError('there is already a pinned pgcon')
-        conn = await self.port.get_server().acquire_pgcon(
-            self.dbview.dbname)
+        conn = await self.server.acquire_pgcon(self.dbview.dbname)
         self._pinned_pgcon = conn
         return conn
 
@@ -265,14 +263,14 @@ cdef class EdgeConnection:
                 # return the connection to the pool (where it would be
                 # discarded and re-opened.)
                 self._pinned_pgcon = None
-                self.port.get_server().release_pgcon(
+                self.server.release_pgcon(
                     self.dbview.dbname, conn)
             else:
                 self._pinned_pgcon_in_tx = True
         else:
             self._pinned_pgcon_in_tx = False
             self._pinned_pgcon = None
-            self.port.get_server().release_pgcon(
+            self.server.release_pgcon(
                 self.dbview.dbname, conn)
 
     def debug_print(self, *args):
@@ -375,7 +373,7 @@ cdef class EdgeConnection:
         if self._external_auth:
             authmethod_name = 'Trust'
         else:
-            authmethod = await self.port.get_server().get_auth_method(user)
+            authmethod = await self.server.get_auth_method(user)
             authmethod_name = type(authmethod).__name__
 
         if authmethod_name == 'SCRAM':
@@ -402,8 +400,8 @@ cdef class EdgeConnection:
         msg_buf.end_message()
         buf.write_buffer(msg_buf)
 
-        if self.port.in_dev_mode():
-            pgaddr = dict(self.port.get_server()._get_pgaddr())
+        if self.server.in_dev_mode():
+            pgaddr = dict(self.server._get_pgaddr())
             if pgaddr.get('password'):
                 pgaddr['password'] = '********'
             pgaddr['database'] = self.dbview.dbname
@@ -501,7 +499,7 @@ cdef class EdgeConnection:
             await conn.close()
 
     async def _start_connection(self, database: str, user: str) -> None:
-        dbv = self.port.new_view(
+        dbv = self.server.new_dbview(
             dbname=database,
             user=user,
             query_cache=self.query_cache_enabled,
@@ -512,8 +510,7 @@ cdef class EdgeConnection:
         self._con_status = EDGECON_STARTED
 
     async def _auth_trust(self, user):
-        server = self.port.get_server()
-        roles = server.get_roles()
+        roles = self.server.get_roles()
         if user not in roles:
             raise errors.AuthenticationError('authentication failed')
 
@@ -654,7 +651,7 @@ cdef class EdgeConnection:
                 done = True
 
     def _get_scram_verifier(self, user):
-        server = self.port.get_server()
+        server = self.server
         roles = server.get_roles()
 
         rolerec = roles.get(user)
@@ -738,7 +735,7 @@ cdef class EdgeConnection:
         if self.dbview.in_tx_error():
             self.dbview.raise_in_tx_error()
 
-        compiler_pool = self.port.get_server().get_compiler_pool()
+        compiler_pool = self.server.get_compiler_pool()
 
         if self.dbview.in_tx():
             units, self.last_state = await compiler_pool.compile_in_tx(
@@ -782,7 +779,7 @@ cdef class EdgeConnection:
         if self.dbview.in_tx_error():
             self.dbview.raise_in_tx_error()
 
-        compiler_pool = self.port.get_server().get_compiler_pool()
+        compiler_pool = self.server.get_compiler_pool()
 
         if self.dbview.in_tx():
             units, self.last_state = await compiler_pool.compile_in_tx(
@@ -817,7 +814,7 @@ cdef class EdgeConnection:
     async def _compile_rollback(self, bytes eql):
         assert self.dbview.in_tx_error()
         try:
-            compiler_pool = self.port.get_server().get_compiler_pool()
+            compiler_pool = self.server.get_compiler_pool()
             return await compiler_pool.try_compile_rollback(eql)
         except Exception:
             self.dbview.raise_in_tx_error()
@@ -953,7 +950,7 @@ cdef class EdgeConnection:
                 self.dbview.start(query_unit)
                 try:
                     if query_unit.drop_db:
-                        await self.port.get_server()._on_drop_db(
+                        await self.server._on_drop_db(
                             query_unit.drop_db, self.dbview.dbname)
 
                     if query_unit.system_config:
@@ -980,7 +977,7 @@ cdef class EdgeConnection:
                                     i += 1
 
                         if query_unit.create_db:
-                            await self.port.get_server().introspect_db(
+                            await self.server.introspect_db(
                                 query_unit.create_db
                             )
 
@@ -1010,27 +1007,27 @@ cdef class EdgeConnection:
     async def signal_side_effects(self, side_effects):
         if side_effects & dbview.SideEffects.SchemaChanges:
             self.loop.create_task(
-                self.port.get_server()._signal_sysevent(
+                self.server._signal_sysevent(
                     'schema-changes',
                     dbname=self.dbview.dbname,
                 ),
             )
         if side_effects & dbview.SideEffects.GlobalSchemaChanges:
             self.loop.create_task(
-                self.port.get_server()._signal_sysevent(
+                self.server._signal_sysevent(
                     'global-schema-changes',
                 ),
             )
         if side_effects & dbview.SideEffects.DatabaseConfigChanges:
             self.loop.create_task(
-                self.port.get_server()._signal_sysevent(
+                self.server._signal_sysevent(
                     'database-config-changes',
                     dbname=self.dbview.dbname,
                 ),
             )
         if side_effects & dbview.SideEffects.SystemConfigChanges:
             self.loop.create_task(
-                self.port.get_server()._signal_sysevent(
+                self.server._signal_sysevent(
                     'system-config-changes',
                 ),
             )
@@ -1402,7 +1399,7 @@ cdef class EdgeConnection:
         try:
             self.dbview.start(query_unit)
             if query_unit.drop_db:
-                await self.port.get_server()._on_drop_db(
+                await self.server._on_drop_db(
                     query_unit.drop_db, self.dbview.dbname)
             if query_unit.system_config:
                 await self._execute_system_config(query_unit, conn)
@@ -1424,7 +1421,7 @@ cdef class EdgeConnection:
                         )
 
                 if query_unit.create_db:
-                    await self.port.get_server().introspect_db(
+                    await self.server.introspect_db(
                         query_unit.create_db
                     )
 
@@ -1604,7 +1601,7 @@ cdef class EdgeConnection:
             return
 
         self.authed = True
-        self.port.on_client_authed()
+        self.server.on_binary_client_authed()
 
         try:
             while True:
@@ -1731,7 +1728,7 @@ cdef class EdgeConnection:
         finally:
             if self._pinned_pgcon is not None:
                 self._pinned_pgcon.abort()
-                self.port.get_server().release_pgcon(
+                self.server.release_pgcon(
                     self.dbview.dbname, self._pinned_pgcon, discard=True)
                 self._pinned_pgcon = None
 
@@ -1971,7 +1968,7 @@ cdef class EdgeConnection:
         return out_buf
 
     def connection_made(self, transport):
-        if not self.port._accepting:
+        if not self.server._accepting_connections:
             transport.abort()
             return
 
@@ -1983,7 +1980,7 @@ cdef class EdgeConnection:
 
     def connection_lost(self, exc):
         if self.authed:
-            self.port.on_client_disconnected()
+            self.server.on_binary_client_disconnected()
 
         # Let's talk about cancellation.
         #
@@ -2031,8 +2028,7 @@ cdef class EdgeConnection:
                     # it's actively running some command for us. Let's
                     # cancel it gently.
                     self.loop.create_task(
-                        self.port.get_server()._cancel_pgcon_operation(
-                            self._pinned_pgcon)
+                        self.server._cancel_pgcon_operation(self._pinned_pgcon)
                     )
 
                 # In all other cases, we can just wait until the `main()`
@@ -2049,7 +2045,7 @@ cdef class EdgeConnection:
             # we don't have any pgcons pinned to this dying connection.
             if self._pinned_pgcon is not None:
                 self._pinned_pgcon.abort()
-                self.port.get_server().release_pgcon(
+                self.server.release_pgcon(
                     self.dbview.dbname, self._pinned_pgcon, discard=True)
                 self._pinned_pgcon = None
 
@@ -2088,7 +2084,7 @@ cdef class EdgeConnection:
                 'DUMP must not be executed while in transaction'
             )
 
-        server = self.port.get_server()
+        server = self.server
         compiler_pool = server.get_compiler_pool()
 
         dbname = self.dbview.dbname
@@ -2229,7 +2225,7 @@ cdef class EdgeConnection:
 
         # Now parse the embedded dump header message:
 
-        server = self.port.get_server()
+        server = self.server
         compiler_pool = server.get_compiler_pool()
 
         global_schema = self.dbview.get_global_schema()

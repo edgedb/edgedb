@@ -31,7 +31,7 @@ class TestHttpNotebook(tb.BaseHttpTest, tb.server.QueryTestCase):
     TRANSACTION_ISOLATION = False
 
     @classmethod
-    def get_port_proto(cls):
+    def get_extension_name(cls):
         return 'notebook'
 
     def run_queries(self, queries: List[str]):

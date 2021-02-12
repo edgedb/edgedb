@@ -1,7 +1,7 @@
 #
 # This source file is part of the EdgeDB open source project.
 #
-# Copyright 2019-present MagicStack Inc. and the EdgeDB authors.
+# Copyright 2021-present MagicStack Inc. and the EdgeDB authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,32 +20,35 @@
 cdef class HttpRequest:
 
     cdef:
-        object url
-        bytes version
-        bint should_keep_alive
-        bytes content_type
-        bytes method
-        bytes body
+        public object url
+        public bytes version
+        public bint should_keep_alive
+        public bytes content_type
+        public bytes method
+        public bytes body
 
 
 cdef class HttpResponse:
 
     cdef:
-        object status
-        bint close_connection
-        bytes content_type
-        bytes body
+        public object status
+        public bint close_connection
+        public bytes content_type
+        public bytes body
 
 
 cdef class HttpProtocol:
 
-    cdef public object port
+    cdef public object server
+
     cdef:
         object loop
         object parser
         object transport
         object unprocessed
         bint in_response
+        bint first_data_call
+        bint external_auth
 
         HttpRequest current_request
 

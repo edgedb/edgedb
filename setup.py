@@ -571,6 +571,12 @@ setuptools.setup(
     },
     ext_modules=[
         distutils_extension.Extension(
+            "edb.server.cache.stmt_cache",
+            ["edb/server/cache/stmt_cache.pyx"],
+            extra_compile_args=EXT_CFLAGS,
+            extra_link_args=EXT_LDFLAGS),
+
+        distutils_extension.Extension(
             "edb.testbase.protocol.protocol",
             ["edb/testbase/protocol/protocol.pyx"],
             extra_compile_args=EXT_CFLAGS,
@@ -589,14 +595,26 @@ setuptools.setup(
             extra_link_args=EXT_LDFLAGS),
 
         distutils_extension.Extension(
-            "edb.server.mng_port.edgecon",
-            ["edb/server/mng_port/edgecon.pyx"],
+            "edb.server.protocol.binary",
+            ["edb/server/protocol/binary.pyx"],
             extra_compile_args=EXT_CFLAGS,
             extra_link_args=EXT_LDFLAGS),
 
         distutils_extension.Extension(
-            "edb.server.cache.stmt_cache",
-            ["edb/server/cache/stmt_cache.pyx"],
+            "edb.server.protocol.notebook_ext",
+            ["edb/server/protocol/notebook_ext.pyx"],
+            extra_compile_args=EXT_CFLAGS,
+            extra_link_args=EXT_LDFLAGS),
+
+        distutils_extension.Extension(
+            "edb.server.protocol.edgeql_ext",
+            ["edb/server/protocol/edgeql_ext.pyx"],
+            extra_compile_args=EXT_CFLAGS,
+            extra_link_args=EXT_LDFLAGS),
+
+        distutils_extension.Extension(
+            "edb.server.protocol.protocol",
+            ["edb/server/protocol/protocol.pyx"],
             extra_compile_args=EXT_CFLAGS,
             extra_link_args=EXT_LDFLAGS),
 
@@ -607,26 +625,8 @@ setuptools.setup(
             extra_link_args=EXT_LDFLAGS),
 
         distutils_extension.Extension(
-            "edb.server.http.http",
-            ["edb/server/http/http.pyx"],
-            extra_compile_args=EXT_CFLAGS,
-            extra_link_args=EXT_LDFLAGS),
-
-        distutils_extension.Extension(
-            "edb.server.http_edgeql_port.protocol",
-            ["edb/server/http_edgeql_port/protocol.pyx"],
-            extra_compile_args=EXT_CFLAGS,
-            extra_link_args=EXT_LDFLAGS),
-
-        distutils_extension.Extension(
-            "edb.server.http_graphql_port.protocol",
-            ["edb/server/http_graphql_port/protocol.pyx"],
-            extra_compile_args=EXT_CFLAGS,
-            extra_link_args=EXT_LDFLAGS),
-
-        distutils_extension.Extension(
-            "edb.server.notebook_port.protocol",
-            ["edb/server/notebook_port/protocol.pyx"],
+            "edb.graphql.extension",
+            ["edb/graphql/extension.pyx"],
             extra_compile_args=EXT_CFLAGS,
             extra_link_args=EXT_LDFLAGS),
     ],

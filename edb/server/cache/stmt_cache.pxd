@@ -25,7 +25,6 @@ cdef class StatementsCache:
         object _dict_move_to_end
         object _dict_get
 
-    cdef get(self, key, default)
-
-    cdef needs_cleanup(self)
-    cdef cleanup_one(self)
+    cpdef get(self, key, default)
+    cpdef needs_cleanup(self)
+    cpdef cleanup_one(self)
