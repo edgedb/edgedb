@@ -26,8 +26,6 @@ import functools
 import itertools
 import uuid
 
-import typing_inspect
-
 from edb import errors
 
 from edb.common import adapter
@@ -37,6 +35,7 @@ from edb.common import ordered
 from edb.common import parsing
 from edb.common import struct
 from edb.common import topological
+from edb.common import typing_inspect
 from edb.common import verutils
 
 from edb.edgeql import ast as qlast
