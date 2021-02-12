@@ -487,7 +487,11 @@ class Server:
         self._listen_port = netport
         await self._stop_servers(old_servers)
 
-    async def _on_drop_db(self, dbname: str, current_dbname: str) -> None:
+    async def _on_before_drop_db(
+        self,
+        dbname: str,
+        current_dbname: str
+    ) -> None:
         assert self._dbindex is not None
 
         if current_dbname == dbname:
@@ -503,6 +507,10 @@ class Server:
             # If, however, there are no open EdgeDB connections, prune
             # all non-active postgres connection to the `dbname` DB.
             await self._pg_pool.prune_inactive_connections(dbname)
+
+    def _on_after_drop_db(self, dbname: str):
+        assert self._dbindex is not None
+        self._dbindex.unregister_db(dbname)
 
     async def _on_system_config_add(self, setting_name, value):
         # CONFIGURE SYSTEM INSERT ConfigObject;
