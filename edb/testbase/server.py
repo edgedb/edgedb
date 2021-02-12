@@ -28,6 +28,7 @@ import collections
 import contextlib
 import decimal
 import functools
+import heapq
 import inspect
 import json
 import math
@@ -65,6 +66,16 @@ if TYPE_CHECKING:
     SetupScript = str
 
 
+def _add_test(result, test):
+    cls = type(test)
+    try:
+        methods = result[cls]
+    except KeyError:
+        methods = result[cls] = []
+
+    methods.append(test)
+
+
 def get_test_cases(tests):
     result = collections.OrderedDict()
 
@@ -72,13 +83,7 @@ def get_test_cases(tests):
         if isinstance(test, unittest.TestSuite):
             result.update(get_test_cases(test._tests))
         else:
-            cls = type(test)
-            try:
-                methods = result[cls]
-            except KeyError:
-                methods = result[cls] = []
-
-            methods.append(test)
+            _add_test(result, test)
 
     return result
 
@@ -1505,3 +1510,65 @@ def start_edgedb_server(
         compiler_pool_size=compiler_pool_size,
         debug=debug
     )
+
+
+def get_cases_by_shard(cases, current_shard, total_shards, verbosity, stats):
+    if total_shards <= 1:
+        return cases
+
+    current_shard -= 1
+    new_test_est = 0.1
+    tests_with_est = []
+    new_tests = []
+    total_tests = 0
+    selected_tests = 0
+    for tests in cases.values():
+        for test in tests:
+            total_tests += 1
+            est = stats.get(str(test))
+            if est:
+                heapq.heappush(tests_with_est, (-est[0], test))
+            else:
+                new_tests.append(test)
+    shard_est = (
+        sum(-est[0] for est in tests_with_est) + new_test_est * len(new_tests)
+    ) / total_shards
+    shards_est = [0] * total_shards
+    available = list(range(total_shards))
+    current = 0
+    cases = collections.OrderedDict()
+    while tests_with_est:
+        est, test = heapq.heappop(tests_with_est)
+        shard = available[current]
+        est_acc = shards_est[shard] = shards_est[shard] - est
+        if shard == current_shard:
+            _add_test(cases, test)
+            selected_tests += 1
+        if est_acc >= shard_est:
+            if shard == current_shard:
+                break
+            del available[current]
+        else:
+            current += 1
+        current %= len(available)
+    else:
+        offset = 0
+        while len(available) > 1:
+            shard = available.pop(0)
+            needs = int(round((shard_est - shards_est[shard]) / new_test_est))
+            if shard == current_shard:
+                for test in new_tests[offset:offset + needs]:
+                    _add_test(cases, test)
+                    selected_tests += 1
+                break
+            else:
+                offset += needs
+        else:
+            for test in new_tests[offset:]:
+                _add_test(cases, test)
+                selected_tests += 1
+
+    if verbosity >= 1:
+        print(f'Running {selected_tests}/{total_tests} for shard '
+              f'#{current_shard + 1} out of {total_shards} shards.')
+    return cases
