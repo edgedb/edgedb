@@ -58,7 +58,7 @@ STD_SCHEMA: s_schema.FlatSchema
 GLOBAL_SCHEMA: s_schema.FlatSchema
 
 
-async def __init_worker__(
+def __init_worker__(
     init_args_pickled: bytes,
 ) -> None:
     global INITED
@@ -133,7 +133,7 @@ def __sync__(
     return db
 
 
-async def compile(
+def compile(
     dbname: str,
     user_schema: Optional[bytes],
     reflection_cache: Optional[bytes],
@@ -143,7 +143,7 @@ async def compile(
 ):
     db = __sync__(dbname, user_schema, reflection_cache, global_schema)
 
-    units, cstate = await COMPILER.compile(
+    units, cstate = COMPILER.compile(
         db.user_schema,
         GLOBAL_SCHEMA,
         db.reflection_cache,
@@ -160,18 +160,18 @@ async def compile(
     return units, pickled_state
 
 
-async def compile_in_tx(cstate, *args, **kwargs):
+def compile_in_tx(cstate, *args, **kwargs):
     global LAST_STATE
     if cstate == state.REUSE_LAST_STATE_MARKER:
         cstate = LAST_STATE
     else:
         cstate = pickle.loads(cstate)
-    units, cstate = await COMPILER.compile_in_tx(cstate, *args, **kwargs)
+    units, cstate = COMPILER.compile_in_tx(cstate, *args, **kwargs)
     LAST_STATE = cstate
     return units, pickle.dumps(cstate, -1)
 
 
-async def compile_notebook(
+def compile_notebook(
     dbname: str,
     user_schema: Optional[bytes],
     reflection_cache: Optional[bytes],
@@ -181,7 +181,7 @@ async def compile_notebook(
 ):
     db = __sync__(dbname, user_schema, reflection_cache, global_schema)
 
-    return await COMPILER.compile_notebook(
+    return COMPILER.compile_notebook(
         db.user_schema,
         GLOBAL_SCHEMA,
         db.reflection_cache,
@@ -190,13 +190,13 @@ async def compile_notebook(
     )
 
 
-async def try_compile_rollback(
+def try_compile_rollback(
     eql: bytes
 ):
     return COMPILER.try_compile_rollback(eql)
 
 
-async def compile_graphql(
+def compile_graphql(
     dbname: str,
     user_schema: Optional[bytes],
     reflection_cache: Optional[bytes],
@@ -258,7 +258,7 @@ async def worker(sockname):
                 )
             else:
                 try:
-                    res = await meth(*args)
+                    res = meth(*args)
                     data = (0, res)
                 except Exception as ex:
                     prepare_exception(ex)
