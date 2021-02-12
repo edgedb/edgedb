@@ -454,5 +454,7 @@ class TestEdgeQLDT(tb.QueryTestCase):
                 edgedb.QueryError,
                 "named tuple has duplicate field 'a'"):
             await self.con.execute("""
-                CREATE TYPE Foo { CREATE PROPERTY x -> tuple<a: int64, a: str> }
+                CREATE TYPE Foo {
+                    CREATE PROPERTY x -> tuple<a: int64, a: str>;
+                };
             """)
