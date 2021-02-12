@@ -20,11 +20,11 @@
 from __future__ import annotations
 
 import asyncio
-import functools
 import itertools
 import sys
 import textwrap
 import traceback
+import types
 import weakref
 
 
@@ -207,9 +207,9 @@ class TaskGroup:
         # we need a flag to say if a task was cancelled or not.
         # We also need to be able to flip that flag.
 
-        def _task_cancel(task, orig_cancel):
-            task.__cancel_requested__ = True
-            return orig_cancel()
+        def _task_cancel(self, msg=None):
+            self.__cancel_requested__ = True
+            return asyncio.Task.cancel(self, msg)
 
         if hasattr(task, '__cancel_requested__'):
             return
@@ -218,8 +218,7 @@ class TaskGroup:
         # confirm that we were successful at adding the new attribute:
         assert not task.__cancel_requested__
 
-        orig_cancel = task.cancel
-        task.cancel = functools.partial(_task_cancel, task, orig_cancel)
+        task.cancel = types.MethodType(_task_cancel, task)
 
     def _abort(self):
         self._aborting = True
