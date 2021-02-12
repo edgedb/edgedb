@@ -1460,8 +1460,14 @@ class Tuple(
         return schema, result
 
     def get_displayname(self, schema: s_schema.Schema) -> str:
-        st_names = ', '.join(st.get_displayname(schema)
-                             for st in self.get_subtypes(schema))
+        if self.is_named(schema):
+            st_names = ', '.join(
+                f'{name}: {st.get_displayname(schema)}'
+                for name, st in self.get_element_types(schema).items(schema)
+            )
+        else:
+            st_names = ', '.join(st.get_displayname(schema)
+                                 for st in self.get_subtypes(schema))
         return f'tuple<{st_names}>'
 
     def is_tuple(self, schema: s_schema.Schema) -> bool:
@@ -1614,6 +1620,14 @@ class Tuple(
         if len(self_subtypes) != len(other_subtypes):
             return False
 
+        if (
+            self.is_named(schema)
+            and other.is_named(schema)
+            and (self.get_element_names(schema)
+                 != other.get_element_names(schema))
+        ):
+            return False
+
         for st, ot in zip(self_subtypes, other_subtypes):
             if not st.implicitly_castable_to(ot, schema):
                 return False
@@ -1632,6 +1646,14 @@ class Tuple(
         other_subtypes = other.get_subtypes(schema)
 
         if len(self_subtypes) != len(other_subtypes):
+            return -1
+
+        if (
+            self.is_named(schema)
+            and other.is_named(schema)
+            and (self.get_element_names(schema)
+                 != other.get_element_names(schema))
+        ):
             return -1
 
         total_dist = 0
@@ -1657,6 +1679,14 @@ class Tuple(
         other_subtypes = other.get_subtypes(schema)
 
         if len(self_subtypes) != len(other_subtypes):
+            return False
+
+        if (
+            self.is_named(schema)
+            and other.is_named(schema)
+            and (self.get_element_names(schema)
+                 != other.get_element_names(schema))
+        ):
             return False
 
         for st, ot in zip(self_subtypes, other_subtypes):

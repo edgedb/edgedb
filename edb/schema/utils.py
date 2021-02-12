@@ -217,12 +217,19 @@ def ast_to_type_shell(
 
             subtypes: Dict[str, s_types.TypeShell] = {}
             # tuple declaration must either be named or unnamed, but not both
+            names = set()
             named = None
             unnamed = None
             for si, st in enumerate(node.subtypes):
                 if st.name:
                     named = True
                     type_name = st.name
+
+                    if type_name in names:
+                        raise errors.SchemaError(
+                            f"named tuple has duplicate field '{type_name}'",
+                            context=st.context)
+                    names.add(type_name)
                 else:
                     unnamed = True
                     type_name = str(si)
