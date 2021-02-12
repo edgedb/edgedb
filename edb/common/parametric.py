@@ -37,6 +37,12 @@ T = TypeVar("T")
 V = TypeVar("V")
 
 
+try:
+    from types import GenericAlias
+except ImportError:
+    from typing import _GenericAlias as GenericAlias  # type: ignore
+
+
 class ParametricType:
 
     types: ClassVar[Optional[Tuple[type, ...]]] = None
@@ -121,6 +127,7 @@ class ParametricType:
         for b in ob:
             if (
                 isinstance(b, type)
+                and not isinstance(b, GenericAlias)
                 and issubclass(b, ParametricType)
                 and b is not ParametricType
             ):
@@ -133,6 +140,8 @@ class ParametricType:
                 continue
 
             org = typing_inspect.get_origin(b)
+            if isinstance(org, GenericAlias):
+                continue
             if not isinstance(org, type):
                 continue
             if not issubclass(org, ParametricType):
@@ -288,7 +297,7 @@ class ParametricType:
 
         for ut, (idx, attr) in cls._forward_refs.items():
             t = eval(ut, globalns, {})
-            if isinstance(t, type):
+            if isinstance(t, type) and not isinstance(t, GenericAlias):
                 types[idx] = t
                 setattr(cls, attr, t)
             else:
