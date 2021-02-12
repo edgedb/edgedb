@@ -26,11 +26,10 @@ import re
 import sys
 from typing import *
 
-import typing_inspect
-
 from edb.common import debug
 from edb.common import markup
 from edb.common import typeutils
+from edb.common import typing_inspect
 
 
 class ASTError(Exception):

@@ -20,10 +20,11 @@
 from __future__ import annotations
 
 import dataclasses
-import typing_inspect
+
 
 from edb import errors
 from edb.common import typeutils
+from edb.common import typing_inspect
 from edb.schema import objects as s_obj
 from edb.schema import name as s_name
 

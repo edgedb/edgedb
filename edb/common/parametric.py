@@ -23,7 +23,7 @@ import functools
 import types
 import sys
 
-import typing_inspect
+from edb.common import typing_inspect
 
 
 __all__ = [
@@ -38,7 +38,7 @@ V = TypeVar("V")
 
 
 try:
-    from types import GenericAlias
+    from types import GenericAlias  # type: ignore
 except ImportError:
     from typing import _GenericAlias as GenericAlias  # type: ignore
 
@@ -140,8 +140,6 @@ class ParametricType:
                 continue
 
             org = typing_inspect.get_origin(b)
-            if isinstance(org, GenericAlias):
-                continue
             if not isinstance(org, type):
                 continue
             if not issubclass(org, ParametricType):
