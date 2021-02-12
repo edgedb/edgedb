@@ -32,7 +32,8 @@ jobs:
       with:
         python-version: 3.8
 
-    - uses: actions/cache@v2
+    - name: Handle Pip dependency cache
+      uses: actions/cache@v2
       id: depcache
       with:
         path: deps
@@ -52,7 +53,8 @@ jobs:
         mkdir -p .tmp
         python setup.py --quiet gen_build_cache_key >.tmp/build_cache_key.txt
 
-    - uses: actions/cache@v2
+    - name: Handle build cache
+      uses: actions/cache@v2
       id: buildcache
       with:
         path: build
@@ -60,15 +62,18 @@ jobs:
         restore-keys: |
           edbbuild-v2-
 
-    - name: Prepare time stats file
+    - name: Download the running times log file
+      env:
+        GIST_TOKEN: ${{ secrets.CI_BOT_GIST_TOKEN }}
       run: |
         curl \
           -H "Accept: application/vnd.github.v3+json" \
-          https://api.github.com/gists/c61fd6a07e31cbab221ec5bde378b316 \
+          -u edgedb-ci:$GIST_TOKEN \
+          https://api.github.com/gists/8b722a65397f7c4c0df72f5394efa04c \
         | jq '.files."time_stats.csv".raw_url' \
         | xargs curl > .tmp/time_stats.csv
 
-    - name: Upload cache key and time stats file
+    - name: Upload shared artifacts
       uses: actions/upload-artifact@v2
       with:
         name: build-cache-key-and-time-stats
@@ -121,7 +126,8 @@ jobs:
       with:
         python-version: 3.8
 
-    - uses: actions/cache@v2
+    - name: Handle Pip dependency cache
+      uses: actions/cache@v2
       id: depcache
       with:
         path: deps
@@ -137,7 +143,8 @@ jobs:
         name: build-cache-key-and-time-stats
         path: .tmp
 
-    - uses: actions/cache@v2
+    - name: Handle build cache
+      uses: actions/cache@v2
       id: buildcache
       with:
         path: build
@@ -161,16 +168,20 @@ jobs:
       with:
         command: test
 
-  test:
+  python-test:
     needs: build
     runs-on: ubuntu-18.04
     strategy:
       matrix:
         shard: [
-             1/16,  2/16,  3/16,  4/16,
-             5/16,  6/16,  7/16,  8/16,
-             9/16, 10/16, 11/16, 12/16,
-            13/16, 14/16, 15/16, 16/16,
+             1/32,  2/32,  3/32,  4/32,
+             5/32,  6/32,  7/32,  8/32,
+             9/32, 10/32, 11/32, 12/32,
+            13/32, 14/32, 15/32, 16/32,
+            17/32, 18/32, 19/32, 20/32,
+            21/32, 22/32, 23/32, 24/32,
+            25/32, 26/32, 27/32, 28/32,
+            29/32, 30/32, 31/32, 32/32,
         ]
 
     steps:
@@ -189,7 +200,8 @@ jobs:
       with:
         python-version: 3.8
 
-    - uses: actions/cache@v2
+    - name: Handle Pip dependency cache
+      uses: actions/cache@v2
       id: depcache
       with:
         path: deps
@@ -199,13 +211,14 @@ jobs:
       run: |
         pip install -U --no-index --find-links=deps deps/*
 
-    - name: Download cache key and time stats file
+    - name: Download shared artifacts
       uses: actions/download-artifact@v2
       with:
         name: build-cache-key-and-time-stats
         path: .tmp
 
-    - uses: actions/cache@v2
+    - name: Handle build cache
+      uses: actions/cache@v2
       id: buildcache
       with:
         path: build
@@ -224,7 +237,7 @@ jobs:
         toolchain: stable
         default: true
 
-    - name: Build
+    - name: Install
       run: |
         # --no-use-pep517 because we have explicitly installed all deps
         # and don't want them to be reinstalled in an "isolated env".
@@ -234,11 +247,10 @@ jobs:
       env:
         SHARD: ${{ matrix.shard }}
       run: |
-        cp .tmp/time_stats.csv .tmp/time_stats_copy.csv
-        edb test -j2 -v -s ${SHARD} --time-file=.tmp/time_stats_copy.csv
-        mv .tmp/time_stats_copy.csv .tmp/new_${SHARD/\//_}.csv
+        cp .tmp/time_stats.csv .tmp/new_${SHARD/\//_}.csv
+        edb test -j2 -v -s ${SHARD} --running-times-log=.tmp/new_${SHARD/\//_}.csv
 
-    - name: Upload updated time stats file
+    - name: Update shared artifacts
       uses: actions/upload-artifact@v2
       with:
         name: build-cache-key-and-time-stats
@@ -264,7 +276,8 @@ jobs:
       with:
         python-version: 3.8
 
-    - uses: actions/cache@v2
+    - name: Handle Pip dependency cache
+      uses: actions/cache@v2
       id: depcache
       with:
         path: deps
@@ -274,13 +287,14 @@ jobs:
       run: |
         pip install -U --no-index --find-links=deps deps/*
 
-    - name: Download cache key and time stats file
+    - name: Download shared artifacts
       uses: actions/download-artifact@v2
       with:
         name: build-cache-key-and-time-stats
         path: .tmp
 
-    - uses: actions/cache@v2
+    - name: Handle build cache
+      uses: actions/cache@v2
       id: buildcache
       with:
         path: build
@@ -299,7 +313,7 @@ jobs:
         toolchain: stable
         default: true
 
-    - name: Build
+    - name: Install
       run: |
         # --no-use-pep517 because we have explicitly installed all deps
         # and don't want them to be reinstalled in an "isolated env".
@@ -311,15 +325,15 @@ jobs:
       run: |
         edb test --list > .tmp/all_tests.txt
 
-    - name: Upload complete list of tests
+    - name: Update shared artifacts
       uses: actions/upload-artifact@v2
       with:
         name: build-cache-key-and-time-stats
         path: .tmp
         retention-days: 1
 
-  verify:
-    needs: [test, collect]
+  test:
+    needs: [cargo-test, python-test, collect]
     runs-on: ubuntu-18.04
     steps:
       - name: Set up Python
@@ -331,16 +345,16 @@ jobs:
         run: |
           pip install requests
 
-      - name: Download all time stats file
+      - name: Download shared artifacts
         uses: actions/download-artifact@v2
         with:
           name: build-cache-key-and-time-stats
           path: .tmp
 
-      - name: Merge stats and verify completion
+      - name: Merge stats and verify tests completion
         shell: python
         env:
-          GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
+          GIST_TOKEN: ${{ secrets.CI_BOT_GIST_TOKEN }}
           GIT_REF: ${{ github.ref }}
         run: |
           import csv
@@ -380,9 +394,9 @@ jobs:
                   writer.writerow((k,) + v)
 
               resp = requests.patch(
-                  "https://api.github.com/gists/c61fd6a07e31cbab221ec5bde378b316",
+                  "https://api.github.com/gists/8b722a65397f7c4c0df72f5394efa04c",
                   headers={"Accept": "application/vnd.github.v3+json"},
-                  auth=("fantix", os.environ["GIST_TOKEN"]),
+                  auth=("edgedb-ci", os.environ["GIST_TOKEN"]),
                   json={"files": {"time_stats.csv": {"content": buf.getvalue()}}},
               )
               resp.raise_for_status()

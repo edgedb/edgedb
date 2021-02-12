@@ -83,13 +83,14 @@ __all__ = ('not_implemented', 'xfail', 'skip')
               help='package name to measure code coverage for, '
                    'can be specified multiple times '
                    '(e.g --cov edb.common --cov edb.server)')
-@click.option('--time-file', type=click.File('a+'), metavar='FILEPATH',
-              help='Maintain a running time file at FILEPATH')
+@click.option('--running-times-log', 'running_times_log_file',
+              type=click.File('a+'), metavar='FILEPATH',
+              help='Maintain a running time log file at FILEPATH')
 @click.option('--list', 'list_tests', is_flag=True,
               help='list all the tests and exit')
 def test(*, files, jobs, shard, include, exclude, verbose, quiet, debug,
-         output_format, warnings, failfast, shuffle, cov, repeat, time_file,
-         list_tests):
+         output_format, warnings, failfast, shuffle, cov, repeat,
+         running_times_log_file, list_tests):
     """Run EdgeDB test suite.
 
     Discovers and runs tests in the specified files or directories.
@@ -160,7 +161,7 @@ def test(*, files, jobs, shard, include, exclude, verbose, quiet, debug,
         repeat=repeat,
         current_shard=current_shard,
         total_shards=total_shards,
-        time_file=time_file,
+        running_times_log_file=running_times_log_file,
         list_tests=list_tests,
     )
 
@@ -237,7 +238,7 @@ def _coverage_wrapper(paths):
 
 def _run(*, include, exclude, verbosity, files, jobs, output_format,
          warnings, failfast, shuffle, repeat, current_shard, total_shards,
-         time_file, list_tests):
+         running_times_log_file, list_tests):
     suite = unittest.TestSuite()
 
     total = 0
@@ -298,7 +299,9 @@ def _run(*, include, exclude, verbosity, files, jobs, output_format,
             warnings=warnings, num_workers=jobs,
             failfast=failfast, shuffle=shuffle)
 
-        result = test_runner.run(suite, current_shard, total_shards, time_file)
+        result = test_runner.run(
+            suite, current_shard, total_shards, running_times_log_file,
+        )
 
         if not result.wasSuccessful():
             return 1
