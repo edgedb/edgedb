@@ -6185,3 +6185,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ''',
             [True],
         )
+
+    @test.xfail("We produce results that don't decode properly")
+    async def test_edgeql_select_array_common_type_01(self):
+        res = await self.con._fetchall("""
+            WITH MODULE test
+            SELECT [User, Issue];
+        """, __typenames__=True)
+        for row in res:
+            self.assertEqual(row[0].__tname__, "test::User")
+            self.assertEqual(row[1].__tname__, "test::Issue")

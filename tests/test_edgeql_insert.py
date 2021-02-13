@@ -2634,6 +2634,40 @@ class TestInsert(tb.QueryTestCase):
             [{"name": "Maddy"}],
         )
 
+    async def test_edgeql_insert_unless_conflict_12(self):
+        # An upsert where we don't wrap it in another shape
+        query = r'''
+            WITH MODULE test
+            INSERT Person {name := "Emmanuel Villip"} UNLESS CONFLICT
+            ON .name ELSE (UPDATE Person SET { tag := "redo" })
+        '''
+
+        res1 = await self.con._fetchall(
+            query, __typenames__=True,
+        )
+        res2 = await self.con._fetchall(
+            query, __typenames__=True,
+        )
+
+        self.assertEqual(list(res1)[0].id, list(res2)[0].id)
+
+    async def test_edgeql_insert_unless_conflict_13(self):
+        # An insert-or-select where we don't wrap it in another shape
+        query = r'''
+            WITH MODULE test
+            INSERT Person {name := "Emmanuel Villip"} UNLESS CONFLICT
+            ON .name ELSE (SELECT Person)
+        '''
+
+        res1 = await self.con._fetchall(
+            query, __typenames__=True,
+        )
+        res2 = await self.con._fetchall(
+            query, __typenames__=True,
+        )
+
+        self.assertEqual(list(res1)[0].id, list(res2)[0].id)
+
     async def test_edgeql_insert_dependent_01(self):
         query = r'''
             WITH MODULE test
