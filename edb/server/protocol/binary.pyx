@@ -695,7 +695,7 @@ cdef class EdgeConnection:
             SELECT s1.name AS n, s1.value AS v, s1.type AS t
                 FROM _edgecon_state s1
             UNION ALL
-            SELECT '' AS n, s2.sp_id::text AS v, 'S' AS t
+            SELECT '' AS n, to_jsonb(s2.sp_id) AS v, 'S' AS t
                 FROM _edgecon_current_savepoint s2;
         ''', ignore_data=False)
 
@@ -720,7 +720,7 @@ cdef class EdgeConnection:
                 elif stype == b'A':
                     if not sname:
                         sname = None
-                    aliases = aliases.set(sname, svalue)
+                    aliases = aliases.set(sname, json.loads(svalue))
                 elif stype == b'S':
                     assert not sname
                     sp_id = int(svalue)

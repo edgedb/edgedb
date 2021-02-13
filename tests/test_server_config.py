@@ -794,6 +794,10 @@ class TestServerConfig(tb.QueryTestCase, tb.OldCLITestCaseMixin):
     async def test_server_proto_configure_06(self):
         try:
             await self.con.execute('''
+                CONFIGURE SESSION SET singleprop := '42';
+            ''')
+
+            await self.con.execute('''
                 CONFIGURE SESSION SET multiprop := {'1', '2', '3'};
             ''')
 

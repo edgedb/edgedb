@@ -78,7 +78,7 @@ def _build_init_con_script() -> bytes:
     return (f'''
         CREATE TEMPORARY TABLE _edgecon_state (
             name text NOT NULL,
-            value text NOT NULL,
+            value jsonb NOT NULL,
             type text NOT NULL CHECK(type = 'C' OR type = 'A' OR type = 'R'),
             UNIQUE(name, type)
         );
@@ -98,7 +98,7 @@ def _build_init_con_script() -> bytes:
                 _edgecon_state(name, value, type)
             SELECT
                 e->>'name' AS name,
-                e->>'value' AS value,
+                e->'value' AS value,
                 e->>'type' AS type
             FROM
                 jsonb_array_elements($1::jsonb) AS e;
