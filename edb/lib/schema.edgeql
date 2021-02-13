@@ -335,5 +335,6 @@ CREATE TYPE schema::Migration
     EXTENDING schema::AnnotationSubject
 {
     CREATE MULTI LINK parents -> schema::Migration;
+    CREATE REQUIRED PROPERTY script -> str;
     CREATE PROPERTY message -> str;
 };

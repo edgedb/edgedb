@@ -219,9 +219,9 @@ class DumpTestCaseMixin:
 
         await self.assert_query_result(
             r'''
-                SELECT count(schema::Migration)
+                SELECT count(schema::Migration) >= 2
             ''',
-            [2],
+            [True],
         )
 
 

@@ -18,6 +18,7 @@
 
 import decimal
 import re
+import textwrap
 import uuid
 
 import edgedb
@@ -10071,6 +10072,36 @@ type test::Foo {
                 } FILTER .name = "foo"
             """,
             [{"required": True, "has_required": False}]
+        )
+
+    async def test_edgeql_ddl_captured_as_migration_01(self):
+
+        await self.con.execute(r"""
+            CREATE TYPE test::Foo {
+                CREATE PROPERTY foo := 1;
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH
+                    MODULE schema,
+                    LM := (
+                        SELECT Migration
+                        FILTER NOT EXISTS(.<parents[IS Migration])
+                    )
+                    SELECT LM {
+                        script
+                    }
+            """,
+            [{
+                'script': textwrap.dedent(
+                    '''\
+                    CREATE TYPE test::Foo {
+                        CREATE PROPERTY foo := (1);
+                    };'''
+                )
+            }]
         )
 
 

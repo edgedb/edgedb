@@ -3168,6 +3168,11 @@ aa';
         CREATE SCALAR TYPE myenum EXTENDING enum<baz: int64, bar>;
         """
 
+    def test_edgeql_syntax_ddl_create_pseudo_type_01(self):
+        """
+        CREATE PSEUDO TYPE `anytype`;
+        """
+
     def test_edgeql_syntax_ddl_annotation_01(self):
         """
         CREATE ABSTRACT ANNOTATION std::paramtypes;
@@ -3801,6 +3806,18 @@ aa';
         std::`>=` (l: anytype, r: anytype) -> std::bool;
         """
 
+    def test_edgeql_syntax_ddl_operator_06(self):
+        """
+        ALTER INFIX OPERATOR std::`>=` (l: anytype, r: anytype) {
+            CREATE ANNOTATION description := 'gte';
+        };
+        """
+
+    def test_edgeql_syntax_ddl_operator_07(self):
+        """
+        DROP INFIX OPERATOR std::`>=` (l: anytype, r: anytype);
+        """
+
     def test_edgeql_syntax_ddl_cast_01(self):
         """
         CREATE CAST FROM std::str TO std::bool {
@@ -3853,6 +3870,18 @@ aa';
             SET volatility := 'IMMUTABLE';
             USING SQL EXPRESSION;
         };
+        """
+
+    def test_edgeql_syntax_ddl_cast_07(self):
+        """
+        ALTER CAST FROM std::BaseObject TO std::json {
+            CREATE ANNOTATION description := 'json';
+        };
+        """
+
+    def test_edgeql_syntax_ddl_cast_08(self):
+        """
+        DROP CAST FROM std::BaseObject TO std::json;
         """
 
     def test_edgeql_syntax_ddl_property_01(self):
