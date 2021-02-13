@@ -19,6 +19,12 @@
 
 SET MODULE default;
 
+CREATE MIGRATION m14pt32wg7zijus7jmmnvbtf7dftt34xxgbkrtmys46pmrailnkcia
+ONTO m1bzqjsa6r7e3prynbm52zutm3jo42ybgulhsjlnxbd43m4sqdmcoq {
+    CREATE TYPE default::Migrated;
+    create type default::Migrated2 {};
+};
+
 # Not sure if the esdl filename will handle this on all systems, so
 # I'm adding stuff here.
 CREATE MODULE `💯💯💯`;
@@ -51,10 +57,4 @@ INSERT Łukasz {
         FILTER .`s p A m 🤞`.`🚀` = 42
         LIMIT 1
     )
-};
-
-CREATE MIGRATION m14pt32wg7zijus7jmmnvbtf7dftt34xxgbkrtmys46pmrailnkcia
-ONTO m1bzqjsa6r7e3prynbm52zutm3jo42ybgulhsjlnxbd43m4sqdmcoq {
-    CREATE TYPE default::Migrated;
-    create type default::Migrated2 {};
 };

@@ -111,6 +111,7 @@ class CompileContext:
     bootstrap_mode: bool = False
     internal_schema_mode: bool = False
     standalone_mode: bool = False
+    log_ddl_as_migrations: bool = True
 
 
 DEFAULT_MODULE_ALIASES_MAP = immutables.Map(
@@ -722,6 +723,23 @@ class Compiler:
 
         current_tx = ctx.state.current_tx()
         schema = current_tx.get_schema(self._std_schema)
+
+        mstate = current_tx.get_migration_state()
+        if (
+            mstate is None
+            and not ctx.bootstrap_mode
+            and ctx.log_ddl_as_migrations
+            and not isinstance(
+                stmt,
+                (qlast.CreateMigration, qlast.GlobalObjectCommand),
+            )
+        ):
+            cm = qlast.CreateMigration(
+                body=qlast.MigrationBody(
+                    commands=[stmt],
+                ),
+            )
+            return self._compile_and_apply_ddl_stmt(ctx, cm)
 
         delta = s_ddl.delta_from_ddl(
             stmt,
@@ -1477,7 +1495,10 @@ class Compiler:
     ) -> Tuple[dbstate.BaseQuery, enums.Capability]:
         if isinstance(ql, qlast.MigrationCommand):
             query = self._compile_ql_migration(ctx, ql)
-            if isinstance(query, dbstate.MigrationControlQuery):
+            if isinstance(
+                query,
+                (dbstate.MigrationControlQuery, dbstate.DDLQuery),
+            ):
                 return (query, enums.Capability.DDL)
             else:  # DESCRIBE CURRENT MIGRATION
                 return (query, enums.Capability(0))
@@ -2232,7 +2253,8 @@ class Compiler:
             expected_cardinality_one=False,
             stmt_mode=enums.CompileStatementMode.ALL,
             compat_ver=dump_server_ver,
-            schema_object_ids=schema_object_ids
+            schema_object_ids=schema_object_ids,
+            log_ddl_as_migrations=False,
         )
 
         ctx.state.start_tx()

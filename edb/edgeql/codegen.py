@@ -1328,6 +1328,12 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_DropScalarType(self, node: qlast.DropScalarType) -> None:
         self._visit_DropObject(node, 'SCALAR TYPE')
 
+    def visit_CreatePseudoType(self, node: qlast.CreatePseudoType) -> None:
+        keywords = []
+        keywords.append('PSEUDO')
+        keywords.append('TYPE')
+        self._visit_CreateObject(node, *keywords)
+
     def visit_CreateProperty(self, node: qlast.CreateProperty) -> None:
         after_name = lambda: self._ddl_visit_bases(node)
         self._visit_CreateObject(node, 'ABSTRACT PROPERTY',
@@ -1695,6 +1701,30 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_CreateObject(node, *op_type, after_name=after_name,
                                  render_commands=False)
 
+    def visit_AlterOperator(self, node: qlast.AlterOperator) -> None:
+        def after_name() -> None:
+            self.write('(')
+            self.visit_list(node.params, newlines=False)
+            self.write(')')
+
+        op_type = []
+        if node.kind:
+            op_type.append(node.kind.upper())
+        op_type.append('OPERATOR')
+        self._visit_AlterObject(node, *op_type, after_name=after_name)
+
+    def visit_DropOperator(self, node: qlast.DropOperator) -> None:
+        def after_name() -> None:
+            self.write('(')
+            self.visit_list(node.params, newlines=False)
+            self.write(')')
+
+        op_type = []
+        if node.kind:
+            op_type.append(node.kind.upper())
+        op_type.append('OPERATOR')
+        self._visit_DropObject(node, *op_type, after_name=after_name)
+
     def visit_CreateFunction(self, node: qlast.CreateFunction) -> None:
         def after_name() -> None:
             self.write('(')
@@ -1831,6 +1861,32 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_CreateObject(
             node, 'CAST', 'FROM',
             named=False, after_name=after_name, render_commands=False
+        )
+
+    def visit_AlterCast(self, node: qlast.AlterCast) -> None:
+        def after_name() -> None:
+            self.write('FROM ')
+            self.visit(node.from_type)
+            self.write(' TO ')
+            self.visit(node.to_type)
+        self._visit_AlterObject(
+            node,
+            'CAST',
+            named=False,
+            after_name=after_name,
+        )
+
+    def visit_DropCast(self, node: qlast.DropCast) -> None:
+        def after_name() -> None:
+            self.write('FROM ')
+            self.visit(node.from_type)
+            self.write(' TO ')
+            self.visit(node.to_type)
+        self._visit_DropObject(
+            node,
+            'CAST',
+            named=False,
+            after_name=after_name,
         )
 
     def visit_ConfigSet(self, node: qlast.ConfigSet) -> None:

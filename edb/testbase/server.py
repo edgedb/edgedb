@@ -828,6 +828,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
     SETUP: Optional[Union[str, List[str]]] = None
     TEARDOWN: Optional[str] = None
     SCHEMA: Optional[Union[str, pathlib.Path]] = None
+    DEFAULT_MODULE: str = 'test'
 
     SETUP_METHOD: Optional[str] = None
     TEARDOWN_METHOD: Optional[str] = None
@@ -1057,13 +1058,18 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
             script += '\nCONFIGURE SESSION SET __internal_testmode := true;'
 
         # Look at all SCHEMA entries and potentially create multiple
-        # modules, but always create the 'test' module.
-        schema = ['\nmodule test {}']
+        # modules, but always create the test module, if not `default`.
+        if cls.DEFAULT_MODULE != 'default':
+            schema = [f'\nmodule {cls.DEFAULT_MODULE} {{}}']
+        else:
+            schema = []
         for name in dir(cls):
             m = re.match(r'^SCHEMA(?:_(\w+))?', name)
             if m:
-                module_name = (m.group(1) or 'test').lower().replace(
-                    '__', '.')
+                module_name = (
+                    (m.group(1) or cls.DEFAULT_MODULE)
+                    .lower().replace('__', '.')
+                )
 
                 schema_fn = getattr(cls, name)
                 if schema_fn is not None:
@@ -1072,10 +1078,11 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
 
                     schema.append(f'\nmodule {module_name} {{ {module} }}')
 
-        script += f'\nSTART MIGRATION'
-        script += f' TO {{ {"".join(schema)} }};'
-        script += f'\nPOPULATE MIGRATION;'
-        script += f'\nCOMMIT MIGRATION;'
+        if schema:
+            script += f'\nSTART MIGRATION'
+            script += f' TO {{ {"".join(schema)} }};'
+            script += f'\nPOPULATE MIGRATION;'
+            script += f'\nCOMMIT MIGRATION;'
 
         if cls.SETUP:
             if not isinstance(cls.SETUP, (list, tuple)):
