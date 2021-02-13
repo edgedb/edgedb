@@ -2191,7 +2191,7 @@ class SysConfigFullFunction(dbops.Function):
     config_sess AS (
         SELECT
             s.name AS name,
-            s.value::jsonb AS value,
+            s.value AS value,
             'session' AS source
         FROM
             _edgecon_state s
@@ -2449,7 +2449,7 @@ class SysConfigNoFileAccessFunction(dbops.Function):
     config_sess AS (
         SELECT
             s.name AS name,
-            s.value::jsonb AS value,
+            s.value AS value,
             'session' AS source
         FROM
             _edgecon_state s
@@ -2663,7 +2663,7 @@ class SysVersionFunction(dbops.Function):
     text = f'''
         BEGIN
         RETURN (
-            SELECT value::jsonb
+            SELECT value
             FROM _edgecon_state
             WHERE name = 'server_version' AND type = 'R'
         );

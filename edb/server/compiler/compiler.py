@@ -1330,12 +1330,12 @@ class Compiler:
             INSERT INTO _edgecon_state(name, value, type)
             VALUES (
                 {pg_ql(alias or '')},
-                {pg_ql(module)},
+                to_jsonb({pg_ql(module)}::text),
                 'A'
             )
             ON CONFLICT (name, type) DO
             UPDATE
-                SET value = {pg_ql(module)};
+                SET value = to_jsonb({pg_ql(module)}::text);
         '''.encode()
 
         if isinstance(ql, qlast.SessionSetAliasDecl):
