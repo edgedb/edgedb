@@ -183,6 +183,10 @@ class T_SETTYPE(Token):
     pass
 
 
+class T_EXTENSIONPACKAGE(Token):
+    pass
+
+
 class T_ICONST(Token):
     pass
 

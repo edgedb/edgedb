@@ -49,6 +49,7 @@ cdef class Database:
         readonly object user_schema
         readonly object reflection_cache
         readonly object backend_ids
+        readonly object extensions
 
     cdef _invalidate_caches(self)
     cdef _cache_compiled_query(self, key, query_unit)

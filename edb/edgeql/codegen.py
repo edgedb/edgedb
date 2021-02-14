@@ -1021,6 +1021,25 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_DropObject(
             node, 'EXTENSION PACKAGE', after_name=after_name)
 
+    def visit_CreateExtension(
+        self,
+        node: qlast.CreateExtensionPackage,
+    ) -> None:
+        self.write('CREATE EXTENSION')
+        self.write(' ')
+        self.write(ident_to_str(node.name.name))
+        if node.version is not None:
+            self.write(' VERSION ')
+            self.visit(node.version)
+        if node.commands:
+            self._ddl_visit_body(node.commands)
+
+    def visit_DropExtension(
+        self,
+        node: qlast.DropExtension,
+    ) -> None:
+        self._visit_DropObject(node, 'EXTENSION')
+
     def visit_CreateMigration(self, node: qlast.CreateMigration) -> None:
         self.write('CREATE')
         if node.metadata_only:

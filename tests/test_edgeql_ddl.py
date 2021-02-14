@@ -6166,6 +6166,94 @@ type test::Foo {
             }]
         )
 
+    async def test_edgeql_ddl_extension_01(self):
+        await self.con.execute(r"""
+            CREATE EXTENSION PACKAGE MyExtension VERSION '1.0';
+            CREATE EXTENSION PACKAGE MyExtension VERSION '2.0';
+        """)
+
+        await self.con.execute(r"""
+            CREATE EXTENSION MyExtension;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT schema::Extension {
+                    name,
+                    package: {
+                        ver := (.version.major, .version.minor)
+                    }
+                }
+                FILTER .name = 'MyExtension'
+            """,
+            [{
+                'name': 'MyExtension',
+                'package': {
+                    'ver': [2, 0],
+                }
+            }]
+        )
+
+        await self.con.execute(r"""
+            DROP EXTENSION MyExtension;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT schema::Extension {
+                    name,
+                    package: {
+                        ver := (.version.major, .version.minor)
+                    }
+                }
+                FILTER .name = 'MyExtension'
+            """,
+            [],
+        )
+
+        await self.con.execute(r"""
+            CREATE EXTENSION MyExtension VERSION '1.0';
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT schema::Extension {
+                    name,
+                    package: {
+                        ver := (.version.major, .version.minor)
+                    }
+                }
+                FILTER .name = 'MyExtension'
+            """,
+            [{
+                'name': 'MyExtension',
+                'package': {
+                    'ver': [1, 0],
+                }
+            }]
+        )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaError,
+            "extension 'MyExtension' is already present in the schema",
+        ):
+            await self.con.execute(r"""
+                CREATE EXTENSION MyExtension VERSION '2.0';
+            """)
+
+        await self.con.execute(r"""
+            DROP EXTENSION MyExtension;
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaError,
+            "cannot create extension 'MyExtension': extension"
+            " package 'MyExtension' version '3.0' does not exist",
+        ):
+            await self.con.execute(r"""
+                CREATE EXTENSION MyExtension VERSION '3.0';
+            """)
+
     async def test_edgeql_ddl_role_01(self):
         await self.con.execute(r"""
             CREATE ROLE foo_01;

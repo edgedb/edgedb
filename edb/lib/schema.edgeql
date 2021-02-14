@@ -338,3 +338,7 @@ CREATE TYPE schema::Migration
     CREATE REQUIRED PROPERTY script -> str;
     CREATE PROPERTY message -> str;
 };
+
+
+# The package link is added in sys.edgeql
+CREATE TYPE schema::Extension EXTENDING schema::AnnotationSubject;

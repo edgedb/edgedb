@@ -798,6 +798,21 @@ class DropExtensionPackage(DropObject, ExtensionPackageCommand):
     pass
 
 
+class ExtensionCommand(ObjectDDL):
+    __abstract_node__ = True
+    object_class: qltypes.SchemaObjectClass = (
+        qltypes.SchemaObjectClass.EXTENSION)
+    version: typing.Optional[StringConstant] = None
+
+
+class CreateExtension(CreateObject, ExtensionCommand):
+    pass
+
+
+class DropExtension(DropObject, ExtensionCommand):
+    pass
+
+
 class ModuleCommand(ObjectDDL):
 
     __abstract_node__ = True

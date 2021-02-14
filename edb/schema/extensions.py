@@ -66,6 +66,17 @@ class ExtensionPackage(
         return shortname.name
 
 
+class Extension(
+    so.Object,
+    qlkind=qltypes.SchemaObjectClass.EXTENSION,
+    data_safe=False,
+):
+
+    package = so.SchemaField(
+        ExtensionPackage,
+    )
+
+
 class ExtensionPackageCommandContext(
     sd.ObjectCommandContext[ExtensionPackage],
     s_anno.AnnotationSubjectCommandContext,
@@ -130,7 +141,9 @@ class CreateExtensionPackage(
         cmd.set_attribute_value('version', parsed_version)
         cmd.set_attribute_value('script', astnode.body.text)
         cmd.set_attribute_value('builtin', context.stdmode)
-        cmd.set_attribute_value('internal', False)
+
+        if not cmd.has_attribute_value('internal'):
+            cmd.set_attribute_value('internal', False)
 
         return cmd
 
@@ -160,3 +173,90 @@ class DeleteExtensionPackage(
     sd.DeleteObject[ExtensionPackage],
 ):
     astnode = qlast.DropExtensionPackage
+
+
+class ExtensionCommandContext(
+    sd.ObjectCommandContext[Extension],
+):
+    pass
+
+
+class ExtensionCommand(
+    sd.ObjectCommand[Extension],
+    context_class=ExtensionCommandContext,
+):
+
+    pass
+
+
+class CreateExtension(
+    ExtensionCommand,
+    sd.CreateObject[Extension],
+):
+    astnode = qlast.CreateExtension
+
+    @classmethod
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext
+    ) -> CreateExtension:
+        assert isinstance(astnode, qlast.CreateExtension)
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        assert isinstance(cmd, CreateExtension)
+
+        if astnode.version is not None:
+            parsed_version = verutils.parse_version(astnode.version.value)
+            cmd.set_attribute_value('version', parsed_version)
+
+        return cmd
+
+    def canonicalize_attributes(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super().canonicalize_attributes(schema, context)
+        filters = [
+            lambda schema, pkg: (
+                pkg.get_shortname(schema) == self.classname
+            )
+        ]
+        version = self.get_attribute_value('version')
+        if version is not None:
+            filters.append(
+                lambda schema, pkg: pkg.get_version(schema) == version,
+            )
+            self.discard_attribute('version')
+
+        pkgs = list(schema.get_objects(
+            type=ExtensionPackage,
+            extra_filters=filters,
+        ))
+
+        if not pkgs:
+            if version is None:
+                raise errors.SchemaError(
+                    f'cannot create extension {self.get_displayname()!r}:'
+                    f' extension package {self.get_displayname()!r} does'
+                    f' not exist'
+                )
+            else:
+                raise errors.SchemaError(
+                    f'cannot create extension {self.get_displayname()!r}:'
+                    f' extension package {self.get_displayname()!r} version'
+                    f' {str(version)!r} does not exist'
+                )
+
+        pkgs.sort(key=lambda pkg: pkg.get_version(schema), reverse=True)
+        self.set_attribute_value('package', pkgs[0])
+        return schema
+
+
+class DeleteExtension(
+    ExtensionCommand,
+    sd.DeleteObject[Extension],
+):
+
+    astnode = qlast.DropExtension

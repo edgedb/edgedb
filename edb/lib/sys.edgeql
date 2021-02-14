@@ -50,6 +50,13 @@ CREATE TYPE sys::ExtensionPackage EXTENDING sys::SystemObject {
 };
 
 
+ALTER TYPE schema::Extension {
+    CREATE REQUIRED LINK package -> sys::ExtensionPackage {
+        CREATE CONSTRAINT std::exclusive;
+    }
+};
+
+
 CREATE TYPE sys::Role EXTENDING sys::SystemObject {
     ALTER PROPERTY name {
         CREATE CONSTRAINT std::exclusive;

@@ -54,6 +54,7 @@ _new_nonterm = sdl_nontem_helper._new_nonterm
 
 
 class DDLStmt(Nonterm):
+
     def reduce_DatabaseStmt(self, *kids):
         self.val = kids[0].val
 
@@ -193,6 +194,9 @@ class InnerDDLStmt(Nonterm):
     def reduce_DropCastStmt(self, *kids):
         self.val = kids[0].val
 
+    def reduce_ExtensionStmt(self, *kids):
+        self.val = kids[0].val
+
 
 class InnerDDLStmtBlock(ListNonterm, element=InnerDDLStmt,
                         separator=Semicolons):
@@ -310,12 +314,12 @@ class NestedQLBlock(ProductionTpl):
         raise NotImplementedError
 
     def _process_body(self, body):
-        fields = {}
+        fields = []
         stmts = []
         for stmt in body:
             if isinstance(stmt, qlast.SetField):
                 if stmt.name in self.allowed_fields:
-                    fields[stmt.name] = stmt.value
+                    fields.append(stmt)
                 else:
                     raise errors.InvalidSyntaxError(
                         f'unexpected field: {stmt.name!r}',
@@ -345,7 +349,7 @@ class NestedQLBlock(ProductionTpl):
         contexts.append(rbrace.context)
         body.context = pctx.merge_context(contexts)
         body.text = self._get_text(body)
-        self.val = self.result(body=body, **fields)
+        self.val = self.result(body=body, fields=fields)
 
     def _block2(self, lbrace, sc1, cmdlist, sc2, rbrace):
         # LBRACE Semicolons NestedQLBlock OptSemicolons RBRACE
@@ -354,7 +358,7 @@ class NestedQLBlock(ProductionTpl):
         body.context = pctx.merge_context(
             [sc1.context, cmdlist.context, sc2.context])
         body.text = self._get_text(body)
-        self.val = self.result(body=body, **fields)
+        self.val = self.result(body=body, fields=fields)
 
     def _empty(self, *kids):
         # LBRACE OptSemicolons RBRACE | <e>
@@ -365,7 +369,7 @@ class NestedQLBlock(ProductionTpl):
         if body.context is None:
             body.context = pctx.empty_context()
         body.text = self._get_text(body)
-        self.val = self.result(body=body)
+        self.val = self.result(body=body, fields=[])
 
 
 def nested_ql_block(parent, *commands, opt=True, production_tpl):
@@ -680,19 +684,46 @@ class ExtensionPackageStmt(Nonterm):
         self.val = kids[0].val
 
 
+class ExtensionVersion(Nonterm):
+
+    def reduce_VERSION_BaseStringConstant(self, *kids):
+        version = kids[1].val
+
+        try:
+            verutils.parse_version(version.value)
+        except ValueError:
+            raise EdgeQLSyntaxError(
+                'invalid extension version format',
+                details='Expected a SemVer-compatible format.',
+                context=version.context,
+            ) from None
+
+        self.val = version
+
+
+class OptExtensionVersion(Nonterm):
+
+    def reduce_ExtensionVersion(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_empty(self, *kids):
+        self.val = None
+
+
 #
 # CREATE EXTENSION PACKAGE
 #
 class ExtensionPackageBody(typing.NamedTuple):
 
     body: qlast.NestedQLBlock
+    fields: typing.List[qlast.SetField]
 
 
 class CreateExtensionPackageBodyBlock(NestedQLBlock):
 
     @property
     def allowed_fields(self) -> typing.FrozenSet[str]:
-        return frozenset()
+        return frozenset({'internal'})
 
     @property
     def result(self) -> typing.Any:
@@ -708,24 +739,15 @@ nested_ql_block(
 class CreateExtensionPackageStmt(Nonterm):
 
     def reduce_CreateExtensionPackageStmt(self, *kids):
-        r"""%reduce CREATE EXTENSION PACKAGE ShortNodeName
-                    VERSION BaseStringConstant
+        r"""%reduce CREATE EXTENSIONPACKAGE ShortNodeName
+                    ExtensionVersion
                     OptCreateExtensionPackageCommandsBlock
         """
-        version = kids[5].val
-        try:
-            verutils.parse_version(version.value)
-        except ValueError:
-            raise EdgeQLSyntaxError(
-                'invalid extension version format',
-                details='Expected a SemVer-compatible format.',
-                context=version.context,
-            ) from None
-
         self.val = qlast.CreateExtensionPackage(
-            name=kids[3].val,
-            version=version,
-            body=kids[6].val.body,
+            name=kids[2].val,
+            version=kids[3].val,
+            body=kids[4].val.body,
+            commands=kids[4].val.fields,
         )
 
 
@@ -735,22 +757,61 @@ class CreateExtensionPackageStmt(Nonterm):
 class DropExtensionPackageStmt(Nonterm):
 
     def reduce_DropExtensionPackageStmt(self, *kids):
-        r"""%reduce DROP EXTENSION PACKAGE ShortNodeName
-                    VERSION BaseStringConstant
-        """
-        version = kids[5].val
-        try:
-            verutils.parse_version(version.value)
-        except ValueError:
-            raise EdgeQLSyntaxError(
-                'invalid extension version format',
-                details='Expected a SemVer-compatible format.',
-                context=version.context,
-            ) from None
-
+        r"""%reduce DROP EXTENSIONPACKAGE ShortNodeName ExtensionVersion"""
         self.val = qlast.DropExtensionPackage(
-            name=kids[3].val,
-            version=version,
+            name=kids[2].val,
+            version=kids[3].val,
+        )
+
+
+#
+# EXTENSIONS
+#
+
+
+class ExtensionStmt(Nonterm):
+
+    def reduce_CreateExtensionStmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_DropExtensionStmt(self, *kids):
+        self.val = kids[0].val
+
+
+#
+# CREATE EXTENSION
+#
+
+
+commands_block(
+    'CreateExtension',
+    SetFieldStmt,
+)
+
+
+class CreateExtensionStmt(Nonterm):
+
+    def reduce_CreateExtensionStmt(self, *kids):
+        r"""%reduce CREATE EXTENSION ShortNodeName OptExtensionVersion
+                    OptCreateExtensionCommandsBlock
+        """
+        self.val = qlast.CreateExtension(
+            name=kids[2].val,
+            version=kids[3].val,
+            commands=kids[4].val,
+        )
+
+
+#
+# DROP EXTENSION
+#
+class DropExtensionStmt(Nonterm):
+
+    def reduce_DropExtensionPackageStmt(self, *kids):
+        r"""%reduce DROP EXTENSION ShortNodeName OptExtensionVersion"""
+        self.val = qlast.DropExtension(
+            name=kids[2].val,
+            version=kids[3].val,
         )
 
 
@@ -2495,7 +2556,7 @@ class MigrationStmt(Nonterm):
 class MigrationBody(typing.NamedTuple):
 
     body: qlast.NestedQLBlock
-    message: typing.Optional[qlast.Expr] = None
+    fields: typing.List[qlast.SetField]
 
 
 class CreateMigrationBodyBlock(NestedQLBlock):
@@ -2552,7 +2613,6 @@ class CreateMigrationStmt(Nonterm):
         self.val = qlast.CreateMigration(
             name=kids[2].val.name,
             parent=kids[2].val.parent,
-            message=kids[3].val.message,
             body=kids[3].val.body,
         )
 
@@ -2564,7 +2624,6 @@ class CreateMigrationStmt(Nonterm):
         self.val = qlast.CreateMigration(
             name=kids[3].val.name,
             parent=kids[3].val.parent,
-            message=kids[4].val.message,
             body=kids[4].val.body,
             metadata_only=True,
         )

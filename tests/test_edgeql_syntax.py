@@ -3081,6 +3081,21 @@ aa';
         DROP EXTENSION PACKAGE foo VERSION '1.0';
         """
 
+    def test_edgeql_syntax_ddl_create_extension_01(self):
+        """
+        CREATE EXTENSION foo;
+        """
+
+    def test_edgeql_syntax_ddl_create_extension_02(self):
+        """
+        CREATE EXTENSION foo VERSION '1.0';
+        """
+
+    def test_edgeql_syntax_ddl_drop_extension_01(self):
+        """
+        DROP EXTENSION foo;
+        """
+
     # TODO: remove this test once the entire grammar is converted
     def test_edgeql_syntax_ddl_aggregate_00(self):
         """

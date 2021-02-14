@@ -97,6 +97,8 @@ pub struct Tokens {
     set_annotation_val: PyString,
     set_type: PyString,
     set_type_val: PyString,
+    extension_package: PyString,
+    extension_package_val: PyString,
 
     dot: PyString,
     backward_link: PyString,
@@ -264,6 +266,8 @@ impl Tokens {
             set_annotation_val: PyString::new(py, "SET ANNOTATION"),
             set_type: PyString::new(py, "SETTYPE"),
             set_type_val: PyString::new(py, "SET TYPE"),
+            extension_package: PyString::new(py, "EXTENSIONPACKAGE"),
+            extension_package_val: PyString::new(py, "EXTENSION PACKAGE"),
 
             dot: PyString::new(py, "."),
             backward_link: PyString::new(py, ".<"),
@@ -593,6 +597,12 @@ fn convert(py: Python, tokens: &Tokens, cache: &mut Cache,
                          tok_iter.next();
                          Ok((tokens.set_type.clone_ref(py),
                              tokens.set_type_val.clone_ref(py),
+                             py.None()))
+                    }
+                    "extension" if peek_keyword(tok_iter, "package") => {
+                         tok_iter.next();
+                         Ok((tokens.extension_package.clone_ref(py),
+                             tokens.extension_package_val.clone_ref(py),
                              py.None()))
                     }
                     _ => match tokens.keywords.get(&cache.keyword_buf) {

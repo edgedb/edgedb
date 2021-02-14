@@ -4928,6 +4928,20 @@ class DeleteExtensionPackage(
         return schema
 
 
+class CreateExtension(
+    CreateObject,
+    adapts=s_exts.CreateExtension,
+):
+    pass
+
+
+class DeleteExtension(
+    DeleteObject,
+    adapts=s_exts.DeleteExtension,
+):
+    pass
+
+
 class DeltaRoot(MetaCommand, adapts=sd.DeltaRoot):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

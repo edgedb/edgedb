@@ -26,6 +26,7 @@ import immutables
 
 from edb import errors
 from edb.common import lru, uuidgen
+from edb.schema import extensions as s_ext
 from edb.schema import schema as s_schema
 from edb.server import defines, config
 from edb.server.compiler import dbstate
@@ -80,6 +81,10 @@ cdef class Database:
         self.user_schema = user_schema
         self.reflection_cache = reflection_cache
         self.backend_ids = backend_ids
+        self.extensions = {
+            ext.get_name(user_schema).name: ext
+            for ext in user_schema.get_objects(type=s_ext.Extension)
+        }
 
     cdef _set_and_signal_new_user_schema(
         self,
@@ -94,6 +99,12 @@ cdef class Database:
         self.dbver = next_dbver()
 
         self.user_schema = new_schema
+
+        self.extensions = {
+            ext.get_name(new_schema).name: ext
+            for ext in new_schema.get_objects(type=s_ext.Extension)
+        }
+
         if backend_ids is not None:
             self.backend_ids = backend_ids
         if reflection_cache is not None:
