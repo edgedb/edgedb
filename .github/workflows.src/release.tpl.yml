@@ -61,6 +61,7 @@ jobs:
       env:
         XCODE_INSTALL_USER: github-ci@edgedb.com
         XCODE_INSTALL_PASSWORD: ${{ secrets.BOT_APPLE_ID_PASSWORD }}
+        SPACESHIP_SKIP_2FA_UPGRADE: 1
       run: |
         xcversion install 6.4
 
