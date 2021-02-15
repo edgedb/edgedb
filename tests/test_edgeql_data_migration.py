@@ -7714,6 +7714,88 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [{'foo': 'test'}],
         )
 
+    async def test_edgeql_migration_extensions_01(self):
+        await self.con.execute('''
+            START MIGRATION TO {
+                using extension graphql;
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text':
+                        "CREATE EXTENSION graphql VERSION '1.0';"
+                }],
+                'confidence': 1.0,
+            },
+        })
+
+        await self.fast_forward_describe_migration()
+
+        await self.assert_query_result(
+            r"""
+                SELECT schema::Extension {
+                    name,
+                }
+                FILTER .name = 'graphql'
+            """,
+            [{
+                'name': 'graphql',
+            }]
+        )
+
+        await self.con.execute('''
+            START MIGRATION TO {
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text':
+                        'DROP EXTENSION graphql;'
+                }],
+                'confidence': 1.0,
+            },
+        })
+
+        await self.fast_forward_describe_migration()
+
+        await self.assert_query_result(
+            r"""
+                SELECT schema::Extension {
+                    name,
+                }
+                FILTER .name = 'graphql'
+            """,
+            [],
+        )
+
+        await self.con.execute('''
+            START MIGRATION TO {
+                using extension graphql version '1.0';
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text':
+                        "CREATE EXTENSION graphql VERSION '1.0';"
+                }],
+                'confidence': 1.0,
+            },
+        })
+
+        await self.fast_forward_describe_migration()
+
     async def test_edgeql_migration_confidence_01(self):
         await self.con.execute('''
             START MIGRATION TO {

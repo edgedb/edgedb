@@ -1025,7 +1025,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self,
         node: qlast.CreateExtensionPackage,
     ) -> None:
-        self.write('CREATE EXTENSION')
+        if self.sdlmode or self.descmode:
+            self.write('using extension')
+        else:
+            self.write('CREATE EXTENSION')
         self.write(' ')
         self.write(ident_to_str(node.name.name))
         if node.version is not None:

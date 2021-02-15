@@ -29,6 +29,7 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
 from edb.common import parsing
+from edb.common import verutils
 
 from . import expressions
 from . import tokens
@@ -58,8 +59,12 @@ def _validate_declarations(
     # Check that top-level declarations either use fully-qualified
     # names or are module blocks.
     for decl in declarations:
-        if (not isinstance(decl, qlast.ModuleDeclaration) and
-                decl.name.module is None):
+        if (
+            not isinstance(
+                decl,
+                (qlast.ModuleDeclaration, qlast.ExtensionCommand)
+            ) and decl.name.module is None
+        ):
             raise EdgeQLSyntaxError(
                 "only fully-qualified name is allowed in "
                 "top-level declaration",
@@ -435,3 +440,29 @@ class OnTargetDeleteStmt(Nonterm):
     def reduce_ON_TARGET_DELETE_DEFERRED_RESTRICT(self, *kids):
         self.val = qlast.OnTargetDelete(
             cascade=qltypes.LinkTargetDeleteAction.DeferredRestrict)
+
+
+class ExtensionVersion(Nonterm):
+
+    def reduce_VERSION_BaseStringConstant(self, *kids):
+        version = kids[1].val
+
+        try:
+            verutils.parse_version(version.value)
+        except ValueError:
+            raise EdgeQLSyntaxError(
+                'invalid extension version format',
+                details='Expected a SemVer-compatible format.',
+                context=version.context,
+            ) from None
+
+        self.val = version
+
+
+class OptExtensionVersion(Nonterm):
+
+    def reduce_ExtensionVersion(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_empty(self, *kids):
+        self.val = None

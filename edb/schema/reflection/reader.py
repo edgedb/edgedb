@@ -273,5 +273,5 @@ def _parse_version(val: Dict[str, Any]) -> verutils.Version:
         minor=val['minor'],
         stage=getattr(verutils.VersionStage, val['stage'].upper()),
         stage_no=val['stage_no'],
-        local=val['local'],
+        local=tuple(val['local']),
     )

@@ -32,7 +32,6 @@ from edb.edgeql import qltypes
 
 from edb.common import context as pctx
 from edb.common import parsing
-from edb.common import verutils
 
 from . import expressions
 from . import commondl
@@ -682,32 +681,6 @@ class ExtensionPackageStmt(Nonterm):
 
     def reduce_DropExtensionPackageStmt(self, *kids):
         self.val = kids[0].val
-
-
-class ExtensionVersion(Nonterm):
-
-    def reduce_VERSION_BaseStringConstant(self, *kids):
-        version = kids[1].val
-
-        try:
-            verutils.parse_version(version.value)
-        except ValueError:
-            raise EdgeQLSyntaxError(
-                'invalid extension version format',
-                details='Expected a SemVer-compatible format.',
-                context=version.context,
-            ) from None
-
-        self.val = version
-
-
-class OptExtensionVersion(Nonterm):
-
-    def reduce_ExtensionVersion(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_empty(self, *kids):
-        self.val = None
 
 
 #

@@ -3057,6 +3057,32 @@ aa';
         };
         """
 
+    def test_edgeql_syntax_ddl_create_migration_07(self):
+        """
+        START MIGRATION TO {
+            using extension graphql version '2.0';
+        };
+        """
+
+    def test_edgeql_syntax_ddl_create_migration_08(self):
+        """
+        START MIGRATION TO {
+            using extension graphql;
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "'using extension' cannot be used inside a module block",
+                  line=4, col=17)
+    def test_edgeql_syntax_ddl_create_migration_09(self):
+        """
+        START MIGRATION TO {
+            module foo {
+                using extension graphql;
+            }
+        };
+        """
+
     def test_edgeql_syntax_ddl_create_extension_package_01(self):
         """
         CREATE EXTENSION PACKAGE foo VERSION '1.0';

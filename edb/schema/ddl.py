@@ -21,6 +21,7 @@ from __future__ import annotations
 from typing import *
 
 from collections import defaultdict
+import itertools
 
 from edb import edgeql
 from edb.common import uuidgen
@@ -464,10 +465,13 @@ def apply_sdl(
     documents: Dict[str, List[qlast.DDL]] = defaultdict(list)
     # initialize the "default" module
     documents[defines.DEFAULT_MODULE_ALIAS] = []
+    extensions = {}
     for decl in sdl_document.declarations:
         # declarations are either in a module block or fully-qualified
         if isinstance(decl, qlast.ModuleDeclaration):
             documents[decl.name.name].extend(decl.declarations)
+        elif isinstance(decl, qlast.CreateExtension):
+            extensions[decl.name.name] = decl
         else:
             assert decl.name.module is not None
             documents[decl.name.module].append(decl)
@@ -483,7 +487,7 @@ def apply_sdl(
     )
 
     target_schema = base_schema
-    for ddl_stmt in ddl_stmts:
+    for ddl_stmt in itertools.chain(extensions.values(), ddl_stmts):
         delta = sd.DeltaRoot()
         with context(sd.DeltaRootContext(schema=target_schema, op=delta)):
             cmd = cmd_from_ddl(

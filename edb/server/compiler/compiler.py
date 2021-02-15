@@ -910,9 +910,14 @@ class Compiler:
 
             tx_query = self._compile_ql_transaction(ctx, tx_cmd)
             assert self._std_schema is not None
+            base_schema = s_schema.ChainedSchema(
+                self._std_schema,
+                s_schema.FlatSchema(),
+                current_tx.get_global_schema(),
+            )
             target_schema = s_ddl.apply_sdl(
                 ql.target,
-                base_schema=self._std_schema,
+                base_schema=base_schema,
                 current_schema=schema,
                 allow_dml_in_functions=(
                     self.get_config_val(ctx, 'allow_dml_in_functions')),

@@ -26,7 +26,6 @@ from edb import errors
 
 from . import expressions
 from . import commondl
-from . import tokens
 
 from .precedence import *  # NOQA
 from .tokens import *  # NOQA
@@ -89,11 +88,9 @@ class SDLBlockStatement(Nonterm):
 
 # these statements have no {} block
 class SDLShortStatement(Nonterm):
-    def reduce_IMPORT_ImportModuleList(self, *kids):
-        self.val = qlast.Import(modules=kids[1].val)
 
-    def reduce_IMPORT_LPAREN_ImportModuleList_RPAREN(self, *kids):
-        self.val = qlast.Import(modules=kids[2].val)
+    def reduce_ExtensionRequirementDeclaration(self, *kids):
+        self.val = kids[0].val
 
     def reduce_ScalarTypeDeclarationShort(self, *kids):
         self.val = kids[0].val
@@ -157,20 +154,6 @@ class SDLCommandBlock(Nonterm):
 class DotName(Nonterm):
     def reduce_ModuleName(self, *kids):
         self.val = '.'.join(part for part in kids[0].val)
-
-
-class ImportModule(Nonterm):
-    def reduce_DotName(self, *kids):
-        self.val = qlast.ImportModule(module=kids[0].val)
-
-    def reduce_DotName_AS_AnyIdentifier(self, *kids):
-        self.val = qlast.ImportModule(module=kids[0].val,
-                                      alias=kids[2].val)
-
-
-class ImportModuleList(ListNonterm, element=ImportModule,
-                       separator=tokens.T_COMMA):
-    pass
 
 
 class SDLProductionHelper:
@@ -291,6 +274,15 @@ sdl_commands_block(
     SetAnnotation)
 
 
+class ExtensionRequirementDeclaration(Nonterm):
+
+    def reduce_USING_EXTENSION_ShortNodeName_OptExtensionVersion(self, *kids):
+        self.val = qlast.CreateExtension(
+            name=kids[2].val,
+            version=kids[3].val,
+        )
+
+
 class ModuleDeclaration(Nonterm):
     def reduce_MODULE_ModuleName_SDLCommandBlock(self, *kids):
         # Check that top-level declarations DO NOT use fully-qualified
@@ -300,6 +292,10 @@ class ModuleDeclaration(Nonterm):
             if isinstance(decl, qlast.ModuleDeclaration):
                 raise errors.EdgeQLSyntaxError(
                     "nested module declaration is not allowed",
+                    context=decl.context)
+            elif isinstance(decl, qlast.ExtensionCommand):
+                raise errors.EdgeQLSyntaxError(
+                    "'using extension' cannot be used inside a module block",
                     context=decl.context)
             elif decl.name.module is not None:
                 raise errors.EdgeQLSyntaxError(

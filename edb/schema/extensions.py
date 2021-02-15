@@ -253,6 +253,22 @@ class CreateExtension(
         self.set_attribute_value('package', pkgs[0])
         return schema
 
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
+        node = super()._get_ast(schema, context, parent_node=parent_node)
+        assert isinstance(node, qlast.CreateExtension)
+        pkg = self.get_resolved_attribute_value(
+            'package', schema=schema, context=context)
+        node.version = qlast.StringConstant(
+            value=str(pkg.get_version(schema))
+        )
+        return node
+
 
 class DeleteExtension(
     ExtensionCommand,
