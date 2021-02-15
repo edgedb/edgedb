@@ -901,7 +901,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
 
                 if self.con.is_in_transaction():
                     self.loop.run_until_complete(
-                        self.con.execute('ROLLBACK'))
+                        self.con.query('ROLLBACK'))
                     raise AssertionError(
                         'test connection is still in transaction '
                         '*after* the test')
