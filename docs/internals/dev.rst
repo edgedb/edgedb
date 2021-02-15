@@ -18,7 +18,7 @@ Linux or macOS.  Windows is not currently supported.
 * C compiler (GCC or clang);
 * Rust compiler and Cargo 1.45 or later;
 * autotools;
-* Python 3.8 dev package;
+* Python 3.9 dev package;
 * Bison 1.875 or later;
 * Flex 2.5.31 or later;
 * Perl 5.8.3 or later;
@@ -51,11 +51,11 @@ Python "venv" with all dependencies and commands installed into it.
       $ git clone --recursive git@github.com:edgedb/edgedb.git
       $ git clone --recursive git@github.com:edgedb/edgedb-python.git
 
-#. Create a Python 3.8 virtual environment and activate it:
+#. Create a Python 3.9 virtual environment and activate it:
 
    .. code-block:: bash
 
-      $ python3.8 -m venv edgedb-dev
+      $ python3.9 -m venv edgedb-dev
       $ source edgedb-dev/bin/activate
 
 #. Build edgedb-python:
