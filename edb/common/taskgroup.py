@@ -207,9 +207,14 @@ class TaskGroup:
         # we need a flag to say if a task was cancelled or not.
         # We also need to be able to flip that flag.
 
-        def _task_cancel(self, msg=None):
-            self.__cancel_requested__ = True
-            return asyncio.Task.cancel(self, msg)
+        if sys.version_info >= (3, 9):
+            def _task_cancel(self, msg=None):
+                self.__cancel_requested__ = True
+                return asyncio.Task.cancel(self, msg)
+        else:
+            def _task_cancel(self):
+                self.__cancel_requested__ = True
+                return asyncio.Task.cancel(self)
 
         if hasattr(task, '__cancel_requested__'):
             return
