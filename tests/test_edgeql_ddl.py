@@ -8014,7 +8014,7 @@ type test::Foo {
             };
         """)
 
-        await self.con.execute('DECLARE SAVEPOINT t0;')
+        await self.con.query('DECLARE SAVEPOINT t0')
 
         with self.assertRaisesRegex(
                 edgedb.InvalidPropertyTargetError,
@@ -8027,7 +8027,7 @@ type test::Foo {
             """)
 
         # Recover.
-        await self.con.execute('ROLLBACK TO SAVEPOINT t0;')
+        await self.con.query('ROLLBACK TO SAVEPOINT t0;')
 
     async def test_edgeql_ddl_enum_01(self):
         await self.con.execute('''
@@ -8052,7 +8052,7 @@ type test::Foo {
             }
         ''')
 
-        await self.con.execute('DECLARE SAVEPOINT t0;')
+        await self.con.query('DECLARE SAVEPOINT t0')
 
         with self.assertRaisesRegex(
                 edgedb.SchemaError,
@@ -8063,14 +8063,14 @@ type test::Foo {
                     std::int32;
             ''')
 
-        await self.con.execute('ROLLBACK TO SAVEPOINT t0;')
+        await self.con.query('ROLLBACK TO SAVEPOINT t0;')
 
         await self.con.execute('''
             CREATE SCALAR TYPE test::my_enum_2
                 EXTENDING enum<'foo', 'bar'>;
         ''')
 
-        await self.con.execute('DECLARE SAVEPOINT t1;')
+        await self.con.query('DECLARE SAVEPOINT t1')
 
         with self.assertRaisesRegex(
                 edgedb.UnsupportedFeatureError,
@@ -8083,7 +8083,7 @@ type test::Foo {
             ''')
 
         # Recover.
-        await self.con.execute('ROLLBACK TO SAVEPOINT t1;')
+        await self.con.query('ROLLBACK TO SAVEPOINT t1;')
 
         await self.con.execute('''
             ALTER SCALAR TYPE test::my_enum_2
@@ -8139,7 +8139,7 @@ type test::Foo {
                 EXTENDING enum<Red, Green, Blue>;
         ''')
 
-        await self.con.execute('DECLARE SAVEPOINT t0;')
+        await self.con.query('DECLARE SAVEPOINT t0')
 
         with self.assertRaisesRegex(
                 edgedb.SchemaError,
@@ -8150,7 +8150,7 @@ type test::Foo {
             ''')
 
         # Recover.
-        await self.con.execute('ROLLBACK TO SAVEPOINT t0;')
+        await self.con.query('ROLLBACK TO SAVEPOINT t0;')
 
         with self.assertRaisesRegex(
                 edgedb.SchemaError,
@@ -8160,7 +8160,7 @@ type test::Foo {
             ''')
 
         # Recover.
-        await self.con.execute('ROLLBACK TO SAVEPOINT t0;')
+        await self.con.query('ROLLBACK TO SAVEPOINT t0;')
 
         with self.assertRaisesRegex(
                 edgedb.SchemaError,
@@ -8172,7 +8172,7 @@ type test::Foo {
             ''')
 
         # Recover.
-        await self.con.execute('ROLLBACK TO SAVEPOINT t0;')
+        await self.con.query('ROLLBACK TO SAVEPOINT t0;')
 
         with self.assertRaisesRegex(
                 edgedb.SchemaError,
@@ -8183,7 +8183,7 @@ type test::Foo {
             ''')
 
         # Recover.
-        await self.con.execute('ROLLBACK TO SAVEPOINT t0;')
+        await self.con.query('ROLLBACK TO SAVEPOINT t0;')
 
         with self.assertRaisesRegex(
                 edgedb.SchemaError,
@@ -8194,7 +8194,7 @@ type test::Foo {
             ''')
 
         # Recover.
-        await self.con.execute('ROLLBACK TO SAVEPOINT t0;')
+        await self.con.query('ROLLBACK TO SAVEPOINT t0;')
 
         with self.assertRaisesRegex(
                 edgedb.SchemaError,
@@ -8205,7 +8205,7 @@ type test::Foo {
             ''')
 
         # Recover.
-        await self.con.execute('ROLLBACK TO SAVEPOINT t0;')
+        await self.con.query('ROLLBACK TO SAVEPOINT t0;')
 
         with self.assertRaisesRegex(
                 edgedb.SchemaError,
@@ -8216,7 +8216,7 @@ type test::Foo {
             ''')
 
         # Recover.
-        await self.con.execute('ROLLBACK TO SAVEPOINT t0;')
+        await self.con.query('ROLLBACK TO SAVEPOINT t0;')
 
         with self.assertRaisesRegex(
                 edgedb.SchemaError,
@@ -8227,16 +8227,15 @@ type test::Foo {
             ''')
 
         # Recover.
-        await self.con.execute('ROLLBACK TO SAVEPOINT t0;')
+        await self.con.query('ROLLBACK TO SAVEPOINT t0;')
 
         await self.con.execute(r'''
             ALTER SCALAR TYPE test::Color
                 EXTENDING enum<Red, Green, Blue, Magic>;
-
-            # Commit the changes and start a new transaction for more testing.
-            COMMIT;
-            START TRANSACTION;
         ''')
+        # Commit the changes and start a new transaction for more testing.
+        await self.con.query("COMMIT")
+        await self.con.query("START TRANSACTION")
         await self.assert_query_result(
             r"""
                 SELECT <test::Color>'Magic' >

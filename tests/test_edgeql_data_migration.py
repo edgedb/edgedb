@@ -275,7 +275,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
         ''')
 
-        await self.con.execute('DECLARE SAVEPOINT t0;')
+        await self.con.query('DECLARE SAVEPOINT t0;')
 
         with self.assertRaisesRegex(
                 edgedb.InvalidLinkTargetError,
@@ -303,9 +303,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         with open(schema_f) as f:
             schema = f.read()
 
-        await self.con.execute('''
-            ROLLBACK TO SAVEPOINT t0;
-        ''')
+        await self.con.query('ROLLBACK TO SAVEPOINT t0')
         await self.migrate(schema)
 
     async def test_edgeql_migration_describe_reject_01(self):
@@ -544,9 +542,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                     };
                 };
             };
-
-            DECLARE SAVEPOINT migration_01;
         ''')
+        await self.con.query('DECLARE SAVEPOINT migration_01')
 
         await self.assert_describe_migration(orig_expected := {
             'parent': 'm1a2l6lbzimqokzygdzbkyjrhbmjh3iljg7i2m6r2ias2z2de4x4cq',
@@ -582,7 +579,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             'proposed': None,
         })
 
-        await self.con.execute('ROLLBACK TO SAVEPOINT migration_01;')
+        await self.con.query('ROLLBACK TO SAVEPOINT migration_01;')
 
         await self.assert_describe_migration(orig_expected)
 
@@ -2068,9 +2065,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         })
         # Auto-complete migration
         await self.fast_forward_describe_migration()
-        await self.con.execute('''
-            DECLARE SAVEPOINT migration_01;
-        ''')
+        await self.con.query('DECLARE SAVEPOINT migration_01')
 
         await self.assert_query_result(
             r"""
@@ -2084,9 +2079,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             await self.con.execute(r"""
                 SELECT <test::my_str>'nope';
             """)
-        await self.con.execute(r"""
-            ROLLBACK TO SAVEPOINT migration_01;
-        """)
+        await self.con.query('ROLLBACK TO SAVEPOINT migration_01')
 
         # Migration that drops a constraint.
         await self.con.execute('''
@@ -8383,7 +8376,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             r" in a migration block",
         ):
             await self.start_migration('type Foo;')
-            await self.con.execute('''
+            await self.con.query('''
                 START TRANSACTION;
             ''')
 
@@ -8393,7 +8386,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             r" in a migration block",
         ):
             await self.start_migration('type Foo;')
-            await self.con.execute('''
+            await self.con.query('''
                 START TRANSACTION;
             ''')
 
