@@ -277,7 +277,7 @@ GQL_TO_OPS_MAP = {
 }
 
 
-HIDDEN_MODULES = s_schema.STD_MODULES - {s_name.UnqualName('std')}
+HIDDEN_MODULES = set(s_schema.STD_MODULES) - {s_name.UnqualName('std')}
 TOP_LEVEL_TYPES = {
     s_name.QualName(module='stdgraphql', name='Query'),
     s_name.QualName(module='stdgraphql', name='Mutation'),

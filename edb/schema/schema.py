@@ -52,16 +52,26 @@ if TYPE_CHECKING:
         ],
     ]
 
-STD_LIB = (
+STD_MODULES = (
     sn.UnqualName('std'),
     sn.UnqualName('schema'),
     sn.UnqualName('math'),
     sn.UnqualName('sys'),
     sn.UnqualName('cfg'),
     sn.UnqualName('cal'),
+    sn.UnqualName('stdgraphql'),
 )
-STD_MODULES = frozenset(STD_LIB + (sn.UnqualName('stdgraphql'),))
 
+# Specifies the order of processing of files and directories in lib/
+STD_SOURCES = (
+    sn.UnqualName('std'),
+    sn.UnqualName('schema'),
+    sn.UnqualName('math'),
+    sn.UnqualName('sys'),
+    sn.UnqualName('cfg'),
+    sn.UnqualName('cal'),
+    sn.UnqualName('ext'),
+)
 
 Schema_T = TypeVar('Schema_T', bound='Schema')
 

@@ -242,7 +242,7 @@ def _load_std_schema():
 
         if schema is None:
             schema = s_schema.FlatSchema()
-            for modname in s_schema.STD_LIB + ('stdgraphql',):
+            for modname in s_schema.STD_SOURCES:
                 schema = s_std.load_std_module(schema, modname)
             schema, _ = s_std.make_schema_version(schema)
             schema, _ = s_std.make_global_schema_version(schema)

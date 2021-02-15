@@ -216,9 +216,11 @@ cdef class HttpProtocol:
 
         if len(path_parts) >= 3:
             root, dbname, extname, *args = path_parts
-            db = self.server.get_db(dbname=dbname)
+            db = self.server.maybe_get_db(dbname=dbname)
+            if extname == 'edgeql':
+                extname = 'edgeql_http'
 
-            if root == 'db':
+            if db is not None and root == 'db' and extname in db.extensions:
                 if extname == 'graphql':
                     await graphql_ext.handle_request(
                         request, response, db, args, self.server
@@ -229,7 +231,7 @@ cdef class HttpProtocol:
                         request, response, db, args, self.server
                     )
                     return
-                elif extname == 'edgeql':
+                elif extname == 'edgeql_http':
                     await edgeql_ext.handle_request(
                         request, response, db, args, self.server
                     )

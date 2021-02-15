@@ -17,6 +17,8 @@
 #
 
 
+CREATE EXTENSION PACKAGE graphql VERSION '1.0';
+
 CREATE MODULE stdgraphql;
 
 # these are just some placeholders for packaging GraphQL queries

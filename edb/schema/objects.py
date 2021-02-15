@@ -1093,11 +1093,11 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
     @classmethod
     def create_in_schema(
         cls: Type[Object_T],
-        schema: s_schema.Schema,
+        schema: s_schema.Schema_T,
         *,
         id: Optional[uuid.UUID] = None,
         **data: Any,
-    ) -> Tuple[s_schema.Schema, Object_T]:
+    ) -> Tuple[s_schema.Schema_T, Object_T]:
 
         if not cls.is_schema_object:
             raise TypeError(f'{cls.__name__} type cannot be created in schema')

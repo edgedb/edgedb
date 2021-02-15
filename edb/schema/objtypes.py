@@ -82,7 +82,7 @@ class ObjectType(
         schema: s_schema.Schema,
     ) -> Optional[s_expr.ExpressionList]:
         if (
-            self.get_name(schema).module == 'schema'
+            self.get_name(schema).module in {'schema', 'sys'}
             and self.issubclass(schema,
                                 schema.get('schema::Object', type=ObjectType))
         ):

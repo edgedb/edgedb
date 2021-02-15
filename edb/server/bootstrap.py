@@ -61,6 +61,7 @@ from edb.pgsql import dbops
 from edb.pgsql import delta as delta_cmds
 from edb.pgsql import metaschema
 from edb.pgsql.common import quote_ident as qi
+from edb.pgsql.common import quote_literal as ql
 
 from edgedb import scram
 
@@ -391,16 +392,20 @@ class StdlibBits(NamedTuple):
 
 
 async def _make_stdlib(testmode: bool, global_ids) -> StdlibBits:
-    std_schema: s_schema.Schema = s_schema.FlatSchema()
-    std_schema, _ = s_mod.Module.create_in_schema(
-        std_schema,
+    schema = s_schema.ChainedSchema(
+        s_schema.FlatSchema(),
+        s_schema.FlatSchema(),
+        s_schema.FlatSchema(),
+    )
+    schema, _ = s_mod.Module.create_in_schema(
+        schema,
         name=sn.UnqualName('__derived__'),
     )
 
     current_block = dbops.PLTopBlock()
 
     std_texts = []
-    for modname in s_schema.STD_LIB + (sn.UnqualName('stdgraphql'),):
+    for modname in s_schema.STD_SOURCES:
         std_texts.append(s_std.get_std_module_text(modname))
 
     if testmode:
@@ -413,7 +418,7 @@ async def _make_stdlib(testmode: bool, global_ids) -> StdlibBits:
     for ddl_cmd in edgeql.parse_block(ddl_text):
         assert isinstance(ddl_cmd, qlast.DDLCommand)
         delta_command = s_ddl.delta_from_ddl(
-            ddl_cmd, modaliases={}, schema=std_schema, stdmode=True)
+            ddl_cmd, modaliases={}, schema=schema, stdmode=True)
 
         if debug.flags.delta_plan_input:
             debug.header('Delta Plan Input')
@@ -421,22 +426,16 @@ async def _make_stdlib(testmode: bool, global_ids) -> StdlibBits:
 
         # Apply and adapt delta, build native delta plan, which
         # will also update the schema.
-        std_schema, plan = _process_delta(delta_command, std_schema)
+        schema, plan = _process_delta(delta_command, schema)
         std_plans.append(delta_command)
 
         types.update(plan.new_types)
         plan.generate(current_block)
 
-    _, schema_version = s_std.make_schema_version(std_schema)
-    std_schema, plan = _process_delta(schema_version, std_schema)
+    _, schema_version = s_std.make_schema_version(schema)
+    schema, plan = _process_delta(schema_version, schema)
     std_plans.append(schema_version)
     plan.generate(current_block)
-
-    schema = s_schema.ChainedSchema(
-        std_schema,  # type: ignore
-        s_schema.FlatSchema(),
-        s_schema.FlatSchema(),
-    )
 
     stdglobals = '\n'.join([
         f'''CREATE SUPERUSER ROLE {edbdef.EDGEDB_SUPERUSER} {{
@@ -446,22 +445,27 @@ async def _make_stdlib(testmode: bool, global_ids) -> StdlibBits:
 
     schema = await _execute_edgeql_ddl(schema, stdglobals)
 
-    reflection = s_refl.generate_structure(std_schema)
+    _, global_schema_version = s_std.make_global_schema_version(schema)
+    schema, plan = _process_delta(global_schema_version, schema)
+    std_plans.append(global_schema_version)
+    plan.generate(current_block)
+
+    reflection = s_refl.generate_structure(schema)
     reflschema, reflplan = _process_delta(
-        reflection.intro_schema_delta, std_schema)
+        reflection.intro_schema_delta, schema)
 
     assert current_block is not None
     reflplan.generate(current_block)
     subblock = current_block.add_block()
 
     compiler = edbcompiler.new_compiler(
-        std_schema=std_schema,
-        reflection_schema=reflschema,
+        std_schema=schema.get_top_schema(),
+        reflection_schema=reflschema.get_top_schema(),
         schema_class_layout=reflection.class_layout,  # type: ignore
     )
 
     compilerctx = edbcompiler.new_compiler_context(
-        user_schema=reflschema,
+        user_schema=reflschema.get_top_schema(),
         global_schema=schema.get_global_schema(),
         bootstrap_mode=True,
     )
@@ -474,7 +478,7 @@ async def _make_stdlib(testmode: bool, global_ids) -> StdlibBits:
         )
 
     compilerctx = edbcompiler.new_compiler_context(
-        user_schema=reflschema,
+        user_schema=reflschema.get_top_schema(),
         global_schema=schema.get_global_schema(),
         bootstrap_mode=True,
         internal_schema_mode=True,
@@ -488,7 +492,7 @@ async def _make_stdlib(testmode: bool, global_ids) -> StdlibBits:
     sqltext = current_block.to_string()
 
     compilerctx = edbcompiler.new_compiler_context(
-        user_schema=reflschema,
+        user_schema=reflschema.get_top_schema(),
         global_schema=schema.get_global_schema(),
         schema_reflection_mode=True,
         output_format=edbcompiler.IoFormat.JSON_ELEMENTS,
@@ -531,8 +535,8 @@ async def _make_stdlib(testmode: bool, global_ids) -> StdlibBits:
     '''
 
     return StdlibBits(
-        stdschema=std_schema,
-        reflschema=reflschema,
+        stdschema=schema.get_top_schema(),
+        reflschema=reflschema.get_top_schema(),
         global_schema=schema.get_global_schema(),
         sqltext=sqltext,
         types=types,
@@ -592,21 +596,6 @@ async def _amend_stdlib(
     return stdlib._replace(stdschema=schema, reflschema=reflschema), sqltext
 
 
-async def _record_global_schema_version(conn, stdlib):
-    schema = s_schema.ChainedSchema(
-        stdlib.stdschema,
-        s_schema.FlatSchema(),
-        stdlib.global_schema,
-    )
-    _, global_schema_version = s_std.make_global_schema_version(schema)
-    schema, plan = _process_delta(global_schema_version, schema)
-    block = dbops.PLTopBlock()
-    plan.generate(block)
-    sql = block.to_string()
-    await conn.execute(sql)
-    return stdlib._replace(global_schema=schema.get_global_schema())
-
-
 async def _init_stdlib(cluster, conn, testmode, global_ids):
     in_dev_mode = devmode.is_in_dev_mode()
 
@@ -655,6 +644,24 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
                 flags=re.MULTILINE,
             )
 
+            global_metadata = await conn.fetchval(
+                f'''\
+                SELECT edgedb.shobj_metadata(
+                    (SELECT oid FROM pg_database
+                     WHERE datname = {ql(edbdef.EDGEDB_TEMPLATE_DB)}),
+                    'pg_database'
+                )'''
+            )
+
+            pl_block = dbops.PLTopBlock()
+
+            dbops.SetMetadata(
+                dbops.Database(name=edbdef.EDGEDB_TEMPLATE_DB),
+                json.loads(global_metadata),
+            ).generate(pl_block)
+
+            tpldbdump += b'\n' + pl_block.to_string().encode('utf-8')
+
             buildmeta.write_data_cache(
                 tpldbdump,
                 src_hash,
@@ -702,8 +709,6 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
             single_statement=True,
         )
         await conn.execute(sql)
-
-    stdlib = await _record_global_schema_version(conn, stdlib)
 
     if not in_dev_mode and testmode:
         # Running tests on a production build.

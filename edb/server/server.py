@@ -280,6 +280,10 @@ class Server:
         assert self._dbindex is not None
         return self._dbindex.get_db(dbname)
 
+    def maybe_get_db(self, *, dbname: str):
+        assert self._dbindex is not None
+        return self._dbindex.maybe_get_db(dbname)
+
     def new_dbview(self, *, dbname, user, query_cache):
         return self._dbindex.new_view(
             dbname, user=user, query_cache=query_cache)
@@ -349,8 +353,14 @@ class Server:
             dbver=0, use_prep_stmt=True, args=(),
         )
 
+        base_schema = s_schema.ChainedSchema(
+            self._std_schema,
+            s_schema.FlatSchema(),
+            self.get_global_schema(),
+        )
+
         return s_refl.parse_into(
-            base_schema=self._std_schema,
+            base_schema=base_schema,
             schema=s_schema.FlatSchema(),
             data=json_data,
             schema_class_layout=self._schema_class_layout,
@@ -559,18 +569,10 @@ class Server:
 
     async def _on_system_config_add(self, setting_name, value):
         # CONFIGURE SYSTEM INSERT ConfigObject;
-
-        # TODO(elvis): CREATE EXTENSION
-        # No need to do anything special. IMO we can maintain a list
-        # of extensions enabled per a DB in dbindex.
-        # `edb.server.protocol` then can check if the extension is enabled
-        # before dispatching to it.
         pass
 
     async def _on_system_config_rem(self, setting_name, value):
         # CONFIGURE SYSTEM RESET ConfigObject;
-
-        # TODO(elvis): DROP EXTENSION
         pass
 
     async def _on_system_config_set(self, setting_name, value):

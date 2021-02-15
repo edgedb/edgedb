@@ -71,19 +71,17 @@ class BaseHttpTest:
         cls.http_addr = \
             f'http://{cls.http_host}:{cls.http_port}/db/{dbname}/{extpath}'
 
-        # TODO (elvis):
-        # extname = cls.get_extension_name()
-        # cls.loop.run_until_complete(
-        #     cls.con.execute(f'CREATE EXTENSION {extname};')
-        # )
+        extname = cls.get_extension_name()
+        cls.loop.run_until_complete(
+            cls.con.execute(f'CREATE EXTENSION {extname};')
+        )
 
     @classmethod
     def tearDownClass(cls):
-        # TODO (elvis):
-        # extname = cls.get_extension_name()
-        # cls.loop.run_until_complete(
-        #     cls.con.execute(f'DROP EXTENSION {extname};')
-        # )
+        extname = cls.get_extension_name()
+        cls.loop.run_until_complete(
+            cls.con.execute(f'DROP EXTENSION {extname};')
+        )
         super().tearDownClass()
 
     @contextlib.contextmanager

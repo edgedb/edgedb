@@ -555,7 +555,14 @@ cdef class DatabaseIndex:
         self._comp_sys_config = config.get_compilation_config(sys_config)
 
     def get_db(self, dbname):
-        return self._dbs[dbname]
+        try:
+            return self._dbs[dbname]
+        except KeyError:
+            raise errors.UnknownDatabaseError(
+                f'database {dbname!r} does not exist')
+
+    def maybe_get_db(self, dbname):
+        return self._dbs.get(dbname)
 
     def get_global_schema(self):
         return self._global_schema
