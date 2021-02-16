@@ -1478,7 +1478,7 @@ class TestServerProto(tb.QueryTestCase):
         # Test that START TRANSACTION reflects its modes.
 
         try:
-            await self.con.execute('''
+            await self.con.query('''
                 START TRANSACTION ISOLATION SERIALIZABLE, READ ONLY,
                     DEFERRABLE;
             ''')
@@ -1487,13 +1487,13 @@ class TestServerProto(tb.QueryTestCase):
                     edgedb.TransactionError,
                     'read-only transaction'):
 
-                await self.con.execute('''
+                await self.con.query('''
                     INSERT test::Tmp {
                         tmp := 'aaa'
                     };
                 ''')
         finally:
-            await self.con.execute(f'''
+            await self.con.query(f'''
                 ROLLBACK;
             ''')
 
