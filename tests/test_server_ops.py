@@ -95,8 +95,9 @@ class TestServerOps(tb.TestCase):
             '--port', 'auto',
             '--testmode',
             '--temp-dir',
-            '--bootstrap-command=SELECT 1',
+            '--bootstrap-command=CREATE SUPERUSER ROLE test_bootstrap;',
             '--bootstrap-only',
+            '--log-level=error',
             '--max-backend-connections', '10',
         ]
 
@@ -120,3 +121,8 @@ class TestServerOps(tb.TestCase):
                 f'server exited with code {proc.returncode}:\n'
                 f'STDERR: {stderr.decode()}',
             )
+
+            if stderr != b'':
+                self.fail(
+                    'Unexpected server error output:\n' + stderr.decode()
+                )

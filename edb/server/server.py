@@ -663,6 +663,13 @@ class Server:
 
     async def _signal_sysevent(self, event, **kwargs):
         pgcon = await self._acquire_sys_pgcon()
+        if pgcon is None:
+            # No pgcon means that the server is going down.  This is very
+            # likely if we are doing "run_startup_script_and_exit()",
+            # but is also possible if the server was shut down with
+            # this coroutine as a background task in flight.
+            return
+
         try:
             await pgcon.signal_sysevent(event, **kwargs)
         finally:
