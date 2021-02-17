@@ -582,17 +582,6 @@ def generate_structure(schema: s_schema.Schema) -> SchemaReflectionParts:
 
                 ref_ptr = schema_cls.getptr(
                     schema, sn.UnqualName(refdict.attr))
-            else:
-                schema = _run_ddl(
-                    f'''
-                        ALTER TYPE {rschema_name} {{
-                            ALTER LINK {refdict.attr}
-                            ON TARGET DELETE ALLOW;
-                        }}
-                    ''',
-                    schema=schema,
-                    delta=delta,
-                )
 
             assert isinstance(ref_ptr, s_links.Link)
 
