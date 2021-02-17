@@ -74,7 +74,7 @@ def is_coalesce_expr(ir: irast.Base) -> bool:
     return (
         isinstance(ir, irast.OperatorCall) and
         ir.operator_kind is ft.OperatorKind.Infix and
-        ir.func_shortname == 'std::??'
+        str(ir.func_shortname) == 'std::??'
     )
 
 
@@ -83,7 +83,7 @@ def is_set_membership_expr(ir: irast.Base) -> bool:
     return (
         isinstance(ir, irast.OperatorCall) and
         ir.operator_kind is ft.OperatorKind.Infix and
-        ir.func_shortname in {'std::IN', 'std::NOT IN'}
+        str(ir.func_shortname) in {'std::IN', 'std::NOT IN'}
     )
 
 
@@ -92,7 +92,7 @@ def is_distinct_expr(ir: irast.Base) -> bool:
     return (
         isinstance(ir, irast.OperatorCall) and
         ir.operator_kind is ft.OperatorKind.Prefix and
-        ir.func_shortname == 'std::DISTINCT'
+        str(ir.func_shortname) == 'std::DISTINCT'
     )
 
 
@@ -101,7 +101,7 @@ def is_union_expr(ir: irast.Base) -> bool:
     return (
         isinstance(ir, irast.OperatorCall) and
         ir.operator_kind is ft.OperatorKind.Infix and
-        ir.func_shortname == 'std::UNION'
+        str(ir.func_shortname) == 'std::UNION'
     )
 
 
@@ -110,7 +110,7 @@ def is_exists_expr(ir: irast.Base) -> bool:
     return (
         isinstance(ir, irast.OperatorCall) and
         ir.operator_kind is ft.OperatorKind.Prefix and
-        ir.func_shortname == 'std::EXISTS'
+        str(ir.func_shortname) == 'std::EXISTS'
     )
 
 
@@ -119,7 +119,7 @@ def is_ifelse_expr(ir: irast.Base) -> bool:
     return (
         isinstance(ir, irast.OperatorCall) and
         ir.operator_kind is ft.OperatorKind.Ternary and
-        ir.func_shortname == 'std::IF'
+        str(ir.func_shortname) == 'std::IF'
     )
 
 
@@ -150,7 +150,11 @@ def is_empty(ir: irast.Base) -> bool:
     return (
         isinstance(ir, irast.EmptySet) or
         (isinstance(ir, irast.Array) and not ir.elements) or
-        (isinstance(ir, irast.Set) and is_empty(ir.expr))
+        (
+            isinstance(ir, irast.Set)
+            and ir.expr is not None
+            and is_empty(ir.expr)
+        )
     )
 
 
@@ -204,7 +208,7 @@ def unwrap_set(ir_set: irast.Set) -> irast.Set:
     """If the give *ir_set* is an implicit SELECT wrapper, return the
        wrapped set.
     """
-    if is_implicit_wrapper(ir_set.expr):
+    if ir_set.expr is not None and is_implicit_wrapper(ir_set.expr):
         return ir_set.expr.result  # type: ignore
     else:
         return ir_set
@@ -217,8 +221,9 @@ def get_source_context_as_json(
     details: Optional[str]
     if expr.context:
         details = json.dumps({
-            'line': expr.context.start.line,
-            'column': expr.context.start.column,
+            # TODO(tailhook) should we add offset, utf16column here?
+            'line': expr.context.start_point.line,
+            'column': expr.context.start_point.column,
             'name': expr.context.name,
             'code': exctype.get_code(),
         })
@@ -271,15 +276,17 @@ def get_nearest_dml_stmt(ir_set: irast.Set) -> Optional[irast.MutatingStmt]:
     """For a given *ir_set* representing a Path, return the nearest path
        step that is a DML expression.
     """
-    while ir_set is not None:
-        if isinstance(ir_set.expr, irast.MutatingStmt):
-            return ir_set.expr
-        elif isinstance(ir_set.expr, irast.SelectStmt):
-            ir_set = ir_set.expr.result
-        elif ir_set.rptr is not None:
-            ir_set = ir_set.rptr.source
+    cur_set: Optional[irast.Set] = ir_set
+    while cur_set is not None:
+        if isinstance(cur_set.expr, irast.MutatingStmt):
+            return cur_set.expr
+        elif isinstance(cur_set.expr, irast.SelectStmt):
+            cur_set = cur_set.expr.result
+        elif cur_set.rptr is not None:
+            cur_set = cur_set.rptr.source
         else:
-            ir_set = None
+            cur_set = None
+    return None
 
 
 def get_iterator_sets(stmt: irast.Stmt) -> Sequence[irast.Set]:
@@ -292,10 +299,30 @@ def get_iterator_sets(stmt: irast.Stmt) -> Sequence[irast.Set]:
     return iterators
 
 
-def contains_dml(stmt: irast.Stmt) -> bool:
+class ContainsDMLVisitor(ast.NodeVisitor):
+    skip_hidden = True
+
+    def __init__(self, *, skip_bindings: bool) -> None:
+        super().__init__()
+        self.skip_bindings = skip_bindings
+
+    def combine_field_results(self, xs: List[Optional[bool]]) -> bool:
+        return any(x is True for x in xs)
+
+    def visit_MutatingStmt(self, stmt: irast.MutatingStmt) -> bool:
+        return True
+
+    def visit_Set(self, node: irast.Set) -> bool:
+        if self.skip_bindings and node.is_binding:
+            return False
+
+        # Visit sub-trees
+        return bool(self.generic_visit(node))
+
+
+def contains_dml(stmt: irast.Base, *, skip_bindings: bool=False) -> bool:
     """Check whether a statement contains any DML in a subtree."""
-    # If this ends up being a perf problem, we can use a visitor
-    # directly and cache.
-    res = ast.find_children(stmt, lambda x: isinstance(x, irast.MutatingStmt),
-                            terminate_early=True)
-    return bool(res)
+    # TODO: Make this caching.
+    visitor = ContainsDMLVisitor(skip_bindings=skip_bindings)
+    res = visitor.visit(stmt) is True
+    return res

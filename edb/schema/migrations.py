@@ -23,19 +23,17 @@
 from __future__ import annotations
 from typing import *
 
-import base64
-import hashlib
-
 from edb import errors
-from edb.common import debug
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import codegen as qlcodegen
 from edb.edgeql import qltypes
-from edb._edgeql_rust import tokenize as qltokenize
+from edb.edgeql import hasher as qlhasher
+from edb.edgeql import parser as qlparser
 
 from . import abc as s_abc
 from . import delta as sd
+from . import name as sn
 from . import objects as so
 from . import utils as s_utils
 
@@ -47,6 +45,7 @@ class Migration(
     so.Object,
     s_abc.Migration,
     qlkind=qltypes.SchemaObjectClass.MIGRATION,
+    data_safe=False,
 ):
 
     parents = so.SchemaField(
@@ -70,9 +69,10 @@ class MigrationCommandContext(sd.ObjectCommandContext[Migration]):
     pass
 
 
-class MigrationCommand(sd.ObjectCommand[Migration],
-                       schema_metaclass=Migration,
-                       context_class=MigrationCommandContext):
+class MigrationCommand(
+    sd.ObjectCommand[Migration],
+    context_class=MigrationCommandContext,
+):
     pass
 
 
@@ -123,33 +123,30 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
             if parent.name != actual_parent_name:
                 raise errors.SchemaDefinitionError(
                     f'specified migration parent is not the most '
-                    f'recent migration, expected {actual_parent_name!r}',
+                    f'recent migration, expected {str(actual_parent_name)!r}',
                     context=astnode.parent.context,
                 )
 
         if parent is not None:
             parent_name = parent.name
         else:
-            parent_name = 'initial'
+            parent_name = sn.UnqualName(name='initial')
 
-        stmt_text = f'CREATE MIGRATION ONTO {parent_name}\n{{'
-
-        if astnode.commands:
+        hasher = qlhasher.Hasher.start_migration(str(parent_name))
+        if astnode.body.text is not None:
+            # This is an explicitly specified CREATE MIGRATION
+            ddl_text = astnode.body.text
+        elif astnode.body.commands:
+            # An implicit CREATE MIGRATION produced by START MIGRATION
             ddl_text = ';\n'.join(
                 qlcodegen.generate_source(stmt)
-                for stmt in astnode.commands
+                for stmt in astnode.body.commands
             ) + ';'
         else:
             ddl_text = ''
 
-        stmt_text += f'{ddl_text}\n}}'
-
-        tokenstream = b'\x00'.join(
-            token.text().encode('utf-8') for token in qltokenize(stmt_text)
-        )
-
-        hashsum = hashlib.sha256(tokenstream).digest()
-        name = f'm1{base64.b32encode(hashsum).decode().strip("=").lower()}'
+        hasher.add_source(ddl_text)
+        name = hasher.make_migration_id()
 
         if specified_name is not None and name != specified_name:
             raise errors.SchemaDefinitionError(
@@ -159,18 +156,12 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
                 context=astnode.name.context,
             )
 
-        cmd = cls(classname=name)
+        cmd = cls(classname=sn.UnqualName(name))
         cmd.set_attribute_value('script', ddl_text)
         cmd.set_attribute_value('builtin', False)
         cmd.set_attribute_value('internal', False)
         if parent is not None:
             cmd.set_attribute_value('parents', [parent])
-
-        if (
-            astnode.auto_diff is not None
-            and not debug.flags.migrations_via_ddl
-        ):
-            cmd.canonical = True
 
         return cmd
 
@@ -185,19 +176,48 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
 
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
-        if (
-            astnode.auto_diff is not None
-            and not debug.flags.migrations_via_ddl
-        ):
-            for subcmd in list(cmd.get_subcommands()):
-                if not isinstance(subcmd, sd.AlterObjectProperty):
-                    cmd.discard(subcmd)
-            for subcmd in astnode.auto_diff.get_subcommands():
-                cmd.add(subcmd)
+        if astnode.body.commands and not astnode.metadata_only:
+            for subastnode in astnode.body.commands:
+                subcmd = sd.compile_ddl(schema, subastnode, context=context)
+                if subcmd is not None:
+                    cmd.add(subcmd)
 
         assert isinstance(cmd, CreateMigration)
 
         return cmd
+
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
+        node = super()._get_ast(schema, context, parent_node=parent_node)
+        assert isinstance(node, qlast.CreateMigration)
+        node.metadata_only = True
+        return node
+
+    def _apply_field_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        node: qlast.DDLOperation,
+        op: sd.AlterObjectProperty,
+    ) -> None:
+        assert isinstance(node, qlast.CreateMigration)
+        if op.property == 'script':
+            node.body = qlast.NestedQLBlock(
+                commands=qlparser.parse_block(op.new_value),
+                text=op.new_value,
+            )
+        elif op.property == 'parents':
+            if op.new_value and (items := op.new_value.items):
+                assert len(items) == 1
+                parent = next(iter(items))
+                node.parent = s_utils.name_to_ast_ref(parent.get_name(schema))
+        else:
+            super()._apply_field_ast(schema, context, node, op)
 
 
 class AlterMigration(MigrationCommand, sd.AlterObject[Migration]):

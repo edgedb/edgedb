@@ -1,3 +1,5 @@
+# mypy: ignore-errors
+
 #
 # This source file is part of the EdgeDB open source project.
 #
@@ -31,6 +33,7 @@ from edb.common import uuidgen
 
 from edb.schema import links as s_links
 from edb.schema import objects as s_obj
+from edb.schema import objtypes as s_objtypes
 from edb.schema import scalars as s_scalars
 from edb.schema import types as s_types
 
@@ -45,6 +48,7 @@ EMPTY_TUPLE_ID = s_obj.get_known_type_id('empty-tuple').bytes
 EMPTY_TUPLE_DESC = b'\x04' + EMPTY_TUPLE_ID + b'\x00\x00'
 
 UUID_TYPE_ID = s_obj.get_known_type_id('std::uuid')
+STR_TYPE_ID = s_obj.get_known_type_id('std::str')
 
 NULL_TYPE_ID = b'\x00' * 16
 NULL_TYPE_DESC = b''
@@ -58,6 +62,8 @@ CTYPE_NAMEDTUPLE = b'\x05'
 CTYPE_ARRAY = b'\x06'
 CTYPE_ENUM = b'\x07'
 
+CTYPE_ANNO_TYPENAME = b'\xff'
+
 
 class TypeSerializer:
 
@@ -67,10 +73,17 @@ class TypeSerializer:
 
     _JSON_DESC = None
 
-    def __init__(self, schema):
+    def __init__(
+        self,
+        schema,
+        *,
+        inline_typenames: bool = False,
+    ):
         self.schema = schema
         self.buffer = []
+        self.anno_buffer = []
         self.uuid_to_pos = {}
+        self.inline_typenames = inline_typenames
 
     def _get_collection_type_id(self, coll_type, subtypes,
                                 element_names=None):
@@ -94,12 +107,6 @@ class TypeSerializer:
             string_id += f'\x00{":".join(element_names)}'
         string_id += f'{has_implicit_fields!r};{links_props!r};{links!r}'
         return uuidgen.uuid5(s_types.TYPE_ID_NAMESPACE, string_id)
-
-    def _get_union_type_id(self, union_type):
-        base_type_id = ','.join(
-            str(c.id) for c in union_type.children(self.schema))
-
-        return uuidgen.uuid5(s_types.TYPE_ID_NAMESPACE, base_type_id)
 
     @classmethod
     def _get_set_type_id(cls, basetype_id):
@@ -193,7 +200,7 @@ class TypeSerializer:
         elif isinstance(t, s_types.Collection):
             raise errors.SchemaError(f'unsupported collection type {t!r}')
 
-        elif view_shapes.get(t):
+        elif isinstance(t, s_objtypes.ObjectType):
             # This is a view
             self.schema, mt = t.material_type(self.schema)
             base_type_id = mt.id
@@ -206,7 +213,7 @@ class TypeSerializer:
             metadata = view_shapes_metadata.get(t)
             implicit_id = metadata is not None and metadata.has_implicit_id
 
-            for ptr in view_shapes[t]:
+            for ptr in view_shapes.get(t, ()):
                 if ptr.singular(self.schema):
                     if isinstance(ptr, s_links.Link) and not follow_links:
                         subtype_id = self._describe_type(
@@ -276,6 +283,12 @@ class TypeSerializer:
                             f"{el_name!r} is expected to be a 'std::uuid' "
                             f"singleton")
                     flags |= self.EDGE_POINTER_IS_IMPLICIT
+                elif el_name == '__tname__':
+                    if el_type != STR_TYPE_ID:
+                        raise errors.InternalServerError(
+                            f"{el_name!r} is expected to be a 'std::str' "
+                            f"singleton")
+                    flags |= self.EDGE_POINTER_IS_IMPLICIT
                 if el_l:
                     flags |= self.EDGE_POINTER_IS_LINK
                 buf.append(_uint8_packer(flags))
@@ -309,7 +322,10 @@ class TypeSerializer:
                     buf.append(_uint32_packer(len(enum_val_bytes)))
                     buf.append(enum_val_bytes)
 
-            elif mt is base_type:
+                if self.inline_typenames:
+                    self._add_annotation(mt)
+
+            elif mt == base_type:
                 buf.append(CTYPE_BASE_SCALAR)
                 buf.append(type_id.bytes)
 
@@ -321,6 +337,9 @@ class TypeSerializer:
                 buf.append(type_id.bytes)
                 buf.append(_uint16_packer(self.uuid_to_pos[bt_id]))
 
+                if self.inline_typenames:
+                    self._add_annotation(mt)
+
             self._register_type_id(type_id)
             return type_id
 
@@ -328,14 +347,33 @@ class TypeSerializer:
             raise errors.InternalServerError(
                 f'cannot describe type {t.get_name(self.schema)}')
 
+    def _add_annotation(self, t: s_types.Type):
+        self.anno_buffer.append(CTYPE_ANNO_TYPENAME)
+
+        self.anno_buffer.append(t.id.bytes)
+
+        tn = t.get_displayname(self.schema)
+
+        tn_bytes = tn.encode('utf-8')
+        self.anno_buffer.append(_uint32_packer(len(tn_bytes)))
+        self.anno_buffer.append(tn_bytes)
+
     @classmethod
-    def describe(cls, schema, typ, view_shapes, view_shapes_metadata,
-                 *, follow_links: bool = True) -> bytes:
-        builder = cls(schema)
+    def describe(
+        cls, schema, typ, view_shapes, view_shapes_metadata,
+        *,
+        follow_links: bool = True,
+        inline_typenames: bool = False,
+    ) -> typing.Tuple[bytes, uuid.UUID]:
+        builder = cls(
+            schema,
+            inline_typenames=inline_typenames,
+        )
         type_id = builder._describe_type(
             typ, view_shapes, view_shapes_metadata,
             follow_links=follow_links)
-        return b''.join(builder.buffer), type_id
+        out = b''.join(builder.buffer) + b''.join(builder.anno_buffer)
+        return out, type_id
 
     @classmethod
     def describe_json(cls) -> bytes:
@@ -346,7 +384,7 @@ class TypeSerializer:
         return cls._JSON_DESC
 
     @classmethod
-    def _describe_json(cls) -> bytes:
+    def _describe_json(cls) -> typing.Tuple[bytes, uuid.UUID]:
         json_id = s_obj.get_known_type_id('std::str')
 
         buf = []
@@ -422,9 +460,10 @@ class TypeSerializer:
             return ArrayDesc(
                 tid=tid, dim_len=dim_len, subtype=codecs_list[pos])
 
-        elif (t >= 0xf0 and t <= 0xff):
+        elif (t >= 0x80 and t <= 0xff):
             # Ignore all type annotations.
             desc.read_len32_prefixed_bytes()
+            return None
 
         else:
             raise NotImplementedError(
@@ -439,7 +478,9 @@ class TypeSerializer:
             desc = cls._parse(wrapped, codecs_list)
             if desc is not None:
                 codecs_list.append(desc)
-        return desc
+        if not codecs_list:
+            raise errors.InternalServerError('could not parse type descriptor')
+        return codecs_list[-1]
 
 
 @dataclasses.dataclass(frozen=True)

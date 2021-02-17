@@ -25,6 +25,8 @@ from typing import *
 
 from edb.common.ast import match as astmatch
 
+from edb.schema import name as sn
+
 from . import ast as irast
 from . import astmatch as irastmatch
 
@@ -37,7 +39,7 @@ class DistinctConjunctionExpr:
         if self.pattern is None:
             # Basic std::_is_exclusive(blah) expression
             pure_distinct_expr = irastmatch.FunctionCall(
-                func_shortname='std::_is_exclusive',
+                func_shortname=sn.QualName('std', '_is_exclusive'),
                 args=[
                     irastmatch.CallArg(
                         expr=astmatch.group('expr', irastmatch.Base())
@@ -54,7 +56,9 @@ class DistinctConjunctionExpr:
             )
 
             # A logical conjunction of unique constraint expressions
-            binop = irastmatch.OperatorCall(func_shortname='std::AND')
+            binop = irastmatch.OperatorCall(
+                func_shortname=sn.QualName('std', 'AND'),
+            )
 
             # Set expression with the above binop
             set_expr = irastmatch.Set(

@@ -67,15 +67,19 @@ std::datetime_get(dt: std::datetime, el: std::str) -> std::float64
         WHEN "el" = 'epochseconds'
         THEN date_part('epoch', "dt")
         ELSE
-            edgedb._raise_specific_exception(
+            edgedb.raise(
+                NULL::float,
                 'invalid_datetime_format',
-                'invalid unit for std::datetime_get: '
-                    || quote_literal("el"),
-                '{"hint":"Supported units: epochseconds, century, day, ' ||
-                'decade, dow, doy, hour, isodow, isoyear, microseconds, ' ||
-                'millenium, milliseconds, minutes, month, quarter, ' ||
-                'seconds, week, year."}',
-                NULL::float
+                msg => (
+                    'invalid unit for std::datetime_get: '
+                    || quote_literal("el")
+                ),
+                detail => (
+                    '{"hint":"Supported units: epochseconds, century, day, '
+                    || 'decade, dow, doy, hour, isodow, isoyear, '
+                    || 'microseconds, millenium, milliseconds, minutes, '
+                    || 'month, quarter, seconds, week, year."}'
+                )
             )
         END
     $$;
@@ -98,14 +102,18 @@ std::datetime_truncate(dt: std::datetime, unit: std::str) -> std::datetime
         WHEN "unit" = 'quarters'
         THEN date_trunc('quarter', "dt")
         ELSE
-            edgedb._raise_specific_exception(
+            edgedb.raise(
+                NULL::timestamptz,
                 'invalid_datetime_format',
-                'invalid unit for std::datetime_truncate: '
-                    || quote_literal("unit"),
-                '{"hint":"Supported units: microseconds, milliseconds, ' ||
-                'seconds, minutes, hours, days, weeks, months, quarters, ' ||
-                'years, decades, centuries."}',
-                NULL::timestamptz
+                msg => (
+                    'invalid unit for std::datetime_truncate: '
+                    || quote_literal("unit")
+                ),
+                detail => (
+                    '{"hint":"Supported units: microseconds, milliseconds, '
+                    || 'seconds, minutes, hours, days, weeks, months, '
+                    || 'quarters, years, decades, centuries."}'
+                )
             )
         END
     $$;
@@ -123,13 +131,17 @@ std::duration_truncate(dt: std::duration, unit: std::str) -> std::duration
                                 'seconds', 'minutes', 'hours')
         THEN date_trunc("unit", "dt")
         ELSE
-            edgedb._raise_specific_exception(
+            edgedb.raise(
+                NULL::interval,
                 'invalid_datetime_format',
-                'invalid unit for std::duration_truncate: '
-                    || quote_literal("unit"),
-                '{"hint":"Supported units: microseconds, milliseconds, ' ||
-                'seconds, minutes, hours."}',
-                NULL::interval
+                msg => (
+                    'invalid unit for std::duration_truncate: '
+                    || quote_literal("unit")
+                ),
+                detail => (
+                    '{"hint":"Supported units: microseconds, milliseconds, '
+                    || 'seconds, minutes, hours."}'
+                )
             )
         END
     $$;

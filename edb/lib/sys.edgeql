@@ -24,6 +24,10 @@ CREATE SCALAR TYPE sys::TransactionIsolation
     EXTENDING enum<RepeatableRead, Serializable>;
 
 
+CREATE SCALAR TYPE sys::VersionStage
+    EXTENDING enum<dev, alpha, beta, rc, final>;
+
+
 CREATE ABSTRACT TYPE sys::SystemObject EXTENDING schema::AnnotationSubject;
 
 
@@ -34,12 +38,33 @@ CREATE TYPE sys::Database EXTENDING sys::SystemObject {
 };
 
 
+CREATE TYPE sys::ExtensionPackage EXTENDING sys::SystemObject {
+    CREATE REQUIRED PROPERTY script -> str;
+    CREATE REQUIRED PROPERTY version -> tuple<
+                                            major: std::int64,
+                                            minor: std::int64,
+                                            stage: sys::VersionStage,
+                                            stage_no: std::int64,
+                                            local: array<std::str>,
+                                        >;
+};
+
+
+ALTER TYPE schema::Extension {
+    CREATE REQUIRED LINK package -> sys::ExtensionPackage {
+        CREATE CONSTRAINT std::exclusive;
+    }
+};
+
+
 CREATE TYPE sys::Role EXTENDING sys::SystemObject {
     ALTER PROPERTY name {
         CREATE CONSTRAINT std::exclusive;
     };
 
-    CREATE REQUIRED PROPERTY is_superuser -> std::bool;
+    CREATE REQUIRED PROPERTY superuser -> std::bool;
+    # Backwards compatibility.
+    CREATE PROPERTY is_superuser := .superuser;
     CREATE PROPERTY password -> std::str;
 };
 
@@ -47,88 +72,6 @@ CREATE TYPE sys::Role EXTENDING sys::SystemObject {
 ALTER TYPE sys::Role {
     CREATE MULTI LINK member_of -> sys::Role;
 };
-
-
-CREATE FUNCTION
-sys::sleep(duration: std::float64) -> std::bool
-{
-    CREATE ANNOTATION std::description :=
-        'Make the current session sleep for *duration* time.';
-    # This function has side-effect.
-    SET volatility := 'VOLATILE';
-    SET session_only := True;
-    USING SQL $$
-    SELECT pg_sleep("duration") IS NOT NULL;
-    $$;
-};
-
-
-CREATE FUNCTION
-sys::sleep(duration: std::duration) -> std::bool
-{
-    CREATE ANNOTATION std::description :=
-        'Make the current session sleep for *duration* time.';
-    # This function has side-effect.
-    SET volatility := 'VOLATILE';
-    SET session_only := True;
-    USING SQL $$
-    SELECT pg_sleep_for("duration") IS NOT NULL;
-    $$;
-};
-
-
-CREATE FUNCTION
-sys::advisory_lock(key: std::int64) -> std::bool
-{
-    CREATE ANNOTATION std::description :=
-        'Obtain an exclusive session-level advisory lock.';
-    # This function has side-effect.
-    SET volatility := 'VOLATILE';
-    SET session_only := True;
-    USING SQL $$
-    SELECT CASE WHEN "key" < 0 THEN
-        edgedb._raise_exception('lock key cannot be negative', NULL::bool)
-    ELSE
-        pg_advisory_lock("key") IS NOT NULL
-    END;
-    $$;
-};
-
-
-CREATE FUNCTION
-sys::advisory_unlock(key: std::int64) -> std::bool
-{
-    CREATE ANNOTATION std::description :=
-        'Release an exclusive session-level advisory lock.';
-    # This function has side-effect.
-    SET volatility := 'VOLATILE';
-    SET session_only := True;
-    USING SQL $$
-    SELECT CASE WHEN "key" < 0 THEN
-        edgedb._raise_exception('lock key cannot be negative', NULL::bool)
-    ELSE
-        pg_advisory_unlock("key")
-    END;
-    $$;
-};
-
-
-CREATE FUNCTION
-sys::advisory_unlock_all() -> std::bool
-{
-    CREATE ANNOTATION std::description :=
-        'Release all session-level advisory locks held by the current session.';
-    # This function has side-effect.
-    SET volatility := 'VOLATILE';
-    SET session_only := True;
-    USING SQL $$
-    SELECT pg_advisory_unlock_all() IS NOT NULL;
-    $$;
-};
-
-
-CREATE SCALAR TYPE sys::VersionStage
-    EXTENDING enum<dev, alpha, beta, rc, final>;
 
 
 # An intermediate function is needed because we can't

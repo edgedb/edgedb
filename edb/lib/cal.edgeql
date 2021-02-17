@@ -41,17 +41,22 @@ cal::to_local_datetime(s: std::str, fmt: OPTIONAL str={})
         CASE WHEN "fmt" IS NULL THEN
             edgedb.local_datetime_in("s")
         WHEN "fmt" = '' THEN
-            edgedb._raise_specific_exception(
+            edgedb.raise(
+                NULL::timestamp,
                 'invalid_parameter_value',
-                'to_local_datetime(): "fmt" argument must be a non-empty string',
-                '',
-                NULL::timestamp)
+                msg => (
+                    'to_local_datetime(): '
+                    || '"fmt" argument must be a non-empty string'
+                )
+            )
         ELSE
-            edgedb._raise_exception_on_null(
+            edgedb.raise_on_null(
                 edgedb.to_local_datetime("s", "fmt"),
                 'invalid_parameter_value',
-                'to_local_datetime(): format ''' || "fmt" || ''' is invalid',
-                ''
+                msg => (
+                    'to_local_datetime(): '
+                    || 'format ''' || "fmt" || ''' is invalid'
+                )
             )
         END
     )
@@ -101,17 +106,21 @@ cal::to_local_date(s: std::str, fmt: OPTIONAL str={}) -> cal::local_date
         CASE WHEN "fmt" IS NULL THEN
             edgedb.local_date_in("s")
         WHEN "fmt" = '' THEN
-            edgedb._raise_specific_exception(
+            edgedb.raise(
+                NULL::date,
                 'invalid_parameter_value',
-                'to_local_date(): "fmt" argument must be a non-empty string',
-                '',
-                NULL::date)
+                msg => (
+                    'to_local_date(): '
+                    || '"fmt" argument must be a non-empty string'
+                )
+            )
         ELSE
-            edgedb._raise_exception_on_null(
+            edgedb.raise_on_null(
                 edgedb.to_local_datetime("s", "fmt")::date,
                 'invalid_parameter_value',
-                'to_local_date(): format ''' || "fmt" || ''' is invalid',
-                ''
+                msg => (
+                    'to_local_date(): format ''' || "fmt" || ''' is invalid'
+                )
             )
         END
     )
@@ -155,17 +164,22 @@ cal::to_local_time(s: std::str, fmt: OPTIONAL str={}) -> cal::local_time
         CASE WHEN "fmt" IS NULL THEN
             edgedb.local_time_in("s")
         WHEN "fmt" = '' THEN
-            edgedb._raise_specific_exception(
+            edgedb.raise(
+                NULL::time,
                 'invalid_parameter_value',
-                'to_local_time(): "fmt" argument must be a non-empty string',
-                '',
-                NULL::time)
+                msg => (
+                    'to_local_time(): '
+                    || '"fmt" argument must be a non-empty string'
+                )
+            )
         ELSE
-            edgedb._raise_exception_on_null(
+            edgedb.raise_on_null(
                 edgedb.to_local_datetime("s", "fmt")::time,
                 'invalid_parameter_value',
-                'to_local_time(): format ''' || "fmt" || ''' is invalid',
-                ''
+                msg => (
+                    'to_local_time(): '
+                    || 'format ''' || "fmt" || ''' is invalid'
+                )
             )
         END
     )
@@ -212,13 +226,16 @@ cal::time_get(dt: cal::local_time, el: std::str) -> std::float64
         WHEN "el" = 'midnightseconds'
         THEN date_part('epoch', "dt")
         ELSE
-            edgedb._raise_specific_exception(
+            edgedb.raise(
+                NULL::float,
                 'invalid_datetime_format',
-                'invalid unit for std::time_get: '
-                    || quote_literal("el"),
-                '{"hint":"Supported units: hour, microseconds, ' ||
-                'midnightseconds, milliseconds, minutes, seconds."}',
-                NULL::float
+                msg => (
+                    'invalid unit for std::time_get: ' || quote_literal("el")
+                ),
+                detail => (
+                    '{"hint":"Supported units: hour, microseconds, ' ||
+                    'midnightseconds, milliseconds, minutes, seconds."}'
+                )
             )
         END
     $$;
@@ -238,14 +255,17 @@ cal::date_get(dt: cal::local_date, el: std::str) -> std::float64
             'month', 'quarter', 'week', 'year')
         THEN date_part("el", "dt")
         ELSE
-            edgedb._raise_specific_exception(
+            edgedb.raise(
+                NULL::float,
                 'invalid_datetime_format',
-                'invalid unit for std::date_get: '
-                    || quote_literal("el"),
-                '{"hint":"Supported units: century, day, ' ||
-                'decade, dow, doy, isodow, isoyear, ' ||
-                'millenium, month, quarter, seconds, week, year."}',
-                NULL::float
+                msg => (
+                    'invalid unit for std::date_get: ' || quote_literal("el")
+                ),
+                detail => (
+                    '{"hint":"Supported units: century, day, ' ||
+                    'decade, dow, doy, isodow, isoyear, ' ||
+                    'millenium, month, quarter, seconds, week, year."}'
+                )
             )
         END
     $$;
@@ -666,15 +686,19 @@ std::datetime_get(dt: cal::local_datetime, el: std::str) -> std::float64
         WHEN "el" = 'epochseconds'
         THEN date_part('epoch', "dt")
         ELSE
-            edgedb._raise_specific_exception(
+            edgedb.raise(
+                NULL::float,
                 'invalid_datetime_format',
-                'invalid unit for std::datetime_get: '
-                    || quote_literal("el"),
-                '{"hint":"Supported units: epochseconds, century, day, ' ||
-                'decade, dow, doy, hour, isodow, isoyear, microseconds, ' ||
-                'millenium, milliseconds, minutes, month, quarter, ' ||
-                'seconds, week, year."}',
-                NULL::float
+                msg => (
+                    'invalid unit for std::datetime_get: '
+                    || quote_literal("el")
+                ),
+                detail => (
+                    '{"hint":"Supported units: epochseconds, century, '
+                    || 'day, decade, dow, doy, hour, isodow, isoyear, '
+                    || 'microseconds, millenium, milliseconds, minutes, '
+                    || 'month, quarter, seconds, week, year."}'
+                )
             )
         END
     $$;
@@ -693,17 +717,16 @@ std::to_str(dt: cal::local_datetime, fmt: OPTIONAL str={}) -> std::str
         CASE WHEN "fmt" IS NULL THEN
             trim(to_json("dt")::text, '"')
         WHEN "fmt" = '' THEN
-            edgedb._raise_specific_exception(
+            edgedb.raise(
+                NULL::text,
                 'invalid_parameter_value',
-                'to_str(): "fmt" argument must be a non-empty string',
-                '',
-                NULL::text)
+                msg => 'to_str(): "fmt" argument must be a non-empty string'
+            )
         ELSE
-            edgedb._raise_exception_on_null(
+            edgedb.raise_on_null(
                 to_char("dt", "fmt"),
                 'invalid_parameter_value',
-                'to_str(): format ''' || "fmt" || ''' is invalid',
-                ''
+                msg => 'to_str(): format ''' || "fmt" || ''' is invalid'
             )
         END
     )
@@ -723,17 +746,16 @@ std::to_str(d: cal::local_date, fmt: OPTIONAL str={}) -> std::str
         CASE WHEN "fmt" IS NULL THEN
             "d"::text
         WHEN "fmt" = '' THEN
-            edgedb._raise_specific_exception(
+            edgedb.raise(
+                NULL::text,
                 'invalid_parameter_value',
-                'to_str(): "fmt" argument must be a non-empty string',
-                '',
-                NULL::text)
+                msg => 'to_str(): "fmt" argument must be a non-empty string'
+            )
         ELSE
-            edgedb._raise_exception_on_null(
+            edgedb.raise_on_null(
                 to_char("d", "fmt"),
                 'invalid_parameter_value',
-                'to_str(): format ''' || "fmt" || ''' is invalid',
-                ''
+                msg => 'to_str(): format ''' || "fmt" || ''' is invalid'
             )
         END
     )
@@ -759,17 +781,16 @@ std::to_str(nt: cal::local_time, fmt: OPTIONAL str={}) -> std::str
         CASE WHEN "fmt" IS NULL THEN
             "nt"::text
         WHEN "fmt" = '' THEN
-            edgedb._raise_specific_exception(
+            edgedb.raise(
+                NULL::text,
                 'invalid_parameter_value',
-                'to_str(): "fmt" argument must be a non-empty string',
-                '',
-                NULL::text)
+                msg => 'to_str(): "fmt" argument must be a non-empty string'
+            )
         ELSE
-            edgedb._raise_exception_on_null(
+            edgedb.raise_on_null(
                 to_char(date_trunc('day', localtimestamp) + "nt", "fmt"),
                 'invalid_parameter_value',
-                'to_str(): format ''' || "fmt" || ''' is invalid',
-                ''
+                msg => 'to_str(): format ''' || "fmt" || ''' is invalid'
             )
         END
     )

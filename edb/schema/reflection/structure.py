@@ -26,6 +26,7 @@ import uuid
 from edb.common import adapter
 from edb.common import checked
 from edb.common import enum
+from edb.common import verutils
 
 from edb.edgeql import qltypes
 
@@ -85,6 +86,14 @@ class SchemaFieldDesc(NamedTuple):
 SchemaTypeLayout = Dict[str, SchemaFieldDesc]
 
 
+class SchemaReflectionParts(NamedTuple):
+
+    intro_schema_delta: sd.Command
+    class_layout: Dict[Type[s_obj.Object], SchemaTypeLayout]
+    local_intro_parts: List[str]
+    global_intro_parts: List[str]
+
+
 def _run_ddl(
     ddl_text: str,
     *,
@@ -124,7 +133,7 @@ def _classify_object_field(field: s_obj.Field[Any]) -> FieldStorage:
 
     elif issubclass(ftype, s_expr.Expression):
         shadow_ptr_kind = 'property'
-        shadow_ptr_type = 'tuple<text: str, origtext: str, refs: array<uuid>>'
+        shadow_ptr_type = 'tuple<text: str, refs: array<uuid>>'
         ptr_kind = 'property'
         ptr_type = 'str'
         fieldtype = FieldType.EXPR
@@ -132,7 +141,7 @@ def _classify_object_field(field: s_obj.Field[Any]) -> FieldStorage:
     elif issubclass(ftype, s_expr.ExpressionList):
         shadow_ptr_kind = 'property'
         shadow_ptr_type = (
-            'array<tuple<text: str, origtext: str, refs: array<uuid>>>'
+            'array<tuple<text: str, refs: array<uuid>>>'
         )
         ptr_kind = 'property'
         ptr_type = 'array<str>'
@@ -153,11 +162,12 @@ def _classify_object_field(field: s_obj.Field[Any]) -> FieldStorage:
         ptr_kind = 'property'
         ptr_type = 'json'
 
-    elif issubclass(ftype, str):
+    elif issubclass(ftype, (str, sn.Name)):
         ptr_kind = 'property'
         ptr_type = 'str'
 
         if field.name == 'name':
+            # TODO: consider shadow-reflecting names as tuples
             shadow_ptr_kind = 'property'
             shadow_ptr_type = 'str'
 
@@ -173,6 +183,17 @@ def _classify_object_field(field: s_obj.Field[Any]) -> FieldStorage:
         ptr_kind = 'property'
         ptr_type = 'uuid'
 
+    elif issubclass(ftype, verutils.Version):
+        ptr_kind = 'property'
+        ptr_type = '''
+            tuple<
+                major: std::int64,
+                minor: std::int64,
+                stage: sys::VersionStage,
+                stage_no: std::int64,
+                local: array<std::str>,
+            >
+        '''
     else:
         raise RuntimeError(
             f'no metaschema reflection for field {field.name} of type {ftype}'
@@ -187,30 +208,28 @@ def _classify_object_field(field: s_obj.Field[Any]) -> FieldStorage:
     )
 
 
-def get_schema_name_for_pycls(py_cls: Type[s_obj.Object]) -> str:
+def get_schema_name_for_pycls(py_cls: Type[s_obj.Object]) -> sn.Name:
     py_cls_name = py_cls.__name__
     if issubclass(py_cls, s_obj.GlobalObject):
         # Global objects, like Role and Database live in the sys:: module
-        return sn.Name(module='sys', name=py_cls_name)
+        return sn.QualName(module='sys', name=py_cls_name)
     else:
-        return sn.Name(module='schema', name=py_cls_name)
+        return sn.QualName(module='schema', name=py_cls_name)
 
 
-def get_default_base_for_pycls(py_cls: Type[s_obj.Object]) -> str:
+def get_default_base_for_pycls(py_cls: Type[s_obj.Object]) -> sn.Name:
     if issubclass(py_cls, s_obj.GlobalObject):
         # Global objects, like Role and Database live in the sys:: module
-        return sn.Name(module='sys', name='SystemObject')
+        return sn.QualName(module='sys', name='SystemObject')
     else:
-        return sn.Name(module='schema', name='Object')
+        return sn.QualName(module='schema', name='Object')
 
 
-def generate_structure(
-    schema: s_schema.Schema,
-) -> Tuple[sd.Command, Dict[Type[s_obj.Object], SchemaTypeLayout], List[str]]:
+def generate_structure(schema: s_schema.Schema) -> SchemaReflectionParts:
     """Generate schema reflection structure from Python schema classes.
 
     Returns:
-        A triple containing:
+        A quadruple (as a SchemaReflectionParts instance) containing:
             - Delta, which, when applied to stdlib, yields an enhanced
               version of the `schema` module that contains all types
               and properties, not just those that are publicly exposed
@@ -218,7 +237,9 @@ def generate_structure(
             - A mapping, containing type layout description for all
               schema classes.
             - A sequence of EdgeQL queries necessary to introspect
-              the schema.
+              a database schema.
+            - A sequence of EdgeQL queries necessary to introspect
+              global objects, such as roles and databases.
     """
 
     delta = sd.DeltaRoot()
@@ -257,11 +278,13 @@ def generate_structure(
                                     typ.typname = "typeid"::text || '_domain'
                             ),
 
-                            edgedb._raise_specific_exception(
+                            edgedb.raise(
+                                NULL::bigint,
                                 'invalid_parameter_value',
-                                'cannot determine OID of ' || typeid::text,
-                                '',
-                                NULL::bigint
+                                msg => (
+                                    'cannot determine OID of '
+                                    || typeid::text
+                                )
                             )
                         )::bigint
                 $$;
@@ -270,11 +293,10 @@ def generate_structure(
 
             CREATE FUNCTION sys::_expr_from_json(
                 data: json
-            ) -> OPTIONAL tuple<text: str, origtext: str, refs: array<uuid>> {
+            ) -> OPTIONAL tuple<text: str, refs: array<uuid>> {
                 USING SQL $$
                     SELECT
                         "data"->>'text'                     AS text,
-                        "data"->>'origtext'                 AS origtext,
                         coalesce(r.refs, ARRAY[]::uuid[])   AS refs
                     FROM
                         (SELECT
@@ -301,7 +323,7 @@ def generate_structure(
 
         py_classes.append(py_cls)
 
-    read_sets: Dict[str, List[str]] = {}
+    read_sets: Dict[Type[s_obj.Object], List[str]] = {}
 
     for py_cls in py_classes:
         rschema_name = get_schema_name_for_pycls(py_cls)
@@ -327,19 +349,24 @@ def generate_structure(
             as_abstract = (
                 reflection is s_obj.ReflectionMethod.REGULAR
                 and not is_simple_wrapper
+                and (
+                    py_cls is s_obj.InternalObject
+                    or not issubclass(py_cls, s_obj.InternalObject)
+                )
             )
 
             schema = _run_ddl(
                 f'''
                     CREATE {'ABSTRACT' if as_abstract else ''}
                     TYPE {rschema_name}
-                    EXTENDING {', '.join(bases)};
+                    EXTENDING {', '.join(str(b) for b in bases)};
                 ''',
                 schema=schema,
                 delta=delta,
             )
 
-            schema_objtype = schema.get(rschema_name)
+            schema_objtype = schema.get(
+                rschema_name, type=s_objtypes.ObjectType)
         else:
             ex_bases = schema_objtype.get_bases(schema).names(schema)
             _, added_bases = s_inh.delta_bases(ex_bases, bases)
@@ -353,7 +380,7 @@ def generate_structure(
                     else:
                         position_clause = position
 
-                    bases_expr = ', '.join(t.name for t in subset)
+                    bases_expr = ', '.join(str(t.name) for t in subset)
 
                     stmt = f'''
                         ALTER TYPE {rschema_name} {{
@@ -379,13 +406,13 @@ def generate_structure(
                     f'reflection method but is not referenced in any RefDict'
                 )
 
-        is_concrete = not schema_objtype.get_is_abstract(schema)
+        is_concrete = not schema_objtype.get_abstract(schema)
 
         if (
             is_concrete
             and not is_simple_wrapper
             and any(
-                not b.get_is_abstract(schema)
+                not b.get_abstract(schema)
                 for b in schema_objtype.get_ancestors(schema).objects(schema)
             )
         ):
@@ -394,7 +421,7 @@ def generate_structure(
                 f'non-abstract ancestors'
             )
 
-        read_shape = read_sets[rschema_name] = []
+        read_shape = read_sets[py_cls] = []
 
         if is_concrete:
             read_shape.append(
@@ -416,7 +443,7 @@ def generate_structure(
 
             storage = _classify_object_field(field)
 
-            ptr = schema_objtype.getptr(schema, fn)
+            ptr = schema_objtype.maybe_get_ptr(schema, sn.UnqualName(fn))
 
             if fn in ownfields:
                 qual = "REQUIRED" if field.required else "OPTIONAL"
@@ -431,12 +458,12 @@ def generate_structure(
                         schema=schema,
                         delta=delta,
                     )
-                    ptr = schema_objtype.getptr(schema, fn)
-                    assert ptr is not None
+                    ptr = schema_objtype.getptr(schema, sn.UnqualName(fn))
 
                 if storage.shadow_ptrkind is not None:
                     pn = f'{fn}__internal'
-                    internal_ptr = schema_objtype.getptr(schema, pn)
+                    internal_ptr = schema_objtype.maybe_get_ptr(
+                        schema, sn.UnqualName(pn))
                     if internal_ptr is None:
                         ptrkind = storage.shadow_ptrkind
                         ptrtype = storage.shadow_ptrtype
@@ -478,8 +505,8 @@ def generate_structure(
                 proxy_type_name, proxy_link_name = field.reflection_proxy
                 proxy_obj = schema.get(
                     proxy_type_name, type=s_objtypes.ObjectType)
-                proxy_link_obj = proxy_obj.getptr(schema, proxy_link_name)
-                assert proxy_link_obj is not None
+                proxy_link_obj = proxy_obj.getptr(
+                    schema, sn.UnqualName(proxy_link_name))
                 tgt = proxy_link_obj.get_target(schema)
             else:
                 tgt = ptr.get_target(schema)
@@ -502,7 +529,8 @@ def generate_structure(
         schema_cls = schema.get(rschema_name, type=s_objtypes.ObjectType)
 
         for refdict in py_cls.get_own_refdicts().values():
-            ref_ptr = schema_cls.getptr(schema, refdict.attr)
+            ref_ptr = schema_cls.maybe_get_ptr(
+                schema, sn.UnqualName(refdict.attr))
             ref_cls = refdict.ref_cls
             assert issubclass(ref_cls, s_obj.Object)
             shadow_ref_ptr = None
@@ -531,8 +559,8 @@ def generate_structure(
                     schema=schema,
                     delta=delta,
                 )
-                shadow_ref_ptr = schema_cls.getptr(schema, shadow_pn)
-                assert shadow_ref_ptr is not None
+                shadow_ref_ptr = schema_cls.getptr(
+                    schema, sn.UnqualName(shadow_pn))
             else:
                 target_cls = ref_cls
 
@@ -552,7 +580,8 @@ def generate_structure(
                     delta=delta,
                 )
 
-                ref_ptr = schema_cls.getptr(schema, refdict.attr)
+                ref_ptr = schema_cls.getptr(
+                    schema, sn.UnqualName(refdict.attr))
             else:
                 schema = _run_ddl(
                     f'''
@@ -597,7 +626,7 @@ def generate_structure(
                 extra_props = _classify_scalar_object_fields(fields_as_props)
 
             for fn, storage in {**props, **extra_props}.items():
-                prop_ptr = ref_ptr.getptr(schema, fn)
+                prop_ptr = ref_ptr.maybe_get_ptr(schema, sn.UnqualName(fn))
                 if prop_ptr is None:
                     pty = storage.ptrtype
                     schema = _run_ddl(
@@ -616,7 +645,8 @@ def generate_structure(
                 assert isinstance(shadow_ref_ptr, s_links.Link)
                 shadow_pn = shadow_ref_ptr.get_shortname(schema).name
                 for fn, storage in props.items():
-                    prop_ptr = shadow_ref_ptr.getptr(schema, fn)
+                    prop_ptr = shadow_ref_ptr.maybe_get_ptr(
+                        schema, sn.UnqualName(fn))
                     if prop_ptr is None:
                         pty = storage.ptrtype
                         schema = _run_ddl(
@@ -635,15 +665,15 @@ def generate_structure(
         rschema_name = get_schema_name_for_pycls(py_cls)
         schema_cls = schema.get(rschema_name, type=s_objtypes.ObjectType)
 
-        is_concrete = not schema_cls.get_is_abstract(schema)
-        read_shape = read_sets[rschema_name]
+        is_concrete = not schema_cls.get_abstract(schema)
+        read_shape = read_sets[py_cls]
 
         for refdict in py_cls.get_refdicts():
             if py_cls not in classlayout:
                 classlayout[py_cls] = {}
 
-            ref_ptr = schema_cls.getptr(schema, refdict.attr)
-            assert isinstance(ref_ptr, s_links.Link)
+            ref_ptr = schema_cls.getptr(
+                schema, sn.UnqualName(refdict.attr), type=s_links.Link)
             tgt = ref_ptr.get_target(schema)
             assert tgt is not None
             cardinality = ref_ptr.get_cardinality(schema)
@@ -675,8 +705,7 @@ def generate_structure(
             extra_prop_layout = {}
 
             for fn, storage in props.items():
-                prop_ptr = ref_ptr.getptr(schema, fn)
-                assert prop_ptr is not None
+                prop_ptr = ref_ptr.getptr(schema, sn.UnqualName(fn))
                 prop_tgt = prop_ptr.get_target(schema)
                 assert prop_tgt is not None
                 prop_layout[fn] = (prop_tgt, storage.fieldtype)
@@ -701,8 +730,7 @@ def generate_structure(
                 extra_props = _classify_scalar_object_fields(fields_as_props)
 
                 for fn, storage in extra_props.items():
-                    prop_ptr = ref_ptr.getptr(schema, fn)
-                    assert prop_ptr is not None
+                    prop_ptr = ref_ptr.getptr(schema, sn.UnqualName(fn))
                     prop_tgt = prop_ptr.get_target(schema)
                     assert prop_tgt is not None
                     extra_prop_layout[fn] = (prop_tgt, storage.fieldtype)
@@ -737,9 +765,8 @@ def generate_structure(
                     read_ptr = f'{read_ptr}__internal'
                     ref_ptr = schema_cls.getptr(
                         schema,
-                        f'{refdict.attr}__internal',
+                        sn.UnqualName(f'{refdict.attr}__internal'),
                     )
-                    assert ref_ptr is not None
 
                 for fn in props:
                     prop_shape_els.append(f'@{fn}')
@@ -753,26 +780,40 @@ def generate_structure(
 
                 read_shape.append(read_ptr)
 
-    union_parts = []
-    for objname, shape_els in read_sets.items():
+    local_parts = []
+    global_parts = []
+    for py_cls, shape_els in read_sets.items():
         if (
             not shape_els
-            or objname in {'schema::TupleExprAlias', 'schema::ArrayExprAlias'}
+            # The CollectionExprAlias family needs to be excluded
+            # because TupleExprAlias and ArrayExprAlias inherit from
+            # concrete classes and so are picked up from those.
+            or issubclass(py_cls, s_types.CollectionExprAlias)
         ):
             continue
 
+        rschema_name = get_schema_name_for_pycls(py_cls)
         shape = ',\n'.join(shape_els)
         qry = f'''
-            SELECT {objname} {{
+            SELECT {rschema_name} {{
                 {shape}
             }}
         '''
-        if objname not in {'schema::Tuple', 'schema::Array'}:
+        if not issubclass(py_cls, (s_types.Collection, s_obj.GlobalObject)):
             qry += ' FILTER NOT .builtin'
-        union_parts.append(qry)
+
+        if issubclass(py_cls, s_obj.GlobalObject):
+            global_parts.append(qry)
+        else:
+            local_parts.append(qry)
 
     delta.canonical = True
-    return delta, classlayout, union_parts
+    return SchemaReflectionParts(
+        intro_schema_delta=delta,
+        class_layout=classlayout,
+        local_intro_parts=local_parts,
+        global_intro_parts=global_parts,
+    )
 
 
 def _get_reflected_link_props(

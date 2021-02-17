@@ -41,7 +41,7 @@ class TestIntrospection(tb.QueryTestCase):
                 }
                 FILTER
                     .name LIKE 'test::%'
-                    AND NOT .is_compound_type
+                    AND NOT .compound_type
                 ORDER BY
                     .name;
             """,
@@ -68,7 +68,7 @@ class TestIntrospection(tb.QueryTestCase):
                 WITH MODULE schema
                 SELECT ObjectType {
                     name,
-                    is_abstract,
+                    abstract,
                     pointers: {
                         name,
                     } ORDER BY .name
@@ -77,7 +77,7 @@ class TestIntrospection(tb.QueryTestCase):
             """,
             [{
                 'name': 'test::User',
-                'is_abstract': False,
+                'abstract': False,
                 'pointers': [{
                     'name': '__type__',
                 }, {
@@ -96,7 +96,7 @@ class TestIntrospection(tb.QueryTestCase):
                 WITH MODULE schema
                 SELECT ObjectType {
                     name,
-                    is_abstract,
+                    abstract,
                     pointers: {
                         name,
                     } ORDER BY .name
@@ -105,7 +105,7 @@ class TestIntrospection(tb.QueryTestCase):
             """,
             [{
                 'name': 'test::Owned',
-                'is_abstract': True,
+                'abstract': True,
                 'pointers': [{
                     'name': '__type__',
                 }, {
@@ -122,7 +122,7 @@ class TestIntrospection(tb.QueryTestCase):
                 WITH MODULE schema
                 SELECT ObjectType {
                     name,
-                    is_abstract,
+                    abstract,
                     pointers: {
                         name
                     } ORDER BY .name
@@ -131,7 +131,7 @@ class TestIntrospection(tb.QueryTestCase):
             """,
             [{
                 'name': 'test::User',
-                'is_abstract': False,
+                'abstract': False,
                 'pointers': [{
                     'name': '__type__',
                 }, {
@@ -150,18 +150,18 @@ class TestIntrospection(tb.QueryTestCase):
                 WITH MODULE schema
                 SELECT ObjectType {
                     name,
-                    is_abstract,
+                    abstract,
                     pointers: {
                         name,
                         cardinality,
-                    } FILTER @is_owned
+                    } FILTER @owned
                       ORDER BY .name
                 }
                 FILTER ObjectType.name = 'test::User';
             """,
             [{
                 'name': 'test::User',
-                'is_abstract': False,
+                'abstract': False,
                 'pointers': [{
                     'name': 'todo',
                     'cardinality': 'Many',
@@ -365,7 +365,7 @@ class TestIntrospection(tb.QueryTestCase):
                 SELECT ObjectType {
                     properties: {
                         name,
-                        @is_owned,
+                        @owned,
                         inherited_fields,
                     } ORDER BY .name
                 }
@@ -376,7 +376,7 @@ class TestIntrospection(tb.QueryTestCase):
                 'properties': [{
                     "name": "address",
                     "inherited_fields": [],
-                    "@is_owned": True
+                    "@owned": True
                 }, {
                     "name": "id",
                     "inherited_fields": {
@@ -386,7 +386,7 @@ class TestIntrospection(tb.QueryTestCase):
                         "required",
                         "target",
                     },
-                    "@is_owned": False
+                    "@owned": False
                 }, {
                     "name": "name",
                     "inherited_fields": {
@@ -395,7 +395,7 @@ class TestIntrospection(tb.QueryTestCase):
                         "required",
                         "target",
                     },
-                    "@is_owned": False
+                    "@owned": False
                 }]
             }]
         )
@@ -643,7 +643,7 @@ class TestIntrospection(tb.QueryTestCase):
                 'constraints': [
                     {
                         'name': 'std::one_of',
-                        'expr': 'contains(vals, __subject__)',
+                        'expr': 'std::contains(vals, __subject__)',
                         'annotations': {},
                         'subject': {'name': 'test::EmulatedEnum'},
                         'params': [
@@ -749,21 +749,15 @@ class TestIntrospection(tb.QueryTestCase):
             r"""
                 WITH MODULE schema
                 SELECT Function {
-                    name,
-                    session_only
+                    name
                 }
-                FILTER .name IN {'std::count', 'sys::advisory_lock'}
+                FILTER .name = 'std::count'
                 ORDER BY .name;
             """,
             [
                 {
                     "name": "std::count",
-                    "session_only": False,
                 },
-                {
-                    "name": "sys::advisory_lock",
-                    "session_only": True,
-                }
             ]
         )
 
@@ -1076,7 +1070,7 @@ class TestIntrospection(tb.QueryTestCase):
                 FILTER
                     re_test(r'^test::\w+$', InheritingObject.name)
                     AND InheritingObject.name NOT LIKE '%:Virtual_%'
-                    AND InheritingObject.is_abstract
+                    AND InheritingObject.abstract
                 ORDER BY InheritingObject.name;
             """,
             [
@@ -1164,14 +1158,14 @@ class TestIntrospection(tb.QueryTestCase):
                 WITH MODULE schema
                 SELECT ObjectType {
                     name,
-                    is_abstract
+                    abstract
                 }
                 FILTER .name IN {'test::Comment', 'test::Text'}
                 ORDER BY .name;
             ''',
             [
-                {'name': 'test::Comment', 'is_abstract': False},
-                {'name': 'test::Text', 'is_abstract': True},
+                {'name': 'test::Comment', 'abstract': False},
+                {'name': 'test::Text', 'abstract': True},
             ],
         )
 
@@ -1181,14 +1175,14 @@ class TestIntrospection(tb.QueryTestCase):
                 WITH MODULE schema
                 SELECT ObjectType {
                     name,
-                    is_abstract
+                    abstract
                 }
                 FILTER .name IN {'schema::Pointer', 'schema::Link'}
                 ORDER BY .name;
             ''',
             [
-                {'name': 'schema::Link', 'is_abstract': False},
-                {'name': 'schema::Pointer', 'is_abstract': True},
+                {'name': 'schema::Link', 'abstract': False},
+                {'name': 'schema::Pointer', 'abstract': True},
             ],
         )
 
@@ -1201,6 +1195,7 @@ class TestIntrospection(tb.QueryTestCase):
                     links: {
                         name,
                         required,
+                        readonly
                     } ORDER BY .name
                 }
                 FILTER .name = 'test::Comment';
@@ -1209,10 +1204,26 @@ class TestIntrospection(tb.QueryTestCase):
                 {
                     'name': 'test::Comment',
                     'links': [
-                        {'name': '__type__', 'required': False},
-                        {'name': 'issue', 'required': True},
-                        {'name': 'owner', 'required': True},
-                        {'name': 'parent', 'required': False},
+                        {
+                            'name': '__type__',
+                            'required': True,
+                            'readonly': True,
+                        },
+                        {
+                            'name': 'issue',
+                            'required': True,
+                            'readonly': False,
+                        },
+                        {
+                            'name': 'owner',
+                            'required': True,
+                            'readonly': False,
+                        },
+                        {
+                            'name': 'parent',
+                            'required': False,
+                            'readonly': False,
+                        },
                     ]
                 }
             ],
@@ -1238,7 +1249,7 @@ class TestIntrospection(tb.QueryTestCase):
                 {
                     'name': 'schema::CallableObject',
                     'links': [
-                        {'name': '__type__', 'required': False},
+                        {'name': '__type__', 'required': True},
                         {'name': 'annotations', 'required': False},
                         {'name': 'params', 'required': False},
                         {'name': 'return_type', 'required': False},
@@ -1247,7 +1258,7 @@ class TestIntrospection(tb.QueryTestCase):
                 {
                     'name': 'schema::Parameter',
                     'links': [
-                        {'name': '__type__', 'required': False},
+                        {'name': '__type__', 'required': True},
                         {'name': 'type', 'required': True},
                     ]
                 }
@@ -1306,7 +1317,7 @@ class TestIntrospection(tb.QueryTestCase):
                 }
                 FILTER
                     .name LIKE 'test::%'
-                    AND NOT .is_compound_type
+                    AND NOT .compound_type
                 ORDER BY
                     .name;
             """,

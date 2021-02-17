@@ -19,6 +19,6 @@
 
 from __future__ import annotations
 
-from .pgcon import connect
+from .pgcon import connect, PGConnection
 
-__all__ = ('connect',)
+__all__ = ('connect', 'PGConnection')

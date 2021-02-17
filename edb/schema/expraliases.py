@@ -42,6 +42,7 @@ class Alias(
     so.QualifiedObject,
     s_anno.AnnotationSubject,
     qlkind=qltypes.SchemaObjectClass.ALIAS,
+    data_safe=True,
 ):
 
     expr = so.SchemaField(
@@ -67,7 +68,6 @@ class AliasCommandContext(
 class AliasCommand(
     sd.QualifiedObjectCommand[Alias],
     context_class=AliasCommandContext,
-    schema_metaclass=Alias,
 ):
 
     @classmethod
@@ -75,19 +75,42 @@ class AliasCommand(
                             schema: s_schema.Schema,
                             astnode: qlast.NamedDDL,
                             context: sd.CommandContext
-                            ) -> sn.Name:
+                            ) -> sn.QualName:
         type_name = super()._classname_from_ast(schema, astnode, context)
         base_name = type_name
         quals = ('alias',)
-        pnn = sn.get_specialized_name(base_name, type_name, *quals)
-        name = sn.Name(name=pnn, module=type_name.module)
-        assert isinstance(name, sn.Name)
+        pnn = sn.get_specialized_name(base_name, str(type_name), *quals)
+        name = sn.QualName(name=pnn, module=type_name.module)
+        assert isinstance(name, sn.QualName)
         return name
+
+    def compile_expr_field(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        field: so.Field[Any],
+        value: s_expr.Expression,
+        track_schema_ref_exprs: bool=False,
+    ) -> s_expr.Expression:
+        assert field.name == 'expr'
+        classname = sn.shortname_from_fullname(self.classname)
+        assert isinstance(classname, sn.QualName), \
+            "expected qualified name"
+        return type(value).compiled(
+            value,
+            schema=schema,
+            options=qlcompiler.CompilerOptions(
+                derived_target_module=classname.module,
+                modaliases=context.modaliases,
+                in_ddl_context_name='alias definition',
+                track_schema_ref_exprs=track_schema_ref_exprs,
+            ),
+        )
 
     def _compile_alias_expr(
         self,
         expr: qlast.Base,
-        classname: sn.SchemaName,
+        classname: sn.QualName,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> irast.Statement:
@@ -124,11 +147,11 @@ class AliasCommand(
     def _handle_alias_op(
         self,
         expr: s_expr.Expression,
-        classname: sn.SchemaName,
+        classname: sn.QualName,
         schema: s_schema.Schema,
         context: sd.CommandContext,
         is_alter: bool = False,
-    ) -> sd.Command:
+    ) -> Tuple[sd.Command, sd.ObjectCommand[Alias]]:
         from . import ordering as s_ordering
 
         ir = self._compile_alias_expr(expr.qlast, classname, schema, context)
@@ -145,7 +168,7 @@ class AliasCommand(
         for vt in ir.views.values():
             if isinstance(vt, s_types.Collection):
                 coll_expr_aliases.append(vt)
-            else:
+            elif is_alter or not schema.has_object(vt.id):
                 new_schema = vt.set_field_value(
                     new_schema, 'alias_is_persistent', True)
 
@@ -194,15 +217,26 @@ class AliasCommand(
                 )
 
         if prev_ir is not None:
+            assert old_schema
             for vt in prev_coll_expr_aliases:
                 dt = vt.as_colltype_delete_delta(
-                    prev_ir.schema,
+                    old_schema,
+                    expiring_refs={self.scls},
                     view_name=classname,
+                )
+                derived_delta.prepend(dt)
+            for vt in prev_ir.new_coll_types:
+                dt = vt.as_colltype_delete_delta(
+                    old_schema,
+                    expiring_refs={self.scls},
+                    if_exists=True,
                 )
                 derived_delta.prepend(dt)
 
         for vt in coll_expr_aliases:
             new_schema = vt.set_field_value(new_schema, 'expr', expr)
+            new_schema = vt.set_field_value(
+                new_schema, 'alias_is_persistent', True)
             ct = vt.as_shell(new_schema).as_create_delta(
                 # not "new_schema", to ensure the nested collection types
                 # are picked up properly.
@@ -214,30 +248,41 @@ class AliasCommand(
                     'expr_type': s_types.ExprType.Select,
                 },
             )
-            new_schema = ct.apply(new_schema, context)
             derived_delta.add(ct)
 
         derived_delta = s_ordering.linearize_delta(
-            derived_delta, old_schema=old_schema, new_schema=new_schema)
+            derived_delta, old_schema=schema, new_schema=new_schema)
 
-        real_cmd = None
+        real_cmd: Optional[sd.ObjectCommand[Alias]] = None
         for op in derived_delta.get_subcommands():
             assert isinstance(op, sd.ObjectCommand)
-            if op.classname == classname:
+            if (
+                op.classname == classname
+                and not isinstance(op, sd.DeleteObject)
+            ):
                 real_cmd = op
                 break
 
         if real_cmd is None:
-            raise RuntimeError(
-                'view delta does not contain the expected '
-                'view Create/Alter command')
+            assert is_alter
+            for expr_alias in expr_aliases:
+                if expr_alias.get_name(new_schema) == classname:
+                    real_cmd = expr_alias.init_delta_command(
+                        new_schema,
+                        sd.AlterObject,
+                    )
+                    derived_delta.add(real_cmd)
+                    break
+            else:
+                raise RuntimeError(
+                    'view delta does not contain the expected '
+                    'view Create/Alter command')
 
         real_cmd.set_attribute_value('expr', expr)
 
         result = sd.CommandGroup()
         result.update(derived_delta.get_subcommands())
-        result.canonical = True
-        return result
+        return result, real_cmd
 
 
 class CreateAlias(
@@ -253,22 +298,15 @@ class CreateAlias(
     ) -> s_schema.Schema:
         if not context.canonical:
             alias_name = sn.shortname_from_fullname(self.classname)
-            type_cmd = self._handle_alias_op(
+            assert isinstance(alias_name, sn.QualName), \
+                "expected qualified name"
+            type_cmd, cmd = self._handle_alias_op(
                 self.get_attribute_value('expr'),
                 alias_name,
                 schema,
                 context,
             )
             self.add_prerequisite(type_cmd)
-            for cmd in type_cmd.get_subcommands(type=sd.ObjectCommand):
-                if cmd.classname == alias_name:
-                    break
-            else:
-                raise AssertionError(
-                    '_handle_alias_op() did not return a command'
-                    ' for derived type'
-                )
-            assert isinstance(cmd, sd.ObjectCommand)
             self.set_attribute_value(
                 'expr',
                 cmd.get_attribute_value('expr'),
@@ -288,7 +326,7 @@ class CreateAlias(
 
 class RenameAlias(AliasCommand, sd.RenameObject[Alias]):
 
-    def _rename_begin(
+    def _alter_begin(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
@@ -305,7 +343,7 @@ class RenameAlias(AliasCommand, sd.RenameObject[Alias]):
             alter_cmd.add(rename_cmd)
             self.add_prerequisite(alter_cmd)
 
-        return super()._rename_begin(schema, context)
+        return super()._alter_begin(schema, context)
 
 
 class AlterAlias(
@@ -319,11 +357,13 @@ class AlterAlias(
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        if not context.canonical:
+        if not context.canonical and not self.metadata_only:
             expr = self.get_attribute_value('expr')
             if expr:
                 alias_name = sn.shortname_from_fullname(self.classname)
-                type_cmd = self._handle_alias_op(
+                assert isinstance(alias_name, sn.QualName), \
+                    "expected qualified name"
+                type_cmd, cmd = self._handle_alias_op(
                     expr,
                     alias_name,
                     schema,
@@ -331,24 +371,6 @@ class AlterAlias(
                     is_alter=True,
                 )
                 self.add_prerequisite(type_cmd)
-                for cmd in type_cmd.get_subcommands():
-                    if (
-                        isinstance(cmd, sd.CreateObject)
-                        and cmd.classname == alias_name
-                    ):
-                        break
-                else:
-                    for cmd in type_cmd.get_subcommands():
-                        if (
-                            isinstance(cmd, sd.AlterObject)
-                            and cmd.classname == alias_name
-                        ):
-                            break
-                    else:
-                        raise AssertionError(
-                            '_handle_alias_op() did not return a command'
-                            ' for derived type'
-                        )
 
                 self.set_attribute_value(
                     'expr',
@@ -357,11 +379,10 @@ class AlterAlias(
 
                 self.set_attribute_value(
                     'type',
-                    s_utils.ast_objref_to_object_shell(
-                        s_utils.name_to_ast_ref(cmd.classname),
-                        metaclass=cmd.get_schema_metaclass(),
-                        modaliases={},
-                        schema=schema,
+                    so.ObjectShell(
+                        name=cmd.classname,
+                        origname=cmd.classname,
+                        schemaclass=cmd.get_schema_metaclass(),
                     )
                 )
 

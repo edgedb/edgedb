@@ -442,6 +442,28 @@ class TestEdgeQLFor(tb.QueryTestCase):
             [2],
         )
 
+    async def test_edgeql_for_correlated_02(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT count((Card.name,
+                              (FOR x in {Card} UNION (SELECT x.name)),
+                ));
+            ''',
+            [9],
+        )
+
+    async def test_edgeql_for_correlated_03(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT count(((FOR x in {Card} UNION (SELECT x.name)),
+                               Card.name,
+                ));
+            ''',
+            [9],
+        )
+
     async def test_edgeql_for_empty_01(self):
         with self.assertRaisesRegex(
             edgedb.errors.QueryError,

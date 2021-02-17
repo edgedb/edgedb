@@ -67,7 +67,7 @@ class ViewRPtr:
         source: s_sources.Source,
         *,
         ptrcls: Optional[s_pointers.Pointer],
-        ptrcls_name: Optional[s_name.Name] = None,
+        ptrcls_name: Optional[s_name.QualName] = None,
         base_ptrcls: Optional[s_pointers.Pointer] = None,
         ptrcls_is_linkprop: bool = False,
         ptrcls_is_alias: bool = False,
@@ -96,16 +96,6 @@ class StatementMetadata:
 class ScopeInfo:
     path_scope: irast.ScopeTreeNode
     pinned_path_id_ns: Optional[FrozenSet[str]] = None
-
-
-@dataclasses.dataclass
-class ComputableInfo:
-
-    qlexpr: qlast.Expr
-    context: ContextLevel
-    path_id: irast.PathId
-    path_id_ns: Optional[irast.WeakNamespace]
-    shape_op: qlast.ShapeOp
 
 
 class PointerRefCache(Dict[irtyputils.PtrRefCacheKey, irast.BasePointerRef]):
@@ -171,6 +161,11 @@ class Environment:
         qltypes.Volatility]
     """A dictionary of expressions and their inferred volatility."""
 
+    inferred_multiplicity: Dict[
+        irast.Base,
+        qltypes.Multiplicity]
+    """A dictionary of expressions and their inferred multiplicity."""
+
     view_shapes: Dict[
         Union[s_types.Type, s_pointers.PointerLike],
         List[Tuple[s_pointers.Pointer, qlast.ShapeOp]]
@@ -212,15 +207,21 @@ class Environment:
     functions) that appear in a function body.
     """
 
+    #: A list of bindings that should be assumed to be singletons.
+    singletons: List[irast.PathId]
+
     def __init__(
         self,
         *,
         schema: s_schema.Schema,
-        path_scope: irast.ScopeTreeNode,
-        options: Optional[GlobalCompilerOptions]=None,
+        path_scope: Optional[irast.ScopeTreeNode] = None,
+        options: Optional[GlobalCompilerOptions] = None,
     ) -> None:
         if options is None:
             options = GlobalCompilerOptions()
+
+        if path_scope is None:
+            path_scope = irast.new_scope_tree()
 
         self.options = options
         self.schema = schema
@@ -232,6 +233,7 @@ class Environment:
         self.type_origins = {}
         self.inferred_types = {}
         self.inferred_volatility = {}
+        self.inferred_multiplicity = {}
         self.view_shapes = collections.defaultdict(list)
         self.view_shapes_metadata = collections.defaultdict(
             irast.ViewShapeMetadata)
@@ -243,6 +245,7 @@ class Environment:
         self.dml_exprs = []
         self.pointer_derivation_map = collections.defaultdict(list)
         self.pointer_specified_info = {}
+        self.singletons = []
 
     def add_schema_ref(
             self, sobj: s_obj.Object, expr: Optional[qlast.Base]) -> None:
@@ -253,7 +256,7 @@ class Environment:
     @overload
     def get_track_schema_object(  # NoQA: F811
         self,
-        name: str,
+        name: s_name.Name,
         expr: Optional[qlast.Base],
         *,
         modaliases: Optional[Mapping[Optional[str], str]] = None,
@@ -267,7 +270,7 @@ class Environment:
     @overload
     def get_track_schema_object(  # NoQA: F811
         self,
-        name: str,
+        name: s_name.Name,
         expr: Optional[qlast.Base],
         *,
         modaliases: Optional[Mapping[Optional[str], str]] = None,
@@ -280,7 +283,7 @@ class Environment:
 
     def get_track_schema_object(  # NoQA: F811
         self,
-        name: str,
+        name: s_name.Name,
         expr: Optional[qlast.Base],
         *,
         modaliases: Optional[Mapping[Optional[str], str]] = None,
@@ -289,9 +292,10 @@ class Environment:
         label: Optional[str] = None,
         condition: Optional[Callable[[s_obj.Object], bool]] = None,
     ) -> Optional[s_obj.Object]:
-        sobj = self.schema.get(name, module_aliases=modaliases, type=type,
-                               condition=condition, label=label,
-                               default=default)
+        sobj = self.schema.get(
+            name, module_aliases=modaliases, type=type,
+            condition=condition, label=label,
+            default=default)
         if sobj is not None and sobj is not default:
             self.add_schema_ref(sobj, expr)
 
@@ -314,7 +318,7 @@ class Environment:
 
     def get_track_schema_type(
         self,
-        name: str,
+        name: s_name.Name,
         expr: Optional[qlast.Base]=None,
         *,
         modaliases: Optional[Mapping[Optional[str], str]] = None,
@@ -358,10 +362,10 @@ class ContextLevel(compiler.ContextLevel):
     stmt_metadata: Dict[qlast.Statement, StatementMetadata]
     """Extra statement metadata needed by the compiler, but not in AST."""
 
-    source_map: Dict[s_pointers.PointerLike, ComputableInfo]
+    source_map: Dict[s_pointers.PointerLike, irast.ComputableInfo]
     """A mapping of computable pointers to QL source AST and context."""
 
-    view_nodes: Dict[str, s_types.Type]
+    view_nodes: Dict[s_name.Name, s_types.Type]
     """A dictionary of newly derived Node classes representing views."""
 
     view_sets: Dict[s_types.Type, irast.Set]
@@ -370,13 +374,16 @@ class ContextLevel(compiler.ContextLevel):
     type_rewrites: Dict[s_types.Type, irast.Set]
     """Access policy rewrites for schema-level types."""
 
-    aliased_views: ChainMap[str, Optional[s_types.Type]]
+    aliased_views: ChainMap[s_name.Name, Optional[s_types.Type]]
     """A dictionary of views aliased in a statement body."""
 
-    must_use_views: Dict[s_types.Type, Tuple[str, parsing.ParserContext]]
+    must_use_views: Dict[
+        s_types.Type,
+        Tuple[s_name.Name, parsing.ParserContext],
+    ]
     """A set of views that *must* be used in an expression."""
 
-    expr_view_cache: Dict[Tuple[qlast.Base, str], irast.Set]
+    expr_view_cache: Dict[Tuple[qlast.Base, s_name.Name], irast.Set]
     """Type cache used by expression-level views."""
 
     shape_type_cache: Dict[
@@ -437,7 +444,7 @@ class ContextLevel(compiler.ContextLevel):
     view_scls: Optional[s_types.Type]
     """Schema class for the top-level set of the substatement."""
 
-    toplevel_result_view_name: Optional[s_name.SchemaName]
+    toplevel_result_view_name: Optional[s_name.QualName]
     """The name to use for the view that is the result of the top statement."""
 
     partial_path_prefix: Optional[irast.Set]
@@ -448,6 +455,10 @@ class ContextLevel(compiler.ContextLevel):
 
     implicit_tid_in_shapes: bool
     """Whether to include the type id property in object shapes implicitly."""
+
+    implicit_tname_in_shapes: bool
+    """Whether to include the type name property in object shapes
+       implicitly."""
 
     implicit_limit: int
     """Implicit LIMIT clause in SELECT statements."""
@@ -463,6 +474,9 @@ class ContextLevel(compiler.ContextLevel):
 
     defining_view: Optional[s_types.Type]
     """Whether a view is currently being defined (as opposed to be compiled)"""
+
+    recompiling_schema_alias: bool
+    """Whether we are currently recompiling a schema-level expression alias."""
 
     compiling_update_shape: bool
     """Whether an UPDATE shape is currently being compiled."""
@@ -530,6 +544,7 @@ class ContextLevel(compiler.ContextLevel):
             self.toplevel_result_view_name = None
             self.implicit_id_in_shapes = False
             self.implicit_tid_in_shapes = False
+            self.implicit_tname_in_shapes = False
             self.implicit_limit = 0
             self.inhibit_implicit_limit = False
             self.special_computables_in_mutation_shape = frozenset()
@@ -540,6 +555,7 @@ class ContextLevel(compiler.ContextLevel):
             self.in_temp_scope = False
             self.disable_shadowing = set()
             self.path_log = None
+            self.recompiling_schema_alias = False
 
         else:
             self.env = prevlevel.env
@@ -575,6 +591,7 @@ class ContextLevel(compiler.ContextLevel):
             self.toplevel_stmt = prevlevel.toplevel_stmt
             self.implicit_id_in_shapes = prevlevel.implicit_id_in_shapes
             self.implicit_tid_in_shapes = prevlevel.implicit_tid_in_shapes
+            self.implicit_tname_in_shapes = prevlevel.implicit_tname_in_shapes
             self.implicit_limit = prevlevel.implicit_limit
             self.inhibit_implicit_limit = prevlevel.inhibit_implicit_limit
             self.special_computables_in_mutation_shape = \
@@ -586,6 +603,7 @@ class ContextLevel(compiler.ContextLevel):
             self.in_temp_scope = prevlevel.in_temp_scope
             self.disable_shadowing = prevlevel.disable_shadowing
             self.path_log = prevlevel.path_log
+            self.recompiling_schema_alias = prevlevel.recompiling_schema_alias
 
             if mode == ContextSwitchMode.SUBQUERY:
                 self.anchors = prevlevel.anchors.copy()
@@ -651,6 +669,7 @@ class ContextLevel(compiler.ContextLevel):
                 # scope tree parent pointers are weak pointers.
                 self._stash, self.path_scope = self.path_scope.copy_all()
                 self.in_temp_scope = True
+                self.view_sets = self.view_sets.copy()
 
             if mode in {ContextSwitchMode.NEWFENCE,
                         ContextSwitchMode.NEWFENCE_TEMP}:

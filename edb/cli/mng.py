@@ -65,11 +65,11 @@ def insert(ctx, parameter: str, values):
 
         attrs.append(f'{qi(pn)} := {pval}')
 
-    attrs = ',\n'.join(attrs)
+    attrs_s = ',\n'.join(attrs)
 
     qry = textwrap.dedent(f'''\
         CONFIGURE SYSTEM INSERT {cfg_obj_name} {{
-            {textwrap.indent(attrs, ' ' * 12).strip()}
+            {textwrap.indent(attrs_s, ' ' * 12).strip()}
         }}
     ''')
 
@@ -91,7 +91,8 @@ def set(ctx, parameter: str, value):
 
     if cfg_card == 'ONE':
         if len(value) > 1:
-            raise click.ClickException('too many values', ctx=ctx)
+            raise click.ClickException(
+                'too many values', ctx=ctx)  # type: ignore[call-arg]
         value = value[0]
         val_expr = ql(value)
     else:

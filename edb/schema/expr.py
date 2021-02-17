@@ -21,6 +21,7 @@ from __future__ import annotations
 from typing import *
 
 import copy
+import uuid
 
 from edb.common import checked
 from edb.common import struct
@@ -29,6 +30,7 @@ from edb.edgeql import ast as qlast_
 from edb.edgeql import codegen as qlcodegen
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import parser as qlparser
+from edb.edgeql import qltypes
 
 from . import abc as s_abc
 from . import objects as so
@@ -36,12 +38,14 @@ from . import objects as so
 
 if TYPE_CHECKING:
     from edb.schema import schema as s_schema
+    from edb.schema import types as s_types
+
     from edb.ir import ast as irast_
 
 
-class Expression(struct.MixedStruct, s_abc.ObjectContainer, s_abc.Expression):
+class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
+
     text = struct.Field(str, frozen=True)
-    origtext = struct.Field(str, default=None, frozen=True)
     # mypy wants an argument to the ObjectSet generic, but
     # that wouldn't work for struct.Field, since subscripted
     # generics are not types.
@@ -66,7 +70,6 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer, s_abc.Expression):
     def __getstate__(self) -> Dict[str, Any]:
         return {
             'text': self.text,
-            'origtext': self.origtext,
             'refs': self.refs,
             '_qlast': None,
             '_irast': None,
@@ -108,18 +111,18 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer, s_abc.Expression):
         cls: Type[Expression],
         qltree: qlast_.Base,
         schema: s_schema.Schema,
-        modaliases: Mapping[Optional[str], str],
+        modaliases: Optional[Mapping[Optional[str], str]] = None,
         localnames: AbstractSet[str] = frozenset(),
         *,
         as_fragment: bool = False,
         orig_text: Optional[str] = None,
     ) -> Expression:
-        from edb.edgeql.compiler import normalization as qlnorm
-
+        if modaliases is None:
+            modaliases = {}
         if orig_text is None:
             orig_text = qlcodegen.generate_source(qltree, pretty=False)
         if not as_fragment:
-            qlnorm.normalize(
+            qlcompiler.normalize(
                 qltree,
                 schema=schema,
                 modaliases=modaliases,
@@ -130,13 +133,12 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer, s_abc.Expression):
 
         return cls(
             text=norm_text,
-            origtext=orig_text,
             _qlast=qltree,
         )
 
     @classmethod
     def not_compiled(cls: Type[Expression], expr: Expression) -> Expression:
-        return Expression(text=expr.text, origtext=expr.origtext)
+        return Expression(text=expr.text)
 
     @classmethod
     def compiled(
@@ -167,7 +169,6 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer, s_abc.Expression):
 
         return cls(
             text=expr.text,
-            origtext=expr.origtext,
             refs=so.ObjectSet.create(schema, ir.schema_refs),
             _qlast=expr.qlast,
             _irast=ir,
@@ -180,7 +181,6 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer, s_abc.Expression):
                 schema: s_schema.Schema) -> Expression:
         return cls(
             text=expr.text,
-            origtext=expr.origtext,
             refs=so.ObjectSet.create(schema, ir.schema_refs),
             _qlast=expr.qlast,
             _irast=ir,
@@ -192,7 +192,6 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer, s_abc.Expression):
                   schema: s_schema.Schema) -> Expression:
         return cls(
             text=expr.text,
-            origtext=expr.origtext,
             refs=(
                 so.ObjectSet.create(schema, expr.refs.objects(schema))
                 if expr.refs is not None else None
@@ -204,12 +203,87 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer, s_abc.Expression):
     def as_shell(self, schema: s_schema.Schema) -> ExpressionShell:
         return ExpressionShell(
             text=self.text,
-            origtext=self.origtext,
             refs=(
                 r.as_shell(schema) for r in self.refs.objects(schema)
             ) if self.refs is not None else None,
             _qlast=self._qlast,
         )
+
+    def schema_reduce(
+        self,
+    ) -> Tuple[
+        str,
+        Tuple[
+            str,
+            Optional[Union[Tuple[type, ...], type]],
+            Tuple[uuid.UUID, ...],
+            Tuple[Tuple[str, Any], ...],
+        ],
+    ]:
+        assert self.refs is not None, 'expected expression to be compiled'
+        return (
+            self.text,
+            self.refs.schema_reduce(),
+        )
+
+    @classmethod
+    def schema_restore(
+        cls,
+        data: Tuple[
+            str,
+            Tuple[
+                str,
+                Optional[Union[Tuple[type, ...], type]],
+                Tuple[uuid.UUID, ...],
+                Tuple[Tuple[str, Any], ...],
+            ],
+        ],
+    ) -> Expression:
+        text, refs_data = data
+        return Expression(
+            text=text,
+            refs=so.ObjectCollection.schema_restore(refs_data),
+        )
+
+    @classmethod
+    def schema_refs_from_data(
+        cls,
+        data: Tuple[
+            str,
+            Tuple[
+                str,
+                Optional[Union[Tuple[type, ...], type]],
+                Tuple[uuid.UUID, ...],
+                Tuple[Tuple[str, Any], ...],
+            ],
+        ],
+    ) -> FrozenSet[uuid.UUID]:
+        return so.ObjectCollection.schema_refs_from_data(data[1])
+
+    @property
+    def _ir_statement(self) -> irast_.Statement:
+        """Assert this expr is a compiled EdgeQL statement and return its IR"""
+        from edb.ir import ast as irast_
+
+        if not self.is_compiled():
+            raise AssertionError('expected a compiled expression')
+        ir = self.irast
+        if not isinstance(ir, irast_.Statement):
+            raise AssertionError(
+                'expected the result of an expression to be a Statement')
+        return ir
+
+    @property
+    def stype(self) -> s_types.Type:
+        return self._ir_statement.stype
+
+    @property
+    def cardinality(self) -> qltypes.Cardinality:
+        return self._ir_statement.cardinality
+
+    @property
+    def schema(self) -> s_schema.Schema:
+        return self._ir_statement.schema
 
 
 class ExpressionShell(so.Shell):
@@ -218,13 +292,11 @@ class ExpressionShell(so.Shell):
         self,
         *,
         text: str,
-        origtext: Optional[str],
         refs: Optional[Iterable[so.ObjectShell]],
         _qlast: Optional[qlast_.Base] = None,
         _irast: Optional[irast_.Command] = None,
     ) -> None:
         self.text = text
-        self.origtext = origtext
         self.refs = tuple(refs) if refs is not None else None
         self._qlast = _qlast
         self._irast = _irast
@@ -232,7 +304,6 @@ class ExpressionShell(so.Shell):
     def resolve(self, schema: s_schema.Schema) -> Expression:
         return Expression(
             text=self.text,
-            origtext=self.origtext,
             refs=so.ObjectSet.create(
                 schema,
                 (s.resolve(schema) for s in self.refs),
@@ -252,7 +323,7 @@ class ExpressionShell(so.Shell):
             refs = 'N/A'
         else:
             refs = ', '.join(repr(obj) for obj in self.refs)
-        return f'<ExpressionShell {self.origtext} refs=({refs})>'
+        return f'<ExpressionShell {self.text} refs=({refs})>'
 
 
 class ExpressionList(checked.FrozenCheckedList[Expression]):
@@ -351,7 +422,8 @@ def get_expr_referrers(schema: s_schema.Schema,
                        obj: so.Object) -> Dict[so.Object, List[str]]:
     """Return schema referrers with refs in expressions."""
 
-    refs = schema.get_referrers_ex(obj)
+    refs: Dict[Tuple[Type[so.Object], str], FrozenSet[so.Object]] = (
+        schema.get_referrers_ex(obj))
     result: Dict[so.Object, List[str]] = {}
 
     for (mcls, fn), referrers in refs.items():

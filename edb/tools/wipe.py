@@ -28,6 +28,8 @@ import sys
 import asyncpg
 import click
 
+from edb.schema import schema as s_schema
+
 from edb.common import topological
 from edb.tools.edb import edbcommands
 
@@ -124,7 +126,7 @@ async def do_wipe(
         await pgconn.close()
 
     stmts = [
-        f'SET ROLE {edbdef.EDGEDB_SUPERUSER}',
+        f'SET ROLE {qi(edbdef.EDGEDB_SUPERUSER)}',
     ]
 
     pgconn = await cluster.connect()
@@ -163,16 +165,17 @@ async def do_wipe(
 
 
 async def _get_dbs_and_roles(pgconn) -> Tuple[List[str], List[str]]:
-    compiler = edbcompiler.Compiler(None)
-    await compiler.ensure_initialized(pgconn)
-    schema = compiler.get_std_schema()
+    compiler = edbcompiler.Compiler()
+    await compiler.initialize_from_pg(pgconn)
     compilerctx = edbcompiler.new_compiler_context(
-        schema,
+        user_schema=s_schema.FlatSchema(),
+        global_schema=s_schema.FlatSchema(),
         expected_cardinality_one=False,
         single_statement=True,
+        output_format=edbcompiler.IoFormat.JSON,
     )
 
-    schema, get_databases_sql = edbcompiler.compile_edgeql_script(
+    _, get_databases_sql = edbcompiler.compile_edgeql_script(
         compiler,
         compilerctx,
         'SELECT sys::Database.name',
@@ -183,7 +186,7 @@ async def _get_dbs_and_roles(pgconn) -> Tuple[List[str], List[str]]:
         key=lambda dname: dname == edbdef.EDGEDB_TEMPLATE_DB,
     ))
 
-    schema, get_roles_sql = compiler.compile_edgeql_script(
+    _, get_roles_sql = edbcompiler.compile_edgeql_script(
         compiler,
         compilerctx,
         '''SELECT sys::Role {
@@ -194,10 +197,11 @@ async def _get_dbs_and_roles(pgconn) -> Tuple[List[str], List[str]]:
 
     roles = json.loads(await pgconn.fetchval(get_roles_sql))
     sorted_roles = list(topological.sort({
-        r['name']: {
-            'item': r['name'],
-            'deps': r['parents'],
-        } for r in roles
+        r['name']: topological.DepGraphEntry(
+            item=r['name'],
+            deps=r['parents'],
+            extra=False,
+        ) for r in roles
     }))
 
     return databases, sorted_roles

@@ -40,8 +40,9 @@ Now we need to set up the schema. Let's set up a basic schema for a
 movie database. It will have 2 types of objects: movies and people
 who directed and acted in them.
 
-For the next step, there are two ways of setting this up. Please pick
-one of the methods: :ref:`ref_tutorial_createdb_sdl` (recommended) or
+For the next step, there are two ways of setting this up. You have
+two methods to choose from for this: 
+:ref:`ref_tutorial_createdb_sdl` (recommended) or 
 :ref:`ref_tutorial_createdb_ddl`.
 
 

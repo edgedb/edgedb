@@ -55,7 +55,12 @@ class EdgeQLLexer(lexer.Lexer):
 
     start_state = STATE_BASE
 
-    MERGE_TOKENS = {('NAMED', 'ONLY'), ('SET', 'ANNOTATION'), ('SET', 'TYPE')}
+    MERGE_TOKENS = {
+        ('NAMED', 'ONLY'),
+        ('SET', 'ANNOTATION'),
+        ('SET', 'TYPE'),
+        ('EXTENSION', 'PACKAGE'),
+    }
 
     NL = 'NL'
     MULTILINE_TOKENS = frozenset(('SCONST', 'BCONST', 'RSCONST'))

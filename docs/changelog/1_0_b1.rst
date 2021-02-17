@@ -1,0 +1,343 @@
+==========
+1.0 Beta 1
+==========
+
+This changelog summarizes new features and breaking changes in
+EdgeDB 1.0 beta 1 "Sirius".
+
+
+Migrations
+==========
+
+This Beta release features the fully implemented `RFC 1000
+<migrations_>`_ for the first time. It is now possible to manage
+migrations from the CLI, by supplying the new schema file and
+following interactive prompts.
+
+Let's say we start with the following schema for a simple chat app:
+
+.. code-block:: sdl
+
+    module default {
+        type User {
+            required property name -> str;
+            required property email -> str;
+            required property password_hash -> str;
+        }
+
+        type Message {
+            required link author -> User;
+            required property body -> str;
+            required property timestamp -> datetime {
+                default := datetime_current()
+            }
+        }
+    };
+
+We create a directory ``app_schema`` and write the above into a
+``app_schema/schema.esdl`` file inside it. Then we can initialize our
+project database by running ``edgedb create-migration``:
+
+.. code-block:: bash
+
+    $ edgedb create-migration --schema-dir app_schema
+    did you create object type 'default::User'? [y,n,l,c,b,s,q,?]
+    ?
+
+    y - confirm the prompt, use the DDL statements
+    n - reject the prompt
+    l - list the DDL statements associated with prompt
+    c - list already confirmed EdgeQL statements
+    b - revert back to previous save point, perhaps previous question
+    s - stop and save changes (splits migration into multiple)
+    q - quit without saving changes
+    h or ? - print help
+    did you create object type 'default::User'? [y,n,l,c,b,s,q,?]
+    y
+    did you create object type 'default::Message'? [y,n,l,c,b,s,q,?]
+    y
+    Created app_schema/migrations/00001.edgeql, id:
+    m1ufwaxcqiwcq3ttcujnxv6f3jewhfrywc442z6gjk3sm3e5fgyr4q
+
+This creates the first migration file
+``app_schema/migrations/00001.edgeql``. After reviewing it to make
+sure everything is in order, we can apply the migration with the
+following command:
+
+.. code-block:: bash
+
+    $ edgedb migrate --schema-dir app_schema
+    Applied m1ufwaxcqiwcq3ttcujnxv6f3jewhfrywc442z6gjk3sm3e5fgyr4q
+    (00001.edgeql)
+
+In the course of implementing our app we decide to add more features,
+such as a friends list and multiple chat channels, so we alter our
+schema to be:
+
+.. code-block:: sdl
+
+    module default {
+        type User {
+            required property name -> str;
+            required property email -> str;
+            required property password_hash -> str;
+
+            multi link friends -> User;
+        }
+
+        type Message {
+            required link author -> User;
+            required property body -> str;
+            required property timestamp -> datetime {
+                default := datetime_current()
+            }
+
+            link channel -> Channel;
+        }
+
+        type Channel {
+            required property title -> str;
+            property description -> str;
+        }
+    };
+
+And we apply the changes by using ``create-migration`` and ``migrate``
+commands again:
+
+.. code-block:: bash
+
+    $ edgedb create-migration --schema-dir app_schema
+    did you create object type 'default::Channel'? [y,n,l,c,b,s,q,?]
+    y
+    did you create link 'channel' of object type 'default::Message'?
+    [y,n,l,c,b,s,q,?]
+    y
+    did you create link 'friends' of object type 'default::User'?
+    [y,n,l,c,b,s,q,?]
+    y
+    Created app_schema/migrations/00002.edgeql, id:
+    m1grkbj7z3fwvj6qe7ib72xdc6urj6ih5aynx3ammlrunh6tfefnaa
+    $ edgedb migrate --schema-dir app_schema
+    Applied m1grkbj7z3fwvj6qe7ib72xdc6urj6ih5aynx3ammlrunh6tfefnaa
+    (00002.edgeql)
+
+At this point we may want to actually create a default channel "Main"
+and make the ``channel`` link required. So we alter the schema to make
+the link required and run ``create-migration`` again:
+
+.. code-block:: bash
+
+    $ edgedb create-migration --schema-dir app_schema
+    did you make link 'channel' of object type 'default::Message'
+    required? [y,n,l,c,b,s,q,?]
+    y
+    Please specify an expression to populate existing objects in
+    order to make link 'channel' required:
+    fill_expr> SELECT Channel FILTER .title = 'Main' LIMIT 1
+    Created app_schema/migrations/00003.edgeql, id:
+    m1ur35mvstn5wafse2kqwmjy4but3l7nigh4cqktxy6kt2j2wuz65a
+
+However, before applying this migration we also add the line ``INSERT
+default::Channel {title := 'Main'};`` at the beginning of the
+migration block in the ``app_schema/migrations/00003.edgeql`` file.
+Now we can actually apply the changes:
+
+.. code-block:: bash
+
+    $ edgedb migrate --schema-dir app_schema
+    edgedb error: could not read migrations in app_schema/migrations:
+    could not read migration file app_schema/migrations/00003.edgeql:
+    migration name should be `
+    m1jmrmawu4uty53clhbat7nvzjbogexyarh2zue6w6ind2kpfalwva` but
+    `m1ur35mvstn5wafse2kqwmjy4but3l7nigh4cqktxy6kt2j2wuz65a` is used
+    instead.
+    Migration names are computed from the hash of the migration
+    contents. To proceed you must fix the statement to read as:
+      CREATE MIGRATION
+      m1jmrmawu4uty53clhbat7nvzjbogexyarh2zue6w6ind2kpfalwva ONTO ...
+    if this migration is not applied to any database. Alternatively,
+    revert the changes to the file.
+
+Uh-oh! The migration failed, but the error message actually explains
+that we need to adjust the migration hash in order to proceed and even
+supplies us with the new hash. After adjusting the migration file, we
+can now apply it:
+
+.. code-block:: bash
+
+    $ edgedb migrate --schema-dir app_schema
+    Applied m1jmrmawu4uty53clhbat7nvzjbogexyarh2zue6w6ind2kpfalwva
+    (00003.edgeql)
+
+So let's make a minor tweak by renaming the ``friends`` link into
+``circle``. After updating our ``app_schema/schema.esdl`` file we can
+apply the changes:
+
+.. code-block:: bash
+
+    $ edgedb create-migration --schema-dir app_schema
+    did you rename link 'friends' of object type 'default::User' to
+    'circle'? [y,n,l,c,b,s,q,?]
+    y
+    Created app_schema/migrations/00004.edgeql, id:
+    m1lh5julmw2msveqrchwly4qrbpyiof3hevze35d3x35ydrz3fsv3a
+    $ edgedb migrate --schema-dir app_schema
+    Applied m1lh5julmw2msveqrchwly4qrbpyiof3hevze35d3x35ydrz3fsv3a
+    (00004.edgeql)
+
+The above example shows some of the interactions with the EdgeDB
+migration management tools. We will keep improving the inference
+engine that guides the prompts of ``create-migration``. However, if
+the suggestion engine fails to provide a perfect fit, the option of
+adjusting the migration file is always available.
+
+
+EdgeQL
+======
+
+* Record non-DDL commands during migrations instead of executing them
+  immediately as per `RFC 1000 <migrations_>`_ (:eql:gh:`#2138`).
+* Add more details to the DDL command status (:eql:gh:`#2138`).
+
+  .. code-block:: edgeql-repl
+
+    db> CREATE TYPE Foo;
+    OK: CREATE TYPE
+    db> CREATE FUNCTION foo() -> bool
+    ... USING (SELECT random() > 0.5);
+    OK: CREATE FUNCTION
+
+* Stop using ``DROP`` to change field value, introduce ``RESET`` and
+  ``SET`` syntax to do that (:eql:gh:`#2031`).
+
+  .. code-block:: edgeql
+
+    ALTER TYPE Foo {
+        ALTER PROPERTY a {
+            RESET default;
+        }
+    };
+
+* ``ALTER ... SET TYPE`` now requires an explicit conversion
+  expression specified in the ``USING`` clause, if the new type is not
+  assignment-castable from the old type (:eql:gh:`#2115`).
+
+  .. code-block:: edgeql-repl
+
+    db> CREATE TYPE Foo {
+    ...     CREATE PROPERTY bar -> int64
+    ... };
+    OK: CREATE TYPE
+    db> INSERT Foo {bar := 3};
+    {default::Foo {id: efcffce4-6471-11eb-8be5-ff6b1f4c46ee}}
+    db> ALTER TYPE Foo ALTER PROPERTY bar {
+    ...    SET TYPE str USING (<str>.bar ++ '!')
+    ... };
+    OK: ALTER TYPE
+    db> SELECT Foo {bar};
+    {default::Foo {bar: '3!'}}
+
+* Add a ``USING`` clause for ``SET REQUIRED`` so that en expression to
+  fill in missing values can be specified (:eql:gh:`#2130`).
+
+  .. code-block:: edgeql-repl
+
+    db> CREATE TYPE Foo {
+    ...     CREATE PROPERTY bar -> str
+    ... };
+    OK: CREATE TYPE
+    db> INSERT Foo;
+    {default::Foo {id: efcffce4-6471-11eb-8be5-ff6b1f4c46ee}}
+    db> SELECT Foo {bar};
+    {default::Foo {bar: {}}}
+    db> ALTER TYPE Foo ALTER PROPERTY bar {
+    ...    SET REQUIRED USING ('init')
+    ... };
+    OK: ALTER TYPE
+    db> SELECT Foo {bar};
+    {default::Foo {bar: 'init'}}
+
+* Expose link/property ``readonly`` aspect in introspection schema
+  (:eql:gh:`#2147`).
+* Drop ``is_`` prefixes from boolean fields in introspection schema.
+  The old field names are kept for backwards compatibility to be
+  deprecated later (:eql:gh:`#1793`).
+* Add support for computed link properties (:eql:gh:`#2067`).
+* Infer and validate volatility for functions (:eql:gh:`#1937`).
+* Allow trailing commas in functions (:eql:gh:`#1462`).
+* Fix handling of implicit path prefix in the ``ELSE`` part of
+  ``UNLESS CONFLICT`` so that it properly refers to existing object
+  (:eql:gh:`#2091`).
+* Fix issues with :eql:func:`enumerate` when applied to objects
+  (:eql:gh:`#1815`) and results of function calls (:eql:gh:`#1816`).
+* Fix ``DROP PROPERTY`` for ``MULTI`` properties (:eql:gh:`#2059`).
+* Make sure computable pointers don't appear in dump (:eql:gh:`#2057`).
+* Fix accessing links on objects that come from functions and other
+  sources that aren't simple paths (:eql:gh:`#1887`).
+
+
+Command-Line Tools
+==================
+
+* Add ``create-migration`` command.
+
+
+Bindings
+========
+
+* Release `edgedb-go <https://github.com/edgedb/edgedb-go>`_ driver.
+* Update the `edgedb-python <https://github.com/edgedb/edgedb-python>`_ driver
+  to v0.13.0.
+* Implement `RFC 1004 <robust_>`_ features for blocking and
+  asynchronous Python drivers.
+
+  - Add ``retry`` method for automatically retrying transactions:
+
+    .. code-block:: python
+
+        for tx in con.retry():
+            with tx:
+                tx.execute('''
+                    INSERT Message {
+                        body := 'Hello'
+                    };
+                ''')
+
+  - Add ``try_transaction`` method and deprecate ``transaction`` for
+    single-use transactions that will not be automatically retried:
+
+    .. code-block:: python
+
+        tr = con.try_transaction()
+        with tr as with_tr:
+            with_tr.execute('''
+                INSERT Message {
+                    body := 'Hello'
+                };
+            ''')
+
+  - Add ``wait_until_available`` (measured in seconds) configuration
+    parameter:
+
+    .. code-block:: python
+
+        con = edgedb.connect(
+            user='edgedeb',
+            wait_until_available=10
+        )
+
+* Implement ``waitUntilAvailable`` (measured in milliseconds)
+  parameter `RFC 1004 <robust_>`_ features for JS drivers:
+
+  .. code-block:: javascript
+
+    const conn = await edgedb.connect({
+        dsn: "edgedb://edgedb@localhost/",
+        waitUntilAvailable: 10000
+    });
+
+.. _robust:
+    https://github.com/edgedb/rfcs/blob/master/text/1004-transactions-api.rst
+
+.. _migrations:
+    https://github.com/edgedb/rfcs/blob/master/text/1000-migrations.rst

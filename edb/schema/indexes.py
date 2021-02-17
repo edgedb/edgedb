@@ -23,6 +23,7 @@ from typing import *
 from edb import edgeql
 from edb import errors
 from edb.common import ast
+from edb.common import verutils
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
@@ -46,6 +47,7 @@ class Index(
     referencing.ReferencedInheritingObject,
     s_anno.AnnotationSubject,
     qlkind=qltypes.SchemaObjectClass.INDEX,
+    data_safe=True,
 ):
 
     subject = so.SchemaField(so.Object)
@@ -57,16 +59,6 @@ class Index(
         ddl_identity=True,
     )
 
-    # Text representation of the original expression that's been
-    # parsed and re-generated, but not normalized.
-    orig_expr = so.SchemaField(
-        str,
-        default=None,
-        coerce=True,
-        allow_ddl_set=True,
-        ephemeral=True,
-    )
-
     def __repr__(self) -> str:
         cls = self.__class__
         return '<{}.{} {!r} at 0x{:x}>'.format(
@@ -75,19 +67,22 @@ class Index(
     __str__ = __repr__
 
     @classmethod
-    def get_shortname_static(cls, name: str) -> sn.Name:
+    def get_shortname_static(cls, name: sn.Name) -> sn.QualName:
         quals = sn.quals_from_fullname(name)
         ptr_qual = quals[2]
         expr_qual = quals[1]
-        return sn.Name(
+        return sn.QualName(
             module='__',
             name=f'{ptr_qual}_{expr_qual[:8]}',
         )
 
     @classmethod
-    def get_displayname_static(cls, name: str) -> str:
+    def get_displayname_static(cls, name: sn.Name) -> str:
         shortname = cls.get_shortname_static(name)
         return shortname.name
+
+
+IndexableSubject_T = TypeVar('IndexableSubject_T', bound='IndexableSubject')
 
 
 class IndexableSubject(so.InheritingObject):
@@ -112,7 +107,9 @@ class IndexSourceCommandContext:
     pass
 
 
-class IndexSourceCommand(inheriting.InheritingObjectCommand[Index]):
+class IndexSourceCommand(
+    inheriting.InheritingObjectCommand[IndexableSubject_T],
+):
     pass
 
 
@@ -123,7 +120,6 @@ class IndexCommandContext(sd.ObjectCommandContext[Index],
 
 class IndexCommand(
     referencing.ReferencedInheritingObjectCommand[Index],
-    schema_metaclass=Index,
     context_class=IndexCommandContext,
     referrer_context_class=IndexSourceCommandContext,
 ):
@@ -134,14 +130,14 @@ class IndexCommand(
         schema: s_schema.Schema,
         astnode: qlast.NamedDDL,
         context: sd.CommandContext,
-    ) -> sn.Name:
+    ) -> sn.QualName:
         referrer_ctx = cls.get_referrer_context(context)
         if referrer_ctx is not None:
 
             referrer_name = referrer_ctx.op.classname
-            assert isinstance(referrer_name, sn.Name)
+            assert isinstance(referrer_name, sn.QualName)
 
-            shortname = sn.Name(
+            shortname = sn.QualName(
                 module='__',
                 name=astnode.name.name,
             )
@@ -149,11 +145,11 @@ class IndexCommand(
             quals = cls._classname_quals_from_ast(
                 schema, astnode, shortname, referrer_name, context)
 
-            name = sn.Name(
+            name = sn.QualName(
                 module=referrer_name.module,
                 name=sn.get_specialized_name(
                     shortname,
-                    referrer_name,
+                    str(referrer_name),
                     *quals,
                 ),
             )
@@ -167,11 +163,11 @@ class IndexCommand(
         cls,
         schema: s_schema.Schema,
         astnode: qlast.NamedDDL,
-        base_name: str,
-        referrer_name: str,
+        base_name: sn.Name,
+        referrer_name: sn.QualName,
         context: sd.CommandContext,
     ) -> Tuple[str, ...]:
-        assert isinstance(astnode, qlast.IndexOp)
+        assert isinstance(astnode, qlast.IndexCommand)
         # use the normalized text directly from the expression
         expr = s_expr.Expression.from_ast(
             astnode.expr, schema, context.modaliases)
@@ -190,7 +186,7 @@ class IndexCommand(
     @classmethod
     def _classname_quals_from_name(
         cls,
-        name: sn.SchemaName
+        name: sn.QualName
     ) -> Tuple[str, ...]:
         quals = sn.quals_from_fullname(name)
         return tuple(quals[-2:])
@@ -201,7 +197,7 @@ class IndexCommand(
         schema: s_schema.Schema,
         context: sd.CommandContext,
         *,
-        name: Optional[str] = None,
+        name: Optional[sn.Name] = None,
         default: Union[Index, so.NoDefaultT] = so.NoDefault,
     ) -> Index:
         ...
@@ -212,7 +208,7 @@ class IndexCommand(
         schema: s_schema.Schema,
         context: sd.CommandContext,
         *,
-        name: Optional[str] = None,
+        name: Optional[sn.Name] = None,
         default: None = None,
     ) -> Optional[Index]:
         ...
@@ -222,7 +218,7 @@ class IndexCommand(
         schema: s_schema.Schema,
         context: sd.CommandContext,
         *,
-        name: Optional[str] = None,
+        name: Optional[sn.Name] = None,
         default: Union[Index, so.NoDefaultT, None] = so.NoDefault,
     ) -> Optional[Index]:
         try:
@@ -234,7 +230,7 @@ class IndexCommand(
             referrer = referrer_ctx.scls
             expr = self.get_ddl_identity('expr')
             raise errors.InvalidReferenceError(
-                f"index on ({expr.origtext}) does not exist on "
+                f"index on ({expr.text}) does not exist on "
                 f"{referrer.get_verbosename(schema)}"
             ) from None
 
@@ -245,7 +241,7 @@ class IndexCommand(
         astnode: qlast.DDLOperation,
         context: sd.CommandContext,
     ) -> sd.ObjectCommand[Index]:
-        assert isinstance(astnode, qlast.IndexOp)
+        assert isinstance(astnode, qlast.IndexCommand)
         cmd = super()._cmd_from_ast(schema, astnode, context)
         orig_text = cls.get_orig_expr_text(schema, astnode, 'expr')
         cmd.set_ddl_identity(
@@ -259,11 +255,15 @@ class IndexCommand(
         )
         return cmd
 
-    def get_ast_attr_for_field(self, field: str) -> Optional[str]:
+    def get_ast_attr_for_field(
+        self,
+        field: str,
+        astnode: Type[qlast.DDLOperation],
+    ) -> Optional[str]:
         if field == 'expr':
             return 'expr'
         else:
-            return None
+            return super().get_ast_attr_for_field(field, astnode)
 
     def compile_expr_field(
         self,
@@ -284,8 +284,7 @@ class IndexCommand(
             )
             assert parent_ctx is not None
             assert isinstance(parent_ctx.op, sd.ObjectCommand)
-            subject_name = parent_ctx.op.classname
-            subject = schema.get(subject_name, default=None)
+            subject = parent_ctx.op.get_object(schema, context)
 
             if isinstance(subject, s_abc.Pointer):
                 singletons = []
@@ -310,6 +309,8 @@ class IndexCommand(
             )
 
             # Check that the inferred cardinality is no more than 1
+            from edb.ir import ast as ir_ast
+            assert isinstance(expr.irast, ir_ast.Statement)
             if expr.irast.cardinality.is_multi():
                 raise errors.ResultCardinalityMismatchError(
                     f'possibly more than one element returned by '
@@ -339,10 +340,29 @@ class CreateIndex(
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         assert isinstance(astnode, qlast.CreateIndex)
         orig_text = cls.get_orig_expr_text(schema, astnode, 'expr')
+
+        if (
+            orig_text is not None
+            and context.compat_ver_is_before(
+                (1, 0, verutils.VersionStage.ALPHA, 6)
+            )
+        ):
+            # Versions prior to a6 used a different expression
+            # normalization strategy, so we must renormalize the
+            # expression.
+            expr_ql = qlcompiler.renormalize_compat(
+                astnode.expr,
+                orig_text,
+                schema=schema,
+                localnames=context.localnames,
+            )
+        else:
+            expr_ql = astnode.expr
+
         cmd.set_attribute_value(
             'expr',
             s_expr.Expression.from_ast(
-                astnode.expr,
+                expr_ql,
                 schema,
                 context.modaliases,
                 orig_text=orig_text,
@@ -356,23 +376,19 @@ class CreateIndex(
         cls,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-        name: str,
+        name: sn.Name,
         parent: referencing.ReferencedObject,
     ) -> qlast.ObjectDDL:
         assert isinstance(parent, Index)
-        nref = cls.get_inherited_ref_name(schema, context, parent, name)
         astnode_cls = cls.referenced_astnode
 
         expr = parent.get_expr(schema)
-        if expr is not None:
-            expr_ql = edgeql.parse_fragment(expr.origtext)
-        else:
+        if expr is None:
             expr_ql = None
+        else:
+            expr_ql = edgeql.parse_fragment(expr.text)
 
-        return astnode_cls(
-            name=nref,
-            expr=expr_ql,
-        )
+        return astnode_cls(name=qlast.ObjectRef(name='idx'), expr=expr_ql)
 
 
 class RenameIndex(
@@ -393,8 +409,12 @@ class RenameIndex(
         )
 
 
-class AlterIndexOwned(IndexCommand, referencing.AlterOwned[Index]):
-    astnode = qlast.AlterIndexOwned
+class AlterIndexOwned(
+    IndexCommand,
+    referencing.AlterOwned[Index],
+    field='owned',
+):
+    pass
 
 
 class AlterIndex(

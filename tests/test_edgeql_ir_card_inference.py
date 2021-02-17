@@ -58,7 +58,7 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
         if field is not None:
             shape = ir.expr.expr.result.shape
             for el, _ in shape:
-                if el.path_id.rptr_name().endswith(field):
+                if str(el.path_id.rptr_name()).endswith(field):
                     card = el.rptr.ptrref.out_cardinality
                     self.assertEqual(card, expected_cardinality,
                                      'unexpected cardinality:\n' + source)
@@ -480,4 +480,79 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
         }
 % OK %
         as_card: AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_47(self):
+        """
+        WITH MODULE test
+        SELECT User {
+            foo := EXISTS(.friends)
+        }
+% OK %
+        foo: ONE
+        """
+
+    def test_edgeql_ir_card_inference_48(self):
+        """
+        WITH
+            MODULE test
+        SELECT Card {
+            o_name := .owners.name,
+        }
+% OK %
+        o_name: MANY
+        """
+
+    def test_edgeql_ir_card_inference_49(self):
+        """
+        WITH MODULE test
+        SELECT User {
+            name,
+            fire_deck := (
+                SELECT User.deck {name, element}
+                FILTER .element = 'Fire'
+                ORDER BY .name
+            ).name
+        }
+% OK %
+        fire_deck: MANY
+        """
+
+    def test_edgeql_ir_card_inference_50(self):
+        """
+        WITH MODULE test
+        INSERT User {name := "Timmy"}
+        UNLESS CONFLICT
+% OK %
+        AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_51(self):
+        """
+        WITH MODULE test
+        INSERT User {name := "Johnny"}
+        UNLESS CONFLICT ON (.name)
+        ELSE User
+% OK %
+        ONE
+        """
+
+    def test_edgeql_ir_card_inference_52(self):
+        """
+        WITH MODULE test
+        INSERT User {name := "Spike"}
+        UNLESS CONFLICT ON (.name)
+        ELSE Card
+% OK %
+        MANY
+        """
+
+    def test_edgeql_ir_card_inference_53(self):
+        """
+        WITH MODULE test
+        INSERT User {name := "Madz"}
+        UNLESS CONFLICT ON (.name)
+        ELSE (INSERT User {name := "Madz2"})
+% OK %
+        ONE
         """

@@ -32,7 +32,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                                 'graphql_schema_other.esdl')
 
     # GraphQL queries cannot run in a transaction
-    ISOLATED_METHODS = False
+    TRANSACTION_ISOLATION = False
 
     def test_graphql_schema_base_01(self):
         self.assert_graphql_query_result(r"""
@@ -145,6 +145,30 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                             }
                         ]
                     },
+                    {
+                        "name": 'specifiedBy',
+                        "description":
+                            "Exposes a URL that specifies the behaviour of "
+                            "this scalar.",
+                        "locations": ['SCALAR'],
+                        "args": [
+                            {
+                                "name": 'url',
+                                "type": {
+                                    "kind": 'NON_NULL',
+                                    "name": None,
+                                    "ofType": {
+                                        "kind": 'SCALAR',
+                                        "name": 'String'
+                                    },
+                                },
+                                "description":
+                                    "The URL that specifies the behaviour of "
+                                    "this scalar.",
+                                "defaultValue": None
+                            }
+                        ],
+                    },
                 ]
             }
         }, sort={
@@ -225,7 +249,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
     def test_graphql_schema_base_05(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r"Unknown argument 'name' on field '__schema' of type 'Query'",
+                r"Unknown argument 'name' on field 'Query\.__schema'",
                 _line=3, _col=30):
             self.graphql_query(r"""
                 query {
@@ -383,7 +407,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                 "kind": "INTERFACE",
                 "name": "User",
                 "description": None,
-                "interfaces": None,
+                "interfaces": [],
                 "possibleTypes": [
                     {"name": "Person_Type"},
                     {"name": "User_Type"}
@@ -899,7 +923,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                         "deprecationReason": None
                     }
                 ],
-                "interfaces": None,
+                "interfaces": [],
                 "possibleTypes": [
                     {
                         "__typename": "__Type",
@@ -2332,9 +2356,14 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                     {
                         "name": "of_group",
                         "type": {
-                            "kind": "OBJECT",
-                            "name": "_edb__SettingAliasAugmented__of_group",
-                            "ofType": None,
+                            "kind": "NON_NULL",
+                            "name": None,
+                            "ofType": {
+                                "kind": "OBJECT",
+                                "name":
+                                    "_edb__SettingAliasAugmented__of_group",
+                                "__typename": "__Type"
+                            },
                             "__typename": "__Type"
                         },
                         "__typename": "__Field",
@@ -2367,5 +2396,24 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                 "description": None,
                 "inputFields": None,
                 "possibleTypes": None,
+            }
+        })
+
+    def test_graphql_schema_type_19(self):
+        self.assert_graphql_query_result(r"""
+            query {
+                __type(name: "String") {
+                    __typename
+                    name
+                    kind
+                    specifiedByUrl
+                }
+            }
+        """, {
+            "__type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "__typename": "__Type",
+                "specifiedByUrl": None,
             }
         })

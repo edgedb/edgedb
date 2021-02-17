@@ -1018,3 +1018,41 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                 {"deck": [{"@count": 1}, {"@count": 1}], "name": "Dave"},
             ]
         )
+
+    async def test_edgeql_props_link_computed_01(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT User {
+                    name,
+                    deck: {name, @total_cost} ORDER BY .name
+                } FILTER .name = 'Alice';
+            ''',
+            [
+                {
+                    "name": "Alice",
+                    "deck": [
+                        {"@total_cost": 6, "name": "Bog monster"},
+                        {"@total_cost": 10, "name": "Dragon"},
+                        {"@total_cost": 9, "name": "Giant turtle"},
+                        {"@total_cost": 2, "name": "Imp"}
+                    ],
+                }
+            ],
+        )
+
+    async def test_edgeql_props_link_computed_02(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT User {
+                    name,
+                    avatar: { @tag },
+                }
+                FILTER .name IN {'Alice', 'Bob'} ORDER BY .name;
+            ''',
+            [
+                {"name": "Alice", "avatar": {"@tag": "Dragon-Best"}},
+                {"name": "Bob", "avatar": None}
+            ],
+        )

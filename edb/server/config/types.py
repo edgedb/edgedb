@@ -20,10 +20,11 @@
 from __future__ import annotations
 
 import dataclasses
-import typing_inspect
+
 
 from edb import errors
 from edb.common import typeutils
+from edb.common import typing_inspect
 from edb.schema import objects as s_obj
 from edb.schema import name as s_name
 
@@ -62,7 +63,7 @@ class CompositeConfigType(ConfigType):
         tname = data.pop('_tname', None)
         if tname is not None:
             if '::' in tname:
-                tname = s_name.Name(tname).name
+                tname = s_name.QualName.from_string(tname).name
             cls = spec.get_type_by_name(tname)
 
         fields = {f.name: f for f in dataclasses.fields(cls)}
@@ -114,7 +115,7 @@ class CompositeConfigType(ConfigType):
                 tname = value.get('_tname', None)
                 if tname is not None:
                     if '::' in tname:
-                        tname = s_name.Name(tname).name
+                        tname = s_name.QualName.from_string(tname).name
                     actual_f_type = spec.get_type_by_name(tname)
                 else:
                     actual_f_type = f_type

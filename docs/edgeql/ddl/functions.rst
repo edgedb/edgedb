@@ -49,8 +49,8 @@ CREATE FUNCTION
 
     # and <subcommand> is one of
 
-      SET session_only := {true | false} ;
       SET volatility := {'VOLATILE' | 'IMMUTABLE' | 'STABLE'} ;
+      RENAME TO <newname> ;
       CREATE ANNOTATION <annotation-name> := <value> ;
       USING ( <expr> ) ;
       USING <language> <functionbody> ;
@@ -146,17 +146,6 @@ Subcommands
 ``CREATE FUNCTION`` allows specifying the following subcommands in its
 block:
 
-:eql:synopsis:`SET session_only := {true | false}`
-    If ``true``, the function is only valid in contexts where there is
-    a well-defined session. In particular, this function cannot be
-    used over an HTTP port, within the body of another
-    non-session-only function, as part of a schema-level expression alias
-    definition, or as a default value in definitions. This field is
-    ``false`` by default.
-    Examples of session-only functions: :eql:func:`sys::sleep`,
-    :eql:func:`sys::advisory_lock`, :eql:func:`sys::advisory_unlock`,
-    :eql:func:`sys::advisory_unlock_all`.
-
 :eql:synopsis:`SET volatility := {'VOLATILE' | 'IMMUTABLE' | 'STABLE'}`
     Function volatility determines how aggressively the compiler can
     optimize its invocations.
@@ -239,8 +228,8 @@ Change the definition of a function.
 
     # and <subcommand> is one of
 
-      SET session_only := {true | false} ;
       SET volatility := {'VOLATILE' | 'IMMUTABLE' | 'STABLE'} ;
+      RESET volatility
       CREATE ANNOTATION <annotation-name> := <value> ;
       ALTER ANNOTATION <annotation-name> := <value> ;
       DROP ANNOTATION <annotation-name> ;

@@ -56,7 +56,7 @@ cdef enum PGAuthenticationState:
 
 
 @cython.final
-cdef class PGProto:
+cdef class PGConnection:
 
     cdef:
         ReadBuffer buffer
@@ -82,12 +82,13 @@ cdef class PGProto:
         bint debug
 
         object pgaddr
-        object edgecon_ref
+        object server
 
-        bint idle
+        readonly bint idle
+
+        object cancel_fut
 
     cdef before_command(self)
-    cdef after_command(self)
 
     cdef write(self, buf)
 
@@ -102,3 +103,12 @@ cdef class PGProto:
 
     cdef make_clean_stmt_message(self, bytes stmt_name)
     cdef make_auth_password_md5_message(self, bytes salt)
+
+    cdef _elide_copy_cols(
+        self,
+        WriteBuffer wbuf,
+        char* data,
+        ssize_t data_len,
+        ssize_t ncols,
+        tuple elide_cols,
+    )

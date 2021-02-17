@@ -20,7 +20,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import os.path
 import subprocess
 import sys
@@ -41,53 +40,23 @@ class TestServerOps(tb.TestCase):
         # * "--auto-shutdown"
         # * "--echo-runtime-info"
 
-        async def read_runtime_info(stdout: asyncio.StreamReader):
-            while True:
-                line = await stdout.readline()
-                if line.startswith(b'EDGEDB_SERVER_DATA:'):
-                    break
-
-            dataline = line.decode().split('EDGEDB_SERVER_DATA:', 1)[1]
-            data = json.loads(dataline)
-            return data
-
         bootstrap_command = (
             r'CONFIGURE SYSTEM INSERT Auth '
             r'{ priority := 0, method := (INSERT Trust) }'
         )
 
-        cmd = [
-            sys.executable, '-m', 'edb.server.main',
-            '--port', 'auto',
-            '--testmode',
-            '--temp-dir',
-            '--auto-shutdown',
-            '--echo-runtime-info',
-            f'--bootstrap-command={bootstrap_command}',
-        ]
+        async with tb.start_edgedb_server(
+                bootstrap_command=bootstrap_command,
+                auto_shutdown=True) as sd:
 
-        # Note: for debug comment "stderr=subprocess.PIPE".
-        proc: asyncio.Process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stderr=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-        )
+            self.assertTrue(os.path.exists(sd.host))
 
-        try:
-            data = await asyncio.wait_for(
-                read_runtime_info(proc.stdout),
-                timeout=240,
-            )
-
-            runstate_dir = data['runstate_dir']
-            port = data['port']
-
-            self.assertTrue(os.path.exists(runstate_dir))
-
-            con1 = await edgedb.async_connect(host=runstate_dir, port=port)
+            con1 = await edgedb.async_connect(
+                user='edgedb', host=sd.host, port=sd.port)
             self.assertEqual(await con1.query_one('SELECT 1'), 1)
 
-            con2 = await edgedb.async_connect(host=runstate_dir, port=port)
+            con2 = await edgedb.async_connect(
+                user='edgedb', host=sd.host, port=sd.port)
             self.assertEqual(await con2.query_one('SELECT 1'), 1)
 
             await con1.aclose()
@@ -95,27 +64,24 @@ class TestServerOps(tb.TestCase):
             self.assertEqual(await con2.query_one('SELECT 42'), 42)
             await con2.aclose()
 
-            with self.assertRaises(ConnectionError):
+            with self.assertRaises(
+                    (ConnectionError, edgedb.ClientConnectionError)):
                 # Since both con1 and con2 are now disconnected and
                 # the cluster was started with an "--auto-shutdown"
                 # option, we expect this connection to be rejected
                 # and the cluster to be shutdown soon.
-                await edgedb.async_connect(host=runstate_dir, port=port)
+                await edgedb.async_connect(
+                    user='edgedb', host=sd.host, port=sd.port)
 
             i = 600 * 5  # Give it up to 5 minutes to cleanup.
             while i > 0:
-                if not os.path.exists(runstate_dir):
+                if not os.path.exists(sd.host):
                     break
                 else:
                     i -= 1
                     await asyncio.sleep(0.1)
             else:
                 self.fail('temp directory was not cleaned up')
-
-        finally:
-            if proc.returncode is None:
-                proc.terminate()
-                await proc.wait()
 
     async def test_server_ops_bootstrap_script(self):
         # Test that "edgedb-server" works as expected with the
@@ -129,8 +95,10 @@ class TestServerOps(tb.TestCase):
             '--port', 'auto',
             '--testmode',
             '--temp-dir',
-            '--bootstrap-command=SELECT 1',
+            '--bootstrap-command=CREATE SUPERUSER ROLE test_bootstrap;',
             '--bootstrap-only',
+            '--log-level=error',
+            '--max-backend-connections', '10',
         ]
 
         # Note: for debug comment "stderr=subprocess.PIPE".
@@ -153,3 +121,8 @@ class TestServerOps(tb.TestCase):
                 f'server exited with code {proc.returncode}:\n'
                 f'STDERR: {stderr.decode()}',
             )
+
+            if stderr != b'':
+                self.fail(
+                    'Unexpected server error output:\n' + stderr.decode()
+                )

@@ -42,6 +42,8 @@ def find_children(node, test_func, *args, force_traversal=False,
 
         for field, value in base.iter_fields(node, include_meta=False):
             field_spec = node._fields[field]
+            if field_spec.hidden:
+                continue
 
             if isinstance(value, (list, set, frozenset)):
                 for n in value:
@@ -109,6 +111,8 @@ class NodeVisitor:
     allows modifications.
     """
 
+    skip_hidden = False
+
     def __init__(self, *, context=None, memo=None):
         if memo is not None:
             self._memo = memo
@@ -167,10 +171,14 @@ class NodeVisitor:
     def generic_visit(self, node, *, combine_results=None):
         field_results = []
 
-        for _field, value in base.iter_fields(node, include_meta=False):
+        for field, value in base.iter_fields(node, include_meta=False):
+            field_spec = node._fields[field]
+            if self.skip_hidden and field_spec.hidden:
+                continue
+
             if typeutils.is_container(value):
                 for item in value:
-                    if base.is_ast_node(item):
+                    if base.is_ast_node(item) or typeutils.is_container(item):
                         res = self.visit(item)
                         if res is not None:
                             field_results.append(res)

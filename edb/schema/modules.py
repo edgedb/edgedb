@@ -19,16 +19,20 @@
 
 from __future__ import annotations
 
+from edb import errors
+
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
 from . import annos as s_anno
 from . import delta as sd
+from . import schema as s_schema
 
 
 class Module(
     s_anno.AnnotationSubject,
     qlkind=qltypes.SchemaObjectClass.MODULE,
+    data_safe=False,
 ):
     pass
 
@@ -37,9 +41,26 @@ class ModuleCommandContext(sd.ObjectCommandContext[Module]):
     pass
 
 
-class ModuleCommand(sd.ObjectCommand[Module], schema_metaclass=Module,
-                    context_class=ModuleCommandContext):
-    pass
+class ModuleCommand(
+    sd.ObjectCommand[Module],
+    context_class=ModuleCommandContext,
+):
+
+    def _validate_legal_command(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> None:
+        super()._validate_legal_command(schema, context)
+
+        if (
+            not context.stdmode and not context.testmode
+            and (modname := self.classname) in s_schema.STD_MODULES
+        ):
+            raise errors.SchemaDefinitionError(
+                f'cannot {self._delta_action} {self.get_verbosename()}: '
+                f'module {modname} is read-only',
+                context=self.source_context)
 
 
 class CreateModule(ModuleCommand, sd.CreateObject[Module]):

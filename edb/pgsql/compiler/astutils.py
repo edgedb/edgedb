@@ -41,22 +41,24 @@ def tuple_element_for_shape_el(
     ctx: context.CompilerContextLevel
 ) -> pgast.TupleElementBase:
     if shape_el.path_id.is_type_intersection_path():
+        assert shape_el.rptr is not None
         rptr = shape_el.rptr.source.rptr
     else:
         rptr = shape_el.rptr
+    assert rptr is not None
     ptrref = rptr.ptrref
     ptrname = ptrref.shortname
 
     if value is not None:
         return pgast.TupleElement(
             path_id=shape_el.path_id,
-            name=ptrname,
+            name=ptrname.name,
             val=value,
         )
     else:
         return pgast.TupleElementBase(
             path_id=shape_el.path_id,
-            name=ptrname,
+            name=ptrname.name,
         )
 
 
@@ -256,7 +258,7 @@ def find_column_in_subselect_rvar(
 def get_column(
         rvar: pgast.BaseRangeVar,
         colspec: Union[str, pgast.ColumnRef], *,
-        nullable: bool=None) -> pgast.ColumnRef:
+        nullable: Optional[bool]=None) -> pgast.ColumnRef:
 
     if isinstance(colspec, pgast.ColumnRef):
         colname = colspec.name[-1]

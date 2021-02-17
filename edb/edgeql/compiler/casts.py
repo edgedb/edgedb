@@ -34,6 +34,7 @@ from edb.ir import utils as irutils
 from edb.schema import casts as s_casts
 from edb.schema import functions as s_func
 from edb.schema import modules as s_mod
+from edb.schema import name as sn
 from edb.schema import types as s_types
 
 from edb.edgeql import ast as qlast
@@ -119,7 +120,8 @@ def compile_cast(
             ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
 
     else:
-        json_t = ctx.env.get_track_schema_type('std::json')
+        json_t = ctx.env.get_track_schema_type(
+            sn.QualName('std', 'json'))
         if (new_stype.issubclass(ctx.env.schema, json_t) and
                 ir_set.path_id.is_objtype_path()):
             # JSON casts of objects are special: we want the full shape
@@ -127,13 +129,15 @@ def compile_cast(
             with ctx.new() as subctx:
                 subctx.implicit_id_in_shapes = False
                 subctx.implicit_tid_in_shapes = False
+                subctx.implicit_tname_in_shapes = False
                 viewgen.compile_view_shapes(ir_set, ctx=subctx)
         elif (orig_stype.issubclass(ctx.env.schema, json_t)
               and new_stype.is_enum(ctx.env.schema)):
             # Casts from json to enums need some special handling
             # here, where we have access to the enum type. Just turn
             # it into json->str and str->enum.
-            str_typ = ctx.env.get_track_schema_type('std::str')
+            str_typ = ctx.env.get_track_schema_type(
+                sn.QualName('std', 'str'))
             str_ir = compile_cast(ir_expr, str_typ, srcctx=srcctx, ctx=ctx)
             return compile_cast(str_ir, new_stype,
                                 cardinality_mod=cardinality_mod,
@@ -299,7 +303,7 @@ class CastCallableWrapper(s_func.CallableLike):
     ) -> s_func.ParameterLikeList:
         from_type_param = s_func.ParameterDesc(
             num=0,
-            name='val',
+            name=sn.UnqualName('val'),
             type=self._cast.get_from_type(schema).as_shell(schema),
             typemod=ft.TypeModifier.SingletonType,
             kind=ft.ParameterKind.PositionalParam,
@@ -308,7 +312,7 @@ class CastCallableWrapper(s_func.CallableLike):
 
         to_type_param = s_func.ParameterDesc(
             num=0,
-            name='_',
+            name=sn.UnqualName('_'),
             type=self._cast.get_to_type(schema).as_shell(schema),
             typemod=ft.TypeModifier.SingletonType,
             kind=ft.ParameterKind.PositionalParam,
@@ -326,7 +330,7 @@ class CastCallableWrapper(s_func.CallableLike):
     def get_verbosename(self, schema: s_schema.Schema) -> str:
         return self._cast.get_verbosename(schema)
 
-    def get_is_abstract(self, schema: s_schema.Schema) -> bool:
+    def get_abstract(self, schema: s_schema.Schema) -> bool:
         return False
 
 
@@ -596,6 +600,9 @@ def _cast_array(
                     ),
                 ],
             )
+
+            if el_type.contains_json(subctx.env.schema):
+                subctx.inhibit_implicit_limit = True
 
             array_ir = dispatch.compile(elements, ctx=subctx)
             assert isinstance(array_ir, irast.Set)

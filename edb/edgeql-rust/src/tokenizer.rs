@@ -8,6 +8,8 @@ use std::str::FromStr;
 use cpython::{PyString, PyBytes, PyResult, Python, PyClone, PythonObject};
 use cpython::{PyTuple, PyList, PyInt, PyObject, ToPyObject, ObjectProtocol};
 use cpython::{FromPyObject};
+use bigdecimal::BigDecimal;
+use num_bigint::ToBigInt;
 
 use edgeql_parser::tokenizer::{TokenStream, Kind, is_keyword, SpannedToken};
 use edgeql_parser::tokenizer::{MAX_KEYWORD_LENGTH};
@@ -17,6 +19,7 @@ use edgeql_parser::keywords::{FUTURE_RESERVED_KEYWORDS};
 use edgeql_parser::helpers::unquote_string;
 use crate::errors::TokenizerError;
 use crate::pynormalize::py_pos;
+use crate::float;
 
 static mut TOKENS: Option<Tokens> = None;
 
@@ -86,6 +89,7 @@ pub struct Tokens {
     argument: PyString,
     eof: PyString,
     empty: PyString,
+    substitution: PyString,
 
     named_only: PyString,
     named_only_val: PyString,
@@ -93,9 +97,10 @@ pub struct Tokens {
     set_annotation_val: PyString,
     set_type: PyString,
     set_type_val: PyString,
+    extension_package: PyString,
+    extension_package_val: PyString,
 
     dot: PyString,
-    forward_link: PyString,
     backward_link: PyString,
     open_bracket: PyString,
     close_bracket: PyString,
@@ -125,6 +130,7 @@ pub struct Tokens {
 
     iconst: PyString,
     niconst: PyString,
+    i16: PyInt,
     fconst: PyString,
     nfconst: PyString,
     bconst: PyString,
@@ -253,15 +259,17 @@ impl Tokens {
             argument: PyString::new(py, "ARGUMENT"),
             eof: PyString::new(py, "EOF"),
             empty: PyString::new(py, ""),
+            substitution: PyString::new(py, "SUBSTITUTION"),
             named_only: PyString::new(py, "NAMEDONLY"),
             named_only_val: PyString::new(py, "NAMED ONLY"),
             set_annotation: PyString::new(py, "SETANNOTATION"),
             set_annotation_val: PyString::new(py, "SET ANNOTATION"),
             set_type: PyString::new(py, "SETTYPE"),
             set_type_val: PyString::new(py, "SET TYPE"),
+            extension_package: PyString::new(py, "EXTENSIONPACKAGE"),
+            extension_package_val: PyString::new(py, "EXTENSION PACKAGE"),
 
             dot: PyString::new(py, "."),
-            forward_link: PyString::new(py, ".>"),
             backward_link: PyString::new(py, ".<"),
             open_bracket: PyString::new(py, "["),
             close_bracket: PyString::new(py, "]"),
@@ -291,6 +299,7 @@ impl Tokens {
 
             iconst: PyString::new(py, "ICONST"),
             niconst: PyString::new(py, "NICONST"),
+            i16: 16.to_py_object(py),
             fconst: PyString::new(py, "FCONST"),
             nfconst: PyString::new(py, "NFCONST"),
             bconst: PyString::new(py, "BCONST"),
@@ -385,9 +394,6 @@ fn convert(py: Python, tokens: &Tokens, cache: &mut Cache,
         Namespace => Ok((tokens.namespace.clone_ref(py),
                          tokens.namespace.clone_ref(py),
                          py.None())),
-        ForwardLink => Ok((tokens.forward_link.clone_ref(py),
-                           tokens.forward_link.clone_ref(py),
-                           py.None())),
         BackwardLink => Ok((tokens.backward_link.clone_ref(py),
                             tokens.backward_link.clone_ref(py),
                             py.None())),
@@ -499,15 +505,9 @@ fn convert(py: Python, tokens: &Tokens, cache: &mut Cache,
                     (&value[..value.len()-1].replace("_", ""),), None)?))
         }
         FloatConst => {
-            let float_value = f64::from_str(&value.replace("_", ""))
-                .map_err(|e| TokenizerError::new(py,
-                    (format!("error reading std::float64: {}", e),
-                     py_pos(py, &token.start))))?;
-            if float_value == f64::INFINITY || float_value == -f64::INFINITY {
-                return Err(TokenizerError::new(py,
-                    (format!("number is out of range for std::float64"),
-                     py_pos(py, &token.start))))?;
-            }
+            let float_value = float::convert(value)
+                .map_err(|msg| TokenizerError::new(py,
+                    (&msg, py_pos(py, &token.start))))?;
             Ok((tokens.fconst.clone_ref(py),
                 PyString::new(py, value),
                 float_value.to_py_object(py).into_object()))
@@ -529,10 +529,23 @@ fn convert(py: Python, tokens: &Tokens, cache: &mut Cache,
                .into_object()))
         }
         BigIntConst => {
+            let dec: BigDecimal = value[..value.len()-1]
+                    .replace("_", "").parse()
+                    .map_err(|e| TokenizerError::new(py,
+                        (format!("error reading bigint: {}", e),
+                         py_pos(py, &token.start))))?;
+            // this conversion to decimal and back to string
+            // fixes thing like `1e2n` which we support for bigints
+            let dec_str = dec.to_bigint()
+                .ok_or_else(|| TokenizerError::new(py,  // should never happen
+                    ("number is not integer",
+                     py_pos(py, &token.start))))?
+                .to_str_radix(16);
             Ok((tokens.niconst.clone_ref(py),
                 PyString::new(py, value),
-                py.get_type::<PyInt>().call(py,
-                    (&value[..value.len()-1].replace("_", ""),), None)?))
+                py.get_type::<PyInt>()
+                    .call(py, (dec_str, tokens.i16.clone_ref(py)), None)?
+            ))
         }
         BinStr => {
             Ok((tokens.bconst.clone_ref(py),
@@ -586,6 +599,12 @@ fn convert(py: Python, tokens: &Tokens, cache: &mut Cache,
                              tokens.set_type_val.clone_ref(py),
                              py.None()))
                     }
+                    "extension" if peek_keyword(tok_iter, "package") => {
+                         tok_iter.next();
+                         Ok((tokens.extension_package.clone_ref(py),
+                             tokens.extension_package_val.clone_ref(py),
+                             py.None()))
+                    }
                     _ => match tokens.keywords.get(&cache.keyword_buf) {
                         Some(tok_info) => {
                             debug_assert_eq!(tok_info.kind, token.kind);
@@ -603,6 +622,12 @@ fn convert(py: Python, tokens: &Tokens, cache: &mut Cache,
                     },
                 }
             }
+        }
+        Substitution => {
+            let content = &value[2..value.len()-1];
+            Ok((tokens.substitution.clone_ref(py),
+                PyString::new(py, value),
+                PyString::new(py, content).into_object()))
         }
     }
 }

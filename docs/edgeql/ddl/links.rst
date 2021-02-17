@@ -216,14 +216,19 @@ Change the definition of a :ref:`link <ref_datamodel_links>`.
     # where <subcommand> is one of
 
       SET default := <expression>
+      RESET default
       SET readonly := {true | false}
+      RESET readonly
       RENAME TO <newname>
       EXTENDING ...
       SET REQUIRED
-      DROP REQUIRED
+      SET OPTIONAL
+      RESET OPTIONALITY
       SET SINGLE
       SET MULTI
-      SET TYPE <typename> [, ...]
+      RESET CARDINALITY
+      SET TYPE <typename> [USING (<conversion-expr)]
+      RESET TYPE
       USING (<computable-expr>)
       CREATE ANNOTATION <annotation-name> := <value>
       ALTER ANNOTATION <annotation-name> := <value>
@@ -283,8 +288,13 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
 :eql:synopsis:`SET REQUIRED`
     Make the link *required*.
 
-:eql:synopsis:`DROP REQUIRED`
+:eql:synopsis:`SET OPTIONAL`
     Make the link no longer *required* (i.e. make it *optional*).
+
+:eql:synopsis:`RESET OPTIONALITY`
+    Reset the optionality of the link to the default value (``OPTIONAL``),
+    or, if the link is inherited, to the value inherited from links in
+    supertypes.
 
 :eql:synopsis:`SET SINGLE`
     Change the maximum cardinality of the link set to *one*.  Only
@@ -294,9 +304,23 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
     Change the maximum cardinality of the link set to *greater than one*.
     Only valid for concrete links;
 
-:eql:synopsis:`SET TYPE <typename> [, ...]`
-    Change the target type of the link to the specified type or
-    a union of types.  Only valid for concrete links.
+:eql:synopsis:`RESET CARDINALITY`
+    Reset the maximum cardinality of the link to the default value
+    (``SINGLE``), or, if the link is inherited, to the value inherited
+    from links in supertypes.
+
+:eql:synopsis:`SET TYPE <typename> [USING (<conversion-expr)]`
+    Change the type of the link to the specified
+    :eql:synopsis:`<typename>`.  The optional ``USING`` clause specifies
+    a conversion expression that computes the new link value from the old.
+    The conversion expression must return a singleton set and is evaluated
+    on each element of ``MULTI`` links.  A ``USING`` clause must be provided
+    if there is no implicit or assignment cast from old to new type.
+
+:eql:synopsis:`RESET TYPE`
+    Reset the type of the link to the type inherited from links of the same
+    name in supertypes.  It is an error to ``RESET TYPE`` on a link that is
+    not inherited.
 
 :eql:synopsis:`USING (<computable-expr>)`
     Change the expression of a :ref:`computable <ref_datamodel_computables>`
@@ -329,6 +353,14 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
 :eql:synopsis:`DROP INDEX ON <index-expr>`
     Remove an :ref:`index <ref_datamodel_indexes>` defined on *index-expr*
     from this link.  See :eql:stmt:`DROP INDEX` for details.
+
+:eql:synopsis:`RESET default`
+    Remove the default value from this link, or reset it to the value
+    inherited from a supertype, if the link is inherited.
+
+:eql:synopsis:`RESET readonly`
+    Set link writability to the default value (writable), or, if the link is
+    inherited, to the value inherited from links in supertypes.
 
 All the subcommands allowed in the ``CREATE LINK`` block are also
 valid subcommands for ``ALTER LINK`` block.

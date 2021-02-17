@@ -21,28 +21,29 @@
 
 
 from __future__ import annotations
-
 from typing import *
-import textwrap
 
 from collections import defaultdict
+import textwrap
+
 from edb import errors
 from edb.common import context as pctx
 
 from edb.ir import ast as irast
 from edb.ir import typeutils
 
+from edb.schema import constraints as s_constr
 from edb.schema import ddl as s_ddl
 from edb.schema import functions as s_func
 from edb.schema import links as s_links
 from edb.schema import lproperties as s_lprops
-from edb.schema import modules as s_mod
 from edb.schema import name as s_name
 from edb.schema import objects as s_obj
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import pseudo as s_pseudo
 from edb.schema import types as s_types
+from edb.schema import utils as s_utils
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import utils as qlutils
@@ -60,9 +61,6 @@ from . import schemactx
 from . import stmtctx
 from . import typegen
 
-if TYPE_CHECKING:
-    from edb.schema import constraints as s_constr
-
 
 @dispatch.compile.register(qlast.SelectQuery)
 def compile_SelectQuery(
@@ -76,12 +74,13 @@ def compile_SelectQuery(
             sctx.partial_path_prefix = ctx.partial_path_prefix
             stmt.implicit_wrapper = True
 
-        if expr.limit is not None:
-            sctx.inhibit_implicit_limit = True
-        elif ((ctx.expr_exposed or sctx.stmt is ctx.toplevel_stmt)
-                and ctx.implicit_limit and not sctx.inhibit_implicit_limit):
+        if (
+            (ctx.expr_exposed or sctx.stmt is ctx.toplevel_stmt)
+            and ctx.implicit_limit
+            and expr.limit is None
+            and not ctx.inhibit_implicit_limit
+        ):
             expr.limit = qlast.IntegerConstant(value=str(ctx.implicit_limit))
-            sctx.inhibit_implicit_limit = True
 
         stmt.result = compile_result_clause(
             expr.result,
@@ -112,7 +111,7 @@ def compile_SelectQuery(
 def compile_ForQuery(
         qlstmt: qlast.ForQuery, *, ctx: context.ContextLevel) -> irast.Set:
     with ctx.subquery() as sctx:
-        stmt = irast.SelectStmt()
+        stmt = irast.SelectStmt(context=qlstmt.context)
         init_stmt(stmt, qlstmt, ctx=sctx, parent_ctx=ctx)
 
         # As an optimization, if the iterator is a singleton set, use
@@ -129,10 +128,21 @@ def compile_ForQuery(
 
         ictx = iterator_ctx or sctx
 
+        contains_dml = qlutils.contains_dml(qlstmt.result)
+        # If the body contains DML, then we need to prohibit
+        # correlation between the iterator and the enclosing
+        # query, since the correlation imposes compilation issues
+        # we aren't willing to tackle.
+        if contains_dml:
+            ictx.path_scope.factoring_allowlist.update(
+                ctx.iterator_path_ids)
         iterator_view = stmtctx.declare_view(
-            iterator, qlstmt.iterator_alias,
+            iterator,
+            s_name.UnqualName(qlstmt.iterator_alias),
+            factoring_fence=contains_dml,
             path_id_namespace=ictx.path_id_namespace,
-            ctx=ictx)
+            ctx=ictx,
+        )
 
         iterator_stmt = setgen.new_set_from_set(
             iterator_view, preserve_scope_ns=True, ctx=sctx)
@@ -166,13 +176,12 @@ def compile_ForQuery(
         sctx.iterator_path_ids |= {stmt.iterator_stmt.path_id}
         node = ictx.path_scope.find_descendant(iterator_stmt.path_id)
         if node is not None:
-            # If the body contains DML, then we need to prohibit
-            # correlation between the iterator and the enclosing
-            # query, since the correlation imposes compilation issues
-            # we aren't willing to tackle.
+            # See above about why we need a factoring fence.
+            # We need to do this again when we move the branch so
+            # as to preserve the fencing.
             # Do this by sticking the iterator subtree onto a branch
             # with a factoring fence.
-            if qlutils.contains_dml(qlstmt.result):
+            if contains_dml:
                 node = node.attach_branch()
                 node.factoring_fence = True
                 node = node.attach_branch()
@@ -181,14 +190,19 @@ def compile_ForQuery(
                                 context=iterator.context)
 
         # Compile the body
-        stmt.result = compile_result_clause(
-            qlstmt.result,
-            view_scls=ctx.view_scls,
-            view_rptr=ctx.view_rptr,
-            result_alias=qlstmt.result_alias,
-            view_name=ctx.toplevel_result_view_name,
-            forward_rptr=True,
-            ctx=sctx)
+        with sctx.newscope(fenced=True) as bctx:
+            stmt.result = setgen.scoped_set(
+                compile_result_clause(
+                    qlstmt.result,
+                    view_scls=ctx.view_scls,
+                    view_rptr=ctx.view_rptr,
+                    result_alias=qlstmt.result_alias,
+                    view_name=ctx.toplevel_result_view_name,
+                    forward_rptr=True,
+                    ctx=bctx,
+                ),
+                ctx=bctx,
+            )
 
         # Inject an implicit limit if appropriate
         if ((ctx.expr_exposed or sctx.stmt is ctx.toplevel_stmt)
@@ -215,7 +229,173 @@ def compile_GroupQuery(
         context=expr.context)
 
 
+def compile_insert_unless_conflict_select(
+    stmt: irast.InsertStmt,
+    insert_subject: qlast.Path,
+    subject_typ: s_objtypes.ObjectType,
+    *,
+    obj_constrs: Sequence[s_constr.Constraint],
+    constrs: Dict[str, Tuple[s_pointers.Pointer, List[s_constr.Constraint]]],
+    parser_context: pctx.ParserContext,
+    ctx: context.ContextLevel,
+) -> irast.Set:
+    """Synthesize a select of conflicting objects for UNLESS CONFLICT
+
+    `cnstrs` contains the constraints to consider.
+    """
+    # Find which pointers we need to grab
+    needed_ptrs = set(constrs)
+    for constr in obj_constrs:
+        subjexpr = constr.get_subjectexpr(ctx.env.schema)
+        assert subjexpr
+        needed_ptrs |= qlutils.find_subject_ptrs(subjexpr.qlast)
+
+    wl = list(needed_ptrs)
+    ptr_anchors = {}
+    while wl:
+        p = wl.pop()
+        ptr = subject_typ.getptr(ctx.env.schema, s_name.UnqualName(p))
+        if expr := ptr.get_expr(ctx.env.schema):
+            assert isinstance(expr.qlast, qlast.Expr)
+            ptr_anchors[p] = expr.qlast
+            for ref in qlutils.find_subject_ptrs(expr.qlast):
+                if ref not in needed_ptrs:
+                    wl.append(ref)
+                    needed_ptrs.add(ref)
+
+    ctx.anchors = ctx.anchors.copy()
+
+    # Find the IR corresponding to the fields we care about and
+    # produce anchors for them
+    for elem, _ in stmt.subject.shape:
+        assert elem.rptr is not None
+        name = elem.rptr.ptrref.shortname.name
+        if name in needed_ptrs and name not in ptr_anchors:
+            assert elem.expr
+            # FIXME: The wrong thing will definitely happen if there are
+            # volatile entries here
+            source_alias = ctx.aliases.get(name)
+            ctx.anchors[source_alias] = setgen.ensure_set(elem.expr, ctx=ctx)
+            ptr_anchors[name] = (
+                qlast.Path(steps=[qlast.ObjectRef(name=source_alias)]))
+
+    # Fill in empty sets for pointers that are needed but not present
+    present_ptrs = set(ptr_anchors)
+    for p in (needed_ptrs - present_ptrs):
+        ptr = subject_typ.getptr(ctx.env.schema, s_name.UnqualName(p))
+        typ = ptr.get_target(ctx.env.schema)
+        assert typ
+        ptr_anchors[p] = qlast.TypeCast(
+            expr=qlast.Set(elements=[]),
+            type=typegen.type_to_ql_typeref(typ, ctx=ctx))
+
+    if not ptr_anchors:
+        raise errors.QueryError(
+            'INSERT UNLESS CONFLICT property requires matching shape',
+            context=parser_context,
+        )
+
+    conds: List[qlast.Expr] = []
+    for ptrname, (ptr, ptr_cnstrs) in constrs.items():
+        if ptrname not in present_ptrs:
+            continue
+        anchor = qlutils.subject_paths_substitute(
+            ptr_anchors[ptrname], ptr_anchors)
+        ptr_val = qlast.Path(partial=True, steps=[
+            qlast.Ptr(ptr=qlast.ObjectRef(name=ptrname))
+        ])
+        ptr, ptr_cnstrs = constrs[ptrname]
+        ptr_card = ptr.get_cardinality(ctx.env.schema)
+
+        for cnstr in ptr_cnstrs:
+            lhs: qlast.Expr = anchor
+            rhs: qlast.Expr = ptr_val
+            # If there is a subjectexpr, substitute our lhs and rhs in
+            # for __subject__ in the subjectexpr and compare *that*
+            if (subjectexpr := cnstr.get_subjectexpr(ctx.env.schema)):
+                assert isinstance(subjectexpr.qlast, qlast.Expr)
+                lhs = qlutils.subject_substitute(subjectexpr.qlast, lhs)
+                rhs = qlutils.subject_substitute(subjectexpr.qlast, rhs)
+
+            conds.append(qlast.BinOp(
+                op='=' if ptr_card.is_single() else 'IN',
+                left=lhs, right=rhs,
+            ))
+
+    for constr in obj_constrs:
+        subjectexpr = constr.get_subjectexpr(ctx.env.schema)
+        assert subjectexpr and isinstance(subjectexpr.qlast, qlast.Expr)
+        lhs = qlutils.subject_paths_substitute(subjectexpr.qlast, ptr_anchors)
+        rhs = qlutils.subject_substitute(subjectexpr.qlast, insert_subject)
+        conds.append(qlast.BinOp(op='=', left=lhs, right=rhs))
+
+    # We use `any` to compute the disjunction here because some might
+    # be empty.
+    if len(conds) == 1:
+        cond = conds[0]
+    else:
+        cond = qlast.FunctionCall(
+            func='any',
+            args=[qlast.Set(elements=conds)],
+        )
+
+    # Produce a query that finds the conflicting objects
+    select_ast = qlast.SelectQuery(
+        result=insert_subject,
+        where=cond,
+    )
+
+    select_ir = dispatch.compile(select_ast, ctx=ctx)
+    select_ir = setgen.scoped_set(
+        select_ir, force_reassign=True, ctx=ctx)
+    assert isinstance(select_ir, irast.Set)
+
+    return select_ir
+
+
 def compile_insert_unless_conflict(
+    stmt: irast.InsertStmt,
+    insert_subject: qlast.Path,
+    *, ctx: context.ContextLevel,
+) -> irast.OnConflictClause:
+    """Compile an UNLESS CONFLICT clause with no ON
+
+    This requires synthesizing a conditional based on all the exclusive
+    constraints on the object.
+    """
+
+    schema = ctx.env.schema
+
+    schema, typ = typeutils.ir_typeref_to_type(schema, stmt.subject.typeref)
+    assert isinstance(typ, s_objtypes.ObjectType)
+    real_typ = typ.get_nearest_non_derived_parent(schema)
+    pointers = {}
+
+    exclusive_constr = schema.get('std::exclusive', type=s_constr.Constraint)
+    for ptr in typ.get_pointers(schema).objects(schema):
+        ptr = ptr.get_nearest_non_derived_parent(schema)
+        ex_cnstrs = [c for c in ptr.get_constraints(schema).objects(schema)
+                     if c.issubclass(schema, exclusive_constr)]
+        if ex_cnstrs:
+            name = ptr.get_shortname(schema).name
+            if name != 'id':
+                pointers[name] = ptr, ex_cnstrs
+
+    ctx.env.schema = schema
+
+    obj_constrs = real_typ.get_constraints(schema).objects(schema)
+
+    select_ir = compile_insert_unless_conflict_select(
+        stmt, insert_subject, real_typ,
+        constrs=pointers,
+        obj_constrs=obj_constrs,
+        parser_context=stmt.context, ctx=ctx)
+
+    return irast.OnConflictClause(
+        constraint=None, select_ir=select_ir, else_ir=None)
+
+
+def compile_insert_unless_conflict_on(
     stmt: irast.InsertStmt,
     insert_subject: qlast.Path,
     constraint_spec: qlast.Expr,
@@ -233,86 +413,58 @@ def compile_insert_unless_conflict(
 
     if not cspec_res.rptr:
         raise errors.QueryError(
-            'ON CONFLICT argument must be a property',
+            'UNLESS CONFLICT argument must be a property',
             context=constraint_spec.context,
         )
 
     if cspec_res.rptr.source.path_id != stmt.subject.path_id:
         raise errors.QueryError(
-            'ON CONFLICT argument must be a property of the '
+            'UNLESS CONFLICT argument must be a property of the '
             'type being inserted',
             context=constraint_spec.context,
         )
 
     schema = ctx.env.schema
+    schema, typ = typeutils.ir_typeref_to_type(schema, stmt.subject.typeref)
+    assert isinstance(typ, s_objtypes.ObjectType)
+    real_typ = typ.get_nearest_non_derived_parent(schema)
+
     schema, ptr = (
         typeutils.ptrcls_from_ptrref(cspec_res.rptr.ptrref,
                                      schema=schema))
     if not isinstance(ptr, s_pointers.Pointer):
         raise errors.QueryError(
-            'ON CONFLICT property must be a property',
+            'UNLESS CONFLICT property must be a property',
             context=constraint_spec.context,
         )
 
     ptr = ptr.get_nearest_non_derived_parent(schema)
-    if ptr.get_cardinality(schema) != qltypes.SchemaCardinality.One:
+    ptr_card = ptr.get_cardinality(schema)
+    if not ptr_card.is_single():
         raise errors.QueryError(
-            'ON CONFLICT property must be a SINGLE property',
+            'UNLESS CONFLICT property must be a SINGLE property',
             context=constraint_spec.context,
         )
 
-    exclusive_constr: s_constr.Constraint = schema.get('std::exclusive')
+    exclusive_constr = schema.get('std::exclusive', type=s_constr.Constraint)
     ex_cnstrs = [c for c in ptr.get_constraints(schema).objects(schema)
                  if c.issubclass(schema, exclusive_constr)]
 
     if len(ex_cnstrs) != 1:
         raise errors.QueryError(
-            'ON CONFLICT property must have a single exclusive constraint',
+            'UNLESS CONFLICT property must have a single exclusive constraint',
             context=constraint_spec.context,
         )
-
-    module_id = schema.get_global(
-        s_mod.Module, ptr.get_name(schema).module).id
 
     field_name = cspec_res.rptr.ptrref.shortname
-
-    # Find the IR corresponding to our field
-    # FIXME: Is there a better way to do this?
-    for elem, _ in stmt.subject.shape:
-        if elem.rptr.ptrref.shortname == field_name:
-            key = elem.expr
-            break
-    else:
-        raise errors.QueryError(
-            'INSERT ON CONFLICT property requires matching shape',
-            context=constraint_spec.context,
-        )
-
-    # FIXME: This reuse of the source
-    ctx.anchors = ctx.anchors.copy()
-    source_alias = ctx.aliases.get('a')
-    ctx.anchors[source_alias] = setgen.ensure_set(key, ctx=ctx)
-    anchor = qlast.Path(steps=[qlast.ObjectRef(name=source_alias)])
-
-    ctx.env.schema = schema
+    ds = {field_name.name: (ptr, ex_cnstrs)}
+    select_ir = compile_insert_unless_conflict_select(
+        stmt, insert_subject, real_typ, constrs=ds, obj_constrs=[],
+        parser_context=stmt.context, ctx=ctx)
 
     # Compile an else branch
-    else_info = None
+    else_ir = None
     if else_branch:
-        # Produce a query that finds the conflicting objects
-        nobe = qlast.SelectQuery(
-            result=insert_subject,
-            where=qlast.BinOp(
-                op='=',
-                left=constraint_spec,
-                right=anchor
-            ),
-        )
-        select_ir = dispatch.compile(nobe, ctx=ctx)
-        select_ir = setgen.scoped_set(
-            select_ir, force_reassign=True, ctx=ctx)
-        assert isinstance(select_ir, irast.Set)
-
         # The ELSE needs to be able to reference the subject in an
         # UPDATE, even though that would normally be prohibited.
         ctx.path_scope.factoring_allowlist.add(stmt.subject.path_id)
@@ -321,11 +473,11 @@ def compile_insert_unless_conflict(
         else_ir = dispatch.compile(
             astutils.ensure_qlstmt(else_branch), ctx=ctx)
         assert isinstance(else_ir, irast.Set)
-        else_info = irast.OnConflictElse(select_ir, else_ir)
 
     return irast.OnConflictClause(
-        irast.ConstraintRef(id=ex_cnstrs[0].id, module_id=module_id),
-        else_info
+        constraint=irast.ConstraintRef(id=ex_cnstrs[0].id),
+        select_ir=select_ir,
+        else_ir=else_ir
     )
 
 
@@ -345,14 +497,14 @@ def compile_InsertQuery(
     ctx.env.dml_exprs.append(expr)
 
     with ctx.subquery() as ictx:
-        stmt = irast.InsertStmt()
+        stmt = irast.InsertStmt(context=expr.context)
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
         subject = dispatch.compile(expr.subject, ctx=ictx)
         assert isinstance(subject, irast.Set)
 
         subject_stype = setgen.get_set_type(subject, ctx=ictx)
-        if subject_stype.get_is_abstract(ctx.env.schema):
+        if subject_stype.get_abstract(ctx.env.schema):
             raise errors.QueryError(
                 f'cannot insert into abstract '
                 f'{subject_stype.get_verbosename(ctx.env.schema)}',
@@ -361,7 +513,7 @@ def compile_InsertQuery(
         if subject_stype.is_view(ctx.env.schema):
             raise errors.QueryError(
                 f'cannot insert into expression alias '
-                f'{subject_stype.get_shortname(ctx.env.schema)!r}',
+                f'{str(subject_stype.get_shortname(ctx.env.schema))!r}',
                 context=expr.subject.context)
 
         with ictx.new() as bodyctx:
@@ -369,8 +521,10 @@ def compile_InsertQuery(
             bodyctx.banned_paths = ictx.banned_paths.copy()
             pathctx.ban_path(subject.path_id, ctx=bodyctx)
 
+            bodyctx.class_view_overrides = ictx.class_view_overrides.copy()
             bodyctx.implicit_id_in_shapes = False
             bodyctx.implicit_tid_in_shapes = False
+            bodyctx.implicit_tname_in_shapes = False
             bodyctx.implicit_limit = 0
 
             stmt.subject = compile_query_subject(
@@ -386,11 +540,11 @@ def compile_InsertQuery(
             constraint_spec, else_branch = expr.unless_conflict
 
             if constraint_spec:
-                stmt.on_conflict = compile_insert_unless_conflict(
+                stmt.on_conflict = compile_insert_unless_conflict_on(
                     stmt, expr.subject, constraint_spec, else_branch, ctx=ictx)
             else:
-                stmt.on_conflict = irast.OnConflictClause(
-                    constraint=None, else_ir=None)
+                stmt.on_conflict = compile_insert_unless_conflict(
+                    stmt, expr.subject, ctx=ictx)
 
         stmt_subject_stype = setgen.get_set_type(subject, ctx=ictx)
 
@@ -414,6 +568,24 @@ def compile_InsertQuery(
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
+        # If we have an ELSE clause, we need to compile_query_subject
+        # *again* on the outer query, in order to produce a view for
+        # the joined output, which we need to have to generate the
+        # proper type descriptor.
+        # This feels like somewhat of a hack; I think it might be
+        # possible to do something more general elsewhere.
+        if expr.unless_conflict and expr.unless_conflict[1]:
+            with ictx.new() as resultctx:
+                if ictx.stmt is ctx.toplevel_stmt:
+                    resultctx.expr_exposed = True
+
+                result = compile_query_subject(
+                    result,
+                    view_name=ctx.toplevel_result_view_name,
+                    compile_views=ictx.stmt is ctx.toplevel_stmt,
+                    ctx=resultctx,
+                    parser_context=result.context)
+
     return result
 
 
@@ -431,7 +603,7 @@ def compile_UpdateQuery(
     ctx.env.dml_exprs.append(expr)
 
     with ctx.subquery() as ictx:
-        stmt = irast.UpdateStmt()
+        stmt = irast.UpdateStmt(context=expr.context)
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
         subject = dispatch.compile(expr.subject, ctx=ictx)
@@ -450,8 +622,10 @@ def compile_UpdateQuery(
             stmt, expr.where, ctx=ictx)
 
         with ictx.new() as bodyctx:
+            bodyctx.class_view_overrides = ictx.class_view_overrides.copy()
             bodyctx.implicit_id_in_shapes = False
             bodyctx.implicit_tid_in_shapes = False
+            bodyctx.implicit_tname_in_shapes = False
             bodyctx.implicit_limit = 0
 
             stmt.subject = compile_query_subject(
@@ -502,7 +676,7 @@ def compile_DeleteQuery(
     ctx.env.dml_exprs.append(expr)
 
     with ctx.subquery() as ictx:
-        stmt = irast.DeleteStmt()
+        stmt = irast.DeleteStmt(context=expr.context)
         # Expand the DELETE from sugar into full DELETE (SELECT ...)
         # form, if there's any additional clauses.
         if any([expr.where, expr.orderby, expr.offset, expr.limit]):
@@ -555,6 +729,7 @@ def compile_DeleteQuery(
         with ictx.new() as bodyctx:
             bodyctx.implicit_id_in_shapes = False
             bodyctx.implicit_tid_in_shapes = False
+            bodyctx.implicit_tname_in_shapes = False
             stmt.subject = compile_query_subject(
                 subject,
                 shape=None,
@@ -593,7 +768,7 @@ def compile_DescribeStmt(
         stmt = irast.SelectStmt()
         init_stmt(stmt, ql, ctx=ictx, parent_ctx=ctx)
 
-        if ql.object == qlast.DescribeGlobal.Schema:
+        if ql.object is qlast.DescribeGlobal.Schema:
             if ql.language is qltypes.DescribeLanguage.DDL:
                 # DESCRIBE SCHEMA
                 text = s_ddl.ddl_text_from_schema(
@@ -604,7 +779,8 @@ def compile_DescribeStmt(
                     f'cannot describe full schema as {ql.language}')
 
             ct = typegen.type_to_typeref(
-                ctx.env.get_track_schema_type('std::str'),
+                ctx.env.get_track_schema_type(
+                    s_name.QualName('std', 'str')),
                 env=ctx.env,
             )
 
@@ -613,7 +789,20 @@ def compile_DescribeStmt(
                 ctx=ictx,
             )
 
-        elif ql.object == qlast.DescribeGlobal.SystemConfig:
+        elif ql.object is qlast.DescribeGlobal.DatabaseConfig:
+            if ql.language is qltypes.DescribeLanguage.DDL:
+                function_call = dispatch.compile(
+                    qlast.FunctionCall(
+                        func=('cfg', '_describe_database_config_as_ddl'),
+                    ),
+                    ctx=ictx)
+                assert isinstance(function_call, irast.Set), function_call
+                stmt.result = function_call
+            else:
+                raise errors.QueryError(
+                    f'cannot describe config as {ql.language}')
+
+        elif ql.object is qlast.DescribeGlobal.SystemConfig:
             if ql.language is qltypes.DescribeLanguage.DDL:
                 function_call = dispatch.compile(
                     qlast.FunctionCall(
@@ -625,7 +814,8 @@ def compile_DescribeStmt(
             else:
                 raise errors.QueryError(
                     f'cannot describe config as {ql.language}')
-        elif ql.object == qlast.DescribeGlobal.Roles:
+
+        elif ql.object is qlast.DescribeGlobal.Roles:
             if ql.language is qltypes.DescribeLanguage.DDL:
                 function_call = dispatch.compile(
                     qlast.FunctionCall(
@@ -637,26 +827,22 @@ def compile_DescribeStmt(
             else:
                 raise errors.QueryError(
                     f'cannot describe roles as {ql.language}')
+
         else:
             assert isinstance(ql.object, qlast.ObjectRef), ql.object
             modules = []
-            items: DefaultDict[str, List[str]] = defaultdict(list)
+            items: DefaultDict[str, List[s_name.Name]] = defaultdict(list)
             referenced_classes: List[s_obj.ObjectMeta] = []
 
             objref = ql.object
             itemclass = objref.itemclass
 
             if itemclass is qltypes.SchemaObjectClass.MODULE:
-                modules.append(objref.name)
+                modules.append(s_utils.ast_ref_to_unqualname(objref))
             else:
                 itemtype: Optional[Type[s_obj.Object]] = None
 
-                name: str
-                if objref.module:
-                    name = s_name.Name(module=objref.module, name=objref.name)
-                else:
-                    name = objref.name
-
+                name = s_utils.ast_ref_to_name(objref)
                 if itemclass is not None:
                     if itemclass is qltypes.SchemaObjectClass.ALIAS:
                         # Look for underlying derived type.
@@ -744,6 +930,7 @@ def compile_DescribeStmt(
 
             verbose = ql.options.get_flag('VERBOSE')
 
+            method: Any
             if ql.language is qltypes.DescribeLanguage.DDL:
                 method = s_ddl.ddl_text_from_schema
             elif ql.language is qltypes.DescribeLanguage.SDL:
@@ -801,7 +988,8 @@ def compile_DescribeStmt(
                 text += masked
 
             ct = typegen.type_to_typeref(
-                ctx.env.get_track_schema_type('std::str'),
+                ctx.env.get_track_schema_type(
+                    s_name.QualName('std', 'str')),
                 env=ctx.env,
             )
 
@@ -888,7 +1076,8 @@ def init_stmt(
 
     irstmt.parent_stmt = parent_ctx.stmt
 
-    process_with_block(qlstmt, ctx=ctx, parent_ctx=parent_ctx)
+    irstmt.bindings = process_with_block(
+        qlstmt, ctx=ctx, parent_ctx=parent_ctx)
 
 
 def fini_stmt(
@@ -933,6 +1122,9 @@ def fini_stmt(
     type_override = view if view is not None else None
     result = setgen.scoped_set(
         irstmt, type_override=type_override, path_id=path_id, ctx=ctx)
+    if irstmt.context and not result.context:
+        result = setgen.new_set_from_set(
+            result, context=irstmt.context, ctx=ctx)
 
     if view is not None:
         parent_ctx.view_sets[view] = result
@@ -942,7 +1134,9 @@ def fini_stmt(
 
 def process_with_block(
         edgeql_tree: qlast.Statement, *,
-        ctx: context.ContextLevel, parent_ctx: context.ContextLevel) -> None:
+        ctx: context.ContextLevel,
+        parent_ctx: context.ContextLevel) -> List[irast.Set]:
+    results = []
     for with_entry in edgeql_tree.aliases:
         if isinstance(with_entry, qlast.ModuleAliasDecl):
             ctx.modaliases[with_entry.alias] = with_entry.module
@@ -950,22 +1144,27 @@ def process_with_block(
         elif isinstance(with_entry, qlast.AliasedExpr):
             with ctx.new() as scopectx:
                 scopectx.expr_exposed = False
-                stmtctx.declare_view(
-                    with_entry.expr,
-                    with_entry.alias,
-                    must_be_used=True,
-                    ctx=scopectx)
+                results.append(
+                    stmtctx.declare_view(
+                        with_entry.expr,
+                        s_name.UnqualName(with_entry.alias),
+                        must_be_used=True,
+                        ctx=scopectx,
+                    ),
+                )
 
         else:
             raise RuntimeError(
                 f'unexpected expression in WITH block: {with_entry}')
+
+    return results
 
 
 def compile_result_clause(
         result: qlast.Expr, *,
         view_scls: Optional[s_types.Type]=None,
         view_rptr: Optional[context.ViewRPtr]=None,
-        view_name: Optional[s_name.SchemaName]=None,
+        view_name: Optional[s_name.QualName]=None,
         result_alias: Optional[str]=None,
         forward_rptr: bool=False,
         ctx: context.ContextLevel) -> irast.Set:
@@ -990,45 +1189,46 @@ def compile_result_clause(
         if result_alias:
             # `SELECT foo := expr` is equivalent to
             # `WITH foo := expr SELECT foo`
-            stmtctx.declare_view(result_expr, alias=result_alias, ctx=sctx)
+            rexpr = astutils.ensure_ql_select(result_expr)
+            if (
+                sctx.implicit_limit
+                and rexpr.limit is None
+                and not sctx.inhibit_implicit_limit
+            ):
+                # Inline alias is special: it's both "exposed",
+                # but also subject for further processing, so
+                # make sure we don't mangle it with an implicit
+                # limit.
+                rexpr.limit = qlast.TypeCast(
+                    expr=qlast.Set(),
+                    type=qlast.TypeName(
+                        maintype=qlast.ObjectRef(
+                            module='__std__',
+                            name='int64',
+                        )
+                    )
+                )
+
+            stmtctx.declare_view(
+                rexpr,
+                alias=s_name.UnqualName(result_alias),
+                ctx=sctx,
+            )
 
             result_expr = qlast.Path(
                 steps=[qlast.ObjectRef(name=result_alias)]
             )
 
-        if (view_rptr is not None and
-                (view_rptr.is_insert or view_rptr.is_update) and
-                view_rptr.ptrcls is not None) and False:
-            # If we have an empty set assigned to a pointer in an INSERT
-            # or UPDATE, there's no need to explicitly specify the
-            # empty set type and it can be assumed to match the pointer
-            # target type.
-            target_t = view_rptr.ptrcls.get_target(ctx.env.schema)
-
-            if astutils.is_ql_empty_set(result_expr):
-                expr = setgen.new_empty_set(
-                    stype=target_t,
-                    alias=ctx.aliases.get('e'),
-                    ctx=sctx,
-                    srcctx=result_expr.context,
-                )
-            else:
-                with sctx.new() as exprctx:
-                    exprctx.empty_result_type_hint = target_t
-                    expr = setgen.ensure_set(
-                        dispatch.compile(result_expr, ctx=exprctx),
-                        ctx=exprctx)
+        if astutils.is_ql_empty_set(result_expr):
+            expr = setgen.new_empty_set(
+                stype=sctx.empty_result_type_hint,
+                alias=ctx.aliases.get('e'),
+                ctx=sctx,
+                srcctx=result_expr.context,
+            )
         else:
-            if astutils.is_ql_empty_set(result_expr):
-                expr = setgen.new_empty_set(
-                    stype=sctx.empty_result_type_hint,
-                    alias=ctx.aliases.get('e'),
-                    ctx=sctx,
-                    srcctx=result_expr.context,
-                )
-            else:
-                expr = setgen.ensure_set(
-                    dispatch.compile(result_expr, ctx=sctx), ctx=sctx)
+            expr = setgen.ensure_set(
+                dispatch.compile(result_expr, ctx=sctx), ctx=sctx)
 
         ctx.partial_path_prefix = expr
 
@@ -1049,7 +1249,7 @@ def compile_query_subject(
         expr: irast.Set, *,
         shape: Optional[List[qlast.ShapeElement]]=None,
         view_rptr: Optional[context.ViewRPtr]=None,
-        view_name: Optional[s_name.SchemaName]=None,
+        view_name: Optional[s_name.QualName]=None,
         result_alias: Optional[str]=None,
         view_scls: Optional[s_types.Type]=None,
         compile_views: bool=True,
@@ -1071,6 +1271,11 @@ def compile_query_subject(
         and view_rptr.ptrcls_name is not None
         and expr_rptr is not None
         and expr_rptr.direction is s_pointers.PointerDirection.Outbound
+        and expr_rptr.source.rptr is None
+        and (
+            view_rptr.source.get_bases(ctx.env.schema).first(ctx.env.schema).id
+            == expr_rptr.source.typeref.id
+        )
         and (
             view_rptr.ptrcls_is_linkprop
             == (expr_rptr.ptrref.source_ptr is not None)
@@ -1079,6 +1284,7 @@ def compile_query_subject(
 
     if is_ptr_alias:
         assert view_rptr is not None
+        assert expr_rptr is not None
         # We are inside an expression that defines a link alias in
         # the parent shape, ie. Spam { alias := Spam.bar }, so
         # `Spam.alias` should be a subclass of `Spam.bar` inheriting
@@ -1090,7 +1296,7 @@ def compile_query_subject(
 
     if (
         ctx.expr_exposed
-        and viewgen.has_implicit_tid(
+        and viewgen.has_implicit_type_computables(
             expr_stype,
             is_mutation=is_insert or is_update or is_delete,
             ctx=ctx,
@@ -1105,7 +1311,7 @@ def compile_query_subject(
 
     if shape is not None and view_scls is None:
         if (view_name is None and
-                isinstance(result_alias, s_name.SchemaName)):
+                isinstance(result_alias, s_name.QualName)):
             view_name = result_alias
 
         if not isinstance(expr_stype, s_objtypes.ObjectType):

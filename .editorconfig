@@ -4,8 +4,12 @@ root = true
 trim_trailing_whitespace = true
 insert_final_newline = true
 
-[*.{py,pyx,pxd,pxi,yml,h}]
+[*.{py,pyx,pxd,pxi,h}]
 indent_size = 4
+indent_style = space
+
+[*.yml]
+indent_size = 2
 indent_style = space
 
 [ext/*.{c,cpp,h}]

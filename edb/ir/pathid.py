@@ -63,7 +63,7 @@ class PathId:
     """
 
     __slots__ = ('_path', '_norm_path', '_namespace', '_prefix',
-                 '_is_ptr', '_is_linkprop')
+                 '_is_ptr', '_is_linkprop', '_hash')
 
     #: Actual path information.
     _path: Tuple[
@@ -78,7 +78,7 @@ class PathId:
     _norm_path: Tuple[
         Union[
             uuid.UUID,
-            str,
+            s_name.Name,
             Tuple[
                 str, s_pointers.PointerDirection, bool
             ],
@@ -126,6 +126,8 @@ class PathId:
             self._is_ptr = False
             self._is_linkprop = False
 
+        self._hash = -1
+
     @classmethod
     def from_type(
         cls,
@@ -134,9 +136,9 @@ class PathId:
         *,
         env: Optional[qlcompiler_ctx.Environment] = None,
         namespace: AbstractSet[AnyNamespace] = frozenset(),
-        typename: Optional[s_name.Name] = None,
+        typename: Optional[s_name.QualName] = None,
     ) -> PathId:
-        """Return a ``PathId``instance for a given :class:`schema.types.Type`
+        """Return a ``PathId`` instance for a given :class:`schema.types.Type`
 
         The returned ``PathId`` instance describes a set variable of type *t*.
         The name of the passed type is used as the name for the variable,
@@ -170,14 +172,55 @@ class PathId:
                                 typename=typename)
 
     @classmethod
+    def from_pointer(
+        cls,
+        schema: s_schema.Schema,
+        pointer: s_pointers.Pointer,
+        *,
+        namespace: AbstractSet[AnyNamespace] = frozenset(),
+    ) -> PathId:
+        """Return a ``PathId`` instance for a given link or property.
+
+        The specified *pointer* argument must be a concrete link or property.
+        The returned ``PathId`` instance describes a set variable of all
+        objects represented by the pointer (i.e, for a link, a set of all
+        link targets).
+
+        Args:
+            schema:
+                A schema instance where the type *t* is defined.
+            pointer:
+                An instance of a concrete link or property.
+            namespace:
+                Optional namespace in which the variable is defined.
+
+        Returns:
+            A ``PathId`` instance.
+        """
+        if pointer.generic(schema):
+            raise ValueError(f'invalid PathId: {pointer} is not concrete')
+
+        source = pointer.get_source(schema)
+        if isinstance(source, s_pointers.Pointer):
+            prefix = cls.from_pointer(schema, source, namespace=namespace)
+            prefix = prefix.ptr_path()
+        elif isinstance(source, s_types.Type):
+            prefix = cls.from_type(schema, source, namespace=namespace)
+        else:
+            raise AssertionError(f'unexpected pointer source: {source!r}')
+
+        ptrref = typeutils.ptrref_from_ptrcls(schema=schema, ptrcls=pointer)
+        return prefix.extend(ptrref=ptrref, schema=schema)
+
+    @classmethod
     def from_typeref(
         cls,
         typeref: irast.TypeRef,
         *,
         namespace: AbstractSet[AnyNamespace] = frozenset(),
-        typename: Optional[Union[str, uuid.UUID]] = None,
+        typename: Optional[Union[s_name.Name, uuid.UUID]] = None,
     ) -> PathId:
-        """Return a ``PathId``instance for a given :class:`ir.ast.TypeRef`
+        """Return a ``PathId`` instance for a given :class:`ir.ast.TypeRef`
 
         The returned ``PathId`` instance describes a set variable of type
         described by *typeref*.  The name of the passed type is used as
@@ -207,9 +250,15 @@ class PathId:
         return pid
 
     def __hash__(self) -> int:
-        return hash((
-            self.__class__, self._norm_path,
-            self._namespace, self._prefix, self._is_ptr))
+        if self._hash == -1:
+            self._hash = hash((
+                self.__class__,
+                self._norm_path,
+                self._namespace,
+                self._prefix,
+                self._is_ptr,
+            ))
+        return self._hash
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, PathId):
@@ -333,23 +382,6 @@ class PathId:
             return self.replace_namespace(new_namespace)
         else:
             return self
-
-    def strip_weak_namespaces(self) -> PathId:
-        """Return a copy of this ``PathId`` with weak namespace portion
-           removed."""
-        if self._namespace is not None:
-            stripped_ns = {bit for bit in self._namespace
-                           if not isinstance(bit, WeakNamespace)}
-            result = self.replace_namespace(stripped_ns)
-
-            if result._prefix is not None:
-                result._prefix = result._get_minimal_prefix(
-                    result._prefix.strip_weak_namespaces())
-
-        else:
-            result = self
-
-        return result
 
     def strip_namespace(self, namespace: AbstractSet[AnyNamespace]) -> PathId:
         """Return a copy of this ``PathId`` with a given portion of the
@@ -499,7 +531,7 @@ class PathId:
         else:
             return None
 
-    def rptr_name(self) -> Optional[s_name.Name]:
+    def rptr_name(self) -> Optional[s_name.QualName]:
         """Return the name of a pointer for the last path step, if any.
 
            If this PathId represents a non-path expression, ``rptr_name()``
@@ -595,7 +627,7 @@ class PathId:
         if self.startswith(prefix):
             prefix_len = len(prefix)
             if prefix_len < len(self):
-                result = self.__class__()
+                result = self.__class__(self)
                 result._path = replacement._path + self._path[prefix_len:]
                 result._norm_path = \
                     replacement._norm_path + self._norm_path[prefix_len:]
@@ -688,7 +720,7 @@ class PathId:
         if rptr_name is None:
             return False
         else:
-            return rptr_name in (
+            return str(rptr_name) in (
                 '__type__::indirection',
                 '__type__::optindirection',
             )

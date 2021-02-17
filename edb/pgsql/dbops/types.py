@@ -153,7 +153,7 @@ class AlterCompositeType(
         AlterCompositeTypeBaseMixin.__init__(self, name=name)
 
 
-class AlterCompositeTypeAddAttribute(
+class AlterCompositeTypeAddAttribute(  # type: ignore
         composites.AlterCompositeAddAttribute, AlterCompositeTypeFragment):
     def code(self, block: base.PLBlock) -> str:
         return 'ADD {} {}'.format(

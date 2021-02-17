@@ -141,7 +141,7 @@ class FrozenCheckedList(
     def __getitem__(self, index: slice) -> FrozenCheckedList[T]:  # NoQA: F811
         ...
 
-    def __getitem__(self, index):  # NoQA: F811
+    def __getitem__(self, index: Union[int, slice]) -> Any:  # NoQA: F811
         if isinstance(index, slice):
             return self.__class__(self._container[index])
 
@@ -188,7 +188,7 @@ class CheckedList(
     def __getitem__(self, index: slice) -> CheckedList[T]:  # NoQA: F811
         ...
 
-    def __getitem__(self, index):  # NoQA: F811
+    def __getitem__(self, index: Union[int, slice]) -> Any:  # NoQA: F811
         if isinstance(index, slice):
             return self.__class__(self._container[index])
 
@@ -210,7 +210,8 @@ class CheckedList(
     ) -> None:
         ...
 
-    def __setitem__(self, index, value):  # NoQA: F811
+    def __setitem__(  # NoQA: F811
+            self, index: Union[int, slice], value: Any) -> None:
         if isinstance(index, int):
             self._container[index] = self._check_type(value)
             return
@@ -226,7 +227,7 @@ class CheckedList(
     def __delitem__(self, index: slice) -> None:  # NoQA: F811
         ...
 
-    def __delitem__(self, index):  # NoQA: F811
+    def __delitem__(self, index: Union[int, slice]) -> None:  # NoQA: F811
         del self._container[index]
 
     def insert(self, index: int, value: T) -> None:

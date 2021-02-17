@@ -5,7 +5,9 @@ use edgeql_parser::position::Pos;
 use edgeql_parser::helpers::unquote_string;
 use num_bigint::{BigInt, ToBigInt};
 use bigdecimal::BigDecimal;
+use blake2::{Blake2b, Digest};
 use crate::tokenizer::{CowToken};
+use crate::float;
 
 
 #[derive(Debug, PartialEq)]
@@ -22,9 +24,9 @@ pub struct Variable {
     pub value: Value,
 }
 
-#[derive(Debug)]
 pub struct Entry<'a> {
-    pub key: String,
+    pub processed_source: String,
+    pub hash: [u8; 64],
     pub tokens: Vec<CowToken<'a>>,
     pub variables: Vec<Variable>,
     pub end_pos: Pos,
@@ -38,11 +40,13 @@ pub enum Error {
     Assertion(String, Pos),
 }
 
-fn push_var<'x>(res: &mut Vec<CowToken<'x>>, typ: &'x str, var: String,
-    start: Pos, end: Pos)
+fn push_var<'x>(res: &mut Vec<CowToken<'x>>, module: &'x str, typ: &'x str,
+    var: String, start: Pos, end: Pos)
 {
     res.push(CowToken {kind: Kind::OpenParen, value: "(".into(), start, end});
     res.push(CowToken {kind: Kind::Less, value: "<".into(), start, end});
+    res.push(CowToken {kind: Kind::Ident, value: module.into(), start, end});
+    res.push(CowToken {kind: Kind::Namespace, value: "::".into(), start, end});
     res.push(CowToken {kind: Kind::Ident, value: typ.into(), start, end});
     res.push(CowToken {kind: Kind::Greater, value: ">".into(), start, end});
     res.push(CowToken {kind: Kind::Argument, value: var.into(), start, end});
@@ -75,6 +79,12 @@ fn scan_vars<'x, 'y: 'x, I>(tokens: I) -> Option<(bool, usize)>
     }
 }
 
+fn hash(text: &str) -> [u8; 64] {
+    let mut result = [0u8; 64];
+    result.copy_from_slice(Blake2b::digest(text.as_bytes()).as_slice());
+    return result;
+}
+
 pub fn normalize<'x>(text: &'x str)
     -> Result<Entry<'x>, Error>
 {
@@ -99,8 +109,10 @@ pub fn normalize<'x>(text: &'x str)
         Some(pair) => pair,
         None => {
             // don't extract from invalid query, let python code do its work
+            let processed_source = serialize_tokens(&tokens);
             return Ok(Entry {
-                key: serialize_tokens(&tokens),
+                hash: hash(&processed_source),
+                processed_source,
                 tokens,
                 variables: Vec::new(),
                 end_pos,
@@ -131,7 +143,7 @@ pub fn normalize<'x>(text: &'x str)
                     if value.eq_ignore_ascii_case("LIMIT")))
             && tok.value != "9223372036854775808"
             => {
-                push_var(&mut rewritten_tokens, "__std__::int64",
+                push_var(&mut rewritten_tokens, "__std__", "int64",
                     next_var(variables.len()),
                     tok.start, tok.end);
                 variables.push(Variable {
@@ -143,25 +155,18 @@ pub fn normalize<'x>(text: &'x str)
                 continue;
             }
             Kind::FloatConst => {
-                push_var(&mut rewritten_tokens, "__std__::float64",
+                push_var(&mut rewritten_tokens, "__std__", "float64",
                     next_var(variables.len()),
                     tok.start, tok.end);
-                let value = tok.value.replace("_", "").parse()
-                    .map_err(|e| Error::Tokenizer(
-                        format!("can't parse std::float64: {}", e),
-                        tok.start))?;
-                if value == f64::INFINITY || value == -f64::INFINITY {
-                    return Err(Error::Tokenizer(
-                        format!("number is out of range for std::float64"),
-                        tok.start));
-                }
+                let value = float::convert(&tok.value)
+                    .map_err(|msg| Error::Tokenizer(msg.into(), tok.start))?;
                 variables.push(Variable {
                     value: Value::Float(value),
                 });
                 continue;
             }
             Kind::BigIntConst => {
-                push_var(&mut rewritten_tokens, "__std__::bigint",
+                push_var(&mut rewritten_tokens, "__std__", "bigint",
                     next_var(variables.len()),
                     tok.start, tok.end);
                 let dec: BigDecimal = tok.value[..tok.value.len()-1]
@@ -178,7 +183,7 @@ pub fn normalize<'x>(text: &'x str)
                 continue;
             }
             Kind::DecimalConst => {
-                push_var(&mut rewritten_tokens, "__std__::decimal",
+                push_var(&mut rewritten_tokens, "__std__", "decimal",
                     next_var(variables.len()),
                     tok.start, tok.end);
                 variables.push(Variable {
@@ -193,7 +198,7 @@ pub fn normalize<'x>(text: &'x str)
                 continue;
             }
             Kind::Str => {
-                push_var(&mut rewritten_tokens, "__std__::str",
+                push_var(&mut rewritten_tokens, "__std__", "str",
                     next_var(variables.len()),
                     tok.start, tok.end);
                 variables.push(Variable {
@@ -208,8 +213,10 @@ pub fn normalize<'x>(text: &'x str)
             if (matches!(&(&tok.value[..].to_uppercase())[..],
                 "CONFIGURE"|"CREATE"|"ALTER"|"DROP"|"START"))
             => {
+                let processed_source = serialize_tokens(&tokens);
                 return Ok(Entry {
-                    key: serialize_tokens(&tokens),
+                    hash: hash(&processed_source),
+                    processed_source,
                     tokens,
                     variables: Vec::new(),
                     end_pos,
@@ -220,10 +227,12 @@ pub fn normalize<'x>(text: &'x str)
             _ => rewritten_tokens.push(tok.clone()),
         }
     }
+    let processed_source = serialize_tokens(&rewritten_tokens[..]);
     return Ok(Entry {
+        hash: hash(&processed_source),
+        processed_source,
         named_args,
         first_arg: if variables.is_empty() { None } else { Some(var_idx) },
-        key: serialize_tokens(&rewritten_tokens[..]),
         tokens: rewritten_tokens,
         variables,
         end_pos,
@@ -239,7 +248,6 @@ fn is_operator(token: &CowToken) -> bool {
         | Arrow
         | Coalesce
         | Namespace
-        | ForwardLink
         | BackwardLink
         | FloorDiv
         | Concat
@@ -281,6 +289,7 @@ fn is_operator(token: &CowToken) -> bool {
         | BacktickName
         | Keyword
         | Ident
+        | Substitution
         => false,
     }
 }

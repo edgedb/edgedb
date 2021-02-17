@@ -26,8 +26,7 @@ from edb.testbase import server as tb
 
 class TestDumpBasics(tb.DatabaseTestCase, tb.CLITestCaseMixin):
 
-    ISOLATED_METHODS = False
-    SERIALIZED = True
+    TRANSACTION_ISOLATION = False
 
     SETUP = '''
         CREATE TYPE test::Tmp {
@@ -81,16 +80,18 @@ class TestDumpBasics(tb.DatabaseTestCase, tb.CLITestCaseMixin):
 
         expected_hash = hasher.digest()
         nrows = idx
+        dbname = self.get_database_name()
+        restored_dbname = f'{dbname}_restored'
 
         with tempfile.NamedTemporaryFile() as f:
-            self.run_cli('-d', 'dumpbasics', 'dump', f.name)
+            self.run_cli('-d', dbname, 'dump', f.name)
 
-            await self.con.execute('CREATE DATABASE dumpbasics_restored')
+            await self.con.execute(f'CREATE DATABASE {restored_dbname}')
             try:
-                self.run_cli('-d', 'dumpbasics_restored', 'restore', f.name)
-                con2 = await self.connect(database='dumpbasics_restored')
+                self.run_cli('-d', restored_dbname, 'restore', f.name)
+                con2 = await self.connect(database=restored_dbname)
             except Exception:
-                await self.con.execute('DROP DATABASE dumpbasics_restored')
+                await self.con.execute(f'DROP DATABASE {restored_dbname}')
                 raise
 
         try:
@@ -112,4 +113,4 @@ class TestDumpBasics(tb.DatabaseTestCase, tb.CLITestCaseMixin):
             self.assertEqual(hasher.digest(), expected_hash)
         finally:
             await con2.aclose()
-            await self.con.execute('DROP DATABASE dumpbasics_restored')
+            await self.con.execute(f'DROP DATABASE {restored_dbname}')

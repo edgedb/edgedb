@@ -26,11 +26,10 @@ import re
 import sys
 from typing import *
 
-import typing_inspect
-
 from edb.common import debug
 from edb.common import markup
 from edb.common import typeutils
+from edb.common import typing_inspect
 
 
 class ASTError(Exception):
@@ -138,7 +137,7 @@ class MetaAST(type):
         super().__init__(name, bases, dct)
         fields = collections.OrderedDict()
 
-        for parent in cls.__mro__:
+        for parent in reversed(cls.__mro__):
             lst = getattr(cls, '_' + parent.__name__ + '__fields', [])
             for field in lst:
                 field_name = field
@@ -171,10 +170,9 @@ class MetaAST(type):
                     if len(field) > 6:
                         field_meta = field[6]
 
-                if field_name not in fields:
-                    fields[field_name] = Field(
-                        field_name, field_type, field_default, field_traverse,
-                        field_child_traverse, field_hidden, field_meta)
+                fields[field_name] = Field(
+                    field_name, field_type, field_default, field_traverse,
+                    field_child_traverse, field_hidden, field_meta)
 
         cls._fields = fields
 
@@ -182,9 +180,62 @@ class MetaAST(type):
         return cls._fields.get(name)
 
 
+def _check_type_passthrough(type_, value, raise_error):
+    pass
+
+
+def _check_type_real(type_, value, raise_error):
+    if type_ is None:
+        return
+
+    if typing_inspect.is_union_type(type_):
+        for t in typing_inspect.get_args(type_, evaluate=True):
+            try:
+                _check_type(t, value, raise_error)
+            except TypeError:
+                pass
+            else:
+                break
+        else:
+            raise_error(str(type_), value)
+
+    elif typing_inspect.is_tuple_type(type_):
+        _check_tuple_type(type_, value, raise_error, tuple)
+
+    elif typing_inspect.is_generic_type(type_):
+        ot = typing_inspect.get_origin(type_)
+
+        if ot in (list, List, collections.abc.Sequence):
+            _check_container_type(type_, value, raise_error, list)
+
+        elif ot in (set, Set):
+            _check_container_type(type_, value, raise_error, set)
+
+        elif ot in (frozenset, FrozenSet):
+            _check_container_type(type_, value, raise_error, frozenset)
+
+        elif ot in (dict, Dict):
+            _check_mapping_type(type_, value, raise_error, dict)
+
+        elif ot is not None:
+            raise TypeError(f'unsupported typing type: {type_!r}')
+
+    elif type_ is not Any:
+        if value is not None and not isinstance(value, type_):
+            raise_error(type_.__name__, value)
+
+
+if debug.flags.typecheck:
+    _check_type = _check_type_real
+else:
+    _check_type = _check_type_passthrough
+
+
 class AST(object, metaclass=MetaAST):
-    __fields = []
-    __ast_frozen_fields__ = frozenset()
+    # These use type comments because type annotations are interpreted
+    # by the AST system and so annotating them would interfere!
+    __fields = []  # type: List[str]
+    __ast_frozen_fields__ = frozenset()  # type: AbstractSet[str]
 
     def __init__(self, **kwargs):
         if type(self).__abstract_node__:
@@ -226,14 +277,19 @@ class AST(object, metaclass=MetaAST):
             setattr(copied, field, copy.deepcopy(value, memo))
         return copied
 
-    if __debug__:
-        def __setattr__(self, name, value):
-            super().__setattr__(name, value)
-            field = self._fields.get(name)
-            if field:
-                self.check_field_type(field, value)
-                if name in self.__ast_frozen_fields__:
-                    raise TypeError(f'cannot set immutable {name} on {self!r}')
+    def _checked_setattr(self, name, value):
+        super().__setattr__(name, value)
+        field = self._fields.get(name)
+        if field:
+            self.check_field_type(field, value)
+            if name in self.__ast_frozen_fields__:
+                raise TypeError(f'cannot set immutable {name} on {self!r}')
+
+    def __setattr__(self, name, value):
+        object.__setattr__(self, name, value)
+
+    if __debug__ and _check_type is _check_type_real:
+        __setattr__ = _checked_setattr  # NoQA: F811
 
     def check_field_type(self, field, value):
         def raise_error(field_type_name, value):
@@ -250,7 +306,9 @@ class AST(object, metaclass=MetaAST):
 
 class ImmutableASTMixin:
     __frozen = False
-    __ast_mutable_fields__ = frozenset()
+    # This uses type comments because type annotations are interpreted
+    # by the AST system and so annotating them would interfere!
+    __ast_mutable_fields__ = frozenset()  # type: AbstractSet[str]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -370,7 +428,14 @@ def _check_annotation(f_type, f_fullname, f_default):
                     f'invalid type annotation on {f_fullname}: '
                     f'default is defined for container type '
                     f'{f_type!r}')
-            f_default = f_type
+            # Make sure that we can actually construct an empty
+            # version of this type before we decide it is the default.
+            try:
+                f_type()
+            except TypeError:
+                pass
+            else:
+                f_default = f_type
 
     return f_default
 
@@ -416,54 +481,3 @@ def _check_mapping_type(type_, value, raise_error, instance_type):
         if not k and not _is_optional(ktype):
             raise RuntimeError('empty key in map')
         _check_type(vtype, v, raise_error)
-
-
-def _check_type_passthrough(type_, value, raise_error):
-    pass
-
-
-def _check_type_real(type_, value, raise_error):
-    if type_ is None:
-        return
-
-    if typing_inspect.is_union_type(type_):
-        for t in typing_inspect.get_args(type_, evaluate=True):
-            try:
-                _check_type(t, value, raise_error)
-            except TypeError:
-                pass
-            else:
-                break
-        else:
-            raise_error(str(type_), value)
-
-    elif typing_inspect.is_tuple_type(type_):
-        _check_tuple_type(type_, value, raise_error, tuple)
-
-    elif typing_inspect.is_generic_type(type_):
-        ot = typing_inspect.get_origin(type_)
-
-        if ot in (list, List, collections.abc.Sequence):
-            _check_container_type(type_, value, raise_error, list)
-
-        elif ot in (set, Set):
-            _check_container_type(type_, value, raise_error, set)
-
-        elif ot in (frozenset, FrozenSet):
-            _check_container_type(type_, value, raise_error, frozenset)
-
-        elif ot in (dict, Dict):
-            _check_mapping_type(type_, value, raise_error, dict)
-
-        elif ot is not None:
-            raise TypeError(f'unsupported typing type: {type_!r}')
-
-    elif type_ is not Any:
-        if value is not None and not isinstance(value, type_):
-            raise_error(type_.__name__, value)
-
-
-if debug.flags.typecheck:
-    _check_type = _check_type_real
-else:
-    _check_type = _check_type_passthrough

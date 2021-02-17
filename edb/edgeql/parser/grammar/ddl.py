@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import collections
 import re
+import textwrap
 import typing
 
 from edb import errors
@@ -29,6 +30,7 @@ from edb.errors import EdgeQLSyntaxError
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
+from edb.common import context as pctx
 from edb.common import parsing
 
 from . import expressions
@@ -41,9 +43,9 @@ from .commondl import *  # NOQA
 from .sdl import *  # NOQA
 
 
-ListNonterm = parsing.ListNonterm
-Nonterm = expressions.Nonterm
-Semicolons = commondl.Semicolons
+ListNonterm = parsing.ListNonterm  # type: ignore[misc]
+Nonterm = expressions.Nonterm  # type: ignore[misc]
+Semicolons = commondl.Semicolons  # type: ignore[misc]
 
 
 sdl_nontem_helper = commondl.NewNontermHelper(__name__)
@@ -51,19 +53,14 @@ _new_nonterm = sdl_nontem_helper._new_nonterm
 
 
 class DDLStmt(Nonterm):
-    def reduce_CreateDatabaseStmt(self, *kids):
+
+    def reduce_DatabaseStmt(self, *kids):
         self.val = kids[0].val
 
-    def reduce_DropDatabaseStmt(self, *kids):
+    def reduce_RoleStmt(self, *kids):
         self.val = kids[0].val
 
-    def reduce_CreateRoleStmt(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_AlterRoleStmt(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_DropRoleStmt(self, *kids):
+    def reduce_ExtensionPackageStmt(self, *kids):
         self.val = kids[0].val
 
     def reduce_OptWithDDLStmt(self, *kids):
@@ -196,6 +193,9 @@ class InnerDDLStmt(Nonterm):
     def reduce_DropCastStmt(self, *kids):
         self.val = kids[0].val
 
+    def reduce_ExtensionStmt(self, *kids):
+        self.val = kids[0].val
+
 
 class InnerDDLStmtBlock(ListNonterm, element=InnerDDLStmt,
                         separator=Semicolons):
@@ -219,7 +219,7 @@ class UnqualifiedPointerName(Nonterm):
         self.val = kids[0].val
 
 
-class ProductionHelper:
+class ProductionTpl:
     def _passthrough(self, cmd):
         self.val = cmd.val
 
@@ -236,7 +236,7 @@ class ProductionHelper:
         self.val = cmdlist.val
 
 
-def commands_block(parent, *commands, opt=True):
+def commands_block(parent, *commands, opt=True, production_tpl=ProductionTpl):
     if parent is None:
         parent = ''
 
@@ -246,7 +246,7 @@ def commands_block(parent, *commands, opt=True):
     #
     for command in commands:
         clsdict['reduce_{}'.format(command.__name__)] = \
-            ProductionHelper._passthrough
+            production_tpl._passthrough
 
     cmd = _new_nonterm(parent + 'Command', clsdict=clsdict)
 
@@ -259,34 +259,139 @@ def commands_block(parent, *commands, opt=True):
     #   { [ ; ] CommandsList ; }
     clsdict = collections.OrderedDict()
     clsdict['reduce_LBRACE_' + cmdlist.__name__ + '_OptSemicolons_RBRACE'] = \
-        ProductionHelper._block
+        production_tpl._block
     clsdict['reduce_LBRACE_Semicolons_' + cmdlist.__name__ +
             '_OptSemicolons_RBRACE'] = \
-        ProductionHelper._block2
+        production_tpl._block2
     clsdict['reduce_LBRACE_OptSemicolons_RBRACE'] = \
-        ProductionHelper._empty
+        production_tpl._empty
     if not opt:
         #
         #   | Command
         clsdict['reduce_{}'.format(cmd.__name__)] = \
-            ProductionHelper._singleton_list
-    cmdblock = _new_nonterm(parent + 'CommandsBlock', clsdict=clsdict)
+            production_tpl._singleton_list
+    cmdblock = _new_nonterm(
+        parent + 'CommandsBlock',
+        clsdict=clsdict,
+        clsbases=(Nonterm, production_tpl),
+    )
 
     # OptCommandsBlock := CommandsBlock | <e>
     clsdict = collections.OrderedDict()
     clsdict['reduce_{}'.format(cmdblock.__name__)] = \
-        ProductionHelper._passthrough
-    clsdict['reduce_empty'] = ProductionHelper._empty
+        production_tpl._passthrough
+    clsdict['reduce_empty'] = production_tpl._empty
 
     if opt:
-        _new_nonterm('Opt' + parent + 'CommandsBlock', clsdict=clsdict)
+        _new_nonterm(
+            'Opt' + parent + 'CommandsBlock',
+            clsdict=clsdict,
+            clsbases=(Nonterm, production_tpl),
+        )
+
+
+class NestedQLBlockStmt(Nonterm):
+
+    def reduce_Stmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_InnerDDLStmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_SetFieldStmt(self, *kids):
+        self.val = kids[0].val
+
+
+class NestedQLBlock(ProductionTpl):
+
+    @property
+    def allowed_fields(self) -> typing.FrozenSet[str]:
+        raise NotImplementedError
+
+    @property
+    def result(self) -> typing.Any:
+        raise NotImplementedError
+
+    def _process_body(self, body):
+        fields = []
+        stmts = []
+        for stmt in body:
+            if isinstance(stmt, qlast.SetField):
+                if stmt.name in self.allowed_fields:
+                    fields.append(stmt)
+                else:
+                    raise errors.InvalidSyntaxError(
+                        f'unexpected field: {stmt.name!r}',
+                        context=stmt.context,
+                    )
+            else:
+                stmts.append(stmt)
+
+        return fields, stmts
+
+    def _get_text(self, body):
+        # XXX: Workaround the rust lexer issue of returning
+        # byte token offsets instead of character offsets.
+        src_start = body.context.start
+        src_end = body.context.end
+        buffer = body.context.buffer.encode('utf-8')
+        text = buffer[src_start:src_end].decode('utf-8').strip().strip('}{\n')
+        return textwrap.dedent(text).strip('\n')
+
+    def _block(self, lbrace, cmdlist, sc2, rbrace):
+        # LBRACE NestedQLBlock OptSemicolons RBRACE
+        fields, stmts = self._process_body(cmdlist.val)
+        body = qlast.NestedQLBlock(commands=stmts)
+        contexts = [lbrace.context, cmdlist.context]
+        if sc2.context is not None:
+            contexts.append(sc2.context)
+        contexts.append(rbrace.context)
+        body.context = pctx.merge_context(contexts)
+        body.text = self._get_text(body)
+        self.val = self.result(body=body, fields=fields)
+
+    def _block2(self, lbrace, sc1, cmdlist, sc2, rbrace):
+        # LBRACE Semicolons NestedQLBlock OptSemicolons RBRACE
+        fields, stmts = self._process_body(cmdlist.val)
+        body = qlast.NestedQLBlock(commands=stmts)
+        body.context = pctx.merge_context(
+            [sc1.context, cmdlist.context, sc2.context])
+        body.text = self._get_text(body)
+        self.val = self.result(body=body, fields=fields)
+
+    def _empty(self, *kids):
+        # LBRACE OptSemicolons RBRACE | <e>
+        self.val = []
+        body = qlast.NestedQLBlock(commands=[])
+        if len(kids) > 1:
+            body.context = kids[1].context
+        if body.context is None:
+            body.context = pctx.empty_context()
+        body.text = self._get_text(body)
+        self.val = self.result(body=body, fields=[])
+
+
+def nested_ql_block(parent, *commands, opt=True, production_tpl):
+    if not commands:
+        commands = (NestedQLBlockStmt,)
+
+    commands_block(parent, *commands, opt=opt, production_tpl=production_tpl)
 
 
 class UsingStmt(Nonterm):
+
     def reduce_USING_ParenExpr(self, *kids):
-        self.val = qlast.SetSpecialField(
+        self.val = qlast.SetField(
             name='expr',
-            value=kids[1].val
+            value=kids[1].val,
+            special_syntax=True,
+        )
+
+    def reduce_RESET_EXPRESSION(self, *kids):
+        self.val = qlast.SetField(
+            name='expr',
+            value=None,
+            special_syntax=True,
         )
 
 
@@ -294,8 +399,17 @@ class SetFieldStmt(Nonterm):
     # field := <expr>
     def reduce_SET_Identifier_ASSIGN_Expr(self, *kids):
         self.val = qlast.SetField(
-            name=kids[1].val,
+            name=kids[1].val.lower(),
             value=kids[3].val,
+        )
+
+
+class ResetFieldStmt(Nonterm):
+    # RESET field
+    def reduce_RESET_IDENT(self, *kids):
+        self.val = qlast.SetField(
+            name=kids[1].val.lower(),
+            value=None,
         )
 
 
@@ -341,6 +455,7 @@ commands_block(
     UsingStmt,
     RenameStmt,
     SetFieldStmt,
+    ResetFieldStmt,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     DropAnnotationValueStmt,
@@ -348,23 +463,67 @@ commands_block(
 
 
 class AlterAbstract(Nonterm):
+
     def reduce_DROP_ABSTRACT(self, *kids):
-        self.val = qlast.SetSpecialField(
-            name='is_abstract', value=False)
+        # TODO: Raise a DeprecationWarning once we have facility for that.
+        self.val = qlast.SetField(
+            name='abstract',
+            value=qlast.BooleanConstant.from_python(False),
+            special_syntax=True,
+        )
+
+    def reduce_SET_NOT_ABSTRACT(self, *kids):
+        self.val = qlast.SetField(
+            name='abstract',
+            value=qlast.BooleanConstant.from_python(False),
+            special_syntax=True,
+        )
 
     def reduce_SET_ABSTRACT(self, *kids):
-        self.val = qlast.SetSpecialField(
-            name='is_abstract', value=True)
+        self.val = qlast.SetField(
+            name='abstract',
+            value=qlast.BooleanConstant.from_python(True),
+            special_syntax=True,
+        )
+
+    def reduce_RESET_ABSTRACT(self, *kids):
+        self.val = qlast.SetField(
+            name='abstract',
+            value=None,
+            special_syntax=True,
+        )
 
 
 class AlterFinal(Nonterm):
+
     def reduce_DROP_FINAL(self, *kids):
-        self.val = qlast.SetSpecialField(
-            name='is_final', value=False)
+        # TODO: Raise a DeprecationWarning once we have facility for that.
+        self.val = qlast.SetField(
+            name='final',
+            value=qlast.BooleanConstant.from_python(False),
+            special_syntax=True,
+        )
+
+    def reduce_SET_NOT_FINAL(self, *kids):
+        self.val = qlast.SetField(
+            name='final',
+            value=qlast.BooleanConstant.from_python(False),
+            special_syntax=True,
+        )
 
     def reduce_SET_FINAL(self, *kids):
-        self.val = qlast.SetSpecialField(
-            name='is_final', value=True)
+        self.val = qlast.SetField(
+            name='final',
+            value=qlast.BooleanConstant.from_python(True),
+            special_syntax=True,
+        )
+
+    def reduce_RESET_FINAL(self, *kids):
+        self.val = qlast.SetField(
+            name='final',
+            value=None,
+            special_syntax=True,
+        )
 
 
 class OptInheritPosition(Nonterm):
@@ -414,29 +573,235 @@ class AlterExtending(Nonterm):
         self.val = kids[0].val
 
 
+class AlterOwnedStmt(Nonterm):
+
+    def reduce_DROP_OWNED(self, *kids):
+        self.val = qlast.SetField(
+            name='owned',
+            value=qlast.BooleanConstant(value='false'),
+            special_syntax=True,
+        )
+
+    def reduce_SET_OWNED(self, *kids):
+        self.val = qlast.SetField(
+            name='owned',
+            value=qlast.BooleanConstant(value='true'),
+            special_syntax=True,
+        )
+
+
+#
+# DATABASE
+#
+
+
+class DatabaseName(Nonterm):
+
+    def reduce_Identifier(self, kid):
+        self.val = qlast.ObjectRef(
+            module=None,
+            name=kid.val
+        )
+
+    def reduce_ReservedKeyword(self, *kids):
+        name = kids[0].val
+        if (
+            name[:2] == '__' and name[-2:] == '__' and
+            name not in {'__edgedbsys__', '__edgedbtpl__'}
+        ):
+            # There are a few reserved keywords like __std__ and __subject__
+            # that can be used in paths but are prohibited to be used
+            # anywhere else. So just as the tokenizer prohibits using
+            # __names__ in general, we enforce the rule here for the
+            # few remaining reserved __keywords__.
+            raise EdgeQLSyntaxError(
+                "identifiers surrounded by double underscores are forbidden",
+                context=kids[0].context)
+
+        self.val = qlast.ObjectRef(
+            module=None,
+            name=name
+        )
+
+
+class DatabaseStmt(Nonterm):
+
+    def reduce_CreateDatabaseStmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_DropDatabaseStmt(self, *kids):
+        self.val = kids[0].val
+
+
+#
+# CREATE DATABASE
+#
+
+
 commands_block(
     'CreateDatabase',
     SetFieldStmt,
 )
 
 
-#
-# CREATE DATABASE
-#
 class CreateDatabaseStmt(Nonterm):
-    def reduce_CREATE_DATABASE_AnyNodeName_OptCreateRoleCommandsBlock(
-        self,
-        *kids,
-    ):
+    def reduce_CREATE_DATABASE_regular(self, *kids):
+        """%reduce CREATE DATABASE DatabaseName OptCreateDatabaseCommandsBlock
+        """
         self.val = qlast.CreateDatabase(name=kids[2].val, commands=kids[3].val)
+
+    def reduce_CREATE_DATABASE_from_template(self, *kids):
+        """%reduce
+            CREATE DATABASE DatabaseName FROM AnyNodeName
+            OptCreateDatabaseCommandsBlock
+        """
+        self.val = qlast.CreateDatabase(
+            name=kids[2].val,
+            commands=kids[5].val,
+            template=kids[4].val,
+        )
 
 
 #
 # DROP DATABASE
 #
 class DropDatabaseStmt(Nonterm):
-    def reduce_DROP_DATABASE_AnyNodeName(self, *kids):
+    def reduce_DROP_DATABASE_DatabaseName(self, *kids):
         self.val = qlast.DropDatabase(name=kids[2].val)
+
+
+#
+# EXTENSION PACKAGE
+#
+
+class ExtensionPackageStmt(Nonterm):
+
+    def reduce_CreateExtensionPackageStmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_DropExtensionPackageStmt(self, *kids):
+        self.val = kids[0].val
+
+
+#
+# CREATE EXTENSION PACKAGE
+#
+class ExtensionPackageBody(typing.NamedTuple):
+
+    body: qlast.NestedQLBlock
+    fields: typing.List[qlast.SetField]
+
+
+class CreateExtensionPackageBodyBlock(NestedQLBlock):
+
+    @property
+    def allowed_fields(self) -> typing.FrozenSet[str]:
+        return frozenset({'internal'})
+
+    @property
+    def result(self) -> typing.Any:
+        return ExtensionPackageBody
+
+
+nested_ql_block(
+    'CreateExtensionPackage',
+    production_tpl=CreateExtensionPackageBodyBlock,
+)
+
+
+class CreateExtensionPackageStmt(Nonterm):
+
+    def reduce_CreateExtensionPackageStmt(self, *kids):
+        r"""%reduce CREATE EXTENSIONPACKAGE ShortNodeName
+                    ExtensionVersion
+                    OptCreateExtensionPackageCommandsBlock
+        """
+        self.val = qlast.CreateExtensionPackage(
+            name=kids[2].val,
+            version=kids[3].val,
+            body=kids[4].val.body,
+            commands=kids[4].val.fields,
+        )
+
+
+#
+# DROP EXTENSION PACKAGE
+#
+class DropExtensionPackageStmt(Nonterm):
+
+    def reduce_DropExtensionPackageStmt(self, *kids):
+        r"""%reduce DROP EXTENSIONPACKAGE ShortNodeName ExtensionVersion"""
+        self.val = qlast.DropExtensionPackage(
+            name=kids[2].val,
+            version=kids[3].val,
+        )
+
+
+#
+# EXTENSIONS
+#
+
+
+class ExtensionStmt(Nonterm):
+
+    def reduce_CreateExtensionStmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_DropExtensionStmt(self, *kids):
+        self.val = kids[0].val
+
+
+#
+# CREATE EXTENSION
+#
+
+
+commands_block(
+    'CreateExtension',
+    SetFieldStmt,
+)
+
+
+class CreateExtensionStmt(Nonterm):
+
+    def reduce_CreateExtensionStmt(self, *kids):
+        r"""%reduce CREATE EXTENSION ShortNodeName OptExtensionVersion
+                    OptCreateExtensionCommandsBlock
+        """
+        self.val = qlast.CreateExtension(
+            name=kids[2].val,
+            version=kids[3].val,
+            commands=kids[4].val,
+        )
+
+
+#
+# DROP EXTENSION
+#
+class DropExtensionStmt(Nonterm):
+
+    def reduce_DropExtensionPackageStmt(self, *kids):
+        r"""%reduce DROP EXTENSION ShortNodeName OptExtensionVersion"""
+        self.val = qlast.DropExtension(
+            name=kids[2].val,
+            version=kids[3].val,
+        )
+
+
+#
+# ROLE
+#
+
+class RoleStmt(Nonterm):
+
+    def reduce_CreateRoleStmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_AlterRoleStmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_DropRoleStmt(self, *kids):
+        self.val = kids[0].val
 
 
 #
@@ -501,6 +866,7 @@ commands_block(
     'AlterRole',
     RenameStmt,
     SetFieldStmt,
+    ResetFieldStmt,
     AlterRoleExtending,
     opt=False
 )
@@ -593,32 +959,33 @@ class CreateConcreteConstraintStmt(Nonterm):
 class SetDelegatedStmt(Nonterm):
 
     def reduce_SET_DELEGATED(self, *kids):
-        self.val = qlast.SetSpecialField(
+        self.val = qlast.SetField(
             name='delegated',
-            value=True,
+            value=qlast.BooleanConstant.from_python(True),
+            special_syntax=True,
         )
 
-    def reduce_DROP_DELEGATED(self, *kids):
-        self.val = qlast.SetSpecialField(
+    def reduce_SET_NOT_DELEGATED(self, *kids):
+        self.val = qlast.SetField(
             name='delegated',
-            value=False,
+            value=qlast.BooleanConstant.from_python(False),
+            special_syntax=True,
         )
 
-
-class AlterConstraintOwned(Nonterm):
-    def reduce_DROP_OWNED(self, *kids):
-        self.val = qlast.AlterConstraintOwned(owned=False)
-
-    def reduce_SET_OWNED(self, *kids):
-        self.val = qlast.AlterConstraintOwned(owned=True)
+    def reduce_RESET_DELEGATED(self, *kids):
+        self.val = qlast.SetField(
+            name='delegated',
+            value=None,
+            special_syntax=True,
+        )
 
 
 commands_block(
     'AlterConcreteConstraint',
-    RenameStmt,
     SetFieldStmt,
+    ResetFieldStmt,
     SetDelegatedStmt,
-    AlterConstraintOwned,
+    AlterOwnedStmt,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     DropAnnotationValueStmt,
@@ -695,7 +1062,7 @@ class CreateScalarTypeStmt(Nonterm):
         """
         self.val = qlast.CreateScalarType(
             name=kids[4].val,
-            is_abstract=True,
+            abstract=True,
             bases=kids[5].val,
             commands=kids[6].val
         )
@@ -707,7 +1074,7 @@ class CreateScalarTypeStmt(Nonterm):
         """
         self.val = qlast.CreateScalarType(
             name=kids[4].val,
-            is_final=True,
+            final=True,
             bases=kids[5].val,
             commands=kids[6].val
         )
@@ -732,6 +1099,7 @@ commands_block(
     'AlterScalarType',
     RenameStmt,
     SetFieldStmt,
+    ResetFieldStmt,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     DropAnnotationValueStmt,
@@ -825,18 +1193,11 @@ class DropAnnotationStmt(Nonterm):
         )
 
 
-class AlterIndexOwned(Nonterm):
-    def reduce_DROP_OWNED(self, *kids):
-        self.val = qlast.AlterIndexOwned(owned=False)
-
-    def reduce_SET_OWNED(self, *kids):
-        self.val = qlast.AlterIndexOwned(owned=True)
-
-
 commands_block(
     'AlterIndex',
     SetFieldStmt,
-    AlterIndexOwned,
+    ResetFieldStmt,
+    AlterOwnedStmt,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     DropAnnotationValueStmt,
@@ -886,16 +1247,6 @@ class DropIndexStmt(Nonterm):
         )
 
 
-class SetPropertyTypeStmt(Nonterm):
-    def reduce_SETTYPE_FullTypeExpr(self, *kids):
-        self.val = qlast.SetPropertyType(type=kids[1].val)
-
-
-class SetLinkTypeStmt(Nonterm):
-    def reduce_SETTYPE_FullTypeExpr(self, *kids):
-        self.val = qlast.SetLinkType(type=kids[1].val)
-
-
 #
 # CREATE PROPERTY
 #
@@ -919,6 +1270,7 @@ commands_block(
     'AlterProperty',
     RenameStmt,
     SetFieldStmt,
+    ResetFieldStmt,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     DropAnnotationValueStmt,
@@ -996,18 +1348,15 @@ class CreateConcretePropertyStmt(Nonterm):
             OptCreateConcretePropertyCommandsBlock
         """
         cmds = kids[4].val
-        new_cmds = []
         target = None
 
         for cmd in cmds:
-            if isinstance(cmd, qlast.SetSpecialField) and cmd.name == 'expr':
+            if isinstance(cmd, qlast.SetField) and cmd.name == 'expr':
                 if target is not None:
                     raise EdgeQLSyntaxError(
                         f'computable property with more than one expression',
                         context=kids[3].context)
                 target = cmd.value
-            else:
-                new_cmds.append(cmd)
 
         if target is None:
             raise EdgeQLSyntaxError(
@@ -1019,50 +1368,96 @@ class CreateConcretePropertyStmt(Nonterm):
             is_required=kids[1].val.required,
             cardinality=kids[1].val.cardinality,
             target=target,
-            commands=new_cmds,
+            commands=cmds,
         )
 
 
 #
-# ALTER LINK ... { ALTER PROPERTY
+# ALTER LINK/PROPERTY
 #
+
+
+class OptAlterUsingClause(Nonterm):
+    def reduce_USING_ParenExpr(self, *kids):
+        self.val = kids[1].val
+
+    def reduce_empty(self):
+        self.val = None
+
 
 class SetCardinalityStmt(Nonterm):
 
-    def reduce_SET_SINGLE(self, *kids):
-        self.val = qlast.SetSpecialField(
+    def reduce_SET_SINGLE_OptAlterUsingClause(self, *kids):
+        self.val = qlast.SetPointerCardinality(
             name='cardinality',
-            value=qltypes.SchemaCardinality.One,
+            value=qlast.StringConstant.from_python(
+                qltypes.SchemaCardinality.One),
+            special_syntax=True,
+            conv_expr=kids[2].val,
         )
 
     def reduce_SET_MULTI(self, *kids):
-        self.val = qlast.SetSpecialField(
+        self.val = qlast.SetPointerCardinality(
             name='cardinality',
-            value=qltypes.SchemaCardinality.Many,
+            value=qlast.StringConstant.from_python(
+                qltypes.SchemaCardinality.Many),
+            special_syntax=True,
+        )
+
+    def reduce_RESET_CARDINALITY_OptAlterUsingClause(self, *kids):
+        self.val = qlast.SetPointerCardinality(
+            name='cardinality',
+            value=None,
+            special_syntax=True,
+            conv_expr=kids[2].val,
         )
 
 
 class SetRequiredStmt(Nonterm):
 
-    def reduce_SET_REQUIRED(self, *kids):
-        self.val = qlast.SetSpecialField(
+    def reduce_SET_REQUIRED_OptAlterUsingClause(self, *kids):
+        self.val = qlast.SetPointerOptionality(
             name='required',
-            value=True,
+            value=qlast.BooleanConstant.from_python(True),
+            special_syntax=True,
+            fill_expr=kids[2].val,
+        )
+
+    def reduce_SET_OPTIONAL(self, *kids):
+        self.val = qlast.SetPointerOptionality(
+            name='required',
+            value=qlast.BooleanConstant.from_python(False),
+            special_syntax=True,
         )
 
     def reduce_DROP_REQUIRED(self, *kids):
-        self.val = qlast.SetSpecialField(
+        # TODO: Raise a DeprecationWarning once we have facility for that.
+        self.val = qlast.SetPointerOptionality(
             name='required',
-            value=False,
+            value=qlast.BooleanConstant.from_python(False),
+            special_syntax=True,
+        )
+
+    def reduce_RESET_OPTIONALITY(self, *kids):
+        self.val = qlast.SetPointerOptionality(
+            name='required',
+            value=None,
+            special_syntax=True,
         )
 
 
-class AlterPropertyOwned(Nonterm):
-    def reduce_DROP_OWNED(self, *kids):
-        self.val = qlast.AlterPropertyOwned(owned=False)
+class SetPointerTypeStmt(Nonterm):
 
-    def reduce_SET_OWNED(self, *kids):
-        self.val = qlast.AlterPropertyOwned(owned=True)
+    def reduce_SETTYPE_FullTypeExpr_OptAlterUsingClause(self, *kids):
+        self.val = qlast.SetPointerType(
+            value=kids[1].val,
+            cast_expr=kids[2].val,
+        )
+
+    def reduce_RESET_TYPE(self, *kids):
+        self.val = qlast.SetPointerType(
+            value=None,
+        )
 
 
 commands_block(
@@ -1070,11 +1465,12 @@ commands_block(
     UsingStmt,
     RenameStmt,
     SetFieldStmt,
-    AlterPropertyOwned,
+    ResetFieldStmt,
+    AlterOwnedStmt,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     DropAnnotationValueStmt,
-    SetPropertyTypeStmt,
+    SetPointerTypeStmt,
     SetCardinalityStmt,
     SetRequiredStmt,
     AlterSimpleExtending,
@@ -1147,6 +1543,7 @@ commands_block(
     'AlterLink',
     RenameStmt,
     SetFieldStmt,
+    ResetFieldStmt,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     DropAnnotationValueStmt,
@@ -1249,18 +1646,15 @@ class CreateConcreteLinkStmt(Nonterm):
             OptCreateConcreteLinkCommandsBlock
         """
         cmds = kids[4].val
-        new_cmds = []
         target = None
 
         for cmd in cmds:
-            if isinstance(cmd, qlast.SetSpecialField) and cmd.name == 'expr':
+            if isinstance(cmd, qlast.SetField) and cmd.name == 'expr':
                 if target is not None:
                     raise EdgeQLSyntaxError(
                         f'computable link with more than one expression',
                         context=kids[3].context)
                 target = cmd.value
-            else:
-                new_cmds.append(cmd)
 
         if target is None:
             raise EdgeQLSyntaxError(
@@ -1272,16 +1666,8 @@ class CreateConcreteLinkStmt(Nonterm):
             is_required=kids[1].val.required,
             cardinality=kids[1].val.cardinality,
             target=target,
-            commands=new_cmds,
+            commands=cmds,
         )
-
-
-class AlterLinkOwned(Nonterm):
-    def reduce_DROP_OWNED(self, *kids):
-        self.val = qlast.AlterLinkOwned(owned=False)
-
-    def reduce_SET_OWNED(self, *kids):
-        self.val = qlast.AlterLinkOwned(owned=True)
 
 
 commands_block(
@@ -1289,13 +1675,14 @@ commands_block(
     UsingStmt,
     RenameStmt,
     SetFieldStmt,
-    AlterLinkOwned,
+    ResetFieldStmt,
+    AlterOwnedStmt,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     DropAnnotationValueStmt,
     SetCardinalityStmt,
     SetRequiredStmt,
-    SetLinkTypeStmt,
+    SetPointerTypeStmt,
     AlterSimpleExtending,
     CreateConcreteConstraintStmt,
     AlterConcreteConstraintStmt,
@@ -1366,7 +1753,7 @@ class CreateObjectTypeStmt(Nonterm):
         self.val = qlast.CreateObjectType(
             name=kids[3].val,
             bases=kids[4].val,
-            is_abstract=True,
+            abstract=True,
             commands=kids[5].val,
         )
 
@@ -1378,7 +1765,7 @@ class CreateObjectTypeStmt(Nonterm):
         self.val = qlast.CreateObjectType(
             name=kids[2].val,
             bases=kids[3].val,
-            is_abstract=False,
+            abstract=False,
             commands=kids[4].val,
         )
 
@@ -1391,6 +1778,7 @@ commands_block(
     'AlterObjectType',
     RenameStmt,
     SetFieldStmt,
+    ResetFieldStmt,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     DropAnnotationValueStmt,
@@ -1470,9 +1858,10 @@ class CreateAliasStmt(Nonterm):
         self.val = qlast.CreateAlias(
             name=kids[2].val,
             commands=[
-                qlast.SetSpecialField(
+                qlast.SetField(
                     name='expr',
                     value=kids[4].val,
+                    special_syntax=True,
                 )
             ]
         )
@@ -1497,6 +1886,7 @@ commands_block(
     UsingStmt,
     RenameStmt,
     SetFieldStmt,
+    ResetFieldStmt,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     DropAnnotationValueStmt,
@@ -1618,6 +2008,8 @@ commands_block(
     'AlterFunction',
     commondl.FromFunction,
     SetFieldStmt,
+    ResetFieldStmt,
+    RenameStmt,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     DropAnnotationValueStmt,
@@ -1759,12 +2151,12 @@ class CreateOperatorStmt(Nonterm):
             params=kids[5].val,
             returning_typemod=kids[7].val,
             returning=kids[8].val,
-            is_abstract=True,
+            abstract=True,
             **self._process_operator_body(kids[9], abstract=True)
         )
 
     def _process_operator_body(self, block, abstract: bool=False):
-        props = {}
+        props: typing.Dict[str, typing.Any] = {}
 
         commands = []
         from_operator = None
@@ -1844,6 +2236,7 @@ class CreateOperatorStmt(Nonterm):
 commands_block(
     'AlterOperator',
     SetFieldStmt,
+    ResetFieldStmt,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     DropAnnotationValueStmt,
@@ -2069,6 +2462,7 @@ class CreateCastStmt(Nonterm):
 commands_block(
     'AlterCast',
     SetFieldStmt,
+    ResetFieldStmt,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     DropAnnotationValueStmt,
@@ -2132,48 +2526,27 @@ class MigrationStmt(Nonterm):
         self.val = kids[0].val
 
 
-class CreateMigrationBlockStmt(Nonterm):
+class MigrationBody(typing.NamedTuple):
 
-    def reduce_Stmt(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_InnerDDLStmt(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_SetFieldStmt(self, *kids):
-        self.val = kids[0].val
+    body: qlast.NestedQLBlock
+    fields: typing.List[qlast.SetField]
 
 
-class CreateMigrationBody(
-    ListNonterm,
-    element=CreateMigrationBlockStmt,
-    separator=Semicolons,
-):
-    pass
+class CreateMigrationBodyBlock(NestedQLBlock):
+
+    @property
+    def allowed_fields(self) -> typing.FrozenSet[str]:
+        return frozenset({'message'})
+
+    @property
+    def result(self) -> typing.Any:
+        return MigrationBody
 
 
-class OptCreateMigrationBody(Nonterm):
-
-    def reduce_1(self, *kids):
-        """%reduce
-            LBRACE CreateMigrationBody OptSemicolons RBRACE
-        """
-        self.val = kids[1].val
-
-    def reduce_2(self, *kids):
-        """%reduce
-            LBRACE Semicolons CreateMigrationBody OptSemicolons RBRACE
-        """
-        self.val = kids[2].val
-
-    def reduce_3(self, *kids):
-        """%reduce
-            LBRACE OptSemicolons RBRACE
-        """
-        self.val = []
-
-    def reduce_empty(self):
-        self.val = []
+nested_ql_block(
+    'CreateMigration',
+    production_tpl=CreateMigrationBodyBlock,
+)
 
 
 class MigrationNameAndParent(typing.NamedTuple):
@@ -2205,30 +2578,27 @@ class OptMigrationNameParentName(Nonterm):
 
 class CreateMigrationStmt(Nonterm):
 
-    def reduce_CreateMigration_Commands(self, *kids):
+    def reduce_CreateMigration(self, *kids):
         r"""%reduce
-            CREATE MIGRATION OptMigrationNameParentName OptCreateMigrationBody
+            CREATE MIGRATION OptMigrationNameParentName
+            OptCreateMigrationCommandsBlock
         """
-        message = None
-
-        body = []
-        for stmt in kids[3].val:
-            if isinstance(stmt, qlast.SetField):
-                if stmt.name == 'message':
-                    message = stmt.value
-                else:
-                    raise errors.InvalidSyntaxError(
-                        f'unexpected field: {stmt.name!r}',
-                        context=stmt.context,
-                    )
-            else:
-                body.append(stmt)
-
         self.val = qlast.CreateMigration(
             name=kids[2].val.name,
             parent=kids[2].val.parent,
-            message=message,
-            commands=body,
+            body=kids[3].val.body,
+        )
+
+    def reduce_CreateAppliedMigration(self, *kids):
+        r"""%reduce
+            CREATE APPLIED MIGRATION OptMigrationNameParentName
+            OptCreateMigrationCommandsBlock
+        """
+        self.val = qlast.CreateMigration(
+            name=kids[3].val.name,
+            parent=kids[3].val.parent,
+            body=kids[4].val.body,
+            metadata_only=True,
         )
 
 
@@ -2271,6 +2641,7 @@ class CommitMigrationStmt(Nonterm):
 commands_block(
     'AlterMigration',
     SetFieldStmt,
+    ResetFieldStmt,
     opt=False,
 )
 

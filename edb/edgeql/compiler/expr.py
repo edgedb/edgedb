@@ -34,6 +34,7 @@ from edb.ir import typeutils as irtyputils
 
 from edb.schema import abc as s_abc
 from edb.schema import constraints as s_constr
+from edb.schema import name as sn
 from edb.schema import objtypes as s_objtypes
 from edb.schema import scalars as s_scalars
 from edb.schema import types as s_types
@@ -171,7 +172,7 @@ def compile_BaseConstant(
     node_cls: typing.Type[irast.BaseConstant]
 
     if isinstance(expr, qlast.StringConstant):
-        std_type = 'std::str'
+        std_type = sn.QualName('std', 'str')
         node_cls = irast.StringConstant
     elif isinstance(expr, qlast.IntegerConstant):
         value = value.replace("_", "")
@@ -180,33 +181,33 @@ def compile_BaseConstant(
             int_value = -int_value
             value = f'-{value}'
         # If integer value is out of int64 bounds, use decimal
-        std_type = 'std::int64'
+        std_type = sn.QualName('std', 'int64')
         node_cls = irast.IntegerConstant
     elif isinstance(expr, qlast.FloatConstant):
         value = value.replace("_", "")
         if expr.is_negative:
             value = f'-{value}'
-        std_type = 'std::float64'
+        std_type = sn.QualName('std', 'float64')
         node_cls = irast.FloatConstant
     elif isinstance(expr, qlast.DecimalConstant):
         assert value[-1] == 'n'
         value = value[:-1].replace("_", "")
         if expr.is_negative:
             value = f'-{value}'
-        std_type = 'std::decimal'
+        std_type = sn.QualName('std', 'decimal')
         node_cls = irast.DecimalConstant
     elif isinstance(expr, qlast.BigintConstant):
         assert value[-1] == 'n'
         value = value[:-1].replace("_", "")
         if expr.is_negative:
             value = f'-{value}'
-        std_type = 'std::bigint'
+        std_type = sn.QualName('std', 'bigint')
         node_cls = irast.BigintConstant
     elif isinstance(expr, qlast.BooleanConstant):
-        std_type = 'std::bool'
+        std_type = sn.QualName('std', 'bool')
         node_cls = irast.BooleanConstant
     elif isinstance(expr, qlast.BytesConstant):
-        std_type = 'std::bytes'
+        std_type = sn.QualName('std', 'bytes')
         node_cls = irast.BytesConstant
     else:
         raise RuntimeError(f'unexpected constant type: {type(expr)}')
@@ -227,7 +228,7 @@ def try_fold_binop(
         anyreal = typing.cast(s_scalars.ScalarType,
                               ctx.env.schema.get('std::anyreal'))
 
-        if (opcall.func_shortname in ('std::+', 'std::*') and
+        if (str(opcall.func_shortname) in ('std::+', 'std::*') and
                 opcall.operator_kind is ft.OperatorKind.Infix and
                 all(setgen.get_set_type(a.expr, ctx=ctx).issubclass(
                     ctx.env.schema, anyreal)
@@ -278,7 +279,6 @@ def try_fold_associative_binop(
                                 expr=my_const,
                             ),
                         ],
-                        func_module_id=opcall.func_module_id,
                         func_shortname=op,
                         func_polymorphic=opcall.func_polymorphic,
                         func_sql_function=opcall.func_sql_function,
@@ -304,7 +304,6 @@ def try_fold_associative_binop(
                             expr=other_binop_node,
                         ),
                     ],
-                    func_module_id=opcall.func_module_id,
                     func_shortname=op,
                     func_polymorphic=opcall.func_polymorphic,
                     func_sql_function=opcall.func_sql_function,
@@ -326,10 +325,18 @@ def try_fold_associative_binop(
 def compile_NamedTuple(
         expr: qlast.NamedTuple, *, ctx: context.ContextLevel) -> irast.Set:
 
+    names = set()
     elements = []
     for el in expr.elements:
+        name = el.name.name
+        if name in names:
+            raise errors.QueryError(
+                f"named tuple has duplicate field '{name}'",
+                context=el.context)
+        names.add(name)
+
         element = irast.TupleElement(
-            name=el.name.name,
+            name=name,
             val=setgen.ensure_set(dispatch.compile(el.val, ctx=ctx), ctx=ctx)
         )
         elements.append(element)
@@ -398,7 +405,8 @@ def compile_UnaryOp(
 @dispatch.compile.register(qlast.TypeCast)
 def compile_TypeCast(
         expr: qlast.TypeCast, *, ctx: context.ContextLevel) -> irast.Set:
-    target_typeref = typegen.ql_typeexpr_to_ir_typeref(expr.type, ctx=ctx)
+    target_stype = typegen.ql_typeexpr_to_type(expr.type, ctx=ctx)
+    target_typeref = typegen.type_to_typeref(target_stype, env=ctx.env)
     ir_expr: irast.Base
 
     if (isinstance(expr.expr, qlast.Array) and not expr.expr.elements and
@@ -448,7 +456,7 @@ def compile_TypeCast(
                     context=expr.expr.context)
 
             typeref = typegen.type_to_typeref(
-                ctx.env.get_track_schema_type('std::json'),
+                ctx.env.get_track_schema_type(sn.QualName('std', 'json')),
                 env=ctx.env,
             )
 
@@ -498,7 +506,7 @@ def compile_TypeCast(
             )
         else:
             param_first_type = ctx.env.query_parameters[param_name].schema_type
-            if not param_first_type.explicitly_castable_to(pt, ctx.env.schema):
+            if not param_first_type.castable_to(pt, ctx.env.schema):
                 raise errors.QueryError(
                     f'cannot cast '
                     f'{param_first_type.get_displayname(ctx.env.schema)} to '
@@ -509,17 +517,14 @@ def compile_TypeCast(
 
     else:
         with ctx.new() as subctx:
-            # We use "exposed" mode in case this is a type of a cast
-            # that wants view shapes, e.g. a std::json cast.  We do
-            # this wholesale to support tuple and array casts without
-            # having to analyze the target type (which is cumbersome
-            # in QL AST).
-            subctx.expr_exposed = True
+            if target_stype.contains_json(subctx.env.schema):
+                # JSON wants type shapes and acts as an output sink.
+                subctx.expr_exposed = True
+                subctx.inhibit_implicit_limit = True
             ir_expr = dispatch.compile(expr.expr, ctx=subctx)
 
-    new_stype = typegen.ql_typeexpr_to_type(expr.type, ctx=ctx)
     return casts.compile_cast(
-        ir_expr, new_stype, cardinality_mod=expr.cardinality_mod,
+        ir_expr, target_stype, cardinality_mod=expr.cardinality_mod,
         ctx=ctx, srcctx=expr.expr.context)
 
 

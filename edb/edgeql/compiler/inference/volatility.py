@@ -117,7 +117,9 @@ def __infer_set(
     ir: irast.Set,
     env: context.Environment,
 ) -> qltypes.Volatility:
-    if ir.rptr is not None:
+    if ir.is_binding:
+        return STABLE
+    elif ir.rptr is not None:
         return infer_volatility(ir.rptr.source, env)
     elif ir.expr is not None:
         return infer_volatility(ir.expr, env)
@@ -216,6 +218,8 @@ def __infer_select_stmt(
 
     if ir.limit is not None:
         components.append(ir.limit)
+
+    components.extend(ir.bindings)
 
     return _common_volatility(components, env)
 

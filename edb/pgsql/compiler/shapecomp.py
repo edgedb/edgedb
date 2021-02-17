@@ -64,6 +64,7 @@ def compile_shape(
 
         for el in shape:
             rptr = el.rptr
+            assert rptr is not None
             ptrref = rptr.ptrref
             is_singleton = ptrref.dir_cardinality.is_single()
             value: pgast.BaseExpr

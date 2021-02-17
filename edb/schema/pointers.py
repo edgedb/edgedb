@@ -25,12 +25,12 @@ import json
 from edb import errors
 
 from edb.common import enum
+from edb.common import struct
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
 from edb.edgeql import quote as qlquote
-from edb.edgeql.compiler import normalization as qlnorm
 
 from . import abc as s_abc
 from . import annos as s_anno
@@ -58,41 +58,58 @@ class PointerDirection(enum.StrEnum):
 
 
 def merge_cardinality(
-    target: Pointer,
-    sources: List[Pointer],
+    ptr: Pointer,
+    bases: List[Pointer],
     field_name: str,
     *,
     ignore_local: bool,
     schema: s_schema.Schema,
 ) -> Any:
-    current = None
+    current: Optional[qltypes.SchemaCardinality] = None
     current_from = None
 
-    if ignore_local:
-        pointers = list(sources)
-    else:
-        pointers = [target] + list(sources)
+    if not ignore_local:
+        current = ptr.get_explicit_field_value(schema, field_name, None)
+        if current is not None:
+            current_from = ptr
 
-    for source in pointers:
-        nextval = source.get_explicit_field_value(schema, field_name, None)
-        if nextval is not None:
-            if current is None:
-                current = nextval
-                current_from = source
-            elif current is not nextval:
-                tgt_repr = target.get_verbosename(
-                    schema, with_parent=True)
-                cf_repr = current_from.get_verbosename(
-                    schema, with_parent=True)
-                other_repr = source.get_verbosename(
-                    schema, with_parent=True)
+    for base in bases:
+        # ignore abstract pointers
+        if base.generic(schema):
+            continue
 
-                raise errors.SchemaDefinitionError(
-                    f'cannot redefine the target cardinality of '
-                    f'{tgt_repr}: it is defined '
-                    f'as {current.as_ptr_qual()!r} in {cf_repr} and '
-                    f'as {nextval.as_ptr_qual()!r} in {other_repr}.'
-                )
+        nextval: Optional[qltypes.SchemaCardinality] = (
+            base.get_field_value(schema, field_name))
+        if nextval is None:
+            continue
+
+        if current is None:
+            current = nextval
+            current_from = base
+        elif not current.is_known() and nextval is not None:
+            current = nextval
+            current_from = base
+        elif current is not nextval:
+            tgt_repr = ptr.get_verbosename(schema, with_parent=True)
+            assert current_from is not None
+            cf_repr = current_from.get_verbosename(schema, with_parent=True)
+            other_repr = base.get_verbosename(schema, with_parent=True)
+
+            if current.is_known():
+                current_qual = f'defined as {current.as_ptr_qual()!r}'
+            else:
+                current_qual = 'unknown'
+
+            if nextval.is_known():
+                nextval_qual = f'defined as {nextval.as_ptr_qual()!r}'
+            else:
+                nextval_qual = 'unknown'
+
+            raise errors.SchemaDefinitionError(
+                f'cannot redefine the cardinality of '
+                f'{tgt_repr}: it is {current_qual} in {cf_repr} and '
+                f'is {nextval_qual} in {other_repr}.'
+            )
 
     return current
 
@@ -203,6 +220,7 @@ def merge_target(
 ) -> Optional[s_types.Type]:
 
     target = None
+    current_source = None
 
     for base in bases:
         base_target = base.get_target(schema)
@@ -211,19 +229,129 @@ def merge_target(
 
         if target is None:
             target = base_target
+            current_source = base.get_source(schema)
         else:
-            schema, target = Pointer.merge_targets(
-                schema, ptr, target, base_target, allow_contravariant=True)
+            assert current_source is not None
+            source = base.get_source(schema)
+            assert source is not None
+            schema, target = _merge_types(
+                schema,
+                ptr,
+                target,
+                base_target,
+                t1_source=current_source,
+                t2_source=source,
+                allow_contravariant=True,
+            )
 
     if not ignore_local:
         local_target = ptr.get_target(schema)
         if target is None:
             target = local_target
         elif local_target is not None:
-            schema, target = Pointer.merge_targets(
-                schema, ptr, target, local_target)
+            assert current_source is not None
+            schema, target = _merge_types(
+                schema,
+                ptr,
+                target,
+                local_target,
+                t1_source=current_source,
+                t2_source=None,
+            )
 
     return target
+
+
+def _merge_types(
+    schema: s_schema.Schema,
+    ptr: Pointer,
+    t1: s_types.Type,
+    t2: s_types.Type,
+    *,
+    t1_source: so.Object,
+    t2_source: Optional[so.Object],
+    allow_contravariant: bool = False,
+) -> Tuple[s_schema.Schema, Optional[s_types.Type]]:
+    if t1 == t2:
+        return schema, t1
+
+    # When two pointers are merged, check target compatibility
+    # and return a target that satisfies both specified targets.
+
+    if (isinstance(t1, s_abc.ScalarType) !=
+            isinstance(t2, s_abc.ScalarType)):
+        # Mixing a property with a link.
+        vnp = ptr.get_verbosename(schema, with_parent=True)
+        vn = ptr.get_verbosename(schema)
+        t1_vn = t1.get_verbosename(schema)
+        t2_vn = t2.get_verbosename(schema)
+        t1_cls = 'property' if isinstance(t1, s_abc.ScalarType) else 'link'
+        t2_cls = 'property' if isinstance(t2, s_abc.ScalarType) else 'link'
+
+        t1_source_vn = t1_source.get_verbosename(schema, with_parent=True)
+        if t2_source is None:
+            raise errors.SchemaError(
+                f'cannot redefine {vnp} as {t2_vn}',
+                details=(
+                    f'{vn} is defined as a {t1_cls} to {t1_vn} in'
+                    f' parent {t1_source_vn}'
+                ),
+            )
+        else:
+            t2_source_vn = t2_source.get_verbosename(schema, with_parent=True)
+            raise errors.SchemaError(
+                f'inherited {vnp} has a type conflict',
+                details=(
+                    f'{vn} is defined as a {t1_cls} to {t1_vn} in'
+                    f' parent {t1_source_vn} and as {t2_cls} in'
+                    f' parent {t2_source_vn}'
+                ),
+            )
+
+    else:
+        assert isinstance(t1, so.SubclassableObject)
+        assert isinstance(t2, so.SubclassableObject)
+
+        if t2.issubclass(schema, t1):
+            # The new target is a subclass of the current target, so
+            # it is a more specific requirement.
+            current_target = t2
+        elif allow_contravariant and t1.issubclass(schema, t2):
+            current_target = t1
+        else:
+            # The new target is not a subclass, of the previously seen
+            # targets, which creates an unresolvable target requirement
+            # conflict.
+            vnp = ptr.get_verbosename(schema, with_parent=True)
+            vn = ptr.get_verbosename(schema)
+            t1_vn = t1.get_verbosename(schema)
+            t2_vn = t2.get_verbosename(schema)
+
+            t1_source_vn = t1_source.get_verbosename(schema, with_parent=True)
+            if t2_source is None:
+                raise errors.SchemaError(
+                    f'cannot redefine {vnp} as {t2_vn}',
+                    details=(
+                        f'{vn} is defined as {t1_vn} in'
+                        f' parent {t1_source_vn}'
+                    ),
+                )
+            else:
+                t2_source_vn = t2_source.get_verbosename(
+                    schema, with_parent=True)
+                raise errors.SchemaError(
+                    f'inherited {vnp} has a type conflict',
+                    details=(
+                        f'{vn} is defined as {t1_vn} in'
+                        f' parent {t1_source_vn} and as {t2_vn} in'
+                        f' parent {t2_source_vn}'
+                    ),
+                )
+
+        return schema, current_target
+
+
+Pointer_T = TypeVar("Pointer_T", bound="Pointer")
 
 
 class Pointer(referencing.ReferencedInheritingObject,
@@ -232,57 +360,91 @@ class Pointer(referencing.ReferencedInheritingObject,
               s_abc.Pointer):
 
     source = so.SchemaField(
-        so.Object,
+        so.InheritingObject,
         default=None, compcoef=None,
         inheritable=False)
 
     target = so.SchemaField(
         s_types.Type,
         merge_fn=merge_target,
-        default=None, compcoef=0.85)
+        default=None,
+        compcoef=0.85,
+        special_ddl_syntax=True,
+    )
 
     required = so.SchemaField(
         bool,
-        default=False, compcoef=0.909,
-        merge_fn=merge_required)
+        default=False,
+        compcoef=0.909,
+        special_ddl_syntax=True,
+        describe_visibility=(
+            so.DescribeVisibilityPolicy.SHOW_IF_EXPLICIT_OR_DERIVED
+        ),
+        merge_fn=merge_required,
+    )
 
     readonly = so.SchemaField(
         bool,
         allow_ddl_set=True,
-        default=False, compcoef=0.909,
-        merge_fn=merge_readonly)
+        describe_visibility=(
+            so.DescribeVisibilityPolicy.SHOW_IF_EXPLICIT_OR_DERIVED_NOT_DEFAULT
+        ),
+        default=False,
+        compcoef=0.909,
+        merge_fn=merge_readonly,
+    )
 
     # For non-derived pointers this is strongly correlated with
     # "expr" below.  Derived pointers might have "computable" set,
     # but expr=None.
     computable = so.SchemaField(
         bool,
-        default=None,
+        default=False,
         compcoef=0.99,
     )
 
     # True, if this pointer is defined in an Alias.
-    is_from_alias = so.SchemaField(
+    from_alias = so.SchemaField(
         bool,
         default=None,
         compcoef=0.99,
+        # This value needs to be recorded in the delta commands
+        # to signal that we don't want to render this command in DDL.
+        aux_cmd_data=True,
     )
 
     # Computable pointers have this set to an expression
     # defining them.
     expr = so.SchemaField(
         s_expr.Expression,
-        default=None, coerce=True, compcoef=0.909)
+        default=None,
+        coerce=True,
+        compcoef=0.909,
+        special_ddl_syntax=True,
+    )
 
     default = so.SchemaField(
         s_expr.Expression,
         allow_ddl_set=True,
-        default=None, coerce=True, compcoef=0.909)
+        describe_visibility=(
+            so.DescribeVisibilityPolicy.SHOW_IF_EXPLICIT_OR_DERIVED
+        ),
+        default=None,
+        coerce=True,
+        compcoef=0.909,
+    )
 
     cardinality = so.SchemaField(
         qltypes.SchemaCardinality,
-        default=None, compcoef=0.833, coerce=True,
-        merge_fn=merge_cardinality)
+        default=qltypes.SchemaCardinality.One,
+        compcoef=0.833,
+        coerce=True,
+        special_ddl_syntax=True,
+        describe_visibility=(
+            so.DescribeVisibilityPolicy.SHOW_IF_EXPLICIT_OR_DERIVED
+        ),
+        merge_fn=merge_cardinality,
+    )
 
     union_of = so.SchemaField(
         so.ObjectSet['Pointer'],
@@ -305,15 +467,15 @@ class Pointer(referencing.ReferencedInheritingObject,
         return False
 
     def is_generated(self, schema: s_schema.Schema) -> bool:
-        return bool(self.get_is_from_alias(schema))
+        return bool(self.get_from_alias(schema))
 
     @classmethod
-    def get_displayname_static(cls, name: str) -> str:
+    def get_displayname_static(cls, name: sn.Name) -> str:
         sn = cls.get_shortname_static(name)
         if sn.module == '__':
             return sn.name
         else:
-            return sn
+            return str(sn)
 
     def get_verbosename(
         self,
@@ -321,9 +483,8 @@ class Pointer(referencing.ReferencedInheritingObject,
         *,
         with_parent: bool=False,
     ) -> str:
-        is_abstract = self.generic(schema)
         vn = super().get_verbosename(schema)
-        if is_abstract:
+        if self.generic(schema):
             return f'abstract {vn}'
         else:
             if with_parent:
@@ -376,104 +537,39 @@ class Pointer(referencing.ReferencedInheritingObject,
     ) -> s_schema.Schema:
         return self.set_field_value(schema, 'target', target)
 
-    @classmethod
-    def merge_targets(
-        cls,
-        schema: s_schema.Schema,
-        ptr: Pointer,
-        t1: s_types.Type,
-        t2: s_types.Type,
-        *,
-        allow_contravariant: bool = False,
-    ) -> Tuple[s_schema.Schema, Optional[s_types.Type]]:
-        if t1 is t2:
-            return schema, t1
-
-        # When two pointers are merged, check target compatibility
-        # and return a target that satisfies both specified targets.
-
-        if (isinstance(t1, s_abc.ScalarType) !=
-                isinstance(t2, s_abc.ScalarType)):
-            # Mixing a property with a link.
-            vnp = ptr.get_verbosename(schema, with_parent=True)
-            vn = ptr.get_verbosename(schema)
-            t1_vn = t1.get_verbosename(schema)
-            t2_vn = t2.get_verbosename(schema)
-            raise errors.SchemaError(
-                f'cannot redefine {vnp} as {t2_vn}',
-                details=f'{vn} is defined as a link to {t1_vn} in a '
-                        f'parent type'
-            )
-
-        elif isinstance(t1, s_abc.ScalarType):
-            # Targets are both scalars
-            if t1 != t2:
-                vnp = ptr.get_verbosename(schema, with_parent=True)
-                vn = ptr.get_verbosename(schema)
-                t1_vn = t1.get_verbosename(schema)
-                t2_vn = t2.get_verbosename(schema)
-                raise errors.SchemaError(
-                    f'cannot redefine {vnp} as {t2_vn}',
-                    details=f'{vn} is defined as {t1_vn} in a parent type, '
-                            f'which is incompatible with {t2_vn} ',
-                )
-
-            return schema, t1
-
-        else:
-            assert isinstance(t1, so.SubclassableObject)
-            assert isinstance(t2, so.SubclassableObject)
-
-            if t2.issubclass(schema, t1):
-                # The new target is a subclass of the current target, so
-                # it is a more specific requirement.
-                current_target = t2
-            elif allow_contravariant and t1.issubclass(schema, t2):
-                current_target = t1
-            else:
-                # The new target is not a subclass, of the previously seen
-                # targets, which creates an unresolvable target requirement
-                # conflict.
-                vnp = ptr.get_verbosename(schema, with_parent=True)
-                vn = ptr.get_verbosename(schema)
-                t2_vn = t2.get_verbosename(schema)
-                raise errors.SchemaError(
-                    f'cannot redefine {vnp} as {t2_vn}',
-                    details=(
-                        f'{vn} targets {t2_vn} that is not related '
-                        f'to a type found in this link in the parent type: '
-                        f'{t1.get_displayname(schema)!r}.'))
-
-            return schema, current_target
-
     def get_derived(
-        self,
+        self: Pointer_T,
         schema: s_schema.Schema,
         source: s_sources.Source,
         target: s_types.Type,
         *,
-        derived_name_base: str = None,
+        derived_name_base: Optional[sn.Name] = None,
         **kwargs: Any
-    ) -> Tuple[s_schema.Schema, Pointer]:
+    ) -> Tuple[s_schema.Schema, Pointer_T]:
         fqname = self.derive_name(
             schema, source, derived_name_base=derived_name_base)
         ptr = schema.get(fqname, default=None)
 
         if ptr is None:
             fqname = self.derive_name(
-                schema, source, target.get_name(schema),
-                derived_name_base=derived_name_base)
+                schema,
+                source,
+                str(target.get_name(schema)),
+                derived_name_base=derived_name_base,
+            )
             ptr = schema.get(fqname, default=None)
             if ptr is None:
                 schema, ptr = self.derive_ref(
                     schema, source, target=target,
                     derived_name_base=derived_name_base, **kwargs)
-        assert isinstance(ptr, Pointer)
-        return schema, ptr
+        return schema, ptr  # type: ignore
 
-    def get_derived_name_base(self, schema: s_schema.Schema) -> sn.Name:
+    def get_derived_name_base(
+        self,
+        schema: s_schema.Schema,
+    ) -> sn.QualName:
         shortname = self.get_shortname(schema)
-        return sn.Name(module='__', name=shortname.name)
+        return sn.QualName(module='__', name=shortname.name)
 
     def derive_ref(
         self,
@@ -507,8 +603,8 @@ class Pointer(referencing.ReferencedInheritingObject,
 
     def is_id_pointer(self, schema: s_schema.Schema) -> bool:
         from edb.schema import sources as s_sources
-        std_id = schema.get('std::BaseObject',
-                            type=s_sources.Source).getptr(schema, 'id')
+        std_base = schema.get('std::BaseObject', type=s_sources.Source)
+        std_id = std_base.getptr(schema, sn.UnqualName('id'))
         std_target = schema.get('std::target', type=so.SubclassableObject)
         assert isinstance(std_id, so.SubclassableObject)
         return self.issubclass(schema, (std_id, std_target))
@@ -531,6 +627,12 @@ class Pointer(referencing.ReferencedInheritingObject,
 
     def is_protected_pointer(self, schema: s_schema.Schema) -> bool:
         return self.get_shortname(schema).name in {'id', '__type__'}
+
+    def is_dumpable(self, schema: s_schema.Schema) -> bool:
+        return (
+            not self.is_endpoint_pointer(schema)
+            and not self.is_pure_computable(schema)
+        )
 
     def generic(self, schema: s_schema.Schema) -> bool:
         return self.get_source(schema) is None
@@ -561,8 +663,11 @@ class Pointer(referencing.ReferencedInheritingObject,
     ) -> bool:
         # Determine the cardinality of a given endpoint set.
         if direction == PointerDirection.Outbound:
-            return (self.get_cardinality(schema) is
-                    qltypes.SchemaCardinality.One)
+            cardinality = self.get_cardinality(schema)
+            if cardinality is None or not cardinality.is_known():
+                vn = self.get_verbosename(schema, with_parent=True)
+                raise AssertionError(f'cardinality of {vn} is unknown')
+            return cardinality.is_single()
         else:
             return self.is_exclusive(schema)
 
@@ -631,7 +736,7 @@ class Pointer(referencing.ReferencedInheritingObject,
 
         assert isinstance(schema_objtype, so.QualifiedObject)
         src_name = schema_objtype.get_name(schema)
-        mcls = so.ObjectMeta.get_schema_metaclass(src_name.name)
+        mcls = so.ObjectMeta.maybe_get_schema_class(src_name.name)
         if mcls is None:
             # This schema class is not (publicly) reflected.
             return None
@@ -689,14 +794,14 @@ class PseudoPointer(s_abc.Pointer):
     def get_ancestors(self, schema: s_schema.Schema) -> so.ObjectList[Pointer]:
         return so.ObjectList.create(schema, [])
 
-    def get_name(self, schema: s_schema.Schema) -> str:
+    def get_name(self, schema: s_schema.Schema) -> sn.QualName:
         raise NotImplementedError
 
-    def get_shortname(self, schema: s_schema.Schema) -> str:
+    def get_shortname(self, schema: s_schema.Schema) -> sn.QualName:
         return self.get_name(schema)
 
     def get_displayname(self, schema: s_schema.Schema) -> str:
-        return self.get_name(schema)
+        return str(self.get_name(schema))
 
     def has_user_defined_properties(self, schema: s_schema.Schema) -> bool:
         return False
@@ -710,16 +815,22 @@ class PseudoPointer(s_abc.Pointer):
     ) -> qltypes.SchemaCardinality:
         raise NotImplementedError
 
-    def get_path_id_name(self, schema: s_schema.Schema) -> str:
+    def get_path_id_name(self, schema: s_schema.Schema) -> sn.QualName:
         return self.get_name(schema)
 
     def get_is_derived(self, schema: s_schema.Schema) -> bool:
         return False
 
-    def get_is_owned(self, schema: s_schema.Schema) -> bool:
+    def get_owned(self, schema: s_schema.Schema) -> bool:
         return True
 
     def get_union_of(
+        self,
+        schema: s_schema.Schema,
+    ) -> None:
+        return None
+
+    def get_intersection_of(
         self,
         schema: s_schema.Schema,
     ) -> None:
@@ -802,23 +913,22 @@ class PseudoPointer(s_abc.Pointer):
 PointerLike = Union[Pointer, PseudoPointer]
 
 
-class ComputableRef(so.Object):
+class ComputableRef:
     """A shell for a computed target type."""
 
-    expr: qlast.Expr
+    expr: qlast.Base
 
     def __init__(self, expr: qlast.Base) -> None:
-        super().__init__(_private_init=True)
-        self.__dict__['expr'] = expr
+        self.expr = expr
 
 
-class PointerCommandContext(sd.ObjectCommandContext[Pointer],
+class PointerCommandContext(sd.ObjectCommandContext[Pointer_T],
                             s_anno.AnnotationSubjectCommandContext):
     pass
 
 
 class PointerCommandOrFragment(
-    referencing.ReferencedObjectCommandBase[Pointer]
+    referencing.ReferencedObjectCommandBase[Pointer_T]
 ):
 
     def canonicalize_attributes(
@@ -828,35 +938,71 @@ class PointerCommandOrFragment(
     ) -> s_schema.Schema:
         schema = super().canonicalize_attributes(schema, context)
         target_ref = self.get_local_attribute_value('target')
+        inf_target_ref: Optional[s_types.TypeShell]
 
-        if target_ref is not None:
-            if isinstance(target_ref, ComputableRef):
-                schema, target, base = self._parse_computable(
-                    target_ref.expr, schema, context)
+        # When cardinality/required is altered, we need to force a
+        # reconsideration of expr if it exists in order to check
+        # it against the new specifier or compute them on a
+        # RESET. This is kind of unfortunate.
+        if (
+            isinstance(self, sd.AlterObject)
+            and (
+                (
+                    self.has_attribute_value('cardinality')
+                    and not self.is_attribute_inherited('cardinality')
+                ) or (
+                    self.has_attribute_value('required')
+                    and not self.is_attribute_inherited('required')
+                )
+            )
+            and not self.has_attribute_value('expr')
+            and (expr := self.scls.get_expr(schema)) is not None
+        ):
+            self.set_attribute_value(
+                'expr',
+                s_expr.Expression.not_compiled(expr)
+            )
 
-                if base is not None:
-                    self.set_attribute_value(
-                        'bases', so.ObjectList.create(schema, [base]),
-                    )
+        if isinstance(target_ref, ComputableRef):
+            schema, inf_target_ref, base = self._parse_computable(
+                target_ref.expr, schema, context)
+        elif (expr := self.get_local_attribute_value('expr')) is not None:
+            schema, inf_target_ref, base = self._parse_computable(
+                expr.qlast, schema, context)
+        else:
+            inf_target_ref = None
+            base = None
 
-                    self.set_attribute_value(
-                        'is_derived', True
-                    )
+        if base is not None:
+            self.set_attribute_value(
+                'bases', so.ObjectList.create(schema, [base]),
+            )
 
-                    if context.declarative:
-                        self.set_attribute_value(
-                            'declared_overloaded', True
-                        )
+            self.set_attribute_value(
+                'is_derived', True
+            )
 
-                srcctx = self.get_attribute_source_context('target')
+            if context.declarative:
                 self.set_attribute_value(
-                    'target',
-                    target,
-                    source_context=srcctx,
+                    'declared_overloaded', True
                 )
 
-            schema = s_types.materialize_type_in_attribute(
-                schema, context, self, 'target')
+        if inf_target_ref is not None:
+            srcctx = self.get_attribute_source_context('target')
+            self.set_attribute_value(
+                'target',
+                inf_target_ref,
+                source_context=srcctx,
+                computed=True,
+            )
+
+        schema = s_types.materialize_type_in_attribute(
+            schema, context, self, 'target')
+
+        expr = self.get_local_attribute_value('expr')
+        if expr is not None:
+            # There is an expression, therefore it is a computable.
+            self.set_attribute_value('computable', True)
 
         return schema
 
@@ -869,28 +1015,20 @@ class PointerCommandOrFragment(
         from edb.ir import ast as irast
         from edb.ir import typeutils as irtyputils
         from edb.ir import utils as irutils
-        from edb.schema import objtypes as s_objtypes
 
         # "source" attribute is set automatically as a refdict back-attr
         parent_ctx = self.get_referrer_context(context)
         assert parent_ctx is not None
-        source_name = parent_ctx.op.classname
-        assert isinstance(source_name, sn.Name)
+        source_name = context.get_referrer_name(parent_ctx)
+        assert isinstance(source_name, sn.QualName)
 
-        source = schema.get(source_name, type=s_objtypes.ObjectType)
-
-        ptr_name = self.get_displayname()
-        expression = s_expr.Expression.compiled(
-            s_expr.Expression.from_ast(expr, schema, context.modaliases),
-            schema=schema,
-            options=qlcompiler.CompilerOptions(
-                modaliases=context.modaliases,
-                anchors={qlast.Source().name: source},
-                path_prefix_anchor=qlast.Source().name,
-                singletons=frozenset([source]),
-                in_ddl_context_name=f'computable {ptr_name!r}',
-                apply_query_rewrites=not context.stdmode,
-            ),
+        source = schema.get(source_name)
+        parent_vname = source.get_verbosename(schema)
+        ptr_name = self.get_verbosename(parent=parent_vname)
+        expression = self.compile_expr_field(
+            schema, context,
+            field=Pointer.get_field('expr'),
+            value=s_expr.Expression.from_ast(expr, schema, context.modaliases),
         )
 
         assert isinstance(expression.irast, irast.Statement)
@@ -915,8 +1053,11 @@ class PointerCommandOrFragment(
         # aliased link that should inherit link properties.
         if isinstance(result_expr, irast.Set) and result_expr.rptr is not None:
             expr_rptr = result_expr.rptr
-            if expr_rptr.direction is PointerDirection.Outbound:
-                new_schema, base = irtyputils.ptrcls_from_ptrref(
+            if (
+                expr_rptr.direction is PointerDirection.Outbound
+                and expr_rptr.source.rptr is None
+            ):
+                new_schema, aliased_ptr = irtyputils.ptrcls_from_ptrref(
                     expr_rptr.ptrref, schema=schema
                 )
                 # Only pointers coming from the same source as the
@@ -924,67 +1065,171 @@ class PointerCommandOrFragment(
                 # link props). Random paths coming from other sources
                 # get treated same as any other arbitrary expression
                 # in a computable.
-                if base.get_source(new_schema) != source:
-                    base = None
-                else:
+                if aliased_ptr.get_source(new_schema) == source:
+                    base = aliased_ptr
                     schema = new_schema
 
         self.set_attribute_value('expr', expression)
         required, card = expression.irast.cardinality.to_schema_value()
 
-        is_alter = (
-            isinstance(self, sd.AlterObject)
-            or (
-                isinstance(self, sd.AlterObjectFragment)
-                and isinstance(self.get_parent_op(context), sd.AlterObject)
-            )
-        )
-
-        spec_required = self.get_attribute_value('required')
-        if spec_required is None and is_alter:
-            spec_required = self.scls.get_required(schema)
-        spec_card = self.get_attribute_value('cardinality')
-        if spec_card is None and is_alter:
-            spec_card = self.scls.get_cardinality(schema)
+        spec_required: Optional[bool] = (
+            self.get_specified_attribute_value('required', schema, context))
+        spec_card: Optional[qltypes.SchemaCardinality] = (
+            self.get_specified_attribute_value('cardinality', schema, context))
 
         if spec_required and not required:
             srcctx = self.get_attribute_source_context('target')
             raise errors.SchemaDefinitionError(
                 f'possibly an empty set returned by an '
                 f'expression for the computable '
-                f'{ptr_name!r} '
-                f"declared as 'required'",
+                f'{ptr_name} '
+                f"explicitly declared as 'required'",
                 context=srcctx
             )
 
         if (
-            spec_card in {None, qltypes.SchemaCardinality.One} and
-            card is not qltypes.SchemaCardinality.One
+            spec_card is qltypes.SchemaCardinality.One
+            and card is not qltypes.SchemaCardinality.One
         ):
             srcctx = self.get_attribute_source_context('target')
             raise errors.SchemaDefinitionError(
                 f'possibly more than one element returned by an '
                 f'expression for the computable '
-                f'{ptr_name!r} '
-                f"declared as 'single'",
+                f'{ptr_name} '
+                f"explicitly declared as 'single'",
                 context=srcctx
             )
 
         if spec_card is None:
-            self.set_attribute_value('cardinality', card)
+            self.set_attribute_value('cardinality', card, computed=True)
 
-        if not spec_required:
-            self.set_attribute_value('required', required)
+        if spec_required is None:
+            self.set_attribute_value('required', required, computed=True)
 
         self.set_attribute_value('computable', True)
 
         return schema, target_shell, base
 
+    def _compile_expr(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        expr: s_expr.Expression,
+        *,
+        in_ddl_context_name: Optional[str] = None,
+        track_schema_ref_exprs: bool = False,
+        singleton_result_expected: bool = False,
+        target_as_singleton: bool = False,
+        expr_description: Optional[str] = None,
+    ) -> s_expr.Expression:
+        singletons: List[Union[s_types.Type, Pointer]] = []
+        path_prefix_anchor = None
+        anchors: Dict[str, Any] = {}
+
+        parent_ctx = self.get_referrer_context_or_die(context)
+        source = parent_ctx.op.get_object(schema, context)
+
+        if (
+            isinstance(source, Pointer)
+            and not source.get_source(schema)
+        ):
+            # If the source is an abstract link, we need to
+            # make up an object and graft the link onto it,
+            # because the compiler really does not know what
+            # to make of a link without a source or target.
+            from edb.schema import objtypes as s_objtypes
+
+            base_obj = schema.get(
+                s_objtypes.ObjectType.get_default_base_name(),
+                type=s_objtypes.ObjectType
+            )
+            schema, view = base_obj.derive_subtype(
+                schema,
+                name=sn.QualName("__derived__", "FakeAbstractLinkBase"),
+                mark_derived=True,
+                transient=True,
+            )
+            schema, source = source.derive_ref(
+                schema,
+                view,
+                target=view,
+                mark_derived=True,
+                transient=True,
+            )
+
+        anchors[qlast.Source().name] = source
+        assert isinstance(source, (s_types.Type, Pointer))
+        singletons = [source]
+        path_prefix_anchor = qlast.Source().name
+
+        if target_as_singleton:
+            src = self.scls.get_source(schema)
+            if isinstance(src, Pointer):
+                # linkprop
+                singletons.append(src)
+            else:
+                singletons.append(self.scls)
+
+        compiled = type(expr).compiled(
+            expr,
+            schema=schema,
+            options=qlcompiler.CompilerOptions(
+                modaliases=context.modaliases,
+                schema_object_context=self.get_schema_metaclass(),
+                anchors=anchors,
+                path_prefix_anchor=path_prefix_anchor,
+                singletons=frozenset(singletons),
+                apply_query_rewrites=not context.stdmode,
+                track_schema_ref_exprs=track_schema_ref_exprs,
+                in_ddl_context_name=in_ddl_context_name,
+            ),
+        )
+
+        if singleton_result_expected and compiled.cardinality.is_multi():
+            if expr_description is None:
+                expr_description = 'an expression'
+
+            raise errors.SchemaError(
+                f'possibly more than one element returned by '
+                f'{expr_description}, while a singleton is expected',
+                context=expr.qlast.context,
+            )
+
+        return compiled
+
+    def compile_expr_field(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        field: so.Field[Any],
+        value: s_expr.Expression,
+        track_schema_ref_exprs: bool=False,
+    ) -> s_expr.Expression:
+        if field.name in {'default', 'expr'}:
+            parent_ctx = self.get_referrer_context_or_die(context)
+            source = parent_ctx.op.get_object(schema, context)
+            parent_vname = source.get_verbosename(schema)
+            ptr_name = self.get_verbosename(parent=parent_vname)
+            in_ddl_context_name = None
+            if field.name == 'expr':
+                in_ddl_context_name = f'computable {ptr_name}'
+
+            return self._compile_expr(
+                schema,
+                context,
+                value,
+                in_ddl_context_name=in_ddl_context_name,
+                track_schema_ref_exprs=track_schema_ref_exprs,
+            )
+        else:
+            return super().compile_expr_field(
+                schema, context, field, value, track_schema_ref_exprs)
+
     def _deparse_name(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-        name: str,
+        name: sn.Name,
     ) -> qlast.ObjectRef:
 
         ref = super()._deparse_name(schema, context, name)
@@ -996,21 +1241,79 @@ class PointerCommandOrFragment(
             return ref
 
 
-class PointerCommand(
-    referencing.ReferencedInheritingObjectCommand[Pointer],
-    constraints.ConsistencySubjectCommand[Pointer],
-    s_anno.AnnotationSubjectCommand,
-    PointerCommandOrFragment,
+class PointerAlterFragment(
+    referencing.ReferencedObjectCommandBase[Pointer_T]
 ):
+    @classmethod
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> referencing.AlterReferencedInheritingObject[Any]:
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        assert isinstance(cmd, PointerCommand)
+        if isinstance(astnode, qlast.CreateConcreteLink):
+            cmd._process_create_or_alter_ast(schema, astnode, context)
+        else:
+            expr_cmd = qlast.get_ddl_field_command(astnode, 'expr')
+            if expr_cmd is not None:
+                expr = expr_cmd.value
+                if expr is None:
+                    # `RESET EXPRESSION` detected
+                    aop = sd.AlterObjectProperty(
+                        property='expr',
+                        new_value=None,
+                        source_context=astnode.context,
+                    )
+                    cmd.add(aop)
 
-    def _set_pointer_type(
+        assert isinstance(cmd, referencing.AlterReferencedInheritingObject)
+        return cmd
+
+    def canonicalize_attributes(
         self,
         schema: s_schema.Schema,
-        astnode: qlast.CreateConcretePointer,
         context: sd.CommandContext,
-        target_ref: Union[so.Object, so.ObjectShell],
-    ) -> None:
-        return None
+    ) -> s_schema.Schema:
+        schema = super().canonicalize_attributes(schema, context)
+
+        # Handle `RESET EXPRESSION` here
+        if (
+            self.has_attribute_value('expr')
+            and not self.is_attribute_inherited('expr')
+            and self.get_attribute_value('expr') is None
+        ):
+            old_expr = self.get_orig_attribute_value('expr')
+            pointer = schema.get(self.classname, type=Pointer)
+            if old_expr is None:
+                # Get the old value from the schema if the old_expr
+                # attribute isn't set.
+                old_expr = pointer.get_expr(schema)
+
+            if old_expr is not None:
+                # If the expression was explicitly set to None,
+                # that means that `RESET EXPRESSION` was executed
+                # and this is no longer a computable.
+                self.set_attribute_value('computable', False)
+                computed_fields = pointer.get_computed_fields(schema)
+                if 'required' in computed_fields:
+                    self.set_attribute_value('required', None)
+                if 'cardinality' in computed_fields:
+                    self.set_attribute_value('cardinality', None)
+
+            # Clear the placeholder value for 'expr'.
+            self.set_attribute_value('expr', None)
+
+        return schema
+
+
+class PointerCommand(
+    referencing.ReferencedInheritingObjectCommand[Pointer_T],
+    constraints.ConsistencySubjectCommand[Pointer_T],
+    s_anno.AnnotationSubjectCommand[Pointer_T],
+    PointerCommandOrFragment[Pointer_T],
+):
 
     def _create_begin(
         self,
@@ -1046,7 +1349,7 @@ class PointerCommand(
             return
 
         scls = self.scls
-        if not scls.get_is_owned(schema):
+        if not scls.get_owned(schema):
             return
 
         default_expr = scls.get_default(schema)
@@ -1093,30 +1396,30 @@ class PointerCommand(
         schema: s_schema.Schema,
         astnode: qlast.NamedDDL,
         context: sd.CommandContext,
-    ) -> sn.Name:
+    ) -> sn.QualName:
         referrer_ctx = cls.get_referrer_context(context)
         if referrer_ctx is not None:
 
-            referrer_name = referrer_ctx.op.classname
-            assert isinstance(referrer_name, sn.Name)
+            referrer_name = context.get_referrer_name(referrer_ctx)
 
-            shortname = sn.Name(
+            shortname = sn.QualName(
                 module='__',
                 name=astnode.name.name,
             )
 
-            name = sn.Name(
+            name = sn.QualName(
                 module=referrer_name.module,
                 name=sn.get_specialized_name(
                     shortname,
-                    referrer_name,
+                    str(referrer_name),
                 ),
             )
         else:
             name = super()._classname_from_ast(schema, astnode, context)
 
-        shortname = sn.shortname_from_fullname(name)
-        if len(shortname.name) > s_def.MAX_NAME_LENGTH:
+        sname = sn.shortname_from_fullname(name)
+        assert isinstance(sname, sn.QualName), "expected qualified name"
+        if len(sname.name) > s_def.MAX_NAME_LENGTH:
             raise errors.SchemaDefinitionError(
                 f'link or property name length exceeds the maximum of '
                 f'{s_def.MAX_NAME_LENGTH} characters',
@@ -1155,14 +1458,29 @@ class PointerCommand(
             )
 
         if astnode.cardinality is not None:
-            self.set_attribute_value(
-                'cardinality',
-                astnode.cardinality,
-                source_context=astnode.context,
-            )
+            if isinstance(self, sd.CreateObject):
+                self.set_attribute_value(
+                    'cardinality',
+                    astnode.cardinality,
+                    source_context=astnode.context,
+                )
+            else:
+                handler = sd.get_special_field_alter_handler_for_context(
+                    'cardinality', context)
+                assert handler is not None
+                set_field = qlast.SetField(
+                    name='cardinality',
+                    value=qlast.StringConstant.from_python(
+                        str(astnode.cardinality),
+                    ),
+                    special_syntax=True,
+                    context=astnode.context,
+                )
+                apc = handler._cmd_tree_from_ast(schema, set_field, context)
+                self.add(apc)
 
         parent_ctx = self.get_referrer_context_or_die(context)
-        source_name = parent_ctx.op.classname
+        source_name = context.get_referrer_name(parent_ctx)
         self.set_attribute_value('source', so.ObjectShell(name=source_name))
 
         # FIXME: this is an approximate solution
@@ -1170,7 +1488,7 @@ class PointerCommand(
         target_ref: Union[None, s_types.TypeShell, ComputableRef]
 
         if len(targets) > 1:
-            assert isinstance(source_name, sn.Name)
+            assert isinstance(source_name, sn.QualName)
 
             new_targets = [
                 utils.ast_to_type_shell(
@@ -1182,7 +1500,7 @@ class PointerCommand(
             ]
 
             target_ref = s_types.UnionTypeShell(
-                new_targets,
+                components=new_targets,
                 module=source_name.module,
             )
         elif targets:
@@ -1195,7 +1513,7 @@ class PointerCommand(
                 )
             else:
                 # computable
-                qlnorm.normalize(
+                qlcompiler.normalize(
                     target_expr,
                     schema=schema,
                     modaliases=context.modaliases
@@ -1213,95 +1531,378 @@ class PointerCommand(
                 source_context=astnode.target.context,
             )
 
-            # If target is a computable ref defer cardinality
-            # enforcement until the expression is parsed.
-            if not isinstance(target_ref, ComputableRef):
-                if self.get_attribute_value('cardinality') is None:
-                    self.set_attribute_value(
-                        'cardinality', qltypes.SchemaCardinality.One)
-
-                if self.get_attribute_value('required') is None:
-                    self.set_attribute_value(
-                        'required', False)
-
         elif target_ref is not None:
-            self._set_pointer_type(schema, astnode, context, target_ref)
-
-    def compile_expr_field(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        field: so.Field[Any],
-        value: s_expr.Expression,
-        track_schema_ref_exprs: bool=False,
-    ) -> s_expr.Expression:
-        from . import sources as s_sources
-
-        if field.name in {'default', 'expr'}:
-            singletons: List[s_types.Type] = []
-            path_prefix_anchor = None
-            anchors: Dict[str, Any] = {}
-
-            if field.name == 'expr':
-                # type ignore below, because the class is used as mixin
-                parent_ctx = context.get_ancestor(
-                    s_sources.SourceCommandContext,  # type: ignore
-                    self
-                )
-                assert parent_ctx is not None
-                assert isinstance(parent_ctx.op, sd.ObjectCommand)
-                source_name = parent_ctx.op.classname
-                source = schema.get(source_name, default=None)
-                anchors[qlast.Source().name] = source
-                if not isinstance(source, Pointer):
-                    assert source is not None
-                    singletons = [source]
-                    path_prefix_anchor = qlast.Source().name
-
-            return type(value).compiled(
-                value,
-                schema=schema,
-                options=qlcompiler.CompilerOptions(
-                    modaliases=context.modaliases,
-                    schema_object_context=self.get_schema_metaclass(),
-                    anchors=anchors,
-                    path_prefix_anchor=path_prefix_anchor,
-                    singletons=frozenset(singletons),
-                    apply_query_rewrites=not context.stdmode,
-                    track_schema_ref_exprs=track_schema_ref_exprs,
-                ),
+            assert astnode.target is not None
+            self.set_attribute_value(
+                'target',
+                target_ref,
+                source_context=astnode.target.context,
             )
-        else:
-            return super().compile_expr_field(
-                schema, context, field, value, track_schema_ref_exprs)
 
-    def _apply_field_ast(
-        self,
+
+class CreatePointer(
+    referencing.CreateReferencedInheritingObject[Pointer_T],
+    PointerCommand[Pointer_T],
+):
+
+    @classmethod
+    def as_inherited_ref_cmd(
+        cls,
+        *,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-        node: qlast.DDLOperation,
-        op: sd.AlterObjectProperty,
-    ) -> None:
-        if context.descriptive_mode:
-            # When generating AST for DESCRIBE AS TEXT, we want to
-            # omit 'readonly' flag if it's inherited and it actually
-            # has the default value.
-            if op.property == 'readonly':
-                pointer_obj = self.get_object(schema, context)
-                field = type(pointer_obj).get_field('readonly')
-                assert isinstance(field, so.SchemaField)
-                dval = field.default
+        astnode: qlast.ObjectDDL,
+        bases: Any,
+        referrer: so.Object,
+    ) -> sd.ObjectCommand[Pointer_T]:
+        cmd = super().as_inherited_ref_cmd(
+            schema=schema,
+            context=context,
+            astnode=astnode,
+            bases=bases,
+            referrer=referrer,
+        )
 
-                if op.source == 'inheritance' and op.new_value is dval:
-                    return
+        if (
+            (
+                isinstance(referrer, s_types.Type)
+                and referrer.is_view(schema)
+            ) or (
+                isinstance(referrer, Pointer)
+                and referrer.get_from_alias(schema)
+            )
+        ):
+            cmd.set_attribute_value('from_alias', True)
 
-        super()._apply_field_ast(schema, context, node, op)
+        return cmd
 
 
 class SetPointerType(
-        referencing.ReferencedInheritingObjectCommand[Pointer],
-        inheriting.AlterInheritingObjectFragment[Pointer],
-        PointerCommandOrFragment):
+    referencing.ReferencedInheritingObjectCommand[Pointer_T],
+    inheriting.AlterInheritingObjectFragment[Pointer_T],
+    sd.AlterSpecialObjectField[Pointer_T],
+    PointerCommandOrFragment[Pointer_T],
+):
+
+    cast_expr = struct.Field(s_expr.Expression, default=None)
+
+    def get_verb(self) -> str:
+        return 'alter the type of'
+
+    def is_data_safe(self) -> bool:
+        return False
+
+    def record_diff_annotations(
+        self,
+        schema: s_schema.Schema,
+        orig_schema: Optional[s_schema.Schema],
+        context: so.ComparisonContext,
+    ) -> None:
+        super().record_diff_annotations(
+            schema=schema,
+            orig_schema=orig_schema,
+            context=context,
+        )
+
+        if orig_schema is None:
+            return
+
+        if not context.generate_prompts:
+            return
+
+        old_type_shell = self.get_orig_attribute_value('target')
+        new_type_shell = self.get_attribute_value('target')
+
+        assert isinstance(old_type_shell, s_types.TypeShell)
+        assert isinstance(new_type_shell, s_types.TypeShell)
+
+        old_type: Optional[s_types.Type] = None
+
+        try:
+            old_type = old_type_shell.resolve(schema)
+        except errors.InvalidReferenceError:
+            # The original type does not exist in the new schema,
+            # which means either of the two things:
+            # 1) the original type is a collection, in which case we can
+            #    attempt to temporarily recreate it in the new schema to
+            #    check castability;
+            # 2) the original type is not a collection, and was removed
+            #    in the new schema; there is no way for us to infer
+            #    castability and we assume a cast expression is needed.
+            if isinstance(old_type_shell, s_types.CollectionTypeShell):
+                create = old_type_shell.as_create_delta(schema)
+                try:
+                    schema = sd.apply(create, schema=schema)
+                except errors.InvalidReferenceError:
+                    # A removed type is part of the collection,
+                    # can't do anything about that.
+                    pass
+                else:
+                    old_type = old_type_shell.resolve(schema)
+
+        new_type = new_type_shell.resolve(schema)
+
+        assert len(context.parent_ops) > 1
+        ptr_op = context.parent_ops[-1]
+        src_op = context.parent_ops[-2]
+        needs_cast = (
+            old_type is None
+            or self._needs_cast_expr(
+                schema=schema,
+                ptr_op=ptr_op,
+                src_op=src_op,
+                old_type=old_type,
+                new_type=new_type,
+            )
+        )
+
+        if needs_cast:
+            placeholder_name = context.get_placeholder('cast_expr')
+            desc = self.get_friendly_description(schema=schema)
+            prompt = f'Please specify a conversion expression to {desc}'
+            self.set_annotation('required_input', {
+                placeholder_name: prompt,
+            })
+
+            self.cast_expr = s_expr.Expression.from_ast(
+                qlast.Placeholder(name=placeholder_name),
+                schema,
+            )
+
+    def _is_endpoint_property(self) -> bool:
+        mcls = self.get_schema_metaclass()
+        shortname = mcls.get_shortname_static(self.classname)
+        quals = sn.quals_from_fullname(self.classname)
+        if not quals:
+            return False
+        else:
+            source = quals[0]
+            return (
+                sn.is_fullname(source)
+                and str(shortname) in {'__::source', '__::target'}
+            )
+
+    def _needs_cast_expr(
+        self,
+        *,
+        schema: s_schema.Schema,
+        ptr_op: sd.ObjectCommand[so.Object],
+        src_op: sd.ObjectCommand[so.Object],
+        old_type: s_types.Type,
+        new_type: s_types.Type,
+    ) -> bool:
+        return (
+            not old_type.assignment_castable_to(new_type, schema)
+            and not ptr_op.maybe_get_object_aux_data('from_alias')
+            and self.cast_expr is None
+            and not self._is_endpoint_property()
+            and not (
+                ptr_op.get_attribute_value('declared_overloaded')
+                or isinstance(src_op, sd.CreateObject)
+            )
+        )
+
+    def _alter_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        orig_schema = schema
+        orig_rec = context.current().enable_recursion
+        context.current().enable_recursion = False
+        schema = super()._alter_begin(schema, context)
+        context.current().enable_recursion = orig_rec
+        scls = self.scls
+
+        vn = scls.get_verbosename(schema, with_parent=True)
+
+        orig_target = scls.get_target(orig_schema)
+        new_target = scls.get_target(schema)
+
+        if new_target is None:
+            # This will happen if `RESET TYPE` was called
+            # on a non-inherited type.
+            raise errors.SchemaError(
+                f'cannot RESET TYPE of {vn} because it is not inherited',
+                context=self.source_context,
+            )
+
+        if orig_target == new_target:
+            return schema
+
+        if not context.canonical:
+            assert orig_target is not None
+            assert new_target is not None
+            ptr_op = self.get_parent_op(context)
+            src_op = self.get_referrer_context_or_die(context).op
+
+            if self._needs_cast_expr(
+                schema=schema,
+                ptr_op=ptr_op,
+                src_op=src_op,
+                old_type=orig_target,
+                new_type=new_target,
+            ):
+                vn = scls.get_verbosename(schema, with_parent=True)
+                ot = orig_target.get_verbosename(schema)
+                nt = new_target.get_verbosename(schema)
+                raise errors.SchemaError(
+                    f'{vn} cannot be cast automatically from '
+                    f'{ot} to {nt}',
+                    hint=(
+                        'You might need to specify a conversion '
+                        'expression in a USING clause'
+                    ),
+                    context=self.source_context,
+                )
+
+            if self.cast_expr is not None:
+                vn = scls.get_verbosename(schema, with_parent=True)
+                self.cast_expr = self._compile_expr(
+                    schema=orig_schema,
+                    context=context,
+                    expr=self.cast_expr,
+                    target_as_singleton=True,
+                    singleton_result_expected=True,
+                    expr_description=(
+                        f'the USING clause for the alteration of {vn}'
+                    ),
+                )
+
+                using_type = self.cast_expr.stype
+                if not using_type.assignment_castable_to(
+                    new_target,
+                    self.cast_expr.schema,
+                ):
+                    ot = using_type.get_verbosename(self.cast_expr.schema)
+                    nt = new_target.get_verbosename(schema)
+                    raise errors.SchemaError(
+                        f'result of USING clause for the alteration of '
+                        f'{vn} cannot be cast automatically from '
+                        f'{ot} to {nt} ',
+                        hint='You might need to add an explicit cast.',
+                        context=self.source_context,
+                    )
+
+            schema = self._propagate_if_expr_refs(
+                schema,
+                context,
+                action=self.get_friendly_description(schema=schema),
+            )
+
+            if orig_target is not None:
+                if isinstance(orig_target, s_types.Collection):
+                    parent_op = self.get_parent_op(context)
+                    cleanup_op = orig_target.as_colltype_delete_delta(
+                        schema, expiring_refs={scls})
+                    parent_op.add(cleanup_op)
+                    schema = cleanup_op.apply(schema, context)
+                elif orig_target.is_compound_type(schema):
+                    parent_op = self.get_parent_op(context)
+                    cleanup_op = orig_target.init_delta_command(
+                        schema,
+                        sd.DeleteObject,
+                        if_unused=True,
+                        expiring_refs={scls},
+                    )
+                    parent_op.add(cleanup_op)
+                    schema = cleanup_op.apply(schema, context)
+
+            if context.enable_recursion:
+                schema = self._propagate_ref_field_alter_in_inheritance(
+                    schema,
+                    context,
+                    field_name='target',
+                )
+
+        return schema
+
+    @classmethod
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> sd.Command:
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        assert isinstance(cmd, SetPointerType)
+        if (
+            isinstance(astnode, qlast.SetPointerType)
+            and astnode.cast_expr is not None
+        ):
+            cmd.cast_expr = s_expr.Expression.from_ast(
+                astnode.cast_expr,
+                schema,
+                context.modaliases,
+                context.localnames,
+            )
+
+        return cmd
+
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
+        set_field = super()._get_ast(schema, context, parent_node=parent_node)
+        if set_field is None or self.is_attribute_computed('target'):
+            return None
+        else:
+            assert isinstance(set_field, qlast.SetField)
+            return qlast.SetPointerType(
+                value=set_field.value,
+                cast_expr=(
+                    self.cast_expr.qlast
+                    if self.cast_expr is not None else None
+                )
+            )
+
+
+class AlterPointerUpperCardinality(
+    referencing.ReferencedInheritingObjectCommand[Pointer_T],
+    inheriting.AlterInheritingObjectFragment[Pointer_T],
+    sd.AlterSpecialObjectField[Pointer_T],
+    PointerCommandOrFragment[Pointer_T],
+):
+    """Handler for the "cardinality" field changes."""
+
+    conv_expr = struct.Field(s_expr.Expression, default=None)
+
+    def get_friendly_description(
+        self,
+        *,
+        parent_op: Optional[sd.Command] = None,
+        schema: Optional[s_schema.Schema] = None,
+        object: Any = None,
+        object_desc: Optional[str] = None,
+    ) -> str:
+        object_desc = self.get_friendly_object_name_for_description(
+            parent_op=parent_op,
+            schema=schema,
+            object=object,
+            object_desc=object_desc,
+        )
+        new_card = self.get_attribute_value('cardinality')
+        if new_card is None:
+            # RESET CARDINALITY (to default)
+            new_card = qltypes.SchemaCardinality.One
+        return (
+            f"convert {object_desc} to"
+            f" {new_card.as_ptr_qual()!r} cardinality"
+        )
+
+    def is_data_safe(self) -> bool:
+        old_val = self.get_orig_attribute_value('cardinality')
+        new_val = self.get_attribute_value('cardinality')
+        if (
+            old_val is qltypes.SchemaCardinality.Many
+            and new_val is qltypes.SchemaCardinality.One
+        ):
+            return False
+        else:
+            return True
 
     def _alter_begin(
         self,
@@ -1312,78 +1913,144 @@ class SetPointerType(
         schema = super()._alter_begin(schema, context)
         scls = self.scls
 
-        orig_target = scls.get_target(orig_schema)
-        new_target = scls.get_target(schema)
+        orig_card = scls.get_cardinality(orig_schema)
+        new_card = scls.get_cardinality(schema)
+        is_computed = 'cardinality' in scls.get_computed_fields(schema)
 
-        if orig_target == new_target:
+        if orig_card == new_card or is_computed:
+            # The actual value hasn't changed, nothing to do here.
             return schema
 
-        context.altered_targets.add(scls)
-
-        # Type alters of pointers used in expressions is prohibited.
-        # Eventually we may be able to relax this by allowing to
-        # alter to the type that is compatible (i.e. does not change)
-        # with all expressions it is used in.
-        vn = scls.get_verbosename(schema, with_parent=True)
-        schema = self._propagate_if_expr_refs(
-            schema, context, action=f'alter the type of {vn}')
-
         if not context.canonical:
-            implicit_bases = scls.get_implicit_bases(schema)
-            non_altered_bases = []
+            vn = scls.get_verbosename(schema, with_parent=True)
+            desc = self.get_friendly_description(schema=schema)
+            ptr_op = self.get_parent_op(context)
+            src_op = self.get_referrer_context_or_die(context).op
 
-            tgt = scls.get_target(schema)
-            for base in set(implicit_bases) - context.altered_targets:
-                assert tgt is not None
-                base_tgt = base.get_target(schema)
-                assert isinstance(base_tgt, so.SubclassableObject)
-                if not tgt.issubclass(schema, base_tgt):
-                    non_altered_bases.append(base)
-
-            # This pointer is inherited from one or more ancestors that
-            # are not altered in the same op, and this is an error.
-            if non_altered_bases:
-                bases_str = ', '.join(
-                    b.get_verbosename(schema, with_parent=True)
-                    for b in non_altered_bases
-                )
-
+            if self._needs_conv_expr(
+                schema=schema,
+                ptr_op=ptr_op,
+                src_op=src_op,
+            ):
                 vn = scls.get_verbosename(schema, with_parent=True)
-
-                raise errors.SchemaDefinitionError(
-                    f'cannot change the target type of inherited {vn}',
-                    details=(
-                        f'{vn} is inherited from '
-                        f'{bases_str}'
+                raise errors.SchemaError(
+                    f'cannot automatically {desc}',
+                    hint=(
+                        'You need to specify a conversion '
+                        'expression in a USING clause'
                     ),
                     context=self.source_context,
                 )
 
-            tgt = self.get_attribute_value('target')
+            if self.conv_expr is not None:
+                self.conv_expr = self._compile_expr(
+                    schema=orig_schema,
+                    context=context,
+                    expr=self.conv_expr,
+                    target_as_singleton=False,
+                    singleton_result_expected=True,
+                    expr_description=(
+                        f'the USING clause for the alteration of {vn}'
+                    ),
+                )
 
-            def _set_type(
-                alter_cmd: sd.ObjectCommand[so.Object],
-                refname: str,
-            ) -> None:
-                s_t = type(self)(classname=alter_cmd.classname)
-                s_t.set_attribute_value('target', tgt)
-                alter_cmd.add(s_t)
+                using_type = self.conv_expr.stype
+                ptr_type = scls.get_target(schema)
+                assert ptr_type is not None
+                if not using_type.assignment_castable_to(
+                    ptr_type,
+                    self.conv_expr.schema,
+                ):
+                    ot = using_type.get_verbosename(self.conv_expr.schema)
+                    nt = ptr_type.get_verbosename(schema)
+                    raise errors.SchemaError(
+                        f'result of USING clause for the alteration of '
+                        f'{vn} cannot be cast automatically from '
+                        f'{ot} to {nt} ',
+                        hint='You might need to add an explicit cast.',
+                        context=self.source_context,
+                    )
 
-            schema = self._propagate_ref_op(
-                schema, context, self.scls, cb=_set_type)
+            schema = self._propagate_if_expr_refs(schema, context, action=desc)
+            schema = self._propagate_ref_field_alter_in_inheritance(
+                schema,
+                context,
+                field_name='cardinality',
+            )
 
         return schema
 
-    @classmethod
-    def _cmd_from_ast(
-        cls,
+    def record_diff_annotations(
+        self,
         schema: s_schema.Schema,
-        astnode: qlast.DDLOperation,
-        context: sd.CommandContext,
-    ) -> sd.ObjectCommand[Pointer]:
-        this_op = context.current().op
-        assert isinstance(this_op, sd.ObjectCommand)
-        return cls(classname=this_op.classname)
+        orig_schema: Optional[s_schema.Schema],
+        context: so.ComparisonContext,
+    ) -> None:
+        super().record_diff_annotations(
+            schema=schema,
+            orig_schema=orig_schema,
+            context=context,
+        )
+
+        if orig_schema is None:
+            return
+
+        if not context.generate_prompts:
+            return
+
+        assert len(context.parent_ops) > 1
+        ptr_op = context.parent_ops[-1]
+        src_op = context.parent_ops[-2]
+
+        needs_conv_expr = self._needs_conv_expr(
+            schema=schema,
+            ptr_op=ptr_op,
+            src_op=src_op,
+        )
+
+        if needs_conv_expr:
+            placeholder_name = context.get_placeholder('conv_expr')
+            desc = self.get_friendly_description(
+                schema=schema, parent_op=src_op)
+            prompt = (
+                f'Please specify an expression in order to {desc}'
+            )
+            self.set_annotation('required_input', {
+                placeholder_name: prompt,
+            })
+
+            self.conv_expr = s_expr.Expression.from_ast(
+                qlast.Placeholder(name=placeholder_name),
+                schema,
+            )
+
+    def _needs_conv_expr(
+        self,
+        *,
+        schema: s_schema.Schema,
+        ptr_op: sd.ObjectCommand[so.Object],
+        src_op: sd.ObjectCommand[so.Object],
+    ) -> bool:
+        old_card = (
+            self.get_orig_attribute_value('cardinality')
+            or qltypes.SchemaCardinality.One
+        )
+        new_card = (
+            self.get_attribute_value('cardinality')
+            or qltypes.SchemaCardinality.One
+        )
+        return (
+            old_card is qltypes.SchemaCardinality.Many
+            and new_card is qltypes.SchemaCardinality.One
+            and not self.is_attribute_computed('cardinality')
+            and not self.is_attribute_inherited('cardinality')
+            and not ptr_op.maybe_get_object_aux_data('from_alias')
+            and self.conv_expr is None
+            and not (
+                ptr_op.get_attribute_value('declared_overloaded')
+                or isinstance(src_op, sd.CreateObject)
+            )
+        )
 
     @classmethod
     def _cmd_tree_from_ast(
@@ -1392,42 +2059,243 @@ class SetPointerType(
         astnode: qlast.DDLOperation,
         context: sd.CommandContext,
     ) -> sd.Command:
-        assert isinstance(astnode, qlast.SetPointerType)
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
-
-        targets = qlast.get_targets(astnode.type)
-        target_ref: s_types.TypeShell
-
-        if len(targets) > 1:
-            new_targets = [
-                utils.ast_to_type_shell(
-                    t,
-                    modaliases=context.modaliases,
-                    schema=schema,
-                )
-                for t in targets
-            ]
-
-            target_ref = s_types.UnionTypeShell(
-                new_targets,
-                module=cls.classname.module,
+        assert isinstance(cmd, AlterPointerUpperCardinality)
+        if (
+            isinstance(astnode, qlast.SetPointerCardinality)
+            and astnode.conv_expr is not None
+        ):
+            cmd.conv_expr = s_expr.Expression.from_ast(
+                astnode.conv_expr,
+                schema,
+                context.modaliases,
+                context.localnames,
             )
-        else:
-            target = targets[0]
-            target_ref = utils.ast_to_type_shell(
-                target,
-                modaliases=context.modaliases,
-                schema=schema,
-            )
-
-        cmd.set_attribute_value('target', target_ref)
 
         return cmd
+
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
+        set_field = super()._get_ast(schema, context, parent_node=parent_node)
+        if set_field is None:
+            return None
+        else:
+            assert isinstance(set_field, qlast.SetField)
+            return qlast.SetPointerCardinality(
+                value=set_field.value,
+                conv_expr=(
+                    self.conv_expr.qlast
+                    if self.conv_expr is not None else None
+                )
+            )
+
+
+class AlterPointerLowerCardinality(
+    referencing.ReferencedInheritingObjectCommand[Pointer_T],
+    inheriting.AlterInheritingObjectFragment[Pointer_T],
+    sd.AlterSpecialObjectField[Pointer_T],
+    PointerCommandOrFragment[Pointer_T],
+):
+    """Handler for the "required" field changes."""
+
+    fill_expr = struct.Field(s_expr.Expression, default=None)
+
+    def get_friendly_description(
+        self,
+        *,
+        parent_op: Optional[sd.Command] = None,
+        schema: Optional[s_schema.Schema] = None,
+        object: Any = None,
+        object_desc: Optional[str] = None,
+    ) -> str:
+        object_desc = self.get_friendly_object_name_for_description(
+            parent_op=parent_op,
+            schema=schema,
+            object=object,
+            object_desc=object_desc,
+        )
+        required = self.get_attribute_value('required')
+        return f"make {object_desc} {'required' if required else 'optional'}"
+
+    def is_data_safe(self) -> bool:
+        return True
+
+    def _alter_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        orig_schema = schema
+        schema = super()._alter_begin(schema, context)
+        scls = self.scls
+
+        orig_required = scls.get_required(orig_schema)
+        new_required = scls.get_required(schema)
+        is_computed = 'required' in scls.get_computed_fields(schema)
+
+        if orig_required == new_required or is_computed:
+            # The actual value hasn't changed, nothing to do here.
+            return schema
+
+        if not context.canonical:
+            vn = scls.get_verbosename(schema, with_parent=True)
+
+            if self.fill_expr is not None:
+                self.fill_expr = self._compile_expr(
+                    schema=orig_schema,
+                    context=context,
+                    expr=self.fill_expr,
+                    target_as_singleton=True,
+                    singleton_result_expected=True,
+                    expr_description=(
+                        f'the USING clause for the alteration of {vn}'
+                    ),
+                )
+
+                using_type = self.fill_expr.stype
+                ptr_type = scls.get_target(schema)
+                assert ptr_type is not None
+                if not using_type.assignment_castable_to(
+                    ptr_type,
+                    self.fill_expr.schema,
+                ):
+                    ot = using_type.get_verbosename(self.fill_expr.schema)
+                    nt = ptr_type.get_verbosename(schema)
+                    raise errors.SchemaError(
+                        f'result of USING clause for the alteration of '
+                        f'{vn} cannot be cast automatically from '
+                        f'{ot} to {nt} ',
+                        hint='You might need to add an explicit cast.',
+                        context=self.source_context,
+                    )
+
+            schema = self._propagate_if_expr_refs(
+                schema,
+                context,
+                action=(
+                    f'make {vn} {"required" if new_required else "optional"}'
+                ),
+            )
+
+        return schema
+
+    def record_diff_annotations(
+        self,
+        schema: s_schema.Schema,
+        orig_schema: Optional[s_schema.Schema],
+        context: so.ComparisonContext,
+    ) -> None:
+        super().record_diff_annotations(
+            schema=schema,
+            orig_schema=orig_schema,
+            context=context,
+        )
+
+        if orig_schema is None:
+            return
+
+        if not context.generate_prompts:
+            return
+
+        assert len(context.parent_ops) > 1
+        ptr_op = context.parent_ops[-1]
+        src_op = context.parent_ops[-2]
+
+        needs_fill_expr = self._needs_fill_expr(
+            schema=schema,
+            ptr_op=ptr_op,
+            src_op=src_op,
+        )
+
+        if needs_fill_expr:
+            placeholder_name = context.get_placeholder('fill_expr')
+            desc = self.get_friendly_description(
+                schema=schema, parent_op=src_op)
+            prompt = (
+                f'Please specify an expression to populate existing objects '
+                f'in order to {desc}'
+            )
+            self.set_annotation('required_input', {
+                placeholder_name: prompt,
+            })
+
+            self.fill_expr = s_expr.Expression.from_ast(
+                qlast.Placeholder(name=placeholder_name),
+                schema,
+            )
+
+    def _needs_fill_expr(
+        self,
+        *,
+        schema: s_schema.Schema,
+        ptr_op: sd.ObjectCommand[so.Object],
+        src_op: sd.ObjectCommand[so.Object],
+    ) -> bool:
+        old_required = self.get_orig_attribute_value('required') or False
+        new_required = self.get_attribute_value('required') or False
+        return (
+            not old_required and new_required
+            and not self.is_attribute_computed('required')
+            and not self.is_attribute_inherited('required')
+            and not ptr_op.maybe_get_object_aux_data('from_alias')
+            and self.fill_expr is None
+            and not (
+                ptr_op.get_attribute_value('declared_overloaded')
+                or isinstance(src_op, sd.CreateObject)
+            )
+        )
+
+    @classmethod
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> sd.Command:
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        assert isinstance(cmd, AlterPointerLowerCardinality)
+        if (
+            isinstance(astnode, qlast.SetPointerOptionality)
+            and astnode.fill_expr is not None
+        ):
+            cmd.fill_expr = s_expr.Expression.from_ast(
+                astnode.fill_expr,
+                schema,
+                context.modaliases,
+                context.localnames,
+            )
+
+        return cmd
+
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
+        set_field = super()._get_ast(schema, context, parent_node=parent_node)
+        if set_field is None:
+            return None
+        else:
+            assert isinstance(set_field, qlast.SetField)
+            return qlast.SetPointerOptionality(
+                value=set_field.value,
+                fill_expr=(
+                    self.fill_expr.qlast
+                    if self.fill_expr is not None else None
+                )
+            )
 
 
 def get_or_create_union_pointer(
     schema: s_schema.Schema,
-    ptrname: str,
+    ptrname: sn.UnqualName,
     source: s_sources.Source,
     direction: PointerDirection,
     components: Iterable[Pointer],
@@ -1473,9 +2341,7 @@ def get_or_create_union_pointer(
         schema,
         source,
         target,
-        derived_name_base=sn.Name(
-            module='__',
-            name=ptrname),
+        derived_name_base=sn.QualName(module='__', name=ptrname.name),
         attrs={
             'union_of': so.ObjectSet.create(schema, components),
             'cardinality': cardinality,
@@ -1497,7 +2363,7 @@ def get_or_create_union_pointer(
 
 def get_or_create_intersection_pointer(
     schema: s_schema.Schema,
-    ptrname: str,
+    ptrname: sn.UnqualName,
     source: s_objtypes.ObjectType,
     components: Iterable[Pointer], *,
     modname: Optional[str] = None,
@@ -1527,9 +2393,7 @@ def get_or_create_intersection_pointer(
         schema,
         source,
         target,
-        derived_name_base=sn.Name(
-            module='__',
-            name=ptrname),
+        derived_name_base=sn.QualName(module='__', name=ptrname.name),
         attrs={
             'intersection_of': so.ObjectSet.create(schema, components),
             'cardinality': cardinality,

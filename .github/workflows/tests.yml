@@ -13,7 +13,7 @@ on:
     - cron: "0 */3 * * *"
 
 jobs:
-  test:
+  build:
     runs-on: ubuntu-18.04
 
     steps:
@@ -30,9 +30,10 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
-        python-version: 3.8
+        python-version: 3.9
 
-    - uses: actions/cache@v2
+    - name: Handle Pip dependency cache
+      uses: actions/cache@v2
       id: depcache
       with:
         path: deps
@@ -52,13 +53,32 @@ jobs:
         mkdir -p .tmp
         python setup.py --quiet gen_build_cache_key >.tmp/build_cache_key.txt
 
-    - uses: actions/cache@v2
+    - name: Handle build cache
+      uses: actions/cache@v2
       id: buildcache
       with:
         path: build
-        key: edbbuild-${{ hashFiles('.tmp/build_cache_key.txt') }}
+        key: edbbuild-v2-${{ hashFiles('.tmp/build_cache_key.txt') }}
         restore-keys: |
-          edbbuild-
+          edbbuild-v2-
+
+    - name: Download the running times log file
+      env:
+        GIST_TOKEN: ${{ secrets.CI_BOT_GIST_TOKEN }}
+      run: |
+        curl \
+          -H "Accept: application/vnd.github.v3+json" \
+          -u edgedb-ci:$GIST_TOKEN \
+          https://api.github.com/gists/8b722a65397f7c4c0df72f5394efa04c \
+        | jq '.files."time_stats.csv".raw_url' \
+        | xargs curl > .tmp/time_stats.csv
+
+    - name: Upload shared artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: build-cache-key-and-time-stats
+        path: .tmp
+        retention-days: 1
 
     - name: Install system deps
       if: steps.buildcache.outputs.cache-hit != 'true'
@@ -67,6 +87,7 @@ jobs:
         sudo apt-get install -y uuid-dev libreadline-dev bison flex
 
     - name: Install rust toolchain
+      if: steps.buildcache.outputs.cache-hit != 'true'
       uses: actions-rs/toolchain@v1
       with:
         profile: minimal
@@ -74,15 +95,308 @@ jobs:
         default: true
 
     - name: Build
+      if: steps.buildcache.outputs.cache-hit != 'true'
       run: |
         # --no-use-pep517 because we have explicitly installed all deps
         # and don't want them to be reinstalled in an "isolated env".
         pip install --no-use-pep517 --no-deps -e .[test,docs]
 
+    - name: Bootstrap EdgeDB Server
+      if: steps.buildcache.outputs.cache-hit != 'true'
+      run: |
+        edb server --bootstrap-only
+
+  cargo-test:
+    needs: build
+    runs-on: ubuntu-18.04
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+        submodules: false
+
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 50
+        submodules: true
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.9
+
+    - name: Handle Pip dependency cache
+      uses: actions/cache@v2
+      id: depcache
+      with:
+        path: deps
+        key: edbdeps-pip-${{ hashFiles('setup.py') }}
+
+    - name: Install Python deps
+      run: |
+        pip install -U --no-index --find-links=deps deps/*
+
+    - name: Download cache key
+      uses: actions/download-artifact@v2
+      with:
+        name: build-cache-key-and-time-stats
+        path: .tmp
+
+    - name: Handle build cache
+      uses: actions/cache@v2
+      id: buildcache
+      with:
+        path: build
+        key: edbbuild-v2-${{ hashFiles('.tmp/build_cache_key.txt') }}
+
+    - name: Stop if we cannot retrieve the build cache
+      if: steps.buildcache.outputs.cache-hit != 'true'
+      run: |
+        echo ::error::Cannot retrieve build cache.
+        exit 1
+
+    - name: Install rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        default: true
+
     - name: Cargo test
       uses: actions-rs/cargo@v1
       with:
         command: test
-    - name: Test
+
+  python-test:
+    needs: build
+    runs-on: ubuntu-18.04
+    strategy:
+      matrix:
+        shard: [
+             1/32,  2/32,  3/32,  4/32,
+             5/32,  6/32,  7/32,  8/32,
+             9/32, 10/32, 11/32, 12/32,
+            13/32, 14/32, 15/32, 16/32,
+            17/32, 18/32, 19/32, 20/32,
+            21/32, 22/32, 23/32, 24/32,
+            25/32, 26/32, 27/32, 28/32,
+            29/32, 30/32, 31/32, 32/32,
+        ]
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+        submodules: false
+
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 50
+        submodules: true
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.9
+
+    - name: Handle Pip dependency cache
+      uses: actions/cache@v2
+      id: depcache
+      with:
+        path: deps
+        key: edbdeps-pip-${{ hashFiles('setup.py') }}
+
+    - name: Install Python deps
       run: |
-        edb test -j2 -v
+        pip install -U --no-index --find-links=deps deps/*
+
+    - name: Download shared artifacts
+      uses: actions/download-artifact@v2
+      with:
+        name: build-cache-key-and-time-stats
+        path: .tmp
+
+    - name: Handle build cache
+      uses: actions/cache@v2
+      id: buildcache
+      with:
+        path: build
+        key: edbbuild-v2-${{ hashFiles('.tmp/build_cache_key.txt') }}
+
+    - name: Stop if we cannot retrieve the build cache
+      if: steps.buildcache.outputs.cache-hit != 'true'
+      run: |
+        echo ::error::Cannot retrieve build cache.
+        exit 1
+
+    - name: Install rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        default: true
+
+    - name: Install
+      run: |
+        # --no-use-pep517 because we have explicitly installed all deps
+        # and don't want them to be reinstalled in an "isolated env".
+        pip install --no-use-pep517 --no-deps -e .[test,docs]
+
+    - name: Test
+      env:
+        SHARD: ${{ matrix.shard }}
+      run: |
+        cp .tmp/time_stats.csv .tmp/new_${SHARD/\//_}.csv
+        edb test -j2 -v -s ${SHARD} --running-times-log=.tmp/new_${SHARD/\//_}.csv
+
+    - name: Update shared artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: build-cache-key-and-time-stats
+        path: .tmp
+        retention-days: 1
+
+  collect:
+    needs: build
+    runs-on: ubuntu-18.04
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+        submodules: false
+
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 50
+        submodules: true
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.9
+
+    - name: Handle Pip dependency cache
+      uses: actions/cache@v2
+      id: depcache
+      with:
+        path: deps
+        key: edbdeps-pip-${{ hashFiles('setup.py') }}
+
+    - name: Install Python deps
+      run: |
+        pip install -U --no-index --find-links=deps deps/*
+
+    - name: Download shared artifacts
+      uses: actions/download-artifact@v2
+      with:
+        name: build-cache-key-and-time-stats
+        path: .tmp
+
+    - name: Handle build cache
+      uses: actions/cache@v2
+      id: buildcache
+      with:
+        path: build
+        key: edbbuild-v2-${{ hashFiles('.tmp/build_cache_key.txt') }}
+
+    - name: Stop if we cannot retrieve the build cache
+      if: steps.buildcache.outputs.cache-hit != 'true'
+      run: |
+        echo ::error::Cannot retrieve build cache.
+        exit 1
+
+    - name: Install rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        default: true
+
+    - name: Install
+      run: |
+        # --no-use-pep517 because we have explicitly installed all deps
+        # and don't want them to be reinstalled in an "isolated env".
+        pip install --no-use-pep517 --no-deps -e .[test,docs]
+
+    - name: Generate complete list of tests for verification
+      env:
+        SHARD: ${{ matrix.shard }}
+      run: |
+        edb test --list > .tmp/all_tests.txt
+
+    - name: Update shared artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: build-cache-key-and-time-stats
+        path: .tmp
+        retention-days: 1
+
+  test:
+    needs: [cargo-test, python-test, collect]
+    runs-on: ubuntu-18.04
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+
+      - name: Install Python deps
+        run: |
+          pip install requests
+
+      - name: Download shared artifacts
+        uses: actions/download-artifact@v2
+        with:
+          name: build-cache-key-and-time-stats
+          path: .tmp
+
+      - name: Merge stats and verify tests completion
+        shell: python
+        env:
+          GIST_TOKEN: ${{ secrets.CI_BOT_GIST_TOKEN }}
+          GIT_REF: ${{ github.ref }}
+        run: |
+          import csv
+          import glob
+          import io
+          import os
+          import requests
+
+          orig = {}
+          new = {}
+          all_tests = set()
+          with open(".tmp/time_stats.csv") as f:
+              for name, t, c in csv.reader(f):
+                  assert name not in orig, "duplicate test name in original stats!"
+                  orig[name] = (t, int(c))
+
+          with open(".tmp/all_tests.txt") as f:
+              for line in f:
+                  assert line not in all_tests, "duplicate test name in this run!"
+                  all_tests.add(line.strip())
+
+          for new_file in glob.glob(".tmp/new*.csv"):
+              with open(new_file) as f:
+                  for name, t, c in csv.reader(f):
+                      if int(c) > orig.get(name, (0, 0))[1]:
+                          assert name not in new, f"duplicate test! {name}"
+                          new[name] = (t, c)
+                          all_tests.remove(name)
+
+          assert not all_tests, "Tests not run! \n" + "\n".join(all_tests)
+
+          if os.environ["GIT_REF"] == "refs/heads/master":
+              buf = io.StringIO()
+              writer = csv.writer(buf)
+              orig.update(new)
+              for k, v in sorted(orig.items()):
+                  writer.writerow((k,) + v)
+
+              resp = requests.patch(
+                  "https://api.github.com/gists/8b722a65397f7c4c0df72f5394efa04c",
+                  headers={"Accept": "application/vnd.github.v3+json"},
+                  auth=("edgedb-ci", os.environ["GIST_TOKEN"]),
+                  json={"files": {"time_stats.csv": {"content": buf.getvalue()}}},
+              )
+              resp.raise_for_status()

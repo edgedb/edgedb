@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from edb.schema import objects as s_obj
     from edb.schema import name as s_name
     from edb.schema import types as s_types
+    from edb.schema import pointers as s_pointers
 
 
 @dataclass
@@ -50,9 +51,6 @@ class GlobalCompilerOptions:
 
     #: Force types of all parameters to std::json
     json_parameters: bool = False
-
-    #: Whether there is a specific session.
-    session_mode: bool = False
 
     #: Use material types for pointer targets in schema views.
     schema_view_mode: bool = False
@@ -77,6 +75,10 @@ class GlobalCompilerOptions:
     #: to contain DML in the top-level shape computables.
     allow_top_level_shape_dml: bool = False
 
+    #: This is meant to be a temporary flag, needed while we iron out
+    #: multiplicity issues.
+    validate_multiplicity: bool = False
+
 
 @dataclass
 class CompilerOptions(GlobalCompilerOptions):
@@ -94,7 +96,7 @@ class CompilerOptions(GlobalCompilerOptions):
     derived_target_module: Optional[str] = None
 
     #: The name to use for the top-level type variant.
-    result_view_name: Optional[s_name.SchemaName] = None
+    result_view_name: Optional[s_name.QualName] = None
 
     #: If > 0, Inject implicit LIMIT to every SELECT query.
     implicit_limit: int = 0
@@ -105,6 +107,10 @@ class CompilerOptions(GlobalCompilerOptions):
     #: Include __tid__ computable (.__type__.id) in every shape implicitly.
     implicit_tid_in_shapes: bool = False
 
-    #: A set of schema types that should be treated
+    #: Include __tname__ computable (.__type__.name) in every shape implicitly.
+    implicit_tname_in_shapes: bool = False
+
+    #: A set of schema types and links that should be treated
     #: as singletons in the context of this compilation.
-    singletons: FrozenSet[s_types.Type] = frozenset()
+    singletons: FrozenSet[Union[s_types.Type, s_pointers.Pointer]] = (
+        frozenset())

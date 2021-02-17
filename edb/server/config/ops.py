@@ -29,21 +29,14 @@ from edb import errors
 from edb.common import enum
 from edb.common import typeutils
 
+from edb.edgeql import codegen as qlcodegen
 from edb.edgeql import qltypes
+
 from edb.schema import objects as s_obj
+from edb.schema import utils as s_utils
 
 from . import spec
 from . import types
-
-
-if TYPE_CHECKING:
-    Mapping_T = TypeVar("Mapping_T", bound=Mapping[str, str])
-
-
-class OpLevel(enum.StrEnum):
-
-    SESSION = 'SESSION'
-    SYSTEM = 'SYSTEM'
 
 
 class OpCode(enum.StrEnum):
@@ -54,12 +47,24 @@ class OpCode(enum.StrEnum):
     CONFIG_RESET = 'RESET'
 
 
+class SettingValue(NamedTuple):
+
+    name: str
+    value: Any
+    source: str
+    scope: qltypes.ConfigScope
+
+
+if TYPE_CHECKING:
+    SettingsMap = immutables.Map[str, SettingValue]
+
+
 class Operation(NamedTuple):
 
     opcode: OpCode
-    level: OpLevel
+    scope: qltypes.ConfigScope
     setting_name: str
-    value: Union[str, int, bool, None]
+    value: Union[str, int, bool, Collection[Union[str, int, bool, None]], None]
 
     def get_setting(self, spec: spec.Spec):
         try:
@@ -85,13 +90,13 @@ class Operation(NamedTuple):
                     f'invalid value type for the '
                     f'{setting.name!r} setting')
             else:
-                for v in self.value:
+                for v in self.value:  # type: ignore
                     if not isinstance(v, setting.type):
                         raise errors.ConfigurationError(
                             f'invalid value type for the '
                             f'{setting.name!r} setting')
 
-                return frozenset(self.value)
+                return frozenset(self.value)  # type: ignore
         else:
             if isinstance(self.value, setting.type):
                 return self.value
@@ -101,8 +106,7 @@ class Operation(NamedTuple):
                 raise errors.ConfigurationError(
                     f'invalid value type for the {setting.name!r} setting')
 
-    def apply(self, spec: spec.Spec,
-              storage: Mapping_T) -> Mapping_T:
+    def apply(self, spec: spec.Spec, storage: SettingsMap) -> SettingsMap:
 
         setting = self.get_setting(spec)
         allow_missing = (
@@ -119,7 +123,7 @@ class Operation(NamedTuple):
                     f'configuration parameter: {self.setting_name}'
                 )
 
-            storage = storage.set(self.setting_name, value)
+            storage = self._set_value(storage, value)
 
         elif self.opcode is OpCode.CONFIG_RESET:
             if issubclass(setting.type, types.ConfigType):
@@ -140,7 +144,12 @@ class Operation(NamedTuple):
                     f'configuration parameter: {self.setting_name}'
                 )
 
-            exist_value = storage.get(self.setting_name, setting.default)
+            exist_setting = storage.get(self.setting_name)
+            if exist_setting is not None:
+                exist_value = exist_setting.value
+            else:
+                exist_value = setting.default
+
             if value in exist_value:
                 props = []
                 for f in dataclasses.fields(setting.type):
@@ -148,17 +157,17 @@ class Operation(NamedTuple):
                         props.append(f.name)
 
                 if len(props) > 1:
-                    props = f' ({", ".join(props)}) violate'
+                    props_s = f' ({", ".join(props)}) violate'
                 else:
-                    props = f'.{props[0]} violates'
+                    props_s = f'.{props[0]} violates'
 
                 raise errors.ConstraintViolationError(
-                    f'{setting.type.__name__}{props} '
+                    f'{setting.type.__name__}{props_s} '
                     f'exclusivity constraint'
                 )
 
             new_value = exist_value | {value}
-            storage = storage.set(self.setting_name, new_value)
+            storage = self._set_value(storage, new_value)
 
         elif self.opcode is OpCode.CONFIG_REM:
             if not issubclass(setting.type, types.ConfigType):
@@ -167,16 +176,48 @@ class Operation(NamedTuple):
                     f'configuration parameter: {self.setting_name}'
                 )
 
-            exist_value = storage.get(self.setting_name, setting.default)
+            exist_setting = storage.get(self.setting_name)
+            if exist_setting is not None:
+                exist_value = exist_setting.value
+            else:
+                exist_value = setting.default
             new_value = exist_value - {value}
-            storage = storage.set(self.setting_name, new_value)
+            storage = self._set_value(storage, new_value)
 
         return storage
 
+    def _set_value(
+        self,
+        storage: SettingsMap,
+        value: Any,
+    ) -> SettingsMap:
+
+        if self.scope is qltypes.ConfigScope.SYSTEM:
+            source = 'system override'
+        elif self.scope is qltypes.ConfigScope.DATABASE:
+            source = 'database'
+        elif self.scope is qltypes.ConfigScope.SESSION:
+            source = 'session'
+        else:
+            raise AssertionError(f'unexpected config scope: {self.scope}')
+
+        return set_value(
+            storage,
+            self.setting_name,
+            value,
+            source=source,
+            scope=self.scope,
+        )
+
     @classmethod
     def from_json(cls, json_value: str) -> Operation:
-        op_str, lev_str, name, value = json.loads(json_value)
-        return Operation(OpCode(op_str), OpLevel(lev_str), name, value)
+        op_str, scope_str, name, value = json.loads(json_value)
+        return Operation(
+            opcode=OpCode(op_str),
+            scope=qltypes.ConfigScope(scope_str),
+            setting_name=name,
+            value=value,
+        )
 
 
 def spec_to_json(spec: spec.Spec):
@@ -241,16 +282,43 @@ def value_from_json(setting, value: str):
     return value_from_json_value(setting, json.loads(value))
 
 
-def to_json(spec: spec.Spec, storage: Mapping) -> str:
+def value_to_edgeql_const(setting: spec.Setting, value: Any) -> str:
+    if isinstance(setting.type, types.ConfigType):
+        raise NotImplementedError(
+            'cannot render non-scalar configuration value'
+        )
+
+    ql = s_utils.const_ast_from_python(value)
+    return qlcodegen.generate_source(ql)
+
+
+def to_json(
+    spec: spec.Spec,
+    storage: Mapping[str, SettingValue],
+    *,
+    setting_filter: Optional[Callable[[SettingValue], bool]] = None,
+    include_source: bool = True,
+) -> str:
     dct = {}
     for name, value in storage.items():
         setting = spec[name]
-        dct[name] = value_to_json_value(setting, value)
+        if setting_filter is None or setting_filter(value):
+            val = value_to_json_value(setting, value.value)
+            if include_source:
+                dct[name] = {
+                    'name': name,
+                    'source': value.source,
+                    'scope': str(value.scope),
+                    'value': val,
+                }
+            else:
+                dct[name] = val
     return json.dumps(dct)
 
 
-def from_json(spec: spec.Spec, js: str) -> Mapping:
-    with immutables.Map().mutate() as mm:
+def from_json(spec: spec.Spec, js: str) -> SettingsMap:
+    base: SettingsMap = immutables.Map()
+    with base.mutate() as mm:
         dct = json.loads(js)
 
         if not isinstance(dct, dict):
@@ -263,26 +331,40 @@ def from_json(spec: spec.Spec, js: str) -> Mapping:
                 raise errors.ConfigurationError(
                     f'invalid JSON: unknown setting name {key!r}')
 
-            mm[key] = value_from_json_value(setting, value)
+            mm[key] = SettingValue(
+                name=key,
+                value=value_from_json_value(setting, value['value']),
+                source=value['source'],
+                scope=qltypes.ConfigScope(value['scope']),
+            )
 
     return mm.finish()
 
 
-def lookup(spec: spec.Spec, name: str, *configs: Mapping,
-           allow_unrecognized: bool = False):
-    try:
+def to_edgeql(
+    spec: spec.Spec,
+    storage: Mapping[str, SettingValue],
+) -> str:
+    stmts = []
+
+    for name, value in storage.items():
         setting = spec[name]
-    except (KeyError, TypeError):
-        if allow_unrecognized:
-            return None
-        else:
-            raise errors.ConfigurationError(
-                f'unrecognized configuration parameter {name!r}')
+        val = value_to_edgeql_const(setting, value.value)
+        stmt = f'CONFIGURE {value.scope.to_edgeql()} SET {name} := {val};'
+        stmts.append(stmt)
 
-    for c in configs:
-        try:
-            return c[name]
-        except KeyError:
-            pass
+    return '\n'.join(stmts)
 
-    return setting.default
+
+def set_value(
+    storage: SettingsMap,
+    name: str,
+    value: Any,
+    source: str,
+    scope: qltypes.ConfigScope,
+) -> SettingsMap:
+
+    return storage.set(
+        name,
+        SettingValue(name=name, value=value, source=source, scope=scope),
+    )

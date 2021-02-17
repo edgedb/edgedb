@@ -22,8 +22,10 @@ from typing import *
 
 from edb import errors
 from edb.edgeql import ast as qlast
+from edb.edgeql import qltypes
 
 from . import delta as sd
+from . import name as sn
 from . import objects as so
 from . import scalars as s_scalars
 from . import types as s_types
@@ -35,10 +37,18 @@ if TYPE_CHECKING:
 PseudoType_T = TypeVar("PseudoType_T", bound="PseudoType")
 
 
-class PseudoType(so.InheritingObject, s_types.Type):
+class PseudoType(
+    so.InheritingObject,
+    s_types.Type,
+    qlkind=qltypes.SchemaObjectClass.PSEUDO_TYPE,
+):
 
     @classmethod
-    def get(cls, schema: s_schema.Schema, name: str) -> PseudoType:
+    def get(
+        cls,
+        schema: s_schema.Schema,
+        name: Union[str, sn.Name],
+    ) -> PseudoType:
         return schema.get_global(PseudoType, name)
 
     def as_shell(self, schema: s_schema.Schema) -> PseudoTypeShell:
@@ -56,7 +66,7 @@ class PseudoType(so.InheritingObject, s_types.Type):
     ) -> so.ObjectList[PseudoType]:
         return so.ObjectList[PseudoType].create_empty()  # type: ignore
 
-    def get_is_abstract(self, schema: s_schema.Schema) -> bool:
+    def get_abstract(self, schema: s_schema.Schema) -> bool:
         return True
 
     def is_polymorphic(self, schema: s_schema.Schema) -> bool:
@@ -69,13 +79,13 @@ class PseudoType(so.InheritingObject, s_types.Type):
         return schema, self
 
     def is_any(self, schema: s_schema.Schema) -> bool:
-        return self.get_name(schema) == 'anytype'
-
-    def is_tuple(self, schema: s_schema.Schema) -> bool:
-        return self.get_name(schema) == 'anytuple'
+        return str(self.get_name(schema)) == 'anytype'
 
     def is_anytuple(self, schema: s_schema.Schema) -> bool:
-        return self.get_name(schema) == 'anytuple'
+        return str(self.get_name(schema)) == 'anytuple'
+
+    def is_tuple(self, schema: s_schema.Schema) -> bool:
+        return self.is_anytuple(schema)
 
     def implicitly_castable_to(
         self,
@@ -140,7 +150,7 @@ class PseudoType(so.InheritingObject, s_types.Type):
 
 class PseudoTypeShell(s_types.TypeShell):
 
-    def __init__(self, *, name: str) -> None:
+    def __init__(self, *, name: sn.Name) -> None:
         super().__init__(name=name, schemaclass=PseudoType)
 
     def is_polymorphic(self, schema: s_schema.Schema) -> bool:
@@ -156,7 +166,6 @@ class PseudoTypeCommandContext(sd.ObjectCommandContext[PseudoType]):
 
 class PseudoTypeCommand(
     s_types.TypeCommand[PseudoType],
-    schema_metaclass=PseudoType,
     context_class=PseudoTypeCommandContext,
 ):
     pass

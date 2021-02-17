@@ -358,7 +358,7 @@ class AlterTableFragment(ddl.DDLOperation):
     def get_attribute_term(self):
         return 'COLUMN'
 
-    def generate_extra(self, block, parent_op) -> None:
+    def generate_extra(self, block, parent_op) -> None:  # type: ignore
         pass
 
 
@@ -403,7 +403,7 @@ class AlterTableDropParent(AlterTableFragment):
             self.parent_name)
 
 
-class AlterTableAddColumn(
+class AlterTableAddColumn(  # type: ignore
         composites.AlterCompositeAddAttribute, AlterTableFragment):
     pass
 

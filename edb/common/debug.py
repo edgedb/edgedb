@@ -36,6 +36,7 @@ from __future__ import annotations
 import builtins
 import contextlib
 import os
+import sys
 import time
 import warnings
 
@@ -126,8 +127,8 @@ class flags(metaclass=FlagsMeta):
     log_metrics = Flag(
         doc="Log verbose statistics on connections and compiler behavior.")
 
-    migrations_via_ddl = Flag(
-        doc="Always use generated DDL when running migrations.")
+    disable_docs_edgeql_validation = Flag(
+        doc="Disable validation of edgeql in docs (for site build)")
 
 
 @contextlib.contextmanager
@@ -153,6 +154,21 @@ def dump(*args, **kwargs):
 def dump_code(*args, **kwargs):
     from . import markup as _markup
     _markup.dump_code(*args, **kwargs)
+
+
+def set_trace(**kwargs):
+    """Debugger hook that works inside worker processes.
+
+    Set PYTHONBREAKPOINT=edb.common.debug.set_trace, and this will be triggered
+    by `breakpoint()`.
+
+    Unfortunately readline doesn't work when not using stdin itself,
+    so try running the server wrapped with `rlwrap.`
+    """
+    from pdb import Pdb
+    new_stdin = open("/dev/tty", "r")
+    Pdb(stdin=new_stdin, stdout=sys.stdout).set_trace(
+        sys._getframe().f_back, **kwargs)
 
 
 def print(*args):

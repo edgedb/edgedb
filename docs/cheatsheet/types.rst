@@ -8,6 +8,10 @@ Types
     Types are commonly defined by :ref:`migrations
     <ref_cheatsheet_migrations>` using :ref:`SDL <ref_eql_sdl>`.
 
+
+----------
+
+
 Define an abstract type:
 
 .. code-block:: sdl
@@ -18,6 +22,10 @@ Define an abstract type:
         index on (.image);
     }
 
+
+----------
+
+
 Define a type extending from the abstract:
 
 .. code-block:: sdl
@@ -25,6 +33,10 @@ Define a type extending from the abstract:
     type User extending HasImage {
         required property name -> str;
     }
+
+
+----------
+
 
 Define a type with constraints and defaults for properties:
 
@@ -47,6 +59,10 @@ Define a type with constraints and defaults for properties:
             default := datetime_current();
         }
     }
+
+
+----------
+
 
 Define a type with a property that is computed from the combination of
 the other properties:
@@ -79,6 +95,10 @@ the other properties:
     }
 
 
+
+----------
+
+
 Define an abstract links:
 
 .. code-block:: sdl
@@ -93,6 +113,10 @@ Define an abstract links:
     abstract link directors extending crew;
 
     abstract link actors extending crew;
+
+
+
+----------
 
 
 Define a type using abstract links and a computable property that
@@ -117,6 +141,10 @@ aggregates values from another linked type:
 
         property avg_rating := math::mean(.<movie[IS Review].rating);
     }
+
+
+
+----------
 
 
 Define an :eql:type:`auto-incrementing <sequence>` scalar type and an

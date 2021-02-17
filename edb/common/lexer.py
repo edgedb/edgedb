@@ -19,11 +19,11 @@
 
 from __future__ import annotations
 
+from typing import *
+
 import collections
 import re
 import types
-
-from edb.common import context as pctx
 
 
 class LexError(Exception):
@@ -57,7 +57,7 @@ class UnknownTokenError(LexError):
 
 class Rule:
     _idx = 0
-    _map = {}
+    _map: Dict[int, Rule] = {}
 
     def __init__(self, *, token, next_state, regexp):
         cls = self.__class__
@@ -90,8 +90,8 @@ def group(*literals, _re_alpha=re.compile(r'^\w+$'), asbytes=False):
 
 class Lexer:
 
-    NL = frozenset()
-    MULTILINE_TOKENS = frozenset()
+    NL: Optional[str] = None
+    MULTILINE_TOKENS: AbstractSet[str] = frozenset()
     RE_FLAGS = re.X | re.M
     asbytes = False
     _NL = '\n'
@@ -154,7 +154,7 @@ class Lexer:
 
         Update the lexer lineno, column, and start.
         """
-        start_pos = pctx.SourcePoint(self.lineno, self.column, self.start)
+        start_pos = self.start
         len_txt = len(txt)
 
         if rule_token is self.NL:
@@ -171,7 +171,7 @@ class Lexer:
             self.column += len_txt
 
         self.start += len_txt
-        end_pos = pctx.SourcePoint(self.lineno, self.column, self.start)
+        end_pos = self.start
 
         return Token(txt, type=rule_token, text=txt,
                      start=start_pos, end=end_pos,

@@ -8,6 +8,10 @@ Aliases
     Aliases are commonly defined by :ref:`migrations
     <ref_cheatsheet_migrations>` using :ref:`SDL <ref_eql_sdl>`.
 
+
+----------
+
+
 Define an alias that merges some information from links as computable
 properties, this is a way of flattening a nested structure:
 
@@ -19,6 +23,10 @@ properties, this is a way of flattening a nested structure:
         author_name := .author.name,
         movie_title := .movie.title,
     }
+
+
+----------
+
 
 Define an alias for traversing a link backwards, this is especially
 useful for GraphQL access:

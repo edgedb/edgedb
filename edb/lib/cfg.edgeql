@@ -19,10 +19,11 @@
 
 CREATE MODULE cfg;
 
-CREATE ABSTRACT ANNOTATION cfg::backend_setting;
-CREATE ABSTRACT ANNOTATION cfg::internal;
-CREATE ABSTRACT ANNOTATION cfg::requires_restart;
-CREATE ABSTRACT ANNOTATION cfg::system;
+CREATE ABSTRACT INHERITABLE ANNOTATION cfg::backend_setting;
+CREATE ABSTRACT INHERITABLE ANNOTATION cfg::internal;
+CREATE ABSTRACT INHERITABLE ANNOTATION cfg::requires_restart;
+CREATE ABSTRACT INHERITABLE ANNOTATION cfg::system;
+CREATE ABSTRACT INHERITABLE ANNOTATION cfg::affects_compilation;
 
 CREATE ABSTRACT TYPE cfg::ConfigObject EXTENDING std::BaseObject;
 
@@ -81,7 +82,7 @@ CREATE TYPE cfg::Auth EXTENDING cfg::ConfigObject {
 };
 
 
-CREATE TYPE cfg::Config extending cfg::ConfigObject {
+CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
     CREATE REQUIRED PROPERTY listen_port -> std::int16 {
         CREATE ANNOTATION cfg::system := 'true';
         SET default := 5656;
@@ -99,6 +100,11 @@ CREATE TYPE cfg::Config extending cfg::ConfigObject {
         CREATE ANNOTATION cfg::system := 'true';
     };
 
+    CREATE PROPERTY allow_dml_in_functions -> std::bool {
+        SET default := false;
+        CREATE ANNOTATION cfg::affects_compilation := 'true';
+    };
+
     # Exposed backend settings follow.
     # When exposing a new setting, remember to modify
     # the _read_sys_config function to select the value
@@ -111,144 +117,60 @@ CREATE TYPE cfg::Config extending cfg::ConfigObject {
     };
 
     CREATE PROPERTY query_work_mem -> std::str {
+        CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"work_mem"';
         SET default := '-1';
     };
 
     CREATE PROPERTY effective_cache_size -> std::str {
+        CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"effective_cache_size"';
         SET default := '-1';
     };
 
     CREATE PROPERTY effective_io_concurrency -> std::str {
+        CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"effective_io_concurrency"';
         SET default := '50';
     };
 
     CREATE PROPERTY default_statistics_target -> std::str {
+        CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"default_statistics_target"';
         SET default := '100';
     };
 };
 
 
+CREATE TYPE cfg::Config EXTENDING cfg::AbstractConfig;
+CREATE TYPE cfg::SystemConfig EXTENDING cfg::AbstractConfig;
+CREATE TYPE cfg::DatabaseConfig EXTENDING cfg::AbstractConfig;
+
+
 CREATE FUNCTION
-cfg::get_config_json() -> std::json
+cfg::get_config_json(
+    NAMED ONLY sources: OPTIONAL array<std::str> = {},
+    NAMED ONLY max_source: OPTIONAL std::str = {}
+) -> std::json
 {
     USING SQL $$
-    SELECT jsonb_object_agg(cfg.name, cfg)
-    FROM edgedb._read_sys_config() AS cfg
+    SELECT
+        coalesce(jsonb_object_agg(cfg.name, cfg), '{}'::jsonb)
+    FROM
+        edgedb._read_sys_config(
+            sources::edgedb._sys_config_source_t[],
+            max_source::edgedb._sys_config_source_t
+        ) AS cfg
     $$;
 };
 
 CREATE FUNCTION
 cfg::_quote(text: std::str) -> std::str
 {
+    SET volatility := 'STABLE';
     SET internal := true;
     USING SQL $$
         SELECT replace(quote_literal(text), '''''', '\\''')
-    $$
-};
-
-CREATE FUNCTION
-cfg::_name_value(
-    prefix: std::str,
-    suffix: std::str,
-    name: std::str,
-    value: OPTIONAL std::int16,
-    default: OPTIONAL std::int16
-) -> std::str
-{
-    SET internal := true;
-    USING (
-        SELECT '' IF EXISTS default AND default = value
-            ELSE prefix ++ name ++ ' := ' ++ <str>value ?? '{}' ++ suffix
-    )
-};
-
-CREATE FUNCTION
-cfg::_name_value(
-    prefix: std::str,
-    suffix: std::str,
-    name: std::str,
-    value: OPTIONAL std::int32,
-    default: OPTIONAL std::int32
-) -> std::str
-{
-    SET internal := true;
-    USING (
-        SELECT '' IF EXISTS default AND default = value
-            ELSE prefix ++ name ++ ' := ' ++ <str>value ?? '{}' ++ suffix
-    )
-};
-
-CREATE FUNCTION
-cfg::_name_value(
-    prefix: std::str,
-    suffix: std::str,
-    name: std::str,
-    value: OPTIONAL std::int64,
-    default: OPTIONAL std::int64
-) -> std::str
-{
-    SET internal := true;
-    USING (
-        SELECT '' IF EXISTS default AND default = value
-            ELSE prefix ++ name ++ ' := ' ++ <str>value ?? '{}' ++ suffix
-    )
-};
-
-CREATE FUNCTION
-cfg::_name_value(
-    prefix: std::str,
-    suffix: std::str,
-    name: std::str,
-    value: OPTIONAL std::bool,
-    default: OPTIONAL std::bool
-) -> std::str
-{
-    SET internal := true;
-    USING (
-        SELECT '' IF EXISTS default AND default = value
-            ELSE prefix ++ name ++ ' := ' ++ <str>value ?? '{}' ++ suffix
-    )
-};
-
-CREATE FUNCTION
-cfg::_name_value(
-    prefix: std::str,
-    suffix: std::str,
-    name: std::str,
-    value: OPTIONAL std::str,
-    default: OPTIONAL std::str
-) -> std::str
-{
-    SET internal := true;
-    USING (
-        SELECT '' IF EXISTS default AND default = value
-            ELSE prefix ++
-                name ++ ' := ' ++ cfg::_quote(value) ?? '{}'
-                ++ suffix
-    )
-};
-
-CREATE FUNCTION
-cfg::_name_value_array(
-    prefix: std::str,
-    suffix: std::str,
-    name: std::str,
-    value: array<std::str>
-) -> std::str
-{
-    SET internal := true;
-    USING SQL $$
-        SELECT
-            CASE WHEN array_length(value, 1) > 0 THEN
-                (SELECT concat(prefix, name, ' := {',
-                    string_agg(quote_literal(item), ', '), '}', suffix)
-                 FROM unnest(value) as item)
-            ELSE ''
-            END
     $$
 };
 
@@ -261,20 +183,12 @@ cfg::_describe_system_config_as_ddl() -> str
     USING SQL FUNCTION 'edgedb._describe_system_config_as_ddl';
 };
 
-CREATE FUNCTION
-cfg::_config_insert_all_ports() -> str
-{
-    # The results won't change within a single statement.
-    SET volatility := 'STABLE';
-    SET internal := true;
-    USING SQL FUNCTION 'edgedb._config_insert_all_ports';
-};
 
 CREATE FUNCTION
-cfg::_config_insert_all_auth() -> str
+cfg::_describe_database_config_as_ddl() -> str
 {
     # The results won't change within a single statement.
     SET volatility := 'STABLE';
     SET internal := true;
-    USING SQL FUNCTION 'edgedb._config_insert_all_auth';
+    USING SQL FUNCTION 'edgedb._describe_database_config_as_ddl';
 };

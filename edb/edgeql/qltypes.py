@@ -81,12 +81,32 @@ class SchemaCardinality(s_enum.StrEnum):
     '''This enum is used to store cardinality in the schema.'''
     One = 'One'
     Many = 'Many'
+    Unknown = 'Unknown'
+
+    def is_multi(self) -> bool:
+        if self is SchemaCardinality.One:
+            return False
+        elif self is SchemaCardinality.Many:
+            return True
+        else:
+            raise ValueError('cardinality is unknown')
+
+    def is_single(self) -> bool:
+        return not self.is_multi()
+
+    def is_known(self) -> bool:
+        return self is not SchemaCardinality.Unknown
 
     def as_ptr_qual(self) -> str:
         if self is SchemaCardinality.One:
             return 'single'
-        else:
+        elif self is SchemaCardinality.Many:
             return 'multi'
+        else:
+            raise ValueError('cardinality is unknown')
+
+    def to_edgeql(self) -> str:
+        return self.as_ptr_qual().upper()
 
 
 class Cardinality(s_enum.StrEnum):
@@ -107,6 +127,9 @@ class Cardinality(s_enum.StrEnum):
 
     def is_multi(self) -> bool:
         return not self.is_single()
+
+    def can_be_zero(self) -> bool:
+        return self not in {Cardinality.ONE, Cardinality.AT_LEAST_ONE}
 
     def to_schema_value(self) -> Tuple[bool, SchemaCardinality]:
         return _CARD_TO_TUPLE[self]
@@ -146,6 +169,12 @@ class Volatility(s_enum.StrEnum):
         return cls(name.title())
 
 
+class Multiplicity(s_enum.StrEnum):
+    ZERO = 'ZERO'  # This is valid for empty sets
+    ONE = 'ONE'
+    MANY = 'MANY'
+
+
 class DescribeLanguage(s_enum.StrEnum):
     DDL = 'DDL'
     SDL = 'SDL'
@@ -161,6 +190,8 @@ class SchemaObjectClass(s_enum.StrEnum):
     CAST = 'CAST'
     CONSTRAINT = 'CONSTRAINT'
     DATABASE = 'DATABASE'
+    EXTENSION = 'EXTENSION'
+    EXTENSION_PACKAGE = 'EXTENSION PACKAGE'
     FUNCTION = 'FUNCTION'
     INDEX = 'INDEX'
     LINK = 'LINK'
@@ -169,6 +200,7 @@ class SchemaObjectClass(s_enum.StrEnum):
     OPERATOR = 'OPERATOR'
     PARAMETER = 'PARAMETER'
     PROPERTY = 'PROPERTY'
+    PSEUDO_TYPE = 'PSEUDO TYPE'
     ROLE = 'ROLE'
     SCALAR_TYPE = 'SCALAR TYPE'
     TUPLE_TYPE = 'TUPLE TYPE'
@@ -192,3 +224,16 @@ class LinkTargetDeleteAction(s_enum.StrEnum):
             return 'ALLOW'
         else:
             raise ValueError(f'unsupported enum value {self!r}')
+
+
+class ConfigScope(s_enum.StrEnum):
+
+    SYSTEM = 'SYSTEM'
+    DATABASE = 'DATABASE'
+    SESSION = 'SESSION'
+
+    def to_edgeql(self) -> str:
+        if self is ConfigScope.DATABASE:
+            return 'CURRENT DATABASE'
+        else:
+            return str(self)

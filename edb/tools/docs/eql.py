@@ -207,13 +207,12 @@ import re
 import lxml.etree
 import pygments.lexers.special
 
-from edb.edgeql.pygments import EdgeQLLexer
+from typing import *
 
-from edb.edgeql.parser import parser as edgeql_parser
-from edb.edgeql import ast as ql_ast
-from edb.edgeql import codegen as ql_gen
-from edb.edgeql import qltypes
-from edb.common import markup  # NoQA
+from edb.common import debug
+
+from edb.tools.pygments.edgeql import EdgeQLLexer
+
 from edb.testbase import protocol
 
 from docutils import nodes as d_nodes
@@ -586,7 +585,7 @@ class EQLSynopsisDirective(s_code.CodeBlock):
     has_content = True
     optional_arguments = 0
     required_arguments = 0
-    option_spec = {}
+    option_spec: Dict[str, Any] = {}
 
     def run(self):
         self.arguments = ['edgeql-synopsis']
@@ -602,6 +601,18 @@ class EQLReactElement(d_rst.Directive):
     def run(self):
         node = d_nodes.container()
         node['react-element'] = self.arguments[0]
+        return [node]
+
+
+class EQLSectionIntroPage(d_rst.Directive):
+
+    has_content = False
+    optional_arguments = 0
+    required_arguments = 1
+
+    def run(self):
+        node = d_nodes.container()
+        node['section-intro-page'] = self.arguments[0]
         return [node]
 
 
@@ -685,6 +696,20 @@ class EQLFunctionDirective(BaseEQLDirective):
     ]
 
     def handle_signature(self, sig, signode):
+        if debug.flags.disable_docs_edgeql_validation:
+            signode['eql-fullname'] = fullname = sig.split('(')[0]
+            signode['eql-signature'] = sig
+            mod, name = fullname.split('::')
+            signode['eql-module'] = mod
+            signode['eql-name'] = name
+
+            return fullname
+
+        from edb.edgeql.parser import parser as edgeql_parser
+        from edb.edgeql import ast as ql_ast
+        from edb.edgeql import codegen as ql_gen
+        from edb.edgeql import qltypes
+
         parser = edgeql_parser.EdgeQLBlockParser()
         try:
             astnode = parser.parse(
@@ -748,6 +773,19 @@ class EQLConstraintDirective(BaseEQLDirective):
     ]
 
     def handle_signature(self, sig, signode):
+        if debug.flags.disable_docs_edgeql_validation:
+            signode['eql-fullname'] = fullname = re.split(r'\(| ', sig)[0]
+            signode['eql-signature'] = sig
+            mod, name = fullname.split('::')
+            signode['eql-module'] = mod
+            signode['eql-name'] = name
+
+            return fullname
+
+        from edb.edgeql.parser import parser as edgeql_parser
+        from edb.edgeql import ast as ql_ast
+        from edb.edgeql import codegen as ql_gen
+
         parser = edgeql_parser.EdgeQLBlockParser()
         try:
             astnode = parser.parse(
@@ -942,6 +980,7 @@ class EdgeQLDomain(s_domains.Domain):
         'operator': EQLOperatorDirective,
         'synopsis': EQLSynopsisDirective,
         'react-element': EQLReactElement,
+        'section-intro-page': EQLSectionIntroPage,
         'struct': EQLStructElement,
     }
 
@@ -962,7 +1001,7 @@ class EdgeQLDomain(s_domains.Domain):
         'op-desc',
     }
 
-    initial_data = {
+    initial_data: Dict[str, Dict[str, Any]] = {
         'objects': {}  # fullname -> docname, objtype, description
     }
 

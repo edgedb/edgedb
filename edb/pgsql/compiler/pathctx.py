@@ -79,7 +79,11 @@ def get_less_specific_aspect(
 def map_path_id(
         path_id: irast.PathId,
         path_id_map: Dict[irast.PathId, irast.PathId]) -> irast.PathId:
-    for outer_id, inner_id in path_id_map.items():
+
+    sorted_map = sorted(
+        path_id_map.items(), key=lambda kv: len(kv[0]), reverse=True)
+
+    for outer_id, inner_id in sorted_map:
         new_path_id = path_id.replace_prefix(outer_id, inner_id)
         if new_path_id != path_id:
             path_id = new_path_id
@@ -98,6 +102,15 @@ def reverse_map_path_id(
             break
 
     return path_id
+
+
+def put_path_id_map(
+    rel: pgast.Query,
+    outer_path_id: irast.PathId,
+    inner_path_id: irast.PathId,
+) -> None:
+    inner_path_id = map_path_id(inner_path_id, rel.view_path_id_map)
+    rel.view_path_id_map[outer_path_id] = inner_path_id
 
 
 def get_path_var(
@@ -500,7 +513,7 @@ def get_path_output_alias(
     elif path_id.is_collection_path():
         alias_base = path_id.target.collection
     else:
-        _, _, alias_base = path_id.target_name_hint.rpartition('::')
+        alias_base = path_id.target_name_hint.name
 
     return env.aliases.get(f'{alias_base}_{aspect}')
 
@@ -642,23 +655,22 @@ def put_path_rvar_if_not_exists(
 def get_path_rvar(
         stmt: pgast.Query, path_id: irast.PathId, *,
         aspect: str, env: context.Environment) -> pgast.PathRangeVar:
-    rvar = stmt.path_rvar_map.get((path_id, aspect))
+    rvar = maybe_get_path_rvar(stmt, path_id, aspect=aspect, env=env)
     if rvar is None:
-        if aspect == 'identity':
-            rvar = stmt.path_rvar_map.get((path_id, 'value'))
-        if rvar is None:
-            raise LookupError(
-                f'there is no range var for {path_id} {aspect} in {stmt}')
+        raise LookupError(
+            f'there is no range var for {path_id} {aspect} in {stmt}')
     return rvar
 
 
 def maybe_get_path_rvar(
         stmt: pgast.Query, path_id: irast.PathId, *, aspect: str,
         env: context.Environment) -> Optional[pgast.PathRangeVar]:
-    try:
-        return get_path_rvar(stmt, path_id, aspect=aspect, env=env)
-    except LookupError:
-        return None
+    rvar = env.external_rvars.get((path_id, aspect))
+    if rvar is None:
+        rvar = stmt.path_rvar_map.get((path_id, aspect))
+    if rvar is None and aspect == 'identity':
+        rvar = stmt.path_rvar_map.get((path_id, 'value'))
+    return rvar
 
 
 def list_path_aspects(
@@ -1019,6 +1031,25 @@ def get_path_serialized_output(
         return result
 
     ref = get_path_serialized_or_value_var(rel, path_id, env=env)
+
+    if (
+        isinstance(ref, pgast.TupleVarBase)
+        and not isinstance(ref, pgast.TupleVar)
+    ):
+        elements = []
+
+        for el in ref.elements:
+            assert el.path_id is not None
+            val = get_path_serialized_or_value_var(rel, el.path_id, env=env)
+            elements.append(
+                pgast.TupleElement(
+                    path_id=el.path_id, name=el.name, val=val))
+
+        ref = pgast.TupleVar(
+            elements,
+            named=ref.named,
+            typeref=ref.typeref,
+        )
 
     refexpr = output.serialize_expr(ref, path_id=path_id, env=env)
     alias = get_path_output_alias(path_id, aspect, env=env)

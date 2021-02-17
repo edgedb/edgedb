@@ -20,24 +20,29 @@ import asyncio
 import decimal
 import json
 import uuid
-import subprocess
-import sys
-import tempfile
+import struct
 import unittest
 
 import edgedb
 
 from edb.common import devmode
 from edb.common import taskgroup as tg
-from edb.server import main as server_main
 from edb.testbase import server as tb
-from edb.tools import test
+from edb.server.compiler import enums
+
+
+SERVER_HEADER_CAPABILITIES = 0x1001
+ALL_CAPABILITIES = 0xFFFFFFFFFFFFFFFF
+
+
+def _capabilities(attrs):
+    bytes = attrs.pop(SERVER_HEADER_CAPABILITIES)
+    return enums.Capability(struct.unpack('>Q', bytes)[0])
 
 
 class TestServerProto(tb.QueryTestCase):
 
-    ISOLATED_METHODS = False
-    SERIALIZED = True
+    TRANSACTION_ISOLATION = False
 
     SETUP = '''
         CREATE TYPE test::Tmp {
@@ -55,6 +60,7 @@ class TestServerProto(tb.QueryTestCase):
         # persist correctly when set inside and outside of (potentially
         # failing) transaction blocks.
         CONFIGURE SESSION SET __internal_testmode := true;
+
     '''
 
     TEARDOWN = '''
@@ -183,13 +189,13 @@ class TestServerProto(tb.QueryTestCase):
             };
         ''')
         self.assertEqual(r, [])
-        self.assertEqual(self.con._get_last_status(), 'CREATE')
+        self.assertEqual(self.con._get_last_status(), 'CREATE TYPE')
 
         r = await self.con.query('''
             DROP TYPE test::server_fetch_single_command_01;
         ''')
         self.assertEqual(r, [])
-        self.assertEqual(self.con._get_last_status(), 'DROP')
+        self.assertEqual(self.con._get_last_status(), 'DROP TYPE')
 
         r = await self.con.query('''
             CREATE TYPE test::server_fetch_single_command_01 {
@@ -269,18 +275,17 @@ class TestServerProto(tb.QueryTestCase):
                 r = await self.con.query_json(q)
                 self.assertEqual(r, '[]')
 
-        for q in qs:
-            with self.assertRaisesRegex(
-                    edgedb.InterfaceError,
-                    r'cannot be executed with query_one\(\).*'
-                    r'not return'):
-                await self.con.query_one(q)
+        with self.assertRaisesRegex(
+                edgedb.InterfaceError,
+                r'cannot be executed with query_one\(\).*'
+                r'not return'):
+            await self.con.query_one('START TRANSACTION')
 
-            with self.assertRaisesRegex(
-                    edgedb.InterfaceError,
-                    r'cannot be executed with query_one_json\(\).*'
-                    r'not return'):
-                await self.con.query_one_json(q)
+        with self.assertRaisesRegex(
+                edgedb.InterfaceError,
+                r'cannot be executed with query_one_json\(\).*'
+                r'not return'):
+            await self.con.query_one_json('START TRANSACTION')
 
     async def test_server_proto_fetch_single_command_04(self):
         with self.assertRaisesRegex(edgedb.ProtocolError,
@@ -421,6 +426,36 @@ class TestServerProto(tb.QueryTestCase):
                 edgedb.InvalidReferenceError,
                 "function 'foo::min' does not exist"):
             await self.con.query('SELECT foo::min({3})')
+
+    async def test_server_proto_set_reset_alias_05(self):
+        # A regression test.
+        # The "DECLARE SAVEPOINT a1; ROLLBACK TO SAVEPOINT a1;" commands
+        # used to propagate the 'foo -> std' alias to the connection state
+        # which the failed to correctly revert it back on ROLLBACK.
+
+        await self.con.execute('''
+            START TRANSACTION;
+        ''')
+
+        await self.con.execute('''
+            SET ALIAS foo AS MODULE std;
+            DECLARE SAVEPOINT a1;
+            ROLLBACK TO SAVEPOINT a1;
+        ''')
+
+        with self.assertRaises(edgedb.DivisionByZeroError):
+            await self.con.execute('''
+                SELECT 1/0;
+            ''')
+
+        await self.con.execute('''
+            ROLLBACK;
+        ''')
+
+        with self.assertRaises(edgedb.InvalidReferenceError):
+            await self.con.execute('''
+                SELECT foo::len('aaa')
+            ''')
 
     async def test_server_proto_basic_datatypes_01(self):
         for _ in range(10):
@@ -720,8 +755,9 @@ class TestServerProto(tb.QueryTestCase):
 
         con2 = await self.connect(database=self.con.dbname)
 
+        await self.con.query('START TRANSACTION')
         await self.con.query(
-            'select sys::advisory_lock(<int64>$0)', lock_key)
+            'select sys::_advisory_lock(<int64>$0)', lock_key)
 
         try:
             async with tg.TaskGroup() as g:
@@ -729,18 +765,21 @@ class TestServerProto(tb.QueryTestCase):
                 async def exec_to_fail():
                     with self.assertRaises(ConnectionAbortedError):
                         await con2.query(
-                            'select sys::advisory_lock(<int64>$0)', lock_key)
+                            'select sys::_advisory_lock(<int64>$0)', lock_key)
 
                 g.create_task(exec_to_fail())
 
                 await asyncio.sleep(0.1)
                 await con2.aclose()
 
+            # Give the server some time to actually close the connection.
+            await asyncio.sleep(2)
+
         finally:
-            self.assertEqual(
-                await self.con.query(
-                    'select sys::advisory_unlock(<int64>$0)', lock_key),
-                [True])
+            k = await self.con.query(
+                'select sys::_advisory_unlock(<int64>$0)', lock_key)
+            await self.con.query('ROLLBACK')
+            self.assertEqual(k, [True])
 
     async def test_server_proto_log_message_01(self):
         msgs = []
@@ -1210,6 +1249,61 @@ class TestServerProto(tb.QueryTestCase):
         finally:
             await con.execute('ROLLBACK')
 
+    async def test_server_proto_tx_savepoint_10(self):
+        con = self.con
+
+        with self.assertRaises(edgedb.DivisionByZeroError):
+            await con.execute('''
+                START TRANSACTION;
+                DECLARE SAVEPOINT t1;
+                DECLARE SAVEPOINT t2;
+                SELECT 1/0;
+            ''')
+
+        try:
+            with self.assertRaises(edgedb.DivisionByZeroError):
+                await con.execute('''
+                    ROLLBACK TO SAVEPOINT t2;
+                    SELECT 1/0;
+                ''')
+
+            await con.execute('''
+                ROLLBACK TO SAVEPOINT t1;
+            ''')
+
+            self.assertEqual(
+                await con.query('SELECT 42+1+1+1'),
+                [45])
+        finally:
+            await con.execute('ROLLBACK')
+
+    async def test_server_proto_tx_savepoint_11(self):
+        con = self.con
+
+        with self.assertRaises(edgedb.DivisionByZeroError):
+            await con.execute('''
+                START TRANSACTION;
+                DECLARE SAVEPOINT t1;
+                DECLARE SAVEPOINT t2;
+                SELECT 1/0;
+                COMMIT;
+
+                START TRANSACTION;
+                DECLARE SAVEPOINT z1;
+                SELECT 42;
+            ''')
+
+        try:
+            await con.execute('''
+                ROLLBACK TO SAVEPOINT t2;
+            ''')
+
+            self.assertEqual(
+                await con.query_one('SELECT 42+1+1+1+1'),
+                46)
+        finally:
+            await con.execute('ROLLBACK')
+
     async def test_server_proto_tx_01(self):
         await self.con.execute('''
             START TRANSACTION;
@@ -1384,7 +1478,7 @@ class TestServerProto(tb.QueryTestCase):
         # Test that START TRANSACTION reflects its modes.
 
         try:
-            await self.con.execute('''
+            await self.con.query('''
                 START TRANSACTION ISOLATION SERIALIZABLE, READ ONLY,
                     DEFERRABLE;
             ''')
@@ -1393,13 +1487,13 @@ class TestServerProto(tb.QueryTestCase):
                     edgedb.TransactionError,
                     'read-only transaction'):
 
-                await self.con.execute('''
+                await self.con.query('''
                     INSERT test::Tmp {
                         tmp := 'aaa'
                     };
                 ''')
         finally:
-            await self.con.execute(f'''
+            await self.con.query(f'''
                 ROLLBACK;
             ''')
 
@@ -1894,10 +1988,32 @@ class TestServerProto(tb.QueryTestCase):
             self.assertEqual(
                 result, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 
+    async def test_server_proto_tx_20(self):
+        await self.con.execute(f'''
+            START TRANSACTION;
+        ''')
+        try:
+            with self.assertRaisesRegex(
+                edgedb.QueryError,
+                'cannot execute CREATE DATABASE in a transaction'
+            ):
+                await self.con.execute('CREATE DATABASE t1;')
+        finally:
+            await self.con.execute('ROLLBACK;')
+
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            'cannot execute CREATE DATABASE with other commands'
+        ):
+            await self.con.execute('''
+                SELECT 1;
+                CREATE DATABASE t1;
+            ''')
+
 
 class TestServerProtoMigration(tb.QueryTestCase):
 
-    ISOLATED_METHODS = False
+    TRANSACTION_ISOLATION = False
 
     async def test_server_proto_mig_01(self):
         # Replicating the "test_edgeql_tutorial" test that might
@@ -1931,22 +2047,12 @@ class TestServerProtoMigration(tb.QueryTestCase):
 
 class TestServerProtoDdlPropagation(tb.QueryTestCase):
 
-    ISOLATED_METHODS = False
+    TRANSACTION_ISOLATION = False
 
     @unittest.skipUnless(devmode.is_in_dev_mode(),
                          'the test requires devmode')
     async def test_server_proto_ddlprop_01(self):
         conargs = self.get_connect_args()
-
-        settings = self.con.get_settings()
-        pgaddr = settings.get('pgaddr')
-        if pgaddr is None:
-            raise RuntimeError('test requires devmode')
-        pgaddr = json.loads(pgaddr)
-        pgdsn = (
-            f'postgres:///?user={pgaddr["user"]}&port={pgaddr["port"]}'
-            f'&host={pgaddr["host"]}'
-        )
 
         await self.con.execute('''
             CREATE TYPE Test {
@@ -1961,42 +2067,17 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
             123
         )
 
-        with tempfile.TemporaryDirectory() as tmp:
-            other_port = server_main.PortType.find_available_port()
-            cmd = [
-                sys.executable, '-m', 'edb.server.main',
-                '--postgres-dsn', pgdsn,
-                '--runstate-dir', tmp,
-                '--port', str(other_port),
-            ]
+        async with tb.start_edgedb_server(adjacent_to=self.con) as sd:
 
-            # Note: for debug comment "stderr=subprocess.PIPE".
-            proc: asyncio.Process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stderr=subprocess.PIPE,
-                stdout=subprocess.PIPE,
+            con2 = await edgedb.async_connect(
+                host=sd.host,
+                port=sd.port,
+                user=conargs.get('user'),
+                password=conargs.get('password'),
+                database=self.get_database_name(),
             )
 
             try:
-                attempt = 0
-                while True:
-                    attempt += 1
-                    try:
-                        con2 = await edgedb.async_connect(
-                            host=tmp,
-                            port=other_port,
-                            user=conargs.get('user'),
-                            password=conargs.get('password'),
-                            database=self.get_database_name(),
-                        )
-                    except (ConnectionError, edgedb.ClientConnectionError):
-                        if attempt >= 100:
-                            raise
-                        await asyncio.sleep(0.1)
-                        continue
-                    else:
-                        break
-
                 self.assertEqual(
                     await con2.query_one('SELECT Test.foo LIMIT 1'),
                     123
@@ -2015,19 +2096,100 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
                     'text'
                 )
 
-                self.assertEqual(
-                    await con2.query_one('SELECT Test2.foo LIMIT 1'),
-                    'text'
-                )
+                # Give some time for the other server to re-introspect the
+                # schema: the first attempt of querying Test2 might fail.
+                # We'll give it generous 5 seconds to accomodate slow CI.
+                async for tr in self.try_until_succeeds(
+                    ignore=edgedb.InvalidReferenceError
+                ):
+                    async with tr:
+                        self.assertEqual(
+                            await con2.query_one('SELECT Test2.foo LIMIT 1'),
+                            'text'
+                        )
 
-                await con2.aclose()
             finally:
-                if proc.returncode is None:
-                    proc.terminate()
-                    await proc.wait()
+                await con2.aclose()
+
+            # Other tests mutate global DDL, hence try a few times.
+            async for tr in self.try_until_succeeds(
+                ignore=edgedb.TransactionSerializationError
+            ):
+                async with tr:
+                    await self.con.execute('''
+                        CREATE SUPERUSER ROLE ddlprop01 {
+                            SET password := 'aaaa';
+                        }
+                    ''')
+
+            # Give some time for the other server to receive the
+            # updated roles notification and re-fetch them.
+            # We'll give it generous 5 seconds to accomodate slow CI.
+            async for tr in self.try_until_succeeds(
+                ignore=edgedb.AuthenticationError
+            ):
+                async with tr:
+                    con3 = await edgedb.async_connect(
+                        host=sd.host,
+                        port=sd.port,
+                        user='ddlprop01',
+                        password='aaaa',
+                        database=self.get_database_name(),
+                    )
+
+            try:
+                self.assertEqual(
+                    await con3.query_one('SELECT 42'),
+                    42
+                )
+            finally:
+                await con3.aclose()
+
+                # Other tests mutate global DDL, hence try a few times.
+                async for tr in self.try_until_succeeds(
+                    ignore=edgedb.TransactionSerializationError
+                ):
+                    async with tr:
+                        await self.con.execute('''
+                            DROP ROLE ddlprop01;
+                        ''')
 
 
-class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
+class TestServerProtoDDL(tb.DDLTestCase):
+
+    TRANSACTION_ISOLATION = False
+
+    async def test_server_proto_create_db_01(self):
+        db = 'test_server_proto_create_db_01'
+
+        con1 = self.con
+
+        cleanup = False
+        try:
+            for _ in range(3):
+                await con1.execute(f'''
+                    CREATE DATABASE {db};
+                ''')
+                cleanup = True
+
+                con2 = await self.connect(database=db)
+                try:
+                    self.assertEqual(
+                        await con2.query_one('SELECT 1'),
+                        1
+                    )
+                finally:
+                    await con2.aclose()
+
+                await con1.execute(f'''
+                    DROP DATABASE {db};
+                ''')
+                cleanup = False
+        finally:
+            if cleanup:
+                await con1.execute(f'''
+                    DROP DATABASE {db};
+                ''')
 
     async def test_server_proto_query_cache_invalidate_01(self):
         typename = 'CacheInv_01'
@@ -2339,12 +2501,6 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
         finally:
             await con2.aclose()
 
-    @test.xfail('''
-        The error is:
-        reference to a non-existent schema item
-        3c6145d4-192f-11e9-83b3-edb414a0f9bf in schema
-        <Schema gen:4594 at 0x7f5dbfd68198>
-    ''')
     async def test_server_proto_query_cache_invalidate_07(self):
         typename = 'CacheInv_07'
 
@@ -2359,7 +2515,8 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
                 }};
 
                 CREATE TYPE test::{typename} {{
-                    CREATE REQUIRED LINK link1 -> test::Foo{typename};
+                    CREATE REQUIRED LINK link1 EXTENDING test::link1
+                        -> test::Foo{typename};
                 }};
 
                 INSERT test::Foo{typename};
@@ -2391,7 +2548,8 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
 
                 INSERT test::{typename} {{
                     link1 := (
-                        SELECT test::Foo{typename} {{@prop1 := 123}} LIMIT 1
+                        (SELECT test::Foo{typename} LIMIT 1)
+                        {{@prop1 := 123}}
                     )
                 }};
             ''')
@@ -2403,42 +2561,6 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
 
         finally:
             await con2.aclose()
-
-    @test.xfail("concurrent DDL isn't yet supported")
-    async def test_server_proto_query_cache_invalidate_08(self):
-        typename_prefix = 'CacheInvMulti_'
-        ntasks = 5
-
-        async with tg.TaskGroup() as g:
-            cons_tasks = [
-                g.create_task(self.connect(database=self.con.dbname))
-                for _ in range(ntasks)
-            ]
-
-        cons = [c.result() for c in cons_tasks]
-
-        try:
-            async with tg.TaskGroup() as g:
-                for i, con in enumerate(cons):
-                    g.create_task(con.execute(f'''
-                        CREATE TYPE test::{typename_prefix}{i} {{
-                            CREATE REQUIRED PROPERTY prop1 -> std::int64;
-                        }};
-
-                        INSERT test::{typename_prefix}{i} {{
-                            prop1 := {i}
-                        }};
-                    '''))
-
-            for i, con in enumerate(cons):
-                ret = await con.query(
-                    f'SELECT test::{typename_prefix}{i}.prop1')
-                self.assertEqual(ret, i)
-
-        finally:
-            async with tg.TaskGroup() as g:
-                for con in cons:
-                    g.create_task(con.aclose())
 
     async def test_server_proto_query_cache_invalidate_09(self):
         typename = 'CacheInv_09'
@@ -2611,11 +2733,8 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
                 CREATE SCALAR TYPE tid_prop_081 EXTENDING str;
                 COMMIT;
 
-                # This CREATE will be part of the transaction
-                # that explicitly starts *after* it
-                # (this semantics is inherited from Postgres.)
-                CREATE SCALAR TYPE tid_prop_082 EXTENDING str;
                 START TRANSACTION;
+                CREATE SCALAR TYPE tid_prop_082 EXTENDING str;
             ''')
 
             await self.con.execute('''
@@ -2641,6 +2760,47 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
             await self.con.execute('''
                 ROLLBACK;
                 DROP SCALAR TYPE tid_prop_081;
+            ''')
+
+    async def test_server_proto_backend_tid_propagation_09(self):
+        try:
+            await self.con.execute('''
+                START TRANSACTION;
+                CREATE SCALAR TYPE tid_prop_091 EXTENDING str;
+                COMMIT;
+
+                START TRANSACTION;
+                CREATE SCALAR TYPE tid_prop_092 EXTENDING str;
+            ''')
+
+            await self.con.execute('''
+                CREATE SCALAR TYPE tid_prop_093 EXTENDING str;
+            ''')
+
+            await self.con.execute('''
+                COMMIT;
+            ''')
+
+            result = await self.con.query_one('''
+                SELECT (<array<tid_prop_091>>$input)[0]
+            ''', input=['A', 'C'])
+            self.assertEqual(result, 'A')
+
+            result = await self.con.query_one('''
+                SELECT (<array<tid_prop_092>>$input)[1]
+            ''', input=['A', 'C'])
+            self.assertEqual(result, 'C')
+
+            result = await self.con.query_one('''
+                SELECT (<array<tid_prop_093>>$input)[1]
+            ''', input=['A', 'Z'])
+            self.assertEqual(result, 'Z')
+
+        finally:
+            await self.con.execute('''
+                DROP SCALAR TYPE tid_prop_091;
+                DROP SCALAR TYPE tid_prop_092;
+                DROP SCALAR TYPE tid_prop_093;
             ''')
 
     async def test_server_proto_fetch_limit_01(self):
@@ -2731,7 +2891,7 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
                     ORDER BY .n
                     LIMIT 3
                 """,
-                __limit__=2
+                __limit__=4
             )
 
             self.assertEqual(len(result), 3)
@@ -2746,6 +2906,28 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
                     WITH a := {11, 12, 13}
                     SELECT _ := {9, 1, 13}
                     FILTER _ IN a;
+                """,
+                __limit__=1
+            )
+
+            self.assertEqual(result, edgedb.Set([13]))
+
+            # Check that things cast to JSON don't get limited.
+            result = await self.con._fetchall(
+                r"""
+                    WITH a := {11, 12, 13}
+                    SELECT <json>array_agg(a);
+                """,
+                __limit__=1
+            )
+
+            self.assertEqual(result, edgedb.Set(['[11, 12, 13]']))
+
+            # Check that non-array_agg calls don't get limited.
+            result = await self.con._fetchall(
+                r"""
+                    WITH a := {11, 12, 13}
+                    SELECT max(a);
                 """,
                 __limit__=1
             )
@@ -2782,3 +2964,173 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
             SELECT {"test1", "test2"}
         ''')
         self.assertEqual(result, ['"test1"', '"test2"'])
+
+
+class TestServerProtoConcurrentDDL(tb.DDLTestCase):
+
+    TRANSACTION_ISOLATION = False
+    RETRY_DROP_DATABASE = True
+
+    async def test_server_proto_concurrent_ddl(self):
+        typename_prefix = 'ConcurrentDDL'
+        ntasks = 5
+
+        async with tg.TaskGroup() as g:
+            cons_tasks = [
+                g.create_task(self.connect(database=self.con.dbname))
+                for _ in range(ntasks)
+            ]
+
+        cons = [c.result() for c in cons_tasks]
+
+        try:
+            async with tg.TaskGroup() as g:
+                for i, con in enumerate(cons):
+                    g.create_task(con.execute(f'''
+                        CREATE TYPE test::{typename_prefix}{i} {{
+                            CREATE REQUIRED PROPERTY prop1 -> std::int64;
+                        }};
+
+                        INSERT test::{typename_prefix}{i} {{
+                            prop1 := {i}
+                        }};
+                    '''))
+        except tg.TaskGroupError as e:
+            self.assertIn(
+                edgedb.TransactionSerializationError,
+                e.get_error_types(),
+            )
+        else:
+            self.fail("TransactionSerializationError not raised")
+        finally:
+            async with tg.TaskGroup() as g:
+                for con in cons:
+                    g.create_task(con.aclose())
+
+
+class TestServerProtoConcurrentGlobalDDL(tb.DDLTestCase):
+
+    TRANSACTION_ISOLATION = False
+    RETRY_DROP_DATABASE = True
+
+    async def test_server_proto_concurrent_global_ddl(self):
+        ntasks = 5
+
+        async with tg.TaskGroup() as g:
+            cons_tasks = [
+                g.create_task(self.connect(database=self.con.dbname))
+                for _ in range(ntasks)
+            ]
+
+        cons = [c.result() for c in cons_tasks]
+
+        try:
+            async with tg.TaskGroup() as g:
+                for i, con in enumerate(cons):
+                    g.create_task(con.execute(f'''
+                        CREATE SUPERUSER ROLE concurrent_{i}
+                    '''))
+        except tg.TaskGroupError as e:
+            self.assertIn(
+                edgedb.TransactionSerializationError,
+                e.get_error_types(),
+            )
+        else:
+            self.fail("TransactionSerializationError not raised")
+        finally:
+            async with tg.TaskGroup() as g:
+                for con in cons:
+                    g.create_task(con.aclose())
+
+
+class TestServerCapabilities(tb.QueryTestCase):
+
+    TRANSACTION_ISOLATION = False
+
+    SETUP = '''
+        CREATE TYPE test::Modify {
+            CREATE REQUIRED PROPERTY prop1 -> std::str;
+        };
+    '''
+
+    TEARDOWN = '''
+        DROP TYPE test::Modify;
+    '''
+
+    async def test_server_capabilities_01(self):
+        _, attrs = await self.con._fetchall_with_headers(
+            'SELECT {1, 2, 3}',
+        )
+        self.assertEqual(_capabilities(attrs), enums.Capability(0))
+
+        # selects are always allowed
+        _, attrs = await self.con._fetchall_with_headers(
+            'SELECT {1, 2, 3}',
+            __allow_capabilities__=0,
+        )
+        self.assertEqual(_capabilities(attrs), enums.Capability(0))
+
+        # as well as describes
+        _, attrs = await self.con._fetchall_with_headers(
+            'DESCRIBE OBJECT cfg::Config',
+            __allow_capabilities__=0,
+        )
+        self.assertEqual(_capabilities(attrs), enums.Capability(0))
+
+    async def test_server_capabilities_02(self):
+        _, attrs = await self.con._fetchall_with_headers(
+            'INSERT test::Modify { prop1 := "xx" }',
+        )
+        self.assertEqual(
+            _capabilities(attrs),
+            enums.Capability.MODIFICATIONS,
+        )
+        with self.assertRaises(edgedb.ProtocolError):
+            await self.con._fetchall(
+                'INSERT test::Modify { prop1 := "xx" }',
+                __allow_capabilities__=0,
+            )
+        await self.con._fetchall(
+            'INSERT test::Modify { prop1 := "xx" }',
+            __allow_capabilities__=enums.Capability.MODIFICATIONS,
+        )
+
+    async def test_server_capabilities_03(self):
+        with self.assertRaises(edgedb.ProtocolError):
+            await self.con._fetchall(
+                'CREATE TYPE test::Type1',
+                __allow_capabilities__=0,
+            )
+        try:
+            _, attrs = await self.con._fetchall_with_headers(
+                'CREATE TYPE test::Type1',
+                __allow_capabilities__=enums.Capability.DDL,
+            )
+            self.assertEqual(
+                _capabilities(attrs),
+                enums.Capability.DDL,
+            )
+        finally:
+            _, attrs = await self.con._fetchall_with_headers(
+                'DROP TYPE test::Type1',
+            )
+            self.assertEqual(
+                _capabilities(attrs),
+                enums.Capability.DDL,
+            )
+
+    async def test_server_capabilities_04(self):
+        caps = ALL_CAPABILITIES & ~enums.Capability.SESSION_CONFIG
+        with self.assertRaises(edgedb.ProtocolError):
+            await self.con._fetchall(
+                'CONFIGURE SESSION SET singleprop := "42"',
+                __allow_capabilities__=caps,
+            )
+
+    async def test_server_capabilities_05(self):
+        caps = ALL_CAPABILITIES & ~enums.Capability.PERSISTENT_CONFIG
+        with self.assertRaises(edgedb.ProtocolError):
+            await self.con._fetchall(
+                'CONFIGURE SYSTEM SET singleprop := "42"',
+                __allow_capabilities__=caps,
+            )

@@ -169,7 +169,7 @@ def connect_command(func):
 
 def connect(
     ctx: click.Context,
-) -> edgedb.BlockingIOConnection:
+) -> None:
     conn = ctx.obj['connargs'].new_connection()
     ctx.obj['conn'] = conn
     ctx.call_on_close(lambda: conn.close())

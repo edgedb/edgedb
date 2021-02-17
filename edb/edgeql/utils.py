@@ -32,7 +32,7 @@ from . import ast as qlast
 
 class ParameterInliner(ast.NodeTransformer):
 
-    def __init__(self, args_map: Dict[str, qlast.Base]) -> None:
+    def __init__(self, args_map: Mapping[str, qlast.Base]) -> None:
         super().__init__()
         self.args_map = args_map
 
@@ -64,15 +64,17 @@ def inline_parameters(
 def index_parameters(
     ql_args: List[qlast.Base],
     *,
-    parameters: Union[Sequence[s_func.Parameter], s_func.ParameterLikeList],
+    parameters: s_func.ParameterLikeList,
     schema: s_schema.Schema
 ) -> Dict[str, qlast.Base]:
 
-    result = {}
-    varargs = None
+    result: Dict[str, qlast.Base] = {}
+    varargs: Optional[List[qlast.Base]] = None
     variadic = parameters.find_variadic(schema)
-    variadic_num = variadic.get_num(schema) if variadic else -1
+    variadic_num = variadic.get_num(schema) if variadic else -1  # type: ignore
 
+    e: qlast.Base
+    p: s_func.ParameterLike
     for (i, e), p in itertools.zip_longest(enumerate(ql_args),
                                            parameters.objects(schema),
                                            fillvalue=None):
@@ -107,9 +109,9 @@ class AnchorInliner(ast.NodeTransformer):
         step0 = node.steps[0]
 
         if isinstance(step0, qlast.Anchor):
-            node.steps[0] = self.anchors[step0.name]
+            node.steps[0] = self.anchors[step0.name]  # type: ignore
         elif isinstance(step0, qlast.ObjectRef) and step0.name in self.anchors:
-            node.steps[0] = self.anchors[step0.name]
+            node.steps[0] = self.anchors[step0.name]  # type: ignore
 
         return node
 
@@ -121,6 +123,61 @@ def inline_anchors(
 
     inliner = AnchorInliner(anchors)
     inliner.visit(ql_expr)
+
+
+def find_paths(ql: qlast.Base) -> List[qlast.Path]:
+    paths: List[qlast.Path] = ast.find_children(
+        ql,
+        lambda x: isinstance(x, qlast.Path),
+    )
+    return paths
+
+
+def find_subject_ptrs(ast: qlast.Base) -> Set[str]:
+    ptrs = set()
+    for path in find_paths(ast):
+        if path.partial:
+            p = path.steps[0]
+        elif isinstance(path.steps[0], qlast.Subject) and len(path.steps) > 1:
+            p = path.steps[1]
+        else:
+            continue
+
+        if isinstance(p, qlast.Ptr):
+            ptrs.add(p.ptr.name)
+    return ptrs
+
+
+def subject_paths_substitute(
+    ast: qlast.Base_T,
+    subject_ptrs: Dict[str, qlast.Expr],
+) -> qlast.Base_T:
+    ast = copy.deepcopy(ast)
+    for path in find_paths(ast):
+        if path.partial and isinstance(path.steps[0], qlast.Ptr):
+            path.steps[0] = subject_paths_substitute(
+                subject_ptrs[path.steps[0].ptr.name],
+                subject_ptrs,
+            )
+        elif (
+            isinstance(path.steps[0], qlast.Subject)
+            and len(path.steps)
+            and isinstance(path.steps[1], qlast.Ptr)
+        ):
+            path.steps[0:2] = [subject_paths_substitute(
+                subject_ptrs[path.steps[1].ptr.name],
+                subject_ptrs,
+            )]
+    return ast
+
+
+def subject_substitute(
+        ast: qlast.Base_T, new_subject: qlast.Expr) -> qlast.Base_T:
+    ast = copy.deepcopy(ast)
+    for path in find_paths(ast):
+        if isinstance(path.steps[0], qlast.Subject):
+            path.steps[0] = new_subject
+    return ast
 
 
 def contains_dml(ql_expr: qlast.Base) -> bool:

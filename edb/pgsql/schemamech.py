@@ -32,6 +32,7 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import parser as ql_parser
 from edb.edgeql.compiler import astutils as ql_astutils
 
+from edb.schema import name as s_name
 from edb.schema import scalars as s_scalars
 from edb.schema import utils as s_utils
 from edb.schema import types as s_types
@@ -67,74 +68,6 @@ class ConstraintMech:
                 all_refs.append(ref)
 
             return all_refs
-
-    @classmethod
-    def _get_ref_storage_info(cls, schema, refs):
-        link_biased = {}
-        objtype_biased = {}
-
-        ref_ptrs = {}
-        refs = list(refs)
-        for ref in refs:
-            rptr = ref.rptr
-            if rptr is not None:
-                ptrref = ref.rptr.ptrref
-                schema, ptr = irtyputils.ptrcls_from_ptrref(
-                    ptrref, schema=schema)
-                if ptr.is_link_property(schema):
-                    srcref = ref.rptr.source.rptr.ptrref
-                    schema, src = irtyputils.ptrcls_from_ptrref(
-                        srcref, schema=schema)
-                    if src.get_is_derived(schema):
-                        # This specialized pointer was derived specifically
-                        # for the purposes of constraint expr compilation.
-                        src = src.get_bases(schema).first(schema)
-                elif ptr.is_tuple_indirection():
-                    refs.append(ref.rptr.source)
-                    continue
-                else:
-                    schema, src = irtyputils.ir_typeref_to_type(
-                        schema, ref.rptr.source.typeref)
-                ref_ptrs[ref] = (ptr, src)
-
-        for ref, (ptr, src) in ref_ptrs.items():
-            ptr_info = types.get_pointer_storage_info(
-                ptr, source=src, resolve_type=False, schema=schema)
-
-            # See if any of the refs are hosted in pointer tables and others
-            # are not...
-            if ptr_info.table_type == 'link':
-                link_biased[ref] = ptr_info
-            else:
-                objtype_biased[ref] = ptr_info
-
-            if link_biased and objtype_biased:
-                break
-
-        if link_biased and objtype_biased:
-            for ref in objtype_biased.copy():
-                ptr, src = ref_ptrs[ref]
-                ptr_info = types.get_pointer_storage_info(
-                    ptr, source=src, resolve_type=False, link_bias=True,
-                    schema=schema)
-
-                if ptr_info.table_type == 'link':
-                    link_biased[ref] = ptr_info
-                    objtype_biased.pop(ref)
-
-        ref_tables = {}
-
-        for ref, ptr_info in itertools.chain(
-                objtype_biased.items(), link_biased.items()):
-            ptr, src = ref_ptrs[ref]
-
-            try:
-                ref_tables[ptr_info.table_name].append(
-                    (ref, ptr, src, ptr_info))
-            except KeyError:
-                ref_tables[ptr_info.table_name] = [(ref, ptr, src, ptr_info)]
-
-        return ref_tables
 
     @classmethod
     def _edgeql_ref_to_pg_constr(cls, subject, origin_subject, tree, schema):
@@ -252,7 +185,7 @@ class ConstraintMech:
         )
 
         terminal_refs = ir_utils.get_longest_paths(ir.expr.expr.result)
-        ref_tables = cls._get_ref_storage_info(ir.schema, terminal_refs)
+        ref_tables = get_ref_storage_info(ir.schema, terminal_refs)
 
         if len(ref_tables) > 1:
             raise ValueError(
@@ -272,18 +205,23 @@ class ConstraintMech:
         }
 
         if constraint_origin != constraint:
+            origin_path_prefix_anchor = (
+                qlast.Subject().name
+                if isinstance(origin_subject, s_types.Type) else None
+            )
             origin_ir = qlcompiler.compile_ast_to_ir(
                 constraint_origin.get_finalexpr(schema).qlast,
                 schema,
                 options=qlcompiler.CompilerOptions(
                     anchors={qlast.Subject().name: origin_subject},
+                    path_prefix_anchor=origin_path_prefix_anchor,
                     apply_query_rewrites=not context.stdmode,
                 ),
             )
 
             origin_terminal_refs = ir_utils.get_longest_paths(
                 origin_ir.expr.expr.result)
-            origin_ref_tables = cls._get_ref_storage_info(
+            origin_ref_tables = get_ref_storage_info(
                 origin_ir.schema, origin_terminal_refs)
 
             if origin_ref_tables:
@@ -503,3 +441,79 @@ def ptr_default_to_col_default(schema, ptr, expr):
     sql_text = codegen.SQLSourceGenerator.to_source(sql_expr)
 
     return sql_text
+
+
+def get_ref_storage_info(schema, refs):
+    link_biased = {}
+    objtype_biased = {}
+
+    ref_ptrs = {}
+    refs = list(refs)
+    for ref in refs:
+        rptr = ref.rptr
+        if rptr is None:
+            source_typeref = ref.typeref
+            if not irtyputils.is_object(source_typeref):
+                continue
+            schema, t = irtyputils.ir_typeref_to_type(schema, ref.typeref)
+            ptr = t.getptr(schema, s_name.UnqualName('id'))
+        else:
+            ptrref = ref.rptr.ptrref
+            schema, ptr = irtyputils.ptrcls_from_ptrref(ptrref, schema=schema)
+            source_typeref = ref.rptr.source.typeref
+
+        if ptr.is_link_property(schema):
+            srcref = ref.rptr.source.rptr.ptrref
+            schema, src = irtyputils.ptrcls_from_ptrref(
+                srcref, schema=schema)
+            if src.get_is_derived(schema):
+                # This specialized pointer was derived specifically
+                # for the purposes of constraint expr compilation.
+                src = src.get_bases(schema).first(schema)
+        elif ptr.is_tuple_indirection():
+            refs.append(ref.rptr.source)
+            continue
+        elif ptr.is_type_intersection():
+            refs.append(ref.rptr.source)
+            continue
+        else:
+            schema, src = irtyputils.ir_typeref_to_type(schema, source_typeref)
+        ref_ptrs[ref] = (ptr, src)
+
+    for ref, (ptr, src) in ref_ptrs.items():
+        ptr_info = types.get_pointer_storage_info(
+            ptr, source=src, resolve_type=False, schema=schema)
+
+        # See if any of the refs are hosted in pointer tables and others
+        # are not...
+        if ptr_info.table_type == 'link':
+            link_biased[ref] = ptr_info
+        else:
+            objtype_biased[ref] = ptr_info
+
+        if link_biased and objtype_biased:
+            break
+
+    if link_biased and objtype_biased:
+        for ref in objtype_biased.copy():
+            ptr, src = ref_ptrs[ref]
+            ptr_info = types.get_pointer_storage_info(
+                ptr, source=src, resolve_type=False, link_bias=True,
+                schema=schema)
+
+            if ptr_info is not None and ptr_info.table_type == 'link':
+                link_biased[ref] = ptr_info
+                objtype_biased.pop(ref)
+
+    ref_tables = {}
+
+    for ref, ptr_info in itertools.chain(
+            objtype_biased.items(), link_biased.items()):
+        ptr, src = ref_ptrs[ref]
+
+        try:
+            ref_tables[ptr_info.table_name].append((ref, ptr, src, ptr_info))
+        except KeyError:
+            ref_tables[ptr_info.table_name] = [(ref, ptr, src, ptr_info)]
+
+    return ref_tables

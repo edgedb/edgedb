@@ -58,6 +58,15 @@ def ensure_qlstmt(expr: qlast.Expr) -> qlast.Statement:
     return expr
 
 
+def ensure_ql_select(expr: qlast.Expr) -> qlast.SelectQuery:
+    if not isinstance(expr, qlast.SelectQuery):
+        expr = qlast.SelectQuery(
+            result=expr,
+            implicit=True,
+        )
+    return expr
+
+
 def is_ql_empty_set(expr: qlast.Expr) -> bool:
     return isinstance(expr, qlast.Set) and len(expr.elements) == 0
 

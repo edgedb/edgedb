@@ -248,14 +248,17 @@ class TestDelete(tb.QueryTestCase):
             }],
         )
 
-        deleted = await self.con.query(
+        deleted = await self.con._fetchall(
             r"""
                 WITH MODULE test
                 DELETE DeleteTest2;
             """,
+            __typeids__=True,
+            __typenames__=True
         )
 
         self.assertTrue(hasattr(deleted[0], '__tid__'))
+        self.assertEqual(deleted[0].__tname__, 'test::DeleteTest2')
 
     async def test_edgeql_delete_returning_04(self):
         await self.con.execute(r"""

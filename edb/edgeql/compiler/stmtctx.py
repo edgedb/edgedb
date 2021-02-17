@@ -41,6 +41,8 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 from edb.edgeql import parser as qlparser
 
+from edb.common.ast import visitor as ast_visitor
+
 from . import astutils
 from . import context
 from . import dispatch
@@ -58,25 +60,26 @@ def init_context(
 ) -> context.ContextLevel:
 
     if not schema.get_global(s_mod.Module, '__derived__', None):
-        schema, _ = s_mod.Module.create_in_schema(schema, name='__derived__')
-    env = context.Environment(
-        schema=schema,
-        path_scope=irast.new_scope_tree(),
-        options=options,
-    )
+        schema, _ = s_mod.Module.create_in_schema(
+            schema,
+            name=s_name.UnqualName('__derived__'),
+        )
+
+    env = context.Environment(schema=schema, options=options)
     ctx = context.ContextLevel(None, context.ContextSwitchMode.NEW, env=env)
     _ = context.CompilerContext(initial=ctx)
 
     if options.singletons:
-        # The caller wants us to treat these type references
-        # as singletons for the purposes of the overall expression
-        # cardinality inference, so we set up the scope tree in
-        # the necessary fashion.
+        # The caller wants us to treat these type and pointer
+        # references as singletons for the purposes of the overall
+        # expression cardinality inference, so we set up the scope
+        # tree in the necessary fashion.
         for singleton in options.singletons:
-            path_id = pathctx.get_path_id(singleton, ctx=ctx)
+            path_id = (pathctx.get_path_id(singleton, ctx=ctx)
+                       if isinstance(singleton, s_types.Type)
+                       else pathctx.get_pointer_path_id(singleton, ctx=ctx))
             ctx.env.path_scope.attach_path(path_id, context=None)
-
-        ctx.path_scope = ctx.env.path_scope.attach_fence()
+            ctx.env.singletons.append(path_id)
 
     ctx.modaliases.update(options.modaliases)
 
@@ -86,8 +89,8 @@ def init_context(
 
     if options.path_prefix_anchor is not None:
         path_prefix = options.anchors[options.path_prefix_anchor]
-        assert isinstance(path_prefix, s_types.Type)
-        ctx.partial_path_prefix = setgen.class_set(path_prefix, ctx=ctx)
+        ctx.partial_path_prefix = compile_anchor(
+            options.path_prefix_anchor, path_prefix, ctx=ctx)
         ctx.partial_path_prefix.anchor = options.path_prefix_anchor
         ctx.partial_path_prefix.show_as_anchor = options.path_prefix_anchor
 
@@ -95,6 +98,7 @@ def init_context(
     ctx.toplevel_result_view_name = options.result_view_name
     ctx.implicit_id_in_shapes = options.implicit_id_in_shapes
     ctx.implicit_tid_in_shapes = options.implicit_tid_in_shapes
+    ctx.implicit_tname_in_shapes = options.implicit_tname_in_shapes
     ctx.implicit_limit = options.implicit_limit
 
     return ctx
@@ -114,24 +118,28 @@ def fini_expression(
 
     cardinality = qltypes.Cardinality.AT_MOST_ONE
     if ctx.path_scope is not None:
+        # The inference context object will be shared between
+        # cardinality and multiplicity inferrers.
+        inf_ctx = inference.make_ctx(env=ctx.env)
         # Simple expressions have no scope.
         cardinality = inference.infer_cardinality(
             ir,
             scope_tree=ctx.path_scope,
-            ctx=inference.CardCtx(
-                env=ctx.env, inferred_cardinality={}, singletons=()
-            )
+            ctx=inf_ctx,
         )
+        multiplicity: Optional[qltypes.Multiplicity] = None
+        if ctx.env.options.validate_multiplicity:
+            multiplicity = inference.infer_multiplicity(
+                ir,
+                scope_tree=ctx.path_scope,
+                ctx=inf_ctx,
+            )
 
-    # Strip weak namespaces
-    for ir_set in ctx.env.set_types:
-        if ir_set.path_id.namespace:
-            ir_set.path_id = ir_set.path_id.strip_weak_namespaces()
+    # Fix up weak namespaces
+    _rewrite_weak_namespaces(ir, ctx)
 
     if ctx.path_scope is not None:
-        for node in ctx.path_scope.path_descendants:
-            if node.path_id.namespace:
-                node.path_id = node.path_id.strip_weak_namespaces()
+        ctx.path_scope.validate_unique_ids()
 
     if isinstance(ir, irast.Command):
         if isinstance(ir, irast.ConfigCommand):
@@ -157,7 +165,7 @@ def fini_expression(
                 _elide_derived_ancestors(vptr, ctx=ctx)
                 ctx.env.schema = vptr.set_field_value(
                     ctx.env.schema,
-                    'is_from_alias',
+                    'from_alias',
                     True,
                 )
 
@@ -170,21 +178,19 @@ def fini_expression(
                     # in schema views.
                     ctx.env.schema = vptr.set_target(
                         ctx.env.schema,
-                        ctx.env.schema.get('std::BaseObject'),
+                        ctx.env.schema.get(
+                            'std::BaseObject', type=s_types.Type),
                     )
 
-                if not hasattr(vptr, 'get_pointers'):
+                if not isinstance(vptr, s_sources.Source):
                     continue
-                # type ignore below, because we check above if vptr has
-                # a get_pointers attribute
-                vptr_own_pointers = vptr.get_pointers(  # type: ignore
-                    ctx.env.schema
-                )
+
+                vptr_own_pointers = vptr.get_pointers(ctx.env.schema)
                 for vlprop in vptr_own_pointers.objects(ctx.env.schema):
                     _elide_derived_ancestors(vlprop, ctx=ctx)
                     ctx.env.schema = vlprop.set_field_value(
                         ctx.env.schema,
-                        'is_from_alias',
+                        'from_alias',
                         True,
                     )
 
@@ -209,7 +215,7 @@ def fini_expression(
     if ctx.must_use_views:
         alias, srcctx = next(iter(ctx.must_use_views.values()))
         raise errors.QueryError(
-            f'unused alias definition: {alias!r}',
+            f'unused alias definition: {str(alias)!r}',
             context=srcctx,
         )
 
@@ -218,9 +224,10 @@ def fini_expression(
         params=list(ctx.env.query_parameters.values()),
         views=ctx.view_nodes,
         source_map=ctx.source_map,
-        scope_tree=ctx.path_scope,
+        scope_tree=ctx.env.path_scope,
         cardinality=cardinality,
         volatility=volatility,
+        multiplicity=multiplicity,
         stype=expr_type,
         view_shapes={
             src: [ptr for ptr, _ in ptrs]
@@ -232,12 +239,107 @@ def fini_expression(
             ctx.env.schema_refs - ctx.env.created_schema_objects),
         schema_ref_exprs=ctx.env.schema_ref_exprs,
         new_coll_types=frozenset(
-            t for t in ctx.env.created_schema_objects
+            t for t in (ctx.env.schema_refs | ctx.env.created_schema_objects)
             if isinstance(t, s_types.Collection) and t != expr_type
         ),
         type_rewrites={s.typeref.id: s for s in ctx.type_rewrites.values()},
     )
     return result
+
+
+class FindPathScopes(ast_visitor.NodeVisitor):
+    """Visitor to find the enclosing path scope id of sub expressions.
+
+    Sets inherit an effective scope id from enclosing expressions,
+    and this visitor computes those.
+    """
+    def __init__(self, check: bool) -> None:
+        super().__init__()
+        self.path_scope_ids: List[Optional[int]] = [None]
+
+    def visit_Stmt(self, stmt: irast.Stmt) -> Optional[int]:
+        # Sometimes there is sharing, so we want the official scope
+        # for a node to be based on its appearance in the result,
+        # not in a subquery.
+        # I think it might not actually matter, though.
+        self.visit(stmt.bindings)
+        if stmt.iterator_stmt:
+            self.visit(stmt.iterator_stmt)
+        if isinstance(stmt, irast.MutatingStmt):
+            self.visit(stmt.subject)
+        self.visit(stmt.result)
+
+        self.generic_visit(stmt)
+        return None
+
+    def visit_Set(self, node: irast.Set) -> Optional[int]:
+        val = self.path_scope_ids[-1]
+        if node.path_scope_id:
+            self.path_scope_ids.append(node.path_scope_id)
+        if not node.is_binding:
+            val = self.path_scope_ids[-1]
+
+        # Visit sub-trees
+        self.generic_visit(node)
+
+        if node.path_scope_id:
+            self.path_scope_ids.pop()
+
+        return val
+
+
+def _try_namespace_fix(
+    scope: irast.ScopeTreeNode,
+    obj: Union[irast.ScopeTreeNode, irast.Set],
+) -> None:
+    if obj.path_id is None:
+        return
+    for prefix in obj.path_id.iter_prefixes():
+        replacement = scope.find_visible(prefix)
+        if (
+            replacement and replacement.path_id
+            and replacement.path_id != prefix
+        ):
+            new = obj.path_id.replace_prefix(prefix, replacement.path_id)
+            obj.path_id = new
+            break
+
+
+def _rewrite_weak_namespaces(
+    ir: irast.Base, ctx: context.ContextLevel
+) -> None:
+    """Rewrite weak namespaces in path ids to be usable by the backend.
+
+    Weak namespaces in path ids in the frontend are "relative", and
+    their interpretation depends on the current scope tree node and
+    the namespaces on the parent nodes. The IR->pgsql compiler does
+    not do this sort of interpretation, and needs path IDs that are
+    "absolute".
+
+    To accomplish this, we go through all the path ids and rewrite
+    them: using the scope tree, we try to find the binding of the path
+    ID (using a prefix if necessary) and drop all namespace parts that
+    don't appear in the binding.
+    """
+
+    if ctx.path_scope is None:
+        return None
+
+    tree = ctx.path_scope
+
+    for node in tree.strict_descendants:
+        _try_namespace_fix(node, node)
+
+    visitor = FindPathScopes(ctx.env.options.apply_query_rewrites)
+    visitor.visit(ir)
+
+    for ir_set in ctx.env.set_types:
+        path_scope_id: Optional[int] = visitor.memo.get(ir_set)
+        if path_scope_id is not None:
+            # Some entries in set_types are from compiling views
+            # in temporary scopes, so we need to just skip those.
+            if scope := tree.find_by_unique_id(path_scope_id):
+                _try_namespace_fix(scope, ir_set)
 
 
 def _elide_derived_ancestors(
@@ -373,8 +475,9 @@ def populate_anchors(
 
 def declare_view(
     expr: qlast.Expr,
-    alias: str,
+    alias: s_name.Name,
     *,
+    factoring_fence: bool=False,
     fully_detached: bool=False,
     must_be_used: bool=False,
     path_id_namespace: Optional[FrozenSet[str]]=None,
@@ -383,7 +486,8 @@ def declare_view(
 
     pinned_pid_ns = path_id_namespace
 
-    with ctx.newscope(temporary=True, fenced=True) as subctx:
+    with ctx.newscope(fenced=True) as subctx:
+        subctx.path_scope.factoring_fence = factoring_fence
         if path_id_namespace is not None:
             subctx.path_id_namespace = path_id_namespace
 
@@ -402,21 +506,29 @@ def declare_view(
 
         if cached_view_set is not None:
             subctx.view_scls = setgen.get_set_type(cached_view_set, ctx=ctx)
-            view_name = s_name.SchemaName(
-                subctx.view_scls.get_name(ctx.env.schema))
+            view_name = subctx.view_scls.get_name(ctx.env.schema)
+            assert isinstance(view_name, s_name.QualName)
         else:
-            if isinstance(alias, s_name.SchemaName):
+            if isinstance(alias, s_name.QualName):
                 basename = alias
             else:
-                basename = s_name.SchemaName(module='__derived__', name=alias)
+                basename = s_name.QualName(
+                    module='__derived__', name=alias.name)
 
-            view_name = s_name.SchemaName(
-                module=ctx.derived_target_module or '__derived__',
-                name=s_name.get_specialized_name(
-                    basename,
-                    ctx.aliases.get('w')
+            if (
+                isinstance(alias, s_name.QualName)
+                and subctx.env.options.schema_view_mode
+            ):
+                view_name = basename
+                subctx.recompiling_schema_alias = True
+            else:
+                view_name = s_name.QualName(
+                    module=ctx.derived_target_module or '__derived__',
+                    name=s_name.get_specialized_name(
+                        basename,
+                        ctx.aliases.get('w')
+                    )
                 )
-            )
 
         subctx.toplevel_result_view_name = view_name
 
@@ -459,6 +571,7 @@ def declare_view_from_schema(
         assert view_expr is not None
         view_ql = qlparser.parse(view_expr.text)
         viewcls_name = viewcls.get_name(ctx.env.schema)
+        assert isinstance(view_ql, qlast.Expr), 'expected qlast.Expr'
         view_set = declare_view(view_ql, alias=viewcls_name,
                                 fully_detached=True, ctx=subctx)
         # The view path id _itself_ should not be in the nested namespace.
@@ -467,10 +580,69 @@ def declare_view_from_schema(
 
         vc = subctx.aliased_views[viewcls_name]
         assert vc is not None
-        ctx.env.schema_view_cache[viewcls] = vc
+        if not ctx.in_temp_scope:
+            ctx.env.schema_view_cache[viewcls] = vc
         ctx.source_map.update(subctx.source_map)
         ctx.aliased_views[viewcls_name] = subctx.aliased_views[viewcls_name]
         ctx.view_nodes[vc.get_name(ctx.env.schema)] = vc
         ctx.view_sets[vc] = subctx.view_sets[vc]
 
+        # XXX: The current cardinality inference machine does not look
+        # into unreferenced expression parts, which includes computables
+        # that may be declared on an alias that another alias is referencing,
+        # leaving Unknown cardinalities in place.  To fix this, copy
+        # cardinalities for computed pointers from the alias object in the
+        # schema.
+        view_type = setgen.get_set_type(view_set, ctx=subctx)
+        if isinstance(view_type, s_objtypes.ObjectType):
+            assert isinstance(viewcls, s_objtypes.ObjectType)
+            _fixup_cardinalities(
+                view_type,
+                viewcls,
+                ctx=ctx,
+            )
+
     return vc
+
+
+def _fixup_cardinalities(
+    subj_source: s_sources.Source,
+    tpl_source: s_sources.Source,
+    *,
+    ctx: context.ContextLevel,
+) -> None:
+    """Copy pointer cardinalities from *tpl_source* to *subj_source*."""
+
+    subj_ptrs = subj_source.get_pointers(ctx.env.schema).items(ctx.env.schema)
+    tpl_ptrs = dict(
+        tpl_source.get_pointers(ctx.env.schema).items(ctx.env.schema))
+
+    for pn, ptrcls in subj_ptrs:
+        card = ptrcls.get_cardinality(ctx.env.schema)
+        tpl_ptrcls = tpl_ptrs.get(pn)
+        if tpl_ptrcls is None:
+            raise AssertionError(
+                f'expected to find {pn!r} in template source object'
+            )
+
+        if not card.is_known():
+            tpl_card = tpl_ptrcls.get_cardinality(ctx.env.schema)
+            if not tpl_card.is_known():
+                raise AssertionError(
+                    f'{pn!r} cardinality in template source is unknown'
+                )
+
+            ctx.env.schema = ptrcls.set_field_value(
+                ctx.env.schema,
+                'cardinality',
+                tpl_card,
+            )
+
+        subj_target = ptrcls.get_target(ctx.env.schema)
+        if (
+            isinstance(subj_target, s_sources.Source)
+            and subj_target.is_view(ctx.env.schema)
+        ):
+            tpl_target = tpl_ptrcls.get_target(ctx.env.schema)
+            assert isinstance(tpl_target, s_sources.Source)
+            _fixup_cardinalities(subj_target, tpl_target, ctx=ctx)

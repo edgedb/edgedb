@@ -7,6 +7,7 @@ CLI
     :hidden:
 
     index
+    edgedb_install
     edgedb
     edgedb_configure
     edgedb_dump

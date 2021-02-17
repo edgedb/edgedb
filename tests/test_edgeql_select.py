@@ -1253,6 +1253,30 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 OFFSET <int64>User.<owner[IS Issue].number;
             """)
 
+    async def test_edgeql_select_limit_08(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'could not resolve partial path'):
+
+            await self.con.query("""
+                WITH MODULE test
+                SELECT
+                    User { name }
+                LIMIT <int64>.<owner[IS Issue].number;
+            """)
+
+    async def test_edgeql_select_limit_09(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'could not resolve partial path'):
+
+            await self.con.query("""
+                WITH MODULE test
+                SELECT
+                    User { name }
+                OFFSET <int64>.<owner[IS Issue].number;
+            """)
+
     async def test_edgeql_select_polymorphic_01(self):
         await self.assert_query_result(
             r'''
@@ -1947,6 +1971,19 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
+    async def test_edgeql_select_tvariant_09(self):
+        await self.assert_query_result(
+            r"""
+                WITH
+                    MODULE test,
+                SELECT
+                    (((SELECT Issue {
+                        x := .number ++ "!"
+                    }), Issue).0.x ++ (SELECT Issue.number));
+            """,
+            {"1!1", "2!2", "3!3", "4!4"},
+        )
+
     async def test_edgeql_select_tvariant_bad_01(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,
@@ -2427,7 +2464,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_select_setops_13(self):
+    async def test_edgeql_select_setops_13a(self):
         await self.assert_query_result(
             r"""
             WITH
@@ -2435,6 +2472,33 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 L := LogEntry  # there happens to only be 1 entry
             SELECT
                 (Issue.time_spent_log UNION L, Issue).0 {
+                    body
+                };
+            """,
+            [
+                # not only do we expect duplicates, but we actually
+                # expect 5 entries here:
+                # - 1 for the actual `time_spent_log' links from Issue
+                # - 4 from the UNION for each Issue.time_spent_log
+                {'body': 'Rewriting everything.'},
+                {'body': 'Rewriting everything.'},
+                {'body': 'Rewriting everything.'},
+                {'body': 'Rewriting everything.'},
+                {'body': 'Rewriting everything.'},
+            ],
+        )
+
+    @test.xfail('The results get deduplicated')
+    async def test_edgeql_select_setops_13b(self):
+        # This should be equivalent to the above test, but actually we
+        # end up deduplicating.
+        await self.assert_query_result(
+            r"""
+            WITH
+                MODULE test,
+                L := LogEntry  # there happens to only be 1 entry
+            SELECT
+                (SELECT (Issue.time_spent_log UNION L, Issue)).0 {
                     body
                 };
             """,
@@ -2718,8 +2782,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]}]
         )
 
-        with self.assertRaisesRegex(edgedb.QueryError,
-                                    'could not find a function variant'):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'function .+ does not exist'):
             async with self.con.transaction():
                 await self.con.query(
                     "SELECT test::concat1('aaa', 'bbb', 2);")
@@ -2734,8 +2799,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 USING SQL FUNCTION 'concat';
         ''')
 
-        with self.assertRaisesRegex(edgedb.QueryError,
-                                    'could not find a function'):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'function .+ does not exist'):
             await self.con.execute(r'SELECT test::concat2(123);')
 
     async def test_edgeql_select_func_07(self):
@@ -2802,13 +2868,15 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }]
         )
 
-        with self.assertRaisesRegex(edgedb.QueryError,
-                                    'could not find a function'):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'function .+ does not exist'):
             async with self.con.transaction():
                 await self.con.query(r'SELECT test::concat3(123);')
 
-        with self.assertRaisesRegex(edgedb.QueryError,
-                                    'could not find a function'):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'function .+ does not exist'):
             async with self.con.transaction():
                 await self.con.query(r'SELECT test::concat3("a", 123);')
 
@@ -6048,3 +6116,82 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     todo: { name: {bogus} }
                 }
             """)
+
+    async def test_edgeql_select_revlink_on_union(self):
+        await self.assert_query_result(
+            """
+                WITH MODULE test
+                SELECT
+                    File {
+                        referrers := (
+                            SELECT .<references[IS Issue] {
+                                name,
+                                number,
+                            } ORDER BY .number
+                        )
+                    }
+                FILTER
+                    .name = 'screenshot.png'
+            """,
+            [
+                {
+                    'referrers': [
+                        {
+                            'name': 'Improve EdgeDB repl output rendering.',
+                            'number': '2'
+                        }
+                    ]
+                }
+            ],
+        )
+
+    async def test_edgeql_select_expr_objects_01(self):
+        await self.assert_query_result(
+            r'''
+                SELECT array_agg(test::Issue ORDER BY .body)[0].owner.name;
+            ''',
+            ["Elvis"],
+        )
+
+    async def test_edgeql_select_expr_objects_02(self):
+        await self.assert_query_result(
+            r'''
+                SELECT _ := array_unpack(array_agg(test::Issue)).owner.name
+                ORDER BY _;
+            ''',
+            ["Elvis", "Yury"],
+        )
+
+    async def test_edgeql_select_expr_objects_03(self):
+        await self.con.execute(
+            '''
+                CREATE FUNCTION test::issues() -> SET OF test::Issue
+                USING (test::Issue);
+            '''
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT _ := test::issues().owner.name ORDER BY _;
+            ''',
+            ["Elvis", "Yury"],
+        )
+
+    async def test_edgeql_select_expr_objects_04(self):
+        await self.assert_query_result(
+            r'''
+                WITH items := array_agg((SELECT test::Named ORDER BY .name))
+                SELECT items[0] IS test::Status;
+            ''',
+            [True],
+        )
+
+    @test.xfail("We produce results that don't decode properly")
+    async def test_edgeql_select_array_common_type_01(self):
+        res = await self.con._fetchall("""
+            WITH MODULE test
+            SELECT [User, Issue];
+        """, __typenames__=True)
+        for row in res:
+            self.assertEqual(row[0].__tname__, "test::User")
+            self.assertEqual(row[1].__tname__, "test::Issue")

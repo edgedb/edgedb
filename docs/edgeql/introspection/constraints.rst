@@ -40,8 +40,8 @@ Introspection of the ``schema::Constraint``:
                 Object { name: 'expr' },
                 Object { name: 'finalexpr' },
                 Object { name: 'id' },
-                Object { name: 'is_abstract' },
-                Object { name: 'is_final' },
+                Object { name: 'abstract' },
+                Object { name: 'final' },
                 Object { name: 'name' },
                 Object { name: 'return_typemod' },
                 Object { name: 'subjectexpr' }

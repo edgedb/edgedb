@@ -36,8 +36,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                          'graphql_setup.edgeql')
 
     # GraphQL queries cannot run in a transaction
-    ISOLATED_METHODS = False
-    SERIALIZED = True
+    TRANSACTION_ISOLATION = False
 
     def test_graphql_mutation_insert_scalars_01(self):
         data = {
@@ -1240,7 +1239,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
     def test_graphql_mutation_insert_bad_02(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,
-            r"Field 'data' is not defined by type NestedInsertNamedObject"
+            r"Field 'data' is not defined by type 'NestedInsertNamedObject'"
         ):
             self.graphql_query(r"""
                 mutation insert_User {

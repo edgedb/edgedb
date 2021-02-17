@@ -19,7 +19,9 @@
 
 from __future__ import annotations
 
-from edb.edgeql.pygments import EdgeQLLexer
+from typing import *
+
+from edb.tools.pygments.edgeql import EdgeQLLexer
 
 from sphinx import domains as s_domains
 from sphinx.directives import code as s_code
@@ -32,7 +34,7 @@ class SDLSynopsisDirective(s_code.CodeBlock):
     has_content = True
     optional_arguments = 0
     required_arguments = 0
-    option_spec = {}
+    option_spec: Dict[str, Any] = {}
 
     def run(self):
         self.arguments = ['sdl-synopsis']

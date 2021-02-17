@@ -18,6 +18,7 @@
 
 
 from __future__ import annotations
+from typing import *
 
 import enum
 
@@ -46,14 +47,42 @@ class ResultCardinality(strenum.StrEnum):
     NO_RESULT = 'NO_RESULT'
 
 
-class Capability(enum.Flag):
+if TYPE_CHECKING:
+    Error_T = TypeVar('Error_T')
 
-    DDL = enum.auto()
-    TRANSACTION = enum.auto()
-    SESSION = enum.auto()
-    QUERY = enum.auto()
 
-    ALL = DDL | TRANSACTION | SESSION | QUERY
+class Capability(enum.IntFlag):
+
+    MODIFICATIONS     = 1 << 0    # noqa
+    SESSION_CONFIG    = 1 << 1    # noqa
+    TRANSACTION       = 1 << 2    # noqa
+    DDL               = 1 << 3    # noqa
+    PERSISTENT_CONFIG = 1 << 4    # noqa
+
+    def make_error(
+        self,
+        allowed: Capability,
+        error_constructor: Callable[[str], Error_T],
+    ) -> Error_T:
+        for item in Capability:
+            if item & allowed:
+                continue
+            if self & item:
+                return error_constructor(
+                    f"cannot execute {CAPABILITY_TITLES[item]}")
+        raise AssertionError(
+            f"extra capability not found in"
+            f" {self} allowed {allowed}"
+        )
+
+
+CAPABILITY_TITLES = {
+    Capability.MODIFICATIONS: 'data modification queries',
+    Capability.SESSION_CONFIG: 'session configuration queries',
+    Capability.TRANSACTION: 'transaction control commands',
+    Capability.DDL: 'DDL commands',
+    Capability.PERSISTENT_CONFIG: 'configuration commands',
+}
 
 
 class IoFormat(strenum.StrEnum):

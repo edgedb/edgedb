@@ -19,15 +19,22 @@
 
 from __future__ import annotations
 
+import os
+
+
 EDGEDB_PORT = 5656
+EDGEDB_SUPERGROUP = 'edgedb_supergroup'
 EDGEDB_SUPERUSER = 'edgedb'
-EDGEDB_TEMPLATE_DB = 'edgedb0'
+EDGEDB_TEMPLATE_DB = '__edgedbtpl__'
 EDGEDB_SUPERUSER_DB = 'edgedb'
+EDGEDB_SYSTEM_DB = '__edgedbsys__'
 EDGEDB_ENCODING = 'utf-8'
 EDGEDB_VISIBLE_METADATA_PREFIX = r'EdgeDB metadata follows, do not modify.\n'
 
+EDGEDB_SPECIAL_DBS = {EDGEDB_TEMPLATE_DB, EDGEDB_SYSTEM_DB}
+
 # Increment this whenever the database layout or stdlib changes.
-EDGEDB_CATALOG_VERSION = 2020_10_02_00_00
+EDGEDB_CATALOG_VERSION = 2021_02_15_00_00
 
 # Resource limit on open FDs for the server process.
 # By default, at least on macOS, the max number of open FDs
@@ -35,6 +42,12 @@ EDGEDB_CATALOG_VERSION = 2020_10_02_00_00
 # We try to bump the rlimit on server start if pemitted.
 EDGEDB_MIN_RLIMIT_NOFILE = 2048
 
+
+BACKEND_CONNECTIONS_MIN = 10
+BACKEND_CONNECTIONS_DEFAULT = 100
+
+BACKEND_COMPILER_POOL_SIZE_MIN = 1
+BACKEND_COMPILER_POOL_SIZE_DEFAULT = max(os.cpu_count() or 0, 6) // 2
 
 _MAX_QUERIES_CACHE = 1000
 
@@ -44,5 +57,5 @@ _QUERIES_ROLLING_AVG_LEN = 300
 DEFAULT_MODULE_ALIAS = 'default'
 
 
-HTTP_PORT_QUERY_CACHE_SIZE = 500
-HTTP_PORT_MAX_CONCURRENCY = 250
+HTTP_PORT_QUERY_CACHE_SIZE = 1000
+HTTP_PORT_MAX_CONCURRENCY = 250  # XXX

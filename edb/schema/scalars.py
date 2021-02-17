@@ -44,9 +44,9 @@ from . import utils as s_utils
 class ScalarType(
     s_types.InheritingType,
     constraints.ConsistencySubject,
-    s_anno.AnnotationSubject,
     s_abc.ScalarType,
     qlkind=qltypes.SchemaObjectClass.SCALAR_TYPE,
+    data_safe=True,
 ):
 
     default = so.SchemaField(
@@ -70,7 +70,13 @@ class ScalarType(
         return bool(self.get_enum_values(schema))
 
     def is_polymorphic(self, schema: s_schema.Schema) -> bool:
-        return self.get_is_abstract(schema)
+        return self.get_abstract(schema)
+
+    def contains_json(self, schema: s_schema.Schema) -> bool:
+        return self.issubclass(
+            schema,
+            schema.get(s_name.QualName('std', 'json'), type=ScalarType),
+        )
 
     def can_accept_constraints(self, schema: s_schema.Schema) -> bool:
         return not self.is_enum(schema)
@@ -113,7 +119,10 @@ class ScalarType(
         other: s_types.Type,
         schema: s_schema.Schema,
     ) -> bool:
-        assert isinstance(other, ScalarType)
+        if not isinstance(other, ScalarType):
+            return False
+        if self.is_polymorphic(schema) or other.is_polymorphic(schema):
+            return False
         left = self.get_base_for_cast(schema)
         right = other.get_base_for_cast(schema)
         return s_casts.is_assignment_castable(schema, left, right)
@@ -132,6 +141,22 @@ class ScalarType(
         assert isinstance(left, s_types.Type)
         assert isinstance(right, s_types.Type)
         return s_casts.is_implicitly_castable(schema, left, right)
+
+    def castable_to(
+        self,
+        other: s_types.Type,
+        schema: s_schema.Schema,
+    ) -> bool:
+        """Determine if any cast exists between self and *other*."""
+        if not isinstance(other, ScalarType):
+            return False
+        if self.is_polymorphic(schema) or other.is_polymorphic(schema):
+            return False
+        left = self.get_topmost_concrete_base(schema)
+        right = other.get_topmost_concrete_base(schema)
+        assert isinstance(left, s_types.Type)
+        assert isinstance(right, s_types.Type)
+        return s_casts.is_castable(schema, left, right)
 
     def get_implicit_cast_distance(
         self,
@@ -197,7 +222,7 @@ class AnonymousEnumTypeShell(s_types.TypeShell):
     def __init__(
         self,
         *,
-        name: str = 'std::anyenum',
+        name: s_name.Name = s_name.QualName(module='std', name='anyenum'),
         elements: Iterable[str],
     ) -> None:
         super().__init__(name=name)
@@ -218,11 +243,54 @@ class ScalarTypeCommandContext(sd.ObjectCommandContext[ScalarType],
 class ScalarTypeCommand(
     s_types.InheritingTypeCommand[ScalarType],
     constraints.ConsistencySubjectCommand[ScalarType],
-    s_anno.AnnotationSubjectCommand,
-    schema_metaclass=ScalarType,
+    s_anno.AnnotationSubjectCommand[ScalarType],
     context_class=ScalarTypeCommandContext,
 ):
-    pass
+    def validate_scalar_ancestors(
+        self,
+        ancestors: Sequence[so.SubclassableObject],
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> None:
+        concrete_ancestors = {
+            ancestor for ancestor in ancestors
+            if not ancestor.get_abstract(schema)
+        }
+        # Filter out anything that has a subclass relation with
+        # every other concrete ancestor. This lets us allow chains
+        # of concrete scalar types while prohibiting diamonds (for
+        # example if X <: A, B <: int64 where A, B are concrete).
+        # (If we wanted to allow diamonds, we could instead filter out
+        # anything that has concrete bases.)
+        concrete_ancestors = {
+            c1 for c1 in concrete_ancestors
+            if not all(c1 == c2 or c1.issubclass(schema, c2)
+                       or c2.issubclass(schema, c1)
+                       for c2 in concrete_ancestors)
+        }
+
+        if len(concrete_ancestors) > 1:
+            raise errors.SchemaError(
+                f'scalar type may not have more than '
+                f'one concrete base type',
+                context=self.source_context,
+            )
+
+    def validate_scalar_bases(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> None:
+        bases = self.get_resolved_attribute_value(
+            'bases', schema=schema, context=context)
+
+        if bases:
+            ancestors = []
+            for base in bases.objects(schema):
+                ancestors.append(base)
+                ancestors.extend(base.get_ancestors(schema).objects(schema))
+
+            self.validate_scalar_ancestors(ancestors, schema, context)
 
 
 class CreateScalarType(
@@ -271,21 +339,27 @@ class CreateScalarType(
                         f' the only supertype specified',
                         context=astnode.bases[0].context,
                     )
-                deflt = create_cmd.get_attribute_set_cmd('default')
-                if deflt is not None:
+                if create_cmd.has_attribute_value('default'):
                     raise errors.UnsupportedFeatureError(
                         f'enumerated types do not support defaults',
-                        context=deflt.source_context,
+                        context=(
+                            create_cmd.get_attribute_source_context('default')
+                        ),
                     )
 
                 shell = bases[0]
                 assert isinstance(shell, AnonymousEnumTypeShell)
+                if len(set(shell.elements)) != len(shell.elements):
+                    raise errors.SchemaDefinitionError(
+                        f'enums cannot contain duplicate values',
+                        context=astnode.bases[0].context,
+                    )
                 create_cmd.set_attribute_value('enum_values', shell.elements)
-                create_cmd.set_attribute_value('is_final', True)
+                create_cmd.set_attribute_value('final', True)
                 create_cmd.set_attribute_value('bases', [
                     s_utils.ast_objref_to_object_shell(
                         s_utils.name_to_ast_ref(
-                            s_name.Name('std::anyenum'),
+                            s_name.QualName('std', 'anyenum'),
                         ),
                         schema=schema,
                         metaclass=ScalarType,
@@ -294,6 +368,14 @@ class CreateScalarType(
                 ])
 
         return cmd
+
+    def validate_create(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> None:
+        super().validate_create(schema, context)
+        self.validate_scalar_bases(schema, context)
 
     def _get_ast_node(
         self,
@@ -336,7 +418,7 @@ class CreateScalarType(
             super()._apply_field_ast(schema, context, node, op)
 
 
-class RenameScalarType(ScalarTypeCommand, sd.RenameObject[ScalarType]):
+class RenameScalarType(ScalarTypeCommand, s_types.RenameType[ScalarType]):
     pass
 
 
@@ -354,12 +436,74 @@ class RebaseScalarType(
         self.scls = scls
         assert isinstance(scls, ScalarType)
 
-        enum_values = scls.get_enum_values(schema)
-        if enum_values:
-            raise errors.UnsupportedFeatureError(
-                f'altering enum composition is not supported')
+        cur_labels = scls.get_enum_values(schema)
+
+        if cur_labels:
+
+            if self.removed_bases and not self.added_bases:
+                raise errors.SchemaError(
+                    f'cannot DROP EXTENDING enum')
+
+            all_bases = []
+
+            for bases, pos in self.added_bases:
+                # Check that there aren't any non-enum bases.
+                for base in bases:
+                    if isinstance(base, AnonymousEnumTypeShell):
+                        is_enum_base = True
+                    elif isinstance(base, s_types.TypeShell):
+                        is_enum_base = base.resolve(schema).is_enum(schema)
+                    else:
+                        is_enum_base = base.is_enum(schema)
+
+                    if not is_enum_base:
+                        raise errors.SchemaError(
+                            f'cannot add another type as supertype, '
+                            f'enumeration must be the only supertype specified'
+                        )
+
+                # Since all bases are enums at this point, error
+                # messages only mention about enums.
+                if pos:
+                    raise errors.SchemaError(
+                        f'cannot add another enum as supertype, '
+                        f'use EXTENDING without position qualification')
+
+                all_bases.extend(bases)
+
+            if len(all_bases) > 1:
+                raise errors.SchemaError(
+                    f'cannot set more than one enum as supertype')
+
+            new_base = all_bases[0]
+            new_labels = new_base.elements
+
+            schema = self._validate_enum_change(
+                scls, cur_labels, new_labels, schema, context)
+
         else:
-            return super().apply(schema, context)
+            schema = super().apply(schema, context)
+
+        self.validate_scalar_bases(schema, context)
+        return schema
+
+    def validate_scalar_bases(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> None:
+        super().validate_scalar_bases(schema, context)
+
+        bases = self.get_resolved_attribute_value(
+            'bases', schema=schema, context=context)
+        if bases:
+            obj = self.scls
+            # For each descendant, compute its new ancestors and check
+            # that they are valid for a scalar type.
+            new_schema = obj.set_field_value(schema, 'bases', bases)
+            for desc in obj.descendants(schema):
+                ancestors = so.compute_ancestors(new_schema, desc)
+                self.validate_scalar_ancestors(ancestors, schema, context)
 
     def _validate_enum_change(
         self,
@@ -369,21 +513,21 @@ class RebaseScalarType(
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        if len(set(new_labels)) != len(new_labels):
+        new_set = set(new_labels)
+        if len(new_set) != len(new_labels):
             raise errors.SchemaError(
-                f'enum labels are not unique')
+                f'enums cannot contain duplicate values')
 
         cur_set = set(cur_labels)
-
-        if cur_set - set(new_labels):
+        if cur_set - new_set:
             raise errors.SchemaError(
                 f'cannot remove labels from an enumeration type')
 
-        existing = [label for label in new_labels if label in cur_set]
-        if existing != cur_labels:
-            raise errors.SchemaError(
-                f'cannot change the relative order of existing labels '
-                f'in an enumeration type')
+        for cur_label, new_label in zip(cur_labels, new_labels):
+            if cur_label != new_label:
+                raise errors.SchemaError(
+                    f'cannot change the existing labels in an enumeration '
+                    f'type, only appending new labels is allowed')
 
         self.set_attribute_value('enum_values', new_labels)
         schema = stype.set_field_value(schema, 'enum_values', new_labels)
@@ -402,3 +546,17 @@ class DeleteScalarType(
     inheriting.DeleteInheritingObject[ScalarType],
 ):
     astnode = qlast.DropScalarType
+
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
+        if self.get_orig_attribute_value('expr_type'):
+            # This is an alias type, appropriate DDL would be generated
+            # from the corresponding DeleteAlias node.
+            return None
+        else:
+            return super()._get_ast(schema, context, parent_node=parent_node)

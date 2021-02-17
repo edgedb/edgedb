@@ -135,6 +135,7 @@ Alter the definition of an
       RENAME TO <newname>
       USING <constr-expression>
       SET errmessage := <error-message>
+      RESET errmessage
       CREATE ANNOTATION <annotation-name> := <value>
       ALTER ANNOTATION <annotation-name> := <value>
       DROP ANNOTATION <annotation-name>
@@ -174,6 +175,11 @@ CONSTRAINT`` block:
 :eql:synopsis:`DROP ANNOTATION <annotation-name>;`
     Remove constraint :eql:synopsis:`<annotation-name>`.
     See :eql:stmt:`DROP ANNOTATION <DROP ANNOTATION>` for details.
+
+:eql:synopsis:`RESET errmessage;`
+    Remove the error message from this abstract constraint.
+    The error message specified in the base abstract constraint
+    will be used instead.
 
 All the subcommands allowed in a ``CREATE ABSTRACT CONSTRAINT`` block
 are also valid subcommands for an ``ALTER ABSTRACT CONSTRAINT`` block.
@@ -372,9 +378,9 @@ Alter the definition of a concrete constraint on the specified schema item.
     # where <subcommand> is one of:
 
       SET DELEGATED
-      DROP DELEGATED
-      RENAME TO <newname>
+      SET NOT DELEGATED
       SET errmessage := <error-message>
+      RESET errmessage
       CREATE ANNOTATION <annotation-name> := <value>
       ALTER ANNOTATION <annotation-name>
       DROP ANNOTATION <annotation-name>
@@ -415,7 +421,7 @@ The following subcommands are allowed in the ``ALTER CONSTRAINT`` block:
 :eql:synopsis:`SET DELEGATED`
     Makes the constraint delegated.
 
-:eql:synopsis:`DROP DELEGATED`
+:eql:synopsis:`SET NOT DELEGATED`
     Makes the constraint non-delegated.
 
 :eql:synopsis:`RENAME TO <newname>`
@@ -427,6 +433,10 @@ The following subcommands are allowed in the ``ALTER CONSTRAINT`` block:
 
 :eql:synopsis:`DROP ANNOTATION <annotation-name>;`
     Remove an *annotation*. See :eql:stmt:`DROP ANNOTATION` for details.
+
+:eql:synopsis:`RESET errmessage;`
+    Remove the error message from this constraint. The error message
+    specified in the abstract constraint will be used instead.
 
 All the subcommands allowed in the ``CREATE CONSTRAINT`` block are also
 valid subcommands for ``ALTER CONSTRAINT`` block.

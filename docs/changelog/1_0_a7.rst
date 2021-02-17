@@ -1,0 +1,247 @@
+===========
+1.0 Alpha 7
+===========
+
+This changelog summarizes new features and breaking changes in
+EdgeDB 1.0 alpha 7 "Lalande".
+
+
+EdgeQL
+======
+
+* Add support for per-database configuration by adding a new
+  :eql:stmt:`CURRENT DATABASE <CONFIGURE>` configuration scope
+  (:eql:gh:`#1867`).
+
+  This allows to make changes that are more broad
+  that :eql:stmt:`SESSION <CONFIGURE>` scope and less broad that
+  :eql:stmt:`SYSTEM <CONFIGURE>`:
+
+  .. code-block:: edgeql
+
+    CONFIGURE CURRENT DATABASE SET query_work_mem := '4MB';
+
+* Add support for altering :eql:type:`enums <std::enum>` in order to
+  add new labels (:eql:gh:`#1956`).
+
+  .. code-block:: edgeql-repl
+
+    db> CREATE SCALAR TYPE Color
+    ...     EXTENDING enum<Red, Green, Blue>;
+    OK: CREATE
+    db> ALTER SCALAR TYPE Color
+    ...     EXTENDING enum<Red, Green, Blue, Magic>;
+    OK: ALTER
+
+* Update :eql:type:`std::decimal` and :eql:type:`std::bigint` criteria
+  to be sensitive to the presence of ``.`` so that ``123.0e100n`` is a
+  decimal, but ``123e100n`` is a bigint (:eql:gh:`#1804`).
+
+* Functions can now return a set of tuples (:eql:gh:`#2010`).
+
+  .. code-block:: edgeql-repl
+
+    db> CREATE FUNCTION enumerate_letters(word: str)
+    ...     -> SET OF tuple<int64, str>
+    ...     USING (
+    ...         enumerate(
+    ...             array_unpack(
+    ...                 str_split(word, '')))
+    ...     );
+    OK: CREATE
+    db> SELECT enumerate_letters('hello');
+    {(0, 'h'), (1, 'e'), (2, 'l'), (3, 'l'), (4, 'o')}
+
+* Functions can no longer share a shortname with types in order to
+  avoid name resolution issues (:eql:gh:`#1465`).
+* Forbid taking implicit cross products with volatile operations to
+  avoid unintuitive behavior (:eql:gh:`#1784`).
+
+  .. code-block:: edgeql-repl
+
+    db> SELECT ({1, 2}, random());
+    error: can not take cross product of volatile operation
+      ┌─ query:1:17
+      │
+    1 │ SELECT ({1, 2}, random());
+      │                 ^^^^^^^^^ error
+    db> FOR x IN {1, 2} UNION (x, random());
+    {(1, 0.25724045818607166), (2, 0.7268530965023459)}
+
+* Forbid scalar types from having more than one concrete base
+  (:eql:gh:`#1790`).
+* Forbid partial path expressions in :ref:`LIMIT
+  <ref_eql_statements_select>`/:ref:`OFFSET
+  <ref_eql_statements_select>` clauses (:eql:gh:`#1919`).
+* Forbid changing cardinality via inheritance (:eql:gh:`#1772`).
+* Remove legacy unused ``.>`` token (:eql:gh:`#1648`).
+* Fix cardinality inference on operators (:eql:gh:`#2001`).
+
+
+Migrations
+==========
+
+We've made a lot of progress in implementing features of the `RFC 1000
+<migrations_>`_ migrations, although this is still a feature under
+development. Some of the works can be broadly categorized as overall
+improvement of the proposed migration DDL and the granularity of the
+control the user has over these proposed changes. More specifically
+we've made a lot of improvements in migrations that alter or remove
+things from the schema.
+
+Here's an example of creating a schema with a type that has a property
+with a default value:
+
+.. code-block:: edgeql-repl
+
+    db> START MIGRATION TO {
+    ...   module default {
+    ...     type Foo {
+    ...       property val -> str {
+    ...         default := 'n/a'
+    ...       }
+    ...     }
+    ...   }
+    ... };
+
+We use :eql:stmt:`DESCRIBE CURRENT MIGRATION AS JSON <DESCRIBE CURRENT
+MIGRATION>` to see what EdgeDB is proposing. The JSON format makes it
+easier to potentially integrate this with other tools. For this
+example it's worth turning on ``json`` output mode for edgedb REPL:
+
+.. code-block:: edgeql-repl
+
+    db> \set output-mode json
+    db[tx]> DESCRIBE CURRENT MIGRATION AS JSON;
+    [
+      {
+        "complete": false,
+        "confirmed": [],
+        "parent": "m16wif5skjyqd6dbp5uwa67qrgw422qcwa3vctx77z7r34yx5mbigq",
+        "proposed": {
+          "confidence": 1.0,
+          "operation_id": "CREATE TYPE default::Foo",
+          "prompt": "did you create object type 'default::Foo'?",
+          "statements": [{"text": "CREATE TYPE default::Foo {\n
+          CREATE OPTIONAL SINGLE PROPERTY val -> std::str {\n
+          SET default := 'n/a';\n    };\n};"}]
+        }
+      }
+    ]
+
+Since proposed statements look OK, we can go ahead and just apply the
+whole migration.
+
+.. code-block:: edgeql-repl
+
+    db[tx]> POPULATE MIGRATION;
+    OK: POPULATE MIGRATION
+    db[tx]> COMMIT MIGRATION;
+    OK: COMMIT MIGRATION
+
+Now, let's remove that ``default``, after all the property is optional.
+
+.. code-block:: edgeql-repl
+
+    db> START MIGRATION TO {
+    ...   module default {
+    ...     type Foo {
+    ...       property val -> str;
+    ...     }
+    ...   }
+    ... };
+    db[tx]> DESCRIBE CURRENT MIGRATION AS JSON;
+    [
+      {
+        "complete": false,
+        "confirmed": [],
+        "parent": "initial",
+        "proposed": {
+          "confidence": 0.9956623333333332,
+          "operation_id": "ALTER TYPE default::Foo",
+          "prompt": "did you alter object type 'default::Foo'?",
+          "statements": [{"text": "ALTER TYPE default::Foo {\n
+          ALTER PROPERTY val {\n        DROP default;\n    };\n};"}]
+        }
+      }
+    ]
+
+The proposed statements will ``DROP default`` for our property, so all
+seems to be in order and we can apply this migration, too, using
+:eql:stmt:`POPULATE MIGRATION` and :eql:stmt:`COMMIT MIGRATION`.
+
+We're currently working on a CLI tool for managing migrations more
+gracefully and without the need for the user to rely on these
+low-level commands (like ``START MIGRATION`` or ``DESCRIBE CURRENT
+MIGRATION AS JSON``). The migration tool is going to use these
+commands behind the scenes, though.
+
+We've also made improvements to the following migration features:
+
+* Better overall dependency tracking to make sure that migration to
+  the new state can be resolved and produces valid command sequence.
+* Type, index and alias renaming while keeping track of affected
+  expressions to make sure they don't become invalid (:eql:gh:`#1841`)
+* Function renaming (:eql:gh:`#1971`)
+* Moving a type between modules (:eql:gh:`#1890`).
+* Changing base types and changing where constraints are defined
+  (:eql:gh:`#1996`).
+
+
+Command-Line Tools
+==================
+
+* Default user and default database are now simply ``edgedb`` and no
+  longer named after the system user.
+* Add ``--connect-timeout`` to control how long to wait for EdgeDB
+  response (`#191 <https://github.com/edgedb/edgedb-cli/pull/191>`_).
+* Add ``--dsn`` as a connection option (`#176
+  <https://github.com/edgedb/edgedb-cli/issues/176>`_).
+* Add ``migration-log`` command to view applied migrations (`#200
+  <https://github.com/edgedb/edgedb-cli/pull/200>`_).
+* Non-interactive error messages are prefixed by ``edgedb error:
+  ...``, to quickly spot which tool has errored in scripts.
+* Improve accuracy of syntax error reporting in REPL (:eql:gh:`#1959`).
+* REPL now supports full range of datetime values (`#192
+  <https://github.com/edgedb/edgedb-cli/pull/192>`_).
+* ``\lt`` in REPL doesn't show implicit internal types (unions and
+  intersections) (`#169 <https://github.com/edgedb/edgedb-cli/issues/169>`_).
+* Remove ``\set introspect-types`` in REPL and show typenames by
+  default.
+
+
+Server Command-Line
+===================
+
+* Make ``edgedb server install`` friendlier on linuxes without systemd
+  allowing foreground run (`#171
+  <https://github.com/edgedb/edgedb-cli/pull/171>`_).
+* When installing server ``DEBIAN_FRONTEND`` is now ``noninteractive`` by
+  default and is overridable (`#188
+  <https://github.com/edgedb/edgedb-cli/pull/188>`_).
+* Add ``edgedb server logs`` (`#172
+  <https://github.com/edgedb/edgedb-cli/pull/172>`_).
+* Add ``edgedb server info`` command.
+* Deprecate ``--default-database`` and ``--default-database-user``
+  (:eql:gh:`#1879`).
+
+
+Bindings
+========
+
+We now have an improved spec for client API (`RFC 1004 <robust_>`_).
+Rolling out the support for the full spec will be done in the next
+release, but some implementation work has already started.
+
+* Move request methods into Executor interface (`#76
+  <https://github.com/edgedb/edgedb-js/pull/76>`_) as part of the `RFC
+  1004 <robust_>`_ changes.
+* Update the `edgedb-python <https://github.com/edgedb/edgedb-python>`_ driver
+  to 0.12.0.
+
+
+.. _robust:
+    https://github.com/edgedb/rfcs/blob/master/text/1004-transactions-api.rst
+
+.. _migrations:
+    https://github.com/edgedb/rfcs/blob/master/text/1000-migrations.rst

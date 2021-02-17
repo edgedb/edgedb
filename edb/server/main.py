@@ -23,7 +23,6 @@ from typing import *
 import asyncio
 import contextlib
 import errno
-import getpass
 import logging
 import os
 import os.path
@@ -45,6 +44,8 @@ import setproctitle
 from edb.common import devmode
 from edb.common import exceptions
 
+from edb.server import defines as edgedb_defines
+
 from . import buildmeta
 from . import cluster as edgedb_cluster
 from . import daemon
@@ -52,7 +53,7 @@ from . import defines
 from . import logsetup
 from . import pgconnparams
 from . import pgcluster
-from . import mng_port
+from . import protocol
 
 
 logger = logging.getLogger('edb.server')
@@ -72,7 +73,7 @@ def terminate_server(server, loop):
 def _ensure_runstate_dir(
     default_runstate_dir: pathlib.Path,
     specified_runstate_dir: Optional[pathlib.Path]
-) -> pathlib.Path:
+) -> Iterator[pathlib.Path]:
     temp_runstate_dir = None
 
     if specified_runstate_dir is None:
@@ -190,6 +191,7 @@ def _run_server(cluster, args: ServerConfig,
     # actually were run.
     from . import server
 
+    bootstrap_script_text: Optional[str]
     if args.bootstrap_script:
         with open(args.bootstrap_script) as f:
             bootstrap_script_text = f.read()
@@ -198,14 +200,20 @@ def _run_server(cluster, args: ServerConfig,
     else:
         bootstrap_script_text = None
 
-    if bootstrap_script_text is not None:
+    if bootstrap_script_text is None:
+        bootstrap_script = None
+    else:
         bootstrap_script = server.StartupScript(
             text=bootstrap_script_text,
-            database=args.default_database,
-            user=args.default_database_user,
+            database=(
+                args.default_database or
+                edgedb_defines.EDGEDB_SUPERUSER_DB
+            ),
+            user=(
+                args.default_database_user or
+                edgedb_defines.EDGEDB_SUPERUSER
+            ),
         )
-    else:
-        bootstrap_script = None
 
     ss = server.Server(
         loop=loop,
@@ -213,11 +221,11 @@ def _run_server(cluster, args: ServerConfig,
         runstate_dir=runstate_dir,
         internal_runstate_dir=internal_runstate_dir,
         max_backend_connections=args.max_backend_connections,
+        compiler_pool_size=args.compiler_pool_size,
         nethost=args.bind_address,
         netport=args.port,
         auto_shutdown=args.auto_shutdown,
         echo_runtime_info=args.echo_runtime_info,
-        max_protocol=args.max_protocol,
         startup_script=bootstrap_script,
     )
 
@@ -260,6 +268,7 @@ def run_server(args: ServerConfig):
     pg_cluster_init_by_us = False
     pg_cluster_started_by_us = False
 
+    cluster: Union[pgcluster.Cluster, pgcluster.RemoteCluster]
     if args.data_dir:
         cluster = pgcluster.get_local_pg_cluster(args.data_dir)
         default_runstate_dir = cluster.get_data_dir()
@@ -417,8 +426,8 @@ class ServerConfig(typing.NamedTuple):
     bootstrap_only: bool
     bootstrap_command: str
     bootstrap_script: pathlib.Path
-    default_database: str
-    default_database_user: str
+    default_database: Optional[str]
+    default_database_user: Optional[str]
     devmode: bool
     testmode: bool
     bind_address: str
@@ -429,10 +438,10 @@ class ServerConfig(typing.NamedTuple):
     daemon_group: str
     runstate_dir: pathlib.Path
     max_backend_connections: int
+    compiler_pool_size: int
     echo_runtime_info: bool
     temp_dir: bool
     auto_shutdown: bool
-    max_protocol: Tuple[int, int]
 
 
 def bump_rlimit_nofile() -> None:
@@ -459,20 +468,38 @@ def _get_runstate_dir_default() -> str:
 
 
 def _protocol_version(
-        ctx: click.Context, param: click.Param, value: str
-) -> str:
+    ctx: click.Context,
+    param: click.Param,  # type: ignore[name-defined]
+    value: str,
+) -> Tuple[int, int]:
     try:
         minor, major = map(int, value.split('.'))
         ver = minor, major
-        if ver < mng_port.MIN_PROTOCOL or ver > mng_port.CURRENT_PROTOCOL:
+        if ver < protocol.MIN_PROTOCOL or ver > protocol.CURRENT_PROTOCOL:
             raise ValueError()
     except ValueError:
         raise click.UsageError(
             f"protocol version must be in the form "
             f"MAJOR.MINOR, in the range of "
-            f"{mng_port.MIN_PROTOCOL[0]}.{mng_port.MIN_PROTOCOL[1]} - "
-            f"{mng_port.CURRENT_PROTOCOL[0]}.{mng_port.CURRENT_PROTOCOL[1]}")
+            f"{protocol.MIN_PROTOCOL[0]}.{protocol.MIN_PROTOCOL[1]} - "
+            f"{protocol.CURRENT_PROTOCOL[0]}.{protocol.CURRENT_PROTOCOL[1]}")
     return ver
+
+
+def _validate_max_backend_connections(ctx, param, value):
+    if value < defines.BACKEND_CONNECTIONS_MIN:
+        raise click.BadParameter(
+            f'the minimum number of backend connections '
+            f'is {defines.BACKEND_CONNECTIONS_MIN}')
+    return value
+
+
+def _validate_compiler_pool_size(ctx, param, value):
+    if value < defines.BACKEND_COMPILER_POOL_SIZE_MIN:
+        raise click.BadParameter(
+            f'the minimum value for the compiler pool size option '
+            f'is {defines.BACKEND_COMPILER_POOL_SIZE_MIN}')
+    return value
 
 
 _server_options = [
@@ -494,16 +521,16 @@ _server_options = [
         type=str, metavar='DEST', default='stderr'),
     click.option(
         '--bootstrap', is_flag=True, hidden=True,
-        help='bootstrap the database cluster and exit'),
+        help='[DEPRECATED] bootstrap the database cluster and exit'),
     click.option(
         '--bootstrap-only', is_flag=True,
         help='bootstrap the database cluster and exit'),
     click.option(
-        '--default-database', type=str, default=getpass.getuser(),
-        help='the name of the default database to create'),
+        '--default-database', type=str, hidden=True,
+        help='[DEPRECATED] the name of the default database to create'),
     click.option(
-        '--default-database-user', type=str, default=getpass.getuser(),
-        help='the name of the default database owner'),
+        '--default-database-user', type=str, hidden=True,
+        help='[DEPRECATED] the name of the default database owner'),
     click.option(
         '--bootstrap-command', metavar="QUERIES",
         help='run the commands when initializing the database. '
@@ -543,7 +570,13 @@ _server_options = [
              f'runtime files will be placed ({_get_runstate_dir_default()} '
              f'by default)'),
     click.option(
-        '--max-backend-connections', type=int, default=100),
+        '--max-backend-connections', type=int,
+        default=defines.BACKEND_CONNECTIONS_DEFAULT,
+        callback=_validate_max_backend_connections),
+    click.option(
+        '--compiler-pool-size', type=int,
+        default=defines.BACKEND_COMPILER_POOL_SIZE_DEFAULT,
+        callback=_validate_compiler_pool_size),
     click.option(
         '--echo-runtime-info', type=bool, default=False, is_flag=True,
         help='echo runtime info to stdout; the format is JSON, prefixed by ' +
@@ -556,10 +589,6 @@ _server_options = [
         '--auto-shutdown', type=bool, default=False, is_flag=True,
         help='shutdown the server after the last management ' +
              'connection is closed'),
-    click.option(
-        '--max-protocol', type=str, callback=_protocol_version,
-        default='.'.join(map(str, mng_port.CURRENT_PROTOCOL)),
-        help='maximum supported and advertized client protocol version'),
     click.option(
         '--version', is_flag=True,
         help='Show the version and exit.')
@@ -590,13 +619,43 @@ def server_main(*, insecure=False, bootstrap, **kwargs):
         )
         kwargs['bootstrap_only'] = True
 
+    if kwargs['default_database_user']:
+        if kwargs['default_database_user'] == 'edgedb':
+            warnings.warn(
+                "Option `--default-database-user` is deprecated."
+                " Role `edgedb` is always created and"
+                " no role named after unix user is created any more.",
+                DeprecationWarning,
+            )
+        else:
+            warnings.warn(
+                "Option `--default-database-user` is deprecated."
+                " Please create the role explicitly.",
+                DeprecationWarning,
+            )
+
+    if kwargs['default_database']:
+        if kwargs['default_database'] == 'edgedb':
+            warnings.warn(
+                "Option `--default-database` is deprecated."
+                " Database `edgedb` is always created and"
+                " no database named after unix user is created any more.",
+                DeprecationWarning,
+            )
+        else:
+            warnings.warn(
+                "Option `--default-database` is deprecated."
+                " Please create the database explicitly.",
+                DeprecationWarning,
+            )
+
     if kwargs['temp_dir']:
         if kwargs['data_dir']:
-            abort('--temp-data-dir is incompatible with --data-dir/-D')
+            abort('--temp-dir is incompatible with --data-dir/-D')
         if kwargs['runstate_dir']:
-            abort('--temp-data-dir is incompatible with --runstate-dir')
+            abort('--temp-dir is incompatible with --runstate-dir')
         if kwargs['postgres_dsn']:
-            abort('--temp-data-dir is incompatible with --postgres-dsn')
+            abort('--temp-dir is incompatible with --postgres-dsn')
         kwargs['data_dir'] = kwargs['runstate_dir'] = pathlib.Path(
             tempfile.mkdtemp())
     else:

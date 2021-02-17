@@ -47,6 +47,16 @@ def compile_SelectStmt(
         # Common setup.
         clauses.init_stmt(stmt, ctx=ctx, parent_ctx=parent_ctx)
 
+        for binding in stmt.bindings:
+            # If something we are WITH binding contains DML, we want to
+            # compile it *now*, in the context of its initial appearance
+            # and not where the variable is used. This will populate
+            # dml_stmts with the CTEs, which will be picked up when the
+            # variable is referenced.
+            if irutils.contains_dml(binding):
+                with ctx.substmt() as bctx:
+                    dispatch.compile(binding, ctx=bctx)
+
         query = ctx.stmt
 
         iterators = irutils.get_iterator_sets(stmt)
@@ -141,11 +151,15 @@ def compile_InsertStmt(
         top_typeref = stmt.subject.typeref
         if top_typeref.material_type is not None:
             top_typeref = top_typeref.material_type
-        insert_cte, insert_rvar = parts.dml_ctes[top_typeref]
+        insert_cte, _ = parts.dml_ctes[top_typeref]
 
         # Process INSERT body.
         dml.process_insert_body(
-            stmt, ctx.rel, insert_cte, insert_rvar, parts.else_cte, ctx=ctx)
+            ir_stmt=stmt,
+            insert_cte=insert_cte,
+            dml_parts=parts,
+            ctx=ctx,
+        )
 
         # Wrap up.
         return dml.fini_dml_stmt(
@@ -170,10 +184,10 @@ def compile_UpdateStmt(
         for typeref, (update_cte, _) in parts.dml_ctes.items():
             # Process UPDATE body.
             dml.process_update_body(
-                stmt,
-                ctx.rel,
-                update_cte,
-                typeref,
+                ir_stmt=stmt,
+                update_cte=update_cte,
+                dml_parts=parts,
+                typeref=typeref,
                 ctx=ctx,
             )
 

@@ -125,6 +125,20 @@ class ScopeTreeNode:
 
         return cp
 
+    def find_dupe_unique_ids(self) -> Set[int]:
+        seen = set()
+        dupes = set()
+        for node in self.root.descendants:
+            if node.unique_id is not None:
+                if node.unique_id in seen:
+                    dupes.add(node.unique_id)
+                seen.add(node.unique_id)
+        return dupes
+
+    def validate_unique_ids(self) -> None:
+        dupes = self.find_dupe_unique_ids()
+        assert not dupes, f'Duplicate "unique" ids seen {dupes}'
+
     @property
     def name(self) -> str:
         return self._name(debug=False)
@@ -194,17 +208,17 @@ class ScopeTreeNode:
     @property
     def path_children(self) -> Iterator[ScopeTreeNodeWithPathId]:
         """An iterator of node's children that have path ids."""
-        return cast(
-            Iterator[ScopeTreeNodeWithPathId],
-            filter(lambda p: p.path_id is not None, self.children),
+        return filter(
+            lambda p: p.path_id is not None,
+            self.children,  # type: ignore
         )
 
     @property
     def path_descendants(self) -> Iterator[ScopeTreeNodeWithPathId]:
         """An iterator of node's descendants that have path ids."""
-        return cast(
-            Iterator[ScopeTreeNodeWithPathId],
-            filter(lambda p: p.path_id is not None, self.descendants),
+        return filter(
+            lambda p: p.path_id is not None,
+            self.descendants,  # type: ignore
         )
 
     def get_all_paths(self) -> Set[pathid.PathId]:

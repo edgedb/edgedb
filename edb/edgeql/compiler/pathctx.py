@@ -37,7 +37,7 @@ from . import context
 
 
 def get_path_id(stype: s_types.Type, *,
-                typename: Optional[s_name.Name]=None,
+                typename: Optional[s_name.QualName]=None,
                 ctx: context.ContextLevel) -> irast.PathId:
     return irast.PathId.from_type(
         ctx.env.schema,
@@ -45,6 +45,13 @@ def get_path_id(stype: s_types.Type, *,
         typename=typename,
         env=ctx.env,
         namespace=ctx.path_id_namespace)
+
+
+def get_pointer_path_id(ptr: s_pointers.Pointer, *,
+                        ctx: context.ContextLevel) -> irast.PathId:
+    src = ptr.get_source(ctx.env.schema)
+    assert isinstance(src, s_types.Type)
+    return extend_path_id(get_path_id(src, ctx=ctx), ptrcls=ptr, ctx=ctx)
 
 
 def get_tuple_indirection_path_id(
@@ -76,13 +83,13 @@ def get_expression_path_id(
         ctx: context.ContextLevel) -> irast.PathId:
     if alias is None:
         alias = ctx.aliases.get('expr')
-    typename = s_name.Name(module='__derived__', name=alias)
+    typename = s_name.QualName(module='__derived__', name=alias)
     return get_path_id(stype, typename=typename, ctx=ctx)
 
 
 def register_set_in_scope(
         ir_set: irast.Set, *,
-        path_scope: irast.ScopeTreeNode=None,
+        path_scope: Optional[irast.ScopeTreeNode]=None,
         optional: bool=False,
         fence_points: FrozenSet[irast.PathId]=frozenset(),
         ctx: context.ContextLevel) -> List[irast.ScopeTreeNode]:
@@ -161,12 +168,11 @@ def ban_path(
         path_id: irast.PathId, *,
         ctx: context.ContextLevel) -> None:
 
-    ctx.banned_paths.add(path_id.strip_weak_namespaces())
+    ctx.banned_paths.add(path_id)
 
 
 def path_is_banned(
         path_id: irast.PathId, *,
         ctx: context.ContextLevel) -> bool:
 
-    s_path_id = path_id.strip_weak_namespaces()
-    return s_path_id in ctx.banned_paths and ctx.path_scope.is_visible(path_id)
+    return path_id in ctx.banned_paths and ctx.path_scope.is_visible(path_id)

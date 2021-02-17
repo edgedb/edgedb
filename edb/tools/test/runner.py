@@ -21,6 +21,7 @@ from __future__ import annotations
 from typing import *
 
 import collections.abc
+import csv
 import enum
 import io
 import itertools
@@ -53,7 +54,7 @@ from . import styles
 
 
 result: Optional[unittest.result.TestResult] = None
-coverage_run = None
+coverage_run: Optional[Any] = None
 
 
 def teardown_suite() -> None:
@@ -63,8 +64,8 @@ def teardown_suite() -> None:
     # references to tests being run, so we can think of
     # its methods as static.
     suite = StreamingTestSuite()
-    suite._tearDownPreviousClass(None, result)
-    suite._handleModuleTearDown(result)
+    suite._tearDownPreviousClass(None, result)  # type: ignore[attr-defined]
+    suite._handleModuleTearDown(result)  # type: ignore[attr-defined]
 
 
 def init_worker(status_queue: multiprocessing.SimpleQueue,
@@ -84,8 +85,8 @@ def init_worker(status_queue: multiprocessing.SimpleQueue,
         if server_addr is not None:
             os.environ['EDGEDB_TEST_CLUSTER_ADDR'] = json.dumps(server_addr)
 
+    os.environ['EDGEDB_TEST_PARALLEL'] = '1'
     coverage_run = devmode.CoverageConfig.start_coverage_if_requested()
-
     status_queue.put(True)
 
 
@@ -165,7 +166,14 @@ class ChannelingTestResultMeta(type):
                 error_text = self._exc_info_to_string(args[-1], args[0])
                 args[-1] = error_text
 
-            self._queue.put((meth, args, kwargs))
+            try:
+                self._queue.put((meth, args, kwargs))
+            except Exception:
+                print(
+                    f'!!! Test worker child process: '
+                    f'failed to serialize arguments for {meth}: '
+                    f'*args={args} **kwargs={kwargs} !!!')
+                raise
         return _wrapper
 
     def __new__(mcls, name, bases, dct):
@@ -616,13 +624,13 @@ class ParallelTextTestResult(unittest.result.TestResult):
             self.ren = SimpleRenderer(tests=tests, stream=stream)
 
     def report_progress(self, test, marker, description=None):
+        self.currently_running.pop(test, None)
         self.ren.report(
             test,
             marker,
             description,
             currently_running=list(self.currently_running),
         )
-        self.currently_running.pop(test)
 
     def record_test_stats(self, test, stats):
         self.test_stats.append((test, stats))
@@ -715,17 +723,28 @@ class ParallelTextTestRunner:
 
     def __init__(self, *, stream=None, num_workers=1, verbosity=1,
                  output_format=OutputFormat.auto, warnings=True,
-                 failfast=False):
+                 failfast=False, shuffle=False):
         self.stream = stream if stream is not None else sys.stderr
         self.num_workers = num_workers
         self.verbosity = verbosity
         self.warnings = warnings
         self.failfast = failfast
+        self.shuffle = shuffle
         self.output_format = output_format
 
-    def run(self, test):
+    def run(self, test, current_shard, total_shards, running_times_log_file):
         session_start = time.monotonic()
         cases = tb.get_test_cases([test])
+        stats = {}
+        if running_times_log_file:
+            running_times_log_file.seek(0)
+            stats = {
+                k: (float(v), int(c))
+                for k, v, c in csv.reader(running_times_log_file)
+            }
+        cases = tb.get_cases_by_shard(
+            cases, current_shard, total_shards, self.verbosity, stats,
+        )
         setup = tb.get_test_cases_setup(cases)
         bootstrap_time_taken = 0
         tests_time_taken = 0
@@ -769,7 +788,7 @@ class ParallelTextTestRunner:
                 bootstrap_time_taken = time.monotonic() - session_start
 
                 if self.verbosity >= 1:
-                    self._echo(' OK')
+                    self._echo('OK')
 
             start = time.monotonic()
 
@@ -797,6 +816,17 @@ class ParallelTextTestRunner:
             self._echo()
             suite.run(result)
 
+            if running_times_log_file:
+                for test, stat in result.test_stats:
+                    name = str(test)
+                    t = stat['running-time']
+                    at, c = stats.get(name, (0, 0))
+                    stats[name] = (at + (t - at) / (c + 1), c + 1)
+                running_times_log_file.seek(0)
+                running_times_log_file.truncate()
+                writer = csv.writer(running_times_log_file)
+                for k, v in stats.items():
+                    writer.writerow((k, ) + v)
             tests_time_taken = time.monotonic() - start
 
         except KeyboardInterrupt:
@@ -918,21 +948,37 @@ class ParallelTextTestRunner:
         return result
 
     def _sort_tests(self, cases):
-        serialized_suites = {
-            casecls: unittest.TestSuite(tests)
-            for casecls, tests in cases.items()
-            if getattr(casecls, 'SERIALIZED', False)
-        }
+        serialized_suites = {}
+        exclusive_suites = set()
+        exclusive_tests = []
+
+        for casecls, tests in cases.items():
+            gg = getattr(casecls, 'get_parallelism_granularity', None)
+            granularity = gg() if gg is not None else 'default'
+
+            if granularity == 'suite':
+                serialized_suites[casecls] = unittest.TestSuite(tests)
+            elif granularity == 'system':
+                exclusive_tests.extend(tests)
+                exclusive_suites.add(casecls)
 
         tests = itertools.chain(
             serialized_suites.values(),
             itertools.chain.from_iterable(
                 tests for casecls, tests in cases.items()
-                if casecls not in serialized_suites
-            )
+                if (
+                    casecls not in serialized_suites
+                    and casecls not in exclusive_suites
+                )
+            ),
+            [unittest.TestSuite(exclusive_tests)],
         )
 
-        return list(tests)
+        test_list = list(tests)
+        if self.shuffle:
+            random.shuffle(test_list)
+
+        return test_list
 
 
 # Disable pickling of traceback objects in multiprocessing.

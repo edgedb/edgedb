@@ -74,3 +74,11 @@ type CollectionTest {
     property some_tuple -> tuple<str, int64>;
     property str_array -> array<str>;
 }
+
+type MultiRequiredTest {
+    required property name -> str {
+        constraint exclusive;
+    };
+    required multi property prop -> str;
+    required multi link tags -> Tag;
+}

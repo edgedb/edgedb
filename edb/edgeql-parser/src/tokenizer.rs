@@ -25,7 +25,6 @@ pub enum Kind {
     Arrow,            // ->
     Coalesce,         // ??
     Namespace,        // ::
-    ForwardLink,      // .>
     BackwardLink,     // .<
     FloorDiv,         // //
     Concat,           // ++
@@ -64,6 +63,7 @@ pub enum Kind {
     BinStr,           // b"xx", b'xx'
     Str,              // "xx", 'xx', r"xx", r'xx', $$xx$$
     BacktickName,     // `xx`
+    Substitution,     // \(name)
     Keyword,
     Ident,
 }
@@ -201,7 +201,7 @@ impl<'a> TokenStream<'a> {
         // faster to update 'as you go', but this is easier to get right first
         self.update_position(len);
         self.dot = match kind {
-            Kind::Dot | Kind::ForwardLink => true,
+            Kind::Dot => true,
             _ => false,
         };
         let value = &self.buf[self.off-len..self.off];
@@ -254,7 +254,6 @@ impl<'a> TokenStream<'a> {
                 _ => return Ok((Div, 1)),
             },
             '.' => match iter.next() {
-                Some((_, '>')) => return Ok((ForwardLink, 2)),
                 Some((_, '<')) => return Ok((BackwardLink, 2)),
                 _ => return Ok((Dot, 1)),
             },
@@ -510,6 +509,32 @@ impl<'a> TokenStream<'a> {
                     }
                 }
                 return Ok((Argument, end_idx));
+            }
+            '\\' => match iter.next() {
+                Some((_, '(')) => {
+                    let len = loop {
+                        match iter.next() {
+                            Some((_, '_')) => continue,
+                            Some((_, c)) if c.is_alphanumeric() => continue,
+                            Some((idx, ')')) => break idx,
+                            Some((_, _)) => {
+                                return Err(Error::unexpected_static_message(
+                                    "only alphanumerics are allowed in \
+                                     \\(name) token"));
+                            }
+                            None => {
+                                return Err(Error::unexpected_static_message(
+                                    "unclosed \\(name) token"));
+                            }
+                        }
+                    };
+                    Ok((Substitution, len+1))
+                }
+                _ => return Err(
+                    Error::unexpected_format(
+                        format_args!("unexpected character {:?}", cur_char)
+                    )
+                ),
             }
             _ => return Err(
                 Error::unexpected_format(
@@ -812,6 +837,8 @@ pub fn is_keyword(s: &str) -> bool {
         | "__subject__"
         | "__type__"
         | "__std__"
+        | "__edgedbsys__"
+        | "__edgedbtpl__"
         | "abort"
         | "alter"
         | "and"

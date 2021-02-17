@@ -1,84 +1,49 @@
-.. _ref_datamodel_overview:
+.. eql:section-intro-page:: dna
 
-========
-Overview
-========
+==========
+Data Model
+==========
 
-EdgeDB is a relational database with strongly typed schema.
+In this section you'll find an overview of the fundamental types, objects,
+and concepts for EdgeDB, a relational database with strongly typed schema.
+Here's a quick overview of the links below:
 
+Types in EdgeDB include your own **Object Types** (e.g. *User*) and
+**Abstract Types** for other types to extend (e.g. ``HasEmailAddress`` for
+``User`` and others can inherit), plus **Scalar Types** with single values
+(``str``, ``int64``, etc.) and **Collection Types** like **arrays** and
+**tuples** for multiple values.
 
-.. _ref_datamodel_typesystem:
+Start putting your **Object Types** together with **properties** and
+**links**. Then build on them with items like **annotations** (readable
+notes for others), **constraints** to set limits (e.g. maximum length,
+minimum value, or even create your own), **indexes** for faster querying,
+and **computables** to use expressions to define properties or links
+(e.g. ``property email := .user_name ++ '@' ++ .provider_name``).
 
-Type System
-===========
-
-An EdgeDB schema is primarily composed from *object type* definitions, which
-describe entities in a specific domain.  An *object type* is a collection
-of named *properties* and *links* to other types.
-
-Here is an example of a simple EdgeDB type using the Edge Schema notation:
-
-.. code-block:: sdl
-
-    type User {
-        property name -> str;
-        property address -> str;
-        multi link friends -> User;
-    }
-
-``str`` in the above example is a
-:ref:`scalar type <ref_datamodel_scalar_types>`.  EdgeDB also supports
-:ref:`collection types <ref_datamodel_collection_types>`.  Scalar
-types and collection types are collectively called *primitive types* in
-contrast with object types.
+**Expression Aliases** let you use existing types under new names to build
+on them without touching the original -- both in your schema or on the fly
+inside a query. You can also create your own **functions**, strongly typed
+along with everything else in EdgeDB. All this goes into the schema under
+one or more **modules** (namespaces).
 
 
-Modules and Items
-=================
+.. toctree::
+    :maxdepth: 3
+    :hidden:
 
-EdgeDB schemas consist of :ref:`modules <ref_datamodel_modules>`.  Modules
-contain *schema items*.
-
-There are several kinds of schema items:
-
-* :ref:`object types <ref_datamodel_object_types>`
-* :ref:`scalar types <ref_datamodel_scalar_types>`
-* :ref:`links <ref_datamodel_links>`
-* :ref:`properties <ref_datamodel_props>`
-* :ref:`constraints <ref_datamodel_constraints>`
-* :ref:`annotations <ref_datamodel_annotations>`
-* :ref:`functions <ref_datamodel_functions>`
-
-
-.. _ref_datamodel_inheritance:
-
-Inheritance
-===========
-
-Most items in EdgeDB schema support *inheritance* as a composition mechanism.
-Schema items can *extend* other item(s) of the same kind.  When extending,
-*child* items inherit the aspects of the *parent* item(s) in a manner specific
-to the schema item kind.  For example, when an object type extends another
-object type, it inherits all parent properties, links, constraints and other
-aspects.  Additionally, for instances of the child type
-``object IS ParentType`` is ``true`` (see :eql:op:`IS operator <IS>`).  Also,
-instances of the child type are included in the set of all instances of
-the parent type.
-
-Multiple inheritance allows composing several types into one. A common
-pattern is to have many basic abstract types (such as ``Named``,
-``HasEmail``, ``HasAddress``, etc.) each with their own links and
-properties and then extending different combinations of them.
-
-Finally, various inheritance structures enable the use of
-:ref:`polymorphic queries <ref_eql_polymorphic_queries>`.
-
-
-EdgeDB Schema
-=============
-
-:ref:`EdgeDB schema definition language<ref_eql_sdl>` is a high-level
-declarative alternative to :ref:`EdgeDB data definition<ref_eql_ddl>`
-commands.  It is designed to be a concise and readable representation
-of schema state.  Most of the examples and synopses in this section
-use the SDL notation.
+    overview
+    objects
+    scalars/index
+    colltypes
+    abstract
+    functions
+    links
+    props
+    computables
+    indexes
+    constraints
+    aliases
+    annotations
+    modules
+    databases

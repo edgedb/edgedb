@@ -35,8 +35,8 @@ type Eert {
         constraint exclusive;
     }
 
-    link parent := .<children[IS Eert];
-    multi link children -> Eert {
-        constraint exclusive;
-    }
+    # We need the limit 1 because children isn't exclusive and we can't
+    # have it be exclusive if we want to do an atomic swap...
+    link parent := (SELECT .<children[IS Eert] LIMIT 1);
+    multi link children -> Eert;
 }

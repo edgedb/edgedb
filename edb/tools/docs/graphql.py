@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-from edb.graphql.pygments import GraphQLLexer
+from edb.tools.pygments.graphql import GraphQLLexer
 
 
 def setup_domain(app):

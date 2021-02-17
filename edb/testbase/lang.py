@@ -1,3 +1,5 @@
+# mypy: ignore-errors
+
 #
 # This source file is part of the EdgeDB open source project.
 #
@@ -20,12 +22,14 @@
 from __future__ import annotations
 from typing import *
 
+import typing
 import functools
 import os
 import re
 import unittest
 
 from edb.common import context
+from edb.common import debug
 from edb.common import devmode
 from edb.common import markup
 
@@ -114,7 +118,7 @@ class DocTestMeta(type(unittest.TestCase)):
 
 class BaseDocTest(unittest.TestCase, metaclass=DocTestMeta):
     parser_debug_flag = ''
-    re_filter = None
+    re_filter: Optional[typing.Pattern[str]] = None
 
     def _run_test(self, *, source, spec=None, expected=None):
         if spec and 'must_fail' in spec:
@@ -170,8 +174,8 @@ class BaseDocTest(unittest.TestCase, metaclass=DocTestMeta):
 
 
 class BaseSyntaxTest(BaseDocTest):
-    ast_to_source = None
-    markup_dump_lexer = None
+    ast_to_source: Optional[Any] = None
+    markup_dump_lexer: Optional[str] = None
 
     def get_parser(self, *, spec):
         raise NotImplementedError
@@ -237,9 +241,11 @@ def _load_std_schema():
                 std_dirs_hash, 'transient-stdschema.pickle')
 
         if schema is None:
-            schema = s_schema.Schema()
-            for modname in s_schema.STD_LIB + ('stdgraphql',):
+            schema = s_schema.FlatSchema()
+            for modname in s_schema.STD_SOURCES:
                 schema = s_std.load_std_module(schema, modname)
+            schema, _ = s_std.make_schema_version(schema)
+            schema, _ = s_std.make_global_schema_version(schema)
 
         if devmode.is_in_dev_mode():
             buildmeta.write_data_cache(
@@ -266,10 +272,12 @@ def _load_reflection_schema():
             reflschema, classlayout = cache
         else:
             std_schema = _load_std_schema()
-            refldelta, classlayout, _ = s_refl.generate_structure(std_schema)
+            reflection = s_refl.generate_structure(std_schema)
+            classlayout = reflection.class_layout
             context = sd.CommandContext()
             context.stdmode = True
-            reflschema = refldelta.apply(std_schema, context)
+            reflschema = reflection.intro_schema_delta.apply(
+                std_schema, context)
 
             if devmode.is_in_dev_mode():
                 buildmeta.write_data_cache(
@@ -296,13 +304,17 @@ def new_compiler():
 
 
 class BaseSchemaTest(BaseDocTest):
-    SCHEMA = None
+    SCHEMA: Optional[str] = None
+
+    schema: s_schema.Schema
 
     @classmethod
     def setUpClass(cls):
         script = cls.get_schema_script()
         if script is not None:
             cls.schema = cls.run_ddl(_load_std_schema(), script)
+        else:
+            cls.schema = _load_std_schema()
 
     @classmethod
     def run_ddl(cls, schema, ddl, default_module=defines.DEFAULT_MODULE_ALIAS):
@@ -313,7 +325,6 @@ class BaseSchemaTest(BaseDocTest):
         migration_schema = None
         migration_target = None
         migration_script = []
-        migration_plan = None
 
         for stmt in statements:
             if isinstance(stmt, qlast.StartMigration):
@@ -346,15 +357,26 @@ class BaseSchemaTest(BaseDocTest):
                     migration_target,
                 )
 
-                if not migration_script:
-                    migration_plan = migration_diff
+                if debug.flags.delta_plan:
+                    debug.header('Populate Migration Diff')
+                    debug.dump(migration_diff, schema=schema)
 
-                migration_script.extend(
-                    s_ddl.ddlast_from_delta(
-                        migration_target,
-                        migration_diff,
-                    ),
+                new_ddl = s_ddl.ddlast_from_delta(
+                    migration_schema,
+                    migration_target,
+                    migration_diff,
                 )
+
+                migration_script.extend(new_ddl)
+
+                if debug.flags.delta_plan:
+                    debug.header('Populate Migration DDL AST')
+                    text = []
+                    for cmd in new_ddl:
+                        debug.dump(cmd)
+                        text.append(edgeql.generate_source(cmd, pretty=True))
+                    debug.header('Populate Migration DDL Text')
+                    debug.dump_code(';\n'.join(text) + ';')
 
             elif isinstance(stmt, qlast.CommitMigration):
                 if migration_target is None:
@@ -373,8 +395,7 @@ class BaseSchemaTest(BaseDocTest):
                     last_migration_ref = None
 
                 create_migration = qlast.CreateMigration(
-                    commands=migration_script,
-                    auto_diff=migration_plan,
+                    body=qlast.NestedQLBlock(commands=migration_script),
                     parent=last_migration_ref,
                 )
 
@@ -385,10 +406,13 @@ class BaseSchemaTest(BaseDocTest):
                     testmode=True,
                 )
 
+                if debug.flags.delta_plan:
+                    debug.header('Delta Plan')
+                    debug.dump(ddl_plan, schema=schema)
+
                 migration_schema = None
                 migration_target = None
                 migration_script = []
-                migration_plan = None
 
             elif isinstance(stmt, qlast.DDL):
                 if migration_target is not None:
@@ -402,6 +426,9 @@ class BaseSchemaTest(BaseDocTest):
                         testmode=True,
                     )
 
+                    if debug.flags.delta_plan:
+                        debug.header('Delta Plan')
+                        debug.dump(ddl_plan, schema=schema)
             else:
                 raise ValueError(
                     f'unexpected {stmt!r} in compiler setup script')

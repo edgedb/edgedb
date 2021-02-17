@@ -48,9 +48,9 @@ class ObjectType(
     s_types.InheritingType,
     sources.Source,
     constraints.ConsistencySubject,
-    s_anno.AnnotationSubject,
     s_abc.ObjectType,
     qlkind=qltypes.SchemaObjectClass.TYPE,
+    data_safe=False,
 ):
 
     union_of = so.SchemaField(
@@ -58,6 +58,7 @@ class ObjectType(
         default=so.DEFAULT_CONSTRUCTOR,
         coerce=True,
         type_is_generic_self=True,
+        compcoef=0.0,
     )
 
     intersection_of = so.SchemaField(
@@ -81,8 +82,9 @@ class ObjectType(
         schema: s_schema.Schema,
     ) -> Optional[s_expr.ExpressionList]:
         if (
-            self.get_name(schema).module == 'schema'
-            and self.issubclass(schema, schema.get('schema::Object'))
+            self.get_name(schema).module in {'schema', 'sys'}
+            and self.issubclass(schema,
+                                schema.get('schema::Object', type=ObjectType))
         ):
             return s_expr.ExpressionList([
                 s_expr.Expression.from_ast(
@@ -131,7 +133,7 @@ class ObjectType(
                 return ' & '.join(
                     dn for dn in comp_dns if dn != 'std::BaseObject'
                 )
-            elif mtype is self:
+            elif mtype == self:
                 return super().get_displayname(schema)
             else:
                 return mtype.get_displayname(schema)
@@ -139,21 +141,20 @@ class ObjectType(
     def getrptrs(
         self,
         schema: s_schema.Schema,
-        name: Union[sn.Name, str],
+        name: str,
         *,
         sources: Iterable[so.Object] = ()
     ) -> Set[links.Link]:
-        if sn.Name.is_qualified(name):
+        if sn.is_qualified(name):
             raise ValueError(
                 'references to concrete pointers must not be qualified')
         ptrs = {
             lnk for lnk in schema.get_referrers(self, scls_type=links.Link,
                                                 field_name='target')
             if (
-                isinstance(lnk, links.Link)
-                and lnk.get_shortname(schema).name == name
+                lnk.get_shortname(schema).name == name
                 and not lnk.get_source_type(schema).is_view(schema)
-                and lnk.get_is_owned(schema)
+                and lnk.get_owned(schema)
                 and (not sources or lnk.get_source_type(schema) in sources)
             )
         }
@@ -163,13 +164,18 @@ class ObjectType(
                 lnk for lnk in schema.get_referrers(obj, scls_type=links.Link,
                                                     field_name='target')
                 if (
-                    isinstance(lnk, links.Link)
-                    and lnk.get_shortname(schema).name == name
+                    lnk.get_shortname(schema).name == name
                     and not lnk.get_source_type(schema).is_view(schema)
-                    and lnk.get_is_owned(schema)
+                    and lnk.get_owned(schema)
                     and (not sources or lnk.get_source_type(schema) in sources)
                 )
             )
+
+        unions = schema.get_referrers(
+            self, scls_type=ObjectType, field_name='union_of')
+
+        for union in unions:
+            ptrs.update(union.getrptrs(schema, name, sources=sources))
 
         return ptrs
 
@@ -185,7 +191,9 @@ class ObjectType(
         other: s_types.Type,
         schema: s_schema.Schema,
     ) -> Tuple[s_schema.Schema, Optional[ObjectType]]:
-        assert isinstance(other, ObjectType)
+        if not isinstance(other, ObjectType):
+            return schema, None
+
         nearest_common_ancestor = utils.get_class_nearest_common_ancestor(
             schema, [self, other]
         )
@@ -197,15 +205,15 @@ class ObjectType(
         )
 
     @classmethod
-    def get_root_classes(cls) -> Tuple[sn.Name, ...]:
+    def get_root_classes(cls) -> Tuple[sn.QualName, ...]:
         return (
-            sn.Name(module='std', name='BaseObject'),
-            sn.Name(module='std', name='Object'),
+            sn.QualName(module='std', name='BaseObject'),
+            sn.QualName(module='std', name='Object'),
         )
 
     @classmethod
-    def get_default_base_name(cls) -> sn.Name:
-        return sn.Name(module='std', name='Object')
+    def get_default_base_name(cls) -> sn.QualName:
+        return sn.QualName(module='std', name='Object')
 
     def _issubclass(
         self,
@@ -278,14 +286,13 @@ def get_or_create_union_type(
     module: Optional[str] = None,
 ) -> Tuple[s_schema.Schema, ObjectType, bool]:
 
-    type_id, name = s_types.get_union_type_id(
-        schema,
-        components,
+    name = s_types.get_union_type_name(
+        (c.get_name(schema) for c in components),
         opaque=opaque,
         module=module,
     )
 
-    objtype = schema.get_by_id(type_id, None, type=ObjectType)
+    objtype = schema.get(name, default=None, type=ObjectType)
     created = objtype is None
     if objtype is None:
         components = list(components)
@@ -296,11 +303,10 @@ def get_or_create_union_type(
             schema,
             name=name,
             attrs=dict(
-                id=type_id,
                 union_of=so.ObjectSet.create(schema, components),
                 is_opaque_union=opaque,
-                is_abstract=True,
-                is_final=True,
+                abstract=True,
+                final=True,
             ),
         )
 
@@ -323,13 +329,12 @@ def get_or_create_intersection_type(
     module: Optional[str] = None,
 ) -> Tuple[s_schema.Schema, ObjectType, bool]:
 
-    type_id, name = s_types.get_intersection_type_id(
-        schema,
-        components,
+    name = s_types.get_intersection_type_name(
+        (c.get_name(schema) for c in components),
         module=module,
     )
 
-    objtype = schema.get_by_id(type_id, None)
+    objtype = schema.get(name, default=None, type=ObjectType)
     created = objtype is None
     if objtype is None:
         components = list(components)
@@ -340,10 +345,9 @@ def get_or_create_intersection_type(
             schema,
             name=name,
             attrs=dict(
-                id=type_id,
                 intersection_of=so.ObjectSet.create(schema, components),
-                is_abstract=True,
-                is_final=True,
+                abstract=True,
+                final=True,
             ),
         )
 
@@ -370,7 +374,7 @@ def get_or_create_intersection_type(
             intersection_pointers[pn] = ptr
 
         for pn, ptr in intersection_pointers.items():
-            if objtype.getptr(schema, pn) is None:
+            if objtype.maybe_get_ptr(schema, pn) is None:
                 schema = objtype.add_pointer(schema, ptr)
 
     assert isinstance(objtype, ObjectType)
@@ -385,11 +389,13 @@ class ObjectTypeCommandContext(sd.ObjectCommandContext[ObjectType],
     pass
 
 
-class ObjectTypeCommand(s_types.InheritingTypeCommand[ObjectType],
-                        constraints.ConsistencySubjectCommand[ObjectType],
-                        sources.SourceCommand, links.LinkSourceCommand,
-                        schema_metaclass=ObjectType,
-                        context_class=ObjectTypeCommandContext):
+class ObjectTypeCommand(
+    s_types.InheritingTypeCommand[ObjectType],
+    constraints.ConsistencySubjectCommand[ObjectType],
+    sources.SourceCommand[ObjectType],
+    links.LinkSourceCommand[ObjectType],
+    context_class=ObjectTypeCommandContext,
+):
     pass
 
 
@@ -426,7 +432,7 @@ class CreateObjectType(
             return super()._get_ast_node(schema, context)
 
 
-class RenameObjectType(ObjectTypeCommand, sd.RenameObject[ObjectType]):
+class RenameObjectType(ObjectTypeCommand, s_types.RenameType[ObjectType]):
     pass
 
 
@@ -440,8 +446,11 @@ class AlterObjectType(ObjectTypeCommand,
     astnode = qlast.AlterObjectType
 
 
-class DeleteObjectType(ObjectTypeCommand,
-                       inheriting.DeleteInheritingObject[ObjectType]):
+class DeleteObjectType(
+    ObjectTypeCommand,
+    s_types.DeleteType[ObjectType],
+    inheriting.DeleteInheritingObject[ObjectType],
+):
     astnode = qlast.DropObjectType
 
     def _get_ast(

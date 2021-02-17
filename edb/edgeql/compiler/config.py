@@ -34,6 +34,7 @@ from edb.ir import staeval as ireval
 from edb.ir import typeutils as irtyputils
 
 from edb.schema import links as s_links
+from edb.schema import name as sn
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import types as s_types
@@ -52,6 +53,7 @@ class SettingInfo(NamedTuple):
     cardinality: qltypes.SchemaCardinality
     requires_restart: bool
     backend_setting: str
+    affects_compilation: bool
 
 
 @dispatch.compile.register
@@ -66,16 +68,15 @@ def compile_ConfigSet(
     try:
         ireval.evaluate(param_val, schema=ctx.env.schema)
     except ireval.UnsupportedExpressionError as e:
-        level = 'SYSTEM' if expr.system else 'SESSION'
         raise errors.QueryError(
-            f'non-constant expression in CONFIGURE {level} SET',
+            f'non-constant expression in CONFIGURE {expr.scope} SET',
             context=expr.expr.context
         ) from e
 
     return irast.ConfigSet(
         name=info.param_name,
         cardinality=info.cardinality,
-        system=expr.system,
+        scope=expr.scope,
         requires_restart=info.requires_restart,
         backend_setting=info.backend_setting,
         context=expr.context,
@@ -121,7 +122,7 @@ def compile_ConfigReset(
     return irast.ConfigReset(
         name=info.param_name,
         cardinality=info.cardinality,
-        system=expr.system,
+        scope=expr.scope,
         requires_restart=info.requires_restart,
         backend_setting=info.backend_setting,
         context=expr.context,
@@ -135,14 +136,13 @@ def compile_ConfigInsert(
 
     info = _validate_op(expr, ctx=ctx)
 
-    if not expr.system:
+    if expr.scope is not qltypes.ConfigScope.SYSTEM:
         raise errors.UnsupportedFeatureError(
-            f'CONFIGURE SESSION INSERT is not supported'
+            f'CONFIGURE {expr.scope} INSERT is not supported'
         )
 
-    level = 'SYSTEM' if expr.system else 'SESSION'
     subject = ctx.env.get_track_schema_object(
-        f'cfg::{expr.name.name}', expr.name, default=None)
+        sn.QualName('cfg', expr.name.name), expr.name, default=None)
     if subject is None:
         raise errors.ConfigurationError(
             f'{expr.name.name!r} is not a valid configuration item',
@@ -175,13 +175,13 @@ def compile_ConfigInsert(
         assert isinstance(insert_ir_set.expr, irast.InsertStmt)
         insert_subject = insert_ir_set.expr.subject
 
-        _validate_config_object(insert_subject, level=level, ctx=subctx)
+        _validate_config_object(insert_subject, scope=expr.scope, ctx=subctx)
 
     return setgen.ensure_set(
         irast.ConfigInsert(
             name=info.param_name,
             cardinality=info.cardinality,
-            system=expr.system,
+            scope=expr.scope,
             requires_restart=info.requires_restart,
             backend_setting=info.backend_setting,
             expr=insert_subject,
@@ -220,16 +220,17 @@ def _inject_tname(
 
 def _validate_config_object(
         expr: irast.Set, *,
-        level: str,
+        scope: str,
         ctx: context.ContextLevel) -> None:
 
     for element, _ in expr.shape:
+        assert element.rptr is not None
         if element.rptr.ptrref.shortname.name == 'id':
             continue
 
         if (irtyputils.is_object(element.typeref)
                 and isinstance(element.expr, irast.InsertStmt)):
-            _validate_config_object(element, level=level, ctx=ctx)
+            _validate_config_object(element, scope=scope, ctx=ctx)
 
 
 def _validate_op(
@@ -243,13 +244,14 @@ def _validate_op(
         )
 
     name = expr.name.name
-    cfg_host_type = ctx.env.get_track_schema_type('cfg::Config')
+    cfg_host_type = ctx.env.get_track_schema_type(
+        sn.QualName('cfg', 'AbstractConfig'))
     assert isinstance(cfg_host_type, s_objtypes.ObjectType)
     cfg_type = None
 
     if isinstance(expr, (qlast.ConfigSet, qlast.ConfigReset)):
         # expr.name is the actual name of the property.
-        ptr = cfg_host_type.getptr(ctx.env.schema, name)
+        ptr = cfg_host_type.maybe_get_ptr(ctx.env.schema, sn.UnqualName(name))
         if ptr is not None:
             cfg_type = ptr.get_target(ctx.env.schema)
 
@@ -261,7 +263,8 @@ def _validate_op(
             )
 
         # expr.name is the name of the configuration type
-        cfg_type = ctx.env.get_track_schema_type(f'cfg::{name}', default=None)
+        cfg_type = ctx.env.get_track_schema_type(
+            sn.QualName('cfg', name), default=None)
         if cfg_type is None:
             raise errors.ConfigurationError(
                 f'unrecognized configuration object {name!r}',
@@ -283,8 +286,11 @@ def _validate_op(
                 ptr_candidate = pointer_link
                 break
 
-        if (ptr_candidate is None
-                or ptr_candidate.get_source(ctx.env.schema) != cfg_host_type):
+        if (
+            ptr_candidate is None
+            or (ptr_source := ptr_candidate.get_source(ctx.env.schema)) is None
+            or not ptr_source.issubclass(ctx.env.schema, cfg_host_type)
+        ):
             raise errors.ConfigurationError(
                 f'{name!r} cannot be configured directly'
             )
@@ -296,7 +302,7 @@ def _validate_op(
     assert isinstance(ptr, s_pointers.Pointer)
 
     sys_attr = ptr.get_annotations(ctx.env.schema).get(
-        ctx.env.schema, 'cfg::system', None)
+        ctx.env.schema, sn.QualName('cfg', 'system'), None)
 
     system = (
         sys_attr is not None
@@ -307,7 +313,7 @@ def _validate_op(
     assert cardinality is not None
 
     restart_attr = ptr.get_annotations(ctx.env.schema).get(
-        ctx.env.schema, 'cfg::requires_restart', None)
+        ctx.env.schema, sn.QualName('cfg', 'requires_restart'), None)
 
     requires_restart = (
         restart_attr is not None
@@ -315,14 +321,23 @@ def _validate_op(
     )
 
     backend_attr = ptr.get_annotations(ctx.env.schema).get(
-        ctx.env.schema, 'cfg::backend_setting', None)
+        ctx.env.schema, sn.QualName('cfg', 'backend_setting'), None)
 
     if backend_attr is not None:
         backend_setting = json.loads(backend_attr.get_value(ctx.env.schema))
     else:
         backend_setting = None
 
-    if not expr.system and system:
+    compilation_attr = ptr.get_annotations(ctx.env.schema).get(
+        ctx.env.schema, sn.QualName('cfg', 'affects_compilation'), None)
+
+    if compilation_attr is not None:
+        affects_compilation = (
+            json.loads(compilation_attr.get_value(ctx.env.schema)))
+    else:
+        affects_compilation = False
+
+    if system and expr.scope is not qltypes.ConfigScope.SYSTEM:
         raise errors.ConfigurationError(
             f'{name!r} is a system-level configuration parameter; '
             f'use "CONFIGURE SYSTEM"')
@@ -331,4 +346,5 @@ def _validate_op(
                        param_type=cfg_type,
                        cardinality=cardinality,
                        requires_restart=requires_restart,
-                       backend_setting=backend_setting)
+                       backend_setting=backend_setting,
+                       affects_compilation=affects_compilation)

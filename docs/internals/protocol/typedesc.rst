@@ -157,6 +157,9 @@ The following table lists all EdgeDB base types descriptor IDs:
    * - ``00000000-0000-0000-0000-00000000010D``
      - :ref:`cal::local_time <ref_protocol_fmt_local_time>`
 
+   * - ``00000000-0000-0000-0000-000000000110``
+     - :ref:`std::bigint <ref_protocol_fmt_bigint>`
+
 
 Scalar Type Descriptor
 ======================
@@ -275,16 +278,38 @@ Enumeration Type Descriptor
     };
 
 
+Scalar Type Name Annotation
+===========================
+
+Part of the type descriptor when the :ref:`ref_protocol_msg_prepare`
+client message has the ``INLINE_TYPENAMES`` header set.  Every non-builtin
+base scalar type and all enum types would have their full schema name
+provided via this annotation.
+
+.. code-block:: c
+
+    struct TypeAnnotationDescriptor {
+        uint8        type = 0xff;
+
+        // ID of the scalar type.
+        uuid         id;
+
+        // Type name.
+        string       type_name;
+    };
+
+
 Type Annotation Descriptor
 ==========================
 
+Drivers must ignore unknown type annotations.
 
 .. code-block:: c
 
     struct TypeAnnotationDescriptor {
         // Indicates that this is an
         // Type Annotation descriptor.
-        uint8        type = 0xf0..0xff;
+        uint8        type = 0x80..0xfe;
 
         // ID of the descriptor the
         // annotation is for.

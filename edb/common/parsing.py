@@ -29,8 +29,6 @@ import re
 
 import parsing
 
-from edb import errors
-
 from edb.common.exceptions import add_context, get_context
 from edb.common import context as pctx
 from edb.common import lexer
@@ -44,7 +42,7 @@ TRAILING_WS_IN_CONTINUATION = re.compile(r'\\ \s+\n')
 
 
 class TokenMeta(type):
-    token_map = {}
+    token_map: Dict[Tuple[Any, Any], Any] = {}
 
     def __new__(
             mcls, name, bases, dct, *, token=None, lextoken=None,
@@ -219,8 +217,8 @@ def precedence(precedence):
 
 
 class PrecedenceMeta(type):
-    token_prec_map = {}
-    last = {}
+    token_prec_map: Dict[Tuple[Any, Any], Any] = {}
+    last: Dict[Tuple[Any, Any], Any] = {}
 
     def __new__(
             mcls, name, bases, dct, *, assoc, tokens=None, prec_group=None,
@@ -311,11 +309,15 @@ class Spec(parsing.Spec):
 
 
 def _derive_hint(
-        input: str, message: str, position: (int, int, int)) -> Optional[str]:
+    input: str,
+    message: str,
+    position: Tuple[int, int, int],
+) -> Optional[str]:
     _, _, off = position
     if message == r"invalid string literal: invalid escape sequence '\ '":
         if TRAILING_WS_IN_CONTINUATION.search(input[off:]):
             return "consider removing trailing whitespace"
+    return None
 
 
 class Parser:
@@ -420,28 +422,23 @@ class Parser:
         except lexer.LexError as e:
             raise self.get_exception(e, context=self.context(None)) from e
 
-        except errors.InvalidSyntaxError as e:
-            raise self.get_exception(
-                e, context=self.context(tok), token=tok) from e
-
         return self.parser.start[0].val
 
-    def context(self, tok=None, pos: (int, int, int) = None):
+    def context(self, tok=None, pos: Tuple[int, int, int] = None):
         lex = self.lexer
         name = lex.filename if lex.filename else '<string>'
 
         if tok is None:
             if pos is None:
                 pos = lex.end_of_input
-            position = pctx.SourcePoint(*pos)
             context = pctx.ParserContext(
                 name=name, buffer=lex.inputstr,
-                start=position, end=position)
+                start=pos[2], end=pos[2])
         else:
             context = pctx.ParserContext(
                 name=name, buffer=lex.inputstr,
-                start=pctx.SourcePoint(*tok.start()),
-                end=pctx.SourcePoint(*tok.end()))
+                start=tok.start()[2],
+                end=tok.end()[2])
 
         return context
 

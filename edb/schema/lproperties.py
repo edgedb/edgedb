@@ -42,8 +42,12 @@ if TYPE_CHECKING:
     from . import schema as s_schema
 
 
-class Property(pointers.Pointer, s_abc.Property,
-               qlkind=qltypes.SchemaObjectClass.PROPERTY):
+class Property(
+    pointers.Pointer,
+    s_abc.Property,
+    qlkind=qltypes.SchemaObjectClass.PROPERTY,
+    data_safe=False,
+):
 
     def derive_ref(
         self,
@@ -61,7 +65,7 @@ class Property(pointers.Pointer, s_abc.Property,
         schema, ptr = super().derive_ref(
             schema, referrer, target=target, attrs=attrs, **kwargs)
 
-        ptr_sn = ptr.get_shortname(schema)
+        ptr_sn = str(ptr.get_shortname(schema))
 
         if ptr_sn == 'std::source':
             assert isinstance(referrer, s_links.Link)
@@ -95,9 +99,11 @@ class Property(pointers.Pointer, s_abc.Property,
         if (not self.generic(our_schema) and
                 not other.generic(their_schema) and
                 self.issubclass(
-                    our_schema, our_schema.get('std::source')) and
+                    our_schema,
+                    our_schema.get('std::source', type=Property)) and
                 other.issubclass(
-                    their_schema, their_schema.get('std::source'))):
+                    their_schema,
+                    their_schema.get('std::source', type=Property))):
             # Make std::source link property ignore differences in its target.
             # This is consistent with skipping the comparison on Pointer.source
             # in general.
@@ -115,27 +121,6 @@ class Property(pointers.Pointer, s_abc.Property,
 
     def is_property(self, schema: s_schema.Schema) -> bool:
         return True
-
-    @classmethod
-    def merge_targets(
-        cls,
-        schema: s_schema.Schema,
-        ptr: pointers.Pointer,
-        t1: s_types.Type,
-        t2: s_types.Type,
-        *,
-        allow_contravariant: bool = False,
-    ) -> Tuple[s_schema.Schema, Optional[s_types.Type]]:
-        if ptr.is_endpoint_pointer(schema):
-            return schema, t1
-        else:
-            return super().merge_targets(
-                schema,
-                ptr,
-                t1,
-                t2,
-                allow_contravariant=allow_contravariant
-            )
 
     def scalar(self) -> bool:
         return True
@@ -168,14 +153,14 @@ class Property(pointers.Pointer, s_abc.Property,
             return not source.is_view(schema)
 
     @classmethod
-    def get_root_classes(cls) -> Tuple[sn.Name, ...]:
+    def get_root_classes(cls) -> Tuple[sn.QualName, ...]:
         return (
-            sn.Name(module='std', name='property'),
+            sn.QualName(module='std', name='property'),
         )
 
     @classmethod
-    def get_default_base_name(self) -> sn.Name:
-        return sn.Name('std::property')
+    def get_default_base_name(self) -> sn.QualName:
+        return sn.QualName('std', 'property')
 
     def is_blocking_ref(
         self,
@@ -189,32 +174,22 @@ class PropertySourceContext(sources.SourceCommandContext):
     pass
 
 
-class PropertySourceCommand(inheriting.InheritingObjectCommand[Property]):
+class PropertySourceCommand(
+    inheriting.InheritingObjectCommand[sources.Source_T],
+):
     pass
 
 
-class PropertyCommandContext(pointers.PointerCommandContext,
+class PropertyCommandContext(pointers.PointerCommandContext[Property],
                              constraints.ConsistencySubjectCommandContext):
     pass
 
 
-class PropertyCommand(pointers.PointerCommand,
-                      schema_metaclass=Property,
-                      context_class=PropertyCommandContext,
-                      referrer_context_class=PropertySourceContext):
-
-    def _set_pointer_type(
-        self,
-        schema: s_schema.Schema,
-        astnode: qlast.CreateConcretePointer,
-        context: sd.CommandContext,
-        target_ref: Union[so.Object, so.ObjectShell],
-    ) -> None:
-        assert astnode.target is not None
-        spt = SetPropertyType(classname=self.classname, type=target_ref)
-        spt.set_attribute_value(
-            'target', target_ref, source_context=astnode.target.context)
-        self.add(spt)
+class PropertyCommand(
+    pointers.PointerCommand[Property],
+    context_class=PropertyCommandContext,
+    referrer_context_class=PropertySourceContext,
+):
 
     def _validate_pointer_def(
         self,
@@ -225,13 +200,16 @@ class PropertyCommand(pointers.PointerCommand,
         super()._validate_pointer_def(schema, context)
 
         scls = self.scls
-        if not scls.get_is_owned(schema):
+        if not scls.get_owned(schema):
             return
 
         if scls.is_special_pointer(schema):
             return
 
-        if scls.is_link_property(schema):
+        if (
+            scls.is_link_property(schema)
+            and not scls.is_pure_computable(schema)
+        ):
             # link properties cannot be required or multi
             if self.get_attribute_value('required'):
                 raise errors.InvalidPropertyDefinitionError(
@@ -272,7 +250,7 @@ class PropertyCommand(pointers.PointerCommand,
 
 class CreateProperty(
     PropertyCommand,
-    referencing.CreateReferencedInheritingObject[Property],
+    pointers.CreatePointer[Property],
 ):
     astnode = [qlast.CreateConcreteProperty,
                qlast.CreateProperty]
@@ -300,6 +278,24 @@ class CreateProperty(
 
         return cmd
 
+    def get_ast_attr_for_field(
+        self,
+        field: str,
+        astnode: Type[qlast.DDLOperation],
+    ) -> Optional[str]:
+        if (
+            field == 'required'
+            and issubclass(astnode, qlast.CreateConcreteProperty)
+        ):
+            return 'is_required'
+        elif (
+            field == 'cardinality'
+            and issubclass(astnode, qlast.CreateConcreteProperty)
+        ):
+            return 'cardinality'
+        else:
+            return super().get_ast_attr_for_field(field, astnode)
+
     def _apply_field_ast(
         self,
         schema: s_schema.Schema,
@@ -310,19 +306,7 @@ class CreateProperty(
         # type ignore below, because the class is used as mixin
         link = context.get(PropertySourceContext)  # type: ignore
 
-        if op.property == 'required':
-            if isinstance(node, qlast.CreateConcreteProperty):
-                node.is_required = bool(op.new_value)
-            else:
-                node.commands.append(
-                    qlast.SetSpecialField(
-                        name='required',
-                        value=op.new_value,
-                    ),
-                )
-        elif op.property == 'cardinality':
-            node.cardinality = op.new_value
-        elif op.property == 'target' and link:
+        if op.property == 'target' and link:
             if isinstance(node, qlast.CreateConcreteProperty):
                 expr = self.get_attribute_value('expr')
                 if expr is not None:
@@ -335,8 +319,8 @@ class CreateProperty(
                 ref = op.new_value
                 assert isinstance(ref, (so.Object, so.ObjectShell))
                 node.commands.append(
-                    qlast.SetPropertyType(
-                        type=utils.typeref_to_ast(schema, ref)
+                    qlast.SetPointerType(
+                        value=utils.typeref_to_ast(schema, ref)
                     )
                 )
         else:
@@ -357,23 +341,41 @@ class RebaseProperty(
     pass
 
 
-class SetPropertyType(pointers.SetPointerType,
-                      schema_metaclass=Property,
-                      referrer_context_class=PropertySourceContext):
+class SetPropertyType(
+    pointers.SetPointerType[Property],
+    referrer_context_class=PropertySourceContext,
+    field='target',
+):
+    pass
 
-    astnode = qlast.SetPropertyType
+
+class AlterPropertyUpperCardinality(
+    pointers.AlterPointerUpperCardinality[Property],
+    referrer_context_class=PropertySourceContext,
+    field='cardinality',
+):
+    pass
+
+
+class AlterPropertyLowerCardinality(
+    pointers.AlterPointerLowerCardinality[Property],
+    referrer_context_class=PropertySourceContext,
+    field='required',
+):
+    pass
 
 
 class AlterPropertyOwned(
     referencing.AlterOwned[Property],
-    schema_metaclass=Property,
     referrer_context_class=PropertySourceContext,
+    field='owned',
 ):
-    astnode = qlast.AlterPropertyOwned
+    pass
 
 
 class AlterProperty(
     PropertyCommand,
+    pointers.PointerAlterFragment[Property],
     referencing.AlterReferencedInheritingObject[Property],
 ):
     astnode = [qlast.AlterConcreteProperty,
@@ -408,19 +410,26 @@ class AlterProperty(
             if op.new_value:
                 assert isinstance(op.new_value, so.ObjectShell)
                 node.commands.append(
-                    qlast.SetPropertyType(
-                        type=utils.typeref_to_ast(schema, op.new_value),
+                    qlast.SetPointerType(
+                        value=utils.typeref_to_ast(schema, op.new_value),
                     ),
                 )
-        elif op.property == 'required':
-            node.commands.append(
-                qlast.SetSpecialField(
-                    name='required',
-                    value=op.new_value,
-                ),
-            )
         else:
             super()._apply_field_ast(schema, context, node, op)
+
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
+        if self.maybe_get_object_aux_data('from_alias'):
+            # This is an alias type, appropriate DDL would be generated
+            # from the corresponding Alter/DeleteAlias node.
+            return None
+        else:
+            return super()._get_ast(schema, context, parent_node=parent_node)
 
 
 class DeleteProperty(
@@ -432,24 +441,21 @@ class DeleteProperty(
 
     referenced_astnode = qlast.DropConcreteProperty
 
-    @classmethod
-    def _cmd_tree_from_ast(
-        cls,
+    def _canonicalize(
+        self,
         schema: s_schema.Schema,
-        astnode: qlast.DDLOperation,
         context: sd.CommandContext,
-    ) -> sd.Command:
-        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
-        assert isinstance(cmd, DeleteProperty)
+        scls: so.Object,
+    ) -> Sequence[sd.Command]:
+        cmds = list(super()._canonicalize(schema, context, scls))
 
-        if isinstance(astnode, qlast.DropConcreteProperty):
-            prop = schema.get(cmd.classname, type=Property)
-            target = prop.get_target(schema)
+        assert isinstance(scls, Property)
+        target = scls.get_target(schema)
+        if target is not None and isinstance(target, s_types.Collection):
+            cmds.append(
+                target.as_colltype_delete_delta(schema, expiring_refs={scls}))
 
-            if target is not None and isinstance(target, s_types.Collection):
-                cmd.add(target.as_colltype_delete_delta(schema))
-
-        return cmd
+        return cmds
 
     def _get_ast(
         self,
@@ -458,7 +464,7 @@ class DeleteProperty(
         *,
         parent_node: Optional[qlast.DDLOperation] = None,
     ) -> Optional[qlast.DDLOperation]:
-        if self.get_orig_attribute_value('is_from_alias'):
+        if self.maybe_get_object_aux_data('from_alias'):
             # This is an alias type, appropriate DDL would be generated
             # from the corresponding Alter/DeleteAlias node.
             return None

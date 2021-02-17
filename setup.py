@@ -18,6 +18,7 @@
 
 
 import binascii
+import functools
 import os
 import os.path
 import pathlib
@@ -42,32 +43,31 @@ except ImportError:
 
 
 RUNTIME_DEPS = [
-    'asyncpg~=0.20.0',
+    'asyncpg~=0.22.0',
     'click~=7.1',
     'httptools>=0.0.13',
-    'immutables>=0.13',
+    'immutables>=0.15',
     'parsing~=1.6.1',
     'prompt_toolkit==3.0.3',
-    'psutil~=5.6.1',
     'Pygments~=2.3.0',
     'setproctitle~=1.1.10',
     'setuptools-rust==0.10.3',
     'setuptools_scm~=3.2.0',
-    'typing_inspect~=0.5.0',
-    'uvloop~=0.14.0',
+    'uvloop~=0.15.1',
+    "typing_inspect~=0.5.0;python_version<'3.9'",
     'wcwidth~=0.2.5',
 
-    'graphql-core~=3.0.3',
+    'graphql-core~=3.1.2',
     'promise~=2.2.0',
 
-    'edgedb>=0.9.0a1',
+    'edgedb>=0.13.0a4',
 ]
 
-CYTHON_DEPENDENCY = 'Cython==0.29.14'
+CYTHON_DEPENDENCY = 'Cython==0.29.21'
 
 DOCS_DEPS = [
     'Sphinx~=2.3.1',
-    'lxml~=4.5.1',
+    'lxml~=4.6.2',
     'sphinxcontrib-asyncio~=0.2.0',
 ]
 
@@ -87,7 +87,7 @@ EXTRA_DEPS = {
         'black~=19.10b0',
         'flake8~=3.8.1',
         'flake8-bugbear~=20.1.4',
-        'mypy==0.782',
+        'mypy==0.790',
         'coverage~=5.2.1',
         'requests-xml~=0.2.3',
         'lxml',
@@ -539,7 +539,11 @@ else:
 
 def custom_scm_version():
     from edb.server import buildmeta
-    return {'version_scheme': buildmeta.scm_version_scheme}
+    return {
+        'version_scheme': (
+            functools.partial(buildmeta.scm_version_scheme, ROOT_PATH)
+        ),
+    }
 
 
 setuptools.setup(
@@ -567,6 +571,12 @@ setuptools.setup(
     },
     ext_modules=[
         distutils_extension.Extension(
+            "edb.server.cache.stmt_cache",
+            ["edb/server/cache/stmt_cache.pyx"],
+            extra_compile_args=EXT_CFLAGS,
+            extra_link_args=EXT_LDFLAGS),
+
+        distutils_extension.Extension(
             "edb.testbase.protocol.protocol",
             ["edb/testbase/protocol/protocol.pyx"],
             extra_compile_args=EXT_CFLAGS,
@@ -585,20 +595,26 @@ setuptools.setup(
             extra_link_args=EXT_LDFLAGS),
 
         distutils_extension.Extension(
-            "edb.server.tokenizer",
-            ["edb/server/tokenizer.pyx"],
+            "edb.server.protocol.binary",
+            ["edb/server/protocol/binary.pyx"],
             extra_compile_args=EXT_CFLAGS,
             extra_link_args=EXT_LDFLAGS),
 
         distutils_extension.Extension(
-            "edb.server.mng_port.edgecon",
-            ["edb/server/mng_port/edgecon.pyx"],
+            "edb.server.protocol.notebook_ext",
+            ["edb/server/protocol/notebook_ext.pyx"],
             extra_compile_args=EXT_CFLAGS,
             extra_link_args=EXT_LDFLAGS),
 
         distutils_extension.Extension(
-            "edb.server.cache.stmt_cache",
-            ["edb/server/cache/stmt_cache.pyx"],
+            "edb.server.protocol.edgeql_ext",
+            ["edb/server/protocol/edgeql_ext.pyx"],
+            extra_compile_args=EXT_CFLAGS,
+            extra_link_args=EXT_LDFLAGS),
+
+        distutils_extension.Extension(
+            "edb.server.protocol.protocol",
+            ["edb/server/protocol/protocol.pyx"],
             extra_compile_args=EXT_CFLAGS,
             extra_link_args=EXT_LDFLAGS),
 
@@ -609,26 +625,8 @@ setuptools.setup(
             extra_link_args=EXT_LDFLAGS),
 
         distutils_extension.Extension(
-            "edb.server.http.http",
-            ["edb/server/http/http.pyx"],
-            extra_compile_args=EXT_CFLAGS,
-            extra_link_args=EXT_LDFLAGS),
-
-        distutils_extension.Extension(
-            "edb.server.http_edgeql_port.protocol",
-            ["edb/server/http_edgeql_port/protocol.pyx"],
-            extra_compile_args=EXT_CFLAGS,
-            extra_link_args=EXT_LDFLAGS),
-
-        distutils_extension.Extension(
-            "edb.server.http_graphql_port.protocol",
-            ["edb/server/http_graphql_port/protocol.pyx"],
-            extra_compile_args=EXT_CFLAGS,
-            extra_link_args=EXT_LDFLAGS),
-
-        distutils_extension.Extension(
-            "edb.server.notebook_port.protocol",
-            ["edb/server/notebook_port/protocol.pyx"],
+            "edb.graphql.extension",
+            ["edb/graphql/extension.pyx"],
             extra_compile_args=EXT_CFLAGS,
             extra_link_args=EXT_LDFLAGS),
     ],

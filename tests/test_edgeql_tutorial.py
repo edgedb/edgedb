@@ -24,8 +24,6 @@ from edb.testbase import server as tb
 
 class TestEdgeQLTutorial(tb.QueryTestCase):
 
-    ISOLATED_METHODS = False
-
     async def test_edgeql_tutorial(self):
         await self.con.execute(r'''
             START MIGRATION TO {
@@ -175,7 +173,7 @@ class TestEdgeQLTutorial(tb.QueryTestCase):
         await self.con.execute(r'''
             ALTER TYPE Person {
                 ALTER PROPERTY first_name {
-                    DROP REQUIRED;
+                    SET OPTIONAL;
                 }
             };
         ''')

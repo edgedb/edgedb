@@ -28,7 +28,7 @@ from edb.pgsql import common
 from edb.pgsql import dbops
 
 
-class SchemaDBObjectMeta(adapter.Adapter, type(s_obj.Object)):
+class SchemaDBObjectMeta(adapter.Adapter):  # type: ignore
     def __init__(cls, name, bases, dct, *, adapts=None):
         adapter.Adapter.__init__(cls, name, bases, dct, adapts=adapts)
         type(s_obj.Object).__init__(cls, name, bases, dct)
@@ -191,6 +191,7 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
             exprdata = expr['exprdata']
             origin_exprdata = origin_expr['exprdata']
 
+            schemaname, tablename = self.get_origin_table_name()
             text = '''
                 PERFORM
                     TRUE
@@ -201,16 +202,23 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
                 IF FOUND THEN
                   RAISE unique_violation
                       USING
-                          TABLE = '{table[1]}',
-                          SCHEMA = '{table[0]}',
+                          TABLE = '{tablename}',
+                          SCHEMA = '{schemaname}',
                           CONSTRAINT = '{constr}',
                           MESSAGE = '{errmsg}',
-                          DETAIL = 'Key ({plain_expr}) already exists.';
+                          DETAIL = {detail};
                 END IF;
             '''.format(
                 plain_expr=origin_exprdata['plain'],
+                detail=common.quote_literal(
+                    f"Key ({origin_exprdata['plain']}) already exists."
+                ),
                 new_expr=exprdata['new'],
-                table=common.qname(*self.get_origin_table_name()),
+                table=common.qname(
+                    schemaname,
+                    tablename + "_" + common.get_aspect_suffix("inhview")),
+                schemaname=schemaname,
+                tablename=tablename,
                 constr=raw_constr_name,
                 errmsg=errmsg,
             )
@@ -226,13 +234,7 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
         return self._scope != 'row' and len(self._exprdata) > 1
 
     def requires_triggers(self):
-        return (
-            self._type != 'check'
-            and (
-                self.get_origin_table_name()
-                != self.get_subject_name(quote=False)
-            )
-        )
+        return self._type != 'check'
 
     def __repr__(self):
         return '<{}.{} {!r} at 0x{:x}>'.format(
@@ -327,19 +329,20 @@ class AlterTableRenameMultiConstraint(
             for i, _expr in enumerate(exprs):
                 old_name = c.numbered_constraint_name(i, quote=False)
                 new_name = nc.numbered_constraint_name(i, quote=False)
+                if old_name != new_name:
+                    ac = dbops.AlterTableRenameConstraintSimple(
+                        name=self.name, old_name=old_name, new_name=new_name)
 
-                ac = dbops.AlterTableRenameConstraintSimple(
-                    name=self.name, old_name=old_name, new_name=new_name)
-
-                self.add_command(ac)
+                    self.add_command(ac)
         else:
             old_name = c.constraint_name(quote=False)
             new_name = nc.constraint_name(quote=False)
 
-            ac = dbops.AlterTableRenameConstraintSimple(
-                name=self.name, old_name=old_name, new_name=new_name)
+            if old_name != new_name:
+                ac = dbops.AlterTableRenameConstraintSimple(
+                    name=self.name, old_name=old_name, new_name=new_name)
 
-            self.add_command(ac)
+                self.add_command(ac)
 
         return super().generate(block)
 
@@ -428,6 +431,9 @@ class AlterTableConstraintBase(dbops.AlterTableBaseMixin, dbops.CommandGroup):
 
         cname = constraint.raw_constraint_name()
         ncname = new_constr.raw_constraint_name()
+
+        if cname == ncname:
+            return ()
 
         ins_trigger_name = common.edgedb_name_to_pg_name(cname + '_instrigger')
         new_ins_trg_name = common.edgedb_name_to_pg_name(

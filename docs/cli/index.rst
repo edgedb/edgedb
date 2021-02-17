@@ -1,3 +1,5 @@
+.. eql:section-intro-page:: terminal
+
 .. _ref_cli_overview:
 
 ========
@@ -11,6 +13,8 @@ managing and using an EdgeDB instance.
 
 .. table::
 
+    +---------------------------------+---------------------------------+
+    | :ref:`ref_cli_edgedb_install`   | EdgeDB CLI installation         |
     +---------------------------------+---------------------------------+
     | :ref:`ref_cli_edgedb`           | EdgeDB interactive shell        |
     +---------------------------------+---------------------------------+

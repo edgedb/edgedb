@@ -1,3 +1,5 @@
+# mypy: ignore-errors
+
 #
 # This source file is part of the EdgeDB open source project.
 #
@@ -341,7 +343,7 @@ class GraphQLTranslator:
             self.visit(node.variable_definitions)
 
         # base Query needs to be configured specially
-        base = self._context.gqlcore.get('Query')
+        base = self._context.gqlcore.get('stdgraphql::Query')
 
         # special treatment of the selection_set, different from inner
         # recursion
@@ -370,7 +372,7 @@ class GraphQLTranslator:
             self.visit(node.variable_definitions)
 
         # base Mutation needs to be configured specially
-        base = self._context.gqlcore.get('Mutation')
+        base = self._context.gqlcore.get('stdgraphql::Mutation')
 
         # special treatment of the selection_set, different from inner
         # recursion
@@ -1719,7 +1721,7 @@ def translate_ast(
     document_ast: graphql.Document,
     *,
     operation_name: Optional[str]=None,
-    variables: Dict[str, Any]=None,
+    variables: Optional[Mapping[str, Any]]=None,
     substitutions: Optional[Dict[str, Tuple[str, int, int]]],
 ) -> TranspiledOperation:
 

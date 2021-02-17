@@ -18,25 +18,33 @@
 
 
 from __future__ import annotations
-
 import typing
-
-
-if typing.TYPE_CHECKING:
-    ObjectContainer_T = typing.TypeVar(
-        'ObjectContainer_T', bound='ObjectContainer'
-    )
 
 
 class Schema:
     pass
 
 
+class Reducible:
+    """An interface implemented by all non-builtin objects stored in schema."""
+
+    def schema_reduce(self) -> typing.Any:
+        """Return a primitive representation of the object.
+
+        The return value must consist of primitive Python objects.
+        """
+        raise NotImplementedError
+
+    @classmethod
+    def schema_restore(
+        cls,
+        data: typing.Any,
+    ) -> Reducible:
+        """Restore object from data returned by *schema_reduce*."""
+        raise NotImplementedError
+
+
 class Object:
-    pass
-
-
-class ObjectContainer:
     pass
 
 

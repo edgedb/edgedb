@@ -18,78 +18,13 @@
 
 
 import os.path
-import tempfile
 
 import edgedb
 
 from edb.testbase import server as tb
 
 
-class TestDump01(tb.QueryTestCase, tb.CLITestCaseMixin):
-
-    SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'dump01_test.esdl')
-    SCHEMA_DEFAULT = os.path.join(os.path.dirname(__file__), 'schemas',
-                                  'dump01_default.esdl')
-
-    SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
-                         'dump01_setup.edgeql')
-
-    ISOLATED_METHODS = False
-    SERIALIZED = True
-    STABLE_DUMP = True
-
-    async def test_dump01_dump_restore(self):
-        assert type(self).__name__.startswith('Test')
-        # The name of the database created for this test case by
-        # the test runner:
-        dbname = type(self).__name__[4:].lower()
-
-        with tempfile.NamedTemporaryFile() as f:
-            self.run_cli('-d', dbname, 'dump', f.name)
-
-            await self.con.execute(f'CREATE DATABASE {dbname}_restored')
-            try:
-                self.run_cli('-d', f'{dbname}_restored', 'restore', f.name)
-                con2 = await self.connect(database=f'{dbname}_restored')
-            except Exception:
-                await self.con.execute(f'DROP DATABASE {dbname}_restored')
-                raise
-
-        oldcon = self.con
-        self.__class__.con = con2
-        try:
-            await self.ensure_schema_data_integrity()
-        finally:
-            self.__class__.con = oldcon
-            await con2.aclose()
-            await self.con.execute(f'DROP DATABASE {dbname}_restored')
-
-    async def test_dump01_restore_compatibility(self):
-        current_dir = os.path.dirname(__file__)
-        dumps_dir = os.path.join(current_dir, 'dumps', 'dump01')
-        for entry in os.scandir(dumps_dir):
-            if not entry.is_file() or not entry.name.endswith(".dump"):
-                continue
-
-            dbname = type(self).__name__ + "_" + entry.name[:-len(".dump")]
-            dumpfn = os.path.join(dumps_dir, entry.name)
-            await self.con.execute(f'CREATE DATABASE `{dbname}`')
-            try:
-                self.run_cli('-d', dbname, 'restore', dumpfn)
-                con2 = await self.connect(database=dbname)
-            except Exception:
-                await self.con.execute(f'DROP DATABASE `{dbname}`')
-                raise
-
-            oldcon = self.con
-            self.__class__.con = con2
-            try:
-                await self.ensure_schema_data_integrity()
-            finally:
-                self.__class__.con = oldcon
-                await con2.aclose()
-                await self.con.execute(f'DROP DATABASE `{dbname}`')
+class DumpTestCaseMixin:
 
     async def ensure_schema_data_integrity(self):
         tx = self.con.transaction()
@@ -421,7 +356,7 @@ class TestDump01(tb.QueryTestCase, tb.CLITestCaseMixin):
                     expr,
                 }
                 FILTER
-                    .is_abstract
+                    .abstract
                     AND
                     .name LIKE 'default::%'
                 ORDER BY .name;
@@ -1937,3 +1872,27 @@ class TestDump01(tb.QueryTestCase, tb.CLITestCaseMixin):
                         rol1: {@rolp11 := 1},
                     };
                     ''')
+
+
+class TestDump01(tb.StableDumpTestCase, DumpTestCaseMixin):
+
+    SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
+                          'dump01_test.esdl')
+    SCHEMA_DEFAULT = os.path.join(os.path.dirname(__file__), 'schemas',
+                                  'dump01_default.esdl')
+
+    SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
+                         'dump01_setup.edgeql')
+
+    async def test_dump01_dump_restore(self):
+        await self.check_dump_restore(
+            DumpTestCaseMixin.ensure_schema_data_integrity)
+
+
+class TestDump01Compat(
+    tb.DumpCompatTestCase,
+    DumpTestCaseMixin,
+    dump_subdir='dump01',
+    check_method=DumpTestCaseMixin.ensure_schema_data_integrity,
+):
+    pass

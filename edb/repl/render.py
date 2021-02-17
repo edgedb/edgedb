@@ -103,8 +103,8 @@ def render_exception(
             print(f'Hint: {exc_hint}')
 
         if query:
-            exc_line = int(read_str_field(base_errors.FIELD_LINE, '-1'))
-            exc_col = int(read_str_field(base_errors.FIELD_COLUMN, '-1'))
+            exc_line = int(read_str_field(base_errors.FIELD_LINE_START, '-1'))
+            exc_col = int(read_str_field(base_errors.FIELD_COLUMN_START, '-1'))
             if exc_line >= 0 and exc_col >= 0:
                 for lineno, line in enumerate(query.split('\n'), 1):
                     print('###', line)

@@ -42,6 +42,12 @@ ObjectDDL_T = typing.TypeVar(
 )
 
 
+Base_T = typing.TypeVar(
+    'Base_T',
+    bound='Base',
+)
+
+
 class SortOrder(s_enum.StrEnum):
     Asc = 'ASC'
     Desc = 'DESC'
@@ -68,6 +74,7 @@ class CardinalityModifier(s_enum.StrEnum):
 
 class DescribeGlobal(s_enum.StrEnum):
     Schema = 'SCHEMA'
+    DatabaseConfig = 'DATABASE CONFIG'
     SystemConfig = 'SYSTEM CONFIG'
     Roles = 'ROLES'
 
@@ -139,6 +146,11 @@ class Options(Base):
 class Expr(Base):
     """Abstract parent for all query expressions."""
     __abstract_node__ = True
+
+
+class Placeholder(Expr):
+    """An interpolation placeholder used in expression templates."""
+    name: str
 
 
 class SubExpr(Base):
@@ -319,11 +331,15 @@ class DecimalConstant(BaseRealConstant):
 
 
 class BooleanConstant(BaseConstant):
-    pass
+
+    @classmethod
+    def from_python(cls, b: bool) -> BooleanConstant:
+        return cls(value=str(b).lower())
 
 
 class BytesConstant(BaseConstant):
-    value: bytes
+    # This should really just be str to match, though
+    value: bytes  # type: ignore[assignment]
 
     @classmethod
     def from_python(cls, s: bytes) -> BytesConstant:
@@ -505,7 +521,11 @@ class Shape(Expr):
     elements: typing.List[ShapeElement]
 
 
-class SelectQuery(Statement, ReturningMixin, SelectClauseMixin):
+class Query(Statement):
+    __abstract_node__ = True
+
+
+class SelectQuery(Query, ReturningMixin, SelectClauseMixin):
     pass
 
 
@@ -515,22 +535,22 @@ class GroupQuery(SelectQuery, SubjectMixin):
     into: str
 
 
-class InsertQuery(Statement, SubjectMixin):
+class InsertQuery(Query, SubjectMixin):
     subject: Path
     shape: typing.List[ShapeElement]
     unless_conflict: typing.Optional[
         typing.Tuple[typing.Optional[Expr], typing.Optional[Expr]]]
 
 
-class UpdateQuery(Statement, SubjectMixin, FilterMixin):
+class UpdateQuery(Query, SubjectMixin, FilterMixin):
     shape: typing.List[ShapeElement]
 
 
-class DeleteQuery(Statement, SubjectMixin, SelectClauseMixin):
+class DeleteQuery(Query, SubjectMixin, SelectClauseMixin):
     pass
 
 
-class ForQuery(Statement, ReturningMixin):
+class ForQuery(Query, ReturningMixin):
     iterator: Expr
     iterator_alias: str
 
@@ -599,18 +619,6 @@ class DDLCommand(Command, DDLOperation):
     __abstract_node__ = True
 
 
-class SetPointerType(DDLOperation):
-    type: TypeExpr
-
-
-class SetLinkType(SetPointerType):
-    pass
-
-
-class SetPropertyType(SetPointerType):
-    pass
-
-
 class AlterAddInherit(DDLOperation, BasesMixin):
     position: typing.Optional[Position]
 
@@ -619,42 +627,38 @@ class AlterDropInherit(DDLOperation, BasesMixin):
     pass
 
 
-class AlterOwned(DDLOperation):
-    owned: bool
-
-
-class AlterPropertyOwned(AlterOwned):
-    pass
-
-
-class AlterLinkOwned(AlterOwned):
-    pass
-
-
-class AlterConstraintOwned(AlterOwned):
-    pass
-
-
-class AlterIndexOwned(AlterOwned):
-    pass
-
-
 class OnTargetDelete(DDLOperation):
     cascade: qltypes.LinkTargetDeleteAction
 
 
-class BaseSetField(DDLOperation):
-    __abstract_node__ = True
+class SetField(DDLOperation):
     name: str
-    value: Expr
+    value: typing.Union[Expr, TypeExpr, None]
+    #: Indicates that this AST originated from a special DDL syntax
+    #: rather than from a generic `SET field := value` statement, and
+    #: so must not be subject to the "allow_ddl_set" constraint.
+    #: This attribute is also considered by the codegen to emit appropriate
+    #: syntax.
+    special_syntax: bool = False
 
 
-class SetField(BaseSetField):
-    pass
+class SetPointerType(SetField):
+    name: str = 'target'
+    special_syntax: bool = True
+    value: TypeExpr
+    cast_expr: typing.Optional[Expr]
 
 
-class SetSpecialField(BaseSetField):
-    value: typing.Any
+class SetPointerCardinality(SetField):
+    name: str = 'cardinality'
+    special_syntax: bool = True
+    conv_expr: typing.Optional[Expr]
+
+
+class SetPointerOptionality(SetField):
+    name: str = 'required'
+    special_syntax: bool = True
+    fill_expr: typing.Optional[Expr]
 
 
 class NamedDDL(DDLCommand):
@@ -663,11 +667,13 @@ class NamedDDL(DDLCommand):
 
 
 class ObjectDDL(NamedDDL):
+
     __abstract_node__ = True
+    object_class: qltypes.SchemaObjectClass
 
 
 class CreateObject(ObjectDDL):
-    is_abstract: bool = False
+    abstract: bool = False
     sdl_alter_if_exists: bool = False
     create_if_not_exists: bool = False
 
@@ -681,142 +687,235 @@ class DropObject(ObjectDDL):
 
 
 class CreateExtendingObject(CreateObject, BasesMixin):
-    is_final: bool = False
+    final: bool = False
 
 
 class Rename(NamedDDL):
     new_name: ObjectRef
 
     @property
-    def name(self) -> ObjectRef:
+    def name(self) -> ObjectRef:  # type: ignore[override]  # mypy bug?
         return self.new_name
 
 
-class Migration:
+class NestedQLBlock(DDL):
+
+    commands: typing.List[DDLOperation]
+    text: typing.Optional[str] = None
+
+
+class MigrationCommand:
+
     __abstract_node__ = True
+    object_class: qltypes.SchemaObjectClass = (
+        qltypes.SchemaObjectClass.MIGRATION)
 
 
-class CreateMigration(CreateObject, Migration):
+class CreateMigration(CreateObject, MigrationCommand):
 
+    body: NestedQLBlock
     parent: typing.Optional[ObjectRef] = None
     message: typing.Optional[str] = None
-    # XXX: due to unresolved issues in DDL IR decompilation
-    # we have to carry the IR produced by schema diff for now.
-    auto_diff: typing.Optional[typing.Any] = None
+    metadata_only: bool = False
 
 
-class StartMigration(DDLCommand, Migration):
+class StartMigration(DDLCommand, MigrationCommand):
 
     target: Schema
 
 
-class AbortMigration(DDLCommand, Migration):
+class AbortMigration(DDLCommand, MigrationCommand):
     pass
 
 
-class PopulateMigration(DDLCommand, Migration):
+class PopulateMigration(DDLCommand, MigrationCommand):
     pass
 
 
-class AlterCurrentMigrationRejectProposed(DDLCommand, Migration):
+class AlterCurrentMigrationRejectProposed(DDLCommand, MigrationCommand):
     pass
 
 
-class DescribeCurrentMigration(DDLCommand, Migration):
+class DescribeCurrentMigration(DDLCommand, MigrationCommand):
 
     language: qltypes.DescribeLanguage
 
 
-class CommitMigration(DDLCommand, Migration):
+class CommitMigration(DDLCommand, MigrationCommand):
     pass
 
 
-class AlterMigration(AlterObject, Migration):
+class AlterMigration(AlterObject, MigrationCommand):
     pass
 
 
-class DropMigration(DropObject, Migration):
+class DropMigration(DropObject, MigrationCommand):
     pass
 
 
-class Database:
+class GlobalObjectCommand(ObjectDDL):
+
     __abstract_node__ = True
 
 
-class CreateDatabase(CreateObject, Database):
+class ExternalObjectCommand(GlobalObjectCommand):
+
+    __abstract_node__ = True
+
+
+class DatabaseCommand(ExternalObjectCommand):
+    __abstract_node__ = True
+    object_class: qltypes.SchemaObjectClass = (
+        qltypes.SchemaObjectClass.DATABASE)
+
+
+class CreateDatabase(CreateObject, DatabaseCommand):
+
+    template: typing.Optional[ObjectRef] = None
+
+
+class AlterDatabase(AlterObject, DatabaseCommand):
     pass
 
 
-class AlterDatabase(AlterObject, Database):
+class DropDatabase(DropObject, DatabaseCommand):
     pass
 
 
-class DropDatabase(DropObject, Database):
+class ExtensionPackageCommand(GlobalObjectCommand):
+    __abstract_node__ = True
+    object_class: qltypes.SchemaObjectClass = (
+        qltypes.SchemaObjectClass.EXTENSION_PACKAGE)
+    version: StringConstant
+
+
+class CreateExtensionPackage(CreateObject, ExtensionPackageCommand):
+
+    body: NestedQLBlock
+
+
+class DropExtensionPackage(DropObject, ExtensionPackageCommand):
     pass
 
 
-class CreateModule(CreateObject):
+class ExtensionCommand(ObjectDDL):
+    __abstract_node__ = True
+    object_class: qltypes.SchemaObjectClass = (
+        qltypes.SchemaObjectClass.EXTENSION)
+    version: typing.Optional[StringConstant] = None
+
+
+class CreateExtension(CreateObject, ExtensionCommand):
     pass
 
 
-class AlterModule(AlterObject):
+class DropExtension(DropObject, ExtensionCommand):
     pass
 
 
-class DropModule(DropObject):
+class ModuleCommand(ObjectDDL):
+
+    __abstract_node__ = True
+    object_class: qltypes.SchemaObjectClass = (
+        qltypes.SchemaObjectClass.MODULE)
+
+
+class CreateModule(CreateObject, ModuleCommand):
     pass
 
 
-class CreateRole(CreateObject, BasesMixin):
+class AlterModule(AlterObject, ModuleCommand):
+    pass
+
+
+class DropModule(DropObject, ModuleCommand):
+    pass
+
+
+class RoleCommand(GlobalObjectCommand):
+    __abstract_node__ = True
+    object_class: qltypes.SchemaObjectClass = (
+        qltypes.SchemaObjectClass.ROLE)
+
+
+class CreateRole(CreateObject, BasesMixin, RoleCommand):
     superuser: bool = False
 
 
-class AlterRole(AlterObject):
+class AlterRole(AlterObject, RoleCommand):
     pass
 
 
-class DropRole(DropObject):
+class DropRole(DropObject, RoleCommand):
     pass
 
 
-class CreateAnnotation(CreateExtendingObject):
+class AnnotationCommand(ObjectDDL):
+
+    __abstract_node__ = True
+    object_class: qltypes.SchemaObjectClass = (
+        qltypes.SchemaObjectClass.ANNOTATION)
+
+
+class CreateAnnotation(CreateExtendingObject, AnnotationCommand):
     type: typing.Optional[TypeExpr]
     inheritable: bool
 
 
-class AlterAnnotation(AlterObject):
+class AlterAnnotation(AlterObject, AnnotationCommand):
     pass
 
 
-class DropAnnotation(DropObject):
+class DropAnnotation(DropObject, AnnotationCommand):
     pass
 
 
-class CreatePseudoType(CreateObject):
+class PseudoTypeCommand(ObjectDDL):
+
+    __abstract_node__ = True
+    object_class: qltypes.SchemaObjectClass = (
+        qltypes.SchemaObjectClass.PSEUDO_TYPE)
+
+
+class CreatePseudoType(CreateObject, PseudoTypeCommand):
     pass
 
 
-class CreateScalarType(CreateExtendingObject):
+class ScalarTypeCommand(ObjectDDL):
+
+    __abstract_node__ = True
+    object_class: qltypes.SchemaObjectClass = (
+        qltypes.SchemaObjectClass.SCALAR_TYPE)
+
+
+class CreateScalarType(CreateExtendingObject, ScalarTypeCommand):
     pass
 
 
-class AlterScalarType(AlterObject):
+class AlterScalarType(AlterObject, ScalarTypeCommand):
     pass
 
 
-class DropScalarType(DropObject):
+class DropScalarType(DropObject, ScalarTypeCommand):
     pass
 
 
-class CreateProperty(CreateExtendingObject):
+class PropertyCommand(ObjectDDL):
+
+    __abstract_node__ = True
+    object_class: qltypes.SchemaObjectClass = (
+        qltypes.SchemaObjectClass.PROPERTY)
+
+
+class CreateProperty(CreateExtendingObject, PropertyCommand):
     pass
 
 
-class AlterProperty(AlterObject):
+class AlterProperty(AlterObject, PropertyCommand):
     pass
 
 
-class DropProperty(DropObject):
+class DropProperty(DropObject, PropertyCommand):
     pass
 
 
@@ -827,128 +926,169 @@ class CreateConcretePointer(CreateObject, BasesMixin):
     cardinality: qltypes.SchemaCardinality
 
 
-class CreateConcreteProperty(CreateConcretePointer):
+class CreateConcreteProperty(CreateConcretePointer, PropertyCommand):
     pass
 
 
-class AlterConcreteProperty(AlterObject):
+class AlterConcreteProperty(AlterObject, PropertyCommand):
     pass
 
 
-class DropConcreteProperty(DropObject):
+class DropConcreteProperty(DropObject, PropertyCommand):
     pass
 
 
-class CreateObjectType(CreateExtendingObject):
+class ObjectTypeCommand(ObjectDDL):
+
+    __abstract_node__ = True
+    object_class: qltypes.SchemaObjectClass = (
+        qltypes.SchemaObjectClass.TYPE)
+
+
+class CreateObjectType(CreateExtendingObject, ObjectTypeCommand):
     pass
 
 
-class AlterObjectType(AlterObject):
+class AlterObjectType(AlterObject, ObjectTypeCommand):
     pass
 
 
-class DropObjectType(DropObject):
+class DropObjectType(DropObject, ObjectTypeCommand):
     pass
 
 
-class CreateAlias(CreateObject):
+class AliasCommand(ObjectDDL):
+
+    __abstract_node__ = True
+    object_class: qltypes.SchemaObjectClass = (
+        qltypes.SchemaObjectClass.ALIAS)
+
+
+class CreateAlias(CreateObject, AliasCommand):
     pass
 
 
-class AlterAlias(AlterObject):
+class AlterAlias(AlterObject, AliasCommand):
     pass
 
 
-class DropAlias(DropObject):
+class DropAlias(DropObject, AliasCommand):
     pass
 
 
-class CreateLink(CreateExtendingObject):
+class LinkCommand(ObjectDDL):
+
+    __abstract_node__ = True
+    object_class: qltypes.SchemaObjectClass = (
+        qltypes.SchemaObjectClass.LINK)
+
+
+class CreateLink(CreateExtendingObject, LinkCommand):
     pass
 
 
-class AlterLink(AlterObject):
+class AlterLink(AlterObject, LinkCommand):
     pass
 
 
-class DropLink(DropObject):
+class DropLink(DropObject, LinkCommand):
     pass
 
 
-class CreateConcreteLink(CreateExtendingObject, CreateConcretePointer):
+class CreateConcreteLink(
+    CreateExtendingObject,
+    CreateConcretePointer,
+    LinkCommand,
+):
     pass
 
 
-class AlterConcreteLink(AlterObject):
+class AlterConcreteLink(AlterObject, LinkCommand):
     pass
 
 
-class DropConcreteLink(DropObject):
+class DropConcreteLink(DropObject, LinkCommand):
     pass
 
 
-class CallableObject(ObjectDDL):
+class CallableObjectCommand(ObjectDDL):
+
     __abstract_node__ = True
     params: typing.List[FuncParam]
 
 
-class CreateConstraint(CreateExtendingObject, CallableObject):
+class ConstraintCommand(ObjectDDL):
+
+    __abstract_node__ = True
+    object_class: qltypes.SchemaObjectClass = (
+        qltypes.SchemaObjectClass.CONSTRAINT)
+
+
+class CreateConstraint(
+    CreateExtendingObject,
+    CallableObjectCommand,
+    ConstraintCommand,
+):
     subjectexpr: typing.Optional[Expr]
-    is_abstract: bool = True
+    abstract: bool = True
 
 
-class AlterConstraint(AlterObject):
+class AlterConstraint(AlterObject, ConstraintCommand):
     pass
 
 
-class DropConstraint(DropObject):
+class DropConstraint(DropObject, ConstraintCommand):
     pass
 
 
-class ConstraintOp(ObjectDDL):
+class ConcreteConstraintOp(ConstraintCommand):
+
     __abstract_node__ = True
     args: typing.List[Expr]
     subjectexpr: typing.Optional[Expr]
 
 
-class CreateConcreteConstraint(CreateObject, ConstraintOp):
+class CreateConcreteConstraint(CreateObject, ConcreteConstraintOp):
     delegated: bool = False
 
 
-class AlterConcreteConstraint(AlterObject, ConstraintOp):
+class AlterConcreteConstraint(AlterObject, ConcreteConstraintOp):
     pass
 
 
-class DropConcreteConstraint(DropObject, ConstraintOp):
+class DropConcreteConstraint(DropObject, ConcreteConstraintOp):
     pass
 
 
-class IndexOp(ObjectDDL):
+class IndexCommand(ObjectDDL):
+
     __abstract_node__ = True
     expr: Expr
+    object_class: qltypes.SchemaObjectClass = (
+        qltypes.SchemaObjectClass.INDEX)
 
 
-class CreateIndex(CreateObject, IndexOp):
+class CreateIndex(CreateObject, IndexCommand):
     pass
 
 
-class AlterIndex(AlterObject, IndexOp):
+class AlterIndex(AlterObject, IndexCommand):
     pass
 
 
-class DropIndex(DropObject, IndexOp):
+class DropIndex(DropObject, IndexCommand):
     pass
 
 
-class CreateAnnotationValue(CreateObject):
+class CreateAnnotationValue(CreateObject, AnnotationCommand):
     value: Expr
 
 
-class AlterAnnotationValue(AlterObject):
+class AlterAnnotationValue(AlterObject, AnnotationCommand):
     value: Expr
 
 
-class DropAnnotationValue(DropObject):
+class DropAnnotationValue(DropObject, AnnotationCommand):
     pass
 
 
@@ -965,7 +1105,15 @@ class FunctionCode(Clause):
     from_expr: bool
 
 
-class CreateFunction(CreateObject, CallableObject):
+class FunctionCommand(CallableObjectCommand):
+
+    __abstract_node__ = True
+    object_class: qltypes.SchemaObjectClass = (
+        qltypes.SchemaObjectClass.FUNCTION)
+
+
+class CreateFunction(CreateObject, FunctionCommand):
+
     returning: TypeExpr
     code: FunctionCode
     nativecode: typing.Optional[Expr]
@@ -973,12 +1121,13 @@ class CreateFunction(CreateObject, CallableObject):
         qltypes.TypeModifier.SingletonType
 
 
-class AlterFunction(AlterObject, CallableObject):
+class AlterFunction(AlterObject, FunctionCommand):
+
     code: FunctionCode
     nativecode: typing.Optional[Expr]
 
 
-class DropFunction(DropObject, CallableObject):
+class DropFunction(DropObject, FunctionCommand):
     pass
 
 
@@ -990,8 +1139,11 @@ class OperatorCode(Clause):
     code: str
 
 
-class OperatorCommand(CallableObject):
+class OperatorCommand(CallableObjectCommand):
+
     __abstract_node__ = True
+    object_class: qltypes.SchemaObjectClass = (
+        qltypes.SchemaObjectClass.OPERATOR)
     kind: qltypes.OperatorKind
 
 
@@ -1019,7 +1171,10 @@ class CastCode(Clause):
 
 
 class CastCommand(ObjectDDL):
+
     __abstract_node__ = True
+    object_class: qltypes.SchemaObjectClass = (
+        qltypes.SchemaObjectClass.CAST)
     from_type: TypeName
     to_type: TypeName
 
@@ -1050,7 +1205,7 @@ class _Optional(Expr):
 class ConfigOp(Expr):
     __abstract_node__ = True
     name: ObjectRef
-    system: bool
+    scope: qltypes.ConfigScope
     backend_setting: str
 
 
@@ -1117,9 +1272,9 @@ def get_targets(target: typing.Union[None, TypeExpr, Expr]):
 def get_ddl_field_command(
     ddlcmd: DDLOperation,
     name: str,
-) -> typing.Optional[typing.Union[SetField, SetSpecialField]]:
+) -> typing.Optional[SetField]:
     for cmd in ddlcmd.commands:
-        if isinstance(cmd, (SetField, SetSpecialField)) and cmd.name == name:
+        if isinstance(cmd, SetField) and cmd.name == name:
             return cmd
 
     return None
@@ -1128,7 +1283,7 @@ def get_ddl_field_command(
 def get_ddl_field_value(
     ddlcmd: DDLOperation,
     name: str,
-) -> typing.Optional[Expr]:
+) -> typing.Union[Expr, TypeExpr, None]:
     cmd = get_ddl_field_command(ddlcmd, name)
     return cmd.value if cmd is not None else None
 

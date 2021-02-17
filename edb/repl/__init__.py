@@ -44,7 +44,7 @@ from prompt_toolkit import lexers as pt_lexers
 from edb.errors import base as base_errors
 
 from edb.common import term
-from edb.edgeql import pygments as eql_pygments
+from edb.tools.pygments import edgeql as eql_pygments
 from edb.edgeql import quote as eql_quote
 from edb.schema import schema
 
@@ -58,7 +58,7 @@ from . import table
 from . import utils
 
 
-STD_RE = '|'.join(schema.STD_MODULES)
+STD_RE = '|'.join(str(m) for m in schema.STD_MODULES)
 
 STATUSES_WITH_OUTPUT = frozenset({
     'SELECT', 'INSERT', 'DELETE', 'UPDATE',
@@ -673,7 +673,7 @@ class Cli:
 
         flag = '' if 'case_sensitive' in flags else 'i'
         pattern = arg or ''
-        filter_and = 'NOT .is_from_alias'
+        filter_and = 'NOT .from_alias'
         if 'system' not in flags:
             filter_and = f'''
                 {filter_and} AND NOT (re_test("^({STD_RE})::", .name))
@@ -744,7 +744,7 @@ class Cli:
     ) -> None:
         flag = '' if 'case_sensitive' in flags else 'i'
         pattern = arg or ''
-        filter_and = 'NOT .is_from_alias AND NOT .is_compound_type'
+        filter_and = 'NOT .from_alias AND NOT .compound_type'
         if 'system' not in flags:
             filter_and += f'''
                 AND NOT (re_test("^({STD_RE})::", .name))
@@ -807,7 +807,7 @@ class Cli:
     ) -> None:
         flag = '' if 'case_sensitive' in flags else 'i'
         pattern = arg or ''
-        filter_and = '.is_from_alias'
+        filter_and = '.from_alias'
         if 'system' not in flags:
             filter_and += f'''
                 AND NOT (re_test("^({STD_RE})::", .name))
@@ -978,7 +978,7 @@ class Cli:
                     Index,
                     (
                         SELECT Constraint
-                        FILTER .name = 'std::exclusive' AND NOT .is_abstract
+                        FILTER .name = 'std::exclusive' AND NOT .abstract
                     )
                 }
             SELECT I {

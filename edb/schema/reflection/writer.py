@@ -24,6 +24,7 @@ from typing import *
 import functools
 import json
 import numbers
+import textwrap
 
 from edb.edgeql import qltypes
 
@@ -254,10 +255,10 @@ def _build_object_mutation_shape(
                         else:
                             pkind = param.get_kind(schema)
                             if pkind is qltypes.ParameterKind.VariadicParam:
-                                rest = [arg.origtext for arg in args[i - 1:]]
+                                rest = [arg.text for arg in args[i - 1:]]
                                 arg_expr = f'[{",".join(rest)}]'
                             else:
-                                arg_expr = arg.origtext
+                                arg_expr = arg.text
 
                     target_value.append((str(param.id), arg_expr))
 
@@ -320,7 +321,7 @@ def _build_object_mutation_shape(
         elif ftype is sr_struct.FieldType.EXPR:
             target_expr = f'<str>${var_n}'
             if v is not None:
-                target_value = v.origtext
+                target_value = v.text
             else:
                 target_value = None
 
@@ -332,20 +333,19 @@ def _build_object_mutation_shape(
             if v is not None:
                 ids = [str(i) for i in v.refs.ids(schema)]
                 variables[f'{var_n}_expr'] = json.dumps(
-                    {'text': v.text, 'origtext': v.origtext, 'refs': ids}
+                    {'text': v.text, 'refs': ids}
                 )
             else:
                 variables[f'{var_n}_expr'] = json.dumps(None)
 
         elif ftype is sr_struct.FieldType.EXPR_LIST:
             target_expr = f'''
-                array_agg(<str>json_array_unpack(<json>${var_n})["origtext"])
+                array_agg(<str>json_array_unpack(<json>${var_n})["text"])
             '''
             if v is not None:
                 target_value = [
                     {
                         'text': ex.text,
-                        'origtext': ex.origtext,
                         'refs': (
                             [str(i) for i in ex.refs.ids(schema)]
                             if ex.refs else []
@@ -402,7 +402,7 @@ def _build_object_mutation_shape(
     if isinstance(cmd, sd.CreateObject):
         if (
             issubclass(mcls, s_scalars.ScalarType)
-            and not cmd.get_attribute_value('is_abstract')
+            and not cmd.get_attribute_value('abstract')
         ):
             assignments.append(
                 f'backend_id := sys::_get_pg_type_for_scalar_type('
@@ -640,7 +640,8 @@ def write_meta_create_object(
                 }}
             '''
 
-            variables['__parent_classname'] = json.dumps(refop.classname)
+            ref_name = context.get_referrer_name(refctx)
+            variables['__parent_classname'] = json.dumps(str(ref_name))
             blocks.append((parent_update_query, variables))
 
     _descend(
@@ -681,7 +682,7 @@ def write_meta_alter_object(
         shape, variables = _build_object_mutation_shape(
             cmd,
             classlayout=classlayout,
-            internal_schema_mode=False,
+            internal_schema_mode=internal_schema_mode,
             stdmode=stdmode,
             schema=schema,
             context=context,
@@ -695,7 +696,7 @@ def write_meta_alter_object(
                     {shape}
                 }};
             '''
-            variables['__classname'] = json.dumps(cmd.classname)
+            variables['__classname'] = json.dumps(str(cmd.classname))
             blocks.append((query, variables))
 
         if isinstance(cmd, s_ref.ReferencedObjectCommand):
@@ -743,7 +744,11 @@ def _update_lprops(
     if not lprops:
         return
 
-    if mcls.get_reflection_method() is so.ReflectionMethod.AS_LINK:
+    reflect_as_link = (
+        mcls.get_reflection_method() is so.ReflectionMethod.AS_LINK
+    )
+
+    if reflect_as_link:
         target_link = mcls.get_reflection_link()
         assert target_link is not None
         target_field = mcls.get_field(target_link)
@@ -779,40 +784,96 @@ def _update_lprops(
 
     if shape:
         parent_variables = {}
-        parent_variables[f'__{target_link}'] = json.dumps(target_ref)
+        parent_variables[f'__{target_link}'] = json.dumps(str(target_ref))
+        ref_name = context.get_referrer_name(refctx)
+        parent_variables['__parent_classname'] = json.dumps(str(ref_name))
 
         # XXX: we have to do a -= followed by a += because
         # support for filtered nested link property updates
         # is currently broken.
 
-        parent_update_query = f'''
+        assignments = []
+
+        assignments.append(textwrap.dedent(
+            f'''\
+            {refdict.attr} -= (
+                SELECT DETACHED (schema::{target_clsname})
+                FILTER .name__internal = <str>$__{target_link}
+            )'''
+        ))
+
+        if reflect_as_link:
+            parent_variables[f'__{target_link}_shadow'] = (
+                json.dumps(str(cmd.classname)))
+
+            assignments.append(textwrap.dedent(
+                f'''\
+                {refdict.attr}__internal -= (
+                    SELECT DETACHED (schema::{mcls.__name__})
+                    FILTER .name__internal = <str>$__{target_link}_shadow
+                )'''
+            ))
+
+        update_shape = textwrap.indent(
+            '\n' + ',\n'.join(assignments), '    ' * 4)
+
+        parent_update_query = textwrap.dedent(f'''\
             UPDATE schema::{refcls.__name__}
             FILTER .name__internal = <str>$__parent_classname
-            SET {{
-                {refdict.attr} -= (
-                    SELECT DETACHED (schema::{target_clsname})
-                    FILTER .name__internal = <str>$__{target_link}
-                )
+            SET {{{update_shape}
             }}
-        '''
-
-        parent_variables['__parent_classname'] = (
-            json.dumps(refop.classname)
-        )
+        ''')
 
         blocks.append((parent_update_query, parent_variables))
 
-        parent_update_query = f'''
+        assignments = []
+
+        shape = textwrap.indent(f'\n{shape}', '    ' * 5)
+
+        assignments.append(textwrap.dedent(
+            f'''\
+            {refdict.attr} += (
+                SELECT schema::{target_clsname} {{{shape}
+                }} FILTER .name__internal = <str>$__{target_link}
+            )'''
+        ))
+
+        if reflect_as_link:
+            shadow_clslayout = classlayout[refcls]
+            shadow_link_layout = shadow_clslayout[f'{refdict.attr}__internal']
+            shadow_shape, shadow_variables = _build_object_mutation_shape(
+                cmd,
+                classlayout=classlayout,
+                internal_schema_mode=internal_schema_mode,
+                lprop_fields=shadow_link_layout.properties,
+                lprops_only=True,
+                stdmode=stdmode,
+                var_prefix='shadow_',
+                schema=schema,
+                context=context,
+            )
+
+            shadow_shape = textwrap.indent(f'\n{shadow_shape}', '    ' * 6)
+
+            assignments.append(textwrap.dedent(
+                f'''\
+                {refdict.attr}__internal += (
+                    SELECT schema::{mcls.__name__} {{{shadow_shape}
+                    }} FILTER .name__internal = <str>$__{target_link}_shadow
+                )'''
+            ))
+
+            parent_variables.update(shadow_variables)
+
+        update_shape = textwrap.indent(
+            '\n' + ',\n'.join(assignments), '    ' * 4)
+
+        parent_update_query = textwrap.dedent(f'''
             UPDATE schema::{refcls.__name__}
             FILTER .name__internal = <str>$__parent_classname
-            SET {{
-                {refdict.attr} += (
-                    SELECT schema::{target_clsname} {{
-                        {shape}
-                    }} FILTER .name__internal = <str>$__{target_link}
-                )
+            SET {{{update_shape}
             }}
-        '''
+        ''')
 
         parent_variables.update(append_variables)
         blocks.append((parent_update_query, parent_variables))
@@ -874,7 +935,7 @@ def write_meta_delete_object(
             parent_variables = {}
 
             parent_variables[f'__{target_link}'] = (
-                json.dumps(str(target.get_name(schema)))
+                json.dumps(str(target.id))
             )
 
             parent_update_query = f'''
@@ -883,20 +944,92 @@ def write_meta_delete_object(
                 SET {{
                     {refdict.attr} -= (
                         SELECT DETACHED (schema::{target_field.type.__name__})
-                        FILTER .name__internal = <str>$__{target_link}
+                        FILTER .id = <uuid>$__{target_link}
                     )
                 }}
             '''
 
+            ref_name = context.get_referrer_name(refctx)
             parent_variables['__parent_classname'] = (
-                json.dumps(refop.classname)
+                json.dumps(str(ref_name))
             )
 
             blocks.append((parent_update_query, parent_variables))
 
+        # We need to delete any links created via reflection_proxy
+        layout = classlayout[mcls]
+        proxy_links = [
+            link for link, layout_entry in layout.items()
+            if layout_entry.reflection_proxy
+        ]
+
+        operations = []
+        if proxy_links:
+            # Link deletion triggers apparently don't work for the
+            # schema tables, and so we need to clear out the proxy
+            # links manually before we delete them.
+            sets = [f'{link} := {{}}' for link in proxy_links]
+            operations.append(f'(UPDATE D SET {{ {", ".join(sets)} }})')
+
+        to_delete = ['D'] + [f'D.{link}' for link in proxy_links]
+        operations += [f'(DELETE {x})' for x in to_delete]
         query = f'''
-            DELETE schema::{mcls.__name__}
-            FILTER .name__internal = <str>$__classname;
+            WITH D := (SELECT schema::{mcls.__name__}
+                       FILTER .name__internal = <str>$__classname),
+            SELECT {{{", ".join(operations)}}};
         '''
-        variables = {'__classname': json.dumps(cmd.classname)}
+        variables = {'__classname': json.dumps(str(cmd.classname))}
         blocks.append((query, variables))
+
+
+@write_meta.register
+def write_meta_rename_object(
+    cmd: sd.RenameObject,  # type: ignore
+    *,
+    classlayout: Dict[Type[so.Object], sr_struct.SchemaTypeLayout],
+    schema: s_schema.Schema,
+    context: sd.CommandContext,
+    blocks: List[Tuple[str, Dict[str, Any]]],
+    internal_schema_mode: bool,
+    stdmode: bool,
+) -> None:
+    # Delegate to the more general function, and then record the rename.
+    write_meta_alter_object(  # type: ignore
+        cmd,  # type: ignore
+        classlayout=classlayout,
+        schema=schema,
+        context=context,
+        blocks=blocks,
+        internal_schema_mode=internal_schema_mode,
+        stdmode=stdmode,
+    )
+
+    context.early_renames[cmd.classname] = cmd.new_name
+
+
+@write_meta.register
+def write_meta_nop(
+    cmd: sd.Nop,
+    *,
+    classlayout: Dict[Type[so.Object], sr_struct.SchemaTypeLayout],
+    schema: s_schema.Schema,
+    context: sd.CommandContext,
+    blocks: List[Tuple[str, Dict[str, Any]]],
+    internal_schema_mode: bool,
+    stdmode: bool,
+) -> None:
+    pass
+
+
+@write_meta.register
+def write_meta_query(
+    cmd: sd.Query,
+    *,
+    classlayout: Dict[Type[so.Object], sr_struct.SchemaTypeLayout],
+    schema: s_schema.Schema,
+    context: sd.CommandContext,
+    blocks: List[Tuple[str, Dict[str, Any]]],
+    internal_schema_mode: bool,
+    stdmode: bool,
+) -> None:
+    pass

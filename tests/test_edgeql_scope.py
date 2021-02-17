@@ -703,6 +703,18 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         )
 
+    async def test_edgeql_scope_with_subquery_01(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT count((
+                    Card.name,
+                    (WITH X := (SELECT Card) SELECT X.name),
+                ));
+            """,
+            [9],
+        )
+
     async def test_edgeql_scope_filter_01(self):
         await self.assert_query_result(
             r'''
@@ -1326,6 +1338,20 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ''',
             {'1Imp', '2Dragon', '4Bog monster', '4Giant turtle', '2Dwarf',
              '3Golem', '2Sprite', '2Giant eagle', '2Djinn'},
+        )
+
+        await self.assert_query_result(
+            r'''
+                # semantically same as control query Q3, except that some
+                # aliases are introduced
+                WITH MODULE test
+                SELECT (Card.name,
+                        count((WITH A := Card SELECT A).owners));
+            ''',
+            [["Bog monster", 4], ["Djinn", 2], ["Dragon", 2], ["Dwarf", 2],
+             ["Giant eagle", 2], ["Giant turtle", 4], ["Golem", 3],
+             ["Imp", 1], ["Sprite", 2]],
+            sort=True,
         )
 
     async def test_edgeql_scope_nested_12(self):
@@ -2054,6 +2080,33 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 SELECT DISTINCT User;
             """,
             {'Fire', 'Water', 'Earth', 'Air'},
+        )
+
+    async def test_edgeql_scope_with_02(self):
+        # Test a WITH binding that depends on a previous one is still
+        # independent
+        await self.assert_query_result(
+            r"""
+                WITH
+                    MODULE test,
+                    X := {1, 2},
+                    Y := X + 1,
+                SELECT _ := (X, Y) ORDER BY _;
+            """,
+            [[1, 2], [1, 3], [2, 2], [2, 3]]
+        )
+
+    async def test_edgeql_scope_with_03(self):
+        # Test that a WITH binding used in a computable doesn't have its
+        # reference to that type captured
+        await self.assert_query_result(
+            r"""
+                WITH
+                    MODULE test,
+                    a := count({Card.name})
+                SELECT Card {name, a := a} FILTER .name = 'Imp';
+            """,
+            [{"name": "Imp", "a": 9}],
         )
 
     async def test_edgeql_scope_unused_with_def_01(self):

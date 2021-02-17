@@ -584,7 +584,7 @@ class FuncCall(ImmutableBaseExpr):
     # List of arguments
     args: typing.List[BaseExpr]
     # ORDER BY
-    agg_order: typing.List[BaseExpr]
+    agg_order: typing.List[SortBy]
     # FILTER clause
     agg_filter: BaseExpr
     # Argument list is '*'
@@ -733,6 +733,7 @@ class JoinExpr(BaseRangeVar):
 
 class SubLinkType(enum.IntEnum):
     EXISTS = enum.auto()
+    NOT_EXISTS = enum.auto()
     ALL = enum.auto()
     ANY = enum.auto()
 
@@ -819,6 +820,13 @@ class AlterSystem(ImmutableBaseExpr):
 class Set(ImmutableBaseExpr):
 
     name: str
+    value: BaseExpr
+
+
+class ConfigureDatabase(ImmutableBase):
+
+    database_name: str
+    parameter_name: str
     value: BaseExpr
 
 

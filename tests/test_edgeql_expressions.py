@@ -169,7 +169,7 @@ def get_test_items(**flags):
 
 class TestExpressionsWithoutConstantFolding(tb.QueryTestCase):
 
-    SETUP = """
+    SETUP_METHOD = """
         CONFIGURE SESSION SET __internal_no_const_folding := true;
     """
 
@@ -4619,4 +4619,23 @@ aa \
 
             await self.con.execute("""
                 SELECT 1[1];
+            """)
+
+    async def test_edgeql_expr_error_after_extraction_01(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                "Unexpected \"'1'\""):
+
+            await self.con.query("""
+                SELECT '''1''';
+            """)
+
+    async def test_edgeql_expr_invalid_object_scalar_op_01(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"operator '\?\?' cannot be applied to operands of type"
+                r" 'std::Object' and 'std::str'"):
+
+            await self.con.query("""
+                SELECT Object ?? '';
             """)

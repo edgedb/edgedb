@@ -23,6 +23,7 @@ from __future__ import annotations
 from typing import *
 
 import collections
+import contextlib
 import itertools
 import enum
 import uuid
@@ -62,6 +63,9 @@ class OutputFormat(enum.Enum):
     #: Script mode: query result not returned, cardinality of result set
     #: is returned instead.
     SCRIPT = enum.auto()
+    #: Like NATIVE, but objects without an explicit shape are serialized
+    #: as UUIDs.
+    NATIVE_INTERNAL = enum.auto()
 
 
 NO_STMT = pgast.SelectStmt()
@@ -84,7 +88,10 @@ class CompilerContextLevel(compiler.ContextLevel):
     toplevel_stmt: pgast.Query
 
     #: Record of DML CTEs generated for the corresponding IR DML.
-    dml_stmts: Dict[irast.MutatingStmt, pgast.CommonTableExpr]
+    #: CTEs generated for DML-containing FOR statements are keyed
+    #: by their iterator set.
+    dml_stmts: Dict[Union[irast.MutatingStmt, irast.Set],
+                    pgast.CommonTableExpr]
 
     #: SQL statement corresponding to the IR statement
     #: currently being compiled.
@@ -143,29 +150,39 @@ class CompilerContextLevel(compiler.ContextLevel):
     #: Relevant IR scope for this context.
     scope_tree: irast.ScopeTreeNode
 
+    #: A stack of dml statements currently being compiled. Used for
+    #: figuring out what to record in type_rel_overlays.
+    dml_stmt_stack: List[irast.MutatingStmt]
+
     #: Relations used to "overlay" the main table for
     #: the type.  Mostly used with DML statements.
     type_rel_overlays: DefaultDict[
-        Tuple[str, Optional[irast.MutatingStmt]],
-        List[
-            Tuple[
-                str,
-                Union[pgast.BaseRelation, pgast.CommonTableExpr],
-                irast.PathId,
-            ]
-        ]
+        Optional[irast.MutatingStmt],
+        DefaultDict[
+            uuid.UUID,
+            List[
+                Tuple[
+                    str,
+                    Union[pgast.BaseRelation, pgast.CommonTableExpr],
+                    irast.PathId,
+                ]
+            ],
+        ],
     ]
 
     #: Relations used to "overlay" the main table for
     #: the pointer.  Mostly used with DML statements.
     ptr_rel_overlays: DefaultDict[
-        Tuple[str, Optional[irast.MutatingStmt]],
-        List[
-            Tuple[
-                str,
-                Union[pgast.BaseRelation, pgast.CommonTableExpr],
-            ]
-        ]
+        Optional[irast.MutatingStmt],
+        DefaultDict[
+            str,
+            List[
+                Tuple[
+                    str,
+                    Union[pgast.BaseRelation, pgast.CommonTableExpr],
+                ]
+            ],
+        ],
     ]
 
     #: The CTE and some metadata of any enclosing iterator-like
@@ -212,8 +229,11 @@ class CompilerContextLevel(compiler.ContextLevel):
 
             self.path_scope = collections.ChainMap()
             self.scope_tree = scope_tree
-            self.type_rel_overlays = collections.defaultdict(list)
-            self.ptr_rel_overlays = collections.defaultdict(list)
+            self.dml_stmt_stack = []
+            self.type_rel_overlays = collections.defaultdict(
+                lambda: collections.defaultdict(list))
+            self.ptr_rel_overlays = collections.defaultdict(
+                lambda: collections.defaultdict(list))
             self.enclosing_cte_iterator = None
 
         else:
@@ -244,6 +264,7 @@ class CompilerContextLevel(compiler.ContextLevel):
 
             self.path_scope = prevlevel.path_scope
             self.scope_tree = prevlevel.scope_tree
+            self.dml_stmt_stack = prevlevel.dml_stmt_stack
             self.type_rel_overlays = prevlevel.type_rel_overlays
             self.ptr_rel_overlays = prevlevel.ptr_rel_overlays
             self.enclosing_cte_iterator = prevlevel.enclosing_cte_iterator
@@ -328,6 +349,7 @@ class Environment:
     singleton_mode: bool
     query_params: List[irast.Param]
     type_rewrites: Dict[uuid.UUID, irast.Set]
+    external_rvars: Mapping[Tuple[irast.PathId, str], pgast.PathRangeVar]
 
     def __init__(
         self,
@@ -340,6 +362,9 @@ class Environment:
         explicit_top_cast: Optional[irast.TypeRef],
         query_params: List[irast.Param],
         type_rewrites: Dict[uuid.UUID, irast.Set],
+        external_rvars: Optional[
+            Mapping[Tuple[irast.PathId, str], pgast.PathRangeVar]
+        ] = None,
     ) -> None:
         self.aliases = aliases.AliasGenerator()
         self.output_format = output_format
@@ -351,3 +376,19 @@ class Environment:
         self.explicit_top_cast = explicit_top_cast
         self.query_params = query_params
         self.type_rewrites = type_rewrites
+        self.external_rvars = external_rvars or {}
+
+
+# XXX: this context hack is necessary until pathctx is converted
+#      to use context levels instead of using env directly.
+@contextlib.contextmanager
+def output_format(
+    ctx: CompilerContextLevel,
+    output_format: OutputFormat,
+) -> Generator[None, None, None]:
+    original_output_format = ctx.env.output_format
+    ctx.env.output_format = output_format
+    try:
+        yield
+    finally:
+        ctx.env.output_format = original_output_format

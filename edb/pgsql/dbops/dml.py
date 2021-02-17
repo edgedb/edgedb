@@ -73,8 +73,8 @@ class Insert(DMLOperation):
             values_expr = 'VALUES\n' + ',\n'.join(placeholders)
 
         col_list = textwrap.indent(',\n'.join(qi(c[0]) for c in cols), '    ')
-        cols = f'(\n{col_list}\n)' if cols else ''
-        code = f'INSERT INTO {qn(*self.table.name)} {cols}\n{values_expr}'
+        cols_s = f'(\n{col_list}\n)' if cols else ''
+        code = f'INSERT INTO {qn(*self.table.name)} {cols_s}\n{values_expr}'
         if self.returning:
             code += ' RETURNING ' + ', '.join(self.returning)
 
@@ -94,10 +94,11 @@ class Insert(DMLOperation):
 class Update(DMLOperation):
     def __init__(
             self, table, record, condition, returning=None, *,
-            include_children=True, priority=0):
+            include_children=True, priority=0, table_alias=None):
         super().__init__(priority=priority)
 
         self.table = table
+        self.table_alias = table_alias
         self.record = record
         self.fields = [f for f, v in record.items() if v is not base.Default]
         self.condition = condition
@@ -155,6 +156,9 @@ class Update(DMLOperation):
         tabname = qn(*self.table.name)
         if not self.include_children:
             tabname = 'ONLY {}'.format(tabname)
+
+        if self.table_alias:
+            tabname = f'{tabname} AS {qi(self.table_alias)}'
 
         code = 'UPDATE {} SET {} {}'.format(
             tabname, ', '.join(placeholders), where)

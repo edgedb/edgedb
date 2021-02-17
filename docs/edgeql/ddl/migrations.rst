@@ -248,15 +248,20 @@ in the current migration block in the specified output format:
           // the migration script.
           "proposed": {
             "statements": [{
-              "text": "<stmt text template>",
-              "required-user-input": [{
-                "name": "<placeholder variable>",
-                "prompt": "<statement prompt>",
-              }]
+              "text": "<stmt text template>"
             }],
+            "required-user-input": [
+              {
+                "placeholder": "<placeholder variable>",
+                "prompt": "<statement prompt>",
+              },
+              ...
+            ],
             "confidence": (0..1), // confidence coefficient
-            "prompt": "<variant prompt>",
-            "safe": {true|false}
+            "prompt": "<operation prompt>",
+            "prompt_id": "<prompt id>",
+            // Whether the operation is considered to be non-destructive.
+            "data_safe": {true|false}
           }
         }
 
@@ -266,7 +271,7 @@ in the current migration block in the specified output format:
         Regular statement text.
 
     :eql:synopsis:`<stmt text template>`
-        Statement text template with interpolation points using the \(name)
+        Statement text template with interpolation points using the ``\(name)``
         syntax.
 
     :eql:synopsis:`<placeholder variable>`
@@ -276,9 +281,12 @@ in the current migration block in the specified output format:
     :eql:synopsis:`<statement prompt>`
         The text of a user prompt for an interpolation variable.
 
-    :eql:synopsis:`<variant prompt>`
-        Prompt for the proposed migration step variant.
+    :eql:synopsis:`<operation prompt>`
+        Prompt for the proposed migration step.
 
+    :eql:synopsis:`<prompt id>`
+        An opaque string identifier for a particular operation prompt.
+        The client should not repeat prompts with the same prompt id.
 
 
 COMMIT MIGRATION

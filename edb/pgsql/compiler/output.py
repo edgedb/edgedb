@@ -87,7 +87,7 @@ def _build_json(
 
         result: pgast.BaseExpr = pgast.FuncCall(
             name=json_func,
-            args=chunks[0],
+            args=list(chunks[0]),
             null_safe=null_safe,
             ser_safe=ser_safe,
             nullable=nullable,
@@ -96,7 +96,7 @@ def _build_json(
         for chunk in chunks[1:]:
             fc = pgast.FuncCall(
                 name=json_func,
-                args=chunk,
+                args=list(chunk),
                 null_safe=null_safe,
                 ser_safe=ser_safe,
                 nullable=nullable,
@@ -461,7 +461,18 @@ def output_as_value(
     if isinstance(expr, pgast.TupleVar):
         RowCls: Union[Type[pgast.ImplicitRowExpr],
                       Type[pgast.RowExpr]]
-        if len(expr.elements) > 1:
+
+        if (
+            env.output_format is context.OutputFormat.NATIVE_INTERNAL
+            and len(expr.elements) == 1
+            and (path_id := (el0 := expr.elements[0]).path_id) is not None
+            and (rptr_name := path_id.rptr_name()) is not None
+            and (rptr_name.name == 'id')
+        ):
+            # This is is a special mode whereby bare refs to objects
+            # are serialized to UUID values.
+            return output_as_value(el0.val, env=env)
+        elif len(expr.elements) > 1:
             RowCls = pgast.ImplicitRowExpr
         else:
             RowCls = pgast.RowExpr
@@ -543,6 +554,7 @@ def serialize_expr(
             expr, path_id=path_id, nested=nested, env=env)
 
     elif env.output_format in (context.OutputFormat.NATIVE,
+                               context.OutputFormat.NATIVE_INTERNAL,
                                context.OutputFormat.SCRIPT):
         val = output_as_value(expr, env=env)
 
@@ -621,8 +633,8 @@ def aggregate_json_output(
 
 def wrap_script_stmt(
     stmt: pgast.SelectStmt,
-    ir_set: irast.Set,
     *,
+    suppress_all_output: bool = False,
     env: context.Environment,
 ) -> pgast.SelectStmt:
 
@@ -644,19 +656,40 @@ def wrap_script_stmt(
     count_val = pgast.FuncCall(
         name=('count',),
         args=[pgast.ColumnRef(name=[stmt_res.name])]
-    ),
+    )
 
     result = pgast.SelectStmt(
         target_list=[
             pgast.ResTarget(
                 val=count_val,
-            )
+                name=stmt_res.name,
+            ),
         ],
 
         from_clause=[
-            subrvar
+            subrvar,
         ]
     )
+
+    if suppress_all_output:
+        subrvar = pgast.RangeSubselect(
+            subquery=result,
+            alias=pgast.Alias(
+                aliasname=env.aliases.get('q')
+            )
+        )
+
+        result = pgast.SelectStmt(
+            target_list=[],
+            from_clause=[
+                subrvar,
+            ],
+            where_clause=pgast.NullTest(
+                arg=pgast.ColumnRef(
+                    name=[subrvar.alias.aliasname, stmt_res.name],
+                ),
+            ),
+        )
 
     result.ctes = stmt.ctes
     result.argnames = stmt.argnames
@@ -677,9 +710,13 @@ def top_output_as_value(
         # into a JSON array.
         return aggregate_json_output(stmt, ir_set, env=env)
 
-    elif (env.output_format is context.OutputFormat.NATIVE and
-            env.explicit_top_cast is not None):
-
+    elif (
+        env.explicit_top_cast is not None
+        and (
+            env.output_format is context.OutputFormat.NATIVE
+            or env.output_format is context.OutputFormat.NATIVE_INTERNAL
+        )
+    ):
         typecast = pgast.TypeCast(
             arg=stmt.target_list[0].val,
             type_name=pgast.TypeName(
@@ -698,7 +735,7 @@ def top_output_as_value(
         return stmt
 
     elif env.output_format is context.OutputFormat.SCRIPT:
-        return wrap_script_stmt(stmt, ir_set, env=env)
+        return wrap_script_stmt(stmt, env=env)
 
     else:
         # JSON_ELEMENTS and BINARY don't require any wrapping

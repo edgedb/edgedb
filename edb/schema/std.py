@@ -24,12 +24,17 @@ from typing import *
 
 from edb import lib as stdlib
 from edb import errors
+from edb.common import uuidgen
 
 from edb import schema
+from edb.schema import delta as sd
+from edb.schema import version as s_ver
+
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import parser as qlparser
 
 from . import ddl as s_ddl
+from . import name as sn
 from . import schema as s_schema
 
 
@@ -46,11 +51,11 @@ CACHE_SRC_DIRS = (
 )
 
 
-def get_std_module_text(modname: str) -> str:
+def get_std_module_text(modname: sn.Name) -> str:
 
     module_eql = ''
 
-    module_path = LIB_ROOT / modname
+    module_path = LIB_ROOT / str(modname)
     module_files = []
 
     if module_path.is_dir():
@@ -74,7 +79,7 @@ def get_std_module_text(modname: str) -> str:
 
 def load_std_module(
     schema: s_schema.Schema,
-    modname: str,
+    modname: sn.Name,
 ) -> s_schema.Schema:
 
     return s_ddl.apply_ddl_script(
@@ -83,3 +88,27 @@ def load_std_module(
         modaliases={},
         stdmode=True,
     )
+
+
+def make_schema_version(
+    schema: s_schema.Schema,
+) -> Tuple[s_schema.Schema, s_ver.CreateSchemaVersion]:
+    sv = sn.UnqualName('__schema_version__')
+    schema_version = s_ver.CreateSchemaVersion(classname=sv)
+    schema_version.set_attribute_value('name', sv)
+    schema_version.set_attribute_value('version', uuidgen.uuid1mc())
+    schema_version.set_attribute_value('internal', True)
+    schema = sd.apply(schema_version, schema=schema)
+    return schema, schema_version
+
+
+def make_global_schema_version(
+    schema: s_schema.Schema,
+) -> Tuple[s_schema.Schema, s_ver.CreateGlobalSchemaVersion]:
+    sv = sn.UnqualName('__global_schema_version__')
+    schema_version = s_ver.CreateGlobalSchemaVersion(classname=sv)
+    schema_version.set_attribute_value('name', sv)
+    schema_version.set_attribute_value('version', uuidgen.uuid1mc())
+    schema_version.set_attribute_value('internal', True)
+    schema = sd.apply(schema_version, schema=schema)
+    return schema, schema_version

@@ -21,14 +21,18 @@ from __future__ import annotations
 
 import abc
 import types
+import uuid
 from typing import *
 
 from edb import errors
+
+from edb.common import verutils
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes as ft
 from edb.edgeql import parser as qlparser
+from edb.common import uuidgen
 
 from . import abc as s_abc
 from . import annos as s_anno
@@ -76,7 +80,7 @@ def param_as_str(
     ret.append(paramt.get_displayname(schema))
 
     if default is not None:
-        ret.append(f'={default.origtext}')
+        ret.append(f'={default.text}')
 
     return ''.join(ret)
 
@@ -117,9 +121,11 @@ def param_is_inherited(
     param: ParameterLike,
 ) -> bool:
     qualname = sn.get_specialized_name(
-        param.get_parameter_name(schema), func.get_name(schema))
+        sn.UnqualName(param.get_parameter_name(schema)),
+        str(func.get_name(schema)),
+    )
     param_name = param.get_name(schema)
-    assert isinstance(param_name, sn.Name)
+    assert isinstance(param_name, sn.QualName)
     return qualname != param_name.name
 
 
@@ -128,7 +134,7 @@ class ParameterLike(s_abc.Parameter):
     def get_parameter_name(self, schema: s_schema.Schema) -> str:
         raise NotImplementedError
 
-    def get_name(self, schema: s_schema.Schema) -> str:
+    def get_name(self, schema: s_schema.Schema) -> sn.Name:
         raise NotImplementedError
 
     def get_kind(self, _: s_schema.Schema) -> ft.ParameterKind:
@@ -151,7 +157,7 @@ class ParameterLike(s_abc.Parameter):
 class ParameterDesc(ParameterLike):
 
     num: int
-    name: str
+    name: sn.Name
     default: Optional[expr.Expression]
     type: s_types.TypeShell
     typemod: ft.TypeModifier
@@ -161,7 +167,7 @@ class ParameterDesc(ParameterLike):
         self,
         *,
         num: int,
-        name: str,
+        name: sn.Name,
         default: Optional[expr.Expression],
         type: s_types.TypeShell,
         typemod: ft.TypeModifier,
@@ -215,7 +221,7 @@ class ParameterDesc(ParameterLike):
 
         return cls(
             num=num,
-            name=astnode.name,
+            name=sn.UnqualName(astnode.name),
             type=paramt,
             typemod=astnode.typemod,
             kind=astnode.kind,
@@ -223,9 +229,9 @@ class ParameterDesc(ParameterLike):
         )
 
     def get_parameter_name(self, schema: s_schema.Schema) -> str:
-        return self.name
+        return str(self.name)
 
-    def get_name(self, schema: s_schema.Schema) -> str:
+    def get_name(self, schema: s_schema.Schema) -> sn.Name:
         return self.name
 
     def get_kind(self, _: s_schema.Schema) -> ft.ParameterKind:
@@ -271,22 +277,21 @@ class ParameterDesc(ParameterLike):
     def get_fqname(
         self,
         schema: s_schema.Schema,
-        func_fqname: sn.Name,
-    ) -> str:
-        return sn.Name(
-            module=func_fqname.module,
-            name=sn.get_specialized_name(
-                self.get_name(schema), func_fqname)
+        func_fqname: sn.QualName,
+    ) -> sn.QualName:
+        return sn.QualName(
+            func_fqname.module,
+            sn.get_specialized_name(self.get_name(schema), str(func_fqname))
         )
 
     def as_create_delta(
         self,
         schema: s_schema.Schema,
-        func_fqname: sn.Name,
+        func_fqname: sn.QualName,
         *,
         context: sd.CommandContext,
-    ) -> sd.Command:
-        CreateParameter = sd.ObjectCommandMeta.get_command_class_or_die(
+    ) -> sd.CreateObject[Parameter]:
+        CreateParameter = sd.get_object_command_class_or_die(
             sd.CreateObject, Parameter)
 
         param_name = self.get_fqname(schema, func_fqname)
@@ -303,17 +308,19 @@ class ParameterDesc(ParameterLike):
     def as_delete_delta(
         self,
         schema: s_schema.Schema,
-        func_fqname: sn.Name,
+        func_fqname: sn.QualName,
         *,
         context: sd.CommandContext,
-    ) -> sd.Command:
-        DeleteParameter = sd.ObjectCommandMeta.get_command_class_or_die(
+    ) -> sd.ObjectCommand[Parameter]:
+        DeleteParameter = sd.get_object_command_class_or_die(
             sd.DeleteObject, Parameter)
 
-        param_name = sn.Name(
+        param_name = sn.QualName(
             module=func_fqname.module,
             name=sn.get_specialized_name(
-                self.get_name(schema), func_fqname)
+                self.get_name(schema),
+                str(func_fqname),
+            )
         )
 
         cmd = DeleteParameter(classname=param_name)
@@ -321,7 +328,9 @@ class ParameterDesc(ParameterLike):
         if isinstance(self.type, s_types.CollectionTypeShell):
             colltype = self.type.resolve(schema)
             assert isinstance(colltype, s_types.Collection)
-            cmd.add(colltype.as_colltype_delete_delta(schema))
+            obj = schema.get(param_name)
+            cmd.add(
+                colltype.as_colltype_delete_delta(schema, expiring_refs={obj}))
 
         return cmd
 
@@ -330,6 +339,7 @@ class Parameter(
     so.ObjectFragment,
     ParameterLike,
     qlkind=ft.SchemaObjectClass.PARAMETER,
+    data_safe=True,
 ):
 
     num = so.SchemaField(
@@ -354,10 +364,8 @@ class Parameter(
         parts = str(fullname.name).split('@', 1)
         if len(parts) == 2:
             return sn.unmangle_name(parts[0])
-        elif '::' in fullname:
-            return sn.Name(fullname).name
         else:
-            return fullname
+            return fullname.name
 
     def get_verbosename(
         self,
@@ -378,15 +386,15 @@ class Parameter(
             return vn
 
     @classmethod
-    def get_shortname_static(cls, name: str) -> sn.Name:
-        assert isinstance(name, sn.Name)
-        return sn.Name(
+    def get_shortname_static(cls, name: sn.Name) -> sn.QualName:
+        assert isinstance(name, sn.QualName)
+        return sn.QualName(
             module='__',
             name=cls.paramname_from_fullname(name),
         )
 
     @classmethod
-    def get_displayname_static(cls, name: str) -> str:
+    def get_displayname_static(cls, name: sn.Name) -> str:
         shortname = cls.get_shortname_static(name)
         return shortname.name
 
@@ -411,13 +419,55 @@ class Parameter(
     def as_str(self, schema: s_schema.Schema) -> str:
         return param_as_str(schema, self)
 
+    @classmethod
+    def compare_field_value(
+        cls,
+        field: so.Field[Type[so.T]],
+        our_value: so.T,
+        their_value: so.T,
+        *,
+        our_schema: s_schema.Schema,
+        their_schema: s_schema.Schema,
+        context: so.ComparisonContext,
+    ) -> float:
+        # Only compare the actual param name, not the full name.
+        if field.name == 'name':
+            assert isinstance(our_value, sn.Name)
+            assert isinstance(their_value, sn.Name)
+            if (
+                cls.paramname_from_fullname(our_value) ==
+                cls.paramname_from_fullname(their_value)
+            ):
+                return 1.0
+
+        return super().compare_field_value(
+            field,
+            our_value,
+            their_value,
+            our_schema=our_schema,
+            their_schema=their_schema,
+            context=context,
+        )
+
     def get_ast(self, schema: s_schema.Schema) -> qlast.FuncParam:
         default = self.get_default(schema)
+        type = utils.typeref_to_ast(schema, self.get_type(schema))
+        kind = self.get_kind(schema)
+        # If the param is variadic, strip the array from the type in the schema
+        if kind is ft.ParameterKind.VariadicParam:
+            assert (
+                isinstance(type, qlast.TypeName)
+                and isinstance(type.maintype, qlast.ObjectRef)
+                and type.maintype.name == 'array'
+                and type.subtypes
+            )
+            type = type.subtypes[0]
+
         return qlast.FuncParam(
             name=self.get_parameter_name(schema),
-            type=utils.typeref_to_ast(schema, self.get_type(schema)),
+            type=type,
             typemod=self.get_typemod(schema),
-            kind=self.get_kind(schema),
+            kind=kind,
             default=default.qlast if default else None,
         )
 
@@ -435,7 +485,6 @@ class ParameterCommandContext(sd.ObjectCommandContext[Parameter]):
 # a referencing.ReferencedObject breaks the code
 class ParameterCommand(
     referencing.StronglyReferencedObjectCommand[Parameter],  # type: ignore
-    schema_metaclass=Parameter,
     context_class=ParameterCommandContext,
     referrer_context_class=CallableCommandContext
 ):
@@ -603,6 +652,34 @@ class FuncParameterList(so.ObjectList[Parameter], ParameterLikeList):
             result.append(param.get_ast(schema))
         return result
 
+    @classmethod
+    def compare_values(
+        cls,
+        ours_o: so.ObjectCollection[Parameter],
+        theirs_o: so.ObjectCollection[Parameter],
+        *,
+        our_schema: s_schema.Schema,
+        their_schema: s_schema.Schema,
+        context: so.ComparisonContext,
+        compcoef: float,
+    ) -> float:
+        ours = list(ours_o.objects(our_schema))
+        theirs = list(theirs_o.objects(their_schema))
+
+        # Because parameter lists can't currently be ALTERed, any
+        # changes are catastrophic, so return compcoef on any mismatch
+        # at all.
+        if len(ours) != len(theirs):
+            return compcoef
+        for param1, param2 in zip(ours, theirs):
+            coef = param1.compare(
+                param2, our_schema=our_schema,
+                their_schema=their_schema, context=context)
+            if coef != 1.0:
+                return compcoef
+
+        return 1.0
+
 
 class VolatilitySubject(so.Object):
 
@@ -626,10 +703,13 @@ class CallableLike:
     def get_return_typemod(self, schema: s_schema.Schema) -> ft.TypeModifier:
         raise NotImplementedError
 
+    def get_signature_as_str(self, schema: s_schema.Schema) -> str:
+        raise NotImplementedError
+
     def get_verbosename(self, schema: s_schema.Schema) -> str:
         raise NotImplementedError
 
-    def get_is_abstract(self, schema: s_schema.Schema) -> bool:
+    def get_abstract(self, schema: s_schema.Schema) -> bool:
         raise NotImplementedError
 
 
@@ -653,14 +733,14 @@ class CallableObject(
     return_typemod = so.SchemaField(
         ft.TypeModifier, compcoef=0.4, coerce=True)
 
-    is_abstract = so.SchemaField(
+    abstract = so.SchemaField(
         bool, default=False, compcoef=0.909)
 
     def as_create_delta(
         self: CallableObjectT,
         schema: s_schema.Schema,
         context: so.ComparisonContext,
-    ) -> sd.Command:
+    ) -> sd.ObjectCommand[CallableObjectT]:
         delta = super().as_create_delta(schema, context)
 
         new_params = self.get_params(schema).objects(schema)
@@ -678,12 +758,14 @@ class CallableObject(
         *,
         self_schema: s_schema.Schema,
         other_schema: s_schema.Schema,
+        confidence: float,
         context: so.ComparisonContext,
-    ) -> sd.Command:
+    ) -> sd.ObjectCommand[CallableObjectT]:
         delta = super().as_alter_delta(
             other,
             self_schema=self_schema,
             other_schema=other_schema,
+            confidence=confidence,
             context=context,
         )
 
@@ -717,7 +799,7 @@ class CallableObject(
         *,
         schema: s_schema.Schema,
         context: so.ComparisonContext,
-    ) -> sd.Command:
+    ) -> sd.ObjectCommand[CallableObjectT]:
         delta = super().as_delete_delta(schema=schema, context=context)
         old_params = self.get_params(schema).objects(schema)
         for p in old_params:
@@ -740,7 +822,7 @@ class CallableObject(
                 quals.append(pt.get_schema_class_displayname())
                 pt_id = str(pt.get_id(schema))
             else:
-                pt_id = pt.name
+                pt_id = str(pt.name)
 
             quals.append(pt_id)
             pk = param.get_kind(schema)
@@ -755,13 +837,13 @@ class CallableObject(
     def get_fqname(
         cls,
         schema: s_schema.Schema,
-        shortname: sn.Name,
+        shortname: sn.QualName,
         params: List[ParameterDesc],
         *extra_quals: str,
-    ) -> sn.Name:
+    ) -> sn.QualName:
 
         quals = cls._get_fqname_quals(schema, params)
-        return sn.Name(
+        return sn.QualName(
             module=shortname.module,
             name=sn.get_specialized_name(shortname, *(quals + extra_quals)))
 
@@ -803,6 +885,20 @@ class CallableCommand(sd.QualifiedObjectCommand[CallableObjectT]):
         return result
 
     @classmethod
+    def _get_param_desc_from_params_ast(
+        cls,
+        schema: s_schema.Schema,
+        modaliases: Mapping[Optional[str], str],
+        params: List[qlast.FuncParam],
+        *,
+        param_offset: int=0,
+    ) -> List[ParameterDesc]:
+        return [
+            ParameterDesc.from_ast(schema, modaliases, num, param)
+            for num, param in enumerate(params, param_offset)
+        ]
+
+    @classmethod
     def _get_param_desc_from_ast(
         cls,
         schema: s_schema.Schema,
@@ -811,19 +907,13 @@ class CallableCommand(sd.QualifiedObjectCommand[CallableObjectT]):
         *,
         param_offset: int=0,
     ) -> List[ParameterDesc]:
-        params = []
         if not hasattr(astnode, 'params'):
             # Some Callables, like the concrete constraints,
             # have no params in their AST.
             return []
-        assert isinstance(astnode, qlast.CallableObject)
-
-        for num, param in enumerate(astnode.params, param_offset):
-            param_desc = ParameterDesc.from_ast(
-                schema, modaliases, num, param)
-            params.append(param_desc)
-
-        return params
+        assert isinstance(astnode, qlast.CallableObjectCommand)
+        return cls._get_param_desc_from_params_ast(
+            schema, modaliases, astnode.params, param_offset=param_offset)
 
     @classmethod
     def _get_param_desc_from_delta(
@@ -850,22 +940,59 @@ class CallableCommand(sd.QualifiedObjectCommand[CallableObjectT]):
             schema, context, self, 'return_type')
 
 
+class RenameCallableObject(
+    CallableCommand[CallableObjectT],
+    sd.RenameObject[CallableObjectT],
+):
+    def _canonicalize(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        scls: so.Object,
+    ) -> None:
+        super()._canonicalize(schema, context, scls)
+
+        assert isinstance(scls, CallableObject)
+        # Don't do anything for concrete constraints
+        if not isinstance(scls, Function) and not scls.get_abstract(schema):
+            return
+
+        # params don't get picked up by the base _canonicalize because
+        # they aren't RefDicts (and use a different mangling scheme to
+        # boot), so we need to do it ourselves.
+        param_list = scls.get_params(schema)
+        params = CallableCommand._get_param_desc_from_params_ast(
+            schema, context.modaliases, param_list.get_ast(schema))
+
+        assert isinstance(self.new_name, sn.QualName)
+        for dparam, oparam in zip(params, param_list.objects(schema)):
+            self.add(self.init_rename_branch(
+                oparam,
+                dparam.get_fqname(schema, self.new_name),
+                schema=schema,
+                context=context,
+            ))
+
+
 class AlterCallableObject(
     CallableCommand[CallableObjectT],
     sd.AlterObject[CallableObjectT],
 ):
 
-    def get_ast(
+    def _get_ast(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
         *,
         parent_node: Optional[qlast.DDLOperation] = None,
-    ) -> Optional[qlast.CallableObject]:
+    ) -> Optional[qlast.CallableObjectCommand]:
         node = cast(
-            qlast.CallableObject,
+            qlast.CallableObjectCommand,
             super()._get_ast(schema, context, parent_node=parent_node)
         )
+
+        if not node:
+            return None
 
         scls = self.get_object(schema, context)
         node.params = scls.get_params(schema).get_ast(schema)
@@ -938,6 +1065,48 @@ class CreateCallableObject(
         props['params'] = params
         return props
 
+    def _skip_param(self, props: Dict[str, Any]) -> bool:
+        return False
+
+    def _get_params_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        node: qlast.DDLOperation,
+    ) -> List[Tuple[int, qlast.FuncParam]]:
+        params: List[Tuple[int, qlast.FuncParam]] = []
+        for op in self.get_subcommands(type=ParameterCommand):
+            props = op.get_resolved_attributes(schema, context)
+            if self._skip_param(props):
+                continue
+
+            num: int = props['num']
+            default = props.get('default')
+            param = qlast.FuncParam(
+                name=Parameter.paramname_from_fullname(props['name']),
+                type=utils.typeref_to_ast(schema, props['type']),
+                typemod=props['typemod'],
+                kind=props['kind'],
+                default=default.qlast if default is not None else None,
+            )
+            params.append((num, param))
+
+        params.sort(key=lambda e: e[0])
+
+        return params
+
+        node.params = [p[1] for p in params]
+
+    def _apply_fields_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        node: qlast.DDLOperation,
+    ) -> None:
+        super()._apply_fields_ast(schema, context, node)
+        params = self._get_params_ast(schema, context, node)
+        node.params = [p[1] for p in params]
+
 
 class DeleteCallableObject(
     CallableCommand[CallableObjectT],
@@ -955,41 +1124,51 @@ class DeleteCallableObject(
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         assert isinstance(cmd, DeleteCallableObject)
 
-        params = cls._get_param_desc_from_ast(
-            schema, context.modaliases, astnode)
-
-        for param in params:
-            cmd.add(param.as_delete_delta(
-                schema, cmd.classname, context=context))
+        # Don't do anything for concrete constraints
+        if isinstance(astnode, qlast.DropConcreteConstraint):
+            return cmd
 
         obj: CallableObject = schema.get(
             cmd.classname,
             type=cls.get_schema_metaclass(),
             sourcectx=astnode.context)
 
+        # Pull the params from the schema instead of the AST so that
+        # this works for constraints (which don't specify arguments in
+        # the delete syntax) as well as functions.
+        params = obj.get_params(schema).get_ast(schema)
+        for num, param in enumerate(params):
+            pd = ParameterDesc.from_ast(schema, context.modaliases, num, param)
+            cmd.add(pd.as_delete_delta(schema, cmd.classname, context=context))
+
         return_type = obj.get_return_type(schema)
         if isinstance(return_type, s_types.Collection):
-            cmd.add(return_type.as_colltype_delete_delta(schema))
+            cmd.add(return_type.as_colltype_delete_delta(
+                schema, expiring_refs={obj}))
 
         return cmd
 
 
-class Function(CallableObject, VolatilitySubject, s_abc.Function,
-               qlkind=ft.SchemaObjectClass.FUNCTION):
+class Function(
+    CallableObject,
+    VolatilitySubject,
+    s_abc.Function,
+    qlkind=ft.SchemaObjectClass.FUNCTION,
+    data_safe=True,
+):
+
+    # A backend_name that is shared between all overloads of the same
+    # function, to make them independent from the actual name.
+    backend_name = so.SchemaField(
+        uuid.UUID,
+        default=None,
+    )
 
     code = so.SchemaField(
         str, default=None, compcoef=0.4)
 
     nativecode = so.SchemaField(
         expr.Expression, default=None, compcoef=0.4)
-
-    orig_nativecode = so.SchemaField(
-        str,
-        default=None,
-        coerce=True,
-        allow_ddl_set=True,
-        ephemeral=True,
-    )
 
     language = so.SchemaField(
         qlast.Language, default=None, compcoef=0.4, coerce=True)
@@ -1012,11 +1191,8 @@ class Function(CallableObject, VolatilitySubject, s_abc.Function,
     initial_value = so.SchemaField(
         expr.Expression, default=None, compcoef=0.4, coerce=True)
 
-    session_only = so.SchemaField(
-        bool, default=False, compcoef=0.4, coerce=True, allow_ddl_set=True)
-
     has_dml = so.SchemaField(
-        bool, default=False, allow_ddl_set=True)
+        bool, default=False)
 
     def has_inlined_defaults(self, schema: s_schema.Schema) -> bool:
         # This can be relaxed to just `language is EdgeQL` when we
@@ -1024,15 +1200,21 @@ class Function(CallableObject, VolatilitySubject, s_abc.Function,
         return bool(self.get_language(schema) is qlast.Language.EdgeQL and
                     self.get_params(schema).find_named_only(schema))
 
+    def get_signature_as_str(
+        self,
+        schema: s_schema.Schema,
+    ) -> str:
+        params = self.get_params(schema)
+        sn = self.get_shortname(schema)
+        return f"{sn}{params.as_str(schema)}"
+
     def get_verbosename(
         self,
         schema: s_schema.Schema,
         *,
         with_parent: bool=False,
     ) -> str:
-        params = self.get_params(schema)
-        sn = self.get_shortname(schema)
-        return f"function '{sn}{params.as_str(schema)}'"
+        return f"function '{self.get_signature_as_str(schema)}'"
 
     def get_dummy_body(self, schema: s_schema.Schema) -> expr.Expression:
         """Return a minimal function body that satisfies its return type."""
@@ -1060,7 +1242,6 @@ class FunctionCommandContext(CallableCommandContext):
 
 class FunctionCommand(
     CallableCommand[Function],
-    schema_metaclass=Function,
     context_class=FunctionCommandContext,
 ):
 
@@ -1070,7 +1251,7 @@ class FunctionCommand(
         schema: s_schema.Schema,
         astnode: qlast.NamedDDL,
         context: sd.CommandContext,
-    ) -> sn.SchemaName:
+    ) -> sn.QualName:
         # _classname_from_ast signature expects qlast.NamedDDL,
         # but _get_param_desc_from_ast expects a ObjectDDL,
         # which is more specific
@@ -1082,11 +1263,15 @@ class FunctionCommand(
 
         return cls.get_schema_metaclass().get_fqname(schema, name, params)
 
-    def get_ast_attr_for_field(self, field: str) -> Optional[str]:
+    def get_ast_attr_for_field(
+        self,
+        field: str,
+        astnode: Type[qlast.DDLOperation],
+    ) -> Optional[str]:
         if field == 'nativecode':
             return 'nativecode'
         else:
-            return None
+            return super().get_ast_attr_for_field(field, astnode)
 
     def compile_expr_field(
         self,
@@ -1137,6 +1322,34 @@ class FunctionCommand(
             )
         return val
 
+    def canonicalize_attributes(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super().canonicalize_attributes(schema, context)
+        # When volatility is altered, we need to force a
+        # reconsideration of nativecode if it exists in order to check
+        # it against the new volatility or compute the volatility on a
+        # RESET.  This is kind of unfortunate.
+        if (
+            isinstance(self, sd.AlterObject)
+            and self.has_attribute_value('volatility')
+            and not self.has_attribute_value('nativecode')
+            and (nativecode := self.scls.get_nativecode(schema)) is not None
+        ):
+            self.set_attribute_value(
+                'nativecode',
+                expr.Expression.not_compiled(nativecode)
+            )
+
+        # Resolving 'nativecode' has side effects on has_dml and
+        # volatility, so force it to happen as part of
+        # canonicalization of attributes.
+        super().get_resolved_attribute_value(
+            'nativecode', schema=schema, context=context)
+        return schema
+
     def compile_function(
         self,
         schema: s_schema.Schema,
@@ -1147,8 +1360,6 @@ class FunctionCommand(
         from edb.ir import ast as irast
 
         params = self._get_params(schema, context)
-        session_only = self._get_attribute_value(
-            schema, context, 'session_only')
 
         language = self._get_attribute_value(schema, context, 'language')
         assert language is qlast.Language.EdgeQL
@@ -1167,9 +1378,6 @@ class FunctionCommand(
             options=qlcompiler.CompilerOptions(
                 anchors=param_anchors,
                 func_params=params,
-                # the body of a session_only function can contain calls to
-                # other session_only functions
-                session_mode=session_only,
                 apply_query_rewrites=not context.stdmode,
                 track_schema_ref_exprs=track_schema_ref_exprs,
             ),
@@ -1180,9 +1388,41 @@ class FunctionCommand(
         schema = ir.schema
 
         if ir.dml_exprs:
-            # DML inside function body detected. Right now is a good
-            # opportunity to raise exceptions or give warnings.
-            self.set_attribute_value('has_dml', True)
+            if context.allow_dml_in_functions:
+                # DML inside function body detected. Right now is a good
+                # opportunity to raise exceptions or give warnings.
+                self.set_attribute_value('has_dml', True)
+            else:
+                raise errors.InvalidFunctionDefinitionError(
+                    'data-modifying statements are not allowed in function'
+                    ' bodies',
+                    context=ir.dml_exprs[0].context,
+                )
+
+        spec_volatility: Optional[ft.Volatility] = (
+            self.get_specified_attribute_value('volatility', schema, context))
+
+        if spec_volatility is None:
+            self.set_attribute_value('volatility', ir.volatility,
+                                     computed=True)
+
+        # If a volatility is specified, it can be more volatile than the
+        # inferred volatility but not less.
+        if spec_volatility is not None and spec_volatility < ir.volatility:
+            # When restoring from old versions, just ignore the problem
+            # and use the inferred volatility
+            if context.compat_ver_is_before(
+                (1, 0, verutils.VersionStage.ALPHA, 8)
+            ):
+                self.set_attribute_value('volatility', ir.volatility)
+            else:
+                raise errors.InvalidFunctionDefinitionError(
+                    f'volatility mismatch in function declared as '
+                    f'{str(spec_volatility).lower()}',
+                    details=f'Actual volatility is '
+                            f'{str(ir.volatility).lower()}',
+                    context=body.qlast.context,
+                )
 
         return_type = self._get_attribute_value(schema, context, 'return_type')
         if (not ir.stype.issubclass(schema, return_type)
@@ -1242,13 +1482,20 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
         schema, cp = self._get_param_desc_from_delta(schema, context, self)
         signature = f'{shortname}({", ".join(p.as_str(schema) for p in cp)})'
 
-        func = schema.get(fullname, None)
-        if func:
+        if func := schema.get(fullname, None):
             raise errors.DuplicateFunctionDefinitionError(
                 f'cannot create the `{signature}` function: '
                 f'a function with the same signature '
                 f'is already defined',
                 context=self.source_context)
+
+        # Check if other schema objects with the same name (ignoring
+        # signature, of course) exist.
+        if other := schema.get(
+                sn.QualName(fullname.module, shortname.name), None):
+            raise errors.SchemaError(
+                f'{other.get_verbosename(schema)} is already present '
+                f'in the schema {schema!r}')
 
         schema = super()._create_begin(schema, context)
 
@@ -1263,7 +1510,6 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
         has_polymorphic = params.has_polymorphic(schema)
         polymorphic_return_type = return_type.is_polymorphic(schema)
         named_only = params.find_named_only(schema)
-        session_only = self.scls.get_session_only(schema)
 
         # Certain syntax is only allowed in "EdgeDB developer" mode,
         # i.e. when populating std library, etc.
@@ -1307,8 +1553,7 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                     f'cannot create `{signature}` function: '
                     f'overloading another function with different '
                     f'named only parameters: '
-                    f'"{func.get_shortname(schema)}'
-                    f'{func_params.as_str(schema)}"',
+                    f'"{func.get_signature_as_str(schema)}"',
                     context=self.source_context)
 
             if ((has_polymorphic or func_params.has_polymorphic(schema)) and (
@@ -1322,13 +1567,6 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                     f'function: overloading another function with different '
                     f'return type {func_return_typemod.to_edgeql()} '
                     f'{func.get_return_type(schema).get_displayname(schema)}',
-                    context=self.source_context)
-
-            if session_only != func.get_session_only(schema):
-                raise errors.InvalidFunctionDefinitionError(
-                    f'cannot create `{signature}` function: '
-                    f'overloading another function with different '
-                    f'`session_only` flag',
                     context=self.source_context)
 
             if func_from_function:
@@ -1409,6 +1647,17 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
         context: sd.CommandContext,
     ) -> sd.Command:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        assert isinstance(cmd, CreateFunction)
+
+        fullname = cmd.classname
+        shortname = sn.shortname_from_fullname(fullname)
+        if others := schema.get_functions(
+                sn.QualName(fullname.module, shortname.name), ()):
+            backend_name = others[0].get_backend_name(schema)
+        else:
+            backend_name = uuidgen.uuid1mc()
+
+        cmd.set_attribute_value('backend_name', backend_name)
 
         assert isinstance(astnode, qlast.CreateFunction)
         if astnode.code is not None:
@@ -1417,9 +1666,12 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                 astnode.code.language,
             )
             if astnode.code.language is qlast.Language.EdgeQL:
+                nativecode_expr: qlast.Base
+
                 if astnode.nativecode is not None:
                     nativecode_expr = astnode.nativecode
                 else:
+                    assert astnode.code.code is not None
                     nativecode_expr = qlparser.parse(astnode.code.code)
 
                 nativecode = expr.Expression.from_ast(
@@ -1445,32 +1697,6 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                 )
 
         return cmd
-
-    def _apply_fields_ast(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        node: qlast.DDLOperation,
-    ) -> None:
-        super()._apply_fields_ast(schema, context, node)
-
-        params = []
-        for op in self.get_subcommands(type=ParameterCommand):
-            props = op.get_resolved_attributes(schema, context)
-            num = props['num']
-            default = props.get('default')
-            param = qlast.FuncParam(
-                name=Parameter.paramname_from_fullname(props['name']),
-                type=utils.typeref_to_ast(schema, props['type']),
-                typemod=props['typemod'],
-                kind=props['kind'],
-                default=default.qlast if default is not None else None,
-            )
-            params.append((num, param))
-
-        params.sort(key=lambda e: e[0])
-
-        node.params = [p[1] for p in params]
 
     def _apply_field_ast(
         self,
@@ -1512,13 +1738,78 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
             super()._apply_field_ast(schema, context, node, op)
 
 
-class RenameFunction(sd.RenameObject[Function], FunctionCommand):
-    pass
+class RenameFunction(RenameCallableObject[Function], FunctionCommand):
+    @classmethod
+    def _classname_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.NamedDDL,
+        context: sd.CommandContext,
+    ) -> sn.QualName:
+        ctx = context.current()
+        assert isinstance(ctx.op, AlterFunction)
+        name = sd.QualifiedObjectCommand._classname_from_ast(
+            schema, astnode, context)
+
+        quals = list(sn.quals_from_fullname(ctx.op.classname))
+        out = sn.QualName(
+            name=sn.get_specialized_name(name, *quals),
+            module=name.module
+        )
+        return out
+
+    def validate_alter(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> None:
+        cur_shortname = sn.shortname_from_fullname(self.classname)
+        cur_name = sn.QualName(self.classname.module, cur_shortname.name)
+
+        new_shortname = sn.shortname_from_fullname(self.new_name)
+        assert isinstance(self.new_name, sn.QualName)
+        new_name = sn.QualName(self.new_name.module, new_shortname.name)
+
+        if cur_name == new_name:
+            return
+
+        existing = schema.get_functions(cur_name)
+        if len(existing) > 1:
+            raise errors.SchemaError(
+                'renaming an overloaded function is not allowed',
+                context=self.source_context)
+
+        target = schema.get_functions(new_name, ())
+        if target:
+            raise errors.SchemaError(
+                f"can not rename function to '{new_name!s}' because "
+                f"a function with the same name already exists, and "
+                f"renaming into an overload is not supported",
+                context=self.source_context)
 
 
 class AlterFunction(AlterCallableObject[Function], FunctionCommand):
 
     astnode = qlast.AlterFunction
+
+    def _alter_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super()._alter_begin(schema, context)
+        scls = self.scls
+
+        # If volatility changed, propagate that to referring exprs
+        if not self.has_attribute_value("volatility"):
+            return schema
+
+        vn = scls.get_verbosename(schema, with_parent=True)
+        schema = self._propagate_if_expr_refs(
+            schema, context, metadata_only=False,
+            action=f'alter the volatility of {vn}')
+
+        return schema
 
     @classmethod
     def _cmd_tree_from_ast(
@@ -1543,7 +1834,7 @@ class AlterFunction(AlterCallableObject[Function], FunctionCommand):
                     context=astnode.context
                 )
 
-            nativecode_expr: Optional[qlast.Expr] = None
+            nativecode_expr: Optional[qlast.Base] = None
             if astnode.nativecode is not None:
                 nativecode_expr = astnode.nativecode
             elif astnode.code.code is not None:
@@ -1607,7 +1898,7 @@ class DeleteFunction(DeleteCallableObject[Function], FunctionCommand):
         params = []
         for op in self.get_subcommands(type=ParameterCommand):
             props = op.get_orig_attributes(schema, context)
-            num = props['num']
+            num: int = props['num']
             param = qlast.FuncParam(
                 name=Parameter.paramname_from_fullname(props['name']),
                 type=utils.typeref_to_ast(schema, props['type']),

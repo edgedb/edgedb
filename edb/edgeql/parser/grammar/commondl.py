@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import sys
 import types
-from typing import *  # noqa
+import typing
 
 from edb.errors import EdgeQLSyntaxError
 
@@ -29,6 +29,7 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
 from edb.common import parsing
+from edb.common import verutils
 
 from . import expressions
 from . import tokens
@@ -38,8 +39,8 @@ from .tokens import *  # NOQA
 from .expressions import *  # NOQA
 
 
-Nonterm = expressions.Nonterm
-ListNonterm = parsing.ListNonterm
+Nonterm = expressions.Nonterm  # type: ignore[misc]
+ListNonterm = parsing.ListNonterm  # type: ignore[misc]
 
 
 def _parse_language(node):
@@ -52,13 +53,18 @@ def _parse_language(node):
 
 
 def _validate_declarations(
-    declarations: Sequence[Union[qlast.ModuleDeclaration, qlast.DDLCommand]]
+    declarations: typing.Sequence[
+        typing.Union[qlast.ModuleDeclaration, qlast.NamedDDL]]
 ) -> None:
     # Check that top-level declarations either use fully-qualified
     # names or are module blocks.
     for decl in declarations:
-        if (not isinstance(decl, qlast.ModuleDeclaration) and
-                decl.name.module is None):
+        if (
+            not isinstance(
+                decl,
+                (qlast.ModuleDeclaration, qlast.ExtensionCommand)
+            ) and decl.name.module is None
+        ):
             raise EdgeQLSyntaxError(
                 "only fully-qualified name is allowed in "
                 "top-level declaration",
@@ -215,11 +221,19 @@ class FuncDeclArgList(ListNonterm, element=FuncDeclArg,
     pass
 
 
+class FuncDeclArgs(Nonterm):
+    def reduce_FuncDeclArgList_COMMA(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_FuncDeclArgList(self, *kids):
+        self.val = kids[0].val
+
+
 class CreateFunctionArgs(Nonterm):
     def reduce_LPAREN_RPAREN(self, *kids):
         self.val = []
 
-    def reduce_LPAREN_FuncDeclArgList_RPAREN(self, *kids):
+    def reduce_LPAREN_FuncDeclArgs_RPAREN(self, *kids):
         args = kids[1].val
 
         last_pos_default_arg = None
@@ -332,7 +346,7 @@ class FromFunction(Nonterm):
 
 class ProcessFunctionBlockMixin:
     def _process_function_body(self, block, *, optional_using: bool=False):
-        props = {}
+        props: typing.Dict[str, typing.Any] = {}
 
         commands = []
         code = None
@@ -426,3 +440,29 @@ class OnTargetDeleteStmt(Nonterm):
     def reduce_ON_TARGET_DELETE_DEFERRED_RESTRICT(self, *kids):
         self.val = qlast.OnTargetDelete(
             cascade=qltypes.LinkTargetDeleteAction.DeferredRestrict)
+
+
+class ExtensionVersion(Nonterm):
+
+    def reduce_VERSION_BaseStringConstant(self, *kids):
+        version = kids[1].val
+
+        try:
+            verutils.parse_version(version.value)
+        except ValueError:
+            raise EdgeQLSyntaxError(
+                'invalid extension version format',
+                details='Expected a SemVer-compatible format.',
+                context=version.context,
+            ) from None
+
+        self.val = version
+
+
+class OptExtensionVersion(Nonterm):
+
+    def reduce_ExtensionVersion(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_empty(self, *kids):
+        self.val = None

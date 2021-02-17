@@ -1,3 +1,5 @@
+# mypy: ignore-errors
+
 #
 # This source file is part of the EdgeDB open source project.
 #
@@ -57,34 +59,34 @@ base_type_name_map = {
 }
 
 base_type_name_map_r = {
-    'character varying': sn.Name('std::str'),
-    'character': sn.Name('std::str'),
-    'text': sn.Name('std::str'),
-    'numeric': sn.Name('std::decimal'),
-    'edgedb.bigint_t': sn.Name('std::bigint'),
-    'bigint_t': sn.Name('std::bigint'),
-    'int4': sn.Name('std::int32'),
-    'integer': sn.Name('std::int32'),
-    'bigint': sn.Name('std::int64'),
-    'int8': sn.Name('std::int64'),
-    'int2': sn.Name('std::int16'),
-    'smallint': sn.Name('std::int16'),
-    'boolean': sn.Name('std::bool'),
-    'bool': sn.Name('std::bool'),
-    'double precision': sn.Name('std::float64'),
-    'float8': sn.Name('std::float64'),
-    'real': sn.Name('std::float32'),
-    'float4': sn.Name('std::float32'),
-    'uuid': sn.Name('std::uuid'),
-    'timestamp with time zone': sn.Name('std::datetime'),
-    'timestamptz': sn.Name('std::datetime'),
-    'interval': sn.Name('std::duration'),
-    'bytea': sn.Name('std::bytes'),
-    'jsonb': sn.Name('std::json'),
+    'character varying': sn.QualName('std', 'str'),
+    'character': sn.QualName('std', 'str'),
+    'text': sn.QualName('std', 'str'),
+    'numeric': sn.QualName('std', 'decimal'),
+    'edgedb.bigint_t': sn.QualName('std', 'bigint'),
+    'bigint_t': sn.QualName('std', 'bigint'),
+    'int4': sn.QualName('std', 'int32'),
+    'integer': sn.QualName('std', 'int32'),
+    'bigint': sn.QualName('std', 'int64'),
+    'int8': sn.QualName('std', 'int64'),
+    'int2': sn.QualName('std', 'int16'),
+    'smallint': sn.QualName('std', 'int16'),
+    'boolean': sn.QualName('std', 'bool'),
+    'bool': sn.QualName('std', 'bool'),
+    'double precision': sn.QualName('std', 'float64'),
+    'float8': sn.QualName('std', 'float64'),
+    'real': sn.QualName('std', 'float32'),
+    'float4': sn.QualName('std', 'float32'),
+    'uuid': sn.QualName('std', 'uuid'),
+    'timestamp with time zone': sn.QualName('std', 'datetime'),
+    'timestamptz': sn.QualName('std', 'datetime'),
+    'interval': sn.QualName('std', 'duration'),
+    'bytea': sn.QualName('std', 'bytes'),
+    'jsonb': sn.QualName('std', 'json'),
 
-    'timestamp': sn.Name('cal::local_datetime'),
-    'date': sn.Name('cal::local_date'),
-    'time': sn.Name('cal::local_time'),
+    'timestamp': sn.QualName('cal', 'local_datetime'),
+    'date': sn.QualName('cal', 'local_date'),
+    'time': sn.QualName('cal', 'local_time'),
 }
 
 
@@ -98,7 +100,7 @@ def get_scalar_base(schema, scalar) -> Tuple[str, ...]:
         return base
 
     for ancestor in scalar.get_ancestors(schema).objects(schema):
-        if not ancestor.get_is_abstract(schema):
+        if not ancestor.get_abstract(schema):
             # Check if base is fundamental, if not, then it is
             # another domain.
             try:
@@ -182,7 +184,8 @@ def pg_type_from_ir_typeref(
 
     if irtyputils.is_array(ir_typeref):
         if (irtyputils.is_generic(ir_typeref)
-                or irtyputils.is_abstract(ir_typeref.subtypes[0])):
+                or (irtyputils.is_abstract(ir_typeref.subtypes[0])
+                    and irtyputils.is_scalar(ir_typeref.subtypes[0]))):
             return ('anyarray',)
         else:
             tp = pg_type_from_ir_typeref(
@@ -229,7 +232,7 @@ def pg_type_from_ir_typeref(
             if pg_type is None:
                 # User-defined scalar type
                 pg_type = common.get_scalar_backend_name(
-                    material.id, material.module_id, catenate=False)
+                    material.id, material.name_hint.module, catenate=False)
 
             return pg_type
 
@@ -406,7 +409,7 @@ def get_ptrref_storage_info(
 
         target = ptrref.out_target
 
-    if is_lprop and ptrref.std_parent_name == 'std::target':
+    if is_lprop and str(ptrref.std_parent_name) == 'std::target':
         # Normalize link@target to link
         ptrref = source
         is_lprop = False
@@ -417,7 +420,7 @@ def get_ptrref_storage_info(
         col_name = ptrref.shortname.name
 
     elif is_lprop:
-        table = common.get_pointer_backend_name(source.id, source.module_id)
+        table = common.get_pointer_backend_name(source.id, source.name.module)
         table_type = 'link'
         if ptrref.shortname.name == 'source':
             col_name = 'source'
@@ -432,7 +435,7 @@ def get_ptrref_storage_info(
 
         elif _storable_in_source(ptrref) and not link_bias:
             table = common.get_objtype_backend_name(
-                source.id, source.module_id)
+                source.id, source.name_hint.module)
             ptrname = ptrref.shortname.name
             if ptrname.startswith('__') or ptrname == 'id':
                 col_name = ptrname
@@ -442,7 +445,7 @@ def get_ptrref_storage_info(
 
         elif _storable_in_pointer(ptrref):
             table = common.get_pointer_backend_name(
-                ptrref.id, ptrref.module_id)
+                ptrref.id, ptrref.name.module)
             col_name = 'target'
             table_type = 'link'
 

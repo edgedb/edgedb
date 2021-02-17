@@ -12,6 +12,10 @@ List databases:
       db
       tutorial
 
+
+----------
+
+
 Connect to a database:
 
 .. code-block:: edgeql-repl
@@ -20,11 +24,19 @@ Connect to a database:
 
     my_new_project>
 
+
+----------
+
+
 List modules:
 
 .. code-block:: edgeql-repl
 
     db> \lm
+
+
+----------
+
 
 List object types:
 
@@ -32,11 +44,19 @@ List object types:
 
     db> \lt
 
+
+----------
+
+
 List scalar types:
 
 .. code-block:: edgeql-repl
 
     db> \lT
+
+
+----------
+
 
 List expression aliases (the ``-v`` includes the expression value in
 the listing):
@@ -44,6 +64,10 @@ the listing):
 .. code-block:: edgeql-repl
 
     db> \la -v
+
+
+----------
+
 
 Describe an object type:
 
@@ -59,12 +83,20 @@ Describe an object type:
         };
     };
 
+
+----------
+
+
 Describe a scalar type:
 
 .. code-block:: edgeql-repl
 
     db> \d decimal
     scalar type std::decimal extending std::anynumeric;
+
+
+----------
+
 
 Describe a function:
 

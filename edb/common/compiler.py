@@ -44,8 +44,7 @@ class ContextLevel:
         self: ContextLevel_T,
         mode: Any=None,
     ) -> CompilerContextManager[ContextLevel_T]:
-        stack = cast(CompilerContext[ContextLevel_T], self._stack)
-        return stack.new(mode, self)
+        return self._stack.new(mode, self)  # type: ignore
 
 
 class CompilerContextManager(ContextManager[ContextLevel_T]):
@@ -94,8 +93,7 @@ class CompilerContext(Generic[ContextLevel_T]):
         else:
             prevlevel = self.current
             level = self.ContextLevelClass(prevlevel, mode)
-        # XXX: typing fu
-        level._stack = cast(CompilerContext[ContextLevel], self)
+        level._stack = self  # type: ignore
         self.stack.append(level)
         return level
 

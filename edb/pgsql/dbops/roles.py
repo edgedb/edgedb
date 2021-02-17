@@ -38,19 +38,20 @@ class Role(base.DBObject):
         allow_createdb: Union[bool, base.NotSpecifiedT] = base.NotSpecified,
         allow_createrole: Union[bool, base.NotSpecifiedT] = base.NotSpecified,
         password: Union[None, str, base.NotSpecifiedT] = base.NotSpecified,
-        is_superuser: Union[bool, base.NotSpecifiedT] = base.NotSpecified,
+        superuser: Union[bool, base.NotSpecifiedT] = base.NotSpecified,
         membership: Optional[Iterable[str]] = None,
+        members: Optional[Iterable[str]] = None,
         metadata: Optional[Mapping[str, Any]] = None,
     ) -> None:
-        super().__init__()
+        super().__init__(metadata=metadata)
         self.name = name
-        self.is_superuser = is_superuser
+        self.superuser = superuser
         self.allow_login = allow_login
         self.allow_createdb = allow_createdb
         self.allow_createrole = allow_createrole
         self.password = password
         self.membership = membership
-        self.metadata = metadata
+        self.members = members
 
     def get_type(self):
         return 'ROLE'
@@ -80,7 +81,7 @@ class RoleCommand:
         attrs = []
 
         attrmap = {
-            'is_superuser': 'SUPERUSER',
+            'superuser': 'SUPERUSER',
             'allow_login': 'LOGIN',
             'allow_createdb': 'CREATEDB',
             'allow_createrole': 'CREATEROLE',
@@ -107,11 +108,16 @@ class CreateRole(ddl.CreateObject, RoleCommand):
 
     def code(self, block: base.PLBlock) -> str:
         if self.object.membership:
-            roles = ', '.join(qi(m) for m in self.object.membership)
+            roles = ', '.join(qi(str(m)) for m in self.object.membership)
             membership = f'IN ROLE {roles}'
         else:
             membership = ''
-        return f'CREATE {self._render()} {membership}'
+        if self.object.members:
+            roles = ', '.join(qi(str(m)) for m in self.object.members)
+            members = f'ROLE {roles}'
+        else:
+            members = ''
+        return f'CREATE {self._render()} {membership} {members}'
 
 
 class AlterRole(ddl.AlterObject, RoleCommand):

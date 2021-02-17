@@ -136,7 +136,7 @@ class TransactionStmt(Nonterm):
 
 class DescribeFmt(typing.NamedTuple):
     language: typing.Optional[qltypes.DescribeLanguage] = None
-    options: qlast.Options = None
+    options: typing.Optional[qlast.Options] = None
 
 
 class DescribeFormat(Nonterm):
@@ -188,6 +188,14 @@ class DescribeStmt(Nonterm):
             object=qlast.DescribeGlobal.Schema,
             language=kids[2].val.language,
             options=kids[2].val.options,
+        )
+
+    def reduce_DESCRIBE_CURRENT_DATABASE_CONFIG(self, *kids):
+        """%reduce DESCRIBE CURRENT DATABASE CONFIG DescribeFormat"""
+        self.val = qlast.DescribeStmt(
+            object=qlast.DescribeGlobal.DatabaseConfig,
+            language=kids[4].val.language,
+            options=kids[4].val.options,
         )
 
     def reduce_DESCRIBE_SYSTEM_CONFIG(self, *kids):

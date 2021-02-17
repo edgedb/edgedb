@@ -21,6 +21,7 @@ from __future__ import annotations
 from typing import *
 
 import itertools
+import textwrap
 
 from . import base
 from .visitor import NodeVisitor
@@ -69,7 +70,7 @@ class SourceGenerator(NodeVisitor):
         if delimiter:
             self.result.append(x[0])
             chain = itertools.chain.from_iterable
-            chunks = chain((delimiter, v) for v in x[1:])
+            chunks: Iterable[str] = chain((delimiter, v) for v in x[1:])
         else:
             chunks = x
 
@@ -93,7 +94,7 @@ class SourceGenerator(NodeVisitor):
         separator = terminator if terminator is not None else separator
         size = len(items)
         for i, item in enumerate(items):
-            self.visit(item, **kwargs)
+            self.visit(item, **kwargs)  # type: ignore
             if i < size - 1 or terminator is not None:
                 self.write(separator)
                 if newlines:
@@ -116,7 +117,10 @@ class SourceGenerator(NodeVisitor):
         pretty: bool = True,
         **kwargs: Any
     ) -> str:
-        generator = cls(indent_with, add_line_information,
+        generator = cls(indent_with, add_line_information,  # type: ignore
                         pretty=pretty, **kwargs)
         generator.visit(node)
         return ''.join(generator.result)
+
+    def indent_text(self, text: str) -> str:
+        return textwrap.indent(text, self.indent_with * self.indentation)

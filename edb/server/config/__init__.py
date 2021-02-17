@@ -20,23 +20,28 @@
 from __future__ import annotations
 from typing import *
 
-from .ops import OpLevel, OpCode, Operation, lookup
-from .ops import spec_to_json, to_json, from_json
-from .ops import value_from_json
-from .spec import Spec, Setting, load_spec_from_schema, generate_config_query
+import immutables
+
+from edb import errors
+from edb.edgeql.qltypes import ConfigScope
+
+from .ops import OpCode, Operation, SettingValue
+from .ops import spec_to_json, to_json, from_json, set_value, to_edgeql
+from .ops import value_from_json, value_to_json_value
+from .spec import Spec, Setting, load_spec_from_schema
 from .types import ConfigType
 
 
 __all__ = (
     'get_settings', 'set_settings',
     'lookup',
-    'Spec', 'Setting',
-    'spec_to_json', 'to_json', 'from_json',
-    'value_from_json',
-    'OpLevel', 'OpCode', 'Operation',
+    'Spec', 'Setting', 'SettingValue',
+    'spec_to_json', 'to_json', 'to_edgeql', 'from_json', 'set_value',
+    'value_from_json', 'value_to_json_value',
+    'ConfigScope', 'OpCode', 'Operation',
     'ConfigType',
     'load_spec_from_schema',
-    'generate_config_query',
+    'get_compilation_config',
 )
 
 
@@ -50,3 +55,44 @@ def get_settings() -> Spec:
 def set_settings(settings: Spec) -> None:
     global _settings
     _settings = settings
+
+
+def lookup(
+    name: str,
+    *configs: Mapping[str, SettingValue],
+    allow_unrecognized: bool = False,
+    spec: Optional[Spec] = None,
+) -> Any:
+
+    if spec is None:
+        spec = get_settings()
+
+    try:
+        setting = spec[name]
+    except (KeyError, TypeError):
+        if allow_unrecognized:
+            return None
+        else:
+            raise errors.ConfigurationError(
+                f'unrecognized configuration parameter {name!r}')
+
+    for c in configs:
+        try:
+            setting_value = c[name]
+        except KeyError:
+            pass
+        else:
+            return setting_value.value
+    else:
+        return setting.default
+
+
+def get_compilation_config(
+    config: Mapping[str, SettingValue],
+) -> immutables.Map[str, SettingValue]:
+    spec = get_settings()
+    return immutables.Map((
+        (k, v)
+        for k, v in config.items()
+        if spec[k].affects_compilation
+    ))

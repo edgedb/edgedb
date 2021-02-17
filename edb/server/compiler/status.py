@@ -32,17 +32,17 @@ def get_status(ql: qlast.Base) -> bytes:
 
 @get_status.register(qlast.CreateObject)
 def _ddl_create(ql):
-    return b'CREATE'
+    return f'CREATE {ql.object_class}'.encode()
 
 
 @get_status.register(qlast.AlterObject)
 def _ddl_alter(ql):
-    return b'ALTER'
+    return f'ALTER {ql.object_class}'.encode()
 
 
 @get_status.register(qlast.DropObject)
 def _ddl_drop(ql):
-    return b'DROP'
+    return f'DROP {ql.object_class}'.encode()
 
 
 @get_status.register(qlast.StartMigration)
@@ -156,10 +156,7 @@ def _sess_reset_alias(ql):
 
 @get_status.register(qlast.ConfigOp)
 def _sess_set_config(ql):
-    if ql.system:
-        return b'CONFIGURE SYSTEM'
-    else:
-        return b'CONFIGURE SESSION'
+    return f'CONFIGURE {ql.scope}'.encode('ascii')
 
 
 @get_status.register(qlast.DescribeStmt)

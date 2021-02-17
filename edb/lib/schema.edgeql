@@ -50,17 +50,24 @@ CREATE ABSTRACT TYPE schema::Object EXTENDING std::BaseObject {
     CREATE REQUIRED PROPERTY builtin -> std::bool {
         SET default := false;
     };
+    CREATE PROPERTY computed_fields -> array<std::str>;
 };
 
 
 CREATE ABSTRACT TYPE schema::SubclassableObject EXTENDING schema::Object {
-    CREATE PROPERTY is_abstract -> std::bool {
+    CREATE PROPERTY abstract -> std::bool {
         SET default := false;
     };
 
-    CREATE PROPERTY is_final -> std::bool {
+    # Backwards compatibility.
+    CREATE PROPERTY is_abstract := .abstract;
+
+    CREATE PROPERTY final -> std::bool {
         SET default := false;
     };
+
+    # Backwards compatibility.
+    CREATE PROPERTY is_final := .final;
 };
 
 
@@ -70,19 +77,23 @@ CREATE TYPE schema::PseudoType EXTENDING schema::Type;
 
 ALTER TYPE schema::Type {
     CREATE PROPERTY expr -> std::str;
-    CREATE PROPERTY is_from_alias := EXISTS(.expr);
+    CREATE PROPERTY from_alias := EXISTS(.expr);
+    # Backwards compatibility.
+    CREATE PROPERTY is_from_alias := .from_alias;
 };
 
 
 ALTER TYPE std::BaseObject {
-    CREATE LINK __type__ -> schema::Type {
+    CREATE REQUIRED LINK __type__ -> schema::Type {
         SET readonly := True;
     };
 };
 
 
 CREATE ABSTRACT LINK schema::reference {
-    CREATE PROPERTY is_owned -> std::bool;
+    CREATE PROPERTY owned -> std::bool;
+    # Backwards compatibility.
+    CREATE PROPERTY is_owned := @owned;
 };
 
 
@@ -221,6 +232,7 @@ CREATE ABSTRACT TYPE schema::Pointer
 {
     CREATE PROPERTY cardinality -> schema::Cardinality;
     CREATE PROPERTY required -> std::bool;
+    CREATE PROPERTY readonly -> std::bool;
     CREATE PROPERTY default -> std::str;
     CREATE PROPERTY expr -> std::str;
 };
@@ -259,9 +271,11 @@ CREATE TYPE schema::ObjectType
 ALTER TYPE schema::ObjectType {
     CREATE MULTI LINK union_of -> schema::ObjectType;
     CREATE MULTI LINK intersection_of -> schema::ObjectType;
-    CREATE PROPERTY is_compound_type := (
+    CREATE PROPERTY compound_type := (
         EXISTS .union_of OR EXISTS .intersection_of
     );
+    # Backwards compatibility.
+    CREATE PROPERTY is_compound_type := .compound_type;
 };
 
 
@@ -292,9 +306,6 @@ ALTER TYPE schema::ObjectType {
 CREATE TYPE schema::Function
     EXTENDING schema::CallableObject, schema::VolatilitySubject
 {
-    CREATE PROPERTY session_only -> std::bool {
-        SET default := false;
-    };
 };
 
 
@@ -302,9 +313,11 @@ CREATE TYPE schema::Operator
     EXTENDING schema::CallableObject, schema::VolatilitySubject
 {
     CREATE PROPERTY operator_kind -> schema::OperatorKind;
-    CREATE PROPERTY is_abstract -> std::bool {
+    CREATE PROPERTY abstract -> std::bool {
         SET default := false;
     };
+    # Backwards compatibility.
+    CREATE PROPERTY is_abstract := .abstract;
 };
 
 
@@ -322,5 +335,10 @@ CREATE TYPE schema::Migration
     EXTENDING schema::AnnotationSubject
 {
     CREATE MULTI LINK parents -> schema::Migration;
+    CREATE REQUIRED PROPERTY script -> str;
     CREATE PROPERTY message -> str;
 };
+
+
+# The package link is added in sys.edgeql
+CREATE TYPE schema::Extension EXTENDING schema::AnnotationSubject;

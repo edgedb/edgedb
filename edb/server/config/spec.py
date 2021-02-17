@@ -24,12 +24,8 @@ import dataclasses
 import json
 from typing import *
 
-from edb.edgeql import ast as qlast
-from edb.edgeql import codegen as qlcodegen
 from edb.edgeql import compiler as qlcompiler
-from edb.edgeql import qltypes
 from edb.ir import staeval
-from edb.schema import utils as s_utils
 
 from . import types
 
@@ -44,7 +40,8 @@ class Setting:
     system: bool = False
     internal: bool = False
     requires_restart: bool = False
-    backend_setting: str = None
+    backend_setting: Optional[str] = None
+    affects_compilation: bool = False
 
     def __post_init__(self):
         if (self.type not in {str, int, bool} and
@@ -86,13 +83,13 @@ class Spec(collections.abc.Mapping):
     def __init__(self, *settings: Setting):
         self._settings = tuple(settings)
         self._by_name = {s.name: s for s in self._settings}
-        self._types_by_name = {}
+        self._types_by_name: Dict[str, type] = {}
 
         for s in self._settings:
             if issubclass(s.type, types.CompositeConfigType):
                 self._register_type(s.type)
 
-    def _register_type(self, t: type):
+    def _register_type(self, t: type) -> None:
         self._types_by_name[t.__name__] = t
         for subclass in t.__subclasses__():
             self._types_by_name[subclass.__name__] = subclass
@@ -112,10 +109,10 @@ class Spec(collections.abc.Mapping):
     def __getitem__(self, name: str) -> Setting:
         return self._by_name[name]
 
-    def __contains__(self, name: str):
+    def __contains__(self, name: object) -> bool:
         return name in self._by_name
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._settings)
 
 
@@ -123,7 +120,8 @@ def load_spec_from_schema(schema):
     cfg = schema.get('cfg::Config')
     settings = []
 
-    for pn, p in cfg.get_pointers(schema).items(schema):
+    for ptr_name, p in cfg.get_pointers(schema).items(schema):
+        pn = str(ptr_name)
         if pn in ('id', '__type__'):
             continue
 
@@ -140,8 +138,8 @@ def load_spec_from_schema(schema):
             for a, v in p.get_annotations(schema).items(schema)
         }
 
-        set_of = p.get_cardinality(schema) is qltypes.SchemaCardinality.Many
-
+        ptr_card = p.get_cardinality(schema)
+        set_of = ptr_card.is_multi()
         deflt = p.get_default(schema)
         if deflt is not None:
             deflt = qlcompiler.evaluate_to_python_val(
@@ -163,28 +161,11 @@ def load_spec_from_schema(schema):
             system=attributes.get('cfg::system', False),
             requires_restart=attributes.get('cfg::requires_restart', False),
             backend_setting=attributes.get('cfg::backend_setting', None),
+            affects_compilation=attributes.get(
+                'cfg::affects_compilation', False),
             default=deflt,
         )
 
         settings.append(setting)
 
     return Spec(*settings)
-
-
-def generate_config_query(schema) -> str:
-    cfg = schema.get('cfg::Config')
-
-    ref = qlast.ObjectRef(name='Config', module='cfg')
-    query = qlast.SelectQuery(
-        result=qlast.Shape(
-            expr=qlast.Path(
-                steps=[ref]
-            ),
-            elements=s_utils.get_config_type_shape(schema, cfg, path=[ref]),
-        ),
-        limit=qlast.IntegerConstant(
-            value='1',
-        ),
-    )
-
-    return qlcodegen.generate_source(query)

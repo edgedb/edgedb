@@ -110,6 +110,31 @@ class TestEdgeQLParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_float_number_too_large(self):
         """SELECT 2+1e999;"""
 
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=1, col=8)
+    def test_edgeql_syntax_float_number_too_small_01(self):
+        """SELECT 0.01e-322;"""
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=1, col=8)
+    def test_edgeql_syntax_float_number_too_small_02(self):
+        """SELECT 1e-324;"""
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=1, col=8)
+    def test_edgeql_syntax_float_number_too_small_03(self):
+        (
+            "SELECT 0."
+            "0000000000_0000000000_0000000000_0000000000"
+            "0000000000_0000000000_0000000000_0000000000"
+            "0000000000_0000000000_0000000000_0000000000"
+            "0000000000_0000000000_0000000000_0000000000"
+            "0000000000_0000000000_0000000000_0000000000"
+            "0000000000_0000000000_0000000000_0000000000"
+            "0000000000_0000000000_0000000000_0000000000"
+            "0000000000_0000000000_0000000000_0000000000"
+            "0000000000_0000000000_0000000000_0000000000"
+            "0000000000_0000000000_0000000000_0000000000"
+            "1;"
+        )
+
     def test_edgeql_syntax_constants_01(self):
         """
         SELECT 0;
@@ -157,6 +182,7 @@ class TestEdgeQLParser(EdgeQLSyntaxTest):
         SELECT 3.543_2e-20;
         SELECT 354.32e-20;
         SELECT 2_354.32e-20;
+        SELECT 0e-999;
 
 % OK %
 
@@ -169,6 +195,7 @@ class TestEdgeQLParser(EdgeQLSyntaxTest):
         SELECT 3.543_2e-20;
         SELECT 354.32e-20;
         SELECT 2_354.32e-20;
+        SELECT 0e-999;
         """
 
     def test_edgeql_syntax_constants_05(self):
@@ -500,6 +527,17 @@ aa';
     def test_edgeql_syntax_constants_44(self):
         """
         SELECT 1 n;
+        """
+
+    def test_edgeql_syntax_constants_45(self):
+        """
+        SELECT 123e+100n;
+        SELECT 123e100n;
+
+% OK %
+
+        SELECT 123e+100n;
+        SELECT 123e100n;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=1, col=12)
@@ -2757,6 +2795,21 @@ aa';
         SELECT count(1, $a := 1);
         """
 
+    def test_edgeql_syntax_function_09(self):
+        """
+        SELECT bar(User.name,);
+        SELECT baz(User.name, User.age,);
+        SELECT str_lower(string := User.name,);
+        SELECT baz(age := User.age, of := User.name, `select` := 1,);
+
+% OK %
+
+        SELECT bar(User.name);
+        SELECT baz(User.name, User.age);
+        SELECT str_lower(string := User.name);
+        SELECT baz(age := User.age, of := User.name, `select` := 1);
+        """
+
     def test_edgeql_syntax_tuple_01(self):
         """
         SELECT ('foo', 42).0;
@@ -2900,6 +2953,14 @@ aa';
         };
         """
 
+    def test_edgeql_syntax_ddl_role_07(self):
+        """
+        ALTER ROLE username {
+            RESET password;
+            EXTENDING generic, morestuff;
+        };
+        """
+
     def test_edgeql_syntax_ddl_delta_02(self):
         """
         START MIGRATION TO {type test::Foo;};
@@ -2962,13 +3023,6 @@ aa';
     def test_edgeql_syntax_ddl_create_migration_02(self):
         """
         CREATE MIGRATION { ;;; CREATE TYPE Foo ;;; CREATE TYPE Bar ;;; };
-
-% OK %
-
-        CREATE MIGRATION {
-            CREATE TYPE Foo;
-            CREATE TYPE Bar;
-        };
         """
 
     def test_edgeql_syntax_ddl_create_migration_03(self):
@@ -2983,6 +3037,10 @@ aa';
         CREATE MIGRATION m123123123 {
             CREATE TYPE Foo;
         };
+% OK %
+        CREATE MIGRATION m123123123 ONTO initial {
+            CREATE TYPE Foo;
+        };
         """
 
     def test_edgeql_syntax_ddl_create_migration_05(self):
@@ -2990,6 +3048,78 @@ aa';
         CREATE MIGRATION m123123123 ONTO m134134134 {
             CREATE TYPE Foo;
         };
+        """
+
+    def test_edgeql_syntax_ddl_create_migration_06(self):
+        """
+        CREATE APPLIED MIGRATION m123123123 ONTO m134134134 {
+            CREATE TYPE Foo;
+        };
+        """
+
+    def test_edgeql_syntax_ddl_create_migration_07(self):
+        """
+        START MIGRATION TO {
+            using extension graphql version '2.0';
+        };
+        """
+
+    def test_edgeql_syntax_ddl_create_migration_08(self):
+        """
+        START MIGRATION TO {
+            using extension graphql;
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "'using extension' cannot be used inside a module block",
+                  line=4, col=17)
+    def test_edgeql_syntax_ddl_create_migration_09(self):
+        """
+        START MIGRATION TO {
+            module foo {
+                using extension graphql;
+            }
+        };
+        """
+
+    def test_edgeql_syntax_ddl_create_extension_package_01(self):
+        """
+        CREATE EXTENSION PACKAGE foo VERSION '1.0';
+        """
+
+    def test_edgeql_syntax_ddl_create_extension_package_02(self):
+        """
+        CREATE EXTENSION PACKAGE foo VERSION '1.0' {
+            ;;; CREATE TYPE Foo ;;; CREATE TYPE Bar ;;;
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "invalid extension version format", line=2)
+    def test_edgeql_syntax_ddl_create_extension_package_03(self):
+        """
+        CREATE EXTENSION PACKAGE foo VERSION 'aaa';
+        """
+
+    def test_edgeql_syntax_ddl_drop_extension_package_01(self):
+        """
+        DROP EXTENSION PACKAGE foo VERSION '1.0';
+        """
+
+    def test_edgeql_syntax_ddl_create_extension_01(self):
+        """
+        CREATE EXTENSION foo;
+        """
+
+    def test_edgeql_syntax_ddl_create_extension_02(self):
+        """
+        CREATE EXTENSION foo VERSION '1.0';
+        """
+
+    def test_edgeql_syntax_ddl_drop_extension_01(self):
+        """
+        DROP EXTENSION foo;
         """
 
     # TODO: remove this test once the entire grammar is converted
@@ -3096,6 +3226,11 @@ aa';
         CREATE SCALAR TYPE myenum EXTENDING enum<baz: int64, bar>;
         """
 
+    def test_edgeql_syntax_ddl_create_pseudo_type_01(self):
+        """
+        CREATE PSEUDO TYPE `anytype`;
+        """
+
     def test_edgeql_syntax_ddl_annotation_01(self):
         """
         CREATE ABSTRACT ANNOTATION std::paramtypes;
@@ -3193,7 +3328,7 @@ aa';
 
         CREATE ABSTRACT CONSTRAINT test::len_fail(f: std::str) {
             USING ((__subject__ <= f));
-            SET subjectexpr := len(__subject__);
+            SET subjectexpr := (len(__subject__));
         };
         """
 
@@ -3234,12 +3369,32 @@ aa';
             ALTER LINK bar {
                 ALTER CONSTRAINT my_constraint ON (foo) {
                     CREATE ANNOTATION title := 'special';
+                    RESET errmessage;
                 };
             };
             ALTER LINK baz {
                 DROP CONSTRAINT my_length(10);
             };
         };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected 'RENAME'", line=5, col=21)
+    def test_edgeql_syntax_ddl_constraint_11(self):
+        """
+        ALTER TYPE Foo {
+            ALTER LINK bar {
+                ALTER CONSTRAINT my_constraint ON (foo) {
+                    RENAME TO myconstraint;
+                };
+            };
+        };
+        """
+
+    def test_edgeql_syntax_ddl_constraint_12(self):
+        """
+        ALTER ABSTRACT CONSTRAINT my_constraint
+        RESET errmessage;
         """
 
     def test_edgeql_syntax_ddl_function_01(self):
@@ -3599,6 +3754,194 @@ aa';
             std::int64 USING SQL FUNCTION 'aaa';
         """
 
+    def test_edgeql_syntax_ddl_function_49(self):
+        """
+        CREATE FUNCTION std::strlen(string: std::str,) -> std::int64
+            USING SQL FUNCTION 'strlen';
+
+% OK %
+
+        CREATE FUNCTION std::strlen(string: std::str) -> std::int64
+            USING SQL FUNCTION 'strlen';
+        """
+
+    def test_edgeql_syntax_ddl_function_50(self):
+        """
+        CREATE FUNCTION std::strlen(string: std::str = '1',)
+            -> std::int64
+            USING SQL FUNCTION 'strlen';
+
+% OK %
+
+        CREATE FUNCTION std::strlen(string: std::str = '1')
+            -> std::int64
+            USING SQL FUNCTION 'strlen';
+        """
+
+    def test_edgeql_syntax_ddl_function_51(self):
+        """
+        CREATE FUNCTION std::strlen(
+            a: std::str = '1',
+            VARIADIC b: std::str,
+        ) -> std::int64
+            USING SQL FUNCTION 'strlen';
+
+% OK %
+
+        CREATE FUNCTION std::strlen(
+            a: std::str = '1',
+            VARIADIC b: std::str
+        ) -> std::int64
+            USING SQL FUNCTION 'strlen';
+        """
+
+    def test_edgeql_syntax_ddl_function_52(self):
+        """
+        CREATE FUNCTION foo(
+            a: OPTIONAL std::str,
+            NAMED ONLY b: OPTIONAL std::str,
+            NAMED ONLY c: OPTIONAL std::str = '1',
+            NAMED ONLY d: OPTIONAL std::str,
+        ) ->
+            std::int64 USING SQL FUNCTION 'aaa';
+
+% OK %
+
+        CREATE FUNCTION foo(
+            a: OPTIONAL std::str,
+            NAMED ONLY b: OPTIONAL std::str,
+            NAMED ONLY c: OPTIONAL std::str = '1',
+            NAMED ONLY d: OPTIONAL std::str
+        ) ->
+            std::int64 USING SQL FUNCTION 'aaa';
+        """
+
+    def test_edgeql_syntax_ddl_operator_01(self):
+        """
+        CREATE INFIX OPERATOR
+        std::`OR` (a: std::bool, b: std::bool) -> std::bool {
+            SET volatility := 'IMMUTABLE';
+            USING SQL $$
+            SELECT ("a" OR "b") AND ("a"::int | "b"::int)::bool
+            $$;
+        };
+        """
+
+    def test_edgeql_syntax_ddl_operator_02(self):
+        """
+        CREATE INFIX OPERATOR
+        std::`AND` (a: std::bool, b: std::bool) -> std::bool {
+            SET volatility := 'IMMUTABLE';
+            USING SQL EXPRESSION;
+        };
+        """
+
+    def test_edgeql_syntax_ddl_operator_03(self):
+        """
+        CREATE INFIX OPERATOR
+        std::`=` (l: std::bool, r: std::bool) -> std::bool {
+            SET volatility := 'IMMUTABLE';
+            SET commutator := 'std::=';
+            SET negator := 'std::!=';
+            USING SQL OPERATOR '=';
+        };
+        """
+
+    def test_edgeql_syntax_ddl_operator_04(self):
+        """
+        CREATE INFIX OPERATOR
+        std::`>` (l: std::int32, r: std::float32) -> std::bool {
+            SET volatility := 'IMMUTABLE';
+            SET commutator := 'std::<';
+            SET negator := 'std::<=';
+            USING SQL OPERATOR '>(float8,float8)';
+        };
+        """
+
+    def test_edgeql_syntax_ddl_operator_05(self):
+        """
+        CREATE ABSTRACT INFIX OPERATOR
+        std::`>=` (l: anytype, r: anytype) -> std::bool;
+        """
+
+    def test_edgeql_syntax_ddl_operator_06(self):
+        """
+        ALTER INFIX OPERATOR std::`>=` (l: anytype, r: anytype) {
+            CREATE ANNOTATION description := 'gte';
+        };
+        """
+
+    def test_edgeql_syntax_ddl_operator_07(self):
+        """
+        DROP INFIX OPERATOR std::`>=` (l: anytype, r: anytype);
+        """
+
+    def test_edgeql_syntax_ddl_cast_01(self):
+        """
+        CREATE CAST FROM std::str TO std::bool {
+            SET volatility := 'IMMUTABLE';
+            USING SQL FUNCTION 'edgedb.str_to_bool';
+        };
+        """
+
+    def test_edgeql_syntax_ddl_cast_02(self):
+        """
+        CREATE CAST FROM std::bool TO std::str {
+            SET volatility := 'IMMUTABLE';
+            USING SQL CAST;
+        };
+        """
+
+    def test_edgeql_syntax_ddl_cast_03(self):
+        """
+        CREATE CAST FROM std::json TO std::bigint {
+            SET volatility := 'STABLE';
+            USING SQL $$
+            SELECT edgedb.str_to_bigint(
+                edgedb.jsonb_extract_scalar(val, 'number')
+            );
+            $$;
+        };
+        """
+
+    def test_edgeql_syntax_ddl_cast_04(self):
+        """
+        CREATE CAST FROM std::int32 TO std::int64 {
+            SET volatility := 'IMMUTABLE';
+            USING SQL CAST;
+            ALLOW IMPLICIT;
+        };
+        """
+
+    def test_edgeql_syntax_ddl_cast_05(self):
+        """
+        CREATE CAST FROM std::int64 TO std::int16 {
+            SET volatility := 'IMMUTABLE';
+            USING SQL CAST;
+            ALLOW ASSIGNMENT;
+        };
+        """
+
+    def test_edgeql_syntax_ddl_cast_06(self):
+        """
+        CREATE CAST FROM std::BaseObject TO std::json {
+            SET volatility := 'IMMUTABLE';
+            USING SQL EXPRESSION;
+        };
+        """
+
+    def test_edgeql_syntax_ddl_cast_07(self):
+        """
+        ALTER CAST FROM std::BaseObject TO std::json {
+            CREATE ANNOTATION description := 'json';
+        };
+        """
+
+    def test_edgeql_syntax_ddl_cast_08(self):
+        """
+        DROP CAST FROM std::BaseObject TO std::json;
+        """
+
     def test_edgeql_syntax_ddl_property_01(self):
         """
         CREATE ABSTRACT PROPERTY std::property {
@@ -3641,6 +3984,17 @@ aa';
         CREATE ABSTRACT PROPERTY std::property {
             SET title := 'Base property';
         };
+        """
+
+    def test_edgeql_syntax_ddl_property_06(self):
+        """
+        ALTER ABSTRACT PROPERTY prop {
+            RESET default;
+        };
+
+% OK %
+
+        ALTER ABSTRACT PROPERTY prop RESET default;
         """
 
     def test_edgeql_syntax_ddl_module_01(self):
@@ -3765,13 +4119,13 @@ aa';
         """
         ALTER TYPE mymod::Foo ALTER LINK foo {
             SET MULTI;
-            DROP REQUIRED;
+            SET OPTIONAL;
         };
 % OK %
         ALTER TYPE mymod::Foo {
             ALTER LINK foo {
                 SET MULTI;
-                DROP REQUIRED;
+                SET OPTIONAL;
             };
         };
         """
@@ -3781,7 +4135,7 @@ aa';
         """
         ALTER TYPE mymod::Foo ALTER LINK foo {
             SET MULTI;
-            DROP REQUIRED
+            SET OPTIONAL
         }
 
 % OK %
@@ -3789,7 +4143,7 @@ aa';
         ALTER TYPE mymod::Foo {
             ALTER LINK foo {
                 SET MULTI;
-                DROP REQUIRED;
+                SET OPTIONAL;
             };
         };
         """
@@ -3808,6 +4162,75 @@ aa';
         ALTER TYPE mymod::Foo {
             ALTER PROPERTY foo {
                 DROP OWNED;
+            };
+        };
+        """
+
+    def test_edgeql_syntax_ddl_type_12(self):
+        """
+        CREATE TYPE Foo {
+            CREATE PROPERTY bar := 'something';
+        };
+
+% OK %
+
+        CREATE TYPE Foo {
+            CREATE PROPERTY bar := ('something');
+        };
+        """
+
+    def test_edgeql_syntax_ddl_type_13(self):
+        """
+        ALTER TYPE Foo {
+            ALTER PROPERTY bar {
+                RESET EXPRESSION;
+                RESET default;
+            };
+        };
+        """
+
+    def test_edgeql_syntax_ddl_type_14(self):
+        """
+        ALTER TYPE Foo {
+            ALTER LINK bar {
+                RESET EXPRESSION;
+                RESET default;
+            };
+        };
+        """
+
+    def test_edgeql_syntax_ddl_type_15(self):
+        """
+        ALTER TYPE Foo {
+            ALTER LINK bar {
+                SET TYPE int64 USING (SELECT (.bar, 1));
+            };
+        };
+        """
+
+    def test_edgeql_syntax_ddl_type_16(self):
+        """
+        ALTER TYPE Foo {
+            ALTER LINK bar {
+                SET REQUIRED USING (SELECT '123');
+            };
+        };
+        """
+
+    def test_edgeql_syntax_ddl_type_17(self):
+        """
+        ALTER TYPE Foo {
+            ALTER LINK bar {
+                SET SINGLE USING (SELECT '123');
+            };
+        };
+        """
+
+    def test_edgeql_syntax_ddl_type_18(self):
+        """
+        ALTER TYPE Foo {
+            ALTER LINK bar {
+                RESET CARDINALITY USING (SELECT '123');
             };
         };
         """
@@ -3847,18 +4270,25 @@ aa';
         """
         CONFIGURE SYSTEM SET foo := (SELECT User);
         CONFIGURE SESSION SET foo := (SELECT User);
+        CONFIGURE CURRENT DATABASE SET foo := (SELECT User);
         CONFIGURE SYSTEM SET cfg::foo := (SELECT User);
         CONFIGURE SESSION SET cfg::foo := (SELECT User);
+        CONFIGURE CURRENT DATABASE SET cfg::foo := (SELECT User);
         CONFIGURE SYSTEM RESET foo;
         CONFIGURE SESSION RESET foo;
+        CONFIGURE CURRENT DATABASE RESET foo;
         CONFIGURE SYSTEM RESET cfg::foo;
         CONFIGURE SESSION RESET cfg::foo;
+        CONFIGURE CURRENT DATABASE RESET cfg::foo;
         CONFIGURE SYSTEM INSERT Foo {bar := (SELECT 1)};
         CONFIGURE SESSION INSERT Foo {bar := (SELECT 1)};
+        CONFIGURE CURRENT DATABASE INSERT Foo {bar := (SELECT 1)};
         CONFIGURE SYSTEM INSERT cfg::Foo {bar := (SELECT 1)};
         CONFIGURE SESSION INSERT cfg::Foo {bar := (SELECT 1)};
+        CONFIGURE CURRENT DATABASE INSERT cfg::Foo {bar := (SELECT 1)};
         CONFIGURE SYSTEM RESET Foo FILTER (.bar = 2);
         CONFIGURE SESSION RESET Foo FILTER (.bar = 2);
+        CONFIGURE CURRENT DATABASE RESET Foo FILTER (.bar = 2);
         """
 
     def test_edgeql_syntax_ddl_alias_01(self):

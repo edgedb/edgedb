@@ -438,7 +438,7 @@ class TestUpdate(tb.QueryTestCase):
                 ],
             )
 
-            objs = await self.con.query(
+            objs = await self.con._fetchall(
                 r"""
                     WITH MODULE test
                     UPDATE UpdateTest
@@ -446,10 +446,12 @@ class TestUpdate(tb.QueryTestCase):
                     SET {
                         name := 'new ' ++ UpdateTest.name
                     };
-                """
+                """,
+                __typenames__=True,
+                __typeids__=True
             )
-
             self.assertTrue(hasattr(objs[0], '__tid__'))
+            self.assertEqual(objs[0].__tname__, 'test::UpdateTest')
 
         finally:
             await self.con.execute(r"""
@@ -2392,6 +2394,90 @@ class TestUpdate(tb.QueryTestCase):
                 },
             ],
         )
+
+    async def test_edgeql_update_subtract_required(self):
+        await self.con.execute("""
+            WITH MODULE test
+            INSERT MultiRequiredTest {
+                name := 'update-test-subtract-required',
+                prop := {'one', 'two'},
+                tags := (SELECT Tag FILTER .name IN {'fun', 'wow'}),
+            };
+        """)
+
+        await self.con.execute("""
+            WITH MODULE test
+            UPDATE MultiRequiredTest
+            FILTER .name = 'update-test-subtract-required'
+            SET {
+                prop -= 'one'
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT MultiRequiredTest {
+                    prop,
+                } FILTER
+                    .name = 'update-test-subtract-required';
+            """,
+            [
+                {
+                    'prop': {'two'},
+                },
+            ],
+        )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.MissingRequiredError,
+            r"missing value for required property 'prop'",
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                UPDATE MultiRequiredTest
+                FILTER .name = 'update-test-subtract-required'
+                SET {
+                    prop -= 'two'
+                };
+            """)
+
+        await self.con.execute("""
+            WITH MODULE test
+            UPDATE MultiRequiredTest
+            FILTER .name = 'update-test-subtract-required'
+            SET {
+                tags -= (SELECT Tag FILTER .name = 'fun')
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT MultiRequiredTest {
+                    tags: {name}
+                } FILTER
+                    .name = 'update-test-subtract-required';
+            """,
+            [
+                {
+                    'tags': [{'name': 'wow'}],
+                },
+            ],
+        )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.MissingRequiredError,
+            r"missing value for required link 'tags'",
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                UPDATE MultiRequiredTest
+                FILTER .name = 'update-test-subtract-required'
+                SET {
+                    tags -= (SELECT Tag FILTER .name = 'wow')
+                };
+            """)
 
     async def test_edgeql_subtract_badness_01(self):
         with self.assertRaisesRegex(

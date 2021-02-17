@@ -44,11 +44,9 @@ from edb.schema import objtypes as s_objtypes
 from edb.schema import types as s_types
 from edb.schema import scalars as s_scalars
 from edb.schema import schema as s_schema
+from edb.schema import constraints as s_constr
 
 from edb.server import config
-
-if TYPE_CHECKING:
-    from edb.schema import constraints as s_constr
 
 
 class StaticEvaluationError(errors.QueryError):
@@ -132,7 +130,9 @@ def evaluate_OperatorCall(
     if irutils.is_union_expr(opcall):
         return _evaluate_union(opcall, schema)
 
-    eval_func = op_table.get((opcall.operator_kind, opcall.func_shortname))
+    eval_func = op_table.get(
+        (opcall.operator_kind, str(opcall.func_shortname)),
+    )
     if eval_func is None:
         raise UnsupportedExpressionError(
             f'unsupported operator: {opcall.func_shortname}',
@@ -144,6 +144,10 @@ def evaluate_OperatorCall(
         if isinstance(arg_val, tuple):
             raise UnsupportedExpressionError(
                 f'non-singleton operations are not supported',
+                context=opcall.context)
+        if arg_val is None:
+            raise UnsupportedExpressionError(
+                f'empty operations are not supported',
                 context=opcall.context)
 
         args.append(arg_val)
@@ -208,7 +212,8 @@ def int_const_to_python(
 
     stype = schema.get_by_id(ir.typeref.id)
     assert isinstance(stype, s_types.Type)
-    if stype.issubclass(schema, schema.get('std::bigint')):
+    bigint = schema.get('std::bigint', type=s_obj.SubclassableObject)
+    if stype.issubclass(schema, bigint):
         return decimal.Decimal(ir.value)
     else:
         return int(ir.value)
@@ -221,7 +226,8 @@ def float_const_to_python(
 
     stype = schema.get_by_id(ir.typeref.id)
     assert isinstance(stype, s_types.Type)
-    if stype.issubclass(schema, schema.get('std::decimal')):
+    bigint = schema.get('std::bigint', type=s_obj.SubclassableObject)
+    if stype.issubclass(schema, bigint):
         return decimal.Decimal(ir.value)
     else:
         return float(ir.value)
@@ -282,7 +288,7 @@ def scalar_type_to_python_type(
     }
 
     for basetype_name, python_type in typemap.items():
-        basetype: s_obj.InheritingObject = schema.get(basetype_name)
+        basetype = schema.get(basetype_name, type=s_obj.InheritingObject)
         if stype.issubclass(schema, basetype):
             return python_type
 
@@ -304,7 +310,8 @@ def object_type_to_python_type(
     subclasses = []
 
     for pn, p in objtype.get_pointers(schema).items(schema):
-        if pn in ('id', '__type__'):
+        str_pn = str(pn)
+        if str_pn in ('id', '__type__'):
             continue
 
         ptype = p.get_target(schema)
@@ -325,7 +332,8 @@ def object_type_to_python_type(
         else:
             pytype = scalar_type_to_python_type(ptype, schema)
 
-        is_multi = p.get_cardinality(schema) is qltypes.SchemaCardinality.Many
+        ptr_card = p.get_cardinality(schema)
+        is_multi = ptr_card.is_multi()
         if is_multi:
             pytype = FrozenSet[pytype]  # type: ignore
 
@@ -340,7 +348,7 @@ def object_type_to_python_type(
                 default = frozenset((default,))
 
         constraints = p.get_constraints(schema).objects(schema)
-        exclusive: s_constr.Constraint = schema.get('std::exclusive')
+        exclusive = schema.get('std::exclusive', type=s_constr.Constraint)
         unique = (
             not ptype.is_object_type()
             and any(c.issubclass(schema, exclusive) for c in constraints)
@@ -351,7 +359,7 @@ def object_type_to_python_type(
             repr=True,
             default=default,
         )
-        fields.append((pn, pytype, field))
+        fields.append((str_pn, pytype, field))
 
     bases: Tuple[type, ...]
     if base_class is not None:
@@ -392,7 +400,7 @@ def evaluate_config_set(
 
     return config.Operation(
         opcode=config.OpCode.CONFIG_SET,
-        level=config.OpLevel.SYSTEM if ir.system else config.OpLevel.SESSION,
+        scope=ir.scope,
         setting_name=ir.name,
         value=value,
     )
@@ -410,7 +418,7 @@ def evaluate_config_reset(
 
     return config.Operation(
         opcode=config.OpCode.CONFIG_RESET,
-        level=config.OpLevel.SYSTEM if ir.system else config.OpLevel.SESSION,
+        scope=ir.scope,
         setting_name=ir.name,
         value=None,
     )

@@ -1,3 +1,5 @@
+# mypy: implicit-reexport
+
 #
 # This source file is part of the EdgeDB open source project.
 #
@@ -109,10 +111,12 @@ class ViewShapeMetadata(Base):
 
 
 class TypeRef(ImmutableBase):
+    # Hide ancestors and descendants from debug spew because they are
+    # incredibly noisy.
+    __ast_hidden__ = {'ancestors', 'descendants'}
+
     # The id of the referenced type
     id: uuid.UUID
-    # The module id of the referenced type
-    module_id: uuid.UUID
     # Full name of the type, not necessarily schema-addressable,
     # used for annotations only.
     name_hint: sn.Name
@@ -125,6 +129,9 @@ class TypeRef(ImmutableBase):
     # A set of type descendant descriptors, if necessary for
     # this type description.
     descendants: typing.Optional[typing.FrozenSet[TypeRef]]
+    # A set of type ancestor descriptors, if necessary for
+    # this type description.
+    ancestors: typing.Optional[typing.FrozenSet[TypeRef]]
     # If this is a union type, this would be a set of
     # union elements.
     union: typing.FrozenSet[TypeRef]
@@ -156,6 +163,9 @@ class TypeRef(ImmutableBase):
     # True, if this describes an opaque union type
     is_opaque_union: bool = False
 
+    def __repr__(self) -> str:
+        return f'<ir.TypeRef \'{self.name_hint}\' at 0x{id(self):x}>'
+
 
 class AnyTypeRef(TypeRef):
     pass
@@ -174,22 +184,25 @@ class BasePointerRef(ImmutableBase):
     # cardinality fields need to be mutable for lazy cardinality inference.
     __ast_mutable_fields__ = frozenset(('dir_cardinality', 'out_cardinality'))
 
-    name: sn.Name
-    shortname: sn.Name
-    path_id_name: typing.Optional[sn.Name]
-    std_parent_name: sn.Name
+    # The defaults set here are mostly to try to reduce debug spew output.
+    name: sn.QualName
+    shortname: sn.QualName
+    path_id_name: typing.Optional[sn.QualName]
+    std_parent_name: sn.QualName
     out_source: TypeRef
     out_target: TypeRef
-    direction: s_pointers.PointerDirection
-    source_ptr: PointerRef
+    direction: s_pointers.PointerDirection = (
+        s_pointers.PointerDirection.Outbound)
+    source_ptr: typing.Optional[PointerRef]
     base_ptr: typing.Optional[BasePointerRef]
-    material_ptr: BasePointerRef
+    material_ptr: typing.Optional[BasePointerRef]
     descendants: typing.FrozenSet[BasePointerRef]
     union_components: typing.Set[BasePointerRef]
-    union_is_concrete: bool
-    has_properties: bool
-    is_derived: bool
-    is_computable: bool
+    intersection_components: typing.Set[BasePointerRef]
+    union_is_concrete: bool = False
+    has_properties: bool = False
+    is_derived: bool = False
+    is_computable: bool = False
     # Relation cardinality in the direction specified
     # by *direction*.
     dir_cardinality: qltypes.Cardinality
@@ -218,18 +231,17 @@ class BasePointerRef(ImmutableBase):
     def is_inbound(self) -> bool:
         return self.direction is self.direction.Inbound
 
+    def __repr__(self) -> str:
+        return f'<ir.{type(self).__name__} \'{self.name}\' at 0x{id(self):x}>'
+
 
 class PointerRef(BasePointerRef):
-
     id: uuid.UUID
-    module_id: uuid.UUID
 
 
 class ConstraintRef(ImmutableBase):
     # The id of the constraint
     id: uuid.UUID
-    # The module id of the constraint
-    module_id: uuid.UUID
 
 
 class TupleIndirectionLink(s_pointers.PseudoPointer):
@@ -244,7 +256,8 @@ class TupleIndirectionLink(s_pointers.PseudoPointer):
     ) -> None:
         self._source = source
         self._target = target
-        self._name = sn.Name(module='__tuple__', name=str(element_name))
+        self._name = sn.QualName(
+            module='__tuple__', name=str(element_name))
 
     def __hash__(self) -> int:
         return hash((self.__class__, self._name))
@@ -255,7 +268,7 @@ class TupleIndirectionLink(s_pointers.PseudoPointer):
 
         return self._name == other._name
 
-    def get_name(self, schema: s_schema.Schema) -> str:
+    def get_name(self, schema: s_schema.Schema) -> sn.QualName:
         return self._name
 
     def get_cardinality(
@@ -307,7 +320,7 @@ class TypeIntersectionLink(s_pointers.PseudoPointer):
         cardinality: qltypes.SchemaCardinality,
     ) -> None:
         name = 'optindirection' if optional else 'indirection'
-        self._name = sn.Name(module='__type__', name=name)
+        self._name = sn.QualName(module='__type__', name=name)
         self._source = source
         self._target = target
         self._cardinality = cardinality
@@ -316,7 +329,7 @@ class TypeIntersectionLink(s_pointers.PseudoPointer):
         self._is_subtype = is_subtype
         self._rptr_specialization = frozenset(rptr_specialization)
 
-    def get_name(self, schema: s_schema.Schema) -> sn.Name:
+    def get_name(self, schema: s_schema.Schema) -> sn.QualName:
         return self._name
 
     def get_cardinality(
@@ -413,11 +426,12 @@ class Set(Base):
     path_id: PathId
     path_scope_id: typing.Optional[int]
     typeref: TypeRef
-    expr: Expr
-    rptr: Pointer
+    expr: typing.Optional[Expr]
+    rptr: typing.Optional[Pointer]
     anchor: typing.Optional[str]
     show_as_anchor: typing.Optional[str]
     shape: typing.List[typing.Tuple[Set, qlast.ShapeOp]]
+    is_binding: bool
 
     def __repr__(self) -> str:
         return f'<ir.Set \'{self.path_id}\' at 0x{id(self):x}>'
@@ -444,13 +458,23 @@ class Param:
     """IR type reference"""
 
 
+class ComputableInfo(typing.NamedTuple):
+
+    qlexpr: qlast.Expr
+    context: compiler.ContextLevel
+    path_id: PathId
+    path_id_ns: typing.Optional[WeakNamespace]
+    shape_op: qlast.ShapeOp
+
+
 class Statement(Command):
 
     expr: Set
-    views: typing.Dict[sn.Name, s_types.Type]
+    views: typing.Dict[sn.QualName, s_types.Type]
     params: typing.List[Param]
     cardinality: qltypes.Cardinality
     volatility: qltypes.Volatility
+    multiplicity: typing.Optional[qltypes.Multiplicity]
     stype: s_types.Type
     view_shapes: typing.Dict[so.Object, typing.List[s_pointers.Pointer]]
     view_shapes_metadata: typing.Dict[so.Object, ViewShapeMetadata]
@@ -460,11 +484,7 @@ class Statement(Command):
         typing.Dict[so.Object, typing.Set[qlast.Base]]]
     new_coll_types: typing.FrozenSet[s_types.Collection]
     scope_tree: ScopeTreeNode
-    source_map: typing.Dict[s_pointers.Pointer,
-                            typing.Tuple[qlast.Expr,
-                                         compiler.ContextLevel,
-                                         PathId,
-                                         typing.Optional[WeakNamespace]]]
+    source_map: typing.Dict[s_pointers.Pointer, ComputableInfo]
     dml_exprs: typing.List[qlast.Base]
     type_rewrites: typing.Dict[uuid.UUID, Set]
 
@@ -600,10 +620,7 @@ class Call(ImmutableExpr):
     func_polymorphic: bool
 
     # Bound callable's name.
-    func_shortname: sn.Name
-
-    # The id of the module in which the callable is defined.
-    func_module_id: uuid.UUID
+    func_shortname: sn.QualName
 
     # If the bound callable is a "USING SQL" callable, this
     # attribute will be set to the name of the SQL function.
@@ -630,7 +647,7 @@ class Call(ImmutableExpr):
     # of tuple element path ids relative to the call set.
     tuple_path_ids: typing.List[PathId]
 
-    # Volatility of the funciton or operator.
+    # Volatility of the function or operator.
     volatility: qltypes.Volatility
 
 
@@ -647,15 +664,15 @@ class FunctionCall(Call):
     # The underlying SQL function has OUT parameters.
     sql_func_has_out_params: bool = False
 
+    # backend_name for the underlying function
+    backend_name: typing.Optional[uuid.UUID] = None
+
     # Error to raise if the underlying SQL function returns NULL.
     error_on_null_result: typing.Optional[str] = None
 
     # Set to the type of the variadic parameter of the bound function
     # (or None, if the function has no variadic parameters.)
     variadic_param_type: typing.Optional[TypeRef] = None
-
-    # True if function requires a session to be executed
-    session_only: bool = False
 
 
 class OperatorCall(Call):
@@ -669,7 +686,7 @@ class OperatorCall(Call):
     sql_operator: typing.Optional[typing.Tuple[str, ...]] = None
 
     # The name of the origin operator if this is a derivative operator.
-    origin_name: sn.Name
+    origin_name: sn.QualName
 
     # The module id of the origin operator if this is a derivative operator.
     origin_module_id: uuid.UUID
@@ -694,7 +711,7 @@ class TypeCast(ImmutableExpr):
 
     expr: Set
     cast_module_id: uuid.UUID
-    cast_name: str
+    cast_name: sn.QualName
     from_type: TypeRef
     to_type: TypeRef
     cardinality_mod: typing.Optional[qlast.CardinalityModifier]
@@ -713,6 +730,7 @@ class Stmt(Expr):
     parent_stmt: typing.Optional[Stmt]
     iterator_stmt: typing.Optional[Set]
     hoisted_iterators: typing.List[Set]
+    bindings: typing.List[Set]
 
 
 class FilteredStmt(Stmt):
@@ -741,14 +759,10 @@ class MutatingStmt(Stmt):
     subject: Set
 
 
-class OnConflictElse(typing.NamedTuple):
-    select: Set
-    body: Set
-
-
-class OnConflictClause(typing.NamedTuple):
+class OnConflictClause(Base):
     constraint: typing.Optional[ConstraintRef]
-    else_ir: typing.Optional[OnConflictElse]
+    select_ir: Set
+    else_ir: typing.Optional[Set]
 
 
 class InsertStmt(MutatingStmt):
@@ -772,7 +786,7 @@ class SessionStateCmd(Command):
 class ConfigCommand(Command):
     __abstract_node__ = True
     name: str
-    system: bool
+    scope: qltypes.ConfigScope
     cardinality: qltypes.SchemaCardinality
     requires_restart: bool
     backend_setting: str

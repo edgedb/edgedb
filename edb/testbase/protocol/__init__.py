@@ -22,31 +22,10 @@ from __future__ import annotations
 import enum
 import typing
 
-from edb.testbase import server
-
-from . import protocol
 from . import messages
 from . import render_utils
 
 from .messages import *  # NoQA
-
-
-class ProtocolTestCase(server.ClusterTestCase):
-
-    def setUp(self):
-        self.con = self.loop.run_until_complete(
-            protocol.new_connection(
-                **self.get_connect_args()
-            )
-        )
-
-    def tearDown(self):
-        try:
-            self.loop.run_until_complete(
-                self.con.aclose()
-            )
-        finally:
-            self.con = None
 
 
 def render(

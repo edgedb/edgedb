@@ -61,6 +61,7 @@ def compile_FunctionCall(
 
     env = ctx.env
 
+    funcname: sn.Name
     if isinstance(expr.func, str):
         if (
             ctx.env.options.func_params is not None
@@ -72,9 +73,9 @@ def compile_FunctionCall(
                 f'parameter `{expr.func}` is not callable',
                 context=expr.context)
 
-        funcname = expr.func
+        funcname = sn.UnqualName(expr.func)
     else:
-        funcname = sn.Name(expr.func[1], expr.func[0])
+        funcname = sn.QualName(*expr.func)
 
     funcs = env.schema.get_functions(funcname, module_aliases=ctx.modaliases)
 
@@ -96,15 +97,49 @@ def compile_FunctionCall(
     args, kwargs, arg_ctxs = compile_call_args(expr, funcname, ctx=ctx)
     matched = polyres.find_callable(funcs, args=args, kwargs=kwargs, ctx=ctx)
     if not matched:
+        alts = [f.get_signature_as_str(env.schema) for f in funcs]
+        sig: List[str] = []
+        # This is used to generate unique arg names.
+        argnum = 0
+        for argtype, _ in args:
+            # Skip any name colliding with kwargs.
+            while f'arg{argnum}' in kwargs:
+                argnum += 1
+            sig.append(
+                f'arg{argnum}: {argtype.get_displayname(env.schema)}'
+            )
+            argnum += 1
+        for kwname, (kwtype, _) in kwargs.items():
+            sig.append(
+                f'NAMED ONLY {kwname}: {kwtype.get_displayname(env.schema)}'
+            )
+
+        signature = f'{funcname}({", ".join(sig)})'
+
+        if not funcs:
+            hint = None
+        elif len(alts) == 1:
+            hint = f'Did you want "{alts[0]}"?'
+        else:  # Multiple alternatives
+            hint = (
+                f'Did you want one of the following functions instead:\n' +
+                ('\n'.join(alts))
+            )
+
         raise errors.QueryError(
-            f'could not find a function variant {funcname}',
+            f'function "{signature}" does not exist',
+            hint=hint,
             context=expr.context)
     elif len(matched) > 1:
         if in_abstract_constraint:
             matched_call = matched[0]
         else:
+            alts = [m.func.get_signature_as_str(env.schema) for m in matched]
             raise errors.QueryError(
                 f'function {funcname} is not unique',
+                hint=f'Please disambiguate between the following '
+                     f'alternatives:\n' +
+                     ('\n'.join(alts)),
                 context=expr.context)
     else:
         matched_call = matched[0]
@@ -139,11 +174,6 @@ def compile_FunctionCall(
 
     assert isinstance(func, s_func.Function)
     func_name = func.get_shortname(env.schema)
-
-    if not ctx.env.options.session_mode and func.get_session_only(env.schema):
-        raise errors.QueryError(
-            f'{func_name}() cannot be called in a non-session context',
-            context=expr.context)
 
     matched_func_params = func.get_params(env.schema)
     variadic_param = matched_func_params.find_variadic(env.schema)
@@ -199,12 +229,12 @@ def compile_FunctionCall(
         nested_path_ids = []
         for n, st in rtype.iter_subtypes(ctx.env.schema):
             elem_path_id = pathctx.get_tuple_indirection_path_id(
-                path_id, n, st, ctx=ctx).strip_weak_namespaces()
+                path_id, n, st, ctx=ctx)
 
             if isinstance(st, s_types.Tuple):
                 nested_path_ids.append([
                     pathctx.get_tuple_indirection_path_id(
-                        elem_path_id, nn, sst, ctx=ctx).strip_weak_namespaces()
+                        elem_path_id, nn, sst, ctx=ctx)
                     for nn, sst in st.iter_subtypes(ctx.env.schema)
                 ])
 
@@ -216,13 +246,11 @@ def compile_FunctionCall(
 
     fcall = irast.FunctionCall(
         args=final_args,
-        func_module_id=env.schema.get_global(
-            s_mod.Module, func_name.module).id,
         func_shortname=func_name,
+        backend_name=func.get_backend_name(env.schema),
         func_polymorphic=is_polymorphic,
         func_sql_function=func.get_from_function(env.schema),
         force_return_cast=func.get_force_return_cast(env.schema),
-        session_only=func.get_session_only(env.schema),
         volatility=func.get_volatility(env.schema),
         sql_func_has_out_params=func.get_sql_func_has_out_params(env.schema),
         error_on_null_result=func.get_error_on_null_result(env.schema),
@@ -244,8 +272,8 @@ def compile_FunctionCall(
 #: A dictionary of conditional callables and the indices
 #: of the arguments that are evaluated conditionally.
 CONDITIONAL_OPS = {
-    'std::IF': {0, 2},
-    'std::??': {1},
+    sn.QualName('std', 'IF'): {0, 2},
+    sn.QualName('std', '??'): {1},
 }
 
 
@@ -410,7 +438,7 @@ def compile_operator(
 
     if not in_polymorphic_func:
         matched = [call for call in matched
-                   if not call.func.get_is_abstract(env.schema)]
+                   if not call.func.get_abstract(env.schema)]
 
     if len(matched) == 1:
         matched_call = matched[0]
@@ -475,6 +503,7 @@ def compile_operator(
     assert isinstance(oper, s_oper.Operator)
     env.add_schema_ref(oper, expr=qlexpr)
     oper_name = oper.get_shortname(env.schema)
+    str_oper_name = str(oper_name)
 
     matched_params = oper.get_params(env.schema)
     rtype = matched_call.return_type
@@ -493,10 +522,10 @@ def compile_operator(
         ctx=ctx,
     )
 
-    if oper_name in {'std::UNION', 'std::IF'} and rtype.is_object_type():
+    if str_oper_name in {'std::UNION', 'std::IF'} and rtype.is_object_type():
         # Special case for the UNION and IF operators, instead of common
         # parent type, we return a union type.
-        if oper_name == 'std::UNION':
+        if str_oper_name == 'std::UNION':
             larg, rarg = (a.expr for a in final_args)
         else:
             larg, _, rarg = (a.expr for a in final_args)
@@ -526,7 +555,7 @@ def compile_operator(
             not in_polymorphic_func):
         sql_operator = tuple(from_op)
 
-    origin_name: Optional[sn.SchemaName]
+    origin_name: Optional[sn.QualName]
     origin_module_id: Optional[uuid.UUID]
     if derivative_op is not None:
         origin_name = oper_name
@@ -539,8 +568,6 @@ def compile_operator(
 
     node = irast.OperatorCall(
         args=final_args,
-        func_module_id=env.schema.get_global(
-            s_mod.Module, oper_name.module).id,
         func_shortname=oper_name,
         func_polymorphic=is_polymorphic,
         origin_name=origin_name,
@@ -614,13 +641,15 @@ def compile_call_arg(
 
 
 def compile_call_args(
-        expr: qlast.FunctionCall, funcname: str, *,
-        ctx: context.ContextLevel) \
-        -> Tuple[
-            List[Tuple[s_types.Type, irast.Set]],
-            Dict[str, Tuple[s_types.Type, irast.Set]],
-            Dict[irast.Set, context.ContextLevel]]:
-
+    expr: qlast.FunctionCall,
+    funcname: sn.Name,
+    *,
+    ctx: context.ContextLevel
+) -> Tuple[
+    List[Tuple[s_types.Type, irast.Set]],
+    Dict[str, Tuple[s_types.Type, irast.Set]],
+    Dict[irast.Set, context.ContextLevel],
+]:
     args = []
     kwargs = {}
     arg_ctxs = {}
@@ -738,12 +767,26 @@ def finalize_args(
                     pathctx.assign_set_scope(arg, None, ctx=ctx)
         else:
             process_path_log(arg_ctx, arg_scope)
+            is_array_agg = (
+                isinstance(bound_call.func, s_func.Function)
+                and (
+                    bound_call.func.get_shortname(ctx.env.schema)
+                    == sn.QualName('std', 'array_agg')
+                )
+            )
 
-            if (is_polymorphic
-                    and ctx.expr_exposed
-                    and ctx.implicit_limit
-                    and isinstance(arg.expr, irast.SelectStmt)
-                    and arg.expr.limit is None):
+            if (
+                # Ideally, we should implicitly slice all array values,
+                # but in practice, the vast majority of large arrays
+                # will come from array_agg, and so we only care about
+                # that.
+                is_array_agg
+                and ctx.expr_exposed
+                and ctx.implicit_limit
+                and isinstance(arg.expr, irast.SelectStmt)
+                and arg.expr.limit is None
+                and not ctx.inhibit_implicit_limit
+            ):
                 arg.expr.limit = setgen.ensure_set(
                     dispatch.compile(
                         qlast.IntegerConstant(value=str(ctx.implicit_limit)),

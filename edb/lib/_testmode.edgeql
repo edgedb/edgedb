@@ -20,7 +20,7 @@
 # These definitions are picked up if the EdgeDB instance is bootstrapped
 # with --testmode.
 
-CREATE TYPE cfg::SessionConfig {
+CREATE TYPE cfg::TestSessionConfig {
     CREATE REQUIRED PROPERTY name -> std::str {
         CREATE CONSTRAINT std::exclusive;
     }
@@ -42,7 +42,7 @@ CREATE TYPE cfg::Subclass2 EXTENDING cfg::Base {
 };
 
 
-CREATE TYPE cfg::SystemConfig {
+CREATE TYPE cfg::TestSystemConfig {
     CREATE REQUIRED PROPERTY name -> std::str {
         CREATE CONSTRAINT std::exclusive;
     };
@@ -51,9 +51,13 @@ CREATE TYPE cfg::SystemConfig {
 };
 
 
-ALTER TYPE cfg::Config {
-    CREATE MULTI LINK sessobj -> cfg::SessionConfig;
-    CREATE MULTI LINK sysobj -> cfg::SystemConfig;
+ALTER TYPE cfg::AbstractConfig {
+    CREATE MULTI LINK sessobj -> cfg::TestSessionConfig {
+        CREATE ANNOTATION cfg::internal := 'true';
+    };
+    CREATE MULTI LINK sysobj -> cfg::TestSystemConfig {
+        CREATE ANNOTATION cfg::internal := 'true';
+    };
 
     CREATE PROPERTY __internal_testvalue -> std::int64 {
         CREATE ANNOTATION cfg::internal := 'true';
@@ -61,8 +65,15 @@ ALTER TYPE cfg::Config {
         SET default := 0;
     };
 
+    CREATE PROPERTY __internal_sess_testvalue -> std::int64 {
+        CREATE ANNOTATION cfg::internal := 'true';
+        SET default := 0;
+    };
+
+
     CREATE PROPERTY __internal_no_const_folding -> std::bool {
         CREATE ANNOTATION cfg::internal := 'true';
+        CREATE ANNOTATION cfg::affects_compilation := 'true';
         SET default := false;
     };
 
@@ -131,4 +142,76 @@ std::_gen_series(
 {
     SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'generate_series';
+};
+
+
+CREATE FUNCTION
+sys::_sleep(duration: std::float64) -> std::bool
+{
+    CREATE ANNOTATION std::description :=
+        'Make the current session sleep for *duration* time.';
+    # This function has side-effect.
+    SET volatility := 'VOLATILE';
+    USING SQL $$
+    SELECT pg_sleep("duration") IS NOT NULL;
+    $$;
+};
+
+CREATE FUNCTION
+sys::_sleep(duration: std::duration) -> std::bool
+{
+    CREATE ANNOTATION std::description :=
+        'Make the current session sleep for *duration* time.';
+    # This function has side-effect.
+    SET volatility := 'VOLATILE';
+    USING SQL $$
+    SELECT pg_sleep_for("duration") IS NOT NULL;
+    $$;
+};
+
+
+CREATE FUNCTION
+sys::_advisory_lock(key: std::int64) -> std::bool
+{
+    CREATE ANNOTATION std::description :=
+        'Obtain an exclusive session-level advisory lock.';
+    # This function has side-effect.
+    SET volatility := 'VOLATILE';
+    USING SQL $$
+    SELECT CASE WHEN "key" < 0 THEN
+        edgedb.raise(NULL::bool, msg => 'lock key cannot be negative')
+    ELSE
+        pg_advisory_lock("key") IS NOT NULL
+    END;
+    $$;
+};
+
+
+CREATE FUNCTION
+sys::_advisory_unlock(key: std::int64) -> std::bool
+{
+    CREATE ANNOTATION std::description :=
+        'Release an exclusive session-level advisory lock.';
+    # This function has side-effect.
+    SET volatility := 'VOLATILE';
+    USING SQL $$
+    SELECT CASE WHEN "key" < 0 THEN
+        edgedb.raise(NULL::bool, msg => 'lock key cannot be negative')
+    ELSE
+        pg_advisory_unlock("key")
+    END;
+    $$;
+};
+
+
+CREATE FUNCTION
+sys::_advisory_unlock_all() -> std::bool
+{
+    CREATE ANNOTATION std::description :=
+        'Release all session-level advisory locks held by the current session.';
+    # This function has side-effect.
+    SET volatility := 'VOLATILE';
+    USING SQL $$
+    SELECT pg_advisory_unlock_all() IS NOT NULL;
+    $$;
 };

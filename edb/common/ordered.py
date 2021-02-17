@@ -28,35 +28,29 @@ K = TypeVar("K", bound=Hashable)
 
 
 class OrderedSet(MutableSet[K]):
-    def __init__(self, iterable: Optional[Iterable[K]] = None) -> None:
-        self.map: collections.OrderedDict[K, K] = collections.OrderedDict()
-        if iterable is not None:
-            # The ignore below is because typing of collections.abc.MutableSet
-            # inherits a limitation of the built-in set that disallows |= with
-            # iterables that are not sets themselves.  However, the mixin
-            # *does* allow this and OrderedSet depends on this.
-            self.update(iterable)
 
-    def add(self, item: K, *, last: Optional[bool] = None) -> None:
-        self.map[item] = item
-        if last is not None:
-            self.map.move_to_end(item, last=last)
+    map: Dict[K, None]
+
+    def __init__(self, iterable: Optional[Iterable[K]] = None) -> None:
+        if iterable is not None:
+            self.map = {v: None for v in iterable}
+        else:
+            self.map = {}
+
+    def add(self, item: K) -> None:
+        self.map[item] = None
 
     def discard(self, item: K) -> None:
-        self.map.pop(item, item)
-
-    def popitem(self, last: bool = True) -> K:
-        key, item = self.map.popitem(last)
-        return item
+        self.map.pop(item, None)
 
     def update(self, iterable: Iterable[K]) -> None:
         for item in iterable:
-            self.add(item)
+            self.map[item] = None
 
     def replace(self, existing: K, new: K) -> None:
         if existing not in self.map:
             raise LookupError(f'{existing!r} is not in set')
-        self.map[existing] = new
+        self.map[existing] = None
 
     difference_update = collections.abc.MutableSet.__isub__
     symmetric_difference_update = collections.abc.MutableSet.__ixor__
@@ -69,10 +63,10 @@ class OrderedSet(MutableSet[K]):
         return item in self.map
 
     def __iter__(self) -> Iterator[K]:
-        return iter(list(self.map.values()))
+        return iter(self.map)
 
     def __reversed__(self) -> Iterator[K]:
-        return reversed(self.map.values())
+        return reversed(list(self.map))
 
     def __repr__(self) -> str:
         if not self:

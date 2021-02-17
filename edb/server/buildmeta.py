@@ -20,6 +20,7 @@
 from __future__ import annotations
 from typing import *
 
+import functools
 import hashlib
 import json
 import logging
@@ -98,12 +99,16 @@ def get_runstate_path(data_dir: pathlib.Path) -> pathlib.Path:
 
 def get_shared_data_dir_path() -> pathlib.Path:
     if devmode.is_in_dev_mode():
-        return devmode.get_dev_mode_cache_dir()
+        return devmode.get_dev_mode_cache_dir()  # type: ignore[return-value]
     else:
         return pathlib.Path(get_build_metadata_value('SHARED_DATA_DIR'))
 
 
-def hash_dirs(dirs: Tuple[str, str]) -> bytes:
+def hash_dirs(
+    dirs: Sequence[Tuple[str, str]],
+    *,
+    extra_files: Optional[Sequence[str]]=None
+) -> bytes:
     def hash_dir(dirname, ext, paths):
         with os.scandir(dirname) as it:
             for entry in it:
@@ -112,9 +117,12 @@ def hash_dirs(dirs: Tuple[str, str]) -> bytes:
                 elif entry.is_dir():
                     hash_dir(entry.path, ext, paths)
 
-    paths = []
+    paths: List[str] = []
     for dirname, ext in dirs:
         hash_dir(dirname, ext, paths)
+
+    if extra_files:
+        paths.extend(extra_files)
 
     h = hashlib.sha1()  # sha1 is the fastest one.
     for path in sorted(paths):
@@ -182,13 +190,13 @@ def write_data_cache(
 
 def get_version() -> verutils.Version:
     if devmode.is_in_dev_mode():
+        root = pathlib.Path(__file__).parent.parent.parent.resolve()
         if setuptools_scm is None:
             raise MetadataError(
                 'cannot determine build version: no setuptools_scm module')
         version = setuptools_scm.get_version(
-            root='../..',
-            relative_to=__file__,
-            version_scheme=scm_version_scheme,
+            root=str(root),
+            version_scheme=functools.partial(scm_version_scheme, root),
         )
         version = verutils.parse_version(version)
     else:
@@ -228,7 +236,7 @@ def get_version_json() -> str:
     return _version_json
 
 
-def scm_version_scheme(version):
+def scm_version_scheme(root, version):
     pretend = os.environ.get('SETUPTOOLS_SCM_PRETEND_VERSION')
     if pretend:
         return pretend
@@ -258,6 +266,7 @@ def scm_version_scheme(version):
         stdout=subprocess.PIPE,
         universal_newlines=True,
         check=True,
+        cwd=root,
     )
     versions = proc.stdout.split('\n')
     latest_version = max(versions)
@@ -267,6 +276,7 @@ def scm_version_scheme(version):
         stdout=subprocess.PIPE,
         universal_newlines=True,
         check=True,
+        cwd=root,
     )
     tag_list = proc.stdout.strip()
     if tag_list:
@@ -283,6 +293,7 @@ def scm_version_scheme(version):
         stdout=subprocess.PIPE,
         universal_newlines=True,
         check=True,
+        cwd=root,
     )
     commits_on_branch = proc.stdout.strip()
     m = pep440_version_re.match(latest_version[1:])

@@ -1,3 +1,5 @@
+# mypy: ignore-errors
+
 #
 # This source file is part of the EdgeDB open source project.
 #
@@ -505,6 +507,7 @@ class LogMessage(ServerMessage):
 
     mtype = MessageType('L')
     message_length = MessageLength
+    severity = EnumOf(UInt8, MessageSeverity, 'Message severity.')
     code = UInt32('Message code.')
     text = String('Message text.')
     attributes = ArrayOf(UInt16, Header, 'Message attributes.')
@@ -569,7 +572,6 @@ class Data(ServerMessage):
 
     mtype = MessageType('D')
     message_length = MessageLength
-    reserved = UInt32()
 
     data = ArrayOf(
         UInt16,

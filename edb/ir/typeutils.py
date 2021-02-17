@@ -27,7 +27,6 @@ from edb.edgeql import qltypes
 
 from edb.schema import links as s_links
 from edb.schema import lproperties as s_props
-from edb.schema import modules as s_mod
 from edb.schema import pointers as s_pointers
 from edb.schema import pseudo as s_pseudo
 from edb.schema import scalars as s_scalars
@@ -42,7 +41,7 @@ if TYPE_CHECKING:
     from edb.schema import schema as s_schema
 
 
-TypeRefCacheKey = Tuple[uuid.UUID, bool]
+TypeRefCacheKey = Tuple[uuid.UUID, bool, bool]
 
 PtrRefCacheKey = Tuple[
     s_pointers.PointerLike,
@@ -124,8 +123,9 @@ def type_to_typeref(
     t: s_types.Type,
     *,
     cache: Optional[Dict[TypeRefCacheKey, irast.TypeRef]] = None,
-    typename: Optional[s_name.Name] = None,
+    typename: Optional[s_name.QualName] = None,
     include_descendants: bool = False,
+    include_ancestors: bool = False,
     _name: Optional[str] = None,
 ) -> irast.TypeRef:
     """Return an instance of :class:`ir.ast.TypeRef` for a given type.
@@ -146,6 +146,9 @@ def type_to_typeref(
         include_descendants:
             Whether to include the description of all material type descendants
             of *t*.
+        include_ancestors:
+            Whether to include the description of all material type ancestors
+            of *t*.
         _name:
             Optional subtype element name if this type is a collection within
             a Tuple,
@@ -157,8 +160,10 @@ def type_to_typeref(
     result: irast.TypeRef
     material_type: s_types.Type
 
+    key = (t.id, include_descendants, include_ancestors)
+
     if cache is not None and typename is None:
-        cached_result = cache.get((t.id, include_descendants))
+        cached_result = cache.get(key)
         if cached_result is not None:
             # If the schema changed due to an ongoing compilation, the name
             # hint might be outdated.
@@ -205,20 +210,21 @@ def type_to_typeref(
         schema, material_type = t.material_type(schema)
 
         material_typeref: Optional[irast.TypeRef]
-        if material_type is not t:
+        if material_type != t:
             material_typeref = type_to_typeref(
                 schema,
                 material_type,
                 include_descendants=include_descendants,
+                include_ancestors=include_ancestors,
                 cache=cache,
             )
         else:
             material_typeref = None
 
         if (isinstance(material_type, s_scalars.ScalarType)
-                and not material_type.get_is_abstract(schema)):
+                and not material_type.get_abstract(schema)):
             base_type = material_type.get_topmost_concrete_base(schema)
-            if base_type is material_type:
+            if base_type == material_type:
                 base_typeref = None
             else:
                 assert isinstance(base_type, s_types.Type)
@@ -233,7 +239,6 @@ def type_to_typeref(
             name = typename
         else:
             name = tname
-        module = schema.get_global(s_mod.Module, tname.module)
 
         common_parent_ref: Optional[irast.TypeRef]
         if union_of:
@@ -255,6 +260,7 @@ def type_to_typeref(
                     child,
                     cache=cache,
                     include_descendants=True,
+                    include_ancestors=include_ancestors,
                 )
                 for child in t.children(schema)
                 if not child.get_is_derived(schema)
@@ -262,27 +268,42 @@ def type_to_typeref(
         else:
             descendants = None
 
+        ancestors: Optional[FrozenSet[irast.TypeRef]]
+        if material_typeref is None and include_ancestors:
+            ancestors = frozenset(
+                type_to_typeref(
+                    schema,
+                    ancestor,
+                    cache=cache,
+                    include_descendants=include_descendants,
+                    include_ancestors=False
+                )
+                for ancestor in t.get_ancestors(schema).objects(schema)
+            )
+        else:
+            ancestors = None
+
         result = irast.TypeRef(
             id=t.id,
-            module_id=module.id,
             name_hint=name,
             material_type=material_typeref,
             base_type=base_typeref,
             descendants=descendants,
+            ancestors=ancestors,
             union=union,
             union_is_concrete=union_is_concrete,
             intersection=intersection,
             common_parent=common_parent_ref,
             element_name=_name,
             is_scalar=t.is_scalar(),
-            is_abstract=t.get_is_abstract(schema),
+            is_abstract=t.get_abstract(schema),
             is_view=t.is_view(schema),
             is_opaque_union=t.get_is_opaque_union(schema),
         )
     elif isinstance(t, s_types.Tuple) and t.is_named(schema):
         schema, material_type = t.material_type(schema)
 
-        if material_type is not t:
+        if material_type != t:
             material_typeref = type_to_typeref(
                 schema, material_type, cache=cache
             )
@@ -304,7 +325,7 @@ def type_to_typeref(
     else:
         schema, material_type = t.material_type(schema)
 
-        if material_type is not t:
+        if material_type != t:
             material_typeref = type_to_typeref(
                 schema, material_type, cache=cache
             )
@@ -331,7 +352,7 @@ def type_to_typeref(
         # There's also no variant for types with custom typenames since they
         # proved to have a very low hit rate.
         # This way we save on the size of the key tuple.
-        cache[t.id, include_descendants] = result
+        cache[key] = result
     return result
 
 
@@ -469,9 +490,6 @@ def ptrref_from_ptrcls(  # NoQA: F811
     elif isinstance(ptrcls, s_pointers.Pointer):
         ircls = irast.PointerRef
         kwargs['id'] = ptrcls.id
-        name = ptrcls.get_name(schema)
-        kwargs['module_id'] = schema.get_global(
-            s_mod.Module, name.module).id
     else:
         raise AssertionError(f'unexpected pointer class: {ptrcls}')
 
@@ -517,7 +535,7 @@ def ptrref_from_ptrcls(  # NoQA: F811
 
     schema, material_ptrcls = ptrcls.material_type(schema)
     material_ptr: Optional[irast.BasePointerRef]
-    if material_ptrcls is not None and material_ptrcls is not ptrcls:
+    if material_ptrcls is not None and material_ptrcls != ptrcls:
         material_ptr = ptrref_from_ptrcls(
             ptrcls=material_ptrcls,
             direction=direction,
@@ -552,6 +570,26 @@ def ptrref_from_ptrcls(  # NoQA: F811
                 cache=cache,
                 typeref_cache=typeref_cache,
             ) for p in non_overlapping
+        }
+
+    intersection_components: Set[irast.BasePointerRef] = set()
+    intersection_of = ptrcls.get_intersection_of(schema)
+    if intersection_of:
+        intersection_ptrs = set()
+
+        for component in intersection_of.objects(schema):
+            assert isinstance(component, s_pointers.Pointer)
+            schema, material_comp = component.material_type(schema)
+            intersection_ptrs.add(material_comp)
+
+        intersection_components = {
+            ptrref_from_ptrcls(
+                ptrcls=p,
+                direction=direction,
+                schema=schema,
+                cache=cache,
+                typeref_cache=typeref_cache,
+            ) for p in intersection_ptrs
         }
 
     std_parent_name = None
@@ -612,6 +650,7 @@ def ptrref_from_ptrcls(  # NoQA: F811
         is_derived=ptrcls.get_is_derived(schema),
         is_computable=ptrcls.get_computable(schema),
         union_components=union_components,
+        intersection_components=intersection_components,
         union_is_concrete=union_is_concrete,
         has_properties=ptrcls.has_user_defined_properties(schema),
         dir_cardinality=dir_cardinality,
@@ -688,7 +727,7 @@ def cardinality_from_ptrcls(
 
     out_card = ptrcls.get_cardinality(schema)
     required = ptrcls.get_required(schema)
-    if out_card is None:
+    if out_card is None or not out_card.is_known():
         # The cardinality is not yet known.
         out_cardinality = None
         dir_cardinality = None
@@ -713,7 +752,7 @@ def cardinality_from_ptrcls(
 def is_id_ptrref(ptrref: irast.BasePointerRef) -> bool:
     """Return True if *ptrref* describes the id property."""
     return (
-        ptrref.std_parent_name == 'std::id'
+        str(ptrref.std_parent_name) == 'std::id'
     )
 
 
@@ -815,7 +854,7 @@ def find_actual_ptrref(
     elif ptrref.dir_source.id != source_typeref.id:
         # We are updating a subtype, find the
         # correct descendant ptrref.
-        for dp in ptrref.union_components:
+        for dp in ptrref.union_components | ptrref.intersection_components:
             candidate = maybe_find_actual_ptrref(source_typeref, dp)
             if candidate is not None:
                 actual_ptrref = candidate

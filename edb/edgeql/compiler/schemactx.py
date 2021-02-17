@@ -47,47 +47,58 @@ from . import context
 
 # XXX: COME BACK TO THIS
 def get_schema_object(
-        name: Union[str, qlast.BaseObjectRef],
-        module: Optional[str]=None, *,
-        item_type: Optional[Type[s_obj.Object]]=None,
-        condition: Optional[Callable[[s_obj.Object], bool]]=None,
-        label: Optional[str]=None,
-        ctx: context.ContextLevel,
-        srcctx: Optional[parsing.ParserContext] = None) -> s_obj.Object:
+    ref: qlast.BaseObjectRef,
+    module: Optional[str]=None,
+    *,
+    item_type: Optional[Type[s_obj.Object]]=None,
+    condition: Optional[Callable[[s_obj.Object], bool]]=None,
+    label: Optional[str]=None,
+    ctx: context.ContextLevel,
+    srcctx: Optional[parsing.ParserContext] = None,
+) -> s_obj.Object:
 
-    expr = name if isinstance(name, qlast.BaseObjectRef) else None
-
-    if isinstance(name, qlast.ObjectRef):
+    if isinstance(ref, qlast.ObjectRef):
         if srcctx is None:
-            srcctx = name.context
-        module = name.module
-        name = name.name
-    elif isinstance(name, qlast.AnyType):
+            srcctx = ref.context
+        module = ref.module
+        lname = ref.name
+    elif isinstance(ref, qlast.AnyType):
         return s_pseudo.PseudoType.get(ctx.env.schema, 'anytype')
-    elif isinstance(name, qlast.AnyTuple):
+    elif isinstance(ref, qlast.AnyTuple):
         return s_pseudo.PseudoType.get(ctx.env.schema, 'anytuple')
-    elif isinstance(name, qlast.BaseObjectRef):
-        raise AssertionError(f"Unhandled BaseObjectRef subclass: {name!r}")
+    else:
+        raise AssertionError(f"Unhandled BaseObjectRef subclass: {ref!r}")
 
+    name: sn.Name
     if module:
-        name = sn.Name(name=name, module=module)
+        name = sn.QualName(module=module, name=lname)
+    else:
+        name = sn.UnqualName(name=lname)
 
-    elif isinstance(name, str):
-        view = _get_type_variant(name, ctx)
-        if view is not None:
-            return view
+    view = _get_type_variant(name, ctx)
+    if view is not None:
+        return view
 
     try:
         stype = ctx.env.get_track_schema_object(
-            name=name, expr=expr, modaliases=ctx.modaliases,
-            type=item_type, condition=condition,
+            name=name,
+            expr=ref,
+            modaliases=ctx.modaliases,
+            type=item_type,
+            condition=condition,
             label=label,
         )
 
     except errors.QueryError as e:
         s_utils.enrich_schema_lookup_error(
-            e, name, modaliases=ctx.modaliases, schema=ctx.env.schema,
-            item_type=item_type, condition=condition, context=srcctx)
+            e,
+            name,
+            modaliases=ctx.modaliases,
+            schema=ctx.env.schema,
+            item_type=item_type,
+            condition=condition,
+            context=srcctx,
+        )
         raise
 
     view = _get_type_variant(stype.get_name(ctx.env.schema), ctx)
@@ -97,15 +108,16 @@ def get_schema_object(
         # stype is the view in process of being defined and as such is
         # not yet a valid schema object
         raise errors.SchemaDefinitionError(
-            f'illegal self-reference in definition of {name!r}',
+            f'illegal self-reference in definition of {str(name)!r}',
             context=srcctx)
     else:
         return stype
 
 
 def _get_type_variant(
-        name: Union[str, sn.Name],
-        ctx: context.ContextLevel) -> Optional[s_obj.Object]:
+    name: sn.Name,
+    ctx: context.ContextLevel,
+) -> Optional[s_obj.Object]:
     type_variant = ctx.aliased_views.get(name)
     if type_variant is not None:
         ctx.must_use_views.pop(type_variant, None)
@@ -115,13 +127,15 @@ def _get_type_variant(
 
 
 def get_schema_type(
-        name: Union[str, qlast.BaseObjectRef],
-        module: Optional[str] = None, *,
-        ctx: context.ContextLevel,
-        label: Optional[str] = None,
-        condition: Optional[Callable[[s_obj.Object], bool]] = None,
-        item_type: Optional[Type[s_obj.Object]] = None,
-        srcctx: Optional[parsing.ParserContext] = None) -> s_types.Type:
+    name: qlast.BaseObjectRef,
+    module: Optional[str] = None,
+    *,
+    ctx: context.ContextLevel,
+    label: Optional[str] = None,
+    condition: Optional[Callable[[s_obj.Object], bool]] = None,
+    item_type: Optional[Type[s_obj.Object]] = None,
+    srcctx: Optional[parsing.ParserContext] = None,
+) -> s_types.Type:
     if item_type is None:
         item_type = s_types.Type
     obj = get_schema_object(name, module, item_type=item_type,
@@ -133,18 +147,18 @@ def get_schema_type(
 
 def resolve_schema_name(
         name: str, module: str, *,
-        ctx: context.ContextLevel) -> Optional[sn.Name]:
+        ctx: context.ContextLevel) -> Optional[sn.QualName]:
     schema_module = ctx.modaliases.get(module)
     if schema_module is None:
         return None
     else:
-        return sn.Name(name=name, module=schema_module)
+        return sn.QualName(name=name, module=schema_module)
 
 
 def derive_view(
     stype: s_types.Type,
     *,
-    derived_name: Optional[sn.SchemaName] = None,
+    derived_name: Optional[sn.QualName] = None,
     derived_name_quals: Optional[Sequence[str]] = (),
     derived_name_base: Optional[str] = None,
     preserve_shape: bool = False,
@@ -183,19 +197,35 @@ def derive_view(
 
     if isinstance(stype, s_abc.Collection):
         ctx.env.schema, derived = stype.derive_subtype(
-            ctx.env.schema, name=derived_name)
-
-    elif isinstance(stype, s_obj.DerivableInheritingObject):
-        ctx.env.schema, derived = stype.derive_subtype(
             ctx.env.schema,
             name=derived_name,
-            inheritance_merge=inheritance_merge,
-            inheritance_refdicts={'pointers'},
-            mark_derived=True,
-            transient=True,
-            preserve_path_id=preserve_path_id,
             attrs=attrs,
         )
+
+    elif isinstance(stype, s_obj.DerivableInheritingObject):
+        existing = ctx.env.schema.get(
+            derived_name, default=None, type=type(stype))
+        if existing is not None:
+            if ctx.recompiling_schema_alias:
+                # When recompiling schema alias, we, essentially
+                # re-derive the already-existing objects exactly.
+                derived = existing
+            else:
+                raise AssertionError(
+                    f'{type(stype).get_schema_class_displayname()}'
+                    f' {derived_name!r} already exists',
+                )
+        else:
+            ctx.env.schema, derived = stype.derive_subtype(
+                ctx.env.schema,
+                name=derived_name,
+                inheritance_merge=inheritance_merge,
+                inheritance_refdicts={'pointers'},
+                mark_derived=True,
+                transient=True,
+                preserve_path_id=preserve_path_id,
+                attrs=attrs,
+            )
 
         if (not stype.generic(ctx.env.schema)
                 and isinstance(derived, s_sources.Source)):
@@ -227,20 +257,21 @@ def derive_view(
 
 
 def derive_ptr(
-        ptr: s_pointers.Pointer,
-        source: s_sources.Source,
-        target: Optional[s_types.Type]=None,
-        *qualifiers: str,
-        derived_name: Optional[sn.SchemaName]=None,
-        derived_name_quals: Optional[Sequence[str]]=(),
-        derived_name_base: Optional[str]=None,
-        preserve_shape: bool=False,
-        preserve_path_id: bool=False,
-        is_insert: bool=False,
-        is_update: bool=False,
-        inheritance_merge: bool=True,
-        attrs: Optional[Dict[str, Any]]=None,
-        ctx: context.ContextLevel) -> s_pointers.Pointer:
+    ptr: s_pointers.Pointer,
+    source: s_sources.Source,
+    target: Optional[s_types.Type] = None,
+    *qualifiers: str,
+    derived_name: Optional[sn.QualName] = None,
+    derived_name_quals: Optional[Sequence[str]] = (),
+    derived_name_base: Optional[sn.Name] = None,
+    preserve_shape: bool = False,
+    preserve_path_id: bool = False,
+    is_insert: bool = False,
+    is_update: bool = False,
+    inheritance_merge: bool = True,
+    attrs: Optional[Dict[str, Any]] = None,
+    ctx: context.ContextLevel,
+) -> s_pointers.Pointer:
 
     if derived_name is None and ctx.derived_target_module:
         derived_name = derive_view_name(
@@ -289,11 +320,12 @@ def derive_ptr(
 
 
 def derive_view_name(
-        stype: Optional[s_obj.DerivableObject],
-        derived_name_quals: Optional[Sequence[str]]=(),
-        derived_name_base: Optional[str]=None, *,
-        ctx: context.ContextLevel) -> sn.Name:
-
+    stype: Optional[s_obj.DerivableObject],
+    derived_name_quals: Optional[Sequence[str]] = (),
+    derived_name_base: Optional[sn.Name] = None,
+    *,
+    ctx: context.ContextLevel,
+) -> sn.QualName:
     if not derived_name_quals:
         derived_name_quals = (ctx.aliases.get('view'),)
 
@@ -442,10 +474,11 @@ def derive_dummy_ptr(
     *,
     ctx: context.ContextLevel,
 ) -> s_pointers.Pointer:
-    stdobj = cast(s_objtypes.ObjectType, ctx.env.schema.get('std::BaseObject'))
+    stdobj = ctx.env.schema.get('std::BaseObject', type=s_objtypes.ObjectType)
     derived_obj_name = stdobj.get_derived_name(
         ctx.env.schema, stdobj, module='__derived__')
-    derived_obj = ctx.env.schema.get(derived_obj_name, None)
+    derived_obj = ctx.env.schema.get(
+        derived_obj_name, None, type=s_obj.QualifiedObject)
     if derived_obj is None:
         ctx.env.schema, derived_obj = stdobj.derive_subtype(
             ctx.env.schema, name=derived_obj_name)
@@ -475,7 +508,7 @@ def derive_dummy_ptr(
 
 def get_union_pointer(
     *,
-    ptrname: str,
+    ptrname: sn.UnqualName,
     source: s_sources.Source,
     direction: s_pointers.PointerDirection,
     components: Iterable[s_pointers.Pointer],

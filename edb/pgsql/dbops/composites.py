@@ -115,7 +115,8 @@ class CompositeAttributeCommand:
 
 class AlterCompositeAddAttribute(CompositeAttributeCommand):
     def code(self, block: base.PLBlock) -> str:
-        return f'ADD {self.get_attribute_term()} {self.attribute.code(block)}'
+        return (f'ADD {self.get_attribute_term()} '  # type: ignore
+                f'{self.attribute.code(block)}')
 
     def generate_extra(self, block: base.PLBlock,
                        alter: base.CompositeCommandGroup):
@@ -125,18 +126,23 @@ class AlterCompositeAddAttribute(CompositeAttributeCommand):
 class AlterCompositeDropAttribute(CompositeAttributeCommand):
     def code(self, block: base.PLBlock) -> str:
         attrname = common.qname(self.attribute.name)
-        return f'DROP {self.get_attribute_term()} {attrname}'
+        return f'DROP {self.get_attribute_term()} {attrname}'  # type: ignore
 
 
 class AlterCompositeAlterAttributeType:
-    def __init__(self, attribute_name, new_type):
+    def __init__(self, attribute_name, new_type, *, using_expr=None):
         self.attribute_name = attribute_name
         self.new_type = new_type
+        self.using_expr = using_expr
 
     def code(self, block: base.PLBlock) -> str:
-        attrterm = self.get_attribute_term()
+        attrterm = self.get_attribute_term()  # type: ignore
         attrname = common.quote_ident(str(self.attribute_name))
-        return f'ALTER {attrterm} {attrname} SET DATA TYPE {self.new_type}'
+        code = f'ALTER {attrterm} {attrname} SET DATA TYPE {self.new_type}'
+        if self.using_expr is not None:
+            code += f' USING ({self.using_expr})'
+
+        return code
 
     def __repr__(self):
         cls = self.__class__
@@ -154,8 +160,8 @@ class AlterCompositeRenameAttribute:
         self.new_attr_name = new_attr_name
 
     def code(self, block: base.PLBlock) -> str:
-        code = super().prefix_code()
-        attrterm = self.get_attribute_term()
+        code = super().prefix_code()  # type: ignore
+        attrterm = self.get_attribute_term()  # type: ignore
         old_attr_name = common.quote_ident(str(self.old_attr_name))
         new_attr_name = common.quote_ident(str(self.new_attr_name))
         code += ' RENAME {} {} TO {}'.format(
