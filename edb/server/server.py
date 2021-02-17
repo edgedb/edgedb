@@ -194,14 +194,21 @@ class Server:
 
     def on_binary_client_authed(self):
         self._binary_proto_num_connections += 1
-        # self._report_connections() XXX
+        self._report_connections(event='opened')
 
     def on_binary_client_disconnected(self):
         self._binary_proto_num_connections -= 1
-        # self._report_connections(action="close") XXX
+        self._report_connections(event="closed")
         if not self._binary_proto_num_connections and self._auto_shutdown:
             self._accepting_connections = False
             raise SystemExit
+
+    def _report_connections(self, *, event: str) -> None:
+        log_metrics.info(
+            "%s a connection; open_count=%d",
+            event,
+            self._binary_proto_num_connections,
+        )
 
     async def _pg_connect(self, dbname):
         return await pgcon.connect(self._get_pgaddr(), dbname)
