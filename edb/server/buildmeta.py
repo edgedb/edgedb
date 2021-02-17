@@ -32,6 +32,7 @@ import subprocess
 import tempfile
 
 import immutables as immu
+from importlib.util import find_spec
 
 import edb
 from edb.common import devmode
@@ -107,7 +108,7 @@ def get_shared_data_dir_path() -> pathlib.Path:
 def hash_dirs(
     dirs: Sequence[Tuple[str, str]],
     *,
-    extra_files: Optional[Sequence[str]]=None
+    extra_files: Optional[Sequence[Union[str, pathlib.Path]]]=None
 ) -> bytes:
     def hash_dir(dirname, ext, paths):
         with os.scandir(dirname) as it:
@@ -122,7 +123,10 @@ def hash_dirs(
         hash_dir(dirname, ext, paths)
 
     if extra_files:
-        paths.extend(extra_files)
+        for extra_file in extra_files:
+            if isinstance(extra_file, pathlib.Path):
+                extra_file = str(extra_file.resolve())
+            paths.append(extra_file)
 
     h = hashlib.sha1()  # sha1 is the fastest one.
     for path in sorted(paths):
@@ -316,3 +320,14 @@ def scm_version_scheme(root, version):
 
     incremented_ver = f'{major}.{minor}{microkind}{micro}{prekind}{preval}'
     return f'{incremented_ver}.dev{commits_on_branch}'
+
+
+def get_cache_src_dirs():
+    edgeql = pathlib.Path(find_spec('edb.edgeql').origin).parent
+    return (
+        (pathlib.Path(find_spec('edb.schema').origin).parent, '.py'),
+        (edgeql / 'compiler', '.py'),
+        (edgeql / 'parser', '.py'),
+        (pathlib.Path(find_spec('edb.lib').origin).parent, '.edgeql'),
+        (pathlib.Path(find_spec('edb.pgsql.metaschema').origin).parent, '.py'),
+    )

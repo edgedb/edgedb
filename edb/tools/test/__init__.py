@@ -138,12 +138,12 @@ def test(*, files, jobs, shard, include, exclude, verbose, quiet, debug,
             sys.exit(1)
 
     try:
-        current_shard, total_shards = map(int, shard.split('/'))
+        selected_shard, total_shards = map(int, shard.split('/'))
     except Exception:
         click.secho(f'Error: --shard {shard} must match format e.g. 2/5')
         sys.exit(1)
 
-    if current_shard < 1 or current_shard > total_shards:
+    if selected_shard < 1 or selected_shard > total_shards:
         click.secho(f'Error: --shard {shard} is out of bound')
         sys.exit(1)
 
@@ -159,7 +159,7 @@ def test(*, files, jobs, shard, include, exclude, verbose, quiet, debug,
         failfast=failfast,
         shuffle=shuffle,
         repeat=repeat,
-        current_shard=current_shard,
+        selected_shard=selected_shard,
         total_shards=total_shards,
         running_times_log_file=running_times_log_file,
         list_tests=list_tests,
@@ -237,7 +237,7 @@ def _coverage_wrapper(paths):
 
 
 def _run(*, include, exclude, verbosity, files, jobs, output_format,
-         warnings, failfast, shuffle, repeat, current_shard, total_shards,
+         warnings, failfast, shuffle, repeat, selected_shard, total_shards,
          running_times_log_file, list_tests):
     suite = unittest.TestSuite()
 
@@ -300,7 +300,7 @@ def _run(*, include, exclude, verbosity, files, jobs, output_format,
             failfast=failfast, shuffle=shuffle)
 
         result = test_runner.run(
-            suite, current_shard, total_shards, running_times_log_file,
+            suite, selected_shard, total_shards, running_times_log_file,
         )
 
         if not result.wasSuccessful():

@@ -24,7 +24,6 @@ from typing import *
 
 import asyncio
 import atexit
-import collections
 import contextlib
 import decimal
 import functools
@@ -77,7 +76,7 @@ def _add_test(result, test):
 
 
 def get_test_cases(tests):
-    result = collections.OrderedDict()
+    result = {}
 
     for test in tests:
         if isinstance(test, unittest.TestSuite):
@@ -1304,10 +1303,11 @@ def setup_test_cases(cases, conn, num_jobs, verbose=False):
     setup = get_test_cases_setup(cases)
 
     async def _run():
+        stats = []
         if num_jobs == 1:
             # Special case for --jobs=1
             for _case, dbname, setup_script in setup:
-                await _setup_database(dbname, setup_script, conn)
+                await _setup_database(dbname, setup_script, conn, stats)
                 if verbose:
                     print(f' -> {dbname}: OK', flush=True)
         else:
@@ -1326,12 +1326,14 @@ def setup_test_cases(cases, conn, num_jobs, verbose=False):
 
                 for _case, dbname, setup_script in setup:
                     g.create_task(controller(
-                        _setup_database, dbname, setup_script, conn))
+                        _setup_database, dbname, setup_script, conn, stats))
+        return stats
 
     return asyncio.run(_run())
 
 
-async def _setup_database(dbname, setup_script, conn_args):
+async def _setup_database(dbname, setup_script, conn_args, stats):
+    start_time = time.monotonic()
     default_args = {
         'user': edgedb_defines.EDGEDB_SUPERUSER,
         'password': 'test',
@@ -1374,6 +1376,8 @@ async def _setup_database(dbname, setup_script, conn_args):
     finally:
         await dbconn.aclose()
 
+    elapsed = time.monotonic() - start_time
+    stats.append(('setup::' + dbname, {'running-time': elapsed}))
     return dbname
 
 
@@ -1524,63 +1528,140 @@ def start_edgedb_server(
     )
 
 
-def get_cases_by_shard(cases, current_shard, total_shards, verbosity, stats):
+def get_cases_by_shard(cases, selected_shard, total_shards, verbosity, stats):
     if total_shards <= 1:
         return cases
 
-    current_shard -= 1
-    new_test_est = 0.1
-    tests_with_est = []
-    new_tests = []
+    selected_shard -= 1  # starting from 0
+    new_test_est = 0.1  # default estimate if test is not found in stats
+    new_setup_est = 1  # default estimate if setup is not found in stats
+
+    # For logging
     total_tests = 0
     selected_tests = 0
-    for tests in cases.values():
-        for test in tests:
-            total_tests += 1
-            est = stats.get(str(test))
-            if est:
-                heapq.heappush(tests_with_est, (-est[0], test))
-            else:
-                new_tests.append(test)
-    shard_est = (
-        sum(-est[0] for est in tests_with_est) + new_test_est * len(new_tests)
-    ) / total_shards
-    shards_est = [0] * total_shards
-    available = list(range(total_shards))
-    current = 0
-    cases = collections.OrderedDict()
-    while tests_with_est:
-        est, test = heapq.heappop(tests_with_est)
-        shard = available[current]
-        est_acc = shards_est[shard] = shards_est[shard] - est
-        if shard == current_shard:
-            _add_test(cases, test)
-            selected_tests += 1
-        if est_acc >= shard_est:
-            if shard == current_shard:
-                break
-            del available[current]
+    total_est = 0
+    selected_est = 0
+
+    # Priority queue of tests grouped by setup script ordered by estimated
+    # running time of the groups. Order of tests within cases is preserved.
+    tests_by_setup = []
+
+    # Priority queue of individual tests ordered by estimated running time.
+    tests_with_est = []
+
+    # Prepare the source heaps
+    setup_count = 0
+    for case, tests in cases.items():
+        setup_script = getattr(case, 'get_setup_script', lambda: None)()
+        if setup_script and tests:
+            tests_per_setup = []
+            est_per_setup = setup_est = stats.get(
+                'setup::' + case.get_database_name(), (new_setup_est, 0),
+            )[0]
+            for test in tests:
+                total_tests += 1
+                est = stats.get(str(test), (new_test_est, 0))[0]
+                est_per_setup += est
+                tests_per_setup.append((est, test))
+            heapq.heappush(
+                tests_by_setup,
+                (-est_per_setup, setup_count, setup_est, tests_per_setup),
+            )
+            setup_count += 1
+            total_est += est_per_setup
         else:
-            current += 1
-        current %= len(available)
-    else:
-        offset = 0
-        while len(available) > 1:
-            shard = available.pop(0)
-            needs = int(round((shard_est - shards_est[shard]) / new_test_est))
-            if shard == current_shard:
-                for test in new_tests[offset:offset + needs]:
-                    _add_test(cases, test)
-                    selected_tests += 1
-                break
+            for test in tests:
+                total_tests += 1
+                est = stats.get(str(test), (new_test_est, 0))[0]
+                total_est += est
+                heapq.heappush(tests_with_est, (-est, total_tests, test))
+
+    target_est = total_est / total_shards  # target running time of one shard
+    shards_est = [(0, shard, set()) for shard in range(total_shards)]
+    cases = {}  # output
+    setup_to_alloc = set(range(setup_count))  # tracks first run of each setup
+
+    # Assign per-setup tests first
+    while tests_by_setup:
+        remaining_est, setup_id, setup_est, tests = heapq.heappop(
+            tests_by_setup,
+        )
+        est_acc, current, setups = heapq.heappop(shards_est)
+
+        # Add setup time
+        if setup_id not in setups:
+            setups.add(setup_id)
+            est_acc += setup_est
+            if current == selected_shard:
+                selected_est += setup_est
+            if setup_id in setup_to_alloc:
+                setup_to_alloc.remove(setup_id)
             else:
-                offset += needs
-        else:
-            for test in new_tests[offset:]:
+                # This means one more setup for the overall test run
+                target_est += setup_est / total_shards
+
+        # Add as much tests from this group to current shard as possible
+        while tests:
+            est, test = tests.pop(0)
+            est_acc += est  # est is a positive number
+            remaining_est += est  # remaining_est is a negative number
+
+            if current == selected_shard:
+                # Add the test to the result
                 _add_test(cases, test)
                 selected_tests += 1
+                selected_est += est
+
+            if est_acc >= target_est and -remaining_est > setup_est * 2:
+                # Current shard is full and the remaining tests would take more
+                # time than their setup, then add the tests back to the heap so
+                # that we could add them to another shard
+                heapq.heappush(
+                    tests_by_setup,
+                    (remaining_est, setup_id, setup_est, tests),
+                )
+                break
+
+        heapq.heappush(shards_est, (est_acc, current, setups))
+
+    # Assign all non-setup tests, but leave the last shard for everything else
+    setups = set()
+    while tests_with_est and len(shards_est) > 1:
+        est, _, test = heapq.heappop(tests_with_est)  # est is negative
+        est_acc, current, setups = heapq.heappop(shards_est)
+        est_acc -= est
+
+        if current == selected_shard:
+            # Add the test to the result
+            _add_test(cases, test)
+            selected_tests += 1
+            selected_est -= est
+
+        if est_acc >= target_est:
+            # The current shard is full
+            if current == selected_shard:
+                # End early if the selected shard is full
+                break
+        else:
+            # Only add the current shard back to the heap if it's not full
+            heapq.heappush(shards_est, (est_acc, current, setups))
+
+    else:
+        # Add all the remaining tests to the first remaining shard if any
+        while shards_est:
+            est_acc, current, setups = heapq.heappop(shards_est)
+            if current == selected_shard:
+                for est, _, test in tests_with_est:
+                    _add_test(cases, test)
+                    selected_tests += 1
+                    selected_est -= est
+                break
+            tests_with_est.clear()  # should always be empty already here
 
     if verbosity >= 1:
-        print(f'Running {selected_tests}/{total_tests} for shard '
-              f'#{current_shard + 1} out of {total_shards} shards.')
+        print(f'Running {selected_tests}/{total_tests} tests for shard '
+              f'#{selected_shard + 1} out of {total_shards} shards, '
+              f'estimate: {int(selected_est / 60)}m {int(selected_est % 60)}s'
+              f' / {int(total_est / 60)}m {int(total_est % 60)}s, '
+              f'{len(setups)}/{setup_count} databases to setup.')
     return cases
