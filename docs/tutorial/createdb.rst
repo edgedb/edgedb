@@ -26,16 +26,11 @@ created:
 
 .. code-block:: bash
 
-    $ edgedb -Itutorial
+    $ edgedb -I tutorial
 
-Now we need to set up the schema. Let's set up a basic schema for a
-movie database. It will have 2 types of objects: movies and people
-who directed and acted in them.
-
-For the next step, there are two ways of setting this up. You have
-two methods to choose from for this:
-:ref:`ref_tutorial_createdb_sdl` (recommended) or
-:ref:`ref_tutorial_createdb_ddl`.
+Now we need to set up the schema. Let's create a schema for a movie
+database. It will have 2 types of objects: movies and people who
+directed and acted in them.
 
 
 .. _ref_tutorial_createdb_sdl:
@@ -43,87 +38,82 @@ two methods to choose from for this:
 SDL
 ---
 
-The :ref:`EdgeDB schema definition language <ref_eql_sdl>` provides a
-way to describe a :ref:`migration <ref_eql_ddl_migrations>` to a
-specific schema state. It is great for setting up a new database because it
-focuses on expressing the final :ref:`types <ref_eql_sdl_object_types>` and
-their :ref:`relationships <ref_eql_sdl_links>` without worrying about
-the order of the definitions.
+The recommended way to manage the database schema is by using the
+:ref:`EdgeDB schema definition language <ref_eql_sdl>` (or SDL). It
+provides a way to describe a :ref:`migration
+<ref_eql_ddl_migrations>` to a specific schema state. It is great
+for setting up a new database because it focuses on expressing the
+final :ref:`types <ref_eql_sdl_object_types>` and their
+:ref:`relationships <ref_eql_sdl_links>` without worrying about
+the order of the definitions. This is also the format that the
+EdgeDB built-in migration tools are designed to use.
 
-Migrations have to be done inside a :ref:`transaction
-<ref_eql_statements_start_tx>`:
+Start by creating a directory which will contain the project's schema
+and migrations:
 
-.. code-block:: edgeql-repl
+.. code-block:: bash
 
-    tutorial> START MIGRATION TO {
-    .........     module default {
-    .........         type Movie {
-    .........             required property title -> str;
-    .........             # the year of release
-    .........             property year -> int64;
-    .........             required link director -> Person;
-    .........             multi link actors -> Person;
-    .........         }
-    .........         type Person {
-    .........             required property first_name -> str;
-    .........             required property last_name -> str;
-    .........         }
-    .........     }
-    ......... };
-    START MIGRATION
-    tutorial> POPULATE MIGRATION;
-    POPULATE MIGRATION
-    tutorial> COMMIT MIGRATION;
-    COMMIT MIGRATION
+    $ mkdir dbschema
 
-The name of a migration doesn't matter much beyond providing a way to
-specify the particular migration which must be committed. Once the
-transaction is committed the schema is updated and we're ready to
-:ref:`populate the database with data <ref_tutorial_queries>`.
+Inside this directory create the schema file we'll be working with:
+``dbschema/schema.esdl``. Then using an editor of your choice add
+the following content to ``schema.esdl``:
 
+.. code-block:: sdl
 
-.. _ref_tutorial_createdb_ddl:
+    module default {
+        type Person {
+            required property first_name -> str;
+            required property last_name -> str;
+        }
+        type Movie {
+            required property title -> str;
+            # the year of release
+            property year -> int64;
+            required link director -> Person;
+            multi link actors -> Person;
+        }
+    };
 
-DDL
----
+Now we're all set to run the very first migration to apply the schema
+to the database. The built-in migration tool will ask a series of
+questions to make sure that EdgeDB correctly inferred the changes:
 
-.. important::
+.. code-block:: bash
 
-    The entire DDL section is an alternative to SDL. If you have
-    completed the SDL steps you don't need to follow the steps in this
-    section.
+    $ edgedb -I tutorial create-migration
+    did you create object type 'default::Person'? [y,n,l,c,b,s,q,?]
+    ?
 
+    y - confirm the prompt, use the DDL statements
+    n - reject the prompt
+    l - list the DDL statements associated with prompt
+    c - list already confirmed EdgeQL statements
+    b - revert back to previous save point, perhaps previous question
+    s - stop and save changes (splits migration into multiple)
+    q - quit without saving changes
+    h or ? - print help
+    did you create object type 'default::Person'? [y,n,l,c,b,s,q,?]
+    y
+    did you create object type 'default::Movie'? [y,n,l,c,b,s,q,?]
+    y
+    Created ./dbschema/migrations/00001.edgeql, id:
+    m1la5u4qi33nsrhorvl6u7zdiiuvrx6y647mhk3c7suj7ex5jx5ija
 
-The :ref:`data definition language <ref_eql_ddl>` focuses on
-transforming the current schema state into the desired target step by
-step. This method is equally valid, but it is a lower level and more
-explicit approach to altering the schema. It is also less transparent
-in terms of giving a clear picture of the final resulting state.
+Before moving on to the next step let's unpack what just happened.
+The migration tool is asking whether new objects were added to the
+schema, which is what we expect for a brand new schema, so we can
+respond with ``y`` and proceed. Now that we have accepted all the
+changes for the migration a new file was added to our ``dbschema``
+directory: ``dbschema/migrations/00001.edgeql``. It contains all
+the DDL commands necessary for the migration. Now we can apply it to
+the database:
 
-In DDL the order of the commands matters, so the ``Person`` :ref:`type
-<ref_eql_ddl_object_types>` must be created first:
+.. code-block:: bash
 
-.. code-block:: edgeql-repl
-
-    tutorial> CREATE TYPE Person {
-    .........     CREATE REQUIRED PROPERTY first_name -> str;
-    .........     CREATE REQUIRED PROPERTY last_name -> str;
-    ......... };
-    CREATE
-
-Now a ``Movie`` :ref:`type <ref_eql_ddl_object_types>` can be created with
-:ref:`links <ref_eql_ddl_links>` referring to ``Person``:
-
-.. code-block:: edgeql-repl
-
-    tutorial> CREATE TYPE Movie {
-    .........     CREATE REQUIRED PROPERTY title -> str;
-    .........     # the year of release
-    .........     CREATE PROPERTY year -> int64;
-    .........     CREATE REQUIRED LINK director -> Person;
-    .........     CREATE MULTI LINK actors -> Person;
-    ......... };
-    CREATE
+    $ edgedb -I tutorial migrate
+    Applied m1la5u4qi33nsrhorvl6u7zdiiuvrx6y647mhk3c7suj7ex5jx5ija
+    (00001.edgeql)
 
 Now that the schema is set up we're ready to
 :ref:`populate the database with data <ref_tutorial_queries>`.

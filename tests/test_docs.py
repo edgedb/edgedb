@@ -256,9 +256,17 @@ class TestDocSnippets(unittest.TestCase):
                 if lang == 'edgeql':
                     ql_parser.parse_block(snippet)
                 elif lang == 'sdl':
-                    # the snippet itself may either containt a module
+                    # Strip all the "using extension ..." lines as
+                    # they interfere with our module detection.
+                    sdl = re.sub(
+                        r'using\s+extension\s+\w+;',
+                        '',
+                        snippet
+                    ).strip()
+
+                    # the snippet itself may either contain a module
                     # block or have a fully-qualified top-level name
-                    if re.match(
+                    if not sdl or re.match(
                             r'''(?xm)
                                 (\bmodule\s+\w+\s*{) |
                                 (^.*
@@ -267,7 +275,7 @@ class TestDocSnippets(unittest.TestCase):
                                     ({|extending)
                                 )
                             ''',
-                            snippet):
+                            sdl):
                         ql_parser.parse_sdl(snippet)
                     else:
                         ql_parser.parse_sdl(f'module default {{ {snippet} }}')
