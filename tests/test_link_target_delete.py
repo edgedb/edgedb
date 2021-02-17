@@ -883,6 +883,145 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                 ]
             )
 
+    async def test_link_on_target_delete_delete_source_04(self):
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                SET MODULE test;
+
+                INSERT Target1 {
+                    name := 'Target1.1'
+                };
+
+                INSERT Source3 {
+                    name := 'Source3.1',
+                    tgt1_del_source := (
+                        SELECT Target1
+                        FILTER .name = 'Target1.1'
+                    )
+                };
+
+                INSERT Source3 {
+                    name := 'Source3.2',
+                    tgt1_del_source := (
+                        SELECT Target1
+                        FILTER .name = 'Target1.1'
+                    )
+                };
+
+                INSERT Source2 {
+                    name := 'Source2.1',
+                    src1_del_source := (
+                        SELECT Source3
+                        FILTER .name = 'Source3.1'
+                    )
+                };
+            """)
+
+            await self.assert_query_result(
+                r'''
+                    WITH MODULE test
+                    SELECT
+                        Source2 {
+                            src1_del_source: {
+                                name,
+                                tgt1_del_source: {
+                                    name
+                                }
+                            }
+                        }
+                    FILTER
+                        .name = 'Source2.1';
+                ''',
+                [{
+                    'src1_del_source': {
+                        'name': 'Source3.1',
+                        'tgt1_del_source': {'name': 'Target1.1'},
+                    }
+                }]
+            )
+
+            await self.assert_query_result(
+                r'''
+                WITH MODULE test
+                SELECT
+                    Source3 {
+                        name,
+                        tgt1_del_source: {
+                            name
+                        }
+                    }
+                FILTER
+                    .name LIKE 'Source3%';
+                ''',
+                [
+                    {
+                        'name': 'Source3.1',
+                        'tgt1_del_source': {'name': 'Target1.1'},
+                    },
+                    {
+                        'name': 'Source3.2',
+                        'tgt1_del_source': {'name': 'Target1.1'},
+                    }
+                ]
+            )
+
+            await self.con.execute("""
+                DELETE (SELECT test::Target1 FILTER .name = 'Target1.1');
+            """)
+
+            await self.assert_query_result(
+                r'''
+                    WITH MODULE test
+                    SELECT
+                        Source3
+                    FILTER
+                        .name LIKE 'Source3%';
+                ''',
+                [],
+            )
+
+            await self.assert_query_result(
+                r'''
+                    WITH MODULE test
+                    SELECT
+                        Source2
+                    FILTER
+                        .name = 'Source2.1';
+                ''',
+                [],
+            )
+
+    async def test_link_on_target_delete_delete_source_05(self):
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                INSERT test::Target1 {
+                    name := 'Target1.1'
+                };
+
+                INSERT test::ChildSource1 {
+                    name := 'Source1.1',
+                    tgt1_del_source := (
+                        SELECT test::Target1
+                        FILTER .name = 'Target1.1'
+                    )
+                };
+            """)
+
+            await self.con.execute("""
+                DELETE (SELECT test::Target1 FILTER .name = 'Target1.1');
+            """)
+
+            await self.assert_query_result(
+                r'''
+                    WITH MODULE test
+                    SELECT
+                        ChildSource1
+                    FILTER
+                        .name = 'Source1.1';
+                ''',
+                []
+            )
+
 
 class TestLinkTargetDeleteMigrations(stb.DDLTestCase):
 

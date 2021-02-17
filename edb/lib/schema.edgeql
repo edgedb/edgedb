@@ -109,13 +109,17 @@ CREATE ABSTRACT TYPE schema::CollectionType EXTENDING schema::Type;
 
 
 CREATE TYPE schema::Array EXTENDING schema::CollectionType {
-    CREATE REQUIRED LINK element_type -> schema::Type;
+    CREATE REQUIRED LINK element_type -> schema::Type {
+        ON TARGET DELETE DEFERRED RESTRICT;
+    };
     CREATE PROPERTY dimensions -> array<std::int16>;
 };
 
 
 CREATE TYPE schema::TupleElement {
-    CREATE REQUIRED LINK type -> schema::Type;
+    CREATE REQUIRED LINK type -> schema::Type {
+        ON TARGET DELETE DEFERRED RESTRICT;
+    };
     CREATE PROPERTY name -> std::str;
 };
 
@@ -157,7 +161,9 @@ EXTENDING schema::SubclassableObject {
 
 
 CREATE TYPE schema::Parameter EXTENDING schema::Object {
-    CREATE REQUIRED LINK type -> schema::Type;
+    CREATE REQUIRED LINK type -> schema::Type {
+        ON TARGET DELETE DEFERRED RESTRICT;
+    };
     CREATE REQUIRED PROPERTY typemod -> schema::TypeModifier;
     CREATE REQUIRED PROPERTY kind -> schema::ParameterKind;
     CREATE REQUIRED PROPERTY num -> std::int64;
@@ -172,7 +178,9 @@ CREATE ABSTRACT TYPE schema::CallableObject
         ON TARGET DELETE ALLOW;
     };
 
-    CREATE LINK return_type -> schema::Type;
+    CREATE LINK return_type -> schema::Type {
+        ON TARGET DELETE DEFERRED RESTRICT;
+    };
     CREATE PROPERTY return_typemod -> schema::TypeModifier;
 };
 
@@ -248,7 +256,9 @@ ALTER TYPE schema::Source {
 CREATE TYPE schema::Alias EXTENDING schema::AnnotationSubject
 {
     CREATE REQUIRED PROPERTY expr -> std::str;
-    CREATE REQUIRED LINK type -> schema::Type;
+    CREATE REQUIRED LINK type -> schema::Type {
+        ON TARGET DELETE DEFERRED RESTRICT;
+    };
 };
 
 
@@ -287,7 +297,9 @@ CREATE TYPE schema::Property EXTENDING schema::Pointer;
 
 ALTER TYPE schema::Pointer {
     CREATE LINK source -> schema::Source;
-    CREATE LINK target -> schema::Type;
+    CREATE LINK target -> schema::Type {
+        ON TARGET DELETE DEFERRED RESTRICT;
+    }
 };
 
 
