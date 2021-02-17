@@ -218,9 +218,6 @@ cdef class PGConnection:
         assert self.cancel_fut is not None
         self.cancel_fut.set_result(True)
 
-    def is_connected(self):
-        return bool(self.connected and self.transport is not None)
-
     def abort(self):
         if not self.transport:
             return
@@ -1480,6 +1477,13 @@ cdef class PGConnection:
         self.connected_fut = None
 
     def connection_lost(self, exc):
+        # Mark the connection as disconnected, so that
+        # `self.is_healthy_to_go_back_to_pool()` surely returns False
+        # for this connection.
+        self.connected = False
+
+        self.transport = None
+
         if self.server is not None:
             self.server._on_sys_pgcon_connection_lost()
 
@@ -1490,8 +1494,6 @@ cdef class PGConnection:
         if self.msg_waiter is not None and not self.msg_waiter.done():
             self.msg_waiter.set_exception(ConnectionAbortedError())
             self.msg_waiter = None
-
-        self.transport = None
 
     def pause_writing(self):
         pass
