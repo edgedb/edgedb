@@ -103,7 +103,6 @@ cdef class EdgeConnection:
 
         tuple protocol_version
         tuple max_protocol
-        object timer
 
         object last_state
 
