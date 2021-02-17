@@ -1201,6 +1201,9 @@ cdef class PGConnection:
         buf.write_bytestring(b'default_transaction_isolation')
         buf.write_bytestring(b'repeatable read')
 
+        buf.write_bytestring(b'intervalstyle')
+        buf.write_bytestring(b'sql_standard')
+
         buf.write_bytestring(b'user')
         buf.write_bytestring(self.pgaddr['user'].encode('utf-8'))
 

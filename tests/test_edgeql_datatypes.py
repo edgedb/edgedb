@@ -72,7 +72,7 @@ class TestEdgeQLDT(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''SELECT to_str(<duration>'4 hours' - <duration>'1 hour')''',
-            ['03:00:00'],
+            ['3:00:00'],
         )
 
         with self.assertRaisesRegex(
@@ -138,7 +138,7 @@ class TestEdgeQLDT(tb.QueryTestCase):
         await self.assert_query_result(
             r'''SELECT <datetime>'2017-10-10T01:02:03.004005-02' -
                 <datetime>'2017-10-10T00:00:00+00';''',
-            ['03:02:03.004005'],
+            ['3:02:03.004005'],
             [timedelta(seconds=10923, microseconds=4005)],
         )
 
@@ -172,6 +172,19 @@ class TestEdgeQLDT(tb.QueryTestCase):
                 edgedb.InvalidValueError,
                 'invalid input syntax for type std::duration: "100 cats"'):
             await self.con.execute("SELECT <duration>'100 cats';")
+
+    async def test_edgeql_dt_duration_06_interval_style(self):
+        await self.assert_query_result(
+            r'''SELECT <duration>'-6h51m14.045854s';''',
+            ['-6:51:14.045854'],
+            [-timedelta(seconds=24674, microseconds=45854)],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <duration>'-6h -51m -14.045854s';''',
+            ['-6:51:14.045854'],
+            [-timedelta(seconds=24674, microseconds=45854)],
+        )
 
     async def test_edgeql_dt_local_datetime_01(self):
         await self.assert_query_result(
