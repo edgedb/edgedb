@@ -152,6 +152,9 @@ class BaseCluster:
                 f'SET ROLE {self._default_session_auth};'
             )
 
+        await conn.execute(
+            "SET IntervalStyle = 'sql_standard';"
+        )
         return conn
 
     def get_runtime_params(self) -> BackendRuntimeParams:

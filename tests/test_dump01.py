@@ -818,7 +818,7 @@ class DumpTestCaseMixin:
                 },
                 'str_duration': {
                     '20:00:00',
-                    '00:00:20',
+                    '0:00:20',
                 },
             }]
         )

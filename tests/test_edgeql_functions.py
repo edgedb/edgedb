@@ -1688,22 +1688,22 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''SELECT <str>to_duration(minutes:=20);''',
-            ['00:20:00'],
+            ['0:20:00'],
         )
 
         await self.assert_query_result(
             r'''SELECT <str>to_duration(seconds:=20);''',
-            ['00:00:20'],
+            ['0:00:20'],
         )
 
         await self.assert_query_result(
             r'''SELECT <str>to_duration(seconds:=20.15);''',
-            ['00:00:20.15'],
+            ['0:00:20.15'],
         )
 
         await self.assert_query_result(
             r'''SELECT <str>to_duration(microseconds:=100);''',
-            ['00:00:00.0001'],
+            ['0:00:00.0001'],
         )
 
     async def test_edgeql_functions_to_duration_02(self):
