@@ -109,7 +109,8 @@ class StreamingTestSuite(unittest.TestSuite):
 
             # This is temporary, until we implement `subtransaction`
             # functionality of RFC1004
-            warnings.filterwarnings('ignore',
+            warnings.filterwarnings(
+                'ignore',
                 message=r'The "transaction\(\)" method is deprecated'
                         r' and is scheduled to be removed',
                 category=DeprecationWarning)
