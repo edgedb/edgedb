@@ -793,9 +793,11 @@ class CLITestCaseMixin:
                 capture_output=True,
             )
         except subprocess.CalledProcessError as e:
+            output = '\n'.join(getattr(out, 'decode', out.__str__)()
+                               for out in [e.output, e.stderr] if out)
             raise AssertionError(
                 f'command {cmd} returned non-zero exit status {e.returncode}'
-                f'\n{e.output}'
+                f'\n{output}'
             ) from e
 
 
