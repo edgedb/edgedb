@@ -4126,6 +4126,39 @@ class UpdateEndpointDeleteActions(MetaCommand):
                     link_table = common.get_backend_name(
                         schema, link)
 
+                    # Since enforcement of 'required' on multi links
+                    # is enforced manually on the query side and (not
+                    # through constraints/triggers of its own), we
+                    # also need to do manual enforcement of it when
+                    # deleting a required multi link.
+                    if link.get_required(schema) and disposition == 'target':
+                        required_text = textwrap.dedent('''\
+                            SELECT q.source INTO srcid
+                            FROM {link_table} as q
+                                WHERE q.target = OLD.{id}
+                                AND NOT EXISTS (
+                                    SELECT FROM {link_table} as q2
+                                    WHERE q.source = q2.source
+                                          AND q2.target != OLD.{id}
+                                );
+
+                            IF FOUND THEN
+                                RAISE not_null_violation
+                                    USING
+                                        TABLE = TG_TABLE_NAME,
+                                        SCHEMA = TG_TABLE_SCHEMA,
+                                        MESSAGE = 'missing value',
+                                        COLUMN = '{link_id}';
+                            END IF;
+                        ''').format(
+                            link_table=link_table,
+                            link_id=str(link.id),
+                            id='id'
+                        )
+
+                        chunks.append(required_text)
+
+                    # Otherwise just delete it from the link table.
                     text = textwrap.dedent('''\
                         DELETE FROM
                             {link_table}

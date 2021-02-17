@@ -10542,13 +10542,46 @@ type test::Foo {
             DELETE Tgt;
         """)
 
+    async def test_edgeql_ddl_link_policy_11(self):
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            CREATE TYPE Tgt { CREATE PROPERTY name -> str };
+            CREATE TYPE Foo {
+                CREATE REQUIRED MULTI LINK tgt -> Tgt {
+                    ON TARGET DELETE ALLOW;
+                };
+            };
+            CREATE TYPE Bar EXTENDING Foo;
+        """)
+
+        await self.con.execute(r"""
+            INSERT Bar { tgt := {(INSERT Tgt { name := "foo" }),
+                                 (INSERT Tgt { name := "bar" })} };
+            INSERT Bar { tgt := (INSERT Tgt { name := "foo" }) };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.MissingRequiredError,
+            "missing value for required link 'tgt'",
+        ):
+            await self.con.execute("""
+                DELETE Tgt FILTER .name = "foo";
+            """)
+
+        await self.con.execute("""
+            DELETE Tgt FILTER .name = "bar";
+            DELETE Bar;
+            DELETE Tgt;
+        """)
+
     @test.xfail('''
         We can't properly compile the constraint here in the basic case,
         let alone combined with DELETE ALLOW.
 
         We probably should be rejecting the constraint.
     ''')
-    async def test_edgeql_ddl_link_policy_11(self):
+    async def test_edgeql_ddl_link_policy_12(self):
         # Should we even be allowing (EXISTS .tgt) as a constraint?
         await self.con.execute(r"""
             SET MODULE test;
@@ -10571,42 +10604,6 @@ type test::Foo {
         async with self.assertRaisesRegexTx(
             edgedb.ConstraintViolationError,
             'invalid Bar',
-        ):
-            await self.con.execute("""
-                DELETE Tgt;
-            """)
-
-        await self.con.execute("""
-            DELETE Bar;
-            DELETE Tgt;
-        """)
-
-    @test.xfail('''
-        We don't handle this correctly because we do REQUIRED MULTI
-        enforcement on the query end.
-
-        We should maybe disallow REQUIRED MULTI ON TARGET DELETE ALLOW.
-    ''')
-    async def test_edgeql_ddl_link_policy_12(self):
-        await self.con.execute(r"""
-            SET MODULE test;
-
-            CREATE TYPE Tgt;
-            CREATE TYPE Foo {
-                CREATE REQUIRED MULTI LINK tgt -> Tgt {
-                    ON TARGET DELETE ALLOW;
-                };
-            };
-            CREATE TYPE Bar EXTENDING Foo;
-        """)
-
-        await self.con.execute(r"""
-            INSERT Bar { tgt := (INSERT Tgt) };
-        """)
-
-        async with self.assertRaisesRegexTx(
-            edgedb.ConstraintViolationError,
-            "missing value for required link 'tgt'",
         ):
             await self.con.execute("""
                 DELETE Tgt;
