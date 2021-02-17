@@ -103,6 +103,7 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
     CREATE PROPERTY allow_dml_in_functions -> std::bool {
         SET default := false;
         CREATE ANNOTATION cfg::affects_compilation := 'true';
+        CREATE ANNOTATION cfg::internal := 'true';
     };
 
     # Exposed backend settings follow.
