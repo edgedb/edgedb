@@ -10269,6 +10269,350 @@ type test::Foo {
             }]
         )
 
+    async def test_edgeql_ddl_link_policy_01(self):
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            CREATE TYPE Tgt;
+            CREATE TYPE Foo { CREATE MULTI LINK tgt -> Tgt; };
+            CREATE TYPE Bar EXTENDING Foo;
+        """)
+
+        await self.con.execute(r"""
+            INSERT Bar { tgt := (INSERT Tgt) };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            'prohibited by link target policy',
+        ):
+            await self.con.execute("""
+                DELETE Tgt;
+            """)
+
+    async def test_edgeql_ddl_link_policy_02(self):
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            CREATE TYPE Tgt;
+            CREATE TYPE Base { CREATE MULTI LINK tgt -> Tgt; };
+            CREATE TYPE Foo;
+            ALTER TYPE Foo EXTENDING Base;
+        """)
+
+        await self.con.execute(r"""
+            INSERT Foo { tgt := (INSERT Tgt) };
+        """)
+
+        await self.con.execute(r"""
+            DELETE Foo;
+        """)
+
+        await self.con.execute(r"""
+            DELETE Tgt;
+        """)
+
+    async def test_edgeql_ddl_link_policy_03(self):
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            CREATE TYPE Tgt;
+            CREATE TYPE Base;
+            CREATE TYPE Foo EXTENDING Base { CREATE MULTI LINK tgt -> Tgt; };
+            ALTER TYPE Base CREATE MULTI LINK foo -> Tgt;
+        """)
+
+        await self.con.execute(r"""
+            INSERT Foo { tgt := (INSERT Tgt) };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            'prohibited by link target policy',
+        ):
+            await self.con.execute("""
+                WITH D := Foo,
+                SELECT {(DELETE D.tgt), (DELETE D)};
+            """)
+
+        await self.con.execute(r"""
+            WITH D := Foo,
+            SELECT {(DELETE D), (DELETE D.tgt)};
+        """)
+
+    async def test_edgeql_ddl_link_policy_04(self):
+        # Make sure that a newly created subtype gets the appropriate
+        # target link policies
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            CREATE TYPE Tgt;
+            CREATE TYPE Foo { CREATE MULTI LINK tgt -> Tgt; };
+            CREATE TYPE Tgt2 EXTENDING Tgt;
+        """)
+
+        await self.con.execute(r"""
+            INSERT Foo { tgt := (INSERT Tgt2) };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            'prohibited by link target policy',
+        ):
+            await self.con.execute("""
+                DELETE Tgt2;
+            """)
+
+    async def test_edgeql_ddl_link_policy_05(self):
+        # Make sure that a subtype with newly added bases gets the appropriate
+        # target link policies
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            CREATE TYPE Tgt;
+            CREATE TYPE Foo { CREATE MULTI LINK tgt -> Tgt; };
+            CREATE TYPE Tgt2;
+            ALTER TYPE Tgt2 EXTENDING Tgt;
+        """)
+
+        await self.con.execute(r"""
+            INSERT Foo { tgt := (INSERT Tgt2) };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            'prohibited by link target policy',
+        ):
+            await self.con.execute("""
+                DELETE Tgt2;
+            """)
+
+        await self.con.execute(r"""
+            DELETE Foo;
+            ALTER TYPE Tgt2 DROP EXTENDING Tgt;
+            DROP TYPE Foo;
+        """)
+
+        # Make sure that if we drop the base type, everything works right still
+        await self.con.execute("""
+            DELETE Tgt2;
+        """)
+
+    async def test_edgeql_ddl_link_policy_06(self):
+        # Make sure that links coming into base types don't
+        # interfere with link policies
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            CREATE TYPE Tgt;
+            CREATE TYPE Tgt2 EXTENDING Tgt;
+            CREATE TYPE Foo { CREATE MULTI LINK tgt -> Tgt2; };
+            CREATE TYPE Bar { CREATE MULTI LINK tgt -> Tgt; };
+        """)
+
+        await self.con.execute(r"""
+            INSERT Foo { tgt := (INSERT Tgt2) };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            'prohibited by link target policy',
+        ):
+            await self.con.execute("""
+                DELETE Tgt2;
+            """)
+
+    async def test_edgeql_ddl_link_policy_07(self):
+        # Make sure that swapping between deferred and not works
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            CREATE TYPE Tgt;
+            CREATE TYPE Foo {
+                CREATE MULTI LINK tgt -> Tgt;
+            };
+        """)
+
+        await self.con.execute(r"""
+            ALTER TYPE Foo ALTER LINK tgt ON TARGET DELETE DEFERRED RESTRICT;
+        """)
+
+        await self.con.execute(r"""
+            INSERT Foo { tgt := (INSERT Tgt) };
+        """)
+
+        await self.con.execute("""
+            DELETE Tgt;
+            DELETE Foo;
+        """)
+
+    async def test_edgeql_ddl_link_policy_08(self):
+        # Make sure that swapping between deferred and not works
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            CREATE TYPE Tgt;
+            CREATE TYPE Foo {
+                CREATE LINK tgt -> Tgt;
+            };
+            ALTER TYPE Foo ALTER LINK tgt SET MULTI;
+        """)
+
+        await self.con.execute(r"""
+            INSERT Foo { tgt := (INSERT Tgt) };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            'prohibited by link target policy',
+        ):
+            await self.con.execute("""
+                DELETE Tgt;
+            """)
+
+        await self.con.execute("""
+            DELETE Foo;
+            DELETE Tgt;
+        """)
+
+    async def test_edgeql_ddl_link_policy_09(self):
+        # Make sure that it still works after we rebase a link
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            CREATE TYPE Tgt;
+            CREATE TYPE Foo {
+                CREATE LINK tgt -> Tgt;
+            };
+            CREATE TYPE Bar EXTENDING Foo {
+                ALTER LINK tgt SET OWNED;
+            };
+            ALTER TYPE Bar DROP EXTENDING Foo;
+        """)
+
+        await self.con.execute(r"""
+            INSERT Bar { tgt := (INSERT Tgt) };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            'prohibited by link target policy',
+        ):
+            await self.con.execute("""
+                DELETE Tgt;
+            """)
+
+        await self.con.execute("""
+            DELETE Bar;
+            DELETE Tgt;
+        """)
+
+    async def test_edgeql_ddl_link_policy_10(self):
+        # Make sure we NULL out the pointer on the delete, which will
+        # trigger the constraint
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            CREATE TYPE Tgt;
+            CREATE TYPE Foo {
+                CREATE LINK tgt -> Tgt {
+                    ON TARGET DELETE ALLOW;
+                };
+                CREATE CONSTRAINT expression on (EXISTS .tgt);
+
+            };
+            CREATE TYPE Bar EXTENDING Foo;
+        """)
+
+        await self.con.execute(r"""
+            INSERT Bar { tgt := (INSERT Tgt) };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            'invalid Bar',
+        ):
+            await self.con.execute("""
+                DELETE Tgt;
+            """)
+
+        await self.con.execute("""
+            DELETE Bar;
+            DELETE Tgt;
+        """)
+
+    async def test_edgeql_ddl_link_policy_11(self):
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            CREATE TYPE Tgt { CREATE PROPERTY name -> str };
+            CREATE TYPE Foo {
+                CREATE REQUIRED MULTI LINK tgt -> Tgt {
+                    ON TARGET DELETE ALLOW;
+                };
+            };
+            CREATE TYPE Bar EXTENDING Foo;
+        """)
+
+        await self.con.execute(r"""
+            INSERT Bar { tgt := {(INSERT Tgt { name := "foo" }),
+                                 (INSERT Tgt { name := "bar" })} };
+            INSERT Bar { tgt := (INSERT Tgt { name := "foo" }) };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.MissingRequiredError,
+            "missing value for required link 'tgt'",
+        ):
+            await self.con.execute("""
+                DELETE Tgt FILTER .name = "foo";
+            """)
+
+        await self.con.execute("""
+            DELETE Tgt FILTER .name = "bar";
+            DELETE Bar;
+            DELETE Tgt;
+        """)
+
+    @test.xfail('''
+        We can't properly compile the constraint here in the basic case,
+        let alone combined with DELETE ALLOW.
+
+        We probably should be rejecting the constraint.
+    ''')
+    async def test_edgeql_ddl_link_policy_12(self):
+        # Should we even be allowing (EXISTS .tgt) as a constraint?
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            CREATE TYPE Tgt;
+            CREATE TYPE Foo {
+                CREATE MULTI LINK tgt -> Tgt {
+                    ON TARGET DELETE ALLOW;
+                };
+                CREATE CONSTRAINT expression on (EXISTS .tgt);
+
+            };
+            CREATE TYPE Bar EXTENDING Foo;
+        """)
+
+        await self.con.execute(r"""
+            INSERT Bar { tgt := (INSERT Tgt) };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            'invalid Bar',
+        ):
+            await self.con.execute("""
+                DELETE Tgt;
+            """)
+
+        await self.con.execute("""
+            DELETE Bar;
+            DELETE Tgt;
+        """)
+
 
 class TestConsecutiveMigrations(tb.DDLTestCase):
     TRANSACTION_ISOLATION = False

@@ -1243,6 +1243,11 @@ def process_link_update(
             #
             # The actual work is done via raise_on_null injection performed
             # by "process_link_values()" below (hence "enforce_cardinality").
+            #
+            # The other part of this enforcement is in doing it when a
+            # target is deleted and the link policy is ALLOW. This is
+            # handled in _get_outline_link_trigger_proc_text in
+            # pgsql/delta.py.
 
             # Turn `foo := <expr>` into just `foo`.
             ptr_ref_set = irast.Set(

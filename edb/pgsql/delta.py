@@ -2064,7 +2064,11 @@ class CreateUnionType(
 
 class ObjectTypeMetaCommand(AliasCapableObjectMetaCommand,
                             CompositeObjectMetaCommand):
-    pass
+    def schedule_endpoint_delete_action_update(self, obj, schema, context):
+        endpoint_delete_actions = context.get(
+            sd.DeltaRootContext).op.update_endpoint_delete_actions
+        changed_targets = endpoint_delete_actions.changed_targets
+        changed_targets.add((self, obj))
 
 
 class CreateObjectType(ObjectTypeMetaCommand,
@@ -2088,6 +2092,8 @@ class CreateObjectType(ObjectTypeMetaCommand,
         if self.update_search_indexes:
             schema = self.update_search_indexes.apply(schema, context)
             self.pgops.add(self.update_search_indexes)
+
+        self.schedule_endpoint_delete_action_update(self.scls, schema, context)
 
         return schema
 
@@ -2183,6 +2189,8 @@ class RebaseObjectType(ObjectTypeMetaCommand,
         if has_table(result, schema):
             self.update_base_inhviews_on_rebase(
                 schema, orig_schema, context, self.scls)
+
+        self.schedule_endpoint_delete_action_update(self.scls, schema, context)
 
         return schema
 
@@ -3370,6 +3378,10 @@ class RebaseLink(LinkMetaCommand, adapts=s_links.RebaseLink):
             self.update_base_inhviews_on_rebase(
                 schema, orig_schema, context, source)
 
+        if not source.is_pure_computable(schema):
+            self.schedule_endpoint_delete_action_update(
+                source, orig_schema, schema, context)
+
         return schema
 
 
@@ -3478,7 +3490,12 @@ class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
                 schema=schema,
                 context=context,
             )
-            if otd and not link.is_pure_computable(schema):
+            card = self.get_resolved_attribute_value(
+                'cardinality',
+                schema=schema,
+                context=context,
+            )
+            if (otd or card) and not link.is_pure_computable(schema):
                 self.schedule_endpoint_delete_action_update(
                     link, orig_schema, schema, context)
 
@@ -3536,9 +3553,8 @@ class DeleteLink(LinkMetaCommand, adapts=s_links.DeleteLink):
                         update_descendants=True,
                     )
 
-            if link.get_owned(orig_schema):
-                self.schedule_endpoint_delete_action_update(
-                    link, orig_schema, schema, context)
+            self.schedule_endpoint_delete_action_update(
+                link, orig_schema, schema, context)
 
             self.attach_alter_table(context)
 
@@ -3939,9 +3955,11 @@ class UpdateEndpointDeleteActions(MetaCommand):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.link_ops = []
+        self.changed_targets = set()
 
-    def _get_link_table_union(self, schema, links) -> str:
+    def _get_link_table_union(self, schema, links, include_children) -> str:
         selects = []
+        aspect = 'inhview' if include_children else None
         for link in links:
             selects.append(textwrap.dedent('''\
                 (SELECT
@@ -3953,13 +3971,19 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 id=ql(str(link.id)),
                 src=common.quote_ident('source'),
                 tgt=common.quote_ident('target'),
-                table=common.get_backend_name(schema, link),
+                table=common.get_backend_name(
+                    schema,
+                    link,
+                    aspect=aspect,
+                ),
             ))
 
         return '(' + '\nUNION ALL\n    '.join(selects) + ') as q'
 
-    def _get_inline_link_table_union(self, schema, links) -> str:
+    def _get_inline_link_table_union(
+            self, schema, links, include_children) -> str:
         selects = []
+        aspect = 'inhview' if include_children else None
         for link in links:
             link_psi = types.get_pointer_storage_info(link, schema=schema)
             link_col = link_psi.column_name
@@ -3976,7 +4000,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 table=common.get_backend_name(
                     schema,
                     link.get_source(schema),
-                    aspect='inhview',
+                    aspect=aspect,
                 ),
             ))
 
@@ -4052,7 +4076,11 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
         for action, links in groups:
             if action is DA.Restrict or action is DA.DeferredRestrict:
-                tables = self._get_link_table_union(schema, links)
+                # Inherited link targets with restrict actions are
+                # elided by apply() to enable us to use inhviews here
+                # when looking for live references.
+                tables = self._get_link_table_union(
+                    schema, links, include_children=True)
 
                 text = textwrap.dedent('''\
                     SELECT
@@ -4098,6 +4126,39 @@ class UpdateEndpointDeleteActions(MetaCommand):
                     link_table = common.get_backend_name(
                         schema, link)
 
+                    # Since enforcement of 'required' on multi links
+                    # is enforced manually on the query side and (not
+                    # through constraints/triggers of its own), we
+                    # also need to do manual enforcement of it when
+                    # deleting a required multi link.
+                    if link.get_required(schema) and disposition == 'target':
+                        required_text = textwrap.dedent('''\
+                            SELECT q.source INTO srcid
+                            FROM {link_table} as q
+                                WHERE q.target = OLD.{id}
+                                AND NOT EXISTS (
+                                    SELECT FROM {link_table} as q2
+                                    WHERE q.source = q2.source
+                                          AND q2.target != OLD.{id}
+                                );
+
+                            IF FOUND THEN
+                                RAISE not_null_violation
+                                    USING
+                                        TABLE = TG_TABLE_NAME,
+                                        SCHEMA = TG_TABLE_SCHEMA,
+                                        MESSAGE = 'missing value',
+                                        COLUMN = '{link_id}';
+                            END IF;
+                        ''').format(
+                            link_table=link_table,
+                            link_id=str(link.id),
+                            id='id'
+                        )
+
+                        chunks.append(required_text)
+
+                    # Otherwise just delete it from the link table.
                     text = textwrap.dedent('''\
                         DELETE FROM
                             {link_table}
@@ -4117,7 +4178,8 @@ class UpdateEndpointDeleteActions(MetaCommand):
                     sources[link.get_source(schema)].append(link)
 
                 for source, source_links in sources.items():
-                    tables = self._get_link_table_union(schema, source_links)
+                    tables = self._get_link_table_union(
+                        schema, source_links, include_children=False)
 
                     text = textwrap.dedent('''\
                         DELETE FROM
@@ -4170,7 +4232,11 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
         for action, links in groups:
             if action is DA.Restrict or action is DA.DeferredRestrict:
-                tables = self._get_inline_link_table_union(schema, links)
+                # Inherited link targets with restrict actions are
+                # elided by apply() to enable us to use inhviews here
+                # when looking for live references.
+                tables = self._get_inline_link_table_union(
+                    schema, links, include_children=True)
 
                 text = textwrap.dedent('''\
                     SELECT
@@ -4237,7 +4303,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
                 for source, source_links in sources.items():
                     tables = self._get_inline_link_table_union(
-                        schema, source_links)
+                        schema, source_links, include_children=False)
 
                     text = textwrap.dedent('''\
                         DELETE FROM
@@ -4277,46 +4343,60 @@ class UpdateEndpointDeleteActions(MetaCommand):
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        if not self.link_ops:
+        if not self.link_ops and not self.changed_targets:
             return schema
 
         DA = s_links.LinkTargetDeleteAction
 
         affected_sources = set()
-        affected_targets = set()
-        deletions = False
+        affected_targets = {t for _, t in self.changed_targets}
+        modifications = any(
+            isinstance(op, RebaseObjectType) and op.removed_bases
+            for op, _ in self.changed_targets
+        )
 
         for link_op, link, orig_schema in self.link_ops:
+            # If our link has a restrict policy, we don't need to update
+            # the target on changes to inherited links.
+            # Most importantly, this optimization lets us avoid updating
+            # the triggers for every schema::Type subtype every time a
+            # new object type is created containing a __type__ link.
+            eff_schema = (
+                orig_schema if isinstance(link_op, DeleteLink) else schema)
+            action = link.get_on_target_delete(eff_schema)
+            target_is_affected = not (
+                (action is DA.Restrict or action is DA.DeferredRestrict)
+                and link.get_implicit_bases(eff_schema)
+            )
+
+            if (
+                link.generic(eff_schema)
+                or link.is_pure_computable(eff_schema)
+            ):
+                continue
+
+            source = link.get_source(eff_schema)
+            target = link.get_target(eff_schema)
+
+            if not isinstance(link_op, CreateLink):
+                modifications = True
+
             if isinstance(link_op, DeleteLink):
-                if (link.generic(orig_schema)
-                        or not link.get_owned(orig_schema)
-                        or link.is_pure_computable(orig_schema)):
-                    continue
-                source = link.get_source(orig_schema)
                 current_source = orig_schema.get_by_id(source.id, None)
                 if (current_source is not None
                         and not current_source.is_view(orig_schema)):
                     affected_sources.add((current_source, orig_schema))
-                target = link.get_target(orig_schema)
                 current_target = schema.get_by_id(target.id, None)
-                if current_target is not None:
+                if target_is_affected and current_target is not None:
                     affected_targets.add(current_target)
-                deletions = True
             else:
-                if (
-                    link.generic(schema)
-                    or not link.get_owned(schema)
-                    or link.is_pure_computable(schema)
-                ):
-                    continue
-                source = link.get_source(schema)
                 if source.is_view(schema):
                     continue
 
                 affected_sources.add((source, schema))
 
-                target = link.get_target(schema)
-                affected_targets.add(target)
+                if target_is_affected:
+                    affected_targets.add(target)
 
                 if isinstance(link_op, AlterLink):
                     orig_target = link.get_target(orig_schema)
@@ -4331,7 +4411,6 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
             for link in source.get_pointers(src_schema).objects(src_schema):
                 if (not isinstance(link, s_links.Link)
-                        or not link.get_owned(src_schema)
                         or link.is_pure_computable(src_schema)):
                     continue
                 ptr_stor_info = types.get_pointer_storage_info(
@@ -4345,35 +4424,68 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 key=lambda l: (l.get_on_target_delete(src_schema),
                                l.get_name(src_schema)))
 
-            if links or deletions:
+            if links or modifications:
                 self._update_action_triggers(
                     src_schema, source, links, disposition='source')
 
+        # All descendants of affected targets also need to have their
+        # triggers updated, so track them down.
+        all_affected_targets = set()
         for target in affected_targets:
+            union_of = target.get_union_of(schema)
+            if union_of:
+                objtypes = tuple(union_of.objects(schema))
+            else:
+                objtypes = (target,)
+
+            for objtype in objtypes:
+                all_affected_targets.add(objtype)
+                for descendant in objtype.descendants(schema):
+                    if has_table(descendant, schema):
+                        all_affected_targets.add(descendant)
+
+        for target in all_affected_targets:
             deferred_links = []
             deferred_inline_links = []
             links = []
             inline_links = []
 
-            for link in schema.get_referrers(target, scls_type=s_links.Link,
-                                             field_name='target'):
-                if (not link.get_owned(schema)
-                        or link.is_pure_computable(schema)):
+            inbound_links = schema.get_referrers(
+                target, scls_type=s_links.Link, field_name='target')
+
+            # We need to look at all inbound links to all ancestors
+            for ancestor in target.get_ancestors(schema).objects(schema):
+                inbound_links |= schema.get_referrers(
+                    ancestor, scls_type=s_links.Link, field_name='target')
+
+            for link in inbound_links:
+                if link.is_pure_computable(schema):
                     continue
+                action = link.get_on_target_delete(schema)
+
+                # Enforcing link deletion policies on targets are
+                # handled by looking at the inheritance views, when
+                # restrict is the policy.
+                # If the policy is allow or delete source, we need to
+                # actually process this for each link.
+                if (
+                    (action is DA.Restrict or action is DA.DeferredRestrict)
+                    and link.get_implicit_bases(schema)
+                ):
+                    continue
+
                 source = link.get_source(schema)
                 if source.is_view(schema):
                     continue
                 ptr_stor_info = types.get_pointer_storage_info(
                     link, schema=schema)
                 if ptr_stor_info.table_type != 'link':
-                    if (link.get_on_target_delete(schema)
-                            is DA.DeferredRestrict):
+                    if action is DA.DeferredRestrict:
                         deferred_inline_links.append(link)
                     else:
                         inline_links.append(link)
                 else:
-                    if (link.get_on_target_delete(schema)
-                            is DA.DeferredRestrict):
+                    if action is DA.DeferredRestrict:
                         deferred_links.append(link)
                     else:
                         links.append(link)
@@ -4392,21 +4504,21 @@ class UpdateEndpointDeleteActions(MetaCommand):
             deferred_inline_links.sort(
                 key=lambda l: l.get_name(schema))
 
-            if links or deletions:
+            if links or modifications:
                 self._update_action_triggers(
                     schema, target, links, disposition='target')
 
-            if inline_links or deletions:
+            if inline_links or modifications:
                 self._update_action_triggers(
                     schema, target, inline_links,
                     disposition='target', inline=True)
 
-            if deferred_links or deletions:
+            if deferred_links or modifications:
                 self._update_action_triggers(
                     schema, target, deferred_links,
                     disposition='target', deferred=True)
 
-            if deferred_inline_links or deletions:
+            if deferred_inline_links or modifications:
                 self._update_action_triggers(
                     schema, target, deferred_inline_links,
                     disposition='target', deferred=True,
@@ -4423,73 +4535,59 @@ class UpdateEndpointDeleteActions(MetaCommand):
             deferred: bool=False,
             inline: bool=False) -> None:
 
-        union_of = objtype.get_union_of(schema)
-        if union_of:
-            objtypes = tuple(union_of.objects(schema))
+        table_name = common.get_backend_name(
+            schema, objtype, catenate=False)
+
+        trigger_name = self.get_trigger_name(
+            schema, objtype, disposition=disposition,
+            deferred=deferred, inline=inline)
+
+        proc_name = self.get_trigger_proc_name(
+            schema, objtype, disposition=disposition,
+            deferred=deferred, inline=inline)
+
+        trigger = dbops.Trigger(
+            name=trigger_name, table_name=table_name,
+            events=('delete',), procedure=proc_name,
+            is_constraint=True, inherit=True, deferred=deferred)
+
+        if links:
+            proc_text = self.get_trigger_proc_text(
+                objtype, links, disposition=disposition,
+                inline=inline, schema=schema)
+
+            trig_func = dbops.Function(
+                name=proc_name, text=proc_text, volatility='volatile',
+                returns='trigger', language='plpgsql')
+
+            self.pgops.add(dbops.CreateOrReplaceFunction(trig_func))
+
+            self.pgops.add(dbops.CreateTrigger(
+                trigger, neg_conditions=[dbops.TriggerExists(
+                    trigger_name=trigger_name, table_name=table_name
+                )]
+            ))
         else:
-            objtypes = (objtype,)
-
-        all_objtypes = set()
-        for objtype in objtypes:
-            all_objtypes.add(objtype)
-            for descendant in objtype.descendants(schema):
-                if has_table(descendant, schema):
-                    all_objtypes.add(descendant)
-
-        for objtype in all_objtypes:
-            table_name = common.get_backend_name(
-                schema, objtype, catenate=False)
-
-            trigger_name = self.get_trigger_name(
-                schema, objtype, disposition=disposition,
-                deferred=deferred, inline=inline)
-
-            proc_name = self.get_trigger_proc_name(
-                schema, objtype, disposition=disposition,
-                deferred=deferred, inline=inline)
-
-            trigger = dbops.Trigger(
-                name=trigger_name, table_name=table_name,
-                events=('delete',), procedure=proc_name,
-                is_constraint=True, inherit=True, deferred=deferred)
-
-            if links:
-                proc_text = self.get_trigger_proc_text(
-                    objtype, links, disposition=disposition,
-                    inline=inline, schema=schema)
-
-                trig_func = dbops.Function(
-                    name=proc_name, text=proc_text, volatility='volatile',
-                    returns='trigger', language='plpgsql')
-
-                self.pgops.add(dbops.CreateOrReplaceFunction(trig_func))
-
-                self.pgops.add(dbops.CreateTrigger(
-                    trigger, neg_conditions=[dbops.TriggerExists(
-                        trigger_name=trigger_name, table_name=table_name
+            self.pgops.add(
+                dbops.DropTrigger(
+                    trigger,
+                    conditions=[dbops.TriggerExists(
+                        trigger_name=trigger_name,
+                        table_name=table_name,
                     )]
-                ))
-            else:
-                self.pgops.add(
-                    dbops.DropTrigger(
-                        trigger,
-                        conditions=[dbops.TriggerExists(
-                            trigger_name=trigger_name,
-                            table_name=table_name,
-                        )]
-                    )
                 )
+            )
 
-                self.pgops.add(
-                    dbops.DropFunction(
+            self.pgops.add(
+                dbops.DropFunction(
+                    name=proc_name,
+                    args=[],
+                    conditions=[dbops.FunctionExists(
                         name=proc_name,
                         args=[],
-                        conditions=[dbops.FunctionExists(
-                            name=proc_name,
-                            args=[],
-                        )]
-                    )
+                    )]
                 )
+            )
 
 
 @dataclasses.dataclass

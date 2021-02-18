@@ -109,13 +109,17 @@ CREATE ABSTRACT TYPE schema::CollectionType EXTENDING schema::Type;
 
 
 CREATE TYPE schema::Array EXTENDING schema::CollectionType {
-    CREATE REQUIRED LINK element_type -> schema::Type;
+    CREATE REQUIRED LINK element_type -> schema::Type {
+        ON TARGET DELETE DEFERRED RESTRICT;
+    };
     CREATE PROPERTY dimensions -> array<std::int16>;
 };
 
 
 CREATE TYPE schema::TupleElement {
-    CREATE REQUIRED LINK type -> schema::Type;
+    CREATE REQUIRED LINK type -> schema::Type {
+        ON TARGET DELETE DEFERRED RESTRICT;
+    };
     CREATE PROPERTY name -> std::str;
 };
 
@@ -142,6 +146,7 @@ CREATE ABSTRACT TYPE schema::AnnotationSubject EXTENDING schema::Object {
     CREATE MULTI LINK annotations EXTENDING schema::reference
     -> schema::Annotation {
         CREATE PROPERTY value -> std::str;
+	ON TARGET DELETE ALLOW;
     };
 };
 
@@ -157,7 +162,9 @@ EXTENDING schema::SubclassableObject {
 
 
 CREATE TYPE schema::Parameter EXTENDING schema::Object {
-    CREATE REQUIRED LINK type -> schema::Type;
+    CREATE REQUIRED LINK type -> schema::Type {
+        ON TARGET DELETE DEFERRED RESTRICT;
+    };
     CREATE REQUIRED PROPERTY typemod -> schema::TypeModifier;
     CREATE REQUIRED PROPERTY kind -> schema::ParameterKind;
     CREATE REQUIRED PROPERTY num -> std::int64;
@@ -172,7 +179,9 @@ CREATE ABSTRACT TYPE schema::CallableObject
         ON TARGET DELETE ALLOW;
     };
 
-    CREATE LINK return_type -> schema::Type;
+    CREATE LINK return_type -> schema::Type {
+        ON TARGET DELETE DEFERRED RESTRICT;
+    };
     CREATE PROPERTY return_typemod -> schema::TypeModifier;
 };
 
@@ -204,6 +213,7 @@ CREATE ABSTRACT TYPE schema::ConsistencySubject EXTENDING schema::Object {
     CREATE MULTI LINK constraints EXTENDING schema::reference
     -> schema::Constraint {
         CREATE CONSTRAINT std::exclusive;
+	ON TARGET DELETE ALLOW;
     };
 };
 
@@ -221,6 +231,7 @@ CREATE TYPE schema::Index EXTENDING schema::AnnotationSubject {
 CREATE ABSTRACT TYPE schema::Source EXTENDING schema::Object {
     CREATE MULTI LINK indexes -> schema::Index {
         CREATE CONSTRAINT std::exclusive;
+	ON TARGET DELETE ALLOW;
     };
 };
 
@@ -241,6 +252,7 @@ CREATE ABSTRACT TYPE schema::Pointer
 ALTER TYPE schema::Source {
     CREATE MULTI LINK pointers EXTENDING schema::reference -> schema::Pointer {
         CREATE CONSTRAINT std::exclusive;
+	ON TARGET DELETE ALLOW;
     };
 };
 
@@ -248,7 +260,9 @@ ALTER TYPE schema::Source {
 CREATE TYPE schema::Alias EXTENDING schema::AnnotationSubject
 {
     CREATE REQUIRED PROPERTY expr -> std::str;
-    CREATE REQUIRED LINK type -> schema::Type;
+    CREATE REQUIRED LINK type -> schema::Type {
+        ON TARGET DELETE DEFERRED RESTRICT;
+    };
 };
 
 
@@ -287,7 +301,9 @@ CREATE TYPE schema::Property EXTENDING schema::Pointer;
 
 ALTER TYPE schema::Pointer {
     CREATE LINK source -> schema::Source;
-    CREATE LINK target -> schema::Type;
+    CREATE LINK target -> schema::Type {
+        ON TARGET DELETE DEFERRED RESTRICT;
+    }
 };
 
 
