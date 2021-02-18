@@ -635,6 +635,18 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             [True, True, True, True, True, True, True, True],
         )
 
+        await self.assert_query_result(
+            # validating that these are all in fact the same datetime
+            r'''
+                WITH x := {
+                    '+33658-09-27T01:46:39.000064Z',
+                }
+                SELECT <datetime>x =
+                    <datetime>'+33658-09-27T01:46:39.000064Z';
+            ''',
+            [True],
+        )
+
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidValueError,
                 r'invalid input syntax'):
@@ -691,6 +703,18 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                     <cal::local_datetime>'2018-05-07T20:01:22.306916';
             ''',
             [True, True, True],
+        )
+
+        await self.assert_query_result(
+            # validating that these are all in fact the same datetime
+            r'''
+                WITH x := {
+                    '+33658-09-27T01:46:39.000064',
+                }
+                SELECT <cal::local_datetime>x =
+                    <cal::local_datetime>'+33658-09-27T01:46:39.000064';
+            ''',
+            [True],
         )
 
         async with self.assertRaisesRegexTx(

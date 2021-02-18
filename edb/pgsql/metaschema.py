@@ -1583,7 +1583,7 @@ class DatetimeInFunction(dbops.Function):
         SELECT
             CASE WHEN val !~ (
                     '^\s*(' ||
-                        '(\d{4}-\d{2}-\d{2}|\d{8})' ||
+                        '((?:\+\d+)?\d{4}-\d{2}-\d{2}|\d{8})' ||
                         '[ tT]' ||
                         '(\d{2}(:\d{2}(:\d{2}(\.\d+)?)?)?|\d{2,6}(\.\d+)?)' ||
                         '([zZ]|[-+](\d{2,4}|\d{2}:\d{2}))' ||
@@ -1604,7 +1604,7 @@ class DatetimeInFunction(dbops.Function):
                     )
                 )
             ELSE
-                val::timestamptz
+                regexp_replace(val, '^\s*\+', '')::timestamptz
             END;
     '''
 
@@ -1665,7 +1665,7 @@ class LocalDatetimeInFunction(dbops.Function):
             CASE WHEN
                 val !~ (
                     '^\s*(' ||
-                        '(\d{4}-\d{2}-\d{2}|\d{8})' ||
+                        '((?:\+\d+)?\d{4}-\d{2}-\d{2}|\d{8})' ||
                         '[ tT]' ||
                         '(\d{2}(:\d{2}(:\d{2}(\.\d+)?)?)?|\d{2,6}(\.\d+)?)' ||
                     ')\s*$'
@@ -1685,7 +1685,7 @@ class LocalDatetimeInFunction(dbops.Function):
                     )
                 )
             ELSE
-                val::timestamp
+                regexp_replace(val, '^\s*\+', '')::timestamp
             END;
     '''
 
