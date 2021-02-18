@@ -11,9 +11,16 @@ GraphQL
 
 ----------
 
+In order to set up GraphQL access to the database add the following to
+the schema:
 
-For configuring :ref:`GraphQL <ref_graphql_index>` access, :ref:`see
-here <ref_cheatsheet_admin_graphql>`.
+.. code-block:: sdl
+
+    using extension graphql;
+
+Then create a new migration and apply it using :ref:`edgedb
+create-migration <ref_cli_edgedb_create_migration>` and :ref:`edgedb
+migrate <ref_cli_edgedb_migrate>`, respectively.
 
 Select all users in the system:
 

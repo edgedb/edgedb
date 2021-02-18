@@ -6,8 +6,8 @@ Known Limitations
 
 - Due to the differences between EdgeQL and GraphQL syntax
   :eql:type:`enum <std::enum>` types which have values that cannot be
-  represented as GraphQL identifiers (e.g. ``'N/A'`` or ``'NOT
-  APPLICABLE'``) cannot be properly reflected into GraphQL enums.
+  represented as GraphQL identifiers (e.g. ```N/A``` or ```NOT
+  APPLICABLE```) cannot be properly reflected into GraphQL enums.
 
 - EdgeDB :eql:type:`tuples <std::tuple>` are not supported in GraphQL
   reflection currently.

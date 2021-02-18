@@ -55,31 +55,6 @@ Connection Settings
     The TCP port the server listens on; ``5656`` by default.  Note that the
     same port number is used for all IP addresses the server listens on.
 
-:eql:synopsis:`Port`
-    A parameter class that allows configuring application ports with the
-    specified protocol.  Below are the properties of the ``Port`` class.
-    All are required.
-
-    :eql:synopsis:`address (SET OF str)`
-        The TCP/IP address(es) for the application port.
-
-    :eql:synopsis:`port (int16)`
-        The TCP port for the application port.
-
-    :eql:synopsis:`protocol (str)`
-        The protocol for the application port.  Valid values are:
-        ``'graphql+http'`` and ``'edgeql+http'``.
-
-    :eql:synopsis:`database (str)`
-        The name of the database the application port is attached to.
-
-    :eql:synopsis:`user (str)`
-        The name of the database role the application port is attached to.
-
-    :eql:synopsis:`concurrency (int64)`
-        The maximum number of backend connections available for this
-        application port.
-
 :eql:synopsis:`Auth`
     A parameter class that specifies the rules of client authentication.
     Below are the properties of the ``Auth`` class.
@@ -104,24 +79,31 @@ Connection Settings
 Resource Usage
 --------------
 
-:eql:synopsis:`shared_buffers (str)`
-    The amount of memory the database uses for shared memory buffers.
-    Corresponds to the PostgreSQL configuration parameter of the same name.
-    Changing this value requires server restart.
+:eql:synopsis:`effective_io_concurrency (int64)`
+    Sets the number of concurrent disk I/O operations that can be
+    executed simultaneously. Corresponds to the PostgreSQL
+    configuration parameter of the same name.
 
 :eql:synopsis:`query_work_mem (str)`
-    The amount of memory used by internal query operations such as sorting.
-    Corresponds to the PostgreSQL ``work_mem`` configuration parameter.
+    The amount of memory used by internal query operations such as
+    sorting. Corresponds to the PostgreSQL ``work_mem`` configuration
+    parameter.
+
+:eql:synopsis:`shared_buffers (str)`
+    The amount of memory the database uses for shared memory buffers.
+    Corresponds to the PostgreSQL configuration parameter of the same
+    name. Changing this value requires server restart.
 
 
 Query Planning
 --------------
 
-:eql:synopsis:`effective_cache_size (str)`
-    Sets the planner's assumption about the effective size of the disk cache
-    that is available to a single query. Corresponds to the PostgreSQL
-    configuration parameter of the same name
-
 :eql:synopsis:`default_statistics_target (str)`
     Sets the default data statistics target for the planner.
-    Corresponds to the PostgreSQL configuration parameter of the same name
+    Corresponds to the PostgreSQL configuration parameter of the same
+    name.
+
+:eql:synopsis:`effective_cache_size (str)`
+    Sets the planner's assumption about the effective size of the disk
+    cache that is available to a single query. Corresponds to the
+    PostgreSQL configuration parameter of the same name.

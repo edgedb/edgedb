@@ -24,5 +24,7 @@ managing and using an EdgeDB instance.
     +---------------------------------+---------------------------------+
     | :ref:`ref_cli_edgedb_restore`   | Restore an EdgeDB database      |
     +---------------------------------+---------------------------------+
+    | :ref:`ref_cli_edgedb_migration` | EdgeDB migration tools          |
+    +---------------------------------+---------------------------------+
 
 :ref:`Notes on network usage <ref_cli_edgedb_network>`
