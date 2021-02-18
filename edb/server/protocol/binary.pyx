@@ -1450,12 +1450,15 @@ cdef class EdgeConnection:
         except Exception as ex:
             self.dbview.on_error(query_unit)
 
-            if not conn.in_tx() and self.dbview.in_tx():
-                # COMMIT command can fail, in which case the
-                # transaction is finished.  This check workarounds
-                # that (until a better solution is found.)
+            if (
+                query_unit.tx_commit and
+                not conn.in_tx() and
+                self.dbview.in_tx()
+            ):
+                # The COMMIT command has failed. Our Postgres connection
+                # isn't in a transaction anymore. Abort the transaction
+                # in dbview.
                 self.dbview.abort_tx()
-                await self.recover_current_tx_info(conn)
             raise
         else:
             side_effects = self.dbview.on_success(query_unit, new_types)
