@@ -957,8 +957,7 @@ class CreateConstraint(
 
             if has_multi and len(refs) > 1:
                 raise errors.InvalidConstraintDefinitionError(
-                    "Constraint referencing MULTI links or properties "
-                    "may not reference multiple ones",
+                    "cannot reference multiple links or properties in a constraint where at least one link or property is MULTI",
                     context=expr_context
                 )
 
