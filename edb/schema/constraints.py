@@ -918,28 +918,57 @@ class CreateConstraint(
                 context=expr_context
             )
 
-        if (subjectexpr is not None and isinstance(subject_obj, s_types.Type)
-                and subject_obj.is_object_type()):
+        if subjectexpr is not None:
+            if (isinstance(subject_obj, s_types.Type)
+                    and subject_obj.is_object_type()):
+                singletons = frozenset({subject_obj})
+            else:
+                singletons = frozenset()
+
             final_subjectexpr = s_expr.Expression.compiled(
                 subjectexpr,
                 schema=schema,
                 options=qlcompiler.CompilerOptions(
                     anchors={qlast.Subject().name: subject},
                     path_prefix_anchor=path_prefix_anchor,
-                    singletons=frozenset({subject_obj}),
+                    singletons=singletons,
                     apply_query_rewrites=not context.stdmode,
                 ),
             )
             assert isinstance(final_subjectexpr.irast, ir_ast.Statement)
 
-            if final_subjectexpr.irast.cardinality.is_multi():
-                refs = ir_utils.get_longest_paths(final_expr.irast)
-                if len(refs) > 1:
-                    raise errors.InvalidConstraintDefinitionError(
-                        "Constraint with multi cardinality may not "
-                        "reference multiple links or properties",
-                        context=expr_context
-                    )
+            refs = ir_utils.get_longest_paths(final_expr.irast)
+            has_multi = False
+            for ref in refs:
+                while ref.rptr:
+                    rptr = ref.rptr
+                    if rptr.ptrref.dir_cardinality.is_multi():
+                        has_multi = True
+                    if (not isinstance(rptr.ptrref,
+                                       ir_ast.TupleIndirectionPointerRef)
+                            and rptr.ptrref.source_ptr is None
+                            and rptr.source.rptr is not None):
+                        raise errors.InvalidConstraintDefinitionError(
+                            "Constraints may not traverse links",
+                            context=ref.context,
+                        )
+
+                    ref = rptr.source
+
+            if has_multi and len(refs) > 1:
+                raise errors.InvalidConstraintDefinitionError(
+                    "Constraint referencing MULTI links or properties "
+                    "may not reference multiple ones",
+                    context=expr_context
+                )
+
+            if has_multi and ir_utils.contains_set_of_op(
+                    final_subjectexpr.irast):
+                raise errors.InvalidConstraintDefinitionError(
+                    "Constraint referencing MULTI links or properties "
+                    "may not use SET OF operations",
+                    context=expr_context
+                )
 
         attrs['return_type'] = constr_base.get_return_type(schema)
         attrs['return_typemod'] = constr_base.get_return_typemod(schema)

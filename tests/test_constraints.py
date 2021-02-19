@@ -1051,19 +1051,79 @@ class TestConstraintsDDL(tb.DDLTestCase):
             CREATE TYPE test::ObjCnstr2 {
                 CREATE MULTI PROPERTY first_name -> str;
                 CREATE MULTI PROPERTY last_name -> str;
+                CREATE LINK foo -> Object {
+                    CREATE PROPERTY p -> str;
+                };
                 CREATE CONSTRAINT exclusive on (__subject__.first_name);
             };
         """)
 
         async with self.assertRaisesRegexTx(
             edgedb.InvalidConstraintDefinitionError,
-            "Constraint with multi cardinality may not "
-            "reference multiple links or properties",
+            "Constraint referencing MULTI links or properties "
+            "may not reference multiple ones",
         ):
             await self.con.execute("""
                 ALTER TYPE test::ObjCnstr2 {
                     CREATE CONSTRAINT exclusive
                     on ((__subject__.first_name, __subject__.last_name));
+                };
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidConstraintDefinitionError,
+            "Constraint referencing MULTI links or properties "
+            "may not use SET OF operations",
+        ):
+            await self.con.execute("""
+                ALTER TYPE test::ObjCnstr2 {
+                    CREATE CONSTRAINT expression on (EXISTS .first_name);
+                };
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidConstraintDefinitionError,
+            "Constraint referencing MULTI links or properties "
+            "may not use SET OF operations",
+        ):
+            await self.con.execute("""
+                ALTER TYPE test::ObjCnstr2 {
+                    ALTER PROPERTY first_name {
+                        CREATE CONSTRAINT expression on (EXISTS __subject__);
+                    }
+                };
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidConstraintDefinitionError,
+            "Constraints may not traverse link",
+        ):
+            await self.con.execute("""
+                ALTER TYPE test::ObjCnstr2 {
+                    CREATE CONSTRAINT expression on (<str>.foo.id != 'lol');
+                };
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidConstraintDefinitionError,
+            "Constraints may not traverse link",
+        ):
+            await self.con.execute("""
+                ALTER TYPE test::ObjCnstr2 {
+                    ALTER LINK foo {
+                        CREATE CONSTRAINT expression on (
+                            <str>__subject__.id != 'lol');
+                    }
+                };
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidConstraintDefinitionError,
+            "not supported because it would depend on multiple tables",
+        ):
+            await self.con.execute("""
+                ALTER TYPE test::ObjCnstr2 {
+                    CREATE CONSTRAINT expression on (<str>.id != .foo@p);
                 };
             """)
 

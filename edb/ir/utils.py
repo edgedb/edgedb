@@ -326,3 +326,10 @@ def contains_dml(stmt: irast.Base, *, skip_bindings: bool=False) -> bool:
     visitor = ContainsDMLVisitor(skip_bindings=skip_bindings)
     res = visitor.visit(stmt) is True
     return res
+
+
+def contains_set_of_op(ir: irast.Base) -> bool:
+    flt = (lambda n: isinstance(n, irast.Call)
+           and any(x == ft.TypeModifier.SetOfType
+                   for x in n.params_typemods))
+    return bool(ast.find_children(ir, flt, terminate_early=True))
