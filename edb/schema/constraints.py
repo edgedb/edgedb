@@ -949,7 +949,7 @@ class CreateConstraint(
                             and rptr.ptrref.source_ptr is None
                             and rptr.source.rptr is not None):
                         raise errors.InvalidConstraintDefinitionError(
-                            "Constraints may not traverse links",
+                            "constraints cannot contain paths with more than one hop",
                             context=ref.context,
                         )
 
