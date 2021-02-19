@@ -42,7 +42,7 @@ cal::to_local_datetime(s: std::str, fmt: OPTIONAL str={})
             edgedb.local_datetime_in("s")
         WHEN "fmt" = '' THEN
             edgedb.raise(
-                NULL::timestamp,
+                NULL::edgedb.timestamp_t,
                 'invalid_parameter_value',
                 msg => (
                     'to_local_datetime(): '
@@ -76,7 +76,7 @@ cal::to_local_datetime(year: std::int64, month: std::int64, day: std::int64,
     SELECT make_timestamp(
         "year"::int, "month"::int, "day"::int,
         "hour"::int, "min"::int, "sec"
-    )
+    )::edgedb.timestamp_t
     $$;
 };
 
@@ -90,7 +90,7 @@ cal::to_local_datetime(dt: std::datetime, zone: std::str)
     # The version of timezone with these arguments is IMMUTABLE.
     SET volatility := 'IMMUTABLE';
     USING SQL $$
-    SELECT timezone("zone", "dt");
+    SELECT timezone("zone", "dt")::edgedb.timestamp_t;
     $$;
 };
 
@@ -107,7 +107,7 @@ cal::to_local_date(s: std::str, fmt: OPTIONAL str={}) -> cal::local_date
             edgedb.local_date_in("s")
         WHEN "fmt" = '' THEN
             edgedb.raise(
-                NULL::date,
+                NULL::edgedb.date_t,
                 'invalid_parameter_value',
                 msg => (
                     'to_local_date(): '
@@ -116,7 +116,7 @@ cal::to_local_date(s: std::str, fmt: OPTIONAL str={}) -> cal::local_date
             )
         ELSE
             edgedb.raise_on_null(
-                edgedb.to_local_datetime("s", "fmt")::date,
+                edgedb.to_local_datetime("s", "fmt")::edgedb.date_t,
                 'invalid_parameter_value',
                 msg => (
                     'to_local_date(): format ''' || "fmt" || ''' is invalid'
@@ -136,7 +136,7 @@ cal::to_local_date(dt: std::datetime, zone: std::str)
     # The version of timezone with these arguments is IMMUTABLE.
     SET volatility := 'IMMUTABLE';
     USING SQL $$
-    SELECT timezone("zone", "dt")::date;
+    SELECT timezone("zone", "dt")::edgedb.date_t;
     $$;
 };
 
@@ -148,7 +148,7 @@ cal::to_local_date(year: std::int64, month: std::int64, day: std::int64)
     CREATE ANNOTATION std::description := 'Create a `cal::local_date` value.';
     SET volatility := 'IMMUTABLE';
     USING SQL $$
-    SELECT make_date("year"::int, "month"::int, "day"::int)
+    SELECT make_date("year"::int, "month"::int, "day"::int)::edgedb.date_t
     $$;
 };
 
@@ -280,7 +280,7 @@ std::`=` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
     SET volatility := 'IMMUTABLE';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
-    USING SQL OPERATOR r'=';
+    USING SQL OPERATOR r'=(timestamp,timestamp)';
 };
 
 
@@ -297,7 +297,7 @@ std::`!=` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
     SET volatility := 'IMMUTABLE';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
-    USING SQL OPERATOR r'<>';
+    USING SQL OPERATOR r'<>(timestamp,timestamp)';
 };
 
 
@@ -314,7 +314,7 @@ std::`>` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
     SET volatility := 'IMMUTABLE';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
-    USING SQL OPERATOR r'>';
+    USING SQL OPERATOR r'>(timestamp,timestamp)';
 };
 
 
@@ -323,7 +323,7 @@ std::`>=` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
     SET volatility := 'IMMUTABLE';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
-    USING SQL OPERATOR r'>=';
+    USING SQL OPERATOR r'>=(timestamp,timestamp)';
 };
 
 
@@ -332,7 +332,7 @@ std::`<` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
     SET volatility := 'IMMUTABLE';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
-    USING SQL OPERATOR r'<';
+    USING SQL OPERATOR r'<(timestamp,timestamp)';
 };
 
 
@@ -341,7 +341,7 @@ std::`<=` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
     SET volatility := 'IMMUTABLE';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
-    USING SQL OPERATOR r'<=';
+    USING SQL OPERATOR r'<=(timestamp,timestamp)';
 };
 
 
@@ -349,7 +349,9 @@ CREATE INFIX OPERATOR
 std::`+` (l: cal::local_datetime, r: std::duration) -> cal::local_datetime {
     SET volatility := 'IMMUTABLE';
     SET commutator := 'std::+';
-    USING SQL OPERATOR r'+';
+    USING SQL $$
+        SELECT ("l" + "r")::edgedb.timestamp_t
+    $$;
 };
 
 
@@ -357,14 +359,18 @@ CREATE INFIX OPERATOR
 std::`+` (l: std::duration, r: cal::local_datetime) -> cal::local_datetime {
     SET volatility := 'IMMUTABLE';
     SET commutator := 'std::+';
-    USING SQL OPERATOR r'+';
+    USING SQL $$
+        SELECT ("l" + "r")::edgedb.timestamp_t
+    $$;
 };
 
 
 CREATE INFIX OPERATOR
 std::`-` (l: cal::local_datetime, r: std::duration) -> cal::local_datetime {
     SET volatility := 'IMMUTABLE';
-    USING SQL OPERATOR r'-';
+    USING SQL $$
+        SELECT ("l" - "r")::edgedb.timestamp_t
+    $$;
 };
 
 
@@ -376,7 +382,7 @@ std::`=` (l: cal::local_date, r: cal::local_date) -> std::bool {
     SET volatility := 'IMMUTABLE';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
-    USING SQL OPERATOR r'=';
+    USING SQL OPERATOR r'=(date,date)';
 };
 
 
@@ -393,7 +399,7 @@ std::`!=` (l: cal::local_date, r: cal::local_date) -> std::bool {
     SET volatility := 'IMMUTABLE';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
-    USING SQL OPERATOR r'<>';
+    USING SQL OPERATOR r'<>(date,date)';
 };
 
 
@@ -410,7 +416,7 @@ std::`>` (l: cal::local_date, r: cal::local_date) -> std::bool {
     SET volatility := 'IMMUTABLE';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
-    USING SQL OPERATOR r'>';
+    USING SQL OPERATOR r'>(date,date)';
 };
 
 
@@ -419,7 +425,7 @@ std::`>=` (l: cal::local_date, r: cal::local_date) -> std::bool {
     SET volatility := 'IMMUTABLE';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
-    USING SQL OPERATOR r'>=';
+    USING SQL OPERATOR r'>=(date,date)';
 };
 
 
@@ -428,7 +434,7 @@ std::`<` (l: cal::local_date, r: cal::local_date) -> std::bool {
     SET volatility := 'IMMUTABLE';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
-    USING SQL OPERATOR r'<';
+    USING SQL OPERATOR r'<(date,date)';
 };
 
 
@@ -437,7 +443,7 @@ std::`<=` (l: cal::local_date, r: cal::local_date) -> std::bool {
     SET volatility := 'IMMUTABLE';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
-    USING SQL OPERATOR r'<=';
+    USING SQL OPERATOR r'<=(date,date)';
 };
 
 
@@ -447,7 +453,9 @@ std::`+` (l: cal::local_date, r: std::duration) -> cal::local_date
     SET volatility := 'IMMUTABLE';
     SET commutator := 'std::+';
     SET force_return_cast := true;
-    USING SQL OPERATOR '+';
+    USING SQL $$
+        SELECT ("l" + "r")::edgedb.date_t
+    $$;
 };
 
 
@@ -457,7 +465,9 @@ std::`+` (l: std::duration, r: cal::local_date) -> cal::local_date
     SET volatility := 'IMMUTABLE';
     SET commutator := 'std::+';
     SET force_return_cast := true;
-    USING SQL OPERATOR '+';
+    USING SQL $$
+        SELECT ("l" + "r")::edgedb.date_t
+    $$;
 };
 
 
@@ -466,7 +476,9 @@ std::`-` (l: cal::local_date, r: std::duration) -> cal::local_date
 {
     SET volatility := 'IMMUTABLE';
     SET force_return_cast := true;
-    USING SQL OPERATOR '-';
+    USING SQL $$
+        SELECT ("l" - "r")::edgedb.date_t
+    $$;
 };
 
 
@@ -806,6 +818,6 @@ std::to_datetime(local: cal::local_datetime, zone: std::str)
     # The version of timezone with these arguments is IMMUTABLE.
     SET volatility := 'IMMUTABLE';
     USING SQL $$
-    SELECT timezone("zone", "local");
+    SELECT timezone("zone", "local")::edgedb.timestamptz_t;
     $$;
 };

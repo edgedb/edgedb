@@ -116,7 +116,67 @@ class BigintDomain(dbops.Domain):
                     expr=("scale(VALUE) = 0 AND VALUE != 'NaN'"),
                 ),
             ),
-        ),
+        )
+
+
+class TimestampTzDomain(dbops.Domain):
+    """Timestamptz clamped to years 0001-9999.
+
+    The default timestamp range of (4713 BC - 294276 AD) has problems:
+    Postgres isn't ISO compliant with years out of the 0-9999 range and
+    language compatibility is questionable.
+    """
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'timestamptz_t'),
+            base='timestamptz',
+            constraints=(
+                dbops.DomainCheckConstraint(
+                    domain_name=('edgedb', 'timestamptz_t'),
+                    expr=("EXTRACT(years from VALUE) BETWEEN 1 AND 9999"),
+                ),
+            ),
+        )
+
+
+class TimestampDomain(dbops.Domain):
+    """Timestamp clamped to years 0001-9999.
+
+    The default timestamp range of (4713 BC - 294276 AD) has problems:
+    Postgres isn't ISO compliant with years out of the 0-9999 range and
+    language compatibility is questionable.
+    """
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'timestamp_t'),
+            base='timestamp',
+            constraints=(
+                dbops.DomainCheckConstraint(
+                    domain_name=('edgedb', 'timestamp_t'),
+                    expr=("EXTRACT(years from VALUE) BETWEEN 1 AND 9999"),
+                ),
+            ),
+        )
+
+
+class DateDomain(dbops.Domain):
+    """Date clamped to years 0001-9999.
+
+    The default timestamp range of (4713 BC - 294276 AD) has problems:
+    Postgres isn't ISO compliant with years out of the 0-9999 range and
+    language compatibility is questionable.
+    """
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'date_t'),
+            base='date',
+            constraints=(
+                dbops.DomainCheckConstraint(
+                    domain_name=('edgedb', 'date_t'),
+                    expr=("EXTRACT(years from VALUE) BETWEEN 1 AND 9999"),
+                ),
+            ),
+        )
 
 
 class AlterCurrentDatabaseSetString(dbops.Function):
@@ -1591,7 +1651,7 @@ class DatetimeInFunction(dbops.Function):
                 )
             THEN
                 edgedb.raise(
-                    NULL::timestamptz,
+                    NULL::edgedb.timestamptz_t,
                     'invalid_datetime_format',
                     msg => (
                         'invalid input syntax for type timestamptz: '
@@ -1604,7 +1664,7 @@ class DatetimeInFunction(dbops.Function):
                     )
                 )
             ELSE
-                val::timestamptz
+                val::edgedb.timestamptz_t
             END;
     '''
 
@@ -1612,7 +1672,7 @@ class DatetimeInFunction(dbops.Function):
         super().__init__(
             name=('edgedb', 'datetime_in'),
             args=[('val', ('text',))],
-            returns=('timestamptz',),
+            returns=('edgedb', 'timestamptz_t'),
             # Same volatility as raise() (stable)
             volatility='stable',
             text=self.text)
@@ -1672,7 +1732,7 @@ class LocalDatetimeInFunction(dbops.Function):
                 )
             THEN
                 edgedb.raise(
-                    NULL::timestamp,
+                    NULL::edgedb.timestamp_t,
                     'invalid_datetime_format',
                     msg => (
                         'invalid input syntax for type timestamp: '
@@ -1685,7 +1745,7 @@ class LocalDatetimeInFunction(dbops.Function):
                     )
                 )
             ELSE
-                val::timestamp
+                val::edgedb.timestamp_t
             END;
     '''
 
@@ -1693,7 +1753,7 @@ class LocalDatetimeInFunction(dbops.Function):
         super().__init__(
             name=('edgedb', 'local_datetime_in'),
             args=[('val', ('text',))],
-            returns=('timestamp',),
+            returns=('edgedb', 'timestamp_t'),
             # Same volatility as raise() (stable)
             volatility='stable',
             text=self.text)
@@ -1711,7 +1771,7 @@ class LocalDateInFunction(dbops.Function):
                 )
             THEN
                 edgedb.raise(
-                    NULL::date,
+                    NULL::edgedb.date_t,
                     'invalid_datetime_format',
                     msg => (
                         'invalid input syntax for type date: '
@@ -1724,7 +1784,7 @@ class LocalDateInFunction(dbops.Function):
                     )
                 )
             ELSE
-                val::date
+                val::edgedb.date_t
             END;
     '''
 
@@ -1732,7 +1792,7 @@ class LocalDateInFunction(dbops.Function):
         super().__init__(
             name=('edgedb', 'local_date_in'),
             args=[('val', ('text',))],
-            returns=('date',),
+            returns=('edgedb', 'date_t'),
             # Same volatility as raise() (stable)
             volatility='stable',
             text=self.text)
@@ -1826,7 +1886,7 @@ class ToTimestampTZCheck(dbops.Function):
                     DETAIL = '';
             END IF;
 
-            RETURN result;
+            RETURN result::edgedb.timestamptz_t;
         END;
     '''
 
@@ -1835,7 +1895,7 @@ class ToTimestampTZCheck(dbops.Function):
             name=('edgedb', '_to_timestamptz_check'),
             args=[('val', ('text',)), ('fmt', ('text',)),
                   ('hastz', ('bool',))],
-            returns=('timestamptz',),
+            returns=('edgedb', 'timestamptz_t'),
             # We're relying on changing settings, so it's volatile.
             volatility='volatile',
             language='plpgsql',
@@ -1856,7 +1916,7 @@ class ToDatetimeFunction(dbops.Function):
                 )
             THEN
                 edgedb.raise(
-                    NULL::timestamptz,
+                    NULL::edgedb.timestamptz_t,
                     'invalid_datetime_format',
                     msg => (
                         'missing required time zone in format: '
@@ -1876,7 +1936,7 @@ class ToDatetimeFunction(dbops.Function):
         super().__init__(
             name=('edgedb', 'to_datetime'),
             args=[('val', ('text',)), ('fmt', ('text',))],
-            returns=('timestamptz',),
+            returns=('edgedb', 'timestamptz_t'),
             # Same as _to_timestamptz_check.
             volatility='volatile',
             text=self.text)
@@ -1895,7 +1955,7 @@ class ToLocalDatetimeFunction(dbops.Function):
                 )
             THEN
                 edgedb.raise(
-                    NULL::timestamp,
+                    NULL::edgedb.timestamp_t,
                     'invalid_datetime_format',
                     msg => (
                         'unexpected time zone in format: '
@@ -1903,7 +1963,8 @@ class ToLocalDatetimeFunction(dbops.Function):
                     )
                 )
             ELSE
-                edgedb._to_timestamptz_check(val, fmt, false)::timestamp
+                edgedb._to_timestamptz_check(val, fmt, false)
+                    ::edgedb.timestamp_t
             END;
     '''
 
@@ -1911,7 +1972,7 @@ class ToLocalDatetimeFunction(dbops.Function):
         super().__init__(
             name=('edgedb', 'to_local_datetime'),
             args=[('val', ('text',)), ('fmt', ('text',))],
-            returns=('timestamp',),
+            returns=('edgedb', 'timestamp_t'),
             # Same as _to_timestamptz_check.
             volatility='volatile',
             text=self.text)
@@ -2794,6 +2855,9 @@ async def bootstrap(conn: asyncpg.Connection) -> None:
         dbops.CreateFunction(IntrospectTriggersFunction()),
         dbops.CreateCompositeType(TableInheritanceDescType()),
         dbops.CreateDomain(BigintDomain()),
+        dbops.CreateDomain(TimestampTzDomain()),
+        dbops.CreateDomain(TimestampDomain()),
+        dbops.CreateDomain(DateDomain()),
         dbops.CreateFunction(StrToBigint()),
         dbops.CreateFunction(StrToDecimal()),
         dbops.CreateFunction(StrToInt64NoInline()),

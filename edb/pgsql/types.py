@@ -48,13 +48,13 @@ base_type_name_map = {
     s_obj.get_known_type_id('std::float64'): ('float8',),
     s_obj.get_known_type_id('std::float32'): ('float4',),
     s_obj.get_known_type_id('std::uuid'): ('uuid',),
-    s_obj.get_known_type_id('std::datetime'): ('timestamptz',),
+    s_obj.get_known_type_id('std::datetime'): ('edgedb', 'timestamptz_t'),
     s_obj.get_known_type_id('std::duration'): ('interval',),
     s_obj.get_known_type_id('std::bytes'): ('bytea',),
     s_obj.get_known_type_id('std::json'): ('jsonb',),
 
-    s_obj.get_known_type_id('cal::local_datetime'): ('timestamp',),
-    s_obj.get_known_type_id('cal::local_date'): ('date',),
+    s_obj.get_known_type_id('cal::local_datetime'): ('edgedb', 'timestamp_t'),
+    s_obj.get_known_type_id('cal::local_date'): ('edgedb', 'date_t'),
     s_obj.get_known_type_id('cal::local_time'): ('time',),
 }
 
@@ -79,13 +79,19 @@ base_type_name_map_r = {
     'float4': sn.QualName('std', 'float32'),
     'uuid': sn.QualName('std', 'uuid'),
     'timestamp with time zone': sn.QualName('std', 'datetime'),
+    'edgedb.timestamptz_t': sn.QualName('std', 'datetime'),
+    'timestamptz_t': sn.QualName('std', 'datetime'),
     'timestamptz': sn.QualName('std', 'datetime'),
     'interval': sn.QualName('std', 'duration'),
     'bytea': sn.QualName('std', 'bytes'),
     'jsonb': sn.QualName('std', 'json'),
 
     'timestamp': sn.QualName('cal', 'local_datetime'),
+    'timestamp_t': sn.QualName('cal', 'local_datetime'),
+    'edgedb.timestamp_t': sn.QualName('cal', 'local_datetime'),
     'date': sn.QualName('cal', 'local_date'),
+    'date_t': sn.QualName('cal', 'local_date'),
+    'edgedb.date_t': sn.QualName('cal', 'local_date'),
     'time': sn.QualName('cal', 'local_time'),
 }
 

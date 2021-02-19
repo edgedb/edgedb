@@ -112,8 +112,17 @@ constraint_res = {
     'newconstraint': re.compile(r'^.*violate the new constraint.*$'),
     'id': re.compile(r'^.*"(?:\w+)_data_pkey".*$'),
     'link_target_del': re.compile(r'^.*link target policy$'),
-    'scalar': re.compile(r'^value for domain (\w+) violates check constraint'),
+    'scalar': re.compile(
+        r'^value for domain (\w+) violates check constraint "(.+)"'
+    ),
 }
+
+
+range_constraints = frozenset({
+    'timestamptz_t_check',
+    'timestamp_t_check',
+    'date_t_check',
+})
 
 
 pgtype_re = re.compile(
@@ -411,7 +420,10 @@ def interpret_backend_error(schema, fields):
             domain_name = match.group(1)
             stype_name = types.base_type_name_map_r.get(domain_name)
             if stype_name:
-                msg = f'invalid value for scalar type {str(stype_name)!r}'
+                if match.group(2) in range_constraints:
+                    msg = f'{str(stype_name)!r} value out of range'
+                else:
+                    msg = f'invalid value for scalar type {str(stype_name)!r}'
             else:
                 msg = translate_pgtype(schema, err_details.message)
             return errors.InvalidValueError(msg)
