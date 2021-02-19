@@ -191,7 +191,7 @@ class ConstraintMech:
             raise errors.InvalidConstraintDefinitionError(
                 f'Constraint {constraint.get_displayname(schema)} on '
                 f'{subject.get_displayname(schema)} is not supported '
-                f'because it would depend on multiple tables',
+                f'because it would depend on multiple objects',
                 context=source_context,
             )
         elif ref_tables:
