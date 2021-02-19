@@ -89,7 +89,7 @@ def inittestdb(*, data_dir, jobs, tests_dir):
 
     try:
         cluster.init()
-        cluster.start(port='dynamic')
+        cluster.start(port=0)
         cluster.trust_local_connections()
     except BaseException:
         if os.path.exists(data_dir):

@@ -33,7 +33,6 @@ from edb.schema import schema as s_schema
 from edb.common import topological
 from edb.tools.edb import edbcommands
 
-from edb.server import cluster as edbcluster
 from edb.server import compiler as edbcompiler
 from edb.server import defines as edbdef
 from edb.server import pgcluster
@@ -96,7 +95,7 @@ def wipe(*, postgres_dsn, data_dir, yes, dry_run):
             click.secho(f'Remote cluster is not running', fg='red')
             sys.exit(1)
         else:
-            cluster.start(port=edbcluster.find_available_port())
+            cluster.start(port=0)
             cluster_started_by_us = True
 
     try:

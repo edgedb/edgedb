@@ -183,6 +183,9 @@ class Server:
 
             await asyncio.sleep(30)
 
+    def get_listen_port(self):
+        return self._listen_port
+
     def get_loop(self):
         return self._loop
 
@@ -260,7 +263,7 @@ class Server:
                     or 'localhost'
                 )
 
-            if not self._listen_port:
+            if self._listen_port is None:
                 self._listen_port = (
                     config.lookup('listen_port', sys_config)
                     or defines.EDGEDB_PORT
@@ -561,8 +564,10 @@ class Server:
         return self._roles
 
     async def _restart_servers_new_addr(self, nethost, netport):
+        if not netport:
+            raise RuntimeError('cannot restart without network port specified')
         old_servers = self._servers
-        self._servers = await self._start_servers(nethost, netport)
+        self._servers, _ = await self._start_servers(nethost, netport)
         self._listen_host = nethost
         self._listen_port = netport
         await self._stop_servers(old_servers)
@@ -758,11 +763,14 @@ class Server:
         return
 
     async def _start_servers(self, host, port):
-        nethost = await _fix_localhost(host, port)
+        nethost = await _fix_localhost(host)
 
         tcp_srv = await self._loop.create_server(
             lambda: protocol.HttpProtocol(self),
             host=nethost, port=port)
+
+        if port == 0:
+            port = tcp_srv.sockets[0].getsockname()[1]
 
         try:
             unix_sock_path = os.path.join(
@@ -803,7 +811,7 @@ class Server:
         servers.append(admin_unix_srv)
         logger.info('Serving admin on %s', admin_unix_sock_path)
 
-        return servers
+        return servers, port
 
     async def _stop_servers(self, servers):
         async with taskgroup.TaskGroup() as g:
@@ -824,8 +832,10 @@ class Server:
                 script=self._startup_script.text,
             )
 
-        self._servers = await self._start_servers(
+        self._servers, actual_port = await self._start_servers(
             self._listen_host, self._listen_port)
+        if self._listen_port == 0:
+            self._listen_port = actual_port
 
         self._accepting_connections = True
         self._serving = True
@@ -878,7 +888,7 @@ class Server:
         return self._cluster.get_runtime_params()
 
 
-async def _fix_localhost(host, port):
+async def _fix_localhost(host):
     # On many systems 'localhost' resolves to _both_ IPv4 and IPv6
     # addresses, even if the system is not capable of handling
     # IPv6 connections.  Due to the common nature of this issue
@@ -899,7 +909,7 @@ async def _fix_localhost(host, port):
     loop = asyncio.get_running_loop()
     localhost = await loop.getaddrinfo(
         'localhost',
-        port,
+        0,
         family=socket.AF_UNSPEC,
         type=socket.SOCK_STREAM,
         flags=socket.AI_PASSIVE,

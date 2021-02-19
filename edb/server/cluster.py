@@ -20,14 +20,13 @@
 from __future__ import annotations
 
 import asyncio
-import errno
+import json
 import os
-import random
-import socket
 import subprocess
 import sys
 import tempfile
 import time
+import typing
 
 import edgedb
 
@@ -38,31 +37,6 @@ from edb.server import buildmeta
 from edb.server import defines as edgedb_defines
 
 from . import pgcluster
-
-
-def find_available_port(port_range=(49152, 65535), max_tries=1000):
-    low, high = port_range
-
-    port = low
-    try_no = 0
-
-    while try_no < max_tries:
-        try_no += 1
-        port = random.randint(low, high)
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        try:
-            sock.bind(('localhost', port))
-        except socket.error as e:
-            if e.errno == errno.EADDRINUSE:
-                continue
-        finally:
-            sock.close()
-
-        break
-    else:
-        port = None
-
-    return port
 
 
 class ClusterError(Exception):
@@ -100,7 +74,7 @@ class BaseCluster:
         initially_stopped = pg_status == 'stopped'
 
         if initially_stopped:
-            self._pg_cluster.start(port=find_available_port())
+            self._pg_cluster.start()
         elif pg_status == 'not-initialized':
             return 'not-initialized'
 
@@ -152,29 +126,54 @@ class BaseCluster:
 
         self._init()
 
-    def start(self, wait=60, **settings):
-        port = settings.pop('port', None) or self._port
-        if port == 'dynamic':
-            port = find_available_port()
+    def start(self, wait=60, *, port: int=None, **settings):
+        if port is None:
+            port = self._port
 
-        self._effective_port = port
+        if port == 0:
+            cmd_port = 'auto'
+        else:
+            cmd_port = str(port)
 
         extra_args = ['--{}={}'.format(k.replace('_', '-'), v)
                       for k, v in settings.items()]
-        extra_args.append('--port={}'.format(self._effective_port))
+        extra_args.append(f'--port={cmd_port}')
+        if port == 0:
+            extra_args.append('--echo-runtime-info')
 
+        env: typing.Optional[dict]
         if self._env:
             env = os.environ.copy()
             env.update(self._env)
         else:
             env = None
 
+        stdout = subprocess.DEVNULL
+        if port == 0:
+            stdout = subprocess.PIPE
+
         self._daemon_process = subprocess.Popen(
             self._edgedb_cmd + extra_args,
-            stdout=sys.stdout, stderr=sys.stderr,
-            env=env)
+            stdout=stdout,
+            stderr=sys.stderr,
+            env=env,
+            text=True,
+        )
 
-        self._test_connection()
+        if port == 0:
+            while 1:
+                stdoutf = self._daemon_process.stdout
+                assert stdoutf is not None
+                line = stdoutf.readline()
+                if line.startswith('EDGEDB_SERVER_DATA:'):
+                    json_data = line[len('EDGEDB_SERVER_DATA:'):]
+                    data = json.loads(json_data)
+                    port = data['port']
+                    stdoutf.close()
+                    break
+
+        self._effective_port = port
+        self._test_connection(timeout=wait)
 
     def stop(self, wait=60):
         if (self._daemon_process is not None and

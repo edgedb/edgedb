@@ -405,7 +405,7 @@ def _init_cluster(data_dir=None, postgres_dsn=None, *,
     if cluster.get_status() == 'not-initialized':
         cluster.init(server_settings=init_settings)
 
-    cluster.start(port='dynamic')
+    cluster.start(port=0)
     cluster.set_superuser_password('test')
 
     if cleanup_atexit:
@@ -1521,6 +1521,9 @@ class _EdgeDBServer:
 
         if self.runstate_dir:
             cmd += ['--runstate-dir', self.runstate_dir]
+
+        if self.debug:
+            print(f'Starting EdgeDB cluster with the following params: {cmd}')
 
         self.proc: asyncio.Process = await asyncio.create_subprocess_exec(
             *cmd,

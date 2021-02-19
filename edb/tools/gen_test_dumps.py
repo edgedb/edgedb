@@ -125,7 +125,7 @@ def gen_test_dumps(*, jobs, tests_dir):
 
         try:
             cluster.init()
-            cluster.start(port="dynamic")
+            cluster.start(port=0)
             cluster.trust_local_connections()
         except BaseException:
             raise

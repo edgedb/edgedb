@@ -31,7 +31,7 @@ import asyncpg
 import edgedb
 
 from edb.common import devmode
-from edb.server import pgcluster, pgconnparams, cluster as edgedb_cluster
+from edb.server import pgcluster, pgconnparams
 from edb.testbase import server as tb
 
 
@@ -165,7 +165,6 @@ class TestServerOps(tb.TestCase):
                 await con.aclose()
 
     def test_server_ops_detect_postgres_pool_size(self):
-        port = edgedb_cluster.find_available_port()
         actual = random.randint(50, 100)
 
         async def test(pgdata_path):
@@ -177,8 +176,7 @@ class TestServerOps(tb.TestCase):
                 auto_shutdown=True,
                 bootstrap_command=bootstrap_command,
                 max_allowed_connections=None,
-                postgres_dsn=f'postgres:///?user=postgres&port={port}&'
-                             f'host={pgdata_path}',
+                postgres_dsn=f'postgres:///?user=postgres&host={pgdata_path}',
                 runstate_dir=None if devmode.is_in_dev_mode() else pgdata_path,
             ) as sd:
                 con = await edgedb.async_connect(
@@ -192,8 +190,8 @@ class TestServerOps(tb.TestCase):
                     await con.aclose()
 
         with tempfile.TemporaryDirectory() as td:
-            cluster = pgcluster.get_local_pg_cluster(td,
-                                                     max_connections=actual)
+            cluster = pgcluster.get_local_pg_cluster(
+                td, max_connections=actual)
             cluster.set_connection_params(
                 pgconnparams.ConnectionParameters(
                     user='postgres',
@@ -201,7 +199,7 @@ class TestServerOps(tb.TestCase):
                 ),
             )
             self.assertTrue(cluster.ensure_initialized())
-            cluster.start(port=port)
+            cluster.start()
             try:
                 self.loop.run_until_complete(test(td))
             finally:
