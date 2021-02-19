@@ -1060,8 +1060,8 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
         async with self.assertRaisesRegexTx(
             edgedb.InvalidConstraintDefinitionError,
-            "Constraint referencing MULTI links or properties "
-            "may not reference multiple ones",
+            "cannot reference multiple links or properties in a "
+            "constraint where at least one link or property is MULTI",
         ):
             await self.con.execute("""
                 ALTER TYPE test::ObjCnstr2 {
@@ -1072,8 +1072,8 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
         async with self.assertRaisesRegexTx(
             edgedb.InvalidConstraintDefinitionError,
-            "Constraint referencing MULTI links or properties "
-            "may not use SET OF operations",
+            "cannot use aggregate functions or operators in a "
+            "non-aggregating constraint",
         ):
             await self.con.execute("""
                 ALTER TYPE test::ObjCnstr2 {
@@ -1083,8 +1083,8 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
         async with self.assertRaisesRegexTx(
             edgedb.InvalidConstraintDefinitionError,
-            "Constraint referencing MULTI links or properties "
-            "may not use SET OF operations",
+            "cannot use aggregate functions or operators in a "
+            "non-aggregating constraint",
         ):
             await self.con.execute("""
                 ALTER TYPE test::ObjCnstr2 {
@@ -1096,7 +1096,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
         async with self.assertRaisesRegexTx(
             edgedb.InvalidConstraintDefinitionError,
-            "Constraints may not traverse link",
+            "constraints cannot contain paths with more than one hop",
         ):
             await self.con.execute("""
                 ALTER TYPE test::ObjCnstr2 {
@@ -1106,7 +1106,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
         async with self.assertRaisesRegexTx(
             edgedb.InvalidConstraintDefinitionError,
-            "Constraints may not traverse link",
+            "constraints cannot contain paths with more than one hop",
         ):
             await self.con.execute("""
                 ALTER TYPE test::ObjCnstr2 {
@@ -1119,7 +1119,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
         async with self.assertRaisesRegexTx(
             edgedb.InvalidConstraintDefinitionError,
-            "not supported because it would depend on multiple tables",
+            "not supported because it would depend on multiple objects",
         ):
             await self.con.execute("""
                 ALTER TYPE test::ObjCnstr2 {
