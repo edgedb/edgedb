@@ -949,7 +949,8 @@ class CreateConstraint(
                             and rptr.ptrref.source_ptr is None
                             and rptr.source.rptr is not None):
                         raise errors.InvalidConstraintDefinitionError(
-                            "constraints cannot contain paths with more than one hop",
+                            "constraints cannot contain paths with more "
+                            "than one hop",
                             context=ref.context,
                         )
 
@@ -957,7 +958,8 @@ class CreateConstraint(
 
             if has_multi and len(refs) > 1:
                 raise errors.InvalidConstraintDefinitionError(
-                    "cannot reference multiple links or properties in a constraint where at least one link or property is MULTI",
+                    "cannot reference multiple links or properties in a "
+                    "constraint where at least one link or property is MULTI",
                     context=expr_context
                 )
 
