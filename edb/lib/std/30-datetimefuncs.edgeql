@@ -98,12 +98,12 @@ std::datetime_truncate(dt: std::datetime, unit: std::str) -> std::datetime
             'microseconds', 'milliseconds', 'seconds',
             'minutes', 'hours', 'days', 'weeks', 'months',
             'years', 'decades', 'centuries')
-        THEN date_trunc("unit", "dt")
+        THEN date_trunc("unit", "dt")::edgedb.timestamptz_t
         WHEN "unit" = 'quarters'
-        THEN date_trunc('quarter', "dt")
+        THEN date_trunc('quarter', "dt")::edgedb.timestamptz_t
         ELSE
             edgedb.raise(
-                NULL::timestamptz,
+                NULL::edgedb.timestamptz_t,
                 'invalid_datetime_format',
                 msg => (
                     'invalid unit for std::datetime_truncate: '
@@ -171,7 +171,7 @@ std::`=` (l: std::datetime, r: std::datetime) -> std::bool {
     SET volatility := 'IMMUTABLE';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
-    USING SQL OPERATOR r'=';
+    USING SQL OPERATOR r'=(timestamptz,timestamptz)';
 };
 
 
@@ -187,7 +187,7 @@ std::`!=` (l: std::datetime, r: std::datetime) -> std::bool {
     SET volatility := 'IMMUTABLE';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
-    USING SQL OPERATOR r'<>';
+    USING SQL OPERATOR r'<>(timestamptz,timestamptz)';
 };
 
 
@@ -203,7 +203,7 @@ std::`>` (l: std::datetime, r: std::datetime) -> std::bool {
     SET volatility := 'IMMUTABLE';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
-    USING SQL OPERATOR r'>';
+    USING SQL OPERATOR r'>(timestamptz,timestamptz)';
 };
 
 
@@ -212,7 +212,7 @@ std::`>=` (l: std::datetime, r: std::datetime) -> std::bool {
     SET volatility := 'IMMUTABLE';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
-    USING SQL OPERATOR r'>=';
+    USING SQL OPERATOR r'>=(timestamptz,timestamptz)';
 };
 
 
@@ -221,7 +221,7 @@ std::`<` (l: std::datetime, r: std::datetime) -> std::bool {
     SET volatility := 'IMMUTABLE';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
-    USING SQL OPERATOR r'<';
+    USING SQL OPERATOR r'<(timestamptz,timestamptz)';
 };
 
 
@@ -230,7 +230,7 @@ std::`<=` (l: std::datetime, r: std::datetime) -> std::bool {
     SET volatility := 'IMMUTABLE';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
-    USING SQL OPERATOR r'<=';
+    USING SQL OPERATOR r'<=(timestamptz,timestamptz)';
 };
 
 
@@ -239,7 +239,9 @@ std::`+` (l: std::datetime, r: std::duration) -> std::datetime {
     # operators on timestamptz are STABLE in PostgreSQL
     SET volatility := 'STABLE';
     SET commutator := 'std::+';
-    USING SQL OPERATOR r'+';
+    USING SQL $$
+        SELECT ("l" + "r")::edgedb.timestamptz_t
+    $$
 };
 
 
@@ -248,7 +250,9 @@ std::`+` (l: std::duration, r: std::datetime) -> std::datetime {
     # operators on timestamptz are STABLE in PostgreSQL
     SET volatility := 'STABLE';
     SET commutator := 'std::+';
-    USING SQL OPERATOR r'+';
+    USING SQL $$
+        SELECT ("l" + "r")::edgedb.timestamptz_t
+    $$
 };
 
 
@@ -256,7 +260,9 @@ CREATE INFIX OPERATOR
 std::`-` (l: std::datetime, r: std::duration) -> std::datetime {
     # operators on timestamptz are STABLE in PostgreSQL
     SET volatility := 'STABLE';
-    USING SQL OPERATOR r'-';
+    USING SQL $$
+        SELECT ("l" - "r")::edgedb.timestamptz_t
+    $$
 };
 
 

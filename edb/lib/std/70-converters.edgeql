@@ -283,7 +283,7 @@ std::to_datetime(s: std::str, fmt: OPTIONAL str={}) -> std::datetime
             edgedb.datetime_in("s")
         WHEN "fmt" = '' THEN
             edgedb.raise(
-                NULL::timestamptz,
+                NULL::edgedb.timestamptz_t,
                 'invalid_parameter_value',
                 msg => (
                     'to_datetime(): "fmt" argument must be a non-empty string'
@@ -313,7 +313,7 @@ std::to_datetime(year: std::int64, month: std::int64, day: std::int64,
     SELECT make_timestamptz(
         "year"::int, "month"::int, "day"::int,
         "hour"::int, "min"::int, "sec", "timezone"
-    )
+    )::edgedb.timestamptz_t
     $$;
 };
 
@@ -324,7 +324,7 @@ std::to_datetime(epochseconds: std::float64) -> std::datetime
     CREATE ANNOTATION std::description := 'Create a `datetime` value.';
     SET volatility := 'STABLE';
     USING SQL $$
-    SELECT to_timestamp("epochseconds")
+    SELECT to_timestamp("epochseconds")::edgedb.timestamptz_t
     $$;
 };
 
@@ -335,7 +335,7 @@ std::to_datetime(epochseconds: std::int64) -> std::datetime
     CREATE ANNOTATION std::description := 'Create a `datetime` value.';
     SET volatility := 'STABLE';
     USING SQL $$
-    SELECT to_timestamp("epochseconds")
+    SELECT to_timestamp("epochseconds")::edgedb.timestamptz_t
     $$;
 };
 
@@ -346,7 +346,7 @@ std::to_datetime(epochseconds: std::decimal) -> std::datetime
     CREATE ANNOTATION std::description := 'Create a `datetime` value.';
     SET volatility := 'STABLE';
     USING SQL $$
-    SELECT to_timestamp("epochseconds")
+    SELECT to_timestamp("epochseconds")::edgedb.timestamptz_t
     $$;
 };
 

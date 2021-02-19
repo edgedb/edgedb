@@ -186,6 +186,77 @@ class TestEdgeQLDT(tb.QueryTestCase):
             [-timedelta(seconds=24674, microseconds=45854)],
         )
 
+    async def test_edgeql_dt_duration_07_datetime_range(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            'value out of range',
+        ):
+            await self.con.execute(
+                """
+                SELECT <datetime>'9999-12-31T00:00:00Z' + <duration>'30 hours'
+                """
+            )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            'value out of range',
+        ):
+            await self.con.execute(
+                """
+                SELECT <datetime>'0001-01-01T00:00:00Z' - <duration>'30 hours'
+                """
+            )
+
+    async def test_edgeql_dt_duration_08_local_datetime_range(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            'value out of range',
+        ):
+            await self.con.execute(
+                """
+                SELECT
+                    <cal::local_datetime>'9999-12-31T00:00:00'
+                    + <duration>'30 hours'
+                """
+            )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            'value out of range',
+        ):
+            await self.con.execute(
+                """
+                SELECT
+                    <cal::local_datetime>'0001-01-01T00:00:00'
+                    - <duration>'30 hours'
+                """
+            )
+
+    async def test_edgeql_dt_duration_09_local_date_range(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            'value out of range',
+        ):
+            await self.con.execute(
+                """
+                SELECT
+                    <cal::local_date>'9999-12-31'
+                    + <duration>'30 hours'
+                """
+            )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            'value out of range',
+        ):
+            await self.con.execute(
+                """
+                SELECT
+                    <cal::local_date>'0001-01-01'
+                    - <duration>'30 hours'
+                """
+            )
+
     async def test_edgeql_dt_local_datetime_01(self):
         await self.assert_query_result(
             r'''
