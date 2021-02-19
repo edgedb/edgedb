@@ -965,8 +965,8 @@ class CreateConstraint(
             if has_multi and ir_utils.contains_set_of_op(
                     final_subjectexpr.irast):
                 raise errors.InvalidConstraintDefinitionError(
-                    "Constraint referencing MULTI links or properties "
-                    "may not use SET OF operations",
+                    "cannot use aggregate functions or operators "
+                    "in a non-aggregating constraint",
                     context=expr_context
                 )
 
