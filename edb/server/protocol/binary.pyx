@@ -197,6 +197,7 @@ cdef class EdgeConnection:
 
         self.loop = server.get_loop()
         self.dbview = None
+        self.dbname = None
 
         self._transport = None
         self.buffer = ReadBuffer()
@@ -228,9 +229,7 @@ cdef class EdgeConnection:
         if self._pinned_pgcon is not None:
             # XXX/TODO: add test diagnostics for this and
             # fail all tests if this ever happens.
-            self.server.release_pgcon(
-                self.dbview.dbname, self._pinned_pgcon, discard=True)
-            self._pinned_pgcon = None
+            self.abort_pinned_pgcon()
 
     async def get_pgcon(self) -> pgcon.PGConnection:
         self._get_pgcon_cc += 1
@@ -291,14 +290,24 @@ cdef class EdgeConnection:
         else:
             self._write_buf = buf
 
+    cdef abort_pinned_pgcon(self):
+        if self._pinned_pgcon is not None:
+            self._pinned_pgcon.abort()
+            self.server.release_pgcon(
+                self.dbname, self._pinned_pgcon, discard=True)
+            self._pinned_pgcon = None
+
     cdef abort(self):
-        self._con_status = EDGECON_BAD
+        self.abort_pinned_pgcon()
+        self.stop_connection()
+
         if self._transport is not None:
             self._transport.abort()
             self._transport = None
 
-    async def close(self):
-        self._con_status = EDGECON_BAD
+    def close(self):
+        self.stop_connection()
+
         if self._transport is not None:
             self.flush()
             self._transport.close()
@@ -494,7 +503,7 @@ cdef class EdgeConnection:
             else:
                 raise exc
         finally:
-            await conn.close()
+            conn.close()
 
     async def _start_connection(self, database: str, user: str) -> None:
         dbv = self.server.new_dbview(
@@ -504,8 +513,16 @@ cdef class EdgeConnection:
         )
         assert type(dbv) is dbview.DatabaseConnectionView
         self.dbview = <dbview.DatabaseConnectionView>dbv
+        self.dbname = database
 
         self._con_status = EDGECON_STARTED
+
+    def stop_connection(self) -> None:
+        self._con_status = EDGECON_BAD
+
+        if self.dbview is not None:
+            self.server.remove_dbview(self.dbview)
+            self.dbview = None
 
     async def _auth_trust(self, user):
         roles = self.server.get_roles()
@@ -1603,7 +1620,7 @@ cdef class EdgeConnection:
                 # reporting the exception.
 
                 await self.write_error(ex)
-                await self.close()
+                self.close()
 
                 if not isinstance(ex, (errors.ProtocolError,
                                        errors.AuthenticationError)):
@@ -1656,7 +1673,7 @@ cdef class EdgeConnection:
                         await self.sync()
 
                     elif mtype == b'X':
-                        self.abort()
+                        self.close()
                         break
 
                     elif mtype == b'>':
@@ -1671,7 +1688,7 @@ cdef class EdgeConnection:
                     else:
                         self.fallthrough()
 
-                except ConnectionAbortedError:
+                except ConnectionError:
                     raise
 
                 except asyncio.CancelledError:
@@ -1721,11 +1738,10 @@ cdef class EdgeConnection:
             # EdgeCon methods that await on, say, the compiler process.
             # We shouldn't have CancelledErrors otherwise, therefore,
             # in this situation we just silently exit.
-            self.abort()
+            pass
 
-        except (ConnectionAbortedError, pgerror.BackendQueryCancelledError):
-            self.abort()
-            return
+        except (ConnectionError, pgerror.BackendQueryCancelledError):
+            pass
 
         except Exception as ex:
             # We can only be here if an exception occurred during
@@ -1743,14 +1759,11 @@ cdef class EdgeConnection:
                 'task': self._main_task,
             })
 
-            self.abort()
-
         finally:
-            if self._pinned_pgcon is not None:
-                self._pinned_pgcon.abort()
-                self.server.release_pgcon(
-                    self.dbview.dbname, self._pinned_pgcon, discard=True)
-                self._pinned_pgcon = None
+            # Abort the connection.
+            # It might have already been cleaned up, but abort() is
+            # safe to be called on a closed connection.
+            self.abort()
 
     async def recover_from_error(self):
         # Consume all messages until sync.
@@ -1907,7 +1920,7 @@ cdef class EdgeConnection:
         elif mtype == b'X':
             # Terminate
             self.buffer.discard_message()
-            self.abort()
+            self.close()
 
         else:
             raise errors.BinaryProtocolError(
@@ -2061,16 +2074,8 @@ cdef class EdgeConnection:
                 # and will call `self.abort()` to shut all things down.
         else:
             # The `main()` coroutine isn't running, it means that the
-            # connection is already pretty much dead. Let's double check that
-            # we don't have any pgcons pinned to this dying connection.
-            if self._pinned_pgcon is not None:
-                self._pinned_pgcon.abort()
-                self.server.release_pgcon(
-                    self.dbview.dbname, self._pinned_pgcon, discard=True)
-                self._pinned_pgcon = None
-
-            # For a good measure, let's also make sure that our transport
-            # is terminated.
+            # connection is already pretty much dead.  Nonetheless, call
+            # abort() to make sure we've cleaned everything up properly.
             self.abort()
 
     def data_received(self, data):

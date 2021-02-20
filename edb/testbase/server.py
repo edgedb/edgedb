@@ -857,18 +857,6 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
     # library (e.g. declaring casts).
     INTERNAL_TESTMODE = True
 
-    # If True, the tearDownClass method will retry `DROP DATABASE`
-    # if it raises ExecutionError(database X is being accessed by other users).
-    # This helps to mask issues in some of the concurrent DDL tests we have,
-    # specifically where we cancel open EdgeDB connections with a TaskGroup.
-    # Cancellations like that act rather abruptly -- the connection is killed,
-    # but it might take some time for the server to actually shut it down.
-    # Which leads to the situation where the client side thinks that there are
-    # no open connections to some particular DB, whereas the server is actually
-    # still closing them down; if the client want some database dropped, it
-    # would get the aforementioned ExecutionError.
-    RETRY_DROP_DATABASE = False
-
     BASE_TEST_CLASS = True
 
     con: Any  # XXX: the real type?
@@ -943,6 +931,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
             else:
                 orig_testmode = orig_testmode[0]
 
+            # Enable testmode to unblock the template database syntax below.
             if not orig_testmode:
                 cls.loop.run_until_complete(
                     cls.admin_conn.execute(
@@ -994,20 +983,27 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                 if not class_set_up or cls.uses_database_copies():
                     dbname = qlquote.quote_ident(cls.get_database_name())
 
+                    # The retry loop below masks connection abort races.
+                    # The current implementation of edgedb-python aborts
+                    # connections when it gets a CancelledError.  This creates
+                    # a situation in which the server might still have not
+                    # realized that the connection went away, and will raise
+                    # an ExecutionError on DROP DATABASE below complaining
+                    # about the database still being in use.
+                    #
+                    # A better fix would be for edgedb-python to learn to
+                    # aclose() gracefully or implement protocol-level
+                    # cancellation that guarantees consensus on the server
+                    # connection state.
                     async def drop_db():
-                        if cls.RETRY_DROP_DATABASE:
-                            async for tr in cls.try_until_succeeds(
-                                ignore=edgedb.ExecutionError,
-                                timeout=5
-                            ):
-                                async with tr:
-                                    await cls.admin_conn.execute(
-                                        f'DROP DATABASE {dbname};'
-                                    )
-                        else:
-                            await cls.admin_conn.execute(
-                                f'DROP DATABASE {dbname};'
-                            )
+                        async for tr in cls.try_until_succeeds(
+                            ignore=edgedb.ExecutionError,
+                            timeout=5
+                        ):
+                            async with tr:
+                                await cls.admin_conn.execute(
+                                    f'DROP DATABASE {dbname};'
+                                )
 
                     cls.loop.run_until_complete(drop_db())
 

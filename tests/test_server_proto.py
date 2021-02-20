@@ -759,16 +759,16 @@ class TestServerProto(tb.QueryTestCase):
             async with tg.TaskGroup() as g:
 
                 async def exec_to_fail():
-                    with self.assertRaises(ConnectionAbortedError):
+                    with self.assertRaises(ConnectionResetError):
                         await con2.query(
                             'select sys::_advisory_lock(<int64>$0)', lock_key)
 
                 g.create_task(exec_to_fail())
 
                 await asyncio.sleep(0.1)
-                await con2.aclose()
+                con2.terminate()
 
-            # Give the server some time to actually close the connection.
+            # Give the server some time to actually close the con2 connection.
             await asyncio.sleep(2)
 
         finally:
@@ -2793,7 +2793,6 @@ class TestServerProtoDDL(tb.DDLTestCase):
 class TestServerProtoConcurrentDDL(tb.DDLTestCase):
 
     TRANSACTION_ISOLATION = False
-    RETRY_DROP_DATABASE = True
 
     async def test_server_proto_concurrent_ddl(self):
         typename_prefix = 'ConcurrentDDL'
@@ -2835,7 +2834,6 @@ class TestServerProtoConcurrentDDL(tb.DDLTestCase):
 class TestServerProtoConcurrentGlobalDDL(tb.DDLTestCase):
 
     TRANSACTION_ISOLATION = False
-    RETRY_DROP_DATABASE = True
 
     async def test_server_proto_concurrent_global_ddl(self):
         ntasks = 5

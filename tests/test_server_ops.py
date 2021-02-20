@@ -71,7 +71,11 @@ class TestServerOps(tb.TestCase):
                 # option, we expect this connection to be rejected
                 # and the cluster to be shutdown soon.
                 await edgedb.async_connect(
-                    user='edgedb', host=sd.host, port=sd.port)
+                    user='edgedb',
+                    host=sd.host,
+                    port=sd.port,
+                    wait_until_available=0,
+                )
 
             i = 600 * 5  # Give it up to 5 minutes to cleanup.
             while i > 0:

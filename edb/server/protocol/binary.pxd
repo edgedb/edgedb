@@ -84,6 +84,7 @@ cdef class EdgeConnection:
 
         object loop
         readonly dbview.DatabaseConnectionView dbview
+        str dbname
 
         ReadBuffer buffer
 
@@ -121,6 +122,8 @@ cdef class EdgeConnection:
     cdef write(self, WriteBuffer buf)
     cdef flush(self)
     cdef abort(self)
+
+    cdef abort_pinned_pgcon(self)
 
     cdef fallthrough(self)
 

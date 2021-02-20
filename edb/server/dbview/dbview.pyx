@@ -134,6 +134,9 @@ cdef class Database:
         self._views.add(view)
         return view
 
+    cdef _remove_view(self, view):
+        self._views.remove(view)
+
 
 cdef class DatabaseConnectionView:
 
@@ -662,3 +665,7 @@ cdef class DatabaseIndex:
     def new_view(self, dbname: str, *, user: str, query_cache: bool):
         db = self.get_db(dbname)
         return (<Database>db)._new_view(user, query_cache)
+
+    def remove_view(self, view: DatabaseConnectionView):
+        db = self.get_db(view.dbname)
+        return (<Database>db)._remove_view(view)
