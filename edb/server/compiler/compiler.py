@@ -309,19 +309,9 @@ class Compiler:
             raise AssertionError('compiler is not initialized')
         return self._std_schema
 
-    def _in_testmode(self, ctx: CompileContext):
-        current_tx = ctx.state.current_tx()
-        session_config = current_tx.get_session_config()
-
-        return config.lookup(
-            '__internal_testmode',
-            session_config,
-            allow_unrecognized=True,
-        )
-
     def _new_delta_context(self, ctx: CompileContext):
         context = s_delta.CommandContext()
-        context.testmode = self._in_testmode(ctx)
+        context.testmode = self.get_config_val(ctx, '__internal_testmode')
         context.stdmode = ctx.bootstrap_mode
         context.internal_schema_mode = ctx.internal_schema_mode
         context.schema_object_ids = ctx.schema_object_ids
@@ -745,7 +735,7 @@ class Compiler:
             stmt,
             schema=schema,
             modaliases=current_tx.get_modaliases(),
-            testmode=self._in_testmode(ctx),
+            testmode=self.get_config_val(ctx, '__internal_testmode'),
             allow_dml_in_functions=(
                 self.get_config_val(ctx, 'allow_dml_in_functions')),
             schema_object_ids=ctx.schema_object_ids,
