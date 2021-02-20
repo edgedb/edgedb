@@ -671,6 +671,12 @@ class Server:
         finally:
             self._release_sys_pgcon()
 
+    async def _cancel_and_discard_pgcon(self, pgcon, dbname) -> None:
+        try:
+            await self._cancel_pgcon_operation(pgcon)
+        finally:
+            self.release_pgcon(dbname, pgcon, discard=True)
+
     async def _signal_sysevent(self, event, **kwargs):
         pgcon = await self._acquire_sys_pgcon()
         if pgcon is None:

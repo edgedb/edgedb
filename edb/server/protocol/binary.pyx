@@ -2041,9 +2041,11 @@ cdef class EdgeConnection:
             # We're parsing the protocol. We can abort that.
             self._msg_take_waiter.cancel()
 
-        if (self._main_task is not None and
-                not self._main_task.done() and
-                not self._cancelled):
+        if (
+            self._main_task is not None
+            and not self._main_task.done()
+            and not self._cancelled
+        ):
 
             # The main connection handling task is up and running.
 
@@ -2055,13 +2057,29 @@ cdef class EdgeConnection:
                 # We must be still authenticating. We can abort that.
                 self._main_task.cancel()
             else:
-                if (self._pinned_pgcon is not None and
-                        not self._pinned_pgcon.idle):
+                if (
+                    self._pinned_pgcon is not None
+                    and not self._pinned_pgcon.idle
+                ):
                     # Looks like we have a Postgres connection acquired and
-                    # it's actively running some command for us. Let's
-                    # cancel it gently.
+                    # it's actively running some command for us.  To make
+                    # sure we're not leaving behind a heavy query, perform
+                    # an explicit Postgres cancellation because a mere
+                    # connection drop wouldn't necessarily abort the query
+                    # right away). Additionally, we must discard the connection
+                    # as we cannot be completely sure about its state. Postgres
+                    # cancellation is signal-based and is addressed to a whole
+                    # connection and not a concrete operation. The result is
+                    # that we might be racing with the currently running query
+                    # and if that completes before the cancellation signal
+                    # reaches the backend, we'll be setting a trap for the
+                    # _next_ query that is unlucky enough to pick up this
+                    # Postgres backend from the connection pool.
                     self.loop.create_task(
-                        self.server._cancel_pgcon_operation(self._pinned_pgcon)
+                        self.server._cancel_and_discard_pgcon(
+                            self._pinned_pgcon,
+                            self.dbview.name,
+                        )
                     )
 
                 # In all other cases, we can just wait until the `main()`
