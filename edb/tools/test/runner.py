@@ -740,7 +740,7 @@ class ParallelTextTestRunner:
         self.shuffle = shuffle
         self.output_format = output_format
 
-    def run(self, test, current_shard, total_shards, running_times_log_file):
+    def run(self, test, selected_shard, total_shards, running_times_log_file):
         session_start = time.monotonic()
         cases = tb.get_test_cases([test])
         stats = {}
@@ -751,7 +751,7 @@ class ParallelTextTestRunner:
                 for k, v, c in csv.reader(running_times_log_file)
             }
         cases = tb.get_cases_by_shard(
-            cases, current_shard, total_shards, self.verbosity, stats,
+            cases, selected_shard, total_shards, self.verbosity, stats,
         )
         setup = tb.get_test_cases_setup(cases)
         bootstrap_time_taken = 0
@@ -759,6 +759,7 @@ class ParallelTextTestRunner:
         result = None
         cluster = None
         conn = None
+        setup_stats = []
 
         try:
             if setup:
@@ -782,7 +783,7 @@ class ParallelTextTestRunner:
                     self._echo(' OK')
 
                 conn = cluster.get_connect_args()
-                tb.setup_test_cases(
+                setup_stats = tb.setup_test_cases(
                     cases,
                     conn,
                     self.num_workers,
@@ -825,7 +826,7 @@ class ParallelTextTestRunner:
             suite.run(result)
 
             if running_times_log_file:
-                for test, stat in result.test_stats:
+                for test, stat in result.test_stats + setup_stats:
                     name = str(test)
                     t = stat['running-time']
                     at, c = stats.get(name, (0, 0))

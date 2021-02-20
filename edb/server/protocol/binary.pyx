@@ -18,7 +18,6 @@
 
 import asyncio
 import collections
-import contextlib
 import hashlib
 import json
 import logging

@@ -32,40 +32,38 @@ jobs:
       with:
         python-version: 3.9
 
-    - name: Handle Pip dependency cache
-      uses: actions/cache@v2
-      id: depcache
+    # Build virtualenv
+
+    - name: Handle virtualenv
+      uses: syphar/restore-virtualenv@v1.1
+      id: venv-cache
       with:
-        path: deps
-        key: edbdeps-pip-${{ hashFiles('setup.py') }}
+        requirement_files: setup.py
 
-    - name: Download dependencies
-      if: steps.depcache.outputs.cache-hit != 'true'
+    - name: Install Python dependencies
+      if: steps.venv-cache.outputs.cache-hit != 'true'
       run: |
-        pip download --dest=deps .[test,docs]
+        pip download --dest=$VIRTUAL_ENV/deps .[test,docs]
+        pip install -U --no-index --find-links=$VIRTUAL_ENV/deps $VIRTUAL_ENV/deps/*
 
-    - name: Install Python deps
-      run: |
-        pip install -U --no-index --find-links=deps deps/*
+    # Prepare environment variables and shared artifacts
 
-    - name: Compute build cache key
-      run: |
-        mkdir -p .tmp
-        python setup.py --quiet gen_build_cache_key >.tmp/build_cache_key.txt
-
-    - name: Handle build cache
-      uses: actions/cache@v2
-      id: buildcache
-      with:
-        path: build
-        key: edbbuild-v2-${{ hashFiles('.tmp/build_cache_key.txt') }}
-        restore-keys: |
-          edbbuild-v2-
-
-    - name: Download the running times log file
+    - name: Compute cache keys and download the running times log
       env:
         GIST_TOKEN: ${{ secrets.CI_BOT_GIST_TOKEN }}
       run: |
+        mkdir -p .tmp
+        python setup.py -q ci_helper --type cli > .tmp/edgedbcli_git_rev.txt
+        python setup.py -q ci_helper --type rust >.tmp/rust_cache_key.txt
+        python setup.py -q ci_helper --type ext >.tmp/ext_cache_key.txt
+        python setup.py -q ci_helper --type parsers >.tmp/parsers_cache_key.txt
+        python setup.py -q ci_helper --type postgres >.tmp/postgres_git_rev.txt
+        python setup.py -q ci_helper --type bootstrap >.tmp/bootstrap_cache_key.txt
+        echo EDGEDBCLI_GIT_REV=$(cat .tmp/edgedbcli_git_rev.txt) >> $GITHUB_ENV
+        echo POSTGRES_GIT_REV=$(cat .tmp/postgres_git_rev.txt) >> $GITHUB_ENV
+        echo BUILD_LIB=$(python setup.py -q ci_helper --type build_lib) >> $GITHUB_ENV
+        echo BUILD_TEMP=$(python setup.py -q ci_helper --type build_temp) >> $GITHUB_ENV
+
         curl \
           -H "Accept: application/vnd.github.v3+json" \
           -u edgedb-ci:$GIST_TOKEN \
@@ -80,29 +78,196 @@ jobs:
         path: .tmp
         retention-days: 1
 
+    # Restore binary cache
+
+    - name: Handle cached EdgeDB CLI binaries
+      uses: actions/cache@v2
+      id: cli-cache
+      with:
+        path: build/cli
+        key: edb-cli-v1-${{ env.EDGEDBCLI_GIT_REV }}
+
+    - name: Handle cached Rust extensions
+      uses: actions/cache@v2
+      id: rust-cache
+      with:
+        path: build/rust_extensions
+        key: edb-rust-v1-${{ hashFiles('.tmp/rust_cache_key.txt') }}
+        restore-keys: |
+          edb-rust-v1-
+
+    - name: Handle cached Cython extensions
+      uses: actions/cache@v2
+      id: ext-cache
+      with:
+        path: build/extensions
+        key: edb-ext-v1-${{ hashFiles('.tmp/ext_cache_key.txt') }}
+        restore-keys: |
+          edb-ext-v1-
+
+    - name: Handle cached PostgreSQL build
+      uses: actions/cache@v2
+      id: postgres-cache
+      with:
+        path: build/postgres/install
+        key: edb-postgres-v1-${{ env.POSTGRES_GIT_REV }}
+
+    # Install system dependencies for building
+
     - name: Install system deps
-      if: steps.buildcache.outputs.cache-hit != 'true'
+      if: |
+        steps.cli-cache.outputs.cache-hit != 'true' ||
+        steps.rust-cache.outputs.cache-hit != 'true' ||
+        steps.ext-cache.outputs.cache-hit != 'true' ||
+        steps.postgres-cache.outputs.cache-hit != 'true'
       run: |
         sudo apt-get update
         sudo apt-get install -y uuid-dev libreadline-dev bison flex
 
     - name: Install rust toolchain
-      if: steps.buildcache.outputs.cache-hit != 'true'
+      if: |
+        steps.cli-cache.outputs.cache-hit != 'true' ||
+        steps.rust-cache.outputs.cache-hit != 'true'
       uses: actions-rs/toolchain@v1
       with:
         profile: minimal
         toolchain: stable
         default: true
 
-    - name: Build
-      if: steps.buildcache.outputs.cache-hit != 'true'
+    # Build EdgeDB CLI
+
+    - name: Handle EdgeDB CLI build cache
+      uses: actions/cache@v2
+      if: steps.cli-cache.outputs.cache-hit != 'true'
+      with:
+        path: ${{ env.BUILD_TEMP }}/rust/cli
+        key: edb-cli-build-v1-${{ env.EDGEDBCLI_GIT_REV }}
+        restore-keys: |
+          edb-cli-build-v1-
+
+    - name: Build EdgeDB CLI
+      env:
+        CARGO_HOME: ${{ env.BUILD_TEMP }}/rust/cli/cargo_home
+        CACHE_HIT: ${{ steps.cli-cache.outputs.cache-hit }}
       run: |
-        # --no-use-pep517 because we have explicitly installed all deps
-        # and don't want them to be reinstalled in an "isolated env".
-        pip install --no-use-pep517 --no-deps -e .[test,docs]
+        if [[ "$CACHE_HIT" == "true" ]]; then
+          cp -v build/cli/bin/edgedb edb/cli/edgedb
+        else
+          python setup.py -v build_cli
+        fi
+
+    # Build Rust extensions
+
+    - name: Handle Rust extensions build cache
+      uses: actions/cache@v2
+      if: steps.rust-cache.outputs.cache-hit != 'true'
+      with:
+        path: ${{ env.BUILD_TEMP }}/rust/extensions
+        key: edb-rust-build-v1-${{ hashFiles('.tmp/rust_cache_key.txt') }}
+        restore-keys: |
+          edb-rust-build-v1-
+
+    - name: Build Rust extensions
+      env:
+        CARGO_HOME: ${{ env.BUILD_TEMP }}/rust/extensions/cargo_home
+        CACHE_HIT: ${{ steps.rust-cache.outputs.cache-hit }}
+      run: |
+        if [[ "$CACHE_HIT" != "true" ]]; then
+          rm -rf ${BUILD_LIB}
+          mkdir -p build/rust_extensions
+          rsync -aP ./build/rust_extensions/ ${BUILD_LIB}/
+          python setup.py -v build_rust
+          rsync -aP ${BUILD_LIB}/ build/rust_extensions/
+        fi
+        rsync -aP ./build/rust_extensions/edb/ ./edb/
+
+    # Build extensions
+
+    - name: Handle Cython extensions build cache
+      uses: actions/cache@v2
+      if: steps.ext-cache.outputs.cache-hit != 'true'
+      with:
+        path: ${{ env.BUILD_TEMP }}/edb
+        key: edb-ext-build-v1-${{ hashFiles('.tmp/ext_cache_key.txt') }}
+        restore-keys: |
+          edb-ext-build-v1-
+
+    - name: Build Cython extensions
+      env:
+        CACHE_HIT: ${{ steps.ext-cache.outputs.cache-hit }}
+        BUILD_EXT_MODE: py-only
+      run: |
+        if [[ "$CACHE_HIT" != "true" ]]; then
+          rm -rf ${BUILD_LIB}
+          mkdir -p ./build/extensions
+          rsync -aP ./build/extensions/ ${BUILD_LIB}/
+          python setup.py -v build_ext
+          rsync -aP ${BUILD_LIB}/ ./build/extensions/
+        fi
+        rsync -aP ./build/extensions/edb/ ./edb/
+
+    # Build parsers
+
+    - name: Handle compiled parsers cache
+      uses: actions/cache@v2
+      id: parsers-cache
+      with:
+        path: build/lib
+        key: edb-parsers-v1-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
+        restore-keys: |
+          edb-parsers-v1-
+
+    - name: Build parsers
+      env:
+        CACHE_HIT: ${{ steps.parsers-cache.outputs.cache-hit }}
+      run: |
+        if [[ "$CACHE_HIT" != "true" ]]; then
+          python setup.py -v build_parsers --inplace
+        fi
+        rsync -aP ./build/lib/edb/ ./edb/
+
+    # Build PostgreSQL
+
+    - name: Build PostgreSQL
+      env:
+        CACHE_HIT: ${{ steps.postgres-cache.outputs.cache-hit }}
+      run: |
+        if [[ "$CACHE_HIT" == "true" ]]; then
+          cp build/postgres/install/stamp build/postgres/
+        else
+          python setup.py build_postgres
+          cp build/postgres/stamp build/postgres/install/
+        fi
+
+    # Install edgedb-server and populate egg-info
+
+    - name: Install edgedb-server and populate egg-info
+      env:
+        CACHE_HIT: ${{ steps.postgres-cache.outputs.cache-hit }}
+        BUILD_EXT_MODE: skip
+      run: |
+        if [[ "$CACHE_HIT" == "true" ]]; then
+          rsync -aP $VIRTUAL_ENV/edgedb_server.egg-info/ ./edgedb_server.egg-info/
+        else
+          # --no-use-pep517 because we have explicitly installed all deps
+          # and don't want them to be reinstalled in an "isolated env".
+          pip install --no-use-pep517 --no-deps -e .[test,docs]
+          rsync -aP ./edgedb_server.egg-info/ $VIRTUAL_ENV/edgedb_server.egg-info/
+        fi
+
+    # Refresh the bootstrap cache
+
+    - name: Handle bootstrap cache
+      uses: actions/cache@v2
+      id: bootstrap-cache
+      with:
+        path: build/cache
+        key: edb-bootstrap-v1-${{ hashFiles('.tmp/bootstrap_cache_key.txt') }}
+        restore-keys: |
+          edb-bootstrap-v1-
 
     - name: Bootstrap EdgeDB Server
-      if: steps.buildcache.outputs.cache-hit != 'true'
+      if: steps.bootstrap-cache.outputs.cache-hit != 'true'
       run: |
         edb server --bootstrap-only
 
@@ -116,26 +281,22 @@ jobs:
         fetch-depth: 0
         submodules: false
 
-    - uses: actions/checkout@v2
-      with:
-        fetch-depth: 50
-        submodules: true
-
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
         python-version: 3.9
 
-    - name: Handle Pip dependency cache
-      uses: actions/cache@v2
-      id: depcache
+    - name: Handle virtualenv
+      uses: syphar/restore-virtualenv@v1.1
+      id: venv-cache
       with:
-        path: deps
-        key: edbdeps-pip-${{ hashFiles('setup.py') }}
+        requirement_files: setup.py
 
-    - name: Install Python deps
+    - name: Stop if we cannot retrieve the cache
+      if: steps.venv-cache.outputs.cache-hit != 'true'
       run: |
-        pip install -U --no-index --find-links=deps deps/*
+        echo ::error::Cannot retrieve venv cache.
+        exit 1
 
     - name: Download cache key
       uses: actions/download-artifact@v2
@@ -143,18 +304,16 @@ jobs:
         name: build-cache-key-and-time-stats
         path: .tmp
 
-    - name: Handle build cache
-      uses: actions/cache@v2
-      id: buildcache
-      with:
-        path: build
-        key: edbbuild-v2-${{ hashFiles('.tmp/build_cache_key.txt') }}
-
-    - name: Stop if we cannot retrieve the build cache
-      if: steps.buildcache.outputs.cache-hit != 'true'
+    - name: Generate environment variables
       run: |
-        echo ::error::Cannot retrieve build cache.
-        exit 1
+        echo BUILD_TEMP=$(python setup.py -q ci_helper --type build_temp) >> $GITHUB_ENV
+
+    - name: Handle Rust extensions build cache
+      uses: actions/cache@v2
+      id: rust-cache
+      with:
+        path: ${{ env.BUILD_TEMP }}/rust/extensions
+        key: edb-rust-build-v1-${{ hashFiles('.tmp/rust_cache_key.txt') }}
 
     - name: Install rust toolchain
       uses: actions-rs/toolchain@v1
@@ -165,6 +324,9 @@ jobs:
 
     - name: Cargo test
       uses: actions-rs/cargo@v1
+      env:
+        CARGO_TARGET_DIR: ${{ env.BUILD_TEMP }}/rust/extensions
+        CARGO_HOME: ${{ env.BUILD_TEMP }}/rust/extensions/cargo_home
       with:
         command: test
 
@@ -174,14 +336,10 @@ jobs:
     strategy:
       matrix:
         shard: [
-             1/32,  2/32,  3/32,  4/32,
-             5/32,  6/32,  7/32,  8/32,
-             9/32, 10/32, 11/32, 12/32,
-            13/32, 14/32, 15/32, 16/32,
-            17/32, 18/32, 19/32, 20/32,
-            21/32, 22/32, 23/32, 24/32,
-            25/32, 26/32, 27/32, 28/32,
-            29/32, 30/32, 31/32, 32/32,
+             1/16,  2/16,  3/16,  4/16,
+             5/16,  6/16,  7/16,  8/16,
+             9/16, 10/16, 11/16, 12/16,
+            13/16, 14/16, 15/16, 16/16,
         ]
 
     steps:
@@ -200,16 +358,13 @@ jobs:
       with:
         python-version: 3.9
 
-    - name: Handle Pip dependency cache
-      uses: actions/cache@v2
-      id: depcache
+    - name: Handle virtualenv
+      uses: syphar/restore-virtualenv@v1.1
+      id: venv-cache
       with:
-        path: deps
-        key: edbdeps-pip-${{ hashFiles('setup.py') }}
+        requirement_files: setup.py
 
-    - name: Install Python deps
-      run: |
-        pip install -U --no-index --find-links=deps deps/*
+    # Restore the artifacts and environment variables
 
     - name: Download shared artifacts
       uses: actions/download-artifact@v2
@@ -217,44 +372,94 @@ jobs:
         name: build-cache-key-and-time-stats
         path: .tmp
 
-    - name: Handle build cache
-      uses: actions/cache@v2
-      id: buildcache
-      with:
-        path: build
-        key: edbbuild-v2-${{ hashFiles('.tmp/build_cache_key.txt') }}
+    - name: Set environment variables
+      run: |
+        echo EDGEDBCLI_GIT_REV=$(cat .tmp/edgedbcli_git_rev.txt) >> $GITHUB_ENV
+        echo POSTGRES_GIT_REV=$(cat .tmp/postgres_git_rev.txt) >> $GITHUB_ENV
+        echo BUILD_LIB=$(python setup.py -q ci_helper --type build_lib) >> $GITHUB_ENV
+        echo BUILD_TEMP=$(python setup.py -q ci_helper --type build_temp) >> $GITHUB_ENV
 
-    - name: Stop if we cannot retrieve the build cache
-      if: steps.buildcache.outputs.cache-hit != 'true'
+    # Restore build cache
+
+    - name: Restore cached EdgeDB CLI binaries
+      uses: actions/cache@v2
+      id: cli-cache
+      with:
+        path: build/cli
+        key: edb-cli-v1-${{ env.EDGEDBCLI_GIT_REV }}
+
+    - name: Restore cached Rust extensions
+      uses: actions/cache@v2
+      id: rust-cache
+      with:
+        path: build/rust_extensions
+        key: edb-rust-v1-${{ hashFiles('.tmp/rust_cache_key.txt') }}
+
+    - name: Restore cached Cython extensions
+      uses: actions/cache@v2
+      id: ext-cache
+      with:
+        path: build/extensions
+        key: edb-ext-v1-${{ hashFiles('.tmp/ext_cache_key.txt') }}
+
+    - name: Restore compiled parsers cache
+      uses: actions/cache@v2
+      id: parsers-cache
+      with:
+        path: build/lib
+        key: edb-parsers-v1-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
+
+    - name: Restore cached PostgreSQL build
+      uses: actions/cache@v2
+      id: postgres-cache
+      with:
+        path: build/postgres/install
+        key: edb-postgres-v1-${{ env.POSTGRES_GIT_REV }}
+
+    - name: Restore bootstrap cache
+      uses: actions/cache@v2
+      id: bootstrap-cache
+      with:
+        path: build/cache
+        key: edb-bootstrap-v1-${{ hashFiles('.tmp/bootstrap_cache_key.txt') }}
+
+    - name: Stop if we cannot retrieve the cache
+      if: |
+        steps.venv-cache.outputs.cache-hit != 'true' ||
+        steps.cli-cache.outputs.cache-hit != 'true' ||
+        steps.rust-cache.outputs.cache-hit != 'true' ||
+        steps.ext-cache.outputs.cache-hit != 'true' ||
+        steps.parsers-cache.outputs.cache-hit != 'true' ||
+        steps.postgres-cache.outputs.cache-hit != 'true' ||
+        steps.bootstrap-cache.outputs.cache-hit != 'true'
       run: |
         echo ::error::Cannot retrieve build cache.
         exit 1
 
-    - name: Install rust toolchain
-      uses: actions-rs/toolchain@v1
-      with:
-        profile: minimal
-        toolchain: stable
-        default: true
-
-    - name: Install
+    - name: Restore cache into the source tree
       run: |
-        # --no-use-pep517 because we have explicitly installed all deps
-        # and don't want them to be reinstalled in an "isolated env".
-        pip install --no-use-pep517 --no-deps -e .[test,docs]
+        cp -v build/cli/bin/edgedb edb/cli/edgedb
+        rsync -aP ./build/rust_extensions/edb/ ./edb/
+        rsync -aP ./build/extensions/edb/ ./edb/
+        rsync -aP ./build/lib/edb/ ./edb/
+        cp build/postgres/install/stamp build/postgres/
+        rsync -aP $VIRTUAL_ENV/edgedb_server.egg-info/ ./edgedb_server.egg-info/
+
+    # Run the test
 
     - name: Test
       env:
         SHARD: ${{ matrix.shard }}
       run: |
-        cp .tmp/time_stats.csv .tmp/new_${SHARD/\//_}.csv
-        edb test -j2 -v -s ${SHARD} --running-times-log=.tmp/new_${SHARD/\//_}.csv
+        mkdir -p .results/
+        cp .tmp/time_stats.csv .results/shard_${SHARD/\//_}.csv
+        edb test -j2 -v -s ${SHARD} --running-times-log=.results/shard_${SHARD/\//_}.csv
 
-    - name: Update shared artifacts
+    - name: Upload test results
       uses: actions/upload-artifact@v2
       with:
-        name: build-cache-key-and-time-stats
-        path: .tmp
+        name: python-test-results
+        path: .results
         retention-days: 1
 
   collect:
@@ -276,16 +481,13 @@ jobs:
       with:
         python-version: 3.9
 
-    - name: Handle Pip dependency cache
-      uses: actions/cache@v2
-      id: depcache
+    - name: Handle virtualenv
+      uses: syphar/restore-virtualenv@v1.1
+      id: venv-cache
       with:
-        path: deps
-        key: edbdeps-pip-${{ hashFiles('setup.py') }}
+        requirement_files: setup.py
 
-    - name: Install Python deps
-      run: |
-        pip install -U --no-index --find-links=deps deps/*
+    # Restore the artifacts and environment variables
 
     - name: Download shared artifacts
       uses: actions/download-artifact@v2
@@ -293,31 +495,80 @@ jobs:
         name: build-cache-key-and-time-stats
         path: .tmp
 
-    - name: Handle build cache
-      uses: actions/cache@v2
-      id: buildcache
-      with:
-        path: build
-        key: edbbuild-v2-${{ hashFiles('.tmp/build_cache_key.txt') }}
+    - name: Set environment variables
+      run: |
+        echo EDGEDBCLI_GIT_REV=$(cat .tmp/edgedbcli_git_rev.txt) >> $GITHUB_ENV
+        echo POSTGRES_GIT_REV=$(cat .tmp/postgres_git_rev.txt) >> $GITHUB_ENV
+        echo BUILD_LIB=$(python setup.py -q ci_helper --type build_lib) >> $GITHUB_ENV
+        echo BUILD_TEMP=$(python setup.py -q ci_helper --type build_temp) >> $GITHUB_ENV
 
-    - name: Stop if we cannot retrieve the build cache
-      if: steps.buildcache.outputs.cache-hit != 'true'
+    # Restore build cache
+
+    - name: Restore cached EdgeDB CLI binaries
+      uses: actions/cache@v2
+      id: cli-cache
+      with:
+        path: build/cli
+        key: edb-cli-v1-${{ env.EDGEDBCLI_GIT_REV }}
+
+    - name: Restore cached Rust extensions
+      uses: actions/cache@v2
+      id: rust-cache
+      with:
+        path: build/rust_extensions
+        key: edb-rust-v1-${{ hashFiles('.tmp/rust_cache_key.txt') }}
+
+    - name: Restore cached Cython extensions
+      uses: actions/cache@v2
+      id: ext-cache
+      with:
+        path: build/extensions
+        key: edb-ext-v1-${{ hashFiles('.tmp/ext_cache_key.txt') }}
+
+    - name: Restore compiled parsers cache
+      uses: actions/cache@v2
+      id: parsers-cache
+      with:
+        path: build/lib
+        key: edb-parsers-v1-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
+
+    - name: Restore cached PostgreSQL build
+      uses: actions/cache@v2
+      id: postgres-cache
+      with:
+        path: build/postgres/install
+        key: edb-postgres-v1-${{ env.POSTGRES_GIT_REV }}
+
+    - name: Restore bootstrap cache
+      uses: actions/cache@v2
+      id: bootstrap-cache
+      with:
+        path: build/cache
+        key: edb-bootstrap-v1-${{ hashFiles('.tmp/bootstrap_cache_key.txt') }}
+
+    - name: Stop if we cannot retrieve the cache
+      if: |
+        steps.venv-cache.outputs.cache-hit != 'true' ||
+        steps.cli-cache.outputs.cache-hit != 'true' ||
+        steps.rust-cache.outputs.cache-hit != 'true' ||
+        steps.ext-cache.outputs.cache-hit != 'true' ||
+        steps.parsers-cache.outputs.cache-hit != 'true' ||
+        steps.postgres-cache.outputs.cache-hit != 'true' ||
+        steps.bootstrap-cache.outputs.cache-hit != 'true'
       run: |
         echo ::error::Cannot retrieve build cache.
         exit 1
 
-    - name: Install rust toolchain
-      uses: actions-rs/toolchain@v1
-      with:
-        profile: minimal
-        toolchain: stable
-        default: true
-
-    - name: Install
+    - name: Restore cache into the source tree
       run: |
-        # --no-use-pep517 because we have explicitly installed all deps
-        # and don't want them to be reinstalled in an "isolated env".
-        pip install --no-use-pep517 --no-deps -e .[test,docs]
+        cp -v build/cli/bin/edgedb edb/cli/edgedb
+        rsync -aP ./build/rust_extensions/edb/ ./edb/
+        rsync -aP ./build/extensions/edb/ ./edb/
+        rsync -aP ./build/lib/edb/ ./edb/
+        cp build/postgres/install/stamp build/postgres/
+        rsync -aP $VIRTUAL_ENV/edgedb_server.egg-info/ ./edgedb_server.egg-info/
+
+    # Collect tests and upload
 
     - name: Generate complete list of tests for verification
       env:
@@ -332,7 +583,7 @@ jobs:
         path: .tmp
         retention-days: 1
 
-  test:
+  test-conclusion:
     needs: [cargo-test, python-test, collect]
     runs-on: ubuntu-18.04
     steps:
@@ -350,6 +601,12 @@ jobs:
         with:
           name: build-cache-key-and-time-stats
           path: .tmp
+
+      - name: Download python-test results
+        uses: actions/download-artifact@v2
+        with:
+          name: python-test-results
+          path: .results
 
       - name: Merge stats and verify tests completion
         shell: python
@@ -376,13 +633,16 @@ jobs:
                   assert line not in all_tests, "duplicate test name in this run!"
                   all_tests.add(line.strip())
 
-          for new_file in glob.glob(".tmp/new*.csv"):
+          for new_file in glob.glob(".results/*.csv"):
               with open(new_file) as f:
                   for name, t, c in csv.reader(f):
                       if int(c) > orig.get(name, (0, 0))[1]:
-                          assert name not in new, f"duplicate test! {name}"
-                          new[name] = (t, c)
-                          all_tests.remove(name)
+                          if name.startswith("setup::"):
+                              new[name] = (t, c)
+                          else:
+                              assert name not in new, f"duplicate test! {name}"
+                              new[name] = (t, c)
+                              all_tests.remove(name)
 
           assert not all_tests, "Tests not run! \n" + "\n".join(all_tests)
 

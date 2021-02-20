@@ -71,11 +71,6 @@ if TYPE_CHECKING:
     from asyncpg import connection as asyncpg_con
 
 
-CACHE_SRC_DIRS = s_std.CACHE_SRC_DIRS + (
-    (pathlib.Path(metaschema.__file__).parent, '.py'),
-)
-
-
 logger = logging.getLogger('edb.server')
 
 
@@ -607,7 +602,9 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
 
     stdlib_cache = 'backend-stdlib.pickle'
     tpldbdump_cache = 'backend-tpldbdump.sql'
-    src_hash = buildmeta.hash_dirs(CACHE_SRC_DIRS, extra_files=[__file__])
+    src_hash = buildmeta.hash_dirs(
+        buildmeta.get_cache_src_dirs(), extra_files=[__file__],
+    )
 
     stdlib = buildmeta.read_data_cache(
         src_hash, stdlib_cache, source_dir=cache_dir)
