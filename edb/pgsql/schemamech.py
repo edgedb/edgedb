@@ -160,7 +160,7 @@ class ConstraintMech:
 
     @classmethod
     def schema_constraint_to_backend_constraint(
-            cls, subject, constraint, schema, context):
+            cls, subject, constraint, schema, context, source_context):
         assert constraint.get_subject(schema) is not None
 
         constraint_origin = cls._get_constraint_origin(schema, constraint)
@@ -188,8 +188,12 @@ class ConstraintMech:
         ref_tables = get_ref_storage_info(ir.schema, terminal_refs)
 
         if len(ref_tables) > 1:
-            raise ValueError(
-                'backend: multi-table constraints are not currently supported')
+            raise errors.InvalidConstraintDefinitionError(
+                f'Constraint {constraint.get_displayname(schema)} on '
+                f'{subject.get_displayname(schema)} is not supported '
+                f'because it would depend on multiple objects',
+                context=source_context,
+            )
         elif ref_tables:
             subject_db_name, _ = next(iter(ref_tables.items()))
         else:

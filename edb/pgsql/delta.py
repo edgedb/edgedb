@@ -1326,7 +1326,8 @@ class CreateConstraint(
             schemac_to_backendc = \
                 schemamech.ConstraintMech.\
                 schema_constraint_to_backend_constraint
-            bconstr = schemac_to_backendc(subject, constraint, schema, context)
+            bconstr = schemac_to_backendc(
+                subject, constraint, schema, context, self.source_context)
 
             op = dbops.CommandGroup(priority=1)
             op.add_command(bconstr.create_ops())
@@ -1352,11 +1353,13 @@ class RenameConstraint(
                 schemamech.ConstraintMech.\
                 schema_constraint_to_backend_constraint
 
-            bconstr = schemac_to_backendc(subject, constraint, schema, context)
+            bconstr = schemac_to_backendc(
+                subject, constraint, schema, context, self.source_context)
 
             orig_subject = constraint.get_subject(orig_schema)
             orig_bconstr = schemac_to_backendc(
-                orig_subject, constraint, orig_schema, context
+                orig_subject, constraint, orig_schema, context,
+                self.source_context,
             )
 
             op = dbops.CommandGroup(priority=1)
@@ -1403,13 +1406,15 @@ class AlterConstraint(
                 schemamech.ConstraintMech.\
                 schema_constraint_to_backend_constraint
 
-            bconstr = schemac_to_backendc(subject, constraint, schema, context)
+            bconstr = schemac_to_backendc(
+                subject, constraint, schema, context, self.source_context)
 
             orig_bconstr = schemac_to_backendc(
                 constraint.get_subject(orig_schema),
                 constraint,
                 orig_schema,
                 context,
+                self.source_context,
             )
 
             op = dbops.CommandGroup(priority=1)
@@ -1422,12 +1427,14 @@ class AlterConstraint(
                         child,
                         orig_schema,
                         context,
+                        self.source_context,
                     )
                     cbconstr = schemac_to_backendc(
                         child.get_subject(schema),
                         child,
                         schema,
                         context,
+                        self.source_context,
                     )
                     op.add_command(cbconstr.alter_ops(orig_cbconstr))
             elif not self.constraint_is_effective(schema, constraint):
@@ -1439,12 +1446,14 @@ class AlterConstraint(
                         child,
                         orig_schema,
                         context,
+                        self.source_context,
                     )
                     cbconstr = schemac_to_backendc(
                         child.get_subject(schema),
                         child,
                         schema,
                         context,
+                        self.source_context,
                     )
                     op.add_command(cbconstr.alter_ops(orig_cbconstr))
             else:
@@ -1473,7 +1482,8 @@ class DeleteConstraint(
                     schemamech.ConstraintMech.\
                     schema_constraint_to_backend_constraint
                 bconstr = schemac_to_backendc(
-                    subject, constraint, orig_schema, context)
+                    subject, constraint, orig_schema, context,
+                    self.source_context)
 
                 op = dbops.CommandGroup()
                 op.add_command(bconstr.delete_ops())
