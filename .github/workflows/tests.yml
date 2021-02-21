@@ -243,7 +243,7 @@ jobs:
 
     - name: Install edgedb-server and populate egg-info
       env:
-        CACHE_HIT: ${{ steps.postgres-cache.outputs.cache-hit }}
+        CACHE_HIT: ${{ steps.venv-cache.outputs.cache-hit }}
         BUILD_EXT_MODE: skip
       run: |
         if [[ "$CACHE_HIT" == "true" ]]; then
