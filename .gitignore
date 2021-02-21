@@ -36,3 +36,4 @@ tests/dumps/**/*_dev*.dump
 /.mypy_cache
 /.vagga
 /.dmypy.json
+/compile_commands.json
