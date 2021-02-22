@@ -32,6 +32,7 @@ from mypy.server import trigger as mypy_trigger
 
 
 METADATA_KEY = 'edbplugin'
+
 STRUCT_BASE_METACLASSES = {
     'edb.common.struct.StructMeta',
 }
@@ -57,8 +58,7 @@ class EDBPlugin(mypy_plugin.Plugin):
         if not mcls:
             return
 
-        transformers: List[
-            Union[SchemaClassTransformer, StructTransformer]] = []
+        transformers: List[BaseTransformer] = []
 
         if any(c.fullname in SCHEMA_BASE_METACLASSES for c in mcls.type.mro):
             transformers.append(
@@ -138,15 +138,81 @@ class Field(NamedTuple):
         )
 
 
-class BaseStructTransformer:
+class BaseTransformer:
 
     def __init__(
         self,
         ctx: mypy_plugin.ClassDefContext,
-        field_makers: AbstractSet[str],
     ) -> None:
         self._ctx = ctx
-        self._field_makers = field_makers
+
+    def transform(self):
+        ctx = self._ctx
+        metadata_key = self._get_metadata_key()
+        metadata = ctx.cls.info.metadata.get(metadata_key)
+        if not metadata:
+            ctx.cls.info.metadata[metadata_key] = metadata = {}
+
+        metadata['processing'] = True
+
+        if metadata.get('processed'):
+            return
+
+        try:
+            fields = self._transform()
+        except DeferException:
+            ctx.api.defer()
+            return None
+
+        metadata['fields'] = {f.name: f.serialize() for f in fields}
+        metadata['processed'] = True
+
+    def _transform(self) -> List[Field]:
+        raise NotImplementedError
+
+    def _field_from_field_def(
+        self,
+        stmt: nodes.AssignmentStmt,
+        name: nodes.NameExpr,
+        sym: nodes.SymbolTableNode,
+    ) -> Optional[Field]:
+        raise NotImplementedError
+
+    def _collect_fields(self) -> List[Field]:
+        """Collect all fields declared in a class and its ancestors."""
+
+        cls = self._ctx.cls
+
+        fields: List[Field] = []
+
+        known_fields: Set[str] = set()
+
+        for stmt in cls.defs.body:
+            if not isinstance(stmt, nodes.AssignmentStmt):
+                continue
+
+            lhs = stmt.lvalues[0]
+            if not isinstance(lhs, nodes.NameExpr):
+                continue
+
+            sym = cls.info.names.get(lhs.name)
+            if sym is None or isinstance(sym.node, nodes.PlaceholderNode):
+                # Not resolved yet?
+                continue
+
+            node = sym.node
+            assert isinstance(node, nodes.Var)
+
+            if node.is_classvar:
+                # Disregard ClassVar stuff
+                continue
+
+            field = self._field_from_field_def(stmt, lhs, sym)
+            if field is not None:
+                fields.append(field)
+                known_fields.add(field.name)
+
+        return self._get_inherited_fields(known_fields) + fields
 
     def _lookup_type(self, fullname: str) -> types.Type:
         ctx = self._ctx
@@ -168,50 +234,20 @@ class BaseStructTransformer:
 
         return t
 
-    def _collect_fields(self) -> List[Field]:
-        """Collect all fields declared in a schema class and its ancestors."""
+    def _get_metadata_key(self) -> str:
+        return f'{METADATA_KEY}%%{type(self).__name__}'
 
-        ctx = self._ctx
+    def _has_explicit_field_accessor(self, fieldname: str) -> bool:
         cls = self._ctx.cls
+        accessor = cls.info.names.get(f'get_{fieldname}')
+        return accessor is not None and not accessor.plugin_generated
 
-        fields: List[Field] = []
+    def _get_inherited_fields(self, self_fields: Set[str]) -> List[Field]:
+        ctx = self._ctx
+        cls = ctx.cls
+        all_fields: List[Field] = []
+        known_fields = set(self_fields)
 
-        known_fields: Set[str] = set()
-
-        for stmt in cls.defs.body:
-            if not isinstance(stmt, nodes.AssignmentStmt):
-                continue
-
-            lhs = stmt.lvalues[0]
-            rhs = stmt.rvalue
-
-            if isinstance(rhs, nodes.CastExpr):
-                rhs = rhs.expr
-
-            if not isinstance(rhs, nodes.CallExpr):
-                continue
-
-            fdef = rhs.callee
-
-            ftype = None
-            if (isinstance(fdef, nodes.IndexExpr)
-                    and isinstance(fdef.analyzed, nodes.TypeApplication)):
-                # Explicitly typed Field declaration
-                ctor = fdef.analyzed.expr
-                if len(fdef.analyzed.types) > 1:
-                    ctx.api.fail('too many type arguments to Field', fdef)
-                ftype = fdef.analyzed.types[0]
-            else:
-                ctor = fdef
-                ftype = None
-
-            if (isinstance(ctor, nodes.RefExpr)
-                    and ctor.fullname in self._field_makers):
-                field = self._field_from_field_def(stmt, lhs, rhs, ftype=ftype)
-                fields.append(field)
-                known_fields.add(field.name)
-
-        all_fields = fields.copy()
         for ancestor_info in cls.info.mro[1:-1]:
             metadata = ancestor_info.metadata.get(self._get_metadata_key())
             if metadata is None:
@@ -237,18 +273,84 @@ class BaseStructTransformer:
 
         return all_fields
 
+    def _synthesize_init(self, fields: List[Field]) -> None:
+        ctx = self._ctx
+        cls_info = ctx.cls.info
+
+        # If our self type has placeholders (probably because of type
+        # var bounds), defer. If we skip deferring and stick something
+        # in our symbol table anyway, we'll get in trouble.  (Arguably
+        # plugins.common ought to help us with this, but oh well.)
+        self_type = mypy_helpers.fill_typevars(cls_info)
+        if semanal.has_placeholder(self_type):
+            raise DeferException
+
+        if (
+            (
+                '__init__' not in cls_info.names
+                or cls_info.names['__init__'].plugin_generated
+            ) and fields
+        ):
+            mypy_helpers.add_method(
+                ctx,
+                '__init__',
+                self_type=self_type,
+                args=[field.to_argument() for field in fields],
+                return_type=types.NoneType(),
+            )
+
+
+class BaseStructTransformer(BaseTransformer):
+
+    def __init__(
+        self,
+        ctx: mypy_plugin.ClassDefContext,
+        field_makers: AbstractSet[str],
+    ) -> None:
+        super().__init__(ctx)
+        self._field_makers = field_makers
+
     def _field_from_field_def(
         self,
-        stmt,
-        lhs,
-        call,
-        *,
-        ftype: Optional[types.Type] = None,
-    ) -> Field:
+        stmt: nodes.AssignmentStmt,
+        name: nodes.NameExpr,
+        sym: nodes.SymbolTableNode,
+    ) -> Optional[Field]:
         ctx = self._ctx
-        type_arg = call.args[0]
 
-        deflt = self._get_default(call)
+        rhs = stmt.rvalue
+
+        if isinstance(rhs, nodes.CastExpr):
+            rhs = rhs.expr
+
+        if not isinstance(rhs, nodes.CallExpr):
+            return None
+
+        fdef = rhs.callee
+
+        ftype = None
+        if (
+            isinstance(fdef, nodes.IndexExpr)
+            and isinstance(fdef.analyzed, nodes.TypeApplication)
+        ):
+            # Explicitly typed Field declaration
+            ctor = fdef.analyzed.expr
+            if len(fdef.analyzed.types) > 1:
+                ctx.api.fail('too many type arguments to Field', fdef)
+            ftype = fdef.analyzed.types[0]
+        else:
+            ctor = fdef
+            ftype = None
+
+        if (
+            not isinstance(ctor, nodes.RefExpr)
+            or ctor.fullname not in self._field_makers
+        ):
+            return None
+
+        type_arg = rhs.args[0]
+
+        deflt = self._get_default(rhs)
 
         if ftype is None:
             try:
@@ -271,21 +373,17 @@ class BaseStructTransformer:
                     column=ftype.column,
                 )
 
-        lhs.node.type = ftype
+        assert isinstance(name.node, nodes.Var)
+        name.node.type = ftype
 
         return Field(
-            name=lhs.name,
-            has_explicit_accessor=self._has_explicit_field_accessor(lhs.name),
+            name=name.name,
+            has_explicit_accessor=self._has_explicit_field_accessor(name.name),
             has_default=deflt is not None,
             line=stmt.line,
             column=stmt.column,
             type=ftype,
         )
-
-    def _has_explicit_field_accessor(self, fieldname: str) -> bool:
-        cls = self._ctx.cls
-        accessor = cls.info.names.get(f'get_{fieldname}')
-        return accessor is not None and not accessor.plugin_generated
 
     def _get_default(self, call) -> Optional[nodes.Expression]:
         for (n, v) in zip(call.arg_names, call.args):
@@ -294,100 +392,47 @@ class BaseStructTransformer:
         else:
             return None
 
-    def _get_metadata_key(self) -> str:
-        return f'{METADATA_KEY}%%{type(self).__name__}'
-
 
 class StructTransformer(BaseStructTransformer):
 
-    def transform(self):
-        ctx = self._ctx
-        metadata_key = self._get_metadata_key()
-        metadata = ctx.cls.info.metadata.get(metadata_key)
-        if not metadata:
-            ctx.cls.info.metadata[metadata_key] = metadata = {}
+    def _transform(self) -> List[Field]:
+        fields = self._collect_fields()
+        self._synthesize_init(fields)
+        return fields
 
-        metadata['processing'] = True
-
-        if metadata.get('processed'):
-            return
-
-        try:
-            fields = self._collect_fields()
-        except DeferException:
-            ctx.api.defer()
+    def _field_from_field_def(
+        self,
+        stmt: nodes.AssignmentStmt,
+        name: nodes.NameExpr,
+        sym: nodes.SymbolTableNode,
+    ):
+        field = super()._field_from_field_def(stmt, name, sym)
+        if field is None:
             return None
+        else:
+            assert isinstance(sym.node, nodes.Var)
+            sym.node.is_initialized_in_class = False
 
-        cls_info = ctx.cls.info
+            name.is_inferred_def = False
 
-        # If our self type has placeholders (probably because of type
-        # var bounds), defer. If we skip deferring and stick something
-        # in our symbol table anyway, we'll get in trouble.  (Arguably
-        # plugins.common ought to help us with this, but oh well.)
-        self_type = mypy_helpers.fill_typevars(cls_info)
-        if semanal.has_placeholder(self_type):
-            ctx.api.defer()
-            return None
+            rhs = stmt.rvalue
+            if not isinstance(rhs, nodes.CastExpr):
+                stmt.rvalue = nodes.CastExpr(
+                    typ=field.type,
+                    expr=rhs,
+                )
+                stmt.rvalue.line = rhs.line
+                stmt.rvalue.column = rhs.column
 
-        for f in fields:
-            finfo = cls_info.names.get(f.name)
-            if finfo is None:
-                continue
-
-            node = finfo.node
-            node.is_initialized_in_class = False
-
-        if (
-            (
-                '__init__' not in cls_info.names
-                or cls_info.names['__init__'].plugin_generated
-            ) and fields
-        ):
-            mypy_helpers.add_method(
-                ctx,
-                '__init__',
-                self_type=self_type,
-                args=[field.to_argument() for field in fields],
-                return_type=types.NoneType(),
-            )
-
-        metadata['fields'] = {f.name: f.serialize() for f in fields}
-        metadata['processed'] = True
-
-    def _field_from_field_def(self, stmt, lhs, rhs, *, ftype=None):
-        field = super()._field_from_field_def(stmt, lhs, rhs, ftype=ftype)
-
-        lhs.is_inferred_def = False
-        stmt.rvalue = nodes.CastExpr(
-            typ=lhs.node.type,
-            expr=rhs,
-        )
-        stmt.rvalue.line = rhs.line
-        stmt.rvalue.column = rhs.column
-
-        return field
+            return field
 
 
 class SchemaClassTransformer(BaseStructTransformer):
 
-    def transform(self):
+    def _transform(self) -> List[Field]:
         ctx = self._ctx
-        metadata_key = self._get_metadata_key()
-        metadata = ctx.cls.info.metadata.get(metadata_key)
-        if not metadata:
-            ctx.cls.info.metadata[metadata_key] = metadata = {}
-
-        metadata['processing'] = True
-
-        if metadata.get('processed'):
-            return
-
-        try:
-            fields = self._collect_fields()
-            schema_t = self._lookup_type('edb.schema.schema.Schema')
-        except DeferException:
-            ctx.api.defer()
-            return None
+        fields = self._collect_fields()
+        schema_t = self._lookup_type('edb.schema.schema.Schema')
 
         for f in fields:
             if f.has_explicit_accessor:
@@ -410,5 +455,4 @@ class SchemaClassTransformer(BaseStructTransformer):
                 return_type=f.type,
             )
 
-        metadata['fields'] = {f.name: f.serialize() for f in fields}
-        metadata['processed'] = True
+        return fields
