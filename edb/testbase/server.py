@@ -710,7 +710,7 @@ class ConnectedTestCaseMixin:
             elif isinstance(shape, type):
                 return _assert_type_shape(path, data, shape)
             elif isinstance(shape, float):
-                if not math.isclose(data, shape, rel_tol=1e-04):
+                if not math.isclose(data, shape, rel_tol=1e-04, abs_tol=1e-15):
                     self.fail(
                         f'{message}: not isclose({data}, {shape}) '
                         f'{_format_path(path)}')

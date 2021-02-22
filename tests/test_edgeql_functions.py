@@ -4258,12 +4258,12 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_math_stddev_pop_01(self):
         await self.assert_query_result(
             r'''SELECT math::stddev_pop(1);''',
-            {0},
+            {0.0},
         )
 
         await self.assert_query_result(
             r'''SELECT math::stddev_pop({1, 1, 1});''',
-            {0},
+            {0.0},
         )
 
         await self.assert_query_result(
@@ -4273,7 +4273,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''SELECT math::stddev_pop({0.1, 0.1, 0.1});''',
-            {0},
+            {0.0},
         )
 
         await self.assert_query_result(
@@ -4452,12 +4452,12 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_math_var_pop_01(self):
         await self.assert_query_result(
             r'''SELECT math::var_pop(1);''',
-            {0},
+            {0.0},
         )
 
         await self.assert_query_result(
             r'''SELECT math::var_pop({1, 1, 1});''',
-            {0},
+            {0.0},
         )
 
         await self.assert_query_result(
@@ -4467,7 +4467,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''SELECT math::var_pop({0.1, 0.1, 0.1});''',
-            {0},
+            {0.0},
         )
 
         await self.assert_query_result(
@@ -4512,7 +4512,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 WITH
                     MODULE math,
                     X := {1, 2, 1, 2}
-                SELECT var_pop(X) = stddev_pop(X) ^ 2;
+                SELECT abs(var_pop(X) - stddev_pop(X) ^ 2) < 1.0e-15;
             ''',
             {True},
         )
@@ -4522,7 +4522,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 WITH
                     MODULE math,
                     X := {0.1, 0.2, 0.1, 0.2}
-                SELECT var_pop(X) = stddev_pop(X) ^ 2;
+                SELECT abs(var_pop(X) - stddev_pop(X) ^ 2) < 1.0e-15;
             ''',
             {True},
         )
