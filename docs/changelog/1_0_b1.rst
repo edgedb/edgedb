@@ -288,14 +288,14 @@ Bindings
 * Release `edgedb-go <https://github.com/edgedb/edgedb-go>`_ driver.
 * Update the `edgedb-python <https://github.com/edgedb/edgedb-python>`_ driver
   to v0.13.0.
-* Implement `RFC 1004 <robust_>`_ features for blocking and
-  asynchronous Python drivers.
+* Implement `RFC 1004 <robust_>`_ features for Python and JavaScript drivers.
 
-  - Add ``retry`` method for automatically retrying transactions:
+  - Add ``retrying_transaction()`` method for automatically retrying
+    transactions:
 
     .. code-block:: python
 
-        for tx in con.retry():
+        for tx in con.retrying_transaction():
             with tx:
                 tx.execute('''
                     INSERT Message {
@@ -303,12 +303,12 @@ Bindings
                     };
                 ''')
 
-  - Add ``try_transaction`` method and deprecate ``transaction`` for
+  - Add ``raw_transaction()`` method and deprecate ``transaction()`` for
     single-use transactions that will not be automatically retried:
 
     .. code-block:: python
 
-        tr = con.try_transaction()
+        tr = con.raw_transaction()
         with tr as with_tr:
             with_tr.execute('''
                 INSERT Message {
@@ -325,16 +325,6 @@ Bindings
             user='edgedeb',
             wait_until_available=10
         )
-
-* Implement ``waitUntilAvailable`` (measured in milliseconds)
-  parameter `RFC 1004 <robust_>`_ features for JS drivers:
-
-  .. code-block:: javascript
-
-    const conn = await edgedb.connect({
-        dsn: "edgedb://edgedb@localhost/",
-        waitUntilAvailable: 10000
-    });
 
 .. _robust:
     https://github.com/edgedb/rfcs/blob/master/text/1004-transactions-api.rst
