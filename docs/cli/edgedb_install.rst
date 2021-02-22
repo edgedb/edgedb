@@ -10,7 +10,7 @@ instructions:
 
 .. code-block:: bash
 
-    $ curl --proto '=https' --tlsv1.2 -sSf https://sh.edgedb.com | sh
+    $ curl --proto '=https' -sSf1 https://sh.edgedb.com | sh
 
 With command-line tools installed see
 :ref:`server installation <ref_tutorial_install>` or

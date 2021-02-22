@@ -14,24 +14,30 @@ command:
 
 .. code-block:: bash
 
-    $ curl --proto '=https' --tlsv1.2 https://sh.edgedb.com -sSf | sh
+    $ curl https://sh.edgedb.com --proto '=https' -sSf1 | sh
+
+On Windows, open a PowerShell terminal and enter the following:
+
+.. code-block::
+
+    iwr https://ps1.edgedb.com -useb | iex
 
 The command downloads a script and starts the installation of the ``edgedb``
 command line tool.  The script might require elevated privileges and might
-ask you for your password.  Once the ``edgedb`` CLI installation is successful,
-run the following command to configure your current shell to be able to
-run ``edgedb`` commands (you only need to do this once):
+ask you for your password.
 
-.. code-block:: bash
+Once the ``edgedb`` CLI installation is successful,
+you might need to restart your terminal to be able to run ``edgedb`` commands.
 
-    $ source ~/.edgedb/env
-
-Then, let's install and configure the EdgeDB server:
+Now, let's install the EdgeDB server component:
 
 .. code-block:: bash
 
     $ edgedb server install
-    $ edgedb server init
 
-With EdgeDB up and running we're ready to
-:ref:`create a schema <ref_tutorial_createdb>`.
+Depending on your OS, the native server packages might not yet be available,
+and you might need to install and run Docker to complete the EdgeDB server
+installation.
+
+We are now ready to
+:ref:`create a new database instance <ref_tutorial_createdb>`.
