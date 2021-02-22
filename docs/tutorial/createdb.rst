@@ -12,37 +12,29 @@
     `Sublime Text <https://packagecontrol.io/packages/EdgeDB>`_,
     and `Vim <https://github.com/edgedb/edgedb-vim>`_.
 
-To begin, launch the EdgeDB CLI and connect to the default server instance:
+
+Once the EdgeDB server has been :ref:`installed <ref_tutorial_install>`
+on the system, it's time to create the first EdgeDB instance.  We'll
+call it "tutorial":
 
 .. code-block:: bash
 
-    $ edgedb -Idefault
+    $ edgedb server init tutorial
 
-First step in a brand new project is to create the database for it:
+Now, lets launch the EdgeDB CLI and connect to the instance we've just
+created:
 
-.. code-block:: edgeql-repl
+.. code-block:: bash
 
-    edgedb> CREATE DATABASE tutorial;
-    CREATE
-
-The above :ref:`command <ref_admin_databases>` creates a new
-:ref:`database <ref_datamodel_databases>` in the EdgeDB instance. Now
-we should connect to it:
-
-.. FIXME "\c" currently causes lexer errors in doc tests
-
-.. code-block:: edgeql-repl
-
-    edgedb> \c tutorial
-    tutorial>
+    $ edgedb -Itutorial
 
 Now we need to set up the schema. Let's set up a basic schema for a
 movie database. It will have 2 types of objects: movies and people
 who directed and acted in them.
 
 For the next step, there are two ways of setting this up. You have
-two methods to choose from for this: 
-:ref:`ref_tutorial_createdb_sdl` (recommended) or 
+two methods to choose from for this:
+:ref:`ref_tutorial_createdb_sdl` (recommended) or
 :ref:`ref_tutorial_createdb_ddl`.
 
 
