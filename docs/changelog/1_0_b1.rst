@@ -40,7 +40,7 @@ project database by running ``edgedb create-migration``:
 
 .. code-block:: bash
 
-    $ edgedb create-migration --schema-dir app_schema
+    $ edgedb -I chatapp create-migration --schema-dir app_schema
     did you create object type 'default::User'? [y,n,l,c,b,s,q,?]
     ?
 
@@ -66,7 +66,7 @@ following command:
 
 .. code-block:: bash
 
-    $ edgedb migrate --schema-dir app_schema
+    $ edgedb -I chatapp migrate --schema-dir app_schema
     Applied m1ufwaxcqiwcq3ttcujnxv6f3jewhfrywc442z6gjk3sm3e5fgyr4q
     (00001.edgeql)
 
@@ -106,7 +106,7 @@ commands again:
 
 .. code-block:: bash
 
-    $ edgedb create-migration --schema-dir app_schema
+    $ edgedb -I chatapp create-migration --schema-dir app_schema
     did you create object type 'default::Channel'? [y,n,l,c,b,s,q,?]
     y
     did you create link 'channel' of object type 'default::Message'?
@@ -117,7 +117,7 @@ commands again:
     y
     Created app_schema/migrations/00002.edgeql, id:
     m1grkbj7z3fwvj6qe7ib72xdc6urj6ih5aynx3ammlrunh6tfefnaa
-    $ edgedb migrate --schema-dir app_schema
+    $ edgedb -I chatapp migrate --schema-dir app_schema
     Applied m1grkbj7z3fwvj6qe7ib72xdc6urj6ih5aynx3ammlrunh6tfefnaa
     (00002.edgeql)
 
@@ -127,7 +127,7 @@ the link required and run ``create-migration`` again:
 
 .. code-block:: bash
 
-    $ edgedb create-migration --schema-dir app_schema
+    $ edgedb -I chatapp create-migration --schema-dir app_schema
     did you make link 'channel' of object type 'default::Message'
     required? [y,n,l,c,b,s,q,?]
     y
@@ -144,7 +144,7 @@ Now we can actually apply the changes:
 
 .. code-block:: bash
 
-    $ edgedb migrate --schema-dir app_schema
+    $ edgedb -I chatapp migrate --schema-dir app_schema
     edgedb error: could not read migrations in app_schema/migrations:
     could not read migration file app_schema/migrations/00003.edgeql:
     migration name should be `
@@ -165,7 +165,7 @@ can now apply it:
 
 .. code-block:: bash
 
-    $ edgedb migrate --schema-dir app_schema
+    $ edgedb -I chatapp migrate --schema-dir app_schema
     Applied m1jmrmawu4uty53clhbat7nvzjbogexyarh2zue6w6ind2kpfalwva
     (00003.edgeql)
 
@@ -175,13 +175,13 @@ apply the changes:
 
 .. code-block:: bash
 
-    $ edgedb create-migration --schema-dir app_schema
+    $ edgedb -I chatapp create-migration --schema-dir app_schema
     did you rename link 'friends' of object type 'default::User' to
     'circle'? [y,n,l,c,b,s,q,?]
     y
     Created app_schema/migrations/00004.edgeql, id:
     m1lh5julmw2msveqrchwly4qrbpyiof3hevze35d3x35ydrz3fsv3a
-    $ edgedb migrate --schema-dir app_schema
+    $ edgedb -I chatapp migrate --schema-dir app_schema
     Applied m1lh5julmw2msveqrchwly4qrbpyiof3hevze35d3x35ydrz3fsv3a
     (00004.edgeql)
 
