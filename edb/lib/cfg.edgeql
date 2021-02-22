@@ -27,35 +27,6 @@ CREATE ABSTRACT INHERITABLE ANNOTATION cfg::affects_compilation;
 
 CREATE ABSTRACT TYPE cfg::ConfigObject EXTENDING std::BaseObject;
 
-CREATE TYPE cfg::Port EXTENDING cfg::ConfigObject {
-    CREATE REQUIRED PROPERTY port -> std::int64 {
-        CREATE CONSTRAINT std::exclusive;
-        SET readonly := true;
-    };
-
-    CREATE REQUIRED PROPERTY protocol -> std::str {
-        SET readonly := true;
-    };
-
-    CREATE REQUIRED PROPERTY database -> std::str {
-        SET readonly := true;
-    };
-
-    CREATE REQUIRED PROPERTY concurrency -> std::int64 {
-        SET readonly := true;
-    };
-
-    CREATE REQUIRED PROPERTY user -> std::str {
-        SET readonly := true;
-    };
-
-    CREATE REQUIRED MULTI PROPERTY address -> std::str {
-        SET readonly := true;
-        SET default := {'localhost'};
-    };
-};
-
-
 CREATE ABSTRACT TYPE cfg::AuthMethod EXTENDING cfg::ConfigObject;
 CREATE TYPE cfg::Trust EXTENDING cfg::AuthMethod;
 CREATE TYPE cfg::SCRAM EXTENDING cfg::AuthMethod;
@@ -89,10 +60,6 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
     };
 
     CREATE MULTI PROPERTY listen_addresses -> std::str {
-        CREATE ANNOTATION cfg::system := 'true';
-    };
-
-    CREATE MULTI LINK ports -> cfg::Port {
         CREATE ANNOTATION cfg::system := 'true';
     };
 
