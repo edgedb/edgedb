@@ -33,6 +33,10 @@ from mypy.server import trigger as mypy_trigger
 
 METADATA_KEY = 'edbplugin'
 
+AST_BASE_METACLASSES = {
+    'edb.common.ast.base.MetaAST',
+}
+
 STRUCT_BASE_METACLASSES = {
     'edb.common.struct.StructMeta',
 }
@@ -79,6 +83,13 @@ class EDBPlugin(mypy_plugin.Plugin):
                 StructTransformer(
                     ctx,
                     field_makers={'edb.common.struct.Field'},
+                )
+            )
+
+        elif any(c.fullname in AST_BASE_METACLASSES for c in mcls.type.mro):
+            transformers.append(
+                ASTClassTransformer(
+                    ctx,
                 )
             )
 
@@ -456,3 +467,43 @@ class SchemaClassTransformer(BaseStructTransformer):
             )
 
         return fields
+
+
+class ASTClassTransformer(BaseTransformer):
+
+    def _transform(self) -> List[Field]:
+        fields = self._collect_fields()
+
+        # NB: __init__ synthesis below brings up a vast number of
+        #     typing errors which require AST definitions to be
+        #     annotated with defaults properly and the code adjusted
+        #     to handle Optional fields (historically we've been
+        #     initializing container fields with empty lists/tuples).
+
+        # self._synthesize_init(fields)
+        return fields
+
+    def _field_from_field_def(
+        self,
+        stmt: nodes.AssignmentStmt,
+        name: nodes.NameExpr,
+        sym: nodes.SymbolTableNode,
+    ) -> Optional[Field]:
+
+        if sym.type is None:
+            # No type annotation?
+            return None
+        else:
+            has_default = not isinstance(stmt.rvalue, nodes.TempNode)
+
+            if not has_default:
+                sym.implicit = True
+
+            return Field(
+                name=name.name,
+                has_default=has_default,
+                line=stmt.line,
+                column=stmt.column,
+                type=sym.type,
+                has_explicit_accessor=False,
+            )
