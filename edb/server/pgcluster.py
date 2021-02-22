@@ -152,9 +152,6 @@ class BaseCluster:
                 f'SET ROLE {self._default_session_auth};'
             )
 
-        await conn.execute(
-            "SET IntervalStyle = 'sql_standard';"
-        )
         return conn
 
     def get_runtime_params(self) -> BackendRuntimeParams:
@@ -187,10 +184,19 @@ class BaseCluster:
         for k in ('user', 'password', 'database', 'ssl', 'server_settings'):
             v = getattr(params, k)
             if v is not None:
-                if k == 'server_settings':
-                    v = dict(v)
-                    v['search_path'] = 'edgedb'
                 conn_dict[k] = v
+
+        cluster_settings = conn_dict.get('server_settings', {})
+
+        edgedb_settings = {
+            'client_encoding': 'utf-8',
+            'search_path': 'edgedb',
+            'timezone': 'UTC',
+            'intervalstyle': 'sql_standard',
+            'jit': 'off',
+        }
+
+        conn_dict['server_settings'] = {**cluster_settings, **edgedb_settings}
 
         return conn_dict
 
