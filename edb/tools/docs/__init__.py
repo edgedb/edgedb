@@ -36,9 +36,10 @@ class ProhibitedNodeTransform(s_transforms.SphinxTransform):
 
     def apply(self):
         bqs = list(self.document.traverse(d_nodes.block_quote))
-        if bqs:
-            raise shared.EdgeSphinxExtensionError(
-                f'blockquote found: {bqs[0].asdom().toxml()!r}')
+        for bq in bqs:
+            if not bq['classes'] or 'pull-quote' not in bq['classes']:
+                raise shared.EdgeSphinxExtensionError(
+                    f'blockquote found: {bq.asdom().toxml()!r}')
 
         trs = list(self.document.traverse(d_nodes.title_reference))
         if trs:
