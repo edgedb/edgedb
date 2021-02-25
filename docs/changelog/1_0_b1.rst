@@ -288,10 +288,13 @@ Bindings
 * Release `edgedb-go <https://github.com/edgedb/edgedb-go>`_ driver.
 * Update the `edgedb-python <https://github.com/edgedb/edgedb-python>`_ driver
   to v0.13.0.
+* Update the `edgedb-js <https://github.com/edgedb/edgedb-js>`_ driver
+  to v0.13.0.
 * Implement `RFC 1004 <robust_>`_ features for Python and JavaScript drivers.
 
   - Add ``retrying_transaction()`` method for automatically retrying
-    transactions:
+    transactions (``retryingTransaction()`` in JavaScript,
+    ``RetryingTx()`` in Go):
 
     .. code-block:: python
 
@@ -304,7 +307,8 @@ Bindings
                 ''')
 
   - Add ``raw_transaction()`` method and deprecate ``transaction()`` for
-    single-use transactions that will not be automatically retried:
+    single-use transactions that will not be automatically retried
+    (``rawTransaction()`` in JavaScript, ``RawTx()`` in Go):
 
     .. code-block:: python
 
@@ -317,7 +321,7 @@ Bindings
             ''')
 
   - Add ``wait_until_available`` (measured in seconds) configuration
-    parameter:
+    parameter (``waitUntilAvailable`` in JavaScript):
 
     .. code-block:: python
 
