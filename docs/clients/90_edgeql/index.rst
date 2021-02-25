@@ -10,23 +10,21 @@ stateless protocol, no :ref:`DDL <ref_eql_ddl>`,
 can be executed using this endpoint.  Only one query per request can be
 executed.
 
-Here's an example of configuration that will set up EdgeQL over HTTP
-access to the database:
+In order to set up HTTP access to the database add the following to
+the schema:
 
-.. code-block:: edgeql-repl
+.. code-block:: sdl
 
-    tutorial> CONFIGURE SYSTEM INSERT Port {
-    .........     protocol := "edgeql+http",
-    .........     database := "your_database_name",
-    .........     address := "127.0.0.1",
-    .........     port := 8889,
-    .........     user := "http",
-    .........     concurrency := 4,
-    ......... };
-    CONFIGURE SYSTEM
+    using extension edgeql_http;
 
-This will expose EdgeQL API for the ``"your_database_name"`` database
-on port 8889 (or any other port that was specified).
+Then create a new migration and apply it using :ref:`edgedb
+create-migration <ref_cli_edgedb_create_migration>` and :ref:`edgedb
+migrate <ref_cli_edgedb_migrate>`, respectively.
+
+``http://127.0.0.1:<instance-port>/db/<database-name>/edgeql`` will
+expose GraphQL API. Check the credentials file for your instance at
+``$HOME/.edgedb/credentials`` to find out which port the instance is
+using.
 
 .. toctree::
     :maxdepth: 2

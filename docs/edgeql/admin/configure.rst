@@ -80,18 +80,6 @@ Set the same parameter, but for the current database:
 
     CONFIGURE CURRENT DATABASE SET query_work_mem := '4MB';
 
-Start a new GraphQL app port:
-
-.. code-block:: edgeql
-
-    CONFIGURE SYSTEM INSERT Port {
-        port := 8080,
-        protocol := 'graphql+http',
-        database := 'mydatabase',
-        user := 'http',
-        concurrency := 4
-    };
-
 Remove all Trust authentication methods:
 
 .. code-block:: edgeql

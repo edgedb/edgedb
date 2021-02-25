@@ -82,44 +82,6 @@ Remove a specific authentication method:
 ----------
 
 
-Configure a port for accessing ``my_new_project`` database using EdgeQL:
-
-.. code-block:: edgeql-repl
-
-    db> CONFIGURE SYSTEM INSERT Port {
-    ...     protocol := "edgeql+http",
-    ...     database := "my_new_project",
-    ...     address := "127.0.0.1",
-    ...     port := 8889,
-    ...     user := "http",
-    ...     concurrency := 4,
-    ... };
-    CONFIGURE SYSTEM
-
-
-----------
-
-
-.. _ref_cheatsheet_admin_graphql:
-
-Configure a port for accessing ``my_new_project`` database using GraphQL:
-
-.. code-block:: edgeql-repl
-
-    db> CONFIGURE SYSTEM INSERT Port {
-    ...     protocol := "graphql+http",
-    ...     database := "my_new_project",
-    ...     address := "127.0.0.1",
-    ...     port := 8888,
-    ...     user := "http",
-    ...     concurrency := 4,
-    ... };
-    CONFIGURE SYSTEM
-
-
-----------
-
-
 Run a script from command line:
 
 .. cli:synopsis::

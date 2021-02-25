@@ -76,42 +76,6 @@ Configure access that checks password (with a higher priority):
 ----------
 
 
-Configure a port for accessing ``my_new_project`` database using EdgeQL:
-
-.. code-block:: bash
-
-    $ edgedb -I my_instance configure insert Port \
-    > --protocol edgeql+http \
-    > --database my_new_project \
-    > --address 127.0.0.1 \
-    > --port 8889 \
-    > --user project \
-    > --concurrency 4
-    OK: CONFIGURE SYSTEM
-
-
-----------
-
-
-.. _ref_cheatsheet_admin_graphql:
-
-Configure a port for accessing ``my_new_project`` database using GraphQL:
-
-.. code-block:: bash
-
-    $ edgedb -I my_instance configure insert Port \
-    > --protocol graphql+http \
-    > --database my_new_project \
-    > --address 127.0.0.1 \
-    > --port 8888 \
-    > --user project \
-    > --concurrency 4
-    OK: CONFIGURE SYSTEM
-
-
-----------
-
-
 Connect to the database:
 
 .. code-block:: bash

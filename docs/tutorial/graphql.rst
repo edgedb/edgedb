@@ -42,7 +42,12 @@ new migration and apply it:
     Applied m12exapirxxcs227zb2sruf7byvupbt6klkyl5ib6nyklyg3xo5s7a
     (00004.edgeql)
 
-This will expose :ref:`GraphQL API <ref_graphql_index>` on
+This will expose :ref:`GraphQL API <ref_graphql_index>` via ``http``.
+Each EdgeDB instance will be exposed on its corresponding port. Look
+at ``$HOME/.edgedb/credentials/tutorial.json`` file to find out the
+port for the tutorial instance. For the purpose of the example, we'll
+pretend that our tutorial instance is using port 5656 and so the
+GraphQL API is exposed on:
 ``http://127.0.0.1:5656/db/edgedb/graphql``. Pointing your browser to
 ``http://127.0.0.1:5656/db/edgedb/graphql/explore`` will bring up a
 `GraphiQL`_ interface to EdgeDB. This interface can be used to try out
