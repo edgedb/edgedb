@@ -8,10 +8,8 @@ Clients currently available:
 
 * `Python Client <00_python/index>`_
 * `Javascript Client <01_js/index>`_
+* `Go Client <https://pkg.go.dev/github.com/edgedb/edgedb-go>`_
 
-Coming soon:
-
-* Go Client
 
 Other ways to query EdgeDB:
 
