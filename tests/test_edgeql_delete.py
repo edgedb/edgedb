@@ -26,13 +26,16 @@ class TestDelete(tb.QueryTestCase):
     SETUP = """
         START MIGRATION TO {
             module test {
-                type DeleteTest {
+                type LinkingType {
+                    multi link objs -> AbstractDeleteTest;
+                };
+
+                abstract type AbstractDeleteTest {
                     property name -> str;
                 };
 
-                type DeleteTest2 {
-                    property name -> str;
-                };
+                type DeleteTest extending AbstractDeleteTest;
+                type DeleteTest2 extending AbstractDeleteTest;
             };
         };
         POPULATE MIGRATION;
@@ -479,7 +482,7 @@ class TestDelete(tb.QueryTestCase):
                     (DELETE DeleteTest2);
             ''')
 
-    async def test_edgeql_update_in_conditional_bad_02(self):
+    async def test_edgeql_delete_in_conditional_bad_02(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 'DELETE statements cannot be used'):
@@ -494,3 +497,30 @@ class TestDelete(tb.QueryTestCase):
                         (DELETE DeleteTest)
                     );
             ''')
+
+    async def test_edgeql_delete_abstract_01(self):
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            INSERT DeleteTest { name := 'child of abstract 1' };
+            INSERT DeleteTest2 { name := 'child of abstract 2' };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH
+                    MODULE test,
+                    D := (
+                        DELETE
+                            AbstractDeleteTest
+                        FILTER
+                            .name ILIKE 'child of abstract%'
+                    )
+                SELECT D { name } ORDER BY .name;
+            """,
+            [{
+                'name': 'child of abstract 1'
+            }, {
+                'name': 'child of abstract 2'
+            }],
+        )
