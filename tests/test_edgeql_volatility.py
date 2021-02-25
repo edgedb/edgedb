@@ -302,7 +302,6 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             [True],
         )
 
-    @test.xfail('triggers issue #1818')
     async def test_edgeql_volatility_select_clause_03(self):
         # Spurious failure probability: 1/2^100 I think
 

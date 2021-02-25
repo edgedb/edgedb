@@ -6186,6 +6186,106 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [True],
         )
 
+        await self.assert_query_result(
+            r'''
+                WITH items := array_agg((
+                    SELECT test::Named ORDER BY .name LIMIT 1))
+                SELECT (items, items[0], items[0].name,
+                        items[0] IS test::Status);
+            ''',
+            [
+                [[{}], {}, "Closed", True]
+            ],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test,
+                     items := (User.name, array_agg(User.todo ORDER BY .name))
+                SELECT _ := (items.0, items.1, items.1[0].name) ORDER BY _.0;
+            ''',
+            [
+                [
+                    "Elvis",
+                    [{}, {}],
+                    "Improve EdgeDB repl output rendering."
+                ],
+                [
+                    "Yury",
+                    [{}, {}],
+                    "Regression."
+                ],
+            ]
+        )
+
+    async def test_edgeql_select_expr_objects_05(self):
+        await self.assert_query_result(
+            r"""
+            WITH
+                MODULE test,
+                L := ('x', User)
+            SELECT (L, L);
+            """,
+            [
+                [['x', {}], ['x', {}]],
+                [['x', {}], ['x', {}]],
+            ]
+        )
+
+    async def test_edgeql_select_expr_objects_06(self):
+        await self.assert_query_result(
+            r"""
+            WITH MODULE test
+            SELECT (User, User {name}) ORDER BY .1.name;
+            """,
+            [
+                [{}, {'name': 'Elvis'}],
+                [{}, {'name': 'Yury'}],
+            ]
+        )
+
+    async def test_edgeql_select_expr_objects_07(self):
+        # get the User names and ids
+        res = await self.con.query(r'''
+            WITH MODULE test
+            SELECT User {
+                name,
+                id
+            }
+            ORDER BY User.name;
+        ''')
+
+        # we want to make sure that the reference to L is actually
+        # populated with 'id', since there was a bug in which in JSON
+        # mode it was populated with 'name' instead!
+        await self.assert_query_result(
+            r'''
+            WITH
+                MODULE test,
+                L := ('x', User),
+            SELECT _ := (L, L.1 {name})
+            ORDER BY _.1.name;
+            ''',
+            [
+                [['x', {'id': str(user.id)}], {'name': user.name}]
+                for user in res
+            ]
+        )
+
+        await self.assert_query_result(
+            r'''
+            WITH
+                MODULE test,
+                L := ('x', User),
+            SELECT _ := (L.1 {name}, L)
+            ORDER BY _.0.name;
+            ''',
+            [
+                [{'name': user.name}, ['x', {'id': str(user.id)}]]
+                for user in res
+            ]
+        )
+
     @test.xfail("We produce results that don't decode properly")
     async def test_edgeql_select_array_common_type_01(self):
         res = await self.con._fetchall("""

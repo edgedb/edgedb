@@ -54,7 +54,7 @@ DBS: state.DatabasesState = immutables.Map()
 BACKEND_RUNTIME_PARAMS: pgcluster.BackendRuntimeParams = \
     pgcluster.get_default_runtime_params()
 COMPILER: compiler.Compiler
-LAST_STATE = None
+LAST_STATE: Optional[compiler.dbstate.CompilerConnectionState] = None
 STD_SCHEMA: s_schema.FlatSchema
 GLOBAL_SCHEMA: s_schema.FlatSchema
 SYSTEM_CONFIG: immutables.Map[str, config.SettingValue]

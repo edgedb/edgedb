@@ -90,6 +90,7 @@ def compile_ir_to_sql_tree(
 
         _ = context.CompilerContext(initial=ctx)
         ctx.singleton_mode = singleton_mode
+        ctx.expr_exposed = True
         qtree = dispatch.compile(ir_expr, ctx=ctx)
 
     except Exception as e:  # pragma: no cover

@@ -373,6 +373,25 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 '''SELECT array_agg({})''',
             )
 
+    async def test_edgeql_functions_array_agg_19(self):
+        await self.assert_query_result(
+            r'''FOR X in {array_agg(0)} UNION (SELECT array_unpack(X));''',
+            [0],
+        )
+
+        await self.assert_query_result(
+            r'''
+                FOR X in {array_agg((0, 1))}
+                UNION (SELECT array_unpack(X));
+            ''',
+            [[0, 1]],
+        )
+
+        await self.assert_query_result(
+            r'''FOR X in {array_agg((0, 1))} UNION (X);''',
+            [[[0, 1]]],
+        )
+
     async def test_edgeql_functions_array_unpack_01(self):
         await self.assert_query_result(
             r'''SELECT [1, 2];''',
