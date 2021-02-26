@@ -2596,12 +2596,20 @@ class SysConfigNoFileAccessFunction(dbops.Function):
     SELECT
         q.name,
         q.value,
-        q.source
+        q.source,
+        (CASE
+            WHEN q.source < 'database'::edgedb._sys_config_source_t THEN
+                'SYSTEM'
+            WHEN q.source = 'database'::edgedb._sys_config_source_t THEN
+                'DATABASE'
+            ELSE
+                'SESSION'
+        END)::edgedb._sys_config_scope_t AS scope
     FROM
         (SELECT
             u.name,
             u.value,
-            u.source,
+            u.source::edgedb._sys_config_source_t,
             row_number() OVER (
                 PARTITION BY u.name
                 ORDER BY u.source::edgedb._sys_config_source_t DESC
