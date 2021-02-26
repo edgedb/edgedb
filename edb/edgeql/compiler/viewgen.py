@@ -714,10 +714,8 @@ def _normalize_view_ptr_expr(
                 # object type.
                 if not (
                     base_target.is_object_type()
-                    or schemactx.is_type_compatible(
-                        base_target,
-                        ptr_target,
-                        ctx=ctx
+                    or s_types.is_type_compatible(
+                        base_target, ptr_target, schema=ctx.env.schema
                     )
                 ):
                     qlexpr = astutils.ensure_qlstmt(qlast.TypeCast(

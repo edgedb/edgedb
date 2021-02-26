@@ -1918,7 +1918,7 @@ def _process_set_func_with_ordinality(
     coldeflist = []
     arg_is_tuple = irtyputils.is_tuple(inner_rtype)
 
-    if arg_is_tuple:
+    if arg_is_tuple and not irtyputils.is_persistent_tuple(inner_rtype):
         subtypes = {}
         for i, st in enumerate(inner_rtype.subtypes):
             colname = st.element_name or f'_t{i + 1}'
