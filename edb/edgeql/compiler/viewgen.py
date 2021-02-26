@@ -1054,9 +1054,17 @@ def _inline_type_computable(
 ) -> None:
     assert isinstance(stype, s_objtypes.ObjectType)
 
+    ptr: Optional[s_pointers.Pointer]
     try:
         ptr = setgen.resolve_ptr(stype, compname, track_ref=None, ctx=ctx)
+        # The pointer might exist on the base type. That doesn't count,
+        # and we need to re-inject it.
+        if not ptr.get_computable(ctx.env.schema):
+            ptr = None
     except errors.InvalidReferenceError:
+        ptr = None
+
+    if ptr is None:
         ql = qlast.ShapeElement(
             expr=qlast.Path(
                 steps=[qlast.Ptr(
@@ -1227,6 +1235,11 @@ def _compile_view_shapes_in_set(
         pathctx.register_set_in_scope(ir_set, ctx=ctx)
         stype = setgen.get_set_type(ir_set, ctx=ctx)
 
+        # If the shape has already been populated (because the set is
+        # referenced multiple times), then we've got nothing to do.
+        if ir_set.shape:
+            return
+
         for path_tip, ptr, shape_op in shape_ptrs:
             srcctx = None
             if ptr in ctx.env.pointer_specified_info:
@@ -1268,6 +1281,9 @@ def _compile_view_shapes_in_set(
                 compile_view_shapes(ir_set.expr, ctx=scopectx)
         else:
             compile_view_shapes(ir_set.expr, ctx=ctx)
+
+    elif isinstance(ir_set.rptr, irast.TupleIndirectionPointer):
+        compile_view_shapes(ir_set.rptr.source, ctx=ctx)
 
 
 @compile_view_shapes.register(irast.SelectStmt)

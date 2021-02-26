@@ -179,6 +179,13 @@ def get_set_rvar(
                 subctx.path_scope[path_id] = scope_stmt
             relctx.update_scope(ir_set, stmt, ctx=subctx)
 
+        # If the set is a binding, we need to treat it as exposed
+        # because we don't know at this point whether it will be
+        # reused in an exposed context.
+        # (We could avoid this with some more analysis, probably.)
+        if ir_set.is_binding:
+            subctx.expr_exposed = None
+
         rvars = _get_set_rvar(ir_set, ctx=subctx)
 
         if optional_wrapping:
@@ -1660,6 +1667,17 @@ def process_set_as_tuple(
     relctx.ensure_bond_for_expr(ir_set, stmt, ctx=ctx)
     pathctx.put_path_value_var(stmt, ir_set.path_id, set_expr, env=ctx.env)
 
+    # This is an unfortunate hack. If any of those types that we
+    # contain are an object, then force the computation of the
+    # serialized output now. This avoids issues where there may be
+    # references to tuple elements with the same path id but different
+    # shapes, and the delaying induced by a TupleBaseVar can cause the
+    # wrong one to be output. (See test_edgeql_scope_shape_03 for an example
+    # where this can come up.)
+    # (We only do it for objects as an optimization.)
+    if any(irtyputils.is_object(x) for x in ir_set.typeref.subtypes):
+        pathctx.get_path_serialized_output(stmt, ir_set.path_id, env=ctx.env)
+
     return new_stmt_set_rvar(
         ir_set, stmt, aspects=['value', 'source'], ctx=ctx)
 
@@ -2220,8 +2238,10 @@ def process_set_as_func_expr(
         ir_set, set_expr=set_expr, func_rel=func_rel, stmt=stmt, ctx=ctx)
 
 
-def process_set_as_agg_expr(
+def process_set_as_agg_expr_inner(
         ir_set: irast.Set, stmt: pgast.SelectStmt, *,
+        aspect: str,
+        wrapper: Optional[pgast.SelectStmt],
         ctx: context.CompilerContextLevel) -> SetRVars:
     expr = ir_set.expr
     assert isinstance(expr, irast.FunctionCall)
@@ -2258,7 +2278,7 @@ def process_set_as_agg_expr(
                 dispatch.visit(ir_arg, ctx=argctx)
 
                 arg_ref: pgast.BaseExpr
-                if output.in_serialization_ctx(ctx=argctx):
+                if aspect == 'serialized':
                     arg_ref = pathctx.get_path_serialized_or_value_var(
                         argctx.rel, ir_arg.path_id, env=argctx.env)
 
@@ -2386,32 +2406,78 @@ def process_set_as_agg_expr(
     if expr.func_initial_value is not None:
         iv_ir = expr.func_initial_value.expr
 
-        if newctx.expr_exposed and serialization_safe:
+        if serialization_safe and aspect == 'serialized':
             # Serialization has changed the output type.
             with newctx.new() as ivctx:
-                ivctx.expr_exposed = True
                 iv = dispatch.compile(iv_ir, ctx=ivctx)
+
                 iv = output.serialize_expr_if_needed(
                     iv, path_id=ir_set.path_id, ctx=ctx)
                 set_expr = output.serialize_expr_if_needed(
                     set_expr, path_id=ir_set.path_id, ctx=ctx)
         else:
-            iv = dispatch.compile(iv_ir, ctx=newctx)
+            with newctx.new() as ivctx:
+                iv = dispatch.compile(iv_ir, ctx=ivctx)
 
-        pathctx.put_path_value_var(stmt, ir_set.path_id, set_expr, env=ctx.env)
-        pathctx.get_path_value_output(stmt, ir_set.path_id, env=ctx.env)
+        pathctx.put_path_var(
+            stmt, ir_set.path_id, set_expr, aspect=aspect, env=ctx.env)
+        pathctx.get_path_output(
+            stmt, ir_set.path_id, aspect=aspect, env=ctx.env)
 
+        assert wrapper
+        set_expr = pgast.CoalesceExpr(
+            args=[stmt, iv], ser_safe=serialization_safe)
+
+        pathctx.put_path_var(
+            wrapper, ir_set.path_id, set_expr, aspect=aspect, env=ctx.env)
+        stmt = wrapper
+
+    pathctx.put_path_var_if_not_exists(
+        stmt, ir_set.path_id, set_expr, aspect=aspect, env=ctx.env)
+
+    return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
+
+
+def process_set_as_agg_expr(
+        ir_set: irast.Set, stmt: pgast.SelectStmt, *,
+        ctx: context.CompilerContextLevel) -> SetRVars:
+    expr = ir_set.expr
+    assert isinstance(expr, irast.FunctionCall)
+
+    # If the func has an initial val, we need to create a wrapper to put
+    # the coalesces we insert in
+    wrapper = None
+    if expr.func_initial_value is not None:
         with ctx.subrel() as subctx:
             wrapper = subctx.rel
-            set_expr = pgast.CoalesceExpr(
-                args=[stmt, iv], ser_safe=serialization_safe)
 
-            pathctx.put_path_value_var(
-                wrapper, ir_set.path_id, set_expr, env=ctx.env)
-            stmt = wrapper
+    # When in a serialization context, we need to compute both a value
+    # version and a serialized version of the aggregate function call,
+    # since we may need both (Consider `WITH X := array_agg(User), ...`).
 
-    pathctx.put_path_value_var_if_not_exists(
-        stmt, ir_set.path_id, set_expr, env=ctx.env)
+    cctx = ctx.subrel() if wrapper else ctx.new()
+    with cctx as xctx:
+        xctx.expr_exposed = False
+        process_set_as_agg_expr_inner(
+            ir_set, xctx.rel, aspect='value', wrapper=wrapper,
+            ctx=xctx)
+
+    # Though if the result type is a scalar, the value should be good
+    # enough, so don't generate a bunch of unnessecary code to produce
+    # a serialized value when we can use value.
+    if (
+        output.in_serialization_ctx(ctx=ctx)
+        and not irtyputils.is_scalar(ir_set.typeref)
+    ):
+        cctx = ctx.subrel() if wrapper else ctx.new()
+        with cctx as xctx:
+            xctx.expr_exposed = True
+            process_set_as_agg_expr_inner(
+                ir_set, xctx.rel, aspect='serialized', wrapper=wrapper,
+                ctx=xctx)
+
+    if wrapper:
+        stmt = wrapper
 
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
