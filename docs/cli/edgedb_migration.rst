@@ -24,13 +24,69 @@ description. It's also possible to split the schema definition across
 multiple ``.esdl`` files. The migration tools will read all of them
 and treat them as a single SDL document.
 
+Here is typical file tree::
+
+    $ tree dbschema
+    dbschema
+    ├── default.esdl
+    └── migrations
+        ├── 00001.edgeql
+        ├── 00002.edgeql
+        ├── 00003.edgeql
+        ├── ....
+        └── 00019.edgeql
+
+In the tree:
+
+* ``dbschema/*.esdl`` is a set of files that contains current database schema
+* ``default.esdl`` is named after ``module default`` that is usually used for
+  initial application schema. You don't have to stick to single file per
+  module, but this is a good start.
+* ``dbschema/migrations/*.edgeql`` is a sequence of migration files that when
+  applied bring database schema to the latest version. These files are mostly
+  managed by command-line tools, but have to be commited to source code
+  repository, and occasionally may need to be edited manually (common example
+  is when merging a branch).
+
+
+.. _ref_cli_edgedb_migration_workflow:
+
+General Workflow
+================
+
+1. Create or edit schema in ``dbschema/*.esdl`` files
+2. Before applying schema, create a migration file:
+
+   .. code-block:: bash
+
+      edgedb create-migration
+
+   It runs through changes interactively and puts
+   ``dbschema/migrations/<revision-number>.edgeql`` file into the file system
+   (later you want to check it into a version control)
+
+3. To apply schema run:
+
+   .. code-block:: bash
+
+      edgedb migrate
+
+
+It's worth mentioning that after code checkout (e.g. ``git pull``) it makes
+sense to run ``edgedb migrate`` again. Server has the latest migration id
+recorded so will only apply new migrations.
+
+At any time ``edgedb show-status`` describes if there are any pending
+migrations or schema changes.
+
+
 .. _ref_cli_edgedb_create_migration:
 
 Create migration script
 =======================
 
-The next step after setting up the desired target schema is creating a
-migration script. This is done by invoking the following command:
+After editing schema files, migration script must be created.
+This is done by invoking the following command:
 
 .. cli:synopsis::
 
@@ -54,6 +110,7 @@ the schema file. The prompts will look something like this:
     q - quit without saving changes
     h or ? - print help
 
+
 .. _ref_cli_edgedb_migrate:
 
 Apply migrations
@@ -69,6 +126,50 @@ the database by this command:
 The tool will find all the unapplied migrations in
 ``dbschema/migrations/`` directory and sequentially run them on the
 target instance.
+
+
+.. _ref_cli_edgedb_show-status:
+
+Show Status
+===========
+
+To figure out the status of the schema and migrations use the respective
+command:
+
+.. cli:synopsis::
+
+    edgedb -I <instance-name> show-status [migration-option...]
+
+This might result in few different scenarios:
+
+.. code-block:: bash
+
+   $ edgedb -Imyapp show-status
+   Database is up to date.
+   Last migration: m1dcrpvcmyooykcbbgixwajmlqimkhfgpuu5xnyp4ziedpd64akxpa.
+
+This means everything up to date. If you've edited the schema:
+
+.. code-block:: bash
+
+   $ edgedb -Imyapp show-status
+   Detected differences between the database schema and the schema source,
+   in particular:
+       CREATE TYPE default::NewType;
+   Some migrations are missing, use `edgedb create-migration`
+
+And after creating migration or ``git pull``:
+
+.. code-block:: bash
+
+   Database is
+   at migration "m1dcrpvcmyooykcbbgixwajmlqimkhfgpuu5xnyp4ziedpd64akxpa"
+   while sources contain 1 migrations ahead,
+   starting from "m1b3lvddqzkcw3wxw7cckdhrkgnr7uwjyh7cge5amak52ahg4z6hqq"
+   (./dbschema/migrations/00020.edgeql)
+
+Which suggests to run ``edgedb migrate``.
+
 
 Options
 =======
