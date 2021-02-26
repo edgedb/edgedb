@@ -1294,19 +1294,31 @@ def compile_query_subject(
             view_rptr.base_ptrcls = base_ptrcls
             view_rptr.ptrcls_is_alias = True
 
+    is_mutation = is_insert or is_update or is_delete
+
     if (
-        ctx.expr_exposed
-        and viewgen.has_implicit_type_computables(
-            expr_stype,
-            is_mutation=is_insert or is_update or is_delete,
-            ctx=ctx,
+        (
+            (
+                ctx.expr_exposed
+                and viewgen.has_implicit_type_computables(
+                    expr_stype,
+                    is_mutation=is_mutation,
+                    ctx=ctx,
+                )
+            )
+            or is_mutation
         )
         and shape is None
         and expr_stype not in ctx.env.view_shapes
     ):
-        # Force the subject to be compiled as a view if a __tid__
-        # insertion is anticipated (the actual decision is taken
-        # by the compile_view_shapes() flow).
+        # Force the subject to be compiled as a view if:
+        # a) a __tid__ insertion is anticipated (the actual
+        #    decision about this is taken by the
+        #    compile_view_shapes() flow),
+        #    or
+        # b) this is a mutation without an explicit shape,
+        #    such as a DELETE, because mutation subjects are
+        #    always expected to be derived types.
         shape = []
 
     if shape is not None and view_scls is None:
