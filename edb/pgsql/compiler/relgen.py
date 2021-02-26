@@ -2463,7 +2463,8 @@ def process_set_as_agg_expr(
             ctx=xctx)
 
     # Though if the result type is a scalar, the value should be good
-    # enough, so don't generate bad code.
+    # enough, so don't generate a bunch of unnessecary code to produce
+    # a serialized value when we can use value.
     if (
         output.in_serialization_ctx(ctx=ctx)
         and not irtyputils.is_scalar(ir_set.typeref)
