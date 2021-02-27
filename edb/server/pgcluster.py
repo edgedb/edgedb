@@ -344,7 +344,9 @@ class Cluster(BaseCluster):
                     'could not parse pg_ctl status output: {}'.format(
                         stdout.decode()))
             self._daemon_pid = int(r.group(1))
-            return self._test_connection(timeout=0)
+            if self._connection_addr is None:
+                self._connection_addr = self._connection_addr_from_pidfile()
+            return 'running'
         else:
             raise ClusterError(
                 'pg_ctl status exited with status {:d}: {}'.format(
