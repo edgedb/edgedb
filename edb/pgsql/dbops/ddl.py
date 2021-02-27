@@ -115,22 +115,30 @@ class GetMetadata(base.Command):
         else:
             objoid, classoid, objsubid = oid
 
-        prefix = f'E{ql(defines.EDGEDB_VISIBLE_METADATA_PREFIX)}'
-
-        return textwrap.dedent(f'''\
-            SELECT
-                CASE WHEN substr(
-                    description, 1, char_length({prefix})) = {prefix}
-                THEN substr(description, char_length({prefix}) + 1)::jsonb
-                ELSE '{{}}'::jsonb
-                END
-             FROM
-                {'pg_shdescription' if is_shared else 'pg_description'}
-             WHERE
-                objoid = {objoid}
-                AND classoid = {classoid}
-                {f'AND objsubid = {objsubid}' if not is_shared else ''}
-        ''')
+        if is_shared:
+            return textwrap.dedent(f'''\
+                SELECT
+                    edgedb.shobj_metadata(
+                        {objoid},
+                        {classoid}::regclass::text
+                    )
+                ''')
+        elif objsubid:
+            return textwrap.dedent(f'''\
+                SELECT
+                    edgedb.col_metadata(
+                        {objoid},
+                        {objsubid}
+                    )
+                ''')
+        else:
+            return textwrap.dedent(f'''\
+                SELECT
+                    edgedb.obj_metadata(
+                        {objoid},
+                        {classoid}::regclass::text,
+                    )
+                ''')
 
 
 class PutMetadata(DDLOperation):
