@@ -712,11 +712,17 @@ class Cluster(BaseCluster):
         loop = asyncio.new_event_loop()
 
         try:
-            for _ in range(timeout):
+            for n in range(timeout + 1):
+                # pg usually comes up pretty quickly, but not so
+                # quickly that we don't hit the wait case. Make our
+                # first sleep pretty short, to shave almost a second
+                # off the happy case.
+                sleep_time = 1 if n else 0.05
+
                 if self._connection_addr is None:
                     conn_addr = self._get_connection_addr()
                     if conn_addr is None:
-                        time.sleep(1)
+                        time.sleep(sleep_time)
                         continue
 
                 try:
@@ -730,7 +736,7 @@ class Cluster(BaseCluster):
                 except (OSError, asyncio.TimeoutError,
                         asyncpg.CannotConnectNowError,
                         asyncpg.PostgresConnectionError):
-                    time.sleep(1)
+                    time.sleep(sleep_time)
                     continue
                 except asyncpg.PostgresError:
                     # Any other error other than ServerNotReadyError or
