@@ -488,6 +488,29 @@ class GetObjectMetadata(dbops.Function):
             text=self.text)
 
 
+class GetColumnMetadata(dbops.Function):
+    """Return EdgeDB metadata associated with a backend object."""
+    text = '''
+        SELECT
+            CASE WHEN substr(d, 1, char_length({prefix})) = {prefix}
+            THEN substr(d, char_length({prefix}) + 1)::jsonb
+            ELSE '{{}}'::jsonb
+            END
+        FROM
+            col_description("tableoid", "column") AS d
+    '''.format(
+        prefix=f'E{ql(defines.EDGEDB_VISIBLE_METADATA_PREFIX)}',
+    )
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'col_metadata'),
+            args=[('tableoid', ('oid',)), ('column', ('integer',))],
+            returns=('jsonb',),
+            volatility='stable',
+            text=self.text)
+
+
 class GetSharedObjectMetadata(dbops.Function):
     """Return EdgeDB metadata associated with a backend object."""
     text = '''
@@ -2914,6 +2937,7 @@ async def bootstrap(conn: asyncpg.Connection) -> None:
         dbops.CreateFunction(AlterCurrentDatabaseSetNonArray()),
         dbops.CreateFunction(AlterCurrentDatabaseSetArray()),
         dbops.CreateFunction(GetObjectMetadata()),
+        dbops.CreateFunction(GetColumnMetadata()),
         dbops.CreateFunction(GetSharedObjectMetadata()),
         dbops.CreateFunction(RaiseExceptionFunction()),
         dbops.CreateFunction(RaiseExceptionOnNullFunction()),
