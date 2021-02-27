@@ -45,7 +45,6 @@ from edb.edgeql import qltypes
 from . import context
 
 
-# XXX: COME BACK TO THIS
 def get_schema_object(
     ref: qlast.BaseObjectRef,
     module: Optional[str]=None,
@@ -526,28 +525,3 @@ def get_union_pointer(
     ctx.env.created_schema_objects.add(ptr)
 
     return ptr
-
-
-def is_type_compatible(
-    type_a: s_types.Type,
-    type_b: s_types.Type,
-    *,
-    ctx: context.ContextLevel,
-) -> bool:
-
-    material_type_a = get_material_type(type_a, ctx=ctx)
-    material_type_b = get_material_type(type_b, ctx=ctx)
-
-    compatible = material_type_b.issubclass(ctx.env.schema, material_type_a)
-    if compatible:
-        if (
-            isinstance(material_type_a, s_types.Tuple)
-            and isinstance(material_type_b, s_types.Tuple)
-        ):
-            # For tuples, we also check that the element names match.
-            compatible = (
-                material_type_a.get_element_names(ctx.env.schema) ==
-                material_type_b.get_element_names(ctx.env.schema)
-            )
-
-    return compatible

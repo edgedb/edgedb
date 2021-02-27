@@ -777,10 +777,33 @@ class FunctionCommand:
     def compile_sql_function(self, func: s_funcs.Function, schema):
         return self.make_function(func, func.get_code(schema), schema)
 
+    def fix_return_type(
+            self, func: s_funcs.Function, nativecode, schema, context):
+
+        return_type = self._get_attribute_value(schema, context, 'return_type')
+        ir = nativecode.irast
+
+        if not (
+            return_type.is_object_type()
+            or s_types.is_type_compatible(return_type, ir.stype,
+                                          schema=nativecode.schema)
+        ):
+            # Add a cast and recompile it
+            qlexpr = qlcompiler.astutils.ensure_qlstmt(ql_ast.TypeCast(
+                type=s_utils.typeref_to_ast(schema, return_type),
+                expr=nativecode.qlast,
+            ))
+            nativecode = self.compile_function(
+                schema, context, type(nativecode).from_ast(qlexpr, schema))
+
+        return nativecode
+
     def compile_edgeql_function(self, func: s_funcs.Function, schema, context):
         nativecode = func.get_nativecode(schema)
         if nativecode.irast is None:
             nativecode = self.compile_function(schema, context, nativecode)
+
+        nativecode = self.fix_return_type(func, nativecode, schema, context)
 
         sql_text, _ = compiler.compile_ir_to_sql(
             nativecode.irast,

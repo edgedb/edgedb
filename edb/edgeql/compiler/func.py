@@ -805,10 +805,8 @@ def finalize_args(
 
         # Check if we need to cast the argument value before passing
         # it to the callable.
-        compatible = schemactx.is_type_compatible(
-            paramtype,
-            barg.valtype,
-            ctx=ctx,
+        compatible = s_types.is_type_compatible(
+            paramtype, barg.valtype, schema=ctx.env.schema,
         )
 
         if not compatible:

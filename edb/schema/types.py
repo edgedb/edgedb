@@ -2376,3 +2376,41 @@ def materialize_type_in_attribute(
         )
 
     return schema
+
+
+def is_type_compatible(
+    type_a: Type,
+    type_b: Type,
+    *,
+    schema: s_schema.Schema,
+) -> bool:
+    """Check whether two types have compatible SQL representations.
+
+    EdgeQL implicit casts need to be turned into explicit casts in
+    some places, since the semantics differ from SQL's.
+    """
+
+    schema, material_type_a = type_a.material_type(schema)
+    schema, material_type_b = type_b.material_type(schema)
+
+    def labels_compatible(t_a: Type, t_b: Type) -> bool:
+        if isinstance(t_a, Tuple) and isinstance(t_b, Tuple):
+            # For tuples, we also (recursively) check that the element
+            # names match
+            return all(
+                name_a == name_b
+                and labels_compatible(st_a, st_b)
+                for (name_a, st_a), (name_b, st_b)
+                in zip(t_a.iter_subtypes(schema),
+                       t_b.iter_subtypes(schema))
+            )
+        elif isinstance(t_a, Array) and isinstance(t_b, Array):
+            return labels_compatible(
+                t_a.get_element_type(schema), t_b.get_element_type(schema))
+        else:
+            return True
+
+    return (
+        material_type_b.issubclass(schema, material_type_a)
+        and labels_compatible(material_type_a, material_type_b)
+    )

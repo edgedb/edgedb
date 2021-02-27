@@ -1243,31 +1243,27 @@ class TestEdgeQLFuncCalls(tb.DDLTestCase):
             ]
         )
 
-    @test.xfail('''
-       Fails with 'ISE: cannot cast type record to <stuff>', I think
-       because the subcomponents need to be cast also.
-    ''')
     async def test_edgeql_calls_35b(self):
         # Tuple return with a deep and unavoidable implicit cast
 
         await self.con.execute('''
             CREATE FUNCTION test::call35(
-                a: tuple<int64, tuple<int64>>
-            ) -> tuple<int64, tuple<foo: int64>>
+                a: tuple<int64, array<tuple<int64>>>
+            ) -> tuple<int64, array<tuple<foo: int64>>>
                 USING EdgeQL $$
                     SELECT a
                 $$;
         ''')
 
         await self.assert_query_result(
-            r'''SELECT test::call35((1, 2));''',
+            r'''SELECT test::call35((1, [(2,)]));''',
             [
-                [1, {'foo': 2}]
+                [1, [{'foo': 2}]]
             ]
         )
 
         await self.assert_query_result(
-            r'''SELECT test::call35((1, 2)).1.foo;''',
+            r'''SELECT test::call35((1, [(2,)])).1[0].foo;''',
             [
                 2
             ]
