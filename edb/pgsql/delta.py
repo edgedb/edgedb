@@ -387,26 +387,72 @@ class AlterGlobalSchemaVersion(
         ver_id = str(self.scls.id)
         ver_name = str(self.scls.get_name(schema))
 
-        expected_ver = self.get_orig_attribute_value('version')
-        lock = dbops.Query(
-            f'''
+        ctx_backend_params = context.backend_runtime_params
+        if ctx_backend_params is not None:
+            backend_params = cast(
+                pgcluster.BackendRuntimeParams, ctx_backend_params)
+        else:
+            backend_params = pgcluster.get_default_runtime_params()
+
+        instance_params = backend_params.instance_params
+        capabilities = instance_params.capabilities
+
+        if capabilities & pgcluster.BackendCapabilities.SUPERUSER_ACCESS:
+            # Only superusers are generally allowed to make an UPDATE
+            # lock on shared catalogs.
+            lock = dbops.Query(
+                f'''
+                    SELECT
+                        description
+                    FROM
+                        pg_catalog.pg_shdescription
+                    WHERE
+                        objoid = (
+                            SELECT oid
+                            FROM pg_database
+                            WHERE datname = {ql(edbdef.EDGEDB_TEMPLATE_DB)}
+                        )
+                        AND classoid = 'pg_database'::regclass::oid
+                    FOR UPDATE
+                    INTO _dummy_text
+                '''
+            )
+        else:
+            # Without superuser access we have to resort to lock polling.
+            # This is racy, but is unfortunately the best we can do.
+            lock = dbops.Query(f'''
                 SELECT
-                    description
-                FROM
-                    pg_catalog.pg_shdescription
-                WHERE
-                    objoid = (
-                        SELECT oid
-                        FROM pg_database
-                        WHERE datname = {ql(edbdef.EDGEDB_TEMPLATE_DB)}
+                    edgedb.raise_on_not_null(
+                        (
+                            SELECT 'locked'
+                            FROM pg_catalog.pg_locks
+                            WHERE
+                                locktype = 'object'
+                                AND classid = 'pg_database'::regclass::oid
+                                AND objid = (
+                                    SELECT oid
+                                    FROM pg_database
+                                    WHERE
+                                        datname =
+                                        {ql(edbdef.EDGEDB_TEMPLATE_DB)}
+                                )
+                                AND mode = 'ShareUpdateExclusiveLock'
+                                AND granted
+                                AND pid != pg_backend_pid()
+                        ),
+                        'serialization_failure',
+                        msg => (
+                            'Cannot serialize global DDL: '
+                            || (SELECT version::text FROM
+                                edgedb."_SysGlobalSchemaVersion")
+                        )
                     )
-                    AND classoid = 'pg_database'::regclass::oid
-                FOR UPDATE
                 INTO _dummy_text
-            '''
-        )
+            ''')
+
         self.pgops.add(lock)
 
+        expected_ver = self.get_orig_attribute_value('version')
         check = dbops.Query(
             f'''
                 SELECT
