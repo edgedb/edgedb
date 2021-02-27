@@ -1918,7 +1918,7 @@ def _process_set_func_with_ordinality(
     coldeflist = []
     arg_is_tuple = irtyputils.is_tuple(inner_rtype)
 
-    if arg_is_tuple and not irtyputils.is_persistent_tuple(inner_rtype):
+    if arg_is_tuple:
         subtypes = {}
         for i, st in enumerate(inner_rtype.subtypes):
             colname = st.element_name or f'_t{i + 1}'
@@ -1938,8 +1938,10 @@ def _process_set_func_with_ordinality(
         colnames = [ctx.env.aliases.get('v')]
         coldeflist = []
 
-    if expr.sql_func_has_out_params:
+    if (expr.sql_func_has_out_params
+            or irtyputils.is_persistent_tuple(inner_rtype)):
         # SQL functions declared with OUT params reject column definitions.
+        # Also persistent tuple types
         coldeflist = []
 
     fexpr = pgast.FuncCall(name=func_name, args=args, coldeflist=coldeflist)

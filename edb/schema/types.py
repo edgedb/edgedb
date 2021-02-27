@@ -2384,6 +2384,11 @@ def is_type_compatible(
     *,
     schema: s_schema.Schema,
 ) -> bool:
+    """Check whether two types have compatible SQL representations.
+
+    EdgeQL implicit casts need to be turned into explicit casts in
+    some places, since the semantics differ from SQL's.
+    """
 
     schema, material_type_a = type_a.material_type(schema)
     schema, material_type_b = type_b.material_type(schema)
