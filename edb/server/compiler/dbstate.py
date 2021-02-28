@@ -427,7 +427,7 @@ class Transaction:
         return self._current.user_schema
 
     def get_user_schema_if_updated(self) -> Optional[s_schema.FlatSchema]:
-        if self._current.user_schema == self._state0.user_schema:
+        if self._current.user_schema is self._state0.user_schema:
             return None
         else:
             return self._current.user_schema
