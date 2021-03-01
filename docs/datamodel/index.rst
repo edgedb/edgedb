@@ -47,3 +47,4 @@ one or more **modules** (namespaces).
     annotations
     modules
     databases
+    extensions

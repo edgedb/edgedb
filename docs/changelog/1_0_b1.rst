@@ -199,6 +199,14 @@ file is always available.
 EdgeQL
 ======
 
+* Deprecate ``Port`` and replace it with a more general
+  :ref:`extension <ref_datamodel_extensions>` mechanism
+  (:eql:gh:`#2228`).
+* Limit :eql:type:`datetime`, :eql:type:`cal::local_datetime` and
+  :eql:type:`cal::local_date` to the 1-9999 year range
+  (:eql:gh:`#2252`).
+* Make the format of :eql:type:`duration` less ambiguous by
+  restricting the usage of ``-`` sign (:eql:gh:`#2229`).
 * Record non-DDL commands during migrations instead of executing them
   immediately as per `RFC 1000 <migrations_>`_ (:eql:gh:`#2138`).
 * Add more details to the DDL command status (:eql:gh:`#2138`).
