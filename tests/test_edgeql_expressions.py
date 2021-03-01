@@ -4458,6 +4458,21 @@ aa \
             [4, 5],
         )
 
+    async def test_edgeql_expr_alias_09(self):
+        await self.assert_query_result(
+            r"""
+                WITH
+                    x := [1],
+                    y := [2]
+                SELECT
+                    'OK'
+                FILTER
+                    x[0] = 1
+                    AND y[0] = 2
+            """,
+            ['OK'],
+        )
+
     async def test_edgeql_expr_for_01(self):
         await self.assert_query_result(
             r"""
