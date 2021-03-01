@@ -986,7 +986,10 @@ class Array(
         schema: s_schema.Schema,
         data: Dict[str, Any],
     ) -> uuid.UUID:
-        if data.get('alias_is_persistent'):
+        if (
+            data.get('alias_is_persistent')
+            or isinstance(data.get('name'), s_name.QualName)
+        ):
             return super().generate_id(schema, data)
         else:
             return generate_array_type_id(
@@ -1232,15 +1235,15 @@ class Array(
         )
 
     def material_type(
-        self: Array_T,
+        self,
         schema: s_schema.Schema,
-    ) -> typing.Tuple[s_schema.Schema, Array_T]:
+    ) -> typing.Tuple[s_schema.Schema, Array]:
         # We need to resolve material types based on the subtype recursively.
 
         st = self.get_element_type(schema)
         schema, stm = st.material_type(schema)
-        if stm != st:
-            return self.__class__.from_subtypes(
+        if stm != st or isinstance(self, ArrayExprAlias):
+            return Array.from_subtypes(
                 schema,
                 [stm],
                 typemods=self.get_typemods(schema),
