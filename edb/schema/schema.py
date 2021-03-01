@@ -878,6 +878,11 @@ class FlatSchema(Schema):
                 f'{sclass.__name__} {name!r} is already present '
                 f'in the schema {self!r}')
 
+        if id in self._id_to_data:
+            raise errors.SchemaError(
+                f'{sclass.__name__} ({str(id)!r}) is already present '
+                f'in the schema {self!r}')
+
         object_ref_fields = sclass.get_object_reference_fields()
         if not object_ref_fields:
             refs_to = None
