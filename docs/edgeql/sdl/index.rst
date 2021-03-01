@@ -95,3 +95,4 @@ to the previous migration:
     constraints
     functions
     annotations
+    extensions

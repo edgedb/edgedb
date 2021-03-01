@@ -46,3 +46,4 @@ another, the other type has to be created first. For example:
     functions
     annotations
     migrations
+    extensions
