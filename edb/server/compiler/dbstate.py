@@ -426,8 +426,20 @@ class Transaction:
     def get_user_schema(self) -> s_schema.FlatSchema:
         return self._current.user_schema
 
+    def get_user_schema_if_updated(self) -> Optional[s_schema.FlatSchema]:
+        if self._current.user_schema is self._state0.user_schema:
+            return None
+        else:
+            return self._current.user_schema
+
     def get_global_schema(self) -> s_schema.FlatSchema:
         return self._current.global_schema
+
+    def get_global_schema_if_updated(self) -> Optional[s_schema.FlatSchema]:
+        if self._current.global_schema is self._state0.global_schema:
+            return None
+        else:
+            return self._current.global_schema
 
     def get_modaliases(self) -> immutables.Map:
         return self._current.modaliases

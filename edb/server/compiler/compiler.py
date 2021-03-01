@@ -848,11 +848,6 @@ class Compiler:
             debug.header('Delta Script')
             debug.dump_code(b'\n'.join(sql), lexer='sql')
 
-        global_schema_updates = (
-            isinstance(stmt, qlast.GlobalObjectCommand)
-            and not isinstance(stmt, qlast.ExternalObjectCommand)
-        )
-
         return dbstate.DDLQuery(
             sql=sql,
             is_transactional=is_transactional,
@@ -866,13 +861,9 @@ class Compiler:
             drop_db=drop_db,
             has_role_ddl=isinstance(stmt, qlast.RoleCommand),
             ddl_stmt_id=ddl_stmt_id,
-            user_schema=current_tx.get_user_schema(),
+            user_schema=current_tx.get_user_schema_if_updated(),
             cached_reflection=current_tx.get_cached_reflection_if_updated(),
-            global_schema=(
-                current_tx.get_global_schema()
-                if global_schema_updates
-                else None
-            ),
+            global_schema=current_tx.get_global_schema_if_updated(),
         )
 
     def _compile_ql_migration(
@@ -1253,12 +1244,13 @@ class Compiler:
         elif isinstance(ql, qlast.CommitTransaction):
             self._assert_not_in_migration_block(ctx, ql)
 
+            cur_tx = ctx.state.current_tx()
+            final_user_schema = cur_tx.get_user_schema_if_updated()
+            final_cached_reflection = cur_tx.get_cached_reflection_if_updated()
+            final_global_schema = cur_tx.get_global_schema_if_updated()
+
             new_state: dbstate.TransactionState = ctx.state.commit_tx()
             modaliases = new_state.modaliases
-            cur_tx = ctx.state.current_tx()
-            final_user_schema = cur_tx.get_user_schema()
-            final_cached_reflection = cur_tx.get_cached_reflection_if_updated()
-            final_global_schema = cur_tx.get_global_schema()
 
             sql = (b'COMMIT',)
             single_unit = True
