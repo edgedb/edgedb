@@ -5362,6 +5362,35 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             scalar type foo extending enum<Foo, Bar, Baz>;
         """])
 
+    def test_schema_migrations_drop_depended_on_parent_01(self):
+        self._assert_migration_equivalence([r"""
+            type Person2 {
+                required single property first -> str;
+            }
+
+            type Person2a extending Person2 {
+                constraint exclusive on (__subject__.first);
+            }
+        """, r"""
+        """])
+
+    def test_schema_migrations_drop_depended_on_parent_02(self):
+        self._assert_migration_equivalence([r"""
+            type Person2;
+            type Person2a extending Person2;
+        """, r"""
+        """])
+
+    def test_schema_migrations_drop_depended_on_parent_03(self):
+        self._assert_migration_equivalence([r"""
+            type Person2 {
+                required single property first -> str;
+            };
+            type Person2a extending Person2;
+        """, r"""
+            type Person2a;
+        """])
+
 
 class TestDescribe(tb.BaseSchemaLoadTest):
     """Test the DESCRIBE command."""
