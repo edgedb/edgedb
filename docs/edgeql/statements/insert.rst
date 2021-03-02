@@ -175,7 +175,7 @@ clause.
 
 There's an important use-case where it is necessary to either insert a
 new object or update an existing one identified with some key. This is
-what ``UNLESS CONFLICT`` clause allows to do:
+what the ``UNLESS CONFLICT`` clause allows:
 
 .. code-block:: edgeql
 
