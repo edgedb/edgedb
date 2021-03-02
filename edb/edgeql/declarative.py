@@ -181,6 +181,11 @@ class TraceContextBase:
 
             extra_name = '|'.join(qlcodegen.generate_source(e) for e in exprs)
 
+        elif isinstance(decl, qlast.CreateIndex):
+            # Indexes are defined by what they are an index over, so we need
+            # to add that to the "extra_name".
+            extra_name = f'({qlcodegen.generate_source(decl.expr)})'
+
         if extra_name:
             fq_name = s_name.QualName(
                 module=fq_name.module,
