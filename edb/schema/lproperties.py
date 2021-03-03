@@ -367,6 +367,7 @@ class AlterPropertyLowerCardinality(
 
 class AlterPropertyOwned(
     referencing.AlterOwned[Property],
+    pointers.PointerCommandOrFragment[Property],
     referrer_context_class=PropertySourceContext,
     field='owned',
 ):
