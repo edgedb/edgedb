@@ -1303,7 +1303,8 @@ class ConstraintCommand(sd.ObjectCommand,
                         metaclass=CommandMeta):
     op_priority = 3
 
-    def constraint_is_effective(self, schema, constraint):
+    @classmethod
+    def constraint_is_effective(cls, schema, constraint):
         subject = constraint.get_subject(schema)
         if subject is None:
             return False
@@ -1329,6 +1330,44 @@ class ConstraintCommand(sd.ObjectCommand,
         else:
             return True
 
+    @classmethod
+    def create_constraint(
+            cls, constraint, schema, context, source_context=None):
+        op = dbops.CommandGroup(priority=1)
+        if cls.constraint_is_effective(schema, constraint):
+            subject = constraint.get_subject(schema)
+
+            if subject is not None:
+                schemac_to_backendc = \
+                    schemamech.ConstraintMech.\
+                    schema_constraint_to_backend_constraint
+                bconstr = schemac_to_backendc(
+                    subject, constraint, schema, context,
+                    source_context)
+
+                op.add_command(bconstr.create_ops())
+
+        return op
+
+    @classmethod
+    def delete_constraint(
+            cls, constraint, schema, context, source_context=None):
+        op = dbops.CommandGroup()
+        if cls.constraint_is_effective(schema, constraint):
+            subject = constraint.get_subject(schema)
+
+            if subject is not None:
+                schemac_to_backendc = \
+                    schemamech.ConstraintMech.\
+                    schema_constraint_to_backend_constraint
+                bconstr = schemac_to_backendc(
+                    subject, constraint, schema, context,
+                    source_context)
+
+                op.add_command(bconstr.delete_ops())
+
+        return op
+
 
 class CreateConstraint(
         ConstraintCommand, CreateObject,
@@ -1340,21 +1379,10 @@ class CreateConstraint(
     ) -> s_schema.Schema:
         schema = super().apply(schema, context)
         constraint = self.scls
-        if not self.constraint_is_effective(schema, constraint):
-            return schema
 
-        subject = constraint.get_subject(schema)
-
-        if subject is not None:
-            schemac_to_backendc = \
-                schemamech.ConstraintMech.\
-                schema_constraint_to_backend_constraint
-            bconstr = schemac_to_backendc(
-                subject, constraint, schema, context, self.source_context)
-
-            op = dbops.CommandGroup(priority=1)
-            op.add_command(bconstr.create_ops())
-            self.pgops.add(op)
+        op = self.create_constraint(
+            constraint, schema, context, self.source_context)
+        self.pgops.add(op)
 
         return schema
 
@@ -1497,20 +1525,9 @@ class DeleteConstraint(
         delta_root_ctx = context.top()
         orig_schema = delta_root_ctx.original_schema
         constraint = schema.get(self.classname)
-        if self.constraint_is_effective(orig_schema, constraint):
-            subject = constraint.get_subject(orig_schema)
-
-            if subject is not None:
-                schemac_to_backendc = \
-                    schemamech.ConstraintMech.\
-                    schema_constraint_to_backend_constraint
-                bconstr = schemac_to_backendc(
-                    subject, constraint, orig_schema, context,
-                    self.source_context)
-
-                op = dbops.CommandGroup()
-                op.add_command(bconstr.delete_ops())
-                self.pgops.add(op)
+        op = self.delete_constraint(
+            constraint, orig_schema, context, self.source_context)
+        self.pgops.add(op)
 
         schema = super().apply(schema, context)
         return schema
@@ -2756,6 +2773,24 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
             )
             self.pgops.add(alter_table)
 
+    def _drop_constraints(self, pointer, schema, context):
+        # We need to be able to drop all the constraints referencing a
+        # pointer before modifying its type, and then recreate them
+        # once the change is done.
+        # We look at all referrers to the pointer (and not just the
+        # constraints directly on the pointer) because we want to
+        # pick up object constraints that reference it as well.
+        for cnstr in schema.get_referrers(
+                pointer, scls_type=s_constr.Constraint):
+            self.pgops.add(
+                ConstraintCommand.delete_constraint(cnstr, schema, context))
+
+    def _recreate_constraints(self, pointer, schema, context):
+        for cnstr in schema.get_referrers(
+                pointer, scls_type=s_constr.Constraint):
+            self.pgops.add(
+                ConstraintCommand.create_constraint(cnstr, schema, context))
+
     def _alter_pointer_type(self, pointer, schema, orig_schema, context):
         old_ptr_stor_info = types.get_pointer_storage_info(
             pointer, schema=orig_schema)
@@ -2799,6 +2834,9 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
             and orig_target.issubclass(orig_schema, new_target)
         ):
             return
+
+        # We actually have work to do, so drop any constraints we have
+        self._drop_constraints(pointer, schema, context)
 
         if using_eql_expr is None and not is_link:
             # A lack of an explicit EdgeQL conversion expression means
@@ -2997,6 +3035,8 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
 
         if changing_col_type or need_temp_col:
             self.pgops.add(alter_table)
+
+        self._recreate_constraints(pointer, schema, context)
 
         if changing_col_type:
             self.schedule_inhviews_update(
