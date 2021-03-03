@@ -46,7 +46,7 @@ class SDLStatement(Nonterm):
     def reduce_SDLBlockStatement(self, *kids):
         self.val = kids[0].val
 
-    def reduce_SDLShortStatement_SEMICOLON(self, *kids):
+    def reduce_SDLShortStatement(self, *kids):
         self.val = kids[0].val
 
 
@@ -124,28 +124,12 @@ class SDLCommandBlock(Nonterm):
     def reduce_LBRACE_OptSemicolons_RBRACE(self, *kids):
         self.val = []
 
-    def reduce_statement_without_semicolons(self, *kids):
-        r"""%reduce LBRACE \
-                OptSemicolons SDLShortStatement \
-            RBRACE
-        """
-        self.val = [kids[2].val]
-
     def reduce_statements_without_optional_trailing_semicolons(self, *kids):
-        r"""%reduce LBRACE \
-                OptSemicolons SDLStatements \
-                OptSemicolons SDLShortStatement \
-            RBRACE
-        """
-        self.val = kids[2].val + [kids[4].val]
-
-    def reduce_LBRACE_OptSemicolons_SDLStatements_RBRACE(self, *kids):
-        self.val = kids[2].val
-
-    def reduce_statements_without_optional_trailing_semicolons2(self, *kids):
-        r"""%reduce LBRACE \
-                OptSemicolons SDLStatements \
-                Semicolons \
+        r"""%reduce
+            LBRACE
+                OptSemicolons
+                SDLStatements
+                OptSemicolons
             RBRACE
         """
         self.val = kids[2].val
@@ -166,27 +150,14 @@ class SDLProductionHelper:
     def _empty(self, *kids):
         self.val = []
 
-    def _block(self, lbrace, sc1, cmdl, rbrace):
-        self.val = [cmdl.val]
-
-    def _block2(self, lbrace, sc1, cmdlist, sc2, rbrace):
+    def _block(self, lbrace, sc1, cmdlist, sc2, rbrace):
         self.val = cmdlist.val
-
-    def _block3(self, lbrace, sc1, cmdlist, sc2, cmd, rbrace):
-        self.val = cmdlist.val + [cmd.val]
 
 
 def sdl_commands_block(parent, *commands, opt=True):
     if parent is None:
         parent = ''
 
-    # SDLCommand := SDLCommand1 | SDLCommand2 ...
-    #
-    # All the "short" commands, ones that need a ";" are gathered as
-    # SDLCommandShort.
-    #
-    # All the "block" commands, ones that have a "{...}" and don't
-    # need a ";" are gathered as SDLCommandBlock.
     clsdict_b = {}
     clsdict_s = {}
 
@@ -198,20 +169,21 @@ def sdl_commands_block(parent, *commands, opt=True):
             clsdict_s[f'reduce_{command.__name__}'] = \
                 SDLProductionHelper._passthrough
 
-    cmd_s = _new_nonterm(f'{parent}SDLCommandShort', clsdict=clsdict_s)
+    if clsdict_s:
+        cmd_s = _new_nonterm(f'{parent}SDLCommandShort', clsdict=clsdict_s)
+
     cmd_b = _new_nonterm(f'{parent}SDLCommandBlock', clsdict=clsdict_b)
 
-    # Merged command which has minimal ";"
-    #
-    # SDLCommandFull := SDLCommandShort ; | SDLCommandBlock
+    # SDLCommandFull := SDLCommandShort | SDLCommandBlock
     clsdict = {}
-    clsdict[f'reduce_{cmd_s.__name__}_SEMICOLON'] = \
-        SDLProductionHelper._passthrough
+    if clsdict_s:
+        clsdict[f'reduce_{cmd_s.__name__}'] = \
+            SDLProductionHelper._passthrough
     clsdict[f'reduce_{cmd_b.__name__}'] = \
         SDLProductionHelper._passthrough
     cmd = _new_nonterm(f'{parent}SDLCommandFull', clsdict=clsdict)
 
-    # SDLCommandsList := SDLCommandFull [; SDLCommandFull ...]
+    # SDLCommandsList := SDLCommandFull [[ ; ] SDLCommandFull ...]
     cmdlist = _new_nonterm(f'{parent}SDLCommandsList', clsbases=(ListNonterm,),
                            clskwds=dict(element=cmd, separator=OptSemicolons))
 
@@ -220,20 +192,13 @@ def sdl_commands_block(parent, *commands, opt=True):
     #
     # SDLCommandsBlock :=
     #
-    #   { [ ; ] SDLCommandFull }
-    #   { [ ; ] SDLCommandsList [ ; ]} |
-    #   { [ ; ] SDLCommandsList [ ; ] SDLCommandFull }
+    #   { [ ; ]* SDLCommandsList [ ; ]* } |
+    #   { [ ; ]* }
     clsdict = {}
-    clsdict[f'reduce_LBRACE_OptSemicolons_{cmd_s.__name__}_RBRACE'] = \
-        SDLProductionHelper._block
-    clsdict[f'reduce_LBRACE_OptSemicolons_{cmdlist.__name__}_' +
-            f'OptSemicolons_RBRACE'] = \
-        SDLProductionHelper._block2
-    clsdict[f'reduce_LBRACE_OptSemicolons_{cmdlist.__name__}_OptSemicolons_' +
-            f'{cmd_s.__name__}_RBRACE'] = \
-        SDLProductionHelper._block3
-    clsdict[f'reduce_LBRACE_OptSemicolons_RBRACE'] = \
-        SDLProductionHelper._empty
+    clsdict[
+        f'reduce_LBRACE_OptSemicolons_{cmdlist.__name__}_OptSemicolons_RBRACE'
+    ] = SDLProductionHelper._block
+    clsdict[f'reduce_LBRACE_OptSemicolons_RBRACE'] = SDLProductionHelper._empty
     _new_nonterm(f'{parent}SDLCommandsBlock', clsdict=clsdict)
 
     if opt is False:
@@ -357,50 +322,46 @@ class ConstraintDeclarationShort(Nonterm):
         )
 
 
-class ConcreteConstraintBlock(Nonterm):
-    def reduce_CreateConstraint(self, *kids):
-        r"""%reduce CONSTRAINT \
-                    NodeName OptConcreteConstraintArgList OptOnExpr \
-                    CreateSDLCommandsBlock"""
+class ConcreteConstraintStem(Nonterm):
+
+    def reduce_RegularConstraint(self, *kids):
+        """%reduce
+            CONSTRAINT NodeName OptConcreteConstraintArgList
+        """
         self.val = qlast.CreateConcreteConstraint(
             name=kids[1].val,
             args=kids[2].val,
-            subjectexpr=kids[3].val,
-            commands=kids[4].val,
         )
 
-    def reduce_CreateDelegatedConstraint(self, *kids):
-        r"""%reduce DELEGATED CONSTRAINT \
-                    NodeName OptConcreteConstraintArgList OptOnExpr \
-                    CreateSDLCommandsBlock"""
+    def reduce_DelegatedConstraint(self, *kids):
+        """%reduce
+            DELEGATED CONSTRAINT NodeName OptConcreteConstraintArgList
+        """
         self.val = qlast.CreateConcreteConstraint(
-            delegated=True,
             name=kids[2].val,
             args=kids[3].val,
-            subjectexpr=kids[4].val,
-            commands=kids[5].val,
+            delegated=True,
         )
+
+
+class ConcreteConstraintSignature(Nonterm):
+
+    def reduce_ConcreteConstraintStem_OptOnExpr(self, *kids):
+        self.val = kids[0].val
+        self.val.subjectexpr = kids[1].val
+
+
+class ConcreteConstraintBlock(Nonterm):
+
+    def reduce_ConcreteConstraintSignature_CreateSDLCommandsBlock(self, *kids):
+        self.val = kids[0].val
+        self.val.commands = kids[1].val
 
 
 class ConcreteConstraintShort(Nonterm):
-    def reduce_CreateConstraint(self, *kids):
-        r"""%reduce CONSTRAINT \
-                    NodeName OptConcreteConstraintArgList OptOnExpr"""
-        self.val = qlast.CreateConcreteConstraint(
-            name=kids[1].val,
-            args=kids[2].val,
-            subjectexpr=kids[3].val,
-        )
 
-    def reduce_CreateDelegatedConstraint(self, *kids):
-        r"""%reduce DELEGATED CONSTRAINT \
-                    NodeName OptConcreteConstraintArgList OptOnExpr"""
-        self.val = qlast.CreateConcreteConstraint(
-            delegated=True,
-            name=kids[2].val,
-            args=kids[3].val,
-            subjectexpr=kids[4].val,
-        )
+    def reduce_ConcreteConstraintSignature(self, *kids):
+        self.val = kids[0].val
 
 
 #

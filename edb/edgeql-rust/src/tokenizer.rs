@@ -93,6 +93,8 @@ pub struct Tokens {
 
     named_only: PyString,
     named_only_val: PyString,
+    on_target: PyString,
+    on_target_val: PyString,
     set_annotation: PyString,
     set_annotation_val: PyString,
     set_type: PyString,
@@ -262,6 +264,8 @@ impl Tokens {
             substitution: PyString::new(py, "SUBSTITUTION"),
             named_only: PyString::new(py, "NAMEDONLY"),
             named_only_val: PyString::new(py, "NAMED ONLY"),
+            on_target: PyString::new(py, "ONTARGET"),
+            on_target_val: PyString::new(py, "ON TARGET"),
             set_annotation: PyString::new(py, "SETANNOTATION"),
             set_annotation_val: PyString::new(py, "SET ANNOTATION"),
             set_type: PyString::new(py, "SETTYPE"),
@@ -585,6 +589,12 @@ fn convert(py: Python, tokens: &Tokens, cache: &mut Cache,
                          tok_iter.next();
                          Ok((tokens.named_only.clone_ref(py),
                              tokens.named_only_val.clone_ref(py),
+                             py.None()))
+                    }
+                    "on" if peek_keyword(tok_iter, "target") => {
+                         tok_iter.next();
+                         Ok((tokens.on_target.clone_ref(py),
+                             tokens.on_target_val.clone_ref(py),
                              py.None()))
                     }
                     "set" if peek_keyword(tok_iter, "annotation") => {

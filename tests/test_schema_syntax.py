@@ -111,7 +111,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
     def test_eschema_syntax_semicolon_03(self):
         """
         abstract type test::OwnedObject {
-            required link owner -> User;
+            required link owner -> User
             required property tag -> str
         };
 
@@ -734,16 +734,6 @@ type LogEntry extending    OwnedObject,    Text {
 % OK %
 
         scalar type test::newScalarType extending str;
-        """
-
-    @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected 'scalar'",
-                  line=4, col=9)
-    def test_eschema_syntax_ws_03(self):
-        """
-        scalar type test::newScalarType0 extending str#:
-
-        scalar type test::newScalarType1 extending str#:
         """
 
     def test_eschema_syntax_scalar_01(self):
