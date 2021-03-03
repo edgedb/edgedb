@@ -4732,6 +4732,31 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [2],
         )
 
+    async def test_edgeql_migration_rebase_01(self):
+        await self.migrate(r"""
+            abstract type C;
+            abstract type P {
+                property p -> str;
+                property p2 -> str;
+                index on (.p);
+            };
+            type Foo extending C {
+                property foo -> str;
+            }
+        """)
+
+        await self.migrate(r"""
+            abstract type C;
+            abstract type P {
+                property p -> str;
+                property p2 -> str;
+                index on (.p);
+            };
+            type Foo extending C, P {
+                property foo -> str;
+            }
+        """)
+
     async def test_edgeql_migration_eq_function_01(self):
         await self.migrate(r"""
             function hello01(a: int64) -> str
