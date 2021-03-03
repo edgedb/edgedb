@@ -323,6 +323,8 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
+        from . import ordering
+
         scls = self.scls
         mcls = type(scls)
 
@@ -343,8 +345,21 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         bases = scls.get_bases(schema).objects(schema)
         schema = self.inherit_fields(schema, context, bases)
 
+        deleted_refs = {}
         for refdict in mcls.get_refdicts():
-            schema = self._reinherit_classref_dict(schema, context, refdict)
+            schema, deleted = self._reinherit_classref_dict(
+                schema, context, refdict)
+            deleted_refs.update(deleted)
+
+        # Finalize the deletes. We need to linearize them, since they might
+        # have dependencies between them.
+        root = sd.DeltaRoot()
+        for fqname, delete_cmd_cls in deleted_refs.items():
+            root.add(delete_cmd_cls(classname=fqname))
+        root = ordering.linearize_delta(root, schema, schema)
+
+        schema = root.apply(schema, context)
+        self.update(root.get_subcommands())
 
         context.current().enable_recursion = orig_rec
 
@@ -355,7 +370,8 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         schema: s_schema.Schema,
         context: sd.CommandContext,
         refdict: so.RefDict,
-    ) -> s_schema.Schema:
+    ) -> Tuple[s_schema.Schema,
+               Dict[sn.Name, Type[sd.ObjectCommand[so.Object]]]]:
         from edb.schema import referencing as s_referencing
 
         scls = self.scls
@@ -400,14 +416,9 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
                     schema, context, obj, existing_bases, bases)
                 group.add(cmd2)
 
-        for fqname, delete_cmd_cls in deleted_refs.items():
-            delete_cmd = delete_cmd_cls(classname=fqname)
-            group.add(delete_cmd)
-            schema = delete_cmd.apply(schema, context)
-
         self.add(group)
 
-        return schema
+        return schema, deleted_refs
 
     def _rebase_ref(
         self,

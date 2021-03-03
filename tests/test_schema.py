@@ -5201,6 +5201,51 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
+    def test_schema_migrations_drop_parent_05(self):
+        self._assert_migration_equivalence([r"""
+            type Parent {
+                property x -> str;
+                index on (.x);
+            }
+            type Child extending Parent;
+        """, r"""
+            type Parent {
+                property x -> str;
+                index on (.x);
+            }
+            type Child;
+        """])
+
+    def test_schema_migrations_drop_parent_06(self):
+        self._assert_migration_equivalence([r"""
+            type Parent {
+                property x -> str;
+                constraint expression on (.x != "YOLO");
+            }
+            type Child extending Parent;
+        """, r"""
+            type Parent {
+                property x -> str;
+                constraint expression on (.x != "YOLO");
+            }
+            type Child;
+        """])
+
+    def test_schema_migrations_drop_parent_07(self):
+        self._assert_migration_equivalence([r"""
+            type Parent {
+                property x -> str;
+                property z := .x ++ "!";
+            }
+            type Child extending Parent;
+        """, r"""
+            type Parent {
+                property x -> str;
+                property z := .x ++ "!";
+            }
+            type Child;
+        """])
+
     def test_schema_migrations_computed_optionality_01(self):
         self._assert_migration_equivalence([r"""
             abstract type Removable {

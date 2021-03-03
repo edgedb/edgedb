@@ -284,12 +284,13 @@ class LinkCommand(
         schema: s_schema.Schema,
         context: sd.CommandContext,
         refdict: so.RefDict,
-    ) -> s_schema.Schema:
+    ) -> Tuple[s_schema.Schema,
+               Dict[sn.Name, Type[sd.ObjectCommand[so.Object]]]]:
         if self.scls.get_computable(schema) and refdict.attr != 'pointers':
             # If the link is a computable, the inheritance would only
             # happen in the case of aliasing, and in that case we only
             # need to inherit the link properties and nothing else.
-            return schema
+            return schema, {}
 
         return super()._reinherit_classref_dict(schema, context, refdict)
 
