@@ -885,11 +885,6 @@ class CreateConstraint(
 
         attrs['args'] = args
 
-        if expr.text == '__subject__':
-            expr_context = sourcectx
-        else:
-            expr_context = None
-
         assert subject is not None
         path_prefix_anchor = (
             qlast.Subject().name if isinstance(subject, s_types.Type)
@@ -915,7 +910,7 @@ class CreateConstraint(
                 f'{name} constraint expression expected '
                 f'to return a bool value, got '
                 f'{expr_type.get_verbosename(schema)}',
-                context=expr_context
+                context=sourcectx
             )
 
         if subjectexpr is not None:
@@ -951,7 +946,7 @@ class CreateConstraint(
                         raise errors.InvalidConstraintDefinitionError(
                             "constraints cannot contain paths with more "
                             "than one hop",
-                            context=ref.context,
+                            context=sourcectx
                         )
 
                     ref = rptr.source
@@ -960,7 +955,7 @@ class CreateConstraint(
                 raise errors.InvalidConstraintDefinitionError(
                     "cannot reference multiple links or properties in a "
                     "constraint where at least one link or property is MULTI",
-                    context=expr_context
+                    context=sourcectx
                 )
 
             if has_multi and ir_utils.contains_set_of_op(
@@ -968,7 +963,7 @@ class CreateConstraint(
                 raise errors.InvalidConstraintDefinitionError(
                     "cannot use aggregate functions or operators "
                     "in a non-aggregating constraint",
-                    context=expr_context
+                    context=sourcectx
                 )
 
         attrs['return_type'] = constr_base.get_return_type(schema)
