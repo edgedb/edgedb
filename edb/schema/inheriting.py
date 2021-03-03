@@ -990,6 +990,15 @@ class RebaseInheritingObject(
                                  self.__class__.__name__,
                                  self.classname)
 
+    def get_verb(self) -> str:
+        # FIXME: We just say 'alter' because it is currently somewhat
+        # inconsistent whether an object rebase on its own will get
+        # placed in its own alter command or whether it will share one
+        # with all the associated rebases of pointers.  Ideally we'd
+        # say 'alter base types of', but with the current machinery it
+        # would still usually say 'alter', so just always do that.
+        return 'alter'
+
     def apply(
         self,
         schema: s_schema.Schema,
