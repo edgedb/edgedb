@@ -552,6 +552,7 @@ class AlterLinkLowerCardinality(
 
 class AlterLinkOwned(
     referencing.AlterOwned[Link],
+    pointers.PointerCommandOrFragment[Link],
     referrer_context_class=LinkSourceCommandContext,
     field='owned',
 ):

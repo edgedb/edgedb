@@ -5246,6 +5246,31 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Child;
         """])
 
+    def test_schema_migrations_drop_owned_default_01(self):
+        self._assert_migration_equivalence([r"""
+            type Foo;
+            type Post {
+                required property createdAt -> datetime {
+                    default := datetime_current();
+                }
+                link whatever -> Foo {
+                    default := (SELECT Foo LIMIT 1);
+                }
+            }
+        """, r"""
+            type Foo;
+            abstract type Event {
+                required property createdAt -> datetime {
+                    default := datetime_current();
+                }
+                link whatever -> Foo {
+                    default := (SELECT Foo LIMIT 1);
+                }
+            }
+
+            type Post extending Event;
+        """])
+
     def test_schema_migrations_computed_optionality_01(self):
         self._assert_migration_equivalence([r"""
             abstract type Removable {
