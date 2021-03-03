@@ -5271,7 +5271,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Post extending Event;
         """])
 
-
     def test_schema_migrations_computed_optionality_01(self):
         self._assert_migration_equivalence([r"""
             abstract type Removable {
