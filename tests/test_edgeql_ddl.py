@@ -2210,7 +2210,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE TYPE SubBar EXTENDING Bar;
 
             CREATE TYPE Foo {
-                CREATE PROPERTY p -> str;
+                CREATE PROPERTY p -> str {
+                    CREATE CONSTRAINT exclusive;
+                };
+                CREATE CONSTRAINT exclusive ON (.p);
                 CREATE REQUIRED PROPERTY r_p -> str;
                 CREATE MULTI PROPERTY m_p -> str;
                 CREATE REQUIRED MULTI PROPERTY rm_p -> str;
