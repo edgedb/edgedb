@@ -571,7 +571,7 @@ class ConstraintCommand(
             if not b.get_abstract(schema)
             and b.generic(schema) and b.get_name(schema) != default_base
         ]
-        # assert not explicit_bases
+        assert not explicit_bases
 
         new_bases = implicit_bases + explicit_bases
         return inheriting.delta_bases(
