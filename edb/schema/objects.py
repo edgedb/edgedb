@@ -3185,6 +3185,15 @@ class DerivableInheritingObject(DerivableObject, InheritingObject):
             obj = obj.get_bases(schema).first(schema)
         return obj
 
+    def get_nearest_generic_parent(
+        self: DerivableInheritingObjectT,
+        schema: s_schema.Schema,
+    ) -> DerivableInheritingObjectT:
+        obj = self
+        while not obj.generic(schema):
+            obj = obj.get_bases(schema).first(schema)
+        return obj
+
 
 @markup.serializer.serializer.register(Object)
 @markup.serializer.serializer.register(ObjectCollection)

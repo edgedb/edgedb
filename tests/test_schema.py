@@ -2155,10 +2155,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    @test.xfail('''
-        edb.errors.InvalidReferenceError:
-        constraint 'std::max_len_value' does not exist
-    ''')
     def test_schema_get_migration_43(self):
         schema = r'''
         type Base {
@@ -4320,6 +4316,31 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Derived extending Base;
         """])
 
+    @test.xfail('''
+        Argh, this doesn't work because Bar's constraint gets a
+        nonsense rebase because we can't understand the rename of
+        Lol.
+    ''')
+    def test_schema_migrations_equivalence_constraint_04(self):
+        self._assert_migration_equivalence([r"""
+            abstract constraint Lol { using (__subject__ < 10) };
+            type Foo {
+                property x -> int64 {
+                    constraint Lol;
+                }
+            }
+            type Bar extending Foo;
+
+        """, r"""
+            abstract constraint Lolol { using (__subject__ < 10) };
+            type Foo {
+                property x -> int64 {
+                    constraint Lolol;
+                }
+            }
+            type Bar extending Foo;
+        """])
+
     def test_schema_migrations_equivalence_constraint_03(self):
         self._assert_migration_equivalence([r"""
             type Base {
@@ -5247,29 +5268,46 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         """])
 
     def test_schema_migrations_drop_owned_default_01(self):
-        self._assert_migration_equivalence([r"""
-            type Foo;
-            type Post {
-                required property createdAt -> datetime {
-                    default := datetime_current();
+        self._assert_migration_equivalence([
+            r"""
+                type Foo;
+                type Post {
+                    required property createdAt -> str {
+                        default := "asdf";
+                        constraint expression on (__subject__ != "!");
+                    }
+                    link whatever -> Foo {
+                        default := (SELECT Foo LIMIT 1);
+                    }
                 }
-                link whatever -> Foo {
-                    default := (SELECT Foo LIMIT 1);
+            """,
+            r"""
+                type Foo;
+                abstract type Event {
+                    required property createdAt -> str {
+                        default := "asdf";
+                        constraint expression on (__subject__ != "!");
+                    }
+                    link whatever -> Foo {
+                        default := (SELECT Foo LIMIT 1);
+                    }
                 }
-            }
-        """, r"""
-            type Foo;
-            abstract type Event {
-                required property createdAt -> datetime {
-                    default := datetime_current();
-                }
-                link whatever -> Foo {
-                    default := (SELECT Foo LIMIT 1);
-                }
-            }
 
-            type Post extending Event;
-        """])
+                type Post extending Event;
+            """,
+            r"""
+                type Foo;
+                type Post {
+                    required property createdAt -> str {
+                        default := "asdf";
+                        constraint expression on (__subject__ != "!");
+                    }
+                    link whatever -> Foo {
+                        default := (SELECT Foo LIMIT 1);
+                    }
+                }
+            """
+        ])
 
     def test_schema_migrations_computed_optionality_01(self):
         self._assert_migration_equivalence([r"""
