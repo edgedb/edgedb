@@ -851,6 +851,10 @@ class CreateConstraint(
             'bases', schema=schema, context=context,
         )
         direct_base = bases.objects(schema)[0]
+        # If we have a concrete base, then we should inherit all of
+        # these attrs through the normal inherit_fields() mechanisms,
+        # and populating them ourselves will just mess up
+        # inherited_fields.
         if not direct_base.generic(schema):
             return
 
