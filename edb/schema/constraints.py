@@ -564,19 +564,9 @@ class ConstraintCommand(
     ) -> inheriting.BaseDelta_T:
         child_bases = refcls.get_bases(schema).objects(schema)
 
-        default_base = refcls.get_default_base_name()
-        explicit_bases = [
-            b for b in child_bases
-            # abstract constraints play a similar role to default_base
-            if not b.get_abstract(schema)
-            and b.generic(schema) and b.get_name(schema) != default_base
-        ]
-        assert not explicit_bases
-
-        new_bases = implicit_bases + explicit_bases
         return inheriting.delta_bases(
             [b.get_name(schema) for b in child_bases],
-            [b.get_name(schema) for b in new_bases],
+            [b.get_name(schema) for b in implicit_bases],
         )
 
     def get_ast_attr_for_field(
