@@ -52,7 +52,7 @@ particular order. Items in a schema written in SDL look like this:
 **DDL (data definition language)**. DDL is the less frequently used
 (but often convenient) cousin of SDL. DDL is used to transform schema
 step by step instead of all at once. The order is important in DDL
-because it involves issuing one command after another instread of
+because it involves issuing one command after another instead of
 describing the final form.
 
 So you can't create ``Movie`` first using DDL because it links
