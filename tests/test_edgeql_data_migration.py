@@ -4932,6 +4932,32 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             "did you create annotation 'std::title' of property 'asdf'?",
         ])
 
+    async def test_edgeql_migration_rename_03(self):
+        await self.migrate('''
+            abstract constraint Asdf { using (__subject__ < 10) };
+            type Foo {
+                property x -> int64 {
+                    constraint Asdf;
+                }
+            }
+            type Bar extending Foo;
+        ''')
+
+        await self.start_migration('''
+            abstract constraint Womp { using (__subject__ < 10) };
+            type Foo {
+                property x -> int64 {
+                    constraint Womp;
+                }
+            }
+            type Bar extending Foo;
+        ''')
+
+        await self.interact([
+            "did you rename abstract constraint 'test::Asdf' to "
+            "'test::Womp'?",
+        ])
+
     async def test_edgeql_migration_eq_function_01(self):
         await self.migrate(r"""
             function hello01(a: int64) -> str
@@ -8046,7 +8072,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                     'text':
                         'ALTER TYPE test::Obj1 RENAME TO test::NewObj1;'
                 }],
-                'confidence': 0.636174,
+                'confidence': 0.637027,
             },
         })
 

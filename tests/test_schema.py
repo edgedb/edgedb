@@ -4316,11 +4316,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Derived extending Base;
         """])
 
-    @test.xfail('''
-        Argh, this doesn't work because Bar's constraint gets a
-        nonsense rebase because we can't understand the rename of
-        Lol.
-    ''')
     def test_schema_migrations_equivalence_constraint_04(self):
         self._assert_migration_equivalence([r"""
             abstract constraint Lol { using (__subject__ < 10) };

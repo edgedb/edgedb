@@ -1654,13 +1654,14 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         assert prompt_id is not None
         return prompt_id, prompt_text
 
+    @classmethod
     def get_parent_op(
-        self,
+        cls,
         context: CommandContext,
     ) -> ObjectCommand[so.Object]:
         parent = context.parent()
         if parent is None:
-            raise AssertionError(f'{self!r} has no parent context')
+            raise AssertionError(f'{cls!r} has no parent context')
         op = parent.op
         assert isinstance(op, ObjectCommand)
         return op
@@ -3012,8 +3013,9 @@ class AlterObjectFragment(AlterObjectOrFragment[so.Object_T]):
 
         return schema
 
+    @classmethod
     def get_parent_op(
-        self,
+        cls,
         context: CommandContext,
     ) -> ObjectCommand[so.Object]:
         op = context.current().op
