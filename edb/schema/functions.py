@@ -734,7 +734,7 @@ class CallableObject(
         ft.TypeModifier, compcoef=0.4, coerce=True)
 
     abstract = so.SchemaField(
-        bool, default=False, compcoef=0.909)
+        bool, default=False, inheritable=False, compcoef=0.909)
 
     def as_create_delta(
         self: CallableObjectT,

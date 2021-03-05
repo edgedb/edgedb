@@ -198,6 +198,33 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 migration, populate=populate, module=module)
             await self.fast_forward_describe_migration(user_input=user_input)
 
+    async def interact(self, parts, check_complete=True):
+        for part in parts:
+            if isinstance(part, str):
+                prompt = part
+                ans = "y"
+                user_input = None
+            else:
+                prompt, ans = part[0:2]
+                user_input = part[2] if len(part) > 2 else None
+
+            await self.assert_describe_migration({
+                'proposed': {'prompt': prompt}
+            })
+
+            if ans == "y":
+                await self.fast_forward_describe_migration(
+                    limit=1, user_input=user_input)
+            else:
+                await self.con.execute('''
+                    ALTER CURRENT MIGRATION REJECT PROPOSED;
+                ''')
+
+        if check_complete:
+            await self.assert_describe_migration({
+                'complete': True
+            })
+
     async def test_edgeql_migration_simple_01(self):
         # Base case, ensuring a single SDL migration from a clean
         # state works.
@@ -4757,6 +4784,180 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
         """)
 
+    async def test_edgeql_migration_rebase_02(self):
+        await self.migrate('''
+            type User;
+            abstract type Event {
+              required property createdAt -> datetime {
+                default := datetime_current();
+              }
+
+              required link user -> User;
+            }
+
+            type Post extending Event {
+              required property content -> str {
+                constraint min_len_value(1);
+                constraint max_len_value(280);
+              }
+            }
+        ''')
+
+        await self.start_migration('''
+            type User;
+            abstract type Event {
+              required property createdAt -> datetime {
+                default := datetime_current();
+              }
+
+              required link user -> User;
+            }
+
+            abstract type HasContent {
+              required property content -> str {
+                constraint min_len_value(1);
+                constraint max_len_value(280);
+              }
+            }
+
+            type Post extending Event, HasContent {
+            }
+
+            type Reply extending Event, HasContent {
+              required link post -> Post;
+            }
+        ''')
+
+        # N.B.: these prompts are OK but not canonical; if they are
+        # broken in favor of something better, just fix them.
+        await self.interact([
+            "did you create object type 'test::HasContent'?",
+            "did you alter object type 'test::Post'?",
+            "did you create object type 'test::Reply'?",
+        ])
+
+    async def test_edgeql_migration_rebase_03(self):
+        await self.migrate('''
+            abstract type Named {
+                required property name -> str;
+            };
+
+            type Org;
+
+            abstract type OrgBound {
+                required link org -> Org;
+            };
+
+            abstract type OrgUniquelyNamed
+                extending Named, OrgBound
+            {
+                constraint exclusive on ((.name, .org))
+            }
+        ''')
+
+        await self.start_migration('''
+            abstract type Named {
+                required property name -> str;
+            };
+
+            type Org;
+            abstract type Resource;
+
+            abstract type OrgBound {
+                required link org -> Org;
+            };
+
+            abstract type OrgUniquelyNamedResource
+                extending Named, Resource, OrgBound
+            {
+                delegated constraint exclusive on ((.name, .org))
+            }
+        ''')
+
+        # N.B.: these prompts are OK but not canonical; if they are
+        # broken in favor of something better, just fix them.
+        await self.interact([
+            ("did you drop object type 'test::OrgUniquelyNamed'?", "n"),
+            "did you create object type 'test::Resource'?",
+            "did you rename object type 'test::OrgUniquelyNamed' to "
+            "'test::OrgUniquelyNamedResource'?",
+
+            "did you alter constraint 'std::exclusive' of object type "
+            "'test::OrgUniquelyNamed'?",
+
+            "did you alter object type 'test::OrgUniquelyNamed'?",
+        ])
+
+    async def test_edgeql_migration_rename_01(self):
+        await self.migrate('''
+            type Foo;
+        ''')
+
+        await self.start_migration('''
+            type Bar {
+                property asdf -> str;
+            };
+        ''')
+
+        await self.interact([
+            "did you rename object type 'test::Foo' to 'test::Bar'?",
+            "did you create property 'asdf' of object type 'test::Foo'?",
+        ])
+
+    async def test_edgeql_migration_rename_02(self):
+        await self.migrate('''
+            type Foo {
+                property asdf -> str;
+            };
+            type Bar extending Foo {
+                overloaded property asdf -> str;
+            };
+        ''')
+
+        await self.start_migration('''
+            type Foo {
+                property womp -> str;
+            };
+            type Bar extending Foo {
+                overloaded property womp -> str {
+                    annotation title := "foo";
+                };
+            };
+        ''')
+
+        await self.interact([
+            "did you rename property 'asdf' of object type 'test::Foo' to "
+            "'womp'?" ,
+
+            "did you create annotation 'std::title' of property 'asdf'?",
+        ])
+
+    async def test_edgeql_migration_rename_03(self):
+        await self.migrate('''
+            abstract constraint Asdf { using (__subject__ < 10) };
+            type Foo {
+                property x -> int64 {
+                    constraint Asdf;
+                }
+            }
+            type Bar extending Foo;
+        ''')
+
+        await self.start_migration('''
+            abstract constraint Womp { using (__subject__ < 10) };
+            type Foo {
+                property x -> int64 {
+                    constraint Womp;
+                }
+            }
+            type Bar extending Foo;
+        ''')
+
+        await self.interact([
+            "did you rename abstract constraint 'test::Asdf' to "
+            "'test::Womp'?",
+        ])
+
     async def test_edgeql_migration_eq_function_01(self):
         await self.migrate(r"""
             function hello01(a: int64) -> str
@@ -7871,7 +8072,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                     'text':
                         'ALTER TYPE test::Obj1 RENAME TO test::NewObj1;'
                 }],
-                'confidence': 0.636174,
+                'confidence': 0.637027,
             },
         })
 

@@ -296,6 +296,17 @@ class ReferencedInheritingObject(
             if not b.generic(schema)
         ]
 
+    def get_name_impacting_ancestors(
+        self: ReferencedInheritingObjectT,
+        schema: s_schema.Schema,
+    ) -> List[ReferencedInheritingObjectT]:
+        """Return ancestors that have an impact on the name of this object.
+
+        For most types this is the same as implicit ancestors.
+        (For constraints it is not.)
+        """
+        return self.get_implicit_ancestors(schema)
+
     def is_endpoint_pointer(self, schema: s_schema.Schema) -> bool:
         # overloaded by Pointer
         return False
@@ -350,7 +361,8 @@ class ReferencedInheritingObject(
         if fname == 'name':
             if any(
                 context.is_renaming(orig_schema, ancestor)
-                for ancestor in orig_object.get_implicit_ancestors(orig_schema)
+                for ancestor in orig_object.get_name_impacting_ancestors(
+                    orig_schema)
             ):
                 renames = delta.get_subcommands(type=sd.RenameObject)
                 assert len(renames) == 1
@@ -446,7 +458,7 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase[ReferencedT]):
             metaclass=cls.get_schema_metaclass(),
         )
 
-        base_name = base_ref.name
+        base_name = sn.shortname_from_fullname(base_ref.name)
         quals = cls._classname_quals_from_ast(
             schema, astnode, base_name, referrer_name, context)
         pnn = sn.get_specialized_name(base_name, str(referrer_name), *quals)
@@ -830,13 +842,16 @@ class ReferencedInheritingObjectCommand(
             ):
                 return schema
 
-        referrer_ctx = self.get_referrer_context_or_die(context)
-        referrer = referrer_ctx.scls
-        referrer_class = type(referrer)
-        mcls = type(scls)
-        refdict = referrer_class.get_refdict_for_class(mcls)
-        reftype = referrer_class.get_field(refdict.attr).type
-        refname = reftype.get_key_for(schema, self.scls)
+        referrer_ctx = self.get_referrer_context(context)
+        if referrer_ctx:
+            referrer = referrer_ctx.scls
+            referrer_class = type(referrer)
+            mcls = type(scls)
+            refdict = referrer_class.get_refdict_for_class(mcls)
+            reftype = referrer_class.get_field(refdict.attr).type
+            refname = reftype.get_key_for(schema, self.scls)
+        else:
+            refname = self.scls.get_name(schema)
 
         for descendant in scls.ordered_descendants(schema):
             d_alter_root, d_alter_cmd, ctx_stack = (

@@ -77,6 +77,36 @@ def merge_constraint_params(
         return supers[0].get_explicit_field_value(schema, field_name, None)
 
 
+def constraintname_from_fullname(name: sn.Name) -> sn.QualName:
+    assert isinstance(name, sn.QualName)
+    # the dict key for constraints drops the first qual, which makes
+    # it independent of where it is declared
+    short = sn.shortname_from_fullname(name)
+    quals = sn.quals_from_fullname(name)
+    return sn.QualName(
+        name=sn.get_specialized_name(short, *quals[1:]),
+        module='__',
+    )
+
+
+def _constraint_object_key(schema: s_schema.Schema, o: so.Object) -> sn.Name:
+    return constraintname_from_fullname(o.get_name(schema))
+
+
+class ObjectIndexByConstraintName(
+    so.ObjectIndexBase[sn.Name, so.Object_T],
+    key=_constraint_object_key,
+):
+
+    @classmethod
+    def get_key_for_name(
+        cls,
+        schema: s_schema.Schema,
+        name: sn.Name,
+    ) -> sn.Name:
+        return constraintname_from_fullname(name)
+
+
 class Constraint(
     referencing.ReferencedInheritingObject,
     s_func.CallableObject, s_abc.Constraint,
@@ -128,57 +158,13 @@ class Constraint(
     is_aggregate = so.SchemaField(
         bool, default=False, compcoef=0.971, allow_ddl_set=False)
 
-    @classmethod
-    def _maybe_fix_name(
-        cls,
-        name: sn.QualName,
-        *,
-        schema: s_schema.Schema,
-        context: so.ComparisonContext,
-    ) -> sn.Name:
-        obj = schema.get(name, type=Constraint)
-
-        if not obj.generic(schema):
-            base = obj.get_bases(schema).objects(schema)[0]
-            base_name = context.get_obj_name(schema, base)
-
-            quals = list(sn.quals_from_fullname(name))
-            name = sn.QualName(
-                name=sn.get_specialized_name(base_name, *quals),
-                module=name.module,
-            )
-
-        return name
-
-    @classmethod
-    def compare_field_value(
-        cls,
-        field: so.Field[Type[so.T]],
-        our_value: so.T,
-        their_value: so.T,
-        *,
-        our_schema: s_schema.Schema,
-        their_schema: s_schema.Schema,
-        context: so.ComparisonContext,
-    ) -> float:
-        # When comparing names, patch up the names to take into
-        # account renames of the base abstract constraints.
-        if field.name == 'name':
-            assert isinstance(our_value, sn.QualName)
-            assert isinstance(their_value, sn.QualName)
-            our_value = cls._maybe_fix_name(  # type: ignore
-                our_value, schema=our_schema, context=context)
-            their_value = cls._maybe_fix_name(  # type: ignore
-                their_value, schema=their_schema, context=context)
-
-        return super().compare_field_value(
-            field,
-            our_value,
-            their_value,
-            our_schema=our_schema,
-            their_schema=their_schema,
-            context=context,
-        )
+    def get_name_impacting_ancestors(
+        self, schema: s_schema.Schema,
+    ) -> List[Constraint]:
+        if self.generic(schema):
+            return []
+        else:
+            return [self.get_nearest_generic_parent(schema)]
 
     def get_verbosename(
         self,
@@ -314,7 +300,7 @@ class ConsistencySubject(
         ref_cls=Constraint)
 
     constraints = so.SchemaField(
-        so.ObjectIndexByFullname[Constraint],
+        ObjectIndexByConstraintName[Constraint],
         inheritable=False, ephemeral=True, coerce=True, compcoef=0.887,
         default=so.DEFAULT_CONSTRUCTOR
     )
@@ -424,6 +410,43 @@ class ConstraintCommand(
 
         return args
 
+    @classmethod
+    def as_inherited_ref_ast(
+        cls,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        name: sn.Name,
+        parent: so.Object,
+    ) -> qlast.ObjectDDL:
+        assert isinstance(parent, Constraint)
+        astnode_cls = cls.referenced_astnode  # type: ignore
+        nref = cls.get_inherited_ref_name(schema, context, parent, name)
+        args = []
+
+        parent_args = parent.get_args(schema)
+        if parent_args:
+            parent_args = parent.get_args(schema)
+            assert parent_args is not None
+            for arg_expr in parent_args:
+                arg = edgeql.parse_fragment(arg_expr.text)
+                args.append(arg)
+
+        subj_expr = parent.get_subjectexpr(schema)
+        if (
+            subj_expr is None
+            # Don't include subjectexpr if it was inherited from an
+            # abstract constraint.
+            or parent.get_nearest_generic_parent(
+                schema).get_subjectexpr(schema) is not None
+        ):
+            subj_expr_ql = None
+        else:
+            subj_expr_ql = edgeql.parse_fragment(subj_expr.text)
+
+        astnode = astnode_cls(name=nref, args=args, subjectexpr=subj_expr_ql)
+
+        return cast(qlast.ObjectDDL, astnode)
+
     def compile_expr_field(
         self,
         schema: s_schema.Schema,
@@ -527,18 +550,9 @@ class ConstraintCommand(
     ) -> inheriting.BaseDelta_T:
         child_bases = refcls.get_bases(schema).objects(schema)
 
-        default_base = refcls.get_default_base_name()
-        explicit_bases = [
-            b for b in child_bases
-            # abstract constraints play a similar role to default_base
-            if not b.get_abstract(schema)
-            and b.generic(schema) and b.get_name(schema) != default_base
-        ]
-
-        new_bases = implicit_bases + explicit_bases
         return inheriting.delta_bases(
             [b.get_name(schema) for b in child_bases],
-            [b.get_name(schema) for b in new_bases],
+            [b.get_name(schema) for b in implicit_bases],
         )
 
     def get_ast_attr_for_field(
@@ -809,6 +823,17 @@ class CreateConstraint(
         from edb.ir import ast as ir_ast
         from edb.ir import utils as ir_utils
 
+        bases = self.get_resolved_attribute_value(
+            'bases', schema=schema, context=context,
+        )
+        direct_base = bases.objects(schema)[0]
+        # If we have a concrete base, then we should inherit all of
+        # these attrs through the normal inherit_fields() mechanisms,
+        # and populating them ourselves will just mess up
+        # inherited_fields.
+        if not direct_base.generic(schema):
+            return
+
         constr_base = schema.get(name, type=Constraint)
 
         orig_subjectexpr = subjectexpr
@@ -966,10 +991,9 @@ class CreateConstraint(
                     context=sourcectx
                 )
 
-        attrs['return_type'] = constr_base.get_return_type(schema)
-        attrs['return_typemod'] = constr_base.get_return_typemod(schema)
         attrs['finalexpr'] = final_expr
         attrs['params'] = constr_base.get_params(schema)
+        inherited['params'] = True
         attrs['abstract'] = False
 
         for k, v in attrs.items():
@@ -999,46 +1023,13 @@ class CreateConstraint(
 
         subj_expr = bases[0].get_subjectexpr(schema)
         if subj_expr is not None:
-            cmd.set_attribute_value('subjectexpr', subj_expr)
+            cmd.set_attribute_value('subjectexpr', subj_expr, inherited=True)
+
+        params = bases[0].get_params(schema)
+        if params is not None:
+            cmd.set_attribute_value('params', params, inherited=True)
 
         return cmd
-
-    @classmethod
-    def as_inherited_ref_ast(
-        cls,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        name: sn.Name,
-        parent: so.Object,
-    ) -> qlast.ObjectDDL:
-        assert isinstance(parent, Constraint)
-        astnode_cls = cls.referenced_astnode
-        nref = cls.get_inherited_ref_name(schema, context, parent, name)
-        args = []
-
-        parent_args = parent.get_args(schema)
-        if parent_args:
-            parent_args = parent.get_args(schema)
-            assert parent_args is not None
-            for arg_expr in parent_args:
-                arg = edgeql.parse_fragment(arg_expr.text)
-                args.append(arg)
-
-        subj_expr = parent.get_subjectexpr(schema)
-        if (
-            subj_expr is None
-            # Don't include subjectexpr if it was inherited from an
-            # abstract constraint. (Constraints will view it as
-            # not-inherited if it was copied from an implicit base.)
-            or 'subjectexpr' in parent.get_inherited_fields(schema)
-        ):
-            subj_expr_ql = None
-        else:
-            subj_expr_ql = edgeql.parse_fragment(subj_expr.text)
-
-        astnode = astnode_cls(name=nref, args=args, subjectexpr=subj_expr_ql)
-
-        return astnode
 
     @classmethod
     def _cmd_tree_from_ast(
@@ -1074,17 +1065,17 @@ class CreateConstraint(
                         'with defaults',
                         context=astnode.context)
 
-        if cmd.get_attribute_value('return_type') is None:
-            cmd.set_attribute_value(
-                'return_type',
-                schema.get('std::bool'),
-            )
+            if cmd.get_attribute_value('return_type') is None:
+                cmd.set_attribute_value(
+                    'return_type',
+                    schema.get('std::bool'),
+                )
 
-        if cmd.get_attribute_value('return_typemod') is None:
-            cmd.set_attribute_value(
-                'return_typemod',
-                ft.TypeModifier.SingletonType,
-            )
+            if cmd.get_attribute_value('return_typemod') is None:
+                cmd.set_attribute_value(
+                    'return_typemod',
+                    ft.TypeModifier.SingletonType,
+                )
 
         assert isinstance(astnode, (qlast.CreateConstraint,
                                     qlast.CreateConcreteConstraint))
@@ -1191,48 +1182,39 @@ class CreateConstraint(
 
 
 class RenameConstraint(
-    ConstraintCommand, s_func.RenameCallableObject[Constraint]
+    ConstraintCommand,
+    s_func.RenameCallableObject[Constraint],
+    referencing.RenameReferencedInheritingObject[Constraint],
 ):
-    def _canonicalize(
+    @classmethod
+    def _classname_quals_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.NamedDDL,
+        base_name: sn.Name,
+        referrer_name: sn.QualName,
+        context: sd.CommandContext,
+    ) -> Tuple[str, ...]:
+        parent_op = cls.get_parent_op(context)
+        assert isinstance(parent_op.classname, sn.QualName)
+        return cls._classname_quals_from_name(parent_op.classname)
+
+    def _alter_begin(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-        scls: so.Object,
-    ) -> None:
-        super()._canonicalize(schema, context, scls)
+    ) -> s_schema.Schema:
+        schema = super()._alter_begin(schema, context)
 
-        assert isinstance(scls, Constraint)
-        # Don't do anything for concrete constraints
-        if not scls.get_abstract(schema):
-            return
+        if not context.canonical and self.scls.get_abstract(schema):
+            schema = self._propagate_ref_rename(schema, context, self.scls)
 
-        # Concrete constraints are children of abstract constraints
-        # and have names derived from the abstract constraints. We
-        # unfortunately need to go update their names.
-        children = scls.children(schema)
-        for ref in children:
-            if ref.get_abstract(schema):
-                continue
-
-            ref_name = ref.get_name(schema)
-            quals = list(sn.quals_from_fullname(ref_name))
-            new_ref_name = sn.QualName(
-                name=sn.get_specialized_name(self.new_name, *quals),
-                module=ref_name.module,
-            )
-
-            self.add(self.init_rename_branch(
-                ref,
-                new_ref_name,
-                schema=schema,
-                context=context,
-            ))
-
-        return
+        return schema
 
 
 class AlterConstraintOwned(
     referencing.AlterOwned[Constraint],
+    ConstraintCommand,
     field='owned',
     referrer_context_class=ConsistencySubjectCommandContext,
 ):
@@ -1271,6 +1253,30 @@ class AlterConstraint(
 
         cls._validate_subcommands(astnode)
         return cmd
+
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
+        if self.scls.get_abstract(schema):
+            return super()._get_ast(schema, context, parent_node=parent_node)
+
+        # We need to make sure to include subjectexpr and args
+        # in the AST, since they are really part of the name.
+        op = self.as_inherited_ref_ast(
+            schema, context, self.scls.get_name(schema),
+            self.scls,
+        )
+        self._apply_fields_ast(schema, context, op)
+
+        if (op is not None and hasattr(op, 'commands') and
+                not op.commands):
+            return None
+
+        return op
 
     def validate_alter(
         self,
@@ -1327,4 +1333,10 @@ class RebaseConstraint(
     ConstraintCommand,
     referencing.RebaseReferencedInheritingObject[Constraint],
 ):
-    pass
+    def _get_bases_for_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        bases: Tuple[so.ObjectShell, ...],
+    ) -> Tuple[so.ObjectShell, ...]:
+        return ()

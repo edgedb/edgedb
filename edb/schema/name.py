@@ -221,7 +221,10 @@ def shortname_from_fullname(fullname: Name) -> Name:
 @functools.lru_cache(4096)
 def quals_from_fullname(fullname: QualName) -> List[str]:
     _, _, mangled_quals = fullname.name.partition('@')
-    return [unmangle_name(p) for p in mangled_quals.split('@')]
+    return (
+        [unmangle_name(p) for p in mangled_quals.split('@')]
+        if mangled_quals else []
+    )
 
 
 def get_specialized_name(basename: Name, *qualifiers: str) -> str:

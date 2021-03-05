@@ -7499,6 +7499,27 @@ type test::Foo {
                 }
             """)
 
+    async def test_edgeql_ddl_constraint_13(self):
+        await self.con.execute(r"""
+            CREATE ABSTRACT CONSTRAINT Lol {
+                USING ((__subject__ < 10));
+            };
+            CREATE TYPE Foo {
+                CREATE PROPERTY x -> int64 {
+                    CREATE CONSTRAINT Lol;
+                };
+            };
+            CREATE TYPE Bar EXTENDING Foo;
+        """)
+
+        await self.con.execute(r"""
+            ALTER ABSTRACT CONSTRAINT Lol RENAME TO Lolol;
+        """)
+
+        await self.con.execute(r"""
+            ALTER TYPE Foo DROP PROPERTY x;
+        """)
+
     async def test_edgeql_ddl_constraint_alter_01(self):
         await self.con.execute(r"""
             CREATE TYPE test::ConTest01 {

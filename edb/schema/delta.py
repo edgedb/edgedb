@@ -843,6 +843,13 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
     ) -> Optional[qlast.DDLOperation]:
         raise NotImplementedError
 
+    def _log_all_renames(self, context: CommandContext) -> None:
+        if isinstance(self, RenameObject):
+            context.early_renames[self.classname] = self.new_name
+
+        for subcmd in self.get_subcommands():
+            subcmd._log_all_renames(context)
+
     @classmethod
     def get_orig_expr_text(
         cls,
@@ -1647,13 +1654,14 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         assert prompt_id is not None
         return prompt_id, prompt_text
 
+    @classmethod
     def get_parent_op(
-        self,
+        cls,
         context: CommandContext,
     ) -> ObjectCommand[so.Object]:
         parent = context.parent()
         if parent is None:
-            raise AssertionError(f'{self!r} has no parent context')
+            raise AssertionError(f'{cls!r} has no parent context')
         op = parent.op
         assert isinstance(op, ObjectCommand)
         return op
@@ -2108,8 +2116,9 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         astnode = self._get_ast_node(schema, context)
 
         if astnode.get_field('name'):
+            name = context.early_renames.get(self.classname, self.classname)
             op = astnode(
-                name=self._deparse_name(schema, context, self.classname),
+                name=self._deparse_name(schema, context, name),
             )
         else:
             op = astnode()
@@ -3004,8 +3013,9 @@ class AlterObjectFragment(AlterObjectOrFragment[so.Object_T]):
 
         return schema
 
+    @classmethod
     def get_parent_op(
-        self,
+        cls,
         context: CommandContext,
     ) -> ObjectCommand[so.Object]:
         op = context.current().op
@@ -3191,6 +3201,10 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
         ref = self._deparse_name(schema, context, self.new_name)
         ref.itemclass = None
         orig_ref = self._deparse_name(schema, context, self.classname)
+
+        # Ha, ha! Do it recursively to force any renames in children!
+        self._log_all_renames(context)
+
         if (orig_ref.module, orig_ref.name) != (ref.module, ref.name):
             return astnode(new_name=ref)
         else:
@@ -3238,23 +3252,6 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
             classname=parent_op.classname,
             new_name=new_name,
         )
-
-
-class RenameQualifiedObject(AlterObjectFragment[so.Object_T]):
-
-    new_name = struct.Field(sn.QualName)
-
-    def _get_ast(
-        self,
-        schema: s_schema.Schema,
-        context: CommandContext,
-        *,
-        parent_node: Optional[qlast.DDLOperation] = None,
-    ) -> Optional[qlast.DDLOperation]:
-        astnode = self._get_ast_node(schema, context)
-        new_name = self.new_name
-        ref = qlast.ObjectRef(name=new_name.name, module=new_name.module)
-        return astnode(new_name=ref)
 
 
 class AlterObject(AlterObjectOrFragment[so.Object_T], Generic[so.Object_T]):
