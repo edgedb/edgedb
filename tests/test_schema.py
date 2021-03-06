@@ -5355,6 +5355,13 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
+    def test_schema_migrations_extend_enum_01(self):
+        self._assert_migration_equivalence([r"""
+            scalar type foo extending enum<Foo, Bar>;
+        """, r"""
+            scalar type foo extending enum<Foo, Bar, Baz>;
+        """])
+
 
 class TestDescribe(tb.BaseSchemaLoadTest):
     """Test the DESCRIBE command."""

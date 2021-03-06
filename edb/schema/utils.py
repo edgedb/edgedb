@@ -499,6 +499,7 @@ def shell_to_ast(
 ) -> qlast.TypeExpr:
     from . import pseudo as s_pseudo
     from . import types as s_types
+    from . import scalars as s_scalars
 
     result: qlast.TypeExpr
     qlref: qlast.BaseObjectRef
@@ -554,6 +555,17 @@ def shell_to_ast(
                 op='|',
                 right=typeref_to_ast(schema, component),
             )
+    elif isinstance(t, s_scalars.AnonymousEnumTypeShell):
+        result = qlast.TypeName(
+            name=_name,
+            maintype=qlast.ObjectRef(
+                name='enum',
+            ),
+            subtypes=[
+                qlast.TypeName(maintype=qlast.ObjectRef(name=x))
+                for x in t.elements
+            ]
+        )
     elif isinstance(t, so.ObjectShell):
         name = t.name
         if isinstance(name, sn.QualName):
