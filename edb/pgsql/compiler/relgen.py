@@ -1239,7 +1239,7 @@ def process_set_as_membership_expr(
         left_arg, right_arg = (a.expr for a in expr.args)
 
         newctx.expr_exposed = False
-        left_expr = dispatch.compile(left_arg, ctx=newctx)
+        left_out = dispatch.compile(left_arg, ctx=newctx)
 
         right_arg = irutils.unwrap_set(right_arg)
         # If the right operand of [NOT] IN is an array_unpack call,
@@ -1253,37 +1253,39 @@ def process_set_as_membership_expr(
         else:
             is_array_unpack = False
 
-        with newctx.subrel() as _, _.newscope() as subctx:
-            dispatch.compile(right_arg, ctx=subctx)
-            pathctx.get_path_value_output(
-                subctx.rel, right_arg.path_id,
-                env=subctx.env)
+        # We compile `x [NOT] IN y` into essentially
+        # `[NOT] EXISTS (SELECT ... WHERE x = y)`.
+        # We use this approach instead of using ANY/ALL or IN directly
+        # because those subquery-based approaches are finnicky in
+        # their treatment of tuples, which this approach sidesteps.
 
-            right_rel = subctx.rel
+        with newctx.subrel() as _, _.newscope() as subctx:
+            right_out = dispatch.compile(right_arg, ctx=subctx)
 
             if is_array_unpack:
-                right_rel = pgast.TypeCast(
-                    arg=right_rel,
-                    type_name=pgast.TypeName(
-                        name=pg_types.pg_type_from_ir_typeref(
-                            right_arg.typeref)
+                right_out = pgast.SubLink(
+                    type=pgast.SubLinkType.ANY,
+                    expr=pgast.TypeCast(
+                        arg=right_out,
+                        type_name=pgast.TypeName(
+                            name=pg_types.pg_type_from_ir_typeref(
+                                right_arg.typeref)
+                        )
                     )
                 )
 
-    negated = str(expr.func_shortname) == 'std::NOT IN'
-    sublink_type = pgast.SubLinkType.ALL if negated else pgast.SubLinkType.ANY
+            cond = exprcomp.compile_operator(
+                expr,
+                [left_out, right_out],
+                ctx=subctx,
+            )
 
-    set_expr = exprcomp.compile_operator(
-        expr,
-        [
-            left_expr,
-            pgast.SubLink(
-                type=sublink_type,
-                expr=right_rel,
-            ),
-        ],
-        ctx=ctx,
-    )
+            subctx.rel.where_clause = astutils.extend_binop(
+                subctx.rel.where_clause, cond)
+
+    negated = str(expr.func_shortname) == 'std::NOT IN'
+    cmd = 'NOT EXISTS' if negated else 'EXISTS'
+    set_expr = astutils.new_unop(cmd, subctx.rel)
 
     pathctx.put_path_value_var_if_not_exists(
         stmt, ir_set.path_id, set_expr, env=ctx.env)

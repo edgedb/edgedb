@@ -38,7 +38,7 @@ std::`NOT IN` (e: anytype, s: SET OF anytype) -> std::bool
 {
     USING SQL EXPRESSION;
     SET volatility := 'IMMUTABLE';
-    SET derivative_of := 'std::!=';
+    SET derivative_of := 'std::=';
 };
 
 

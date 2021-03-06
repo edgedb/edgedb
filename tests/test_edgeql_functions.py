@@ -452,6 +452,45 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [1],
         )
 
+    async def test_edgeql_functions_array_unpack_06(self):
+        # We have a special case optimization for "IN array_unpack" so
+        # it's worth testing it.
+
+        await self.assert_query_result(
+            r'''SELECT 1 IN array_unpack([1]);''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT 2 IN array_unpack([1]);''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT 2 NOT IN array_unpack([1]);''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT 1 IN array_unpack({[1,2,3], [4,5,6]});''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT 0 IN array_unpack({[1,2,3], [4,5,6]});''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT 1 NOT IN array_unpack({[1,2,3], [4,5,6]});''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT 0 NOT IN array_unpack({[1,2,3], [4,5,6]});''',
+            [True],
+        )
+
     async def test_edgeql_functions_enumerate_01(self):
         await self.assert_query_result(
             r'''SELECT [10, 20];''',
