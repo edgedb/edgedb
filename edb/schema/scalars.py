@@ -214,6 +214,39 @@ class ScalarType(
         dname = self.get_displayname(schema)
         return f"{clsname} '{dname}'"
 
+    def as_alter_delta(
+        self,
+        other: ScalarType,
+        *,
+        self_schema: s_schema.Schema,
+        other_schema: s_schema.Schema,
+        confidence: float,
+        context: so.ComparisonContext,
+    ) -> sd.ObjectCommand[ScalarType]:
+        alter = super().as_alter_delta(
+            other,
+            self_schema=self_schema,
+            other_schema=other_schema,
+            confidence=confidence,
+            context=context,
+        )
+
+        # If this is an enum and enum_values changed, we need to
+        # generate a rebase.
+        enum_values = alter.get_attribute_value('enum_values')
+        if enum_values is not None:
+            assert isinstance(alter.classname, s_name.QualName)
+            rebase = RebaseScalarType(
+                classname=alter.classname,
+                removed_bases=(),
+                added_bases=(
+                    ([AnonymousEnumTypeShell(elements=enum_values)], ''),
+                ),
+            )
+            alter.add(rebase)
+
+        return alter
+
 
 class AnonymousEnumTypeShell(s_types.TypeShell):
 
