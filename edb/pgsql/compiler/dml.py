@@ -1094,7 +1094,7 @@ def process_link_update(
     assert rptr is not None
     ptrref = rptr.ptrref
     assert isinstance(ptrref, irast.PointerRef)
-    target_is_scalar = irtyputils.is_scalar(ir_set.typeref)
+    target_is_scalar = not irtyputils.is_object(ir_set.typeref)
     path_id = ir_set.path_id
 
     # The links in the dml class shape have been derived,
@@ -1545,6 +1545,7 @@ def process_link_values(
 
     path_id = ir_expr.path_id
 
+    target_ref: pgast.BaseExpr
     if shape_tuple is not None:
         for element in shape_tuple.elements:
             if not element.path_id.is_linkprop_path():
@@ -1566,6 +1567,7 @@ def process_link_values(
         if target_is_scalar:
             target_ref = pathctx.get_rvar_path_value_var(
                 input_rvar, path_id, env=ctx.env)
+            target_ref = output.output_as_value(target_ref, env=ctx.env)
         else:
             target_ref = pathctx.get_rvar_path_identity_var(
                 input_rvar, path_id, env=ctx.env)

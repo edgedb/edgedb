@@ -2159,6 +2159,50 @@ class TestInsert(tb.QueryTestCase):
             ]
         )
 
+    async def test_edgeql_insert_collection_04(self):
+        await self.con.execute(r"""
+            INSERT test::CollectionTest {
+                some_tuple := ('huh', -1),
+                some_multi_tuple := ('foo', 0),
+            };
+
+            INSERT test::CollectionTest {
+                some_tuple := ('foo', 0),
+                some_multi_tuple := {('foo', 0), ('bar', 1)},
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT count(
+                    CollectionTest FILTER ('bar', 1) IN .some_multi_tuple
+                );
+            """,
+            [1],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT count(
+                    CollectionTest FILTER .some_tuple IN .some_multi_tuple
+                );
+            """,
+            [1],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT count(
+                    CollectionTest FILTER ('foo', '0') IN
+                    <tuple<str, str>>.some_multi_tuple
+                );
+            """,
+            [2],
+        )
+
     async def test_edgeql_insert_in_conditional_bad_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
