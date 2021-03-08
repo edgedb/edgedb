@@ -188,8 +188,9 @@ def _evaluate_union(
             typeref=next(iter(elements)).typeref,
         )
     else:
-        # We can only get an empty result if one of the arguments
-        # was empty, so empty_set must have been set.
+        # We get an empty set if the UNION was exclusivly empty set
+        # literals. If that happens, grab one of the empty sets
+        # that we saw and return it.
         return empty_set
 
 
