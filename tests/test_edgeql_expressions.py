@@ -4175,6 +4175,27 @@ aa \
             len(everything), len(distinct),
             'DISTINCT len(ObjectType.name) failed to filter out dupplicates')
 
+    async def test_edgeql_expr_setop_12(self):
+        await self.assert_query_result(
+            r'''SELECT DISTINCT {(), ()};''',
+            [[]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT DISTINCT (SELECT ({1,2,3}, ()) FILTER .0 > 1).1;''',
+            [[]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT DISTINCT (SELECT ({1,2,3}, ()) FILTER .0 > 3).1;''',
+            [],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT DISTINCT {(1,(2,3)), (1,(2,3))};''',
+            [[1, [2, 3]]],
+        )
+
     async def test_edgeql_expr_cardinality_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,

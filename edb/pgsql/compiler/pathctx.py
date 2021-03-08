@@ -601,7 +601,8 @@ def get_rvar_output_var_as_col_list(
         cols = []
         for el in outvar.elements:
             col = get_rvar_path_var(rvar, el.path_id, aspect=aspect, env=env)
-            cols.append(col)
+            cols.extend(get_rvar_output_var_as_col_list(
+                rvar, col, aspect=aspect, env=env))
     else:
         raise RuntimeError(f'unexpected OutputVar: {outvar!r}')
 

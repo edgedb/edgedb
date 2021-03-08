@@ -1350,6 +1350,11 @@ def process_set_as_distinct(
 
     stmt.distinct_clause = pathctx.get_rvar_output_var_as_col_list(
         subrvar, value_var, aspect='value', env=ctx.env)
+    # If there aren't any columns, we are doing DISTINCT on empty
+    # tuples. All empty tuples are equivalent, so we can just compile
+    # this by adding a LIMIT 1.
+    if not stmt.distinct_clause:
+        stmt.limit_count = pgast.NumericConstant(val="1")
 
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
