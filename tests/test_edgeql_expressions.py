@@ -257,6 +257,27 @@ class TestExpressions(tb.QueryTestCase):
             [2],
         )
 
+    async def test_edgeql_expr_emptyset_05(self):
+        await self.assert_query_result(
+            r'''SELECT {False, <bool>{}};''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT {False, {False, <bool>{}}};''',
+            [False, False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT {<bool>{}, <bool>{}};''',
+            [],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT {False, {<bool>{}, <bool>{}}};''',
+            [False],
+        )
+
     async def test_edgeql_expr_idempotent_01(self):
         await self.assert_query_result(
             r"""

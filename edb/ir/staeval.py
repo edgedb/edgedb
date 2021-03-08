@@ -166,20 +166,31 @@ def evaluate_OperatorCall(
 
 def _evaluate_union(
         opcall: irast.OperatorCall,
-        schema: s_schema.Schema) -> irast.ConstantSet:
+        schema: s_schema.Schema) -> irast.ConstExpr:
 
-    elements: List[irast.ConstExpr] = []
+    elements: List[irast.BaseConstant] = []
     for arg in opcall.args:
         val = evaluate(arg.expr, schema=schema)
         if isinstance(val, irast.ConstantSet):
             elements.extend(val.elements)
-        else:
+        elif isinstance(val, irast.EmptySet):
+            empty_set = val
+        elif isinstance(val, irast.BaseConstant):
             elements.append(val)
+        else:
+            raise UnsupportedExpressionError(
+                f'{val!r} not supported in UNION',
+                context=opcall.context)
 
-    return irast.ConstantSet(
-        elements=tuple(elements),
-        typeref=next(iter(elements)).typeref,
-    )
+    if elements:
+        return irast.ConstantSet(
+            elements=tuple(elements),
+            typeref=next(iter(elements)).typeref,
+        )
+    else:
+        # We can only get an empty result if one of the arguments
+        # was empty, so empty_set must have been set.
+        return empty_set
 
 
 @functools.singledispatch
