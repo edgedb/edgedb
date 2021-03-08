@@ -4177,6 +4177,11 @@ aa \
 
     async def test_edgeql_expr_setop_12(self):
         await self.assert_query_result(
+            r'''SELECT DISTINCT {(), ()};''',
+            [[]],
+        )
+
+        await self.assert_query_result(
             r'''SELECT DISTINCT (SELECT ({1,2,3}, ()) FILTER .0 > 1).1;''',
             [[]],
         )
