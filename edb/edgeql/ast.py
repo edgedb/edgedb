@@ -1085,7 +1085,7 @@ class CreateAnnotationValue(CreateObject, AnnotationCommand):
 
 
 class AlterAnnotationValue(AlterObject, AnnotationCommand):
-    value: Expr
+    value: typing.Optional[Expr]
 
 
 class DropAnnotationValue(DropObject, AnnotationCommand):

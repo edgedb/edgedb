@@ -4150,6 +4150,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                     annotation my_anno := 'Derived my_anno 05';
                 }
             }
+        """, r"""
         """])
 
     def test_schema_migrations_equivalence_annotation_06(self):
@@ -4182,6 +4183,35 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                     annotation my_anno := 'Derived my_anno 06';
                 }
             }
+        """, r"""
+        """])
+
+    def test_schema_migrations_equivalence_annotation_07(self):
+        self._assert_migration_equivalence([r"""
+            abstract inheritable annotation my_anno;
+
+            type Base {
+                link my_link -> Object {
+                    annotation my_anno := 'Base my_anno 06';
+                }
+            }
+
+            type Derived extending Base {
+                overloaded link my_link -> Object {
+                    annotation my_anno := 'Derived my_anno 06';
+                }
+            }
+        """, r"""
+            abstract inheritable annotation my_anno;
+
+            type Base {
+                link my_link -> Object {
+                    annotation my_anno := 'Base my_anno 06';
+                }
+            }
+
+            type Derived extending Base;
+        """, r"""
         """])
 
     def test_schema_migrations_equivalence_index_01(self):

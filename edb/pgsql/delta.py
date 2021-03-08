@@ -1279,6 +1279,12 @@ class AlterAnnotationValue(
     pass
 
 
+class AlterAnnotationValueOwned(
+        AnnotationValueCommand, AlterObject,
+        adapts=s_anno.AlterAnnotationValueOwned):
+    pass
+
+
 class RenameAnnotationValue(
         AnnotationValueCommand, RenameObject,
         adapts=s_anno.RenameAnnotationValue):

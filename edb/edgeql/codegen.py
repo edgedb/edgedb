@@ -1271,8 +1271,14 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     ) -> None:
         self.write('ALTER ANNOTATION ')
         self.visit(node.name)
-        self.write(' := ')
-        self.visit(node.value)
+        self.write(' ')
+        if node.value:
+            self.write(':= ')
+            self.visit(node.value)
+        else:
+            # The command should be a DROP OWNED
+            assert len(node.commands) == 1
+            self.visit(node.commands[0])
 
     def visit_DropAnnotationValue(
         self,
