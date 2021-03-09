@@ -70,15 +70,6 @@ class AnnotationValue(
     value = so.SchemaField(
         str, compcoef=0.909)
 
-    # Overloaded to mark it as not inheritable, since I found it
-    # basically impossible to get the inherited behavior to work right
-    # otherwise.
-    final = so.SchemaField(
-        bool,
-        inheritable=False,
-        compcoef=0.909,
-    )
-
     def __str__(self) -> str:
         return '<{}: at 0x{:x}>'.format(self.__class__.__name__, id(self))
 
