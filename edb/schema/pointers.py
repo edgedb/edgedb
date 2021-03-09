@@ -1793,8 +1793,7 @@ class SetPointerType(
             if orig_target is not None:
                 if isinstance(orig_target, s_types.Collection):
                     parent_op = self.get_parent_op(context)
-                    cleanup_op = orig_target.as_colltype_delete_delta(
-                        schema, expiring_refs={scls})
+                    cleanup_op = orig_target.as_colltype_delete_delta(schema)
                     parent_op.add(cleanup_op)
                     schema = cleanup_op.apply(schema, context)
                 elif orig_target.is_compound_type(schema):
@@ -1803,7 +1802,6 @@ class SetPointerType(
                         schema,
                         sd.DeleteObject,
                         if_unused=True,
-                        expiring_refs={scls},
                     )
                     parent_op.add(cleanup_op)
                     schema = cleanup_op.apply(schema, context)
