@@ -3546,6 +3546,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 link l1 -> (Type11 | Type2 | TypeS);  # Expand union
                 link l2 := (SELECT .l1);
             };
+        """, r"""
         """])
 
     def test_schema_migrations_equivalence_function_01(self):
