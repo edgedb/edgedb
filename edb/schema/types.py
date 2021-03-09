@@ -924,7 +924,6 @@ class Collection(Type, s_abc.Collection):
         self,
         schema: s_schema.Schema,
         *,
-        if_exists: bool = False,
         expiring_refs: AbstractSet[so.Object],
         view_name: Optional[s_name.QualName] = None,
     ) -> sd.Command:
@@ -1255,7 +1254,6 @@ class Array(
         self,
         schema: s_schema.Schema,
         *,
-        if_exists: bool = False,
         expiring_refs: AbstractSet[so.Object] = frozenset(),
         view_name: Optional[s_name.QualName] = None,
     ) -> Union[DeleteArray, DeleteArrayExprAlias]:
@@ -1264,13 +1262,13 @@ class Array(
             cmd = DeleteArray(
                 classname=self.get_name(schema),
                 if_unused=True,
-                if_exists=if_exists,
+                if_exists=True,
                 expiring_refs=expiring_refs,
             )
         else:
             cmd = DeleteArrayExprAlias(
                 classname=view_name,
-                if_exists=if_exists,
+                if_exists=True,
                 expiring_refs=expiring_refs,
             )
 
@@ -1849,7 +1847,6 @@ class Tuple(
         self,
         schema: s_schema.Schema,
         *,
-        if_exists: bool = False,
         expiring_refs: AbstractSet[so.Object] = frozenset(),
         view_name: Optional[s_name.QualName] = None,
     ) -> Union[DeleteTuple, DeleteTupleExprAlias]:
@@ -1858,13 +1855,13 @@ class Tuple(
             cmd = DeleteTuple(
                 classname=self.get_name(schema),
                 if_unused=True,
-                if_exists=if_exists,
+                if_exists=True,
                 expiring_refs=expiring_refs,
             )
         else:
             cmd = DeleteTupleExprAlias(
                 classname=view_name,
-                if_exists=if_exists,
+                if_exists=True,
                 expiring_refs=expiring_refs,
             )
 

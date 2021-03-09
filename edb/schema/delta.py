@@ -3463,6 +3463,7 @@ class DeleteObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
             ref
             for ref in schema.get_referrers(self.scls) - self.expiring_refs
             if not ref.is_parent_ref(schema, self.scls)
+            and not context.is_deleting(ref)
         ]
 
         return bool(refs)

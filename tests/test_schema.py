@@ -4608,6 +4608,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 bar := (Base.name, Base.number, [Base.foo])
             };
             alias CollAlias := (Base.name, Base.number, [Base.foo]);
+        """, r"""
         """])
 
     def test_schema_migrations_equivalence_collections_16(self):
@@ -4834,6 +4835,22 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                         d: tuple<array<MyScalar2Renamed>>,
                     >;
             };
+        """, r"""
+        """])
+
+    def test_schema_migrations_equivalence_collections_27(self):
+        self._assert_migration_equivalence([r"""
+        """, r"""
+            scalar type MyScalar2Renamed extending int64;
+
+            type User {
+                required property tup ->
+                    tuple<
+                        c: array<MyScalar2Renamed>,
+                        d: array<MyScalar2Renamed>,
+                    >;
+            };
+        """, r"""
         """])
 
     def test_schema_migrations_equivalence_rename_refs_01(self):
