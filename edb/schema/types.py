@@ -1868,7 +1868,10 @@ class Tuple(
                 expiring_refs=expiring_refs,
             )
 
-        for el in self.get_subtypes(schema):
+        # Delete any collection subtypes.
+        # Deduplicate the subtypes before deleting them so we don't
+        # delete the same type twice
+        for el in set(self.get_subtypes(schema)):
             if isinstance(el, Collection):
                 cmd.add(
                     el.as_colltype_delete_delta(schema, expiring_refs={self}))

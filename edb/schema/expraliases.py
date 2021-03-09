@@ -402,7 +402,14 @@ class DeleteAlias(
     ) -> s_schema.Schema:
         if not context.canonical:
             alias_type = self.scls.get_type(schema)
-            drop_type = alias_type.init_delta_command(schema, sd.DeleteObject)
+            if isinstance(alias_type, s_types.Collection):
+                name = alias_type.get_name(schema)
+                assert isinstance(name, sn.QualName)
+                drop_type = alias_type.as_colltype_delete_delta(
+                    schema, view_name=name, expiring_refs=frozenset())
+            else:
+                drop_type = alias_type.init_delta_command(
+                    schema, sd.DeleteObject)
             self.add_prerequisite(drop_type)
 
         return super()._delete_begin(schema, context)
