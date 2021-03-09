@@ -221,14 +221,12 @@ class AliasCommand(
             for vt in prev_coll_expr_aliases:
                 dt = vt.as_colltype_delete_delta(
                     old_schema,
-                    expiring_refs={self.scls},
                     view_name=classname,
                 )
                 derived_delta.prepend(dt)
             for vt in prev_ir.new_coll_types:
                 dt = vt.as_colltype_delete_delta(
                     old_schema,
-                    expiring_refs={self.scls},
                 )
                 derived_delta.prepend(dt)
 
@@ -385,6 +383,15 @@ class AlterAlias(
                     )
                 )
 
+                # Clear out the type field in the schema *now*,
+                # before we call the parent _alter_begin, which will
+                # run prerequisites. This prevents the type reference
+                # from interferring with deletion. (And the deletion of
+                # the type has to be done as a prereq, since it needs
+                # to precede the creation of the replacement type
+                # with the same name.)
+                schema = schema.unset_obj_field(self.scls, 'type')
+
         return super()._alter_begin(schema, context)
 
 
@@ -405,7 +412,7 @@ class DeleteAlias(
                 name = alias_type.get_name(schema)
                 assert isinstance(name, sn.QualName)
                 drop_type = alias_type.as_colltype_delete_delta(
-                    schema, view_name=name, expiring_refs=frozenset())
+                    schema, view_name=name)
             else:
                 drop_type = alias_type.init_delta_command(
                     schema, sd.DeleteObject)

@@ -453,8 +453,7 @@ class DeleteProperty(
         assert isinstance(scls, Property)
         target = scls.get_target(schema)
         if target is not None and isinstance(target, s_types.Collection):
-            cmds.append(
-                target.as_colltype_delete_delta(schema, expiring_refs={scls}))
+            cmds.append(target.as_colltype_delete_delta(schema))
 
         return cmds
 

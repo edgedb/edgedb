@@ -924,7 +924,6 @@ class Collection(Type, s_abc.Collection):
         self,
         schema: s_schema.Schema,
         *,
-        expiring_refs: AbstractSet[so.Object],
         view_name: Optional[s_name.QualName] = None,
     ) -> sd.Command:
         raise NotImplementedError
@@ -1254,7 +1253,6 @@ class Array(
         self,
         schema: s_schema.Schema,
         *,
-        expiring_refs: AbstractSet[so.Object] = frozenset(),
         view_name: Optional[s_name.QualName] = None,
     ) -> Union[DeleteArray, DeleteArrayExprAlias]:
         cmd: Union[DeleteArray, DeleteArrayExprAlias]
@@ -1263,18 +1261,16 @@ class Array(
                 classname=self.get_name(schema),
                 if_unused=True,
                 if_exists=True,
-                expiring_refs=expiring_refs,
             )
         else:
             cmd = DeleteArrayExprAlias(
                 classname=view_name,
                 if_exists=True,
-                expiring_refs=expiring_refs,
             )
 
         el = self.get_element_type(schema)
         if isinstance(el, Collection):
-            cmd.add(el.as_colltype_delete_delta(schema, expiring_refs={self}))
+            cmd.add(el.as_colltype_delete_delta(schema))
 
         return cmd
 
@@ -1847,7 +1843,6 @@ class Tuple(
         self,
         schema: s_schema.Schema,
         *,
-        expiring_refs: AbstractSet[so.Object] = frozenset(),
         view_name: Optional[s_name.QualName] = None,
     ) -> Union[DeleteTuple, DeleteTupleExprAlias]:
         cmd: Union[DeleteTuple, DeleteTupleExprAlias]
@@ -1856,19 +1851,16 @@ class Tuple(
                 classname=self.get_name(schema),
                 if_unused=True,
                 if_exists=True,
-                expiring_refs=expiring_refs,
             )
         else:
             cmd = DeleteTupleExprAlias(
                 classname=view_name,
                 if_exists=True,
-                expiring_refs=expiring_refs,
             )
 
         for el in self.get_subtypes(schema):
             if isinstance(el, Collection):
-                cmd.add(
-                    el.as_colltype_delete_delta(schema, expiring_refs={self}))
+                cmd.add(el.as_colltype_delete_delta(schema))
 
         return cmd
 

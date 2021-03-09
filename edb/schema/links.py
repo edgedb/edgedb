@@ -685,7 +685,6 @@ class DeleteLink(
             del_cmd = target.init_delta_command(
                 schema,
                 sd.DeleteObject,
-                expiring_refs={scls},
                 if_unused=True,
             )
             subcmds = del_cmd._canonicalize(schema, context, target)

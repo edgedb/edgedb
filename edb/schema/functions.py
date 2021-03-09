@@ -328,9 +328,7 @@ class ParameterDesc(ParameterLike):
         if isinstance(self.type, s_types.CollectionTypeShell):
             colltype = self.type.resolve(schema)
             assert isinstance(colltype, s_types.Collection)
-            obj = schema.get(param_name)
-            cmd.add(
-                colltype.as_colltype_delete_delta(schema, expiring_refs={obj}))
+            cmd.add(colltype.as_colltype_delete_delta(schema))
 
         return cmd
 
@@ -1143,8 +1141,7 @@ class DeleteCallableObject(
 
         return_type = obj.get_return_type(schema)
         if isinstance(return_type, s_types.Collection):
-            cmd.add(return_type.as_colltype_delete_delta(
-                schema, expiring_refs={obj}))
+            cmd.add(return_type.as_colltype_delete_delta(schema))
 
         return cmd
 
