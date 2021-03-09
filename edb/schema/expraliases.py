@@ -219,15 +219,10 @@ class AliasCommand(
         if prev_ir is not None:
             assert old_schema
             for vt in prev_coll_expr_aliases:
-                dt = vt.as_colltype_delete_delta(
-                    old_schema,
-                    view_name=classname,
-                )
+                dt = vt.as_colltype_delete_delta(old_schema)
                 derived_delta.prepend(dt)
             for vt in prev_ir.new_coll_types:
-                dt = vt.as_colltype_delete_delta(
-                    old_schema,
-                )
+                dt = vt.as_colltype_delete_delta(old_schema)
                 derived_delta.prepend(dt)
 
         for vt in coll_expr_aliases:
@@ -409,10 +404,7 @@ class DeleteAlias(
         if not context.canonical:
             alias_type = self.scls.get_type(schema)
             if isinstance(alias_type, s_types.Collection):
-                name = alias_type.get_name(schema)
-                assert isinstance(name, sn.QualName)
-                drop_type = alias_type.as_colltype_delete_delta(
-                    schema, view_name=name)
+                drop_type = alias_type.as_colltype_delete_delta(schema)
             else:
                 drop_type = alias_type.init_delta_command(
                     schema, sd.DeleteObject)

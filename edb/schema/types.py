@@ -923,8 +923,6 @@ class Collection(Type, s_abc.Collection):
     def as_colltype_delete_delta(
         self,
         schema: s_schema.Schema,
-        *,
-        view_name: Optional[s_name.QualName] = None,
     ) -> sd.Command:
         raise NotImplementedError
 
@@ -1252,11 +1250,9 @@ class Array(
     def as_colltype_delete_delta(
         self,
         schema: s_schema.Schema,
-        *,
-        view_name: Optional[s_name.QualName] = None,
     ) -> Union[DeleteArray, DeleteArrayExprAlias]:
         cmd: Union[DeleteArray, DeleteArrayExprAlias]
-        if view_name is None:
+        if not isinstance(self, ArrayExprAlias):
             cmd = DeleteArray(
                 classname=self.get_name(schema),
                 if_unused=True,
@@ -1264,7 +1260,7 @@ class Array(
             )
         else:
             cmd = DeleteArrayExprAlias(
-                classname=view_name,
+                classname=self.get_name(schema),
                 if_exists=True,
             )
 
@@ -1842,11 +1838,9 @@ class Tuple(
     def as_colltype_delete_delta(
         self,
         schema: s_schema.Schema,
-        *,
-        view_name: Optional[s_name.QualName] = None,
     ) -> Union[DeleteTuple, DeleteTupleExprAlias]:
         cmd: Union[DeleteTuple, DeleteTupleExprAlias]
-        if view_name is None:
+        if not isinstance(self, TupleExprAlias):
             cmd = DeleteTuple(
                 classname=self.get_name(schema),
                 if_unused=True,
@@ -1854,7 +1848,7 @@ class Tuple(
             )
         else:
             cmd = DeleteTupleExprAlias(
-                classname=view_name,
+                classname=self.get_name(schema),
                 if_exists=True,
             )
 
