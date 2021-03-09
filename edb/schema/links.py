@@ -678,9 +678,17 @@ class DeleteLink(
         # A link may only target an alias only inside another alias,
         # which means that the target alias must be dropped along
         # with this link.
-        if (target is not None
-                and target.is_view(schema)
-                and target.get_alias_is_persistent(schema)):
+        # We also delete referenced compound types.
+        if (
+            target is not None
+            and (
+                (
+                    target.is_view(schema)
+                    and target.get_alias_is_persistent(schema)
+                )
+                or target.is_compound_type(schema)
+            )
+        ):
 
             del_cmd = target.init_delta_command(
                 schema,
