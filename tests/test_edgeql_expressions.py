@@ -2147,7 +2147,6 @@ class TestExpressions(tb.QueryTestCase):
             [True]
         )
 
-    @test.xfail('fails due to incorrect unnesting of tuples in rhs')
     async def test_edgeql_expr_valid_collection_15(self):
         await self.assert_query_result(
             r'''
@@ -2159,7 +2158,6 @@ class TestExpressions(tb.QueryTestCase):
             [True]
         )
 
-    @test.xfail('fails due to incorrect unnesting of tuples in rhs')
     async def test_edgeql_expr_valid_collection_16(self):
         await self.assert_query_result(
             r'''
