@@ -554,7 +554,7 @@ def _trace_op(
             ):
                 # If the referrer is enclosing the object
                 # (i.e. the reference is a refdict reference),
-                # we sort the referrer operation first.
+                # we sort the enclosed operation first.
                 ref_item = get_deps(('delete', ref_name_str))
                 ref_item.deps.add((tag, str(op.classname)))
 
@@ -591,6 +591,15 @@ def _trace_op(
                 # have been deleted or altered.
                 deps.add(('delete', ref_name_str))
                 deps.add(('rebase', ref_name_str))
+
+                # The deletion of any implicit ancestors needs to come after
+                # the deletion of any referrers also.
+                if isinstance(obj, referencing.ReferencedInheritingObject):
+                    for ancestor in obj.get_implicit_ancestors(old_schema):
+                        ancestor_name = ancestor.get_name(old_schema)
+
+                        anc_item = get_deps(('delete', str(ancestor_name)))
+                        anc_item.deps.add(('delete', ref_name_str))
 
         if isinstance(obj, referencing.ReferencedObject):
             referrer = obj.get_referrer(old_schema)
