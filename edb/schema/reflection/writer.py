@@ -178,6 +178,17 @@ def _build_object_mutation_shape(
     if lprop_fields is None:
         lprop_fields = {}
 
+    # XXX: This is a hack around the fact that _update_lprops works by
+    # removing all the links and recreating them. Since that will lose
+    # data in situations where not every lprop attribute is specified,
+    # merge AlterOwned props up into the enclosing command. (This avoids
+    # trouble with annotations, which is the main place where we have
+    # multiple interesting lprops at once.)
+    if isinstance(cmd, s_ref.AlterOwned):
+        return '', {}
+    for sub in cmd.get_subcommands(type=s_ref.AlterOwned):
+        props.update(sub.get_resolved_attributes(schema, context))
+
     assignments = []
     variables: Dict[str, str] = {}
     if isinstance(cmd, sd.CreateObject):
@@ -791,6 +802,8 @@ def _update_lprops(
         # XXX: we have to do a -= followed by a += because
         # support for filtered nested link property updates
         # is currently broken.
+        # This is fragile! If not all of the lprops are specified,
+        # we will drop them.
 
         assignments = []
 

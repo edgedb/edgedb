@@ -428,6 +428,16 @@ class AlterAnnotationValueStmt(Nonterm):
             value=kids[4].val,
         )
 
+    def reduce_ALTER_ANNOTATION_NodeName_DROP_OWNED(self, *kids):
+        self.val = qlast.AlterAnnotationValue(
+            name=kids[2].val,
+        )
+        self.val.commands = [qlast.SetField(
+            name='owned',
+            value=qlast.BooleanConstant(value='false'),
+            special_syntax=True,
+        )]
+
 
 class DropAnnotationValueStmt(Nonterm):
     def reduce_DROP_ANNOTATION_NodeName(self, *kids):

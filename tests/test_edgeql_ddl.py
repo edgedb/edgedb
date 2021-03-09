@@ -5639,6 +5639,82 @@ type test::Foo {
             DROP TYPE test::Foo;
         """)
 
+    async def test_edgeql_ddl_annotation_15(self):
+        await self.con.execute("""
+            CREATE ABSTRACT INHERITABLE ANNOTATION test::anno;
+            CREATE TYPE test::Foo {
+                CREATE PROPERTY prop -> str {
+                    CREATE ANNOTATION test::anno := "parent";
+                };
+            };
+            CREATE TYPE test::Bar EXTENDING test::Foo {
+                ALTER PROPERTY prop {
+                    ALTER ANNOTATION test::anno := "child";
+                }
+            };
+        """)
+
+        qry = '''
+            WITH MODULE schema
+            SELECT Property {
+                obj := .source.name,
+                annotations: {name, @value, @owned}
+                ORDER BY .name
+            }
+            FILTER
+                .name = 'prop'
+            ORDER BY
+                (.obj, .name);
+        '''
+
+        await self.assert_query_result(
+            qry,
+            [
+                {
+                    "annotations": [
+                        {"@value": "child", "@owned": True,
+                         "name": "test::anno"}
+                    ],
+                    "obj": "test::Bar"
+                },
+                {
+                    "annotations": [
+                        {"@value": "parent", "@owned": True,
+                         "name": "test::anno"}
+                    ],
+                    "obj": "test::Foo"
+                }
+            ]
+        )
+
+        await self.con.execute("""
+            ALTER TYPE test::Bar {
+                ALTER PROPERTY prop {
+                    ALTER ANNOTATION test::anno DROP OWNED;
+                }
+            };
+        """)
+
+        await self.assert_query_result(
+            qry,
+            [
+                {
+                    "annotations": [
+                        {"@value": "parent", "@owned": False,
+                         "name": "test::anno"}
+                    ],
+                    "obj": "test::Bar"
+                },
+                {
+                    "annotations": [
+                        {"@value": "parent", "@owned": True,
+                         "name": "test::anno"}
+                    ],
+                    "obj": "test::Foo"
+                }
+            ]
+        )
+
     async def test_edgeql_ddl_anytype_01(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidPropertyTargetError,
