@@ -769,7 +769,6 @@ def _update_lprops(
                 f'cannot find link target in ddl_identity of a command for '
                 f'schema class reflected as link: {cmd!r}'
             )
-        target_ref = target_obj.get_name(schema)
         target_clsname = target_field.type.__name__
     else:
         referrer_cls = refop.get_schema_metaclass()
@@ -780,7 +779,7 @@ def _update_lprops(
             target_type = target_field.type
         target_clsname = target_type.__name__
         target_link = refdict.attr
-        target_ref = cmd.classname
+        target_obj = cmd.scls
 
     shape, append_variables = _build_object_mutation_shape(
         cmd,
@@ -795,7 +794,7 @@ def _update_lprops(
 
     if shape:
         parent_variables = {}
-        parent_variables[f'__{target_link}'] = json.dumps(str(target_ref))
+        parent_variables[f'__{target_link}'] = json.dumps(str(target_obj.id))
         ref_name = context.get_referrer_name(refctx)
         parent_variables['__parent_classname'] = json.dumps(str(ref_name))
 
@@ -811,7 +810,7 @@ def _update_lprops(
             f'''\
             {refdict.attr} -= (
                 SELECT DETACHED (schema::{target_clsname})
-                FILTER .name__internal = <str>$__{target_link}
+                FILTER .id = <uuid>$__{target_link}
             )'''
         ))
 
@@ -847,7 +846,7 @@ def _update_lprops(
             f'''\
             {refdict.attr} += (
                 SELECT schema::{target_clsname} {{{shape}
-                }} FILTER .name__internal = <str>$__{target_link}
+                }} FILTER .id = <uuid>$__{target_link}
             )'''
         ))
 
