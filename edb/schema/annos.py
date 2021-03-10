@@ -158,10 +158,9 @@ class RenameAnnotation(AnnotationCommand, sd.RenameObject[Annotation]):
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-        scls: so.Object,
+        scls: Annotation,
     ) -> None:
         super()._canonicalize(schema, context, scls)
-        assert isinstance(scls, Annotation)
 
         # AnnotationValues have names derived from the abstract
         # annotations. We unfortunately need to go update their names.

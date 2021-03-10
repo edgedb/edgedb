@@ -672,29 +672,10 @@ class DeleteLink(
         scls: so.Object,
     ) -> List[sd.Command]:
         assert isinstance(scls, Link)
-        commands = list(super()._canonicalize(schema, context, scls))
+        commands = super()._canonicalize(schema, context, scls)
         target = scls.get_target(schema)
 
-        # A link may only target an alias only inside another alias,
-        # which means that the target alias must be dropped along
-        # with this link.
-        # We also delete referenced compound types.
-        if (
-            target is not None
-            and (
-                (
-                    target.is_view(schema)
-                    and target.get_alias_is_persistent(schema)
-                )
-                or target.is_compound_type(schema)
-            )
-        ):
-
-            del_cmd = target.init_delta_command(
-                schema,
-                sd.DeleteObject,
-                if_unused=True,
-            )
+        if target and (del_cmd := target.as_type_delete_if_dead(schema)):
             subcmds = del_cmd._canonicalize(schema, context, target)
             del_cmd.update(subcmds)
             commands.append(del_cmd)

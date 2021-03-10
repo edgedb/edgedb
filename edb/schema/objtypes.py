@@ -277,6 +277,26 @@ class ObjectType(
     ) -> bool:
         return not self.is_view(schema) or refdict.attr == 'pointers'
 
+    def as_type_delete_if_dead(
+        self,
+        schema: s_schema.Schema,
+    ) -> Optional[sd.DeleteObject[ObjectType]]:
+        # References to aliases can only occur inside other aliases,
+        # so when they go, we need to delete the reference also.
+        # Compound types also need to be deleted when their last
+        # referrer goes.
+        if (
+            self.is_view(schema)
+            and self.get_alias_is_persistent(schema)
+        ) or self.is_compound_type(schema):
+            return self.init_delta_command(
+                schema,
+                sd.DeleteObject,
+                if_unused=True,
+            )
+        else:
+            return None
+
 
 def get_or_create_union_type(
     schema: s_schema.Schema,
