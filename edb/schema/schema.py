@@ -636,7 +636,11 @@ class FlatSchema(Schema):
                 )
 
             if value is None:
-                data[findex] = None
+                if field in reducible_fields and field in object_ref_fields:
+                    orig_value = data[findex]
+                    if orig_value is not None:
+                        orig_refs[fieldname] = (
+                            field.type.schema_refs_from_data(orig_value))
             else:
                 if field in reducible_fields:
                     value = value.schema_reduce()
@@ -646,10 +650,9 @@ class FlatSchema(Schema):
                         orig_value = data[findex]
                         if orig_value is not None:
                             orig_refs[fieldname] = (
-                                field.type.schema_refs_from_data(
-                                    orig_value))
+                                field.type.schema_refs_from_data(orig_value))
 
-                data[findex] = value
+            data[findex] = value
 
         id_to_data = self._id_to_data.set(obj_id, tuple(data))
         refs_to = self._update_refs_to(obj_id, sclass, orig_refs, new_refs)
