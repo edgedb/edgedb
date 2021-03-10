@@ -3041,6 +3041,12 @@ aa';
         SELECT x;
         """
 
+    def test_edgeql_syntax_selectfor_05(self):
+        """
+        FOR x IN {1, 2, 3}
+        UNION y := (x + 2);
+        """
+
     def test_edgeql_syntax_deletefor_01(self):
         """
         FOR x IN {(('Alice', 'White') UNION ('Bob', 'Green'))}

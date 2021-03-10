@@ -63,7 +63,7 @@ class TraceContextBase:
     module: str
     depstack: List[Tuple[qlast.DDLOperation, s_name.QualName]]
     modaliases: Dict[Optional[str], str]
-    objects: Dict[s_name.QualName, qltracer.ObjectLike]
+    objects: Dict[s_name.QualName, Optional[qltracer.ObjectLike]]
     parents: Dict[s_name.QualName, Set[s_name.QualName]]
     ancestors: Dict[s_name.QualName, Set[s_name.QualName]]
     defdeps: Dict[s_name.QualName, Set[s_name.QualName]]
@@ -236,7 +236,7 @@ class DepTraceContext(TraceContextBase):
         self,
         schema: s_schema.Schema,
         ddlgraph: DDLGraph,
-        objects: Dict[s_name.QualName, qltracer.ObjectLike],
+        objects: Dict[s_name.QualName, Optional[qltracer.ObjectLike]],
         parents: Dict[s_name.QualName, Set[s_name.QualName]],
         ancestors: Dict[s_name.QualName, Set[s_name.QualName]],
         defdeps: Dict[s_name.QualName, Set[s_name.QualName]],
