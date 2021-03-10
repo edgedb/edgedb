@@ -2181,6 +2181,112 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
+    def test_schema_get_migration_44(self):
+        schema = r'''
+        type Foo {
+            property val -> str;
+            property comp := count((
+                # Use an alias in WITH block in a computable
+                WITH x := .val
+                # Use an alias in SELECT in a computable
+                SELECT y := Bar FILTER x = y.val
+            ))
+        }
+
+        type Bar {
+            property val -> str;
+        }
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_schema_get_migration_45(self):
+        # Need to make sure that usage of ad-hoc aliases doesn't mask
+        # the real error.
+        with self.assertRaisesRegex(
+            errors.SchemaDefinitionError,
+            "mutations are invalid in computable property 'comp'"
+        ):
+            schema = r'''
+            type Foo {
+                property val -> str;
+                property comp := count((
+                    # Use an alias in WITH block in a computable
+                    WITH x := .val
+                    # Use an alias in UPDATE in a computable
+                    UPDATE y := Bar FILTER x = y.val
+                    SET {
+                        val := 'foo'
+                    }
+                ))
+            }
+
+            type Bar {
+                property val -> str;
+            }
+            '''
+
+            self._assert_migration_consistency(schema)
+
+    def test_schema_get_migration_46(self):
+        # Need to make sure that usage of ad-hoc aliases doesn't mask
+        # the real error.
+        with self.assertRaisesRegex(
+            errors.SchemaDefinitionError,
+            "mutations are invalid in computable property 'comp'"
+        ):
+            schema = r'''
+            type Foo {
+                property val -> str;
+                property comp := count((
+                    # Use an alias in WITH block in a computable
+                    WITH x := .val
+                    # Use an alias in DELETE in a computable
+                    DELETE y := Bar FILTER x = y.val
+                ))
+            }
+
+            type Bar {
+                property val -> str;
+            }
+            '''
+
+            self._assert_migration_consistency(schema)
+
+    def test_schema_get_migration_47(self):
+        schema = r'''
+        type Bar {
+            property val -> str;
+        }
+
+        alias Foo := (
+            # Use an alias in WITH block in a computable
+            WITH x := Bar.val ++ 'q'
+            # Use an alias in SELECT in a computable
+            SELECT y := Bar FILTER x = y.val
+        );
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_schema_get_migration_48(self):
+        schema = r'''
+        type Bar {
+            property val -> str;
+        }
+
+        function foo() -> int64 using (
+            count((
+                # Use an alias in WITH block in a computable
+                WITH x := Bar.val ++ 'q'
+                # Use an alias in SELECT in a computable
+                SELECT y := Bar FILTER x = y.val
+            ))
+        );
+        '''
+
+        self._assert_migration_consistency(schema)
+
     def test_schema_get_migration_multi_module_01(self):
         schema = r'''
             # The two declared types declared are from different

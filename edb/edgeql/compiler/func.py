@@ -154,7 +154,8 @@ def compile_FunctionCall(
         # allowed.
         if ctx.env.options.in_ddl_context_name is not None:
             raise errors.SchemaDefinitionError(
-                f'invalid mutation in {ctx.env.options.in_ddl_context_name}',
+                f'mutations are invalid in '
+                f'{ctx.env.options.in_ddl_context_name}',
                 context=expr.context,
             )
         elif ((dv := ctx.defining_view) is not None and
@@ -164,7 +165,7 @@ def compile_FunctionCall(
             # DML is not allowed in the computable, but it may
             # be possible to refactor it.
             raise errors.QueryError(
-                f'invalid mutation in a shape computable',
+                f'mutations are invalid in a shape computable',
                 hint=(
                     f'To resolve this try to factor out the mutation '
                     f'expression into the top-level WITH block.'

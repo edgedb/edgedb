@@ -2329,6 +2329,51 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self.fast_forward_describe_migration()
 
+    async def test_edgeql_migration_computable_01(self):
+        await self.migrate(r'''
+            type Foo {
+                property val -> str;
+                property comp := count((
+                    # Use an alias in WITH block in a computable
+                    WITH x := .val
+                    # Use an alias in SELECT in a computable
+                    SELECT y := Bar FILTER x = y.val
+                ))
+            }
+
+            type Bar {
+                property val -> str;
+            }
+        ''')
+
+        await self.con.execute("""
+            SET MODULE test;
+
+            INSERT Foo {val := 'c'};
+            INSERT Foo {val := 'd'};
+
+            INSERT Bar {val := 'a'};
+            INSERT Bar {val := 'b'};
+            INSERT Bar {val := 'c'};
+            INSERT Bar {val := 'c'};
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Foo {
+                    val,
+                    comp,
+                } ORDER BY .val;
+            """,
+            [{
+                'val': 'c',
+                'comp': 2,
+            }, {
+                'val': 'd',
+                'comp': 0,
+            }],
+        )
+
     async def test_edgeql_migration_eq_01(self):
         await self.migrate("""
             type Base;

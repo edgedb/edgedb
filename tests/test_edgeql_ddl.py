@@ -3040,7 +3040,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_bad_07(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
-                r"invalid mutation in computable link 'foo'"):
+                r"mutations are invalid in computable link 'foo'"):
             async with self.con.transaction():
                 await self.con.execute(r"""
                     CREATE TYPE test::Foo;
@@ -3053,7 +3053,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_bad_08(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
-                r"invalid mutation in computable link 'foo'"):
+                r"mutations are invalid in computable link 'foo'"):
             async with self.con.transaction():
                 await self.con.execute(r"""
                     CREATE TYPE test::Foo;
@@ -3069,7 +3069,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_bad_09(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
-                r"invalid mutation in computable property 'foo'"):
+                r"mutations are invalid in computable property 'foo'"):
             async with self.con.transaction():
                 await self.con.execute(r"""
                     CREATE TYPE test::Foo;
@@ -3082,7 +3082,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_bad_10(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
-                r"invalid mutation in alias definition"):
+                r"mutations are invalid in alias definition"):
             async with self.con.transaction():
                 await self.con.execute(r"""
                     CREATE TYPE test::Foo;
@@ -3096,7 +3096,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_bad_11(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
-                r"invalid mutation in alias definition"):
+                r"mutations are invalid in alias definition"):
             async with self.con.transaction():
                 await self.con.execute(r"""
                     CREATE TYPE test::Foo;
@@ -3110,7 +3110,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_bad_12(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
-                r"invalid mutation in alias definition"):
+                r"mutations are invalid in alias definition"):
             async with self.con.transaction():
                 await self.con.execute(r"""
                     CREATE TYPE test::Foo;
@@ -3128,7 +3128,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_bad_13(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
-                r"invalid mutation in alias definition"):
+                r"mutations are invalid in alias definition"):
             async with self.con.transaction():
                 await self.con.execute(r"""
                     CREATE TYPE test::Foo;

@@ -2883,7 +2883,7 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_dependent_07(self):
         async with self.assertRaisesRegexTx(
                 edgedb.QueryError,
-                "invalid mutation in a shape computable"):
+                "mutations are invalid in a shape computable"):
             await self.con.execute(
                 r"""
                     WITH MODULE test
