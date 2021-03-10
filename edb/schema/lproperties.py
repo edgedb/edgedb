@@ -446,14 +446,14 @@ class DeleteProperty(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-        scls: so.Object,
-    ) -> Sequence[sd.Command]:
-        cmds = list(super()._canonicalize(schema, context, scls))
+        scls: Property,
+    ) -> List[sd.Command]:
+        cmds = super()._canonicalize(schema, context, scls)
 
-        assert isinstance(scls, Property)
         target = scls.get_target(schema)
-        if target is not None and isinstance(target, s_types.Collection):
-            cmds.append(target.as_colltype_delete_delta(schema))
+        if target is not None and not scls.is_special_pointer(schema):
+            if op := target.as_type_delete_if_dead(schema):
+                cmds.append(op)
 
         return cmds
 

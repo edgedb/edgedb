@@ -3163,7 +3163,7 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
         self,
         schema: s_schema.Schema,
         context: CommandContext,
-        scls: so.Object,
+        scls: so.Object_T,
     ) -> None:
         mcls = self.get_schema_metaclass()
 
@@ -3365,10 +3365,10 @@ class DeleteObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         self,
         schema: s_schema.Schema,
         context: CommandContext,
-        scls: so.Object,
-    ) -> Sequence[Command]:
+        scls: so.Object_T,
+    ) -> List[Command]:
         mcls = self.get_schema_metaclass()
-        commands = []
+        commands: List[Command] = []
 
         for refdict in mcls.get_refdicts():
             deleted_refs = set()

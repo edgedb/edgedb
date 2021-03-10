@@ -305,33 +305,6 @@ class ParameterDesc(ParameterLike):
 
         return cmd
 
-    def as_delete_delta(
-        self,
-        schema: s_schema.Schema,
-        func_fqname: sn.QualName,
-        *,
-        context: sd.CommandContext,
-    ) -> sd.ObjectCommand[Parameter]:
-        DeleteParameter = sd.get_object_command_class_or_die(
-            sd.DeleteObject, Parameter)
-
-        param_name = sn.QualName(
-            module=func_fqname.module,
-            name=sn.get_specialized_name(
-                self.get_name(schema),
-                str(func_fqname),
-            )
-        )
-
-        cmd = DeleteParameter(classname=param_name)
-
-        if isinstance(self.type, s_types.CollectionTypeShell):
-            colltype = self.type.resolve(schema)
-            assert isinstance(colltype, s_types.Collection)
-            cmd.add(colltype.as_colltype_delete_delta(schema))
-
-        return cmd
-
 
 class Parameter(
     so.ObjectFragment,
@@ -527,7 +500,17 @@ class CreateParameter(ParameterCommand, sd.CreateObject[Parameter]):
 
 
 class DeleteParameter(ParameterCommand, sd.DeleteObject[Parameter]):
-    pass
+    def _canonicalize(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        scls: Parameter,
+    ) -> List[sd.Command]:
+        ops = super()._canonicalize(schema, context, scls)
+        typ = scls.get_type(schema)
+        if op := typ.as_type_delete_if_dead(schema):
+            ops.append(op)
+        return ops
 
 
 class RenameParameter(ParameterCommand, sd.RenameObject[Parameter]):
@@ -946,11 +929,10 @@ class RenameCallableObject(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-        scls: so.Object,
+        scls: CallableObjectT,
     ) -> None:
         super()._canonicalize(schema, context, scls)
 
-        assert isinstance(scls, CallableObject)
         # Don't do anything for concrete constraints
         if not isinstance(scls, Function) and not scls.get_abstract(schema):
             return
@@ -1110,40 +1092,26 @@ class DeleteCallableObject(
     CallableCommand[CallableObjectT],
     sd.DeleteObject[CallableObjectT],
 ):
-
-    @classmethod
-    def _cmd_tree_from_ast(
-        cls,
+    def _canonicalize(
+        self,
         schema: s_schema.Schema,
-        astnode: qlast.DDLOperation,
         context: sd.CommandContext,
-    ) -> sd.Command:
-        assert isinstance(astnode, qlast.ObjectDDL)
-        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
-        assert isinstance(cmd, DeleteCallableObject)
+        scls: CallableObjectT,
+    ) -> List[sd.Command]:
+        ops = super()._canonicalize(schema, context, scls)
 
         # Don't do anything for concrete constraints
-        if isinstance(astnode, qlast.DropConcreteConstraint):
-            return cmd
+        if not isinstance(scls, Function) and not scls.get_abstract(schema):
+            return ops
 
-        obj: CallableObject = schema.get(
-            cmd.classname,
-            type=cls.get_schema_metaclass(),
-            sourcectx=astnode.context)
+        for param in scls.get_params(schema).objects(schema):
+            ops.append(param.init_delta_command(schema, sd.DeleteObject))
 
-        # Pull the params from the schema instead of the AST so that
-        # this works for constraints (which don't specify arguments in
-        # the delete syntax) as well as functions.
-        params = obj.get_params(schema).get_ast(schema)
-        for num, param in enumerate(params):
-            pd = ParameterDesc.from_ast(schema, context.modaliases, num, param)
-            cmd.add(pd.as_delete_delta(schema, cmd.classname, context=context))
+        return_type = scls.get_return_type(schema)
+        if op := return_type.as_type_delete_if_dead(schema):
+            ops.append(op)
 
-        return_type = obj.get_return_type(schema)
-        if isinstance(return_type, s_types.Collection):
-            cmd.add(return_type.as_colltype_delete_delta(schema))
-
-        return cmd
+        return ops
 
 
 class Function(
