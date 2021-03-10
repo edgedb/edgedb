@@ -3125,6 +3125,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 # change a link from a computable to regular
                 multi link foo -> Child;
             }
+        """, r"""
         """])
 
     def test_schema_migrations_equivalence_36(self):
