@@ -6124,6 +6124,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
+        await self.migrate("")
+
     async def test_edgeql_migration_eq_linkprops_11(self):
         # merging a link with the same properties
         await self.migrate(r"""
@@ -7839,6 +7841,42 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                     SELECT Remark FILTER Remark.note = ComputeLink.foo);
             };
             alias Alias := Remark;
+        """)
+
+        await self.migrate("")
+
+    async def test_edgeql_migration_annotation_05(self):
+        await self.migrate(r"""
+            abstract inheritable annotation my_anno;
+
+            type Base {
+                property my_prop -> str {
+                    annotation my_anno := 'Base my_anno 05';
+                }
+            }
+
+            type Derived extending Base {
+                overloaded property my_prop -> str {
+                    annotation my_anno := 'Derived my_anno 05';
+                }
+            }
+        """)
+
+        await self.migrate(r"""
+            # rename annotated & inherited property
+            abstract inheritable annotation my_anno;
+
+            type Base {
+                property renamed_prop -> str {
+                    annotation my_anno := 'Base my_anno 05';
+                }
+            }
+
+            type Derived extending Base {
+                overloaded property renamed_prop -> str {
+                    annotation my_anno := 'Derived my_anno 05';
+                }
+            }
         """)
 
         await self.migrate("")

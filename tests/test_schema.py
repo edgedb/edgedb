@@ -3909,6 +3909,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                     property foo -> str
                 }
             };
+        """, r"""
         """])
 
     def test_schema_migrations_equivalence_linkprops_09(self):
@@ -3965,6 +3966,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                     property foo -> str
                 }
             };
+        """, r"""
         """])
 
     def test_schema_migrations_equivalence_linkprops_11(self):
@@ -4024,6 +4026,32 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Owner extending Base;
 
             type Renter extending Base;
+        """])
+
+    def test_schema_migrations_equivalence_linkprops_13(self):
+        self._assert_migration_equivalence([r"""
+            type Child;
+
+            type Base {
+                link child -> Child
+            };
+
+            type Derived extending Base {
+                overloaded link child -> Child {
+                    property foo -> str
+                }
+            };
+        """, r"""
+            type Child;
+
+            type Base {
+                link child -> Child {
+                    property foo -> str
+                }
+            };
+
+            type Derived extending Base;
+        """, r"""
         """])
 
     def test_schema_migrations_equivalence_annotation_01(self):
@@ -4395,6 +4423,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                     constraint min_len_value(5);
                 }
             }
+        """, r"""
         """])
 
     # NOTE: array<str>, array<int16>, array<json> already exist in std
