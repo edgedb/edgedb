@@ -50,67 +50,7 @@ class EdgeQLParserBase(parsing.Parser):
                 # Look at the parsing stack and use tokens and
                 # non-terminals to infer the parser rule when the
                 # error occurred.
-                rule = ''
-                # The last valid token was a closing
-                # brace/parent/bracket, so we need to find a match for
-                # it before deciding what rule context we're in.
-                need_match = isinstance(ltok, (tokens.T_RBRACE,
-                                               tokens.T_RPAREN,
-                                               tokens.T_RBRACKET))
-                for i, (el, _) in enumerate(reversed(self.parser._stack)):
-                    if isinstance(el, tokens.Token):
-                        # We'll need the element right before "{", "[", or "(".
-                        prevel = self.parser._stack[-2 - i][0]
-
-                        if isinstance(el, tokens.T_LBRACE):
-                            if need_match and isinstance(ltok,
-                                                         tokens.T_RBRACE):
-                                # This is matched, while we're looking
-                                # for unmatched braces.
-                                need_match = False
-                                continue
-
-                            elif isinstance(prevel, gr_commondl.OptExtending):
-                                # This is some SDL/DDL
-                                rule = 'definition'
-                            elif (
-                                isinstance(prevel, gr_exprs.Expr) or
-                                (
-                                    isinstance(prevel, tokens.T_COLON) and
-                                    isinstance(self.parser._stack[-3 - i][0],
-                                               gr_exprs.ShapePointer)
-                                )
-                            ):
-                                # This is some kind of shape.
-                                rule = 'shape'
-                            break
-                        elif isinstance(el, tokens.T_LPAREN):
-                            if need_match and isinstance(ltok,
-                                                         tokens.T_RPAREN):
-                                # This is matched, while we're looking
-                                # for unmatched parentheses.
-                                need_match = False
-                                continue
-                            # This could be an argument list or a tuple.
-                            elif isinstance(prevel, gr_exprs.NodeName):
-                                rule = 'list of arguments'
-                            else:
-                                rule = 'tuple'
-                            break
-                        elif isinstance(el, tokens.T_LBRACKET):
-                            if need_match and isinstance(ltok,
-                                                         tokens.T_RBRACKET):
-                                # This is matched, while we're looking
-                                # for unmatched brackets.
-                                need_match = False
-                                continue
-                            # This is either an array literal or
-                            # array index.
-                            elif isinstance(prevel, gr_exprs.Expr):
-                                rule = 'array slice'
-                            else:
-                                rule = 'array'
-                            break
+                i, rule = self._get_rule()
 
                 if not token or token_kind == 'EOF':
                     msg = 'Unexpected end of line'
@@ -179,6 +119,9 @@ class EdgeQLParserBase(parsing.Parser):
                                f"instead")
                     else:
                         msg = f'Unexpected {token.text()!r}'
+                elif rule == 'for iterator':
+                    msg = (f"missing '{{' before {token.text()!r} "
+                           f"in a FOR query")
                 elif hasattr(token, 'val'):
                     msg = f'Unexpected {token.val!r}'
                 elif token_kind == 'NL':
@@ -188,6 +131,94 @@ class EdgeQLParserBase(parsing.Parser):
 
         return errors.EdgeQLSyntaxError(
             msg, hint=hint, context=context, token=token)
+
+    def _get_rule(self):
+        ltok = self.parser._stack[-1][0]
+        # Look at the parsing stack and use tokens and non-terminals
+        # to infer the parser rule when the error occurred.
+        rule = ''
+
+        # Check if we're in the `FOR x IN <bad_token>` situation
+        if (len(self.parser._stack) >= 3 and
+                isinstance(self.parser._stack[-3][0], tokens.T_FOR) and
+                isinstance(self.parser._stack[-2][0], gr_exprs.Identifier) and
+                isinstance(self.parser._stack[-1][0], tokens.T_IN)):
+            return 2, 'for iterator'
+
+        # If the last valid token was a closing brace/parent/bracket,
+        # so we need to find a match for it before deciding what rule
+        # context we're in.
+        need_match = isinstance(ltok, (tokens.T_RBRACE,
+                                       tokens.T_RPAREN,
+                                       tokens.T_RBRACKET))
+        nextel = None
+        for i, (el, _) in enumerate(reversed(self.parser._stack)):
+            if isinstance(el, tokens.Token):
+                # We'll need the element right before "{", "[", or "(".
+                prevel = self.parser._stack[-2 - i][0]
+
+                if isinstance(el, tokens.T_LBRACE):
+                    if need_match and isinstance(ltok,
+                                                 tokens.T_RBRACE):
+                        # This is matched, while we're looking
+                        # for unmatched braces.
+                        need_match = False
+                        continue
+
+                    elif isinstance(prevel, gr_commondl.OptExtending):
+                        # This is some SDL/DDL
+                        rule = 'definition'
+                    elif (
+                        isinstance(prevel, gr_exprs.Expr) or
+                        (
+                            isinstance(prevel, tokens.T_COLON) and
+                            isinstance(self.parser._stack[-3 - i][0],
+                                       gr_exprs.ShapePointer)
+                        )
+                    ):
+                        # This is some kind of shape.
+                        rule = 'shape'
+                    break
+                elif isinstance(el, tokens.T_LPAREN):
+                    if need_match and isinstance(ltok,
+                                                 tokens.T_RPAREN):
+                        # This is matched, while we're looking
+                        # for unmatched parentheses.
+                        need_match = False
+                        continue
+                    elif isinstance(prevel, gr_exprs.NodeName):
+                        rule = 'list of arguments'
+                    elif isinstance(nextel, (tokens.T_FOR,
+                                             tokens.T_SELECT,
+                                             tokens.T_UPDATE,
+                                             tokens.T_DELETE,
+                                             tokens.T_INSERT,
+                                             tokens.T_FOR)):
+                        # A parenthesized subquery expression,
+                        # we should leave the error as is.
+                        break
+                    else:
+                        rule = 'tuple'
+                    break
+                elif isinstance(el, tokens.T_LBRACKET):
+                    if need_match and isinstance(ltok,
+                                                 tokens.T_RBRACKET):
+                        # This is matched, while we're looking
+                        # for unmatched brackets.
+                        need_match = False
+                        continue
+                    # This is either an array literal or
+                    # array index.
+                    elif isinstance(prevel, gr_exprs.Expr):
+                        rule = 'array slice'
+                    else:
+                        rule = 'array'
+                    break
+
+            # Also keep track of the element right after current.
+            nextel = el
+
+        return i, rule
 
     def get_lexer(self):
         return rust_lexer.EdgeQLLexer()

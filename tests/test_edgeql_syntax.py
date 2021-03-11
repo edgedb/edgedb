@@ -2589,6 +2589,15 @@ aa';
         SELECT User.name OFFSET Foo.bar LIMIT (Foo.bar * 10);
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected.+bar', hint=None, line=3, col=24)
+    def test_edgeql_syntax_select_12(self):
+        """
+        SELECT (
+            SELECT Foo bar
+        );
+        """
+
     def test_edgeql_syntax_group_01(self):
         """
         GROUP User
@@ -2837,6 +2846,15 @@ aa';
         } UNLESS CONFLICT ELSE (SELECT Foo);
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected.+bar', hint=None, line=3, col=24)
+    def test_edgeql_syntax_insert_22(self):
+        """
+        SELECT (
+            INSERT Foo bar
+        );
+        """
+
     def test_edgeql_syntax_delete_01(self):
         """
         DELETE Foo;
@@ -2870,6 +2888,15 @@ aa';
         ORDER BY
             User.name ASC
         OFFSET 2 LIMIT 5;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected.+bar', hint=None, line=3, col=24)
+    def test_edgeql_syntax_delete_06(self):
+        """
+        SELECT (
+            DELETE Foo bar
+        );
         """
 
     def test_edgeql_syntax_update_01(self):
@@ -2910,6 +2937,20 @@ aa';
                 taste := 'yummy'
             }
         };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected.+bad', hint=None, line=4, col=25)
+    def test_edgeql_syntax_update_08(self):
+        """
+        WITH x := (
+            UPDATE Foo
+            FILTER .bar bad = 24
+            SET {
+                bar := 42,
+            };
+        )
+        SELECT x
         """
 
     def test_edgeql_syntax_insertfor_01(self):
@@ -2969,6 +3010,35 @@ aa';
                 (.last_name = x.1)
             )
         );
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"missing '{' before.+array_unpack",
+                  line=2, col=26)
+    def test_edgeql_syntax_selectfor_02(self):
+        """
+        SELECT (FOR s IN array_unpack([1, 2, 3]) UNION s);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"missing '{' before.+array_unpack",
+                  line=3, col=22)
+    def test_edgeql_syntax_selectfor_03(self):
+        """
+        WITH x := (
+            FOR s IN array_unpack([1, 2, 3]) UNION s
+        )
+        SELECT x;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected.+bad', hint=None, line=3, col=56)
+    def test_edgeql_syntax_selectfor_04(self):
+        """
+        WITH x := (
+            FOR s IN {array_unpack([1, 2, 3])} UNION s bad
+        )
+        SELECT x;
         """
 
     def test_edgeql_syntax_deletefor_01(self):
