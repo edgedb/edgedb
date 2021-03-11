@@ -1373,6 +1373,10 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # Compare 2 schemas obtained by multiple-step migration to a
         # single-step migration.
 
+        # Always finish up by migrating to an empty schema
+        if migrations[-1].strip():
+            migrations = migrations + ['']
+
         # Generate a base schema with 'test' module already created to
         # avoid having two different instances of 'test' module in
         # different evolution branches.
@@ -1406,10 +1410,13 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
             diff = s_ddl.delta_schemas(multi_migration, cur_state)
 
+            note = ('' if i + 1 < len(migration)
+                    else '( migrating to empty schema)')
+
             if list(diff.get_subcommands()):
                 self.fail(
                     f'unexpected difference in schema produced by '
-                    f'incremental migration on step {i + 1}:\n'
+                    f'incremental migration on step {i + 1}{note}:\n'
                     f'{markup.dumps(diff)}\n'
                 )
 
