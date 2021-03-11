@@ -421,6 +421,244 @@ class TestEdgeQLFor(tb.QueryTestCase):
             ]
         )
 
+    @test.xfail('''
+        The second query fails with
+            cannot redefine link 'select_deck' of object type 'test::User'
+            as scalar type 'std::str'
+
+        I think because viewgen is too eager to decide that the first
+        subshape it sees is the actual result type.
+    ''')
+    async def test_edgeql_for_in_computable_05(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT User {
+                    select_deck := (
+                        FOR letter IN {'X'}
+                        UNION (
+                            (SELECT .deck.name)
+                        )
+                    )
+                } FILTER .name = 'Alice';
+            ''',
+            [{"select_deck":
+              ["Bog monster", "Dragon", "Giant turtle", "Imp"]}],
+            sort={
+                'select_deck': lambda x: x,
+            }
+        )
+
+        # This one caused a totally nonsense type error.
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT User {
+                    select_deck := (
+                        FOR letter IN {'X'}
+                        UNION (
+                            ((SELECT .deck).name)
+                        )
+                    )
+                } FILTER .name = 'Alice';
+            ''',
+            [{"select_deck":
+              ["Bog monster", "Dragon", "Giant turtle", "Imp"]}],
+            sort={
+                'select_deck': lambda x: x,
+            }
+        )
+
+    async def test_edgeql_for_in_computable_06(self):
+        await self.assert_query_result(
+            r'''
+            WITH MODULE test
+            SELECT User {
+                select_deck := (
+                    WITH ps := (FOR x IN {"!", "?"} UNION (x)),
+                    FOR letter IN {'I', 'B'}
+                    UNION (
+                        SELECT .deck {
+                            name,
+                            letter := letter ++ "!" ++ ps,
+                        }
+                        FILTER User.deck.name[0] = letter
+                    )
+                )
+            } FILTER .name = 'Alice';
+            ''',
+            [
+                {
+                    "select_deck": [
+                        {"letter": {"B!!", "B!?"}, "name": "Bog monster"},
+                        {"letter": {"I!!", "I!?"}, "name": "Imp"},
+                    ]
+                }
+            ],
+            sort={
+                'select_deck': lambda x: x["name"],
+            }
+        )
+
+    async def test_edgeql_for_in_computable_07(self):
+        await self.assert_query_result(
+            r'''
+            WITH MODULE test
+            SELECT User {
+                select_deck := (
+                    WITH ps := (FOR x IN {"!", "?"} UNION (
+                        SELECT stdgraphql::Query { z := x }).z),
+                    FOR letter IN {'I', 'B'}
+                    UNION (
+                        SELECT .deck {
+                            name,
+                            letter := letter ++ "!" ++ ps,
+                        }
+                        FILTER User.deck.name[0] = letter
+                    )
+                )
+            } FILTER .name = 'Alice';
+            ''',
+            [
+                {
+                    "select_deck": [
+                        {"letter": ["B!!", "B!?"], "name": "Bog monster"},
+                        {"letter": ["I!!", "I!?"], "name": "Imp"},
+                    ]
+                }
+            ],
+            sort={
+                'select_deck': lambda x: x["name"],
+            }
+        )
+
+    async def test_edgeql_for_in_computable_08(self):
+        await self.assert_query_result(
+            r'''
+            WITH MODULE test
+            SELECT User {
+                select_deck := (
+                    WITH ps := (FOR x in {"!", "?"} UNION (x++""))
+                    FOR letter IN {'I', 'B'}
+                    UNION (
+                        SELECT .deck {
+                            name,
+                            letter := letter ++ "!" ++ ps,
+                            correlated := (ps, ps),
+                            uncorrelated := ((SELECT ps), (SELECT ps)),
+                        }
+                        FILTER User.deck.name[0] = letter
+                    )
+                )
+            } FILTER .name = 'Alice';
+            ''',
+            [
+                {
+                    "select_deck": [
+                        {
+                            "name": "Bog monster",
+                            "letter": {"B!!", "B!?"},
+                            "correlated": {("!", "!"), ("?", "?")},
+                            "uncorrelated": {("!", "!"), ("!", "?"),
+                                             ("?", "!"), ("?", "?")}
+                        },
+                        {
+                            "name": "Imp",
+                            "letter": {"I!!", "I!?"},
+                            "correlated": {("!", "!"), ("?", "?")},
+                            "uncorrelated": {("!", "!"), ("!", "?"),
+                                             ("?", "!"), ("?", "?")}
+                        },
+                    ]
+                }
+            ],
+            sort={
+                'select_deck': lambda x: x["name"],
+            }
+        )
+
+    @test.xfail("'test::letter' does not exist")
+    async def test_edgeql_for_in_computable_09(self):
+        # This is basically test_edgeql_for_in_computable_01 but with
+        # a WITH binding in front of the whole shape
+        await self.assert_query_result(
+            r'''
+                WITH
+                    MODULE test,
+                    U := (
+                        SELECT User {
+                            select_deck := (
+                                FOR letter IN {'I', 'B'}
+                                UNION (
+                                    SELECT User.deck {
+                                        name,
+                                        # just define an ad-hoc link prop
+                                        @letter := letter
+                                    }
+                                    FILTER User.deck.name[0] = letter
+                                )
+                            )
+                        } FILTER .name = 'Alice'
+                   ),
+                SELECT U { name, select_deck: { name, @letter } };
+            ''',
+            [
+                {
+                    'select_deck': [
+                        {'name': 'Bog monster', '@letter': 'B'},
+                        {'name': 'Imp', '@letter': 'I'},
+                    ]
+                }
+            ],
+            sort={
+                'select_deck': lambda x: x['name'],
+            }
+        )
+
+    @test.xfail("""
+        This outputs ["I", "B"] as letter for both objects.
+    """)
+    async def test_edgeql_for_in_computable_10(self):
+        # This is basically test_edgeql_for_in_computable_01 but with
+        # a WITH binding inside the computable and no link prop
+
+        # If we just drop the WITH Z binding, we get
+        # `test::letter does not exist`.
+        # If we replace the WITH Z part with an extra SELECT,
+        # we get the same buggy behavior.
+        await self.assert_query_result(
+            r'''
+            WITH MODULE test
+            SELECT (SELECT User {
+                select_deck := (
+                    WITH Z := (
+                        FOR letter IN {'I', 'B'}
+                        UNION (
+                            SELECT .deck {
+                                name,
+                                # just define an ad-hoc link prop
+                                letter := letter
+                            }
+                            FILTER User.deck.name[0] = letter
+                        )
+                    ),
+                    SELECT Z
+                )
+            } FILTER .name = 'Alice') { select_deck: {name, letter} };
+            ''',
+            [
+                {
+                    'select_deck': [
+                        {'name': 'Bog monster', '@letter': 'B'},
+                        {'name': 'Imp', '@letter': 'I'},
+                    ]
+                }
+            ],
+            sort={
+                'select_deck': lambda x: x['name'],
+            }
+        )
+
     async def test_edgeql_for_correlated_01(self):
         await self.assert_query_result(
             r'''

@@ -1162,6 +1162,11 @@ def computable_ptr_set(
         subctx.anchors[qlast.Source().name] = source_set
         subctx.empty_result_type_hint = ptrcls.get_target(ctx.env.schema)
         subctx.partial_path_prefix = source_set
+        # On a mutation, make the expr_exposed. This corresponds with
+        # a similar check on is_mutation in _normalize_view_ptr_expr.
+        if (source_scls.get_expr_type(ctx.env.schema)
+                != s_types.ExprType.Select):
+            subctx.expr_exposed = True
 
         if isinstance(qlexpr, qlast.Statement):
             subctx.stmt_metadata[qlexpr] = context.StatementMetadata(

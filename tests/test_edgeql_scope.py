@@ -703,6 +703,133 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         )
 
+    async def test_edgeql_scope_binding_01(self):
+        await self.assert_query_result(
+            r"""
+            WITH
+                MODULE test,
+                L := (FOR name in {'Alice', 'Bob'} UNION (
+                    SELECT User
+                    FILTER .name = name
+                )),
+            SELECT _ := ((SELECT L.name), (SELECT L.name))
+            ORDER BY _;
+            """,
+            [
+                ['Alice', 'Alice'],
+                ['Alice', 'Bob'],
+                ['Bob', 'Alice'],
+                ['Bob', 'Bob'],
+            ]
+        )
+
+    async def test_edgeql_scope_binding_02(self):
+        await self.assert_query_result(
+            r"""
+            WITH
+                MODULE test,
+                name := {'Alice', 'Bob'},
+                L := (name, (
+                    SELECT User
+                    FILTER .name = name
+                )),
+            SELECT _ := ((SELECT L.1.name), (SELECT L.1.name))
+            ORDER BY _;
+            """,
+            [
+                ['Alice', 'Alice'],
+                ['Alice', 'Bob'],
+                ['Bob', 'Alice'],
+                ['Bob', 'Bob'],
+            ]
+        )
+
+    async def test_edgeql_scope_binding_03(self):
+        await self.assert_query_result(
+            r"""
+            WITH
+                MODULE test,
+                name := {'Alice', 'Bob'},
+                L := (name, (
+                    SELECT User
+                    FILTER .name = name
+                )).1,
+            SELECT _ := ((SELECT L.name), (SELECT L.name))
+            ORDER BY _;
+            """,
+            [
+                ['Alice', 'Alice'],
+                ['Alice', 'Bob'],
+                ['Bob', 'Alice'],
+                ['Bob', 'Bob'],
+            ]
+        )
+
+    async def test_edgeql_scope_binding_04(self):
+        await self.assert_query_result(
+            r"""
+            WITH Y := (FOR x IN {1, 2} UNION (x + 1)),
+            SELECT _ := ((SELECT Y), (SELECT Y))
+            ORDER BY _;
+            """,
+            [[2, 2], [2, 3], [3, 2], [3, 3]]
+        )
+
+    async def test_edgeql_scope_binding_05(self):
+        await self.assert_query_result(
+            r"""
+            WITH X := {1, 2},
+                 Y := (X, X+1).1,
+            SELECT _ := ((SELECT Y), (SELECT Y))
+            ORDER BY _;
+            """,
+            [[2, 2], [2, 3], [3, 2], [3, 3]]
+        )
+
+    async def test_edgeql_scope_binding_06(self):
+        await self.assert_query_result(
+            r"""
+            WITH
+                MODULE test,
+            SELECT stdgraphql::Query {
+                lol := (
+                    WITH L := (FOR name in {'Alice', 'Bob'} UNION (
+                        SELECT User
+                        FILTER .name = name
+                    )),
+                    SELECT _ := ((SELECT L.name), (SELECT L.name))
+                    ORDER BY _
+                )
+            };
+            """,
+            [
+                {
+                    "lol": [
+                        ["Alice", "Alice"],
+                        ["Alice", "Bob"],
+                        ["Bob", "Alice"],
+                        ["Bob", "Bob"]
+                    ]
+                }
+            ]
+        )
+
+    async def test_edgeql_scope_binding_07(self):
+        await self.assert_query_result(
+            r"""
+            WITH
+                MODULE test,
+            SELECT stdgraphql::Query {
+                lol := (
+                    WITH Y := (FOR x IN {1, 2} UNION (x + 1)),
+                    SELECT _ := ((SELECT Y), (SELECT Y))
+                    ORDER BY _
+                )
+            };
+            """,
+            [{"lol": [[2, 2], [2, 3], [3, 2], [3, 3]]}]
+        )
+
     async def test_edgeql_scope_with_subquery_01(self):
         await self.assert_query_result(
             r"""

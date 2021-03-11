@@ -716,7 +716,7 @@ class ConnectedTestCaseMixin:
                 else:
                     shape = shape.value
 
-            if isinstance(shape, list):
+            if isinstance(shape, (list, tuple)):
                 return _assert_list_shape(path, data, shape)
             elif isinstance(shape, set):
                 return _assert_set_shape(path, data, shape)

@@ -79,9 +79,16 @@ def pull_path_namespace(
         view_path_id_map = getattr(source_q, 'view_path_id_map', {})
 
         for path_id, aspect in s_paths:
+            orig_path_id = path_id
             path_id = pathctx.reverse_map_path_id(path_id, view_path_id_map)
 
-            if path_id in squery.path_id_mask:
+            # Skip pulling paths that match the path_id_mask before or after
+            # doing path id mapping. We need to look at before as well
+            # to prevent paths leaking out under a different name.
+            if (
+                path_id in squery.path_id_mask
+                or orig_path_id in squery.path_id_mask
+            ):
                 continue
 
             rvar = pathctx.maybe_get_path_rvar(
@@ -712,7 +719,7 @@ def update_scope(
         ctx.path_scope[p.path_id] = stmt
 
     if isinstance(ir_set.expr, irast.Stmt):
-        iterators = irutils.get_iterator_sets(ir_set.expr)
+        iterators = ir_set.expr.hoisted_iterators
         iter_paths = {it.path_id for it in iterators}
     else:
         iter_paths = set()
