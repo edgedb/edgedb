@@ -23,6 +23,7 @@ import codecs
 import hashlib
 import json
 import os.path
+import socket
 
 cimport cython
 cimport cpython
@@ -64,6 +65,9 @@ from . import errors as pgerror
 
 DEF DATA_BUFFER_SIZE = 100_000
 DEF PREP_STMTS_CACHE = 100
+DEF TCP_KEEPIDLE = 24
+DEF TCP_KEEPINTVL = 2
+DEF TCP_KEEPCNT = 3
 
 DEF COPY_SIGNATURE = b"PGCOPY\n\377\r\n\0"
 
@@ -124,8 +128,23 @@ async def connect(connargs, dbname):
             lambda: PGConnection(dbname, loop, connargs), addr)
 
     else:
-        _, pgcon = await loop.create_connection(
+        trans, pgcon = await loop.create_connection(
             lambda: PGConnection(dbname, loop, connargs), host=host, port=port)
+
+        # TCP keepalive was initially added here for special cases where idle
+        # connections are dropped silently on GitHub Action running test suite
+        # against AWS RDS. We are keeping the TCP keepalive for generic
+        # Postgres connections as the kernel overhead is considered low, and
+        # in certain cases it does save us some reconnection time.
+        sock = trans.get_extra_info('socket')
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+        if hasattr(socket, 'TCP_KEEPIDLE'):
+            sock.setsockopt(socket.IPPROTO_TCP,
+                            socket.TCP_KEEPIDLE, TCP_KEEPIDLE)
+            sock.setsockopt(socket.IPPROTO_TCP,
+                            socket.TCP_KEEPINTVL, TCP_KEEPINTVL)
+            sock.setsockopt(socket.IPPROTO_TCP,
+                            socket.TCP_KEEPCNT, TCP_KEEPCNT)
 
     await pgcon.connect()
 
