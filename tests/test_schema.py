@@ -5091,6 +5091,27 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             alias Alias3 := Remark { command := .remark ++ "!" };
         """])
 
+    def test_schema_migrations_equivalence_rename_refs_07(self):
+        self._assert_migration_equivalence([r"""
+            type Obj1 {
+                 required property id1 -> str;
+                 required property id2 -> str;
+                 property exclusive_hack {
+                     using ((.id1, .id2));
+                     constraint exclusive;
+                 };
+             }
+        """, r"""
+            type Obj2 {
+                 required property id1 -> str;
+                 required property id2 -> str;
+                 property exclusive_hack {
+                     using ((.id1, .id2));
+                     constraint exclusive;
+                 };
+             }
+        """])
+
     def test_schema_migrations_equivalence_rename_alias_01(self):
         self._assert_migration_equivalence([r"""
             type Note {
