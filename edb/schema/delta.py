@@ -293,7 +293,8 @@ def sort_by_cross_refs(
     for x in objs:
         graph[x] = topological.DepGraphEntry(
             item=x,
-            deps=set(schema.get_referrers(x)),
+            deps={ref for ref in schema.get_referrers(x)
+                  if not x.is_parent_ref(schema, ref)},
             extra=False,
         )
 
@@ -1105,7 +1106,7 @@ class CommandContext:
         self.backend_runtime_params = backend_runtime_params
         self.affected_finalization: Dict[
             Command,
-            List[Tuple[Command, Command, List[str]]],
+            List[Tuple[Command, ObjectCommand[so.Object], List[str]]],
         ] = collections.defaultdict(list)
         self.compat_ver = compat_ver
 
@@ -1997,7 +1998,18 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         schema: s_schema.Schema,
         context: CommandContext,
     ) -> s_schema.Schema:
+
+        # There might be dependencies between the things we need to
+        # fix up (a computed property and a constraint on it, for
+        # example, requires us to fix up the computed property first),
+        # so sort by dependency order.
+        objs_to_cmds = {}
         for delta, cmd, refdesc in context.affected_finalization.get(self, []):
+            objs_to_cmds[cmd.scls] = delta, cmd, refdesc
+        objs = sort_by_cross_refs(schema, objs_to_cmds.keys())
+
+        for obj in reversed(objs):
+            delta, cmd, refdesc = objs_to_cmds[obj]
             try:
                 self._finalize_affected_refs_specialize(cmd, schema, context)
 
