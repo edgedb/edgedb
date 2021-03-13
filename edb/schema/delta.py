@@ -1759,8 +1759,9 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         expr_refs = s_expr.get_expr_referrers(schema, scls)
 
         if expr_refs:
+            sorted_ref_objs = sort_by_cross_refs(schema, expr_refs.keys())
             ref_desc = []
-            for ref, fns in expr_refs.items():
+            for ref in sorted_ref_objs:
                 from . import functions as s_func
                 from . import indexes as s_indexes
                 from . import pointers as s_pointers
@@ -1771,6 +1772,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                 cmd_drop: Command
                 cmd_create: Command
 
+                fns = expr_refs[ref]
                 this_ref_desc = []
                 for fn in fns:
                     if fn == 'expr':
