@@ -100,6 +100,11 @@ def is_builtin_scalar(schema, scalar):
     return scalar.id in base_type_name_map
 
 
+def type_has_stable_oid(typ):
+    pg_type = base_type_name_map.get(typ.id)
+    return pg_type is not None and len(pg_type) == 1
+
+
 def get_scalar_base(schema, scalar) -> Tuple[str, ...]:
     base = base_type_name_map.get(scalar.id)
     if base is not None:

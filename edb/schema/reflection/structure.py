@@ -254,40 +254,11 @@ def generate_structure(schema: s_schema.Schema) -> SchemaReflectionParts:
 
     schema = _run_ddl(
         '''
-            CREATE FUNCTION sys::_get_pg_type_for_scalar_type(
-                typeid: std::uuid
+            CREATE FUNCTION sys::_get_pg_type_for_edgedb_type(
+                typeid: std::uuid,
+                elemid: OPTIONAL std::uuid,
             ) -> std::int64 {
-                USING SQL $$
-                    SELECT
-                        coalesce(
-                            (
-                                SELECT
-                                    tn::regtype::oid
-                                FROM
-                                    edgedb._get_base_scalar_type_map()
-                                        AS m(tid uuid, tn text)
-                                WHERE
-                                    m.tid = "typeid"
-                            ),
-                            (
-                                SELECT
-                                    typ.oid
-                                FROM
-                                    pg_catalog.pg_type typ
-                                WHERE
-                                    typ.typname = "typeid"::text || '_domain'
-                            ),
-
-                            edgedb.raise(
-                                NULL::bigint,
-                                'invalid_parameter_value',
-                                msg => (
-                                    'cannot determine OID of '
-                                    || typeid::text
-                                )
-                            )
-                        )::bigint
-                $$;
+                USING SQL FUNCTION 'edgedb.get_pg_type_for_edgedb_type';
                 SET volatility := 'STABLE';
             };
 

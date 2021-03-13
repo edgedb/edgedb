@@ -61,6 +61,7 @@ from edb.schema import modules as s_mod
 from edb.schema import name as s_name
 from edb.schema import objects as s_obj
 from edb.schema import objtypes as s_objtypes
+from edb.schema import pointers as s_pointers
 from edb.schema import reflection as s_refl
 from edb.schema import schema as s_schema
 from edb.schema import types as s_types
@@ -832,7 +833,7 @@ class Compiler:
                                     "backend_id"
                                 )
                                 FROM
-                                edgedb."_SchemaScalarType"
+                                edgedb."_SchemaType"
                                 WHERE
                                     "id" = any(ARRAY[
                                         {', '.join(new_type_ids)}
@@ -2093,15 +2094,7 @@ class Compiler:
             ])
 
         elif isinstance(source, s_links.Link):
-            props = {
-                'source': schema.get('std::uuid'),
-                'target': schema.get('std::uuid'),
-            }
-
-            cols.extend([
-                'source',
-                'target',
-            ])
+            props = {}
 
             for ptr in source.get_pointers(schema).objects(schema):
                 if not ptr.is_dumpable(schema):
@@ -2297,6 +2290,7 @@ class Compiler:
             obj = schema.get_by_id(schema_object_id)
             desc = sertypes.TypeSerializer.parse(typedesc)
             elided_col_set = set()
+            mending_desc = []
 
             if isinstance(obj, s_props.Property):
                 assert isinstance(desc, sertypes.NamedTupleDesc)
@@ -2306,51 +2300,61 @@ class Compiler:
                     'target': 'target',
                 }
 
+                mending_desc.append(None)
+                mending_desc.append(self._get_ptr_mending_desc(schema, obj))
+
                 if dump_with_ptr_item_id:
                     elided_col_set.add('ptr_item_id')
+                    mending_desc.append(None)
 
             elif isinstance(obj, s_links.Link):
                 assert isinstance(desc, sertypes.NamedTupleDesc)
                 desc_ptrs = list(desc.fields.keys())
-                cols = {
-                    'source': 'source',
-                    'target': 'target',
-                }
 
-                if dump_with_ptr_item_id:
-                    elided_col_set.add('ptr_item_id')
-
-                for ptr in obj.get_pointers(schema).objects(schema):
-                    ptr_name = ptr.get_shortname(schema).name
-                    if (
-                        dump_with_extraneous_computables
-                        and ptr.is_pure_computable(schema)
-                    ):
+                cols = {}
+                ptrs = dict(obj.get_pointers(schema).items(schema))
+                for ptr_name in desc_ptrs:
+                    if dump_with_ptr_item_id and ptr_name == 'ptr_item_id':
                         elided_col_set.add(ptr_name)
+                        cols[ptr_name] = ptr_name
+                        mending_desc.append(None)
+                    else:
+                        ptr = ptrs[s_name.UnqualName(ptr_name)]
+                        if (
+                            dump_with_extraneous_computables
+                            and ptr.is_pure_computable(schema)
+                        ):
+                            elided_col_set.add(ptr_name)
+                            mending_desc.append(None)
 
-                    if not ptr.is_dumpable(schema):
-                        continue
-                    stor_info = pg_types.get_pointer_storage_info(
-                        ptr,
-                        schema=schema,
-                        source=obj,
-                        link_bias=True,
-                    )
+                        if not ptr.is_dumpable(schema):
+                            continue
 
-                    cols[ptr_name] = stor_info.column_name
+                        stor_info = pg_types.get_pointer_storage_info(
+                            ptr,
+                            schema=schema,
+                            source=obj,
+                            link_bias=True,
+                        )
+
+                        cols[ptr_name] = stor_info.column_name
+                        mending_desc.append(
+                            self._get_ptr_mending_desc(schema, ptr))
 
             elif isinstance(obj, s_objtypes.ObjectType):
                 assert isinstance(desc, sertypes.ShapeDesc)
                 desc_ptrs = list(desc.fields.keys())
 
                 cols = {}
-                for ptr in obj.get_pointers(schema).objects(schema):
-                    ptr_name = ptr.get_shortname(schema).name
+                ptrs = dict(obj.get_pointers(schema).items(schema))
+                for ptr_name in desc_ptrs:
+                    ptr = ptrs[s_name.UnqualName(ptr_name)]
                     if (
                         dump_with_extraneous_computables
                         and ptr.is_pure_computable(schema)
                     ):
                         elided_col_set.add(ptr_name)
+                        mending_desc.append(None)
 
                     if not ptr.is_dumpable(schema):
                         continue
@@ -2364,6 +2368,8 @@ class Compiler:
                     if stor_info.table_type == 'ObjectType':
                         ptr_name = ptr.get_shortname(schema).name
                         cols[ptr_name] = stor_info.column_name
+                        mending_desc.append(
+                            self._get_ptr_mending_desc(schema, ptr))
 
             else:
                 raise AssertionError(
@@ -2401,6 +2407,7 @@ class Compiler:
                     schema_object_id=schema_object_id,
                     sql_copy_stmt=stmt,
                     compat_elided_cols=elided_cols,
+                    data_mending_desc=tuple(mending_desc),
                 )
             )
 
@@ -2411,6 +2418,43 @@ class Compiler:
             blocks=restore_blocks,
             tables=tables,
         )
+
+    def _get_ptr_mending_desc(
+        self,
+        schema: s_schema.Schema,
+        ptr: s_pointers.Pointer,
+    ) -> Optional[DataMendingDescriptor]:
+        ptr_type = ptr.get_target(schema)
+        if isinstance(ptr_type, (s_types.Array, s_types.Tuple)):
+            return self._get_data_mending_desc(schema, ptr_type)
+        else:
+            return None
+
+    def _get_data_mending_desc(
+        self,
+        schema: s_schema.Schema,
+        typ: s_types.Type,
+    ) -> Optional[DataMendingDescriptor]:
+        if isinstance(typ, (s_types.Tuple, s_types.Array)):
+            elements = tuple(
+                self._get_data_mending_desc(schema, element)
+                for element in typ.get_subtypes(schema)
+            )
+        else:
+            elements = tuple()
+
+        if pg_types.type_has_stable_oid(typ):
+            return None
+        else:
+            return DataMendingDescriptor(
+                schema_type_id=typ.id,
+                schema_object_class=type(typ).get_ql_class_or_die(),
+                elements=elements,
+                needs_mending=bool(
+                    isinstance(typ, (s_types.Tuple, s_types.Array))
+                    and any(elements)
+                )
+            )
 
     def get_config_val(
         self,
@@ -2451,6 +2495,18 @@ class RestoreDescriptor(NamedTuple):
     tables: Sequence[str]
 
 
+class DataMendingDescriptor(NamedTuple):
+
+    #: The identifier of the EdgeDB type
+    schema_type_id: uuid.UUID
+    #: The kind of a type we are dealing with
+    schema_object_class: qltypes.SchemaObjectClass
+    #: If type is a collection, mending descriptors of element types
+    elements: Tuple[Optional[DataMendingDescriptor], ...] = tuple()
+    #: Whether a datum represented by this descriptor will need mending
+    needs_mending: bool = False
+
+
 class RestoreBlockDescriptor(NamedTuple):
 
     #: The identifier of the schema object this data is for.
@@ -2460,3 +2516,7 @@ class RestoreBlockDescriptor(NamedTuple):
     #: For compatibility with old dumps, a list of column indexes
     #: that should be ignored in the COPY stream.
     compat_elided_cols: Tuple[int, ...]
+    #: If the tuple requires mending of unstable Postgres OIDs in data,
+    #: this will contain the recursive descriptor on which parts of
+    #: each datum need mending.
+    data_mending_desc: Tuple[Optional[DataMendingDescriptor], ...]

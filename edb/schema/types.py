@@ -401,7 +401,6 @@ class Type(
             return TypeShell(
                 name=name,
                 schemaclass=type(self),
-                is_abstract=self.get_abstract(schema),
             )
 
     def record_cmd_object_aux_data(
@@ -485,7 +484,6 @@ class TypeShell(so.ObjectShell):
         origname: Optional[s_name.Name] = None,
         displayname: Optional[str] = None,
         expr: Optional[str] = None,
-        is_abstract: bool = False,
         schemaclass: typing.Type[Type] = Type,
         sourcectx: Optional[parsing.ParserContext] = None,
     ) -> None:
@@ -497,7 +495,6 @@ class TypeShell(so.ObjectShell):
             sourcectx=sourcectx,
         )
 
-        self.is_abstract = is_abstract
         self.expr = expr
 
     def resolve(self, schema: s_schema.Schema) -> Type:
@@ -508,7 +505,7 @@ class TypeShell(so.ObjectShell):
         )
 
     def is_polymorphic(self, schema: s_schema.Schema) -> bool:
-        return self.is_abstract
+        return self.resolve(schema).is_polymorphic(schema)
 
     def as_create_delta(
         self,
@@ -1340,6 +1337,7 @@ class ArrayTypeShell(CollectionTypeShell):
         ca.set_attribute_value('name', ca.classname)
         ca.set_attribute_value('element_type', el)
         ca.set_attribute_value('is_persistent', True)
+        ca.set_attribute_value('abstract', self.is_polymorphic(schema))
         ca.set_attribute_value('dimensions', self.typemods[0])
 
         if attrs:
@@ -1918,6 +1916,7 @@ class TupleTypeShell(CollectionTypeShell):
         named = self.is_named()
         ct.set_attribute_value('name', ct.classname)
         ct.set_attribute_value('named', named)
+        ct.set_attribute_value('abstract', self.is_polymorphic(schema))
         ct.set_attribute_value('is_persistent', True)
         ct.set_attribute_value('element_types', self.subtypes)
 

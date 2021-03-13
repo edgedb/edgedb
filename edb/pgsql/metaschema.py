@@ -2834,6 +2834,72 @@ class GetBaseScalarTypeMap(dbops.Function):
         )
 
 
+class GetPgTypeForEdgeDBTypeFunction(dbops.Function):
+    """Return Postgres OID representing a given EdgeDB type."""
+
+    text = f'''
+        SELECT
+            coalesce(
+                (
+                    SELECT
+                        tn::regtype::oid
+                    FROM
+                        edgedb._get_base_scalar_type_map()
+                            AS m(tid uuid, tn text)
+                    WHERE
+                        m.tid = "typeid"
+                ),
+                (
+                    SELECT
+                        typ.oid
+                    FROM
+                        pg_catalog.pg_type typ
+                    WHERE
+                        typ.typname = "typeid"::text || '_domain'
+                        OR typ.typname = "typeid"::text || '_t'
+                ),
+                (
+                    SELECT
+                        typ.typarray
+                    FROM
+                        pg_catalog.pg_type typ
+                    WHERE
+                        typ.typname = "elemid"::text || '_domain'
+                        OR typ.typname = "elemid"::text || '_t'
+                        OR typ.oid = (
+                            SELECT
+                                tn::regtype::oid
+                            FROM
+                                edgedb._get_base_scalar_type_map()
+                                    AS m(tid uuid, tn text)
+                            WHERE
+                                tid = elemid
+                        )
+                ),
+                edgedb.raise(
+                    NULL::bigint,
+                    'invalid_parameter_value',
+                    msg => (
+                        'cannot determine OID of EdgeDB type '
+                        || typeid::text
+                    )
+                )
+            )::bigint
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'get_pg_type_for_edgedb_type'),
+            args=[
+                ('typeid', ('uuid',)),
+                ('elemid', ('uuid',)),
+            ],
+            returns=('bigint',),
+            volatility='stable',
+            text=self.text,
+        )
+
+
 async def bootstrap(conn: asyncpg.Connection) -> None:
     commands = dbops.CommandGroup()
     commands.add_commands([
@@ -2909,6 +2975,7 @@ async def bootstrap(conn: asyncpg.Connection) -> None:
         dbops.CreateFunction(SysGetTransactionIsolation()),
         dbops.CreateFunction(GetCachedReflection()),
         dbops.CreateFunction(GetBaseScalarTypeMap()),
+        dbops.CreateFunction(GetPgTypeForEdgeDBTypeFunction()),
     ])
 
     block = dbops.PLTopBlock()

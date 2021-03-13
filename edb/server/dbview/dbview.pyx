@@ -272,7 +272,7 @@ cdef class DatabaseConnectionView:
             self._db._index._global_schema,
         )
 
-    def resolve_array_type_id(self, type_id):
+    def resolve_backend_type_id(self, type_id):
         type_id = str(type_id)
 
         if self._in_tx:
@@ -284,7 +284,7 @@ cdef class DatabaseConnectionView:
         tid = self._db.backend_ids.get(type_id)
         if tid is None:
             raise RuntimeError(
-                f'failed to resolve array OID for type {type_id}')
+                f'cannot resolve backend OID for type {type_id}')
         return tid
 
     cdef bytes serialize_state(self):
