@@ -89,7 +89,8 @@ __all__ = ('not_implemented', 'xfail', 'skip')
 @click.option('--list', 'list_tests', is_flag=True,
               help='list all the tests and exit')
 @click.option('--postgres-dsn', type=str,
-              help='Test ')
+              help='Use the specified Postgres cluster instead of starting a '
+                   'temporary local one.')
 def test(*, files, jobs, shard, include, exclude, verbose, quiet, debug,
          output_format, warnings, failfast, shuffle, cov, repeat,
          running_times_log_file, list_tests, postgres_dsn):
