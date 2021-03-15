@@ -887,7 +887,8 @@ class ReferencedInheritingObjectCommand(
             non_altered_bases = []
 
             value = scls.get_field_value(schema, field_name)
-            for base in set(implicit_bases) - currently_altered:
+            for base in {
+                    x for x in implicit_bases if x not in currently_altered}:
                 base_value = base.get_field_value(schema, field_name)
 
                 if isinstance(value, so.SubclassableObject):
@@ -1336,7 +1337,8 @@ class RenameReferencedInheritingObject(
             # name change due to structural parent rename.
             if orig_ref_lname != new_ref_lname:
                 implicit_bases = scls.get_implicit_bases(schema)
-                non_renamed_bases = set(implicit_bases) - context.renamed_objs
+                non_renamed_bases = {
+                    x for x in implicit_bases if x not in context.renamed_objs}
                 # This object is inherited from one or more ancestors that
                 # are not renamed in the same op, and this is an error.
                 if non_renamed_bases:
