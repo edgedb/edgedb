@@ -781,6 +781,9 @@ class ParallelTextTestRunner:
                 cluster = tb._init_cluster(
                     postgres_dsn=self.postgres_dsn, cleanup_atexit=False
                 )
+                cluster_backend_params = cluster.get_backend_runtime_params()
+                for case in cases:
+                    case.cluster_backend_params = cluster_backend_params
 
                 if self.verbosity > 1:
                     self._echo(' OK')

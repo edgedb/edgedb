@@ -54,6 +54,7 @@ from edb import cli
 from edb.edgeql import quote as qlquote
 from edb.server import cluster as edgedb_cluster
 from edb.server import defines as edgedb_defines
+from edb.server import pgcluster
 
 from edb.common import taskgroup
 
@@ -872,6 +873,8 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
     BASE_TEST_CLASS = True
 
     con: Any  # XXX: the real type?
+
+    cluster_backend_params: pgcluster.BackendRuntimeParams
 
     def setUp(self):
         if self.INTERNAL_TESTMODE:

@@ -34,7 +34,7 @@ import edgedb
 from edb.common import devmode
 from edb.edgeql import quote
 
-from edb.server import buildmeta
+from edb.server import buildmeta, pgconnparams
 from edb.server import defines as edgedb_defines
 
 from . import pgcluster
@@ -268,6 +268,9 @@ class BaseCluster:
             }
         ''')
 
+    def get_backend_runtime_params(self):
+        return self._pg_cluster.get_runtime_params()
+
 
 class Cluster(BaseCluster):
     def __init__(
@@ -288,7 +291,14 @@ class Cluster(BaseCluster):
         self._pg_connect_args['user'] = pg_superuser
 
     def _get_pg_cluster(self):
-        return pgcluster.get_local_pg_cluster(self._data_dir)
+        cluster = pgcluster.get_local_pg_cluster(self._data_dir)
+        cluster.set_connection_params(
+            pgconnparams.ConnectionParameters(
+                user=edgedb_defines.EDGEDB_SUPERUSER,
+                database=edgedb_defines.EDGEDB_TEMPLATE_DB,
+            ),
+        )
+        return cluster
 
     def get_data_dir(self):
         return self._data_dir

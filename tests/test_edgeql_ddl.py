@@ -6354,12 +6354,14 @@ type test::Foo {
         )
 
     async def test_edgeql_ddl_role_02(self):
+        from edb.server.pgcluster import BackendCapabilities
         await self.con.execute(r"""
             CREATE SUPERUSER ROLE foo2 {
                 SET password := 'secret';
             };
         """)
 
+        caps = self.cluster_backend_params.instance_params.capabilities
         await self.assert_query_result(
             r"""
                 SELECT sys::Role {
@@ -6369,7 +6371,7 @@ type test::Foo {
             """,
             [{
                 'name': 'foo2',
-                'superuser': True,
+                'superuser': caps & BackendCapabilities.SUPERUSER_ACCESS,
             }]
         )
 
