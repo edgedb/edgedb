@@ -731,7 +731,7 @@ class ParallelTextTestRunner:
 
     def __init__(self, *, stream=None, num_workers=1, verbosity=1,
                  output_format=OutputFormat.auto, warnings=True,
-                 failfast=False, shuffle=False):
+                 failfast=False, shuffle=False, postgres_dsn=None):
         self.stream = stream if stream is not None else sys.stderr
         self.num_workers = num_workers
         self.verbosity = verbosity
@@ -739,6 +739,7 @@ class ParallelTextTestRunner:
         self.failfast = failfast
         self.shuffle = shuffle
         self.output_format = output_format
+        self.postgres_dsn = postgres_dsn
 
     def run(self, test, selected_shard, total_shards, running_times_log_file):
         session_start = time.monotonic()
@@ -777,7 +778,9 @@ class ParallelTextTestRunner:
                         nl=False,
                     )
 
-                cluster = tb._init_cluster(cleanup_atexit=False)
+                cluster = tb._init_cluster(
+                    postgres_dsn=self.postgres_dsn, cleanup_atexit=False
+                )
 
                 if self.verbosity > 1:
                     self._echo(' OK')

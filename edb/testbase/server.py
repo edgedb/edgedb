@@ -372,7 +372,11 @@ class _TryRunner:
 _default_cluster = None
 
 
-def _init_cluster(data_dir=None, *, cleanup_atexit=True, init_settings=None):
+def _init_cluster(data_dir=None, postgres_dsn=None, *,
+                  cleanup_atexit=True, init_settings=None):
+    if data_dir is not None and postgres_dsn is not None:
+        raise ValueError(
+            "data_dir and postgres_dsn cannot be set at the same time")
     if init_settings is None:
         init_settings = {}
     if (not os.environ.get('EDGEDB_DEBUG_SERVER') and
@@ -381,7 +385,11 @@ def _init_cluster(data_dir=None, *, cleanup_atexit=True, init_settings=None):
     else:
         _env = {}
 
-    if data_dir is None:
+    if postgres_dsn:
+        cluster = edgedb_cluster.TempClusterWithRemotePg(
+            postgres_dsn, env=_env, testmode=True, log_level='s')
+        destroy = True
+    elif data_dir is None:
         cluster = edgedb_cluster.TempCluster(
             env=_env, testmode=True, log_level='s')
         destroy = True
@@ -411,9 +419,13 @@ def _start_cluster(*, cleanup_atexit=True):
             conn_spec = json.loads(cluster_addr)
             _default_cluster = edgedb_cluster.RunningCluster(**conn_spec)
         else:
+            # This branch is not usually used - `edb test` will call
+            # _init_cluster() separately and set EDGEDB_TEST_CLUSTER_ADDR
             data_dir = os.environ.get('EDGEDB_TEST_DATA_DIR')
+            postgres_dsn = os.environ.get('EDGEDB_TEST_POSTGRES_DSN')
             _default_cluster = _init_cluster(
-                data_dir=data_dir, cleanup_atexit=cleanup_atexit)
+                data_dir=data_dir, postgres_dsn=postgres_dsn,
+                cleanup_atexit=cleanup_atexit)
 
     return _default_cluster
 
