@@ -365,6 +365,19 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             else:
                 source = get_set_type(path_tip, ctx=ctx)
 
+            # If this is followed by type intersections, collect
+            # them up, since we need them in ptr_step_set.
+            upcoming_intersections = []
+            for j in range(i + 1, len(expr.steps)):
+                nstep = expr.steps[j]
+                if (isinstance(nstep, qlast.TypeIntersection)
+                        and isinstance(nstep.type, qlast.TypeName)):
+                    upcoming_intersections.append(
+                        schemactx.get_schema_type(
+                            nstep.type.maintype, ctx=ctx))
+                else:
+                    break
+
             if isinstance(source, s_types.Tuple):
                 path_tip = tuple_indirection_set(
                     path_tip, source=source, ptr_name=ptr_name,
@@ -374,6 +387,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                 path_tip = ptr_step_set(
                     path_tip, expr=step, source=source, ptr_name=ptr_name,
                     direction=direction,
+                    upcoming_intersections=upcoming_intersections,
                     ignore_computable=True,
                     source_context=step.context, ctx=ctx)
 
@@ -560,6 +574,7 @@ def resolve_special_anchor(
 
 def ptr_step_set(
         path_tip: irast.Set, *,
+        upcoming_intersections: Sequence[s_types.Type] = (),
         source: s_obj.Object,
         expr: Optional[qlast.Base],
         ptr_name: str,
@@ -570,6 +585,7 @@ def ptr_step_set(
     ptrcls = resolve_ptr(
         source,
         ptr_name,
+        upcoming_intersections=upcoming_intersections,
         track_ref=expr,
         direction=direction,
         source_context=source_context,
@@ -584,6 +600,7 @@ def resolve_ptr(
     near_endpoint: s_obj.Object,
     pointer_name: str,
     *,
+    upcoming_intersections: Sequence[s_types.Type] = (),
     far_endpoints: Iterable[s_obj.Object] = (),
     direction: s_pointers.PointerDirection = (
         s_pointers.PointerDirection.Outbound
@@ -616,7 +633,25 @@ def resolve_ptr(
                                       sources=far_endpoints)
         if ptrs:
             if track_ref is not False:
-                for p in ptrs:
+                # If this reverse pointer access is followed by
+                # intersections, we filter out any pointers that
+                # couldn't be picked up by the intersections. This avoids
+                # creating spurious dependencies when reverse
+                # links are used in schemas.
+                dep_ptrs = {
+                    ptr for ptr in ptrs
+                    if (src := ptr.get_source(ctx.env.schema))
+                    and all(
+                        src.issubclass(ctx.env.schema, typ)
+                        or any(
+                            dsrc.issubclass(ctx.env.schema, typ)
+                            for dsrc in src.descendants(ctx.env.schema)
+                        )
+                        for typ in upcoming_intersections
+                    )
+                }
+
+                for p in dep_ptrs:
                     ctx.env.add_schema_ref(
                         p.get_nearest_non_derived_parent(ctx.env.schema),
                         track_ref)

@@ -1724,6 +1724,15 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 ''',
             )
 
+    async def test_edgeql_select_reverse_link_05(self):
+        await self.assert_query_result(
+            r'''
+            WITH MODULE test
+            SELECT (User.<owner[IS Comment], User.<owner[IS Issue]);
+            ''',
+            [],
+        )
+
     async def test_edgeql_select_empty_intersection_property(self):
         with self.assertRaisesRegex(
             edgedb.InvalidReferenceError,

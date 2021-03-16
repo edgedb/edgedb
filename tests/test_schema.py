@@ -3635,6 +3635,30 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
+    def test_schema_migrations_equivalence_49(self):
+        self._assert_migration_equivalence([r"""
+            type Foo {
+                link bars := .<foo[IS Bar];
+                link spam := .<foo[IS Spam];
+            };
+
+            type Bar {
+                link foo -> Foo;
+            };
+
+            type Spam {
+                link foo -> Foo;
+            };
+        """, r"""
+            type Foo {
+                link spam := .<foo[IS Spam];
+            };
+
+            type Spam {
+                link foo -> Foo;
+            };
+        """])
+
     def test_schema_migrations_equivalence_compound_01(self):
         # Check that union types can be referenced in computables
         # Bug #2002.
