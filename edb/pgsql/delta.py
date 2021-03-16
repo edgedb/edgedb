@@ -4911,12 +4911,11 @@ class CreateRole(ObjectMetaCommand, adapts=s_roles.CreateRole):
         capabilities = instance_params.capabilities
 
         if role.get_superuser(schema):
-            if instance_params.base_superuser:
-                # If the cluster is exposing an explicit superuser role,
-                # become a member of that instead of creating a superuser
-                # role directly.
-                membership.append(instance_params.base_superuser)
-            else:
+            membership.append(edbdef.EDGEDB_SUPERGROUP)
+
+            # If the cluster is not exposing an explicit superuser role,
+            # we will make the created Postgres role superuser if we can
+            if not instance_params.base_superuser:
                 superuser_flag = (
                     capabilities
                     & pgcluster.BackendCapabilities.SUPERUSER_ACCESS
@@ -4974,21 +4973,20 @@ class AlterRole(ObjectMetaCommand, adapts=s_roles.AlterRole):
             instance_params = backend_params.instance_params
             capabilities = instance_params.capabilities
 
-            superuser_flag = False
-            if instance_params.base_superuser:
-                # If the cluster is exposing an explicit superuser role,
-                # become a member of that instead of creating a superuser
-                # role directly.
-                membership = list(role.get_bases(schema).names(schema))
-                membership.append(instance_params.base_superuser)
-
-                self.pgops.add(
-                    dbops.AlterRoleAddMembership(
-                        name=rolname,
-                        membership=membership,
-                    )
+            membership = list(role.get_bases(schema).names(schema))
+            membership.append(edbdef.EDGEDB_SUPERGROUP)
+            self.pgops.add(
+                dbops.AlterRoleAddMembership(
+                    name=rolname,
+                    membership=membership,
                 )
-            else:
+            )
+
+            superuser_flag = False
+
+            # If the cluster is not exposing an explicit superuser role,
+            # we will make the modified Postgres role superuser if we can
+            if not instance_params.base_superuser:
                 superuser_flag = (
                     capabilities
                     & pgcluster.BackendCapabilities.SUPERUSER_ACCESS
