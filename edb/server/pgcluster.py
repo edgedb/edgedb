@@ -97,6 +97,8 @@ class BackendInstanceParams(NamedTuple):
 
     capabilities: BackendCapabilities
     base_superuser: Optional[str] = None
+    max_connections: Optional[int] = None
+    reserved_connections: Optional[int] = 0
 
 
 class BackendRuntimeParams(NamedTuple):
@@ -105,15 +107,14 @@ class BackendRuntimeParams(NamedTuple):
     session_authorization_role: Optional[str] = None
 
 
-def get_default_runtime_params() -> BackendRuntimeParams:
+def get_default_runtime_params(**instance_params) -> BackendRuntimeParams:
     capabilities = ALL_BACKEND_CAPABILITIES
     if not _is_c_utf8_locale_present():
         capabilities &= ~BackendCapabilities.C_UTF8_LOCALE
+    instance_params.setdefault('capabilities', capabilities)
 
     return BackendRuntimeParams(
-        instance_params=BackendInstanceParams(
-            capabilities=capabilities,
-        ),
+        instance_params=BackendInstanceParams(**instance_params),
     )
 
 
@@ -320,8 +321,16 @@ class BaseCluster:
 
 
 class Cluster(BaseCluster):
-    def __init__(self, data_dir, *, pg_config_path=None):
-        super().__init__(pg_config_path=pg_config_path)
+    def __init__(
+        self,
+        data_dir,
+        *,
+        pg_config_path=None,
+        instance_params: Optional[BackendInstanceParams] = None,
+    ):
+        super().__init__(
+            pg_config_path=pg_config_path, instance_params=instance_params
+        )
         self._data_dir = data_dir
         self._daemon_pid = None
         self._daemon_process = None
@@ -442,10 +451,10 @@ class Cluster(BaseCluster):
             'listen_addresses': '',  # we use Unix sockets
             'unix_socket_permissions': '0700',
             'unix_socket_directories': str(self._data_dir),
-            # TODO: EdgeDB must manage/monitor all client connections and
-            # have its own "max_connections".  We'll set this setting even
-            # higher when we have that fully implemented.
-            'max_connections': '500',
+            # here we are not setting superuser_reserved_connections because
+            # we're using superuser only now (so all connections available),
+            # and we don't support reserving connections for now
+            'max_connections': str(self._instance_params.max_connections),
         }
 
         if os.getenv('EDGEDB_DEBUG_PGSERVER'):
@@ -839,9 +848,18 @@ class RemoteCluster(BaseCluster):
         raise ClusterError('cannot modify HBA records of unmanaged cluster')
 
 
-def get_local_pg_cluster(data_dir: os.PathLike) -> Cluster:
+def get_local_pg_cluster(
+    data_dir: os.PathLike, *, max_connections: int = 500
+) -> Cluster:
     pg_config = buildmeta.get_pg_config_path()
-    return Cluster(data_dir=data_dir, pg_config_path=str(pg_config))
+    instance_params = get_default_runtime_params(
+        max_connections=max_connections
+    ).instance_params
+    return Cluster(
+        data_dir=data_dir,
+        pg_config_path=str(pg_config),
+        instance_params=instance_params,
+    )
 
 
 def get_remote_pg_cluster(dsn: str) -> RemoteCluster:
@@ -919,14 +937,33 @@ def get_remote_pg_cluster(dsn: str) -> RemoteCluster:
 
         return caps
 
+    async def _get_pg_settings(conn, name):
+        return await conn.fetchval(
+            'SELECT setting FROM pg_settings WHERE name = $1', name
+        )
+
+    async def _get_reserved_connections(conn):
+        rv = await _get_pg_settings(conn, 'superuser_reserved_connections')
+        rv = int(rv)
+        for name in [
+            'rds.rds_superuser_reserved_connections',
+        ]:
+            value = await _get_pg_settings(conn, name)
+            if value:
+                rv += int(value)
+        return rv
+
     async def _get_cluster_info(
     ) -> Tuple[Type[RemoteCluster], BackendInstanceParams]:
         conn = await rcluster.connect()
         try:
             cluster_type, superuser_name = await _get_cluster_type(conn)
+            max_connections = await _get_pg_settings(conn, 'max_connections')
             instance_params = BackendInstanceParams(
                 capabilities=await _detect_capabilities(conn),
                 base_superuser=superuser_name,
+                max_connections=int(max_connections),
+                reserved_connections=await _get_reserved_connections(conn),
             )
 
             return (cluster_type, instance_params)
