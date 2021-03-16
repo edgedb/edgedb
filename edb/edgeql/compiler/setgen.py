@@ -629,28 +629,29 @@ def resolve_ptr(
                 ctx.env.add_schema_ref(ref, track_ref)
 
     else:
-        all_ptrs = near_endpoint.getrptrs(ctx.env.schema, pointer_name,
-                                          sources=far_endpoints)
-        # If this reverse pointer access is followed by intersections,
-        # we filter out any pointers that couldn't be picked up
-        # by the intersections. We don't do this to generate correct code,
-        # but instead just to avoid creating spurious dependencies
-        # when reverse links are used in schemas.
-        ptrs = {
-            ptr for ptr in all_ptrs
-            if (src := ptr.get_source(ctx.env.schema))
-            and all(
-                src.issubclass(ctx.env.schema, typ)
-                or any(
-                    dsrc.issubclass(ctx.env.schema, typ)
-                    for dsrc in src.descendants(ctx.env.schema)
-                )
-                for typ in upcoming_intersections
-            )
-        }
+        ptrs = near_endpoint.getrptrs(ctx.env.schema, pointer_name,
+                                      sources=far_endpoints)
         if ptrs:
             if track_ref is not False:
-                for p in ptrs:
+                # If this reverse pointer access is followed by
+                # intersections, we filter out any pointers that
+                # couldn't be picked up by the intersections. This avoids
+                # creating spurious dependencies when reverse
+                # links are used in schemas.
+                dep_ptrs = {
+                    ptr for ptr in ptrs
+                    if (src := ptr.get_source(ctx.env.schema))
+                    and all(
+                        src.issubclass(ctx.env.schema, typ)
+                        or any(
+                            dsrc.issubclass(ctx.env.schema, typ)
+                            for dsrc in src.descendants(ctx.env.schema)
+                        )
+                        for typ in upcoming_intersections
+                    )
+                }
+
+                for p in dep_ptrs:
                     ctx.env.add_schema_ref(
                         p.get_nearest_non_derived_parent(ctx.env.schema),
                         track_ref)
@@ -681,14 +682,6 @@ def resolve_ptr(
         nep_name = near_endpoint.get_displayname(ctx.env.schema)
         path = f'{nep_name}.{direction}{pointer_name}'
         msg = f'{path!r} does not resolve to any known path'
-        if upcoming_intersections:
-            typ = upcoming_intersections[0]
-            for r in upcoming_intersections[1:]:
-                typ = schemactx.apply_intersection(typ, r, ctx=ctx).stype
-            s_vn = typ.get_verbosename(ctx.env.schema)
-            t_vn = near_endpoint.get_verbosename(ctx.env.schema)
-            msg += (f" because there are no '{pointer_name}' links between"
-                    f" {s_vn} and {t_vn}")
 
     err = errors.InvalidReferenceError(msg, context=source_context)
 
