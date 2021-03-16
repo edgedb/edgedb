@@ -97,8 +97,8 @@ class BackendInstanceParams(NamedTuple):
 
     capabilities: BackendCapabilities
     base_superuser: Optional[str] = None
-    max_connections: Optional[int] = None
-    reserved_connections: Optional[int] = 0
+    max_connections: int = 500
+    reserved_connections: int = 0
 
 
 class BackendRuntimeParams(NamedTuple):
@@ -849,12 +849,14 @@ class RemoteCluster(BaseCluster):
 
 
 def get_local_pg_cluster(
-    data_dir: os.PathLike, *, max_connections: int = 500
+    data_dir: os.PathLike, *, max_connections: Optional[int] = None
 ) -> Cluster:
     pg_config = buildmeta.get_pg_config_path()
-    instance_params = get_default_runtime_params(
-        max_connections=max_connections
-    ).instance_params
+    instance_params = None
+    if max_connections is not None:
+        instance_params = get_default_runtime_params(
+            max_connections=max_connections
+        ).instance_params
     return Cluster(
         data_dir=data_dir,
         pg_config_path=str(pg_config),
