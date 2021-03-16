@@ -1720,9 +1720,17 @@ class GQLBaseQuery(GQLBaseType):
         self.modules = schema.modules
         super().__init__(schema, name=name, edb_base=edb_base, dummy=dummy)
         self._shadow_fields = ('__typename',)
+        # Record names of std built-in object types
+        self._std_obj_names = [
+            t.get_name(self.edb_schema).name for t in
+            self.edb_schema.get_objects(
+                included_modules=[s_name.UnqualName('std')],
+                type=s_objtypes.ObjectType,
+            )
+        ]
 
     def get_module_and_name(self, name: str) -> Tuple[str, ...]:
-        if name == 'Object':
+        if name in self._std_obj_names:
             return ('std', name)
         elif '__' in name:
             return tuple(name.split('__', 1))

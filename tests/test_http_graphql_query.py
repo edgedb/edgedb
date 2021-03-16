@@ -557,6 +557,28 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         })
 
+    def test_graphql_functional_query_19(self):
+        # Test built-in object types, by making sure we can query them
+        # and get some results.
+        res = self.graphql_query(r"""
+            {
+                Object {id}
+            }
+        """)
+        self.assertTrue(len(res) > 0,
+                        'querying "Object" returned no results')
+
+    def test_graphql_functional_query_20(self):
+        # Test built-in object types, by making sure we can query them
+        # and get some results.
+        res = self.graphql_query(r"""
+            {
+                BaseObject {id}
+            }
+        """)
+        self.assertTrue(len(res) > 0,
+                        'querying "BaseObject" returned no results')
+
     def test_graphql_functional_alias_01(self):
         self.assert_graphql_query_result(
             r"""
