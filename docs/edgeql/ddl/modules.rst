@@ -26,9 +26,11 @@ include that module's content.
 Description
 -----------
 
-``CREATE MODULE`` defines a new module for the current database.
-The name of the new module must be distinct from any existing module
-in the current database.
+``CREATE MODULE`` defines a new module for the current database. The
+name of the new module must be distinct from any existing module in
+the current database. Unlike :ref:`SDL module declaration
+<ref_eql_sdl_modules>` the ``CREATE MODULE`` command does not have
+sub-commands, as module contents are created separately.
 
 Parameters
 ----------

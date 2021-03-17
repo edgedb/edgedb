@@ -54,6 +54,8 @@ Introducing abstract types opens up the possibility of
 :ref:`polymorphic queries <ref_eql_polymorphic_queries>`.
 
 
+.. _ref_eql_sdl_object_types_syntax:
+
 Syntax
 ------
 
@@ -75,8 +77,31 @@ commands <ref_eql_ddl_object_types>`.
 Description
 -----------
 
-The core of the declaration is identical to :eql:stmt:`CREATE TYPE`,
-while the valid SDL sub-declarations are listed below:
+This declaration defines a new object type with the following options:
+
+:eql:synopsis:`abstract`
+    If specified, the created type will be *abstract*.
+
+:eql:synopsis:`<TypeName>`
+    The name (optionally module-qualified) of the new type.
+
+:eql:synopsis:`extending <supertype> [, ...]`
+    Optional clause specifying the *supertypes* of the new type.
+
+    Use of ``extending`` creates a persistent type relationship
+    between the new subtype and its supertype(s).  Schema modifications
+    to the supertype(s) propagate to the subtype.
+
+    References to supertypes in queries will also include objects of
+    the subtype.
+
+    If the same *link* name exists in more than one supertype, or
+    is explicitly defined in the subtype and at least one supertype,
+    then the data types of the link targets must be *compatible*.
+    If there is no conflict, the links are merged to form a single
+    link in the new type.
+
+These sub-declarations are allowed in the ``Type`` block:
 
 :sdl:synopsis:`<annotation-declarations>`
     Set object type :ref:`annotation <ref_eql_sdl_annotations>`
@@ -85,12 +110,12 @@ while the valid SDL sub-declarations are listed below:
 :sdl:synopsis:`<property-declarations>`
     Define a concrete :ref:`property <ref_eql_sdl_props>` for this object type.
 
+:sdl:synopsis:`<link-declarations>`
+    Define a concrete :ref:`link <ref_eql_sdl_links>` for this object type.
+
 :sdl:synopsis:`<constraint-declarations>`
     Define a concrete :ref:`constraint <ref_eql_sdl_constraints>` for this
     object type.
-
-:sdl:synopsis:`<link-declarations>`
-    Define a concrete :ref:`link <ref_eql_sdl_links>` for this object type.
 
 :sdl:synopsis:`<index-declarations>`
     Define an :ref:`index <ref_eql_sdl_indexes>` for this object type.

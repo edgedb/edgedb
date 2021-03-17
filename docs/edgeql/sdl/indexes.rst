@@ -28,6 +28,8 @@ Declare an index for a "User" based on the "name" property:
     }
 
 
+.. _ref_eql_sdl_indexes_syntax:
+
 Syntax
 ------
 
@@ -43,4 +45,14 @@ commands <ref_eql_ddl_indexes>`.
 Description
 -----------
 
-The core of the declaration is identical to :eql:stmt:`CREATE INDEX`.
+This declaration defines a new index with the following options:
+
+:sdl:synopsis:`on ( <index-expr> )`
+    The specific expression for which the index is made.  Note also
+    that ``<index-expr>`` itself has to be parenthesized.
+
+The valid SDL sub-declarations are listed below:
+
+:sdl:synopsis:`<annotation-declarations>`
+    Set index :ref:`annotation <ref_eql_sdl_annotations>`
+    to a given *value*.

@@ -256,10 +256,11 @@ class TestDocSnippets(unittest.TestCase):
                 if lang == 'edgeql':
                     ql_parser.parse_block(snippet)
                 elif lang == 'sdl':
-                    # Strip all the "using extension ..." lines as
-                    # they interfere with our module detection.
+                    # Strip all the "using extension ..." and comment
+                    # lines as they interfere with our module
+                    # detection.
                     sdl = re.sub(
-                        r'using\s+extension\s+\w+;',
+                        r'(using\s+extension\s+\w+;)|(#.*?\n)',
                         '',
                         snippet
                     ).strip()

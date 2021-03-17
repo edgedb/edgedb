@@ -56,6 +56,7 @@ to prevent unintentional overloading due to name clashes:
         # ... other links and properties
     }
 
+.. _ref_eql_sdl_links_syntax:
 
 Syntax
 ------
@@ -109,8 +110,74 @@ commands <ref_eql_ddl_links>`.
 Description
 -----------
 
-The core of the declaration is identical to :eql:stmt:`CREATE LINK`,
-while the valid SDL sub-declarations are listed below:
+There are several forms of ``link`` declaration, as shown in the
+syntax synopsis above.  The first form is the canonical definition
+form, the second and third forms are used for defining a
+:ref:`computable link <ref_datamodel_computables>`, and the last one
+is a form to define an ``abstract link``.  The abstract form
+allows declaring the link directly inside a :ref:`module
+<ref_eql_sdl_modules>`.  Concrete link forms are always used as
+sub-declarations for an :ref:`object type <ref_eql_sdl_object_types>`.
+
+The following options are available:
+
+:eql:synopsis:`overloaded`
+    If specified, indicates that the link is inherited and that some
+    feature of it may be altered in the current object type.  It is an
+    error to declare a link as *overloaded* if it is not inherited.
+
+:eql:synopsis:`required`
+    If specified, the link is considered *required* for the parent
+    object type.  It is an error for an object to have a required
+    link resolve to an empty value.  Child links **always** inherit
+    the *required* attribute, i.e it is not possible to make a
+    required link non-required by extending it.
+
+:eql:synopsis:`optional`
+    This is the default qualifier assumed when no qualifier is
+    specified, but it can also be specified explicitly. The link is
+    considered *optional* for the parent object type, i.e. it is
+    possible for the link to resolve to an empty value.
+
+:eql:synopsis:`multi`
+    Specifies that there may be more than one instance of this link
+    in an object, in other words, ``Object.link`` may resolve to a set
+    of a size greater than one.
+
+:eql:synopsis:`single`
+    Specifies that there may be at most *one* instance of this link
+    in an object, in other words, ``Object.link`` may resolve to a set
+    of a size not greater than one.  ``single`` is assumed if nether
+    ``multi`` nor ``single`` qualifier is specified.
+
+:eql:synopsis:`extending <base> [, ...]`
+    Optional clause specifying the *parents* of the new link item.
+
+    Use of ``extending`` creates a persistent schema relationship
+    between the new link and its parents.  Schema modifications
+    to the parent(s) propagate to the child.
+
+    If the same *property* name exists in more than one parent, or
+    is explicitly defined in the new link and at least one parent,
+    then the data types of the property targets must be *compatible*.
+    If there is no conflict, the link properties are merged to form a
+    single property in the new link item.
+
+:eql:synopsis:`<type>`
+    The type must be a valid :ref:`type expression <ref_eql_types>`
+    denoting an object type.
+
+The valid SDL sub-declarations are listed below:
+
+:eql:synopsis:`default := <expression>`
+    Specifies the default value for the link as an EdgeQL expression.
+    The default value is used in an ``INSERT`` statement if an explicit
+    value for this link is not specified.
+
+:eql:synopsis:`readonly := {true | false}`
+    If ``true``, the link is considered *read-only*.  Modifications
+    of this link are prohibited once an object is created.  All of the
+    derived links **must** preserve the original *read-only* value.
 
 :sdl:synopsis:`<annotation-declarations>`
     Set link :ref:`annotation <ref_eql_sdl_annotations>`

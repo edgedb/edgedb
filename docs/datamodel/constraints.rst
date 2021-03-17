@@ -179,6 +179,31 @@ The standard library defines the following constraints:
             }
         }
 
+    Sometimes it's necessary to create a type where each combination
+    of properties is unique. This can be achieved by defining an
+    ``exclusive`` constraint for the type, rather than on each
+    property:
+
+    .. code-block:: sdl
+
+        type UniqueCoordinates {
+            required property x -> int64;
+            required property y -> int64;
+
+            # Each combination of x and y must be unique.
+            constraint exclusive on ( (.x, .y) );
+        }
+
+    In principle, many possible expressions can appear in the ``on
+    (<expr>)`` clause of the ``exclusive`` constraint with a few
+    caveats:
+
+    * The expression can only contain references to the immediate
+      properties or links of the type.
+    * No backward links or long paths are allowed.
+    * Only ``IMMUTABLE`` functions are allowed in the constraint
+      expression.
+
     .. note::
 
         This constraint also has an additional effect of creating an

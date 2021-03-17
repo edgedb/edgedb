@@ -37,11 +37,9 @@ link using *index-expr*.
 Parameters
 ----------
 
-:sdl:synopsis:`ON ( <index-expr> )`
-    The specific expression for which the index is made.  Note also
-    that ``<index-expr>`` itself has to be parenthesized.
-
-The only subcommand that is allowed in the ``CREATE INDEX`` block:
+Most sub-commands and options of this command are identical to the
+:ref:`SDL index declaration <ref_eql_sdl_indexes_syntax>`. There's
+only one subcommand that is allowed in the ``CREATE INDEX`` block:
 
 :eql:synopsis:`CREATE ANNOTATION <annotation-name> := <value>`
     Set object type :eql:synopsis:`<annotation-name>` to
