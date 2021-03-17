@@ -27,6 +27,7 @@ import weakref
 
 from edb import errors
 from edb.common import context as pctx
+from edb.common import ordered
 from . import pathid
 
 
@@ -71,7 +72,7 @@ class ScopeTreeNode:
     nodes merged into it, but could become optional again.
     """
 
-    children: Set[ScopeTreeNode]
+    children: MutableSet[ScopeTreeNode]
     """A set of child nodes."""
 
     namespaces: Set[pathid.AnyNamespace]
@@ -99,7 +100,7 @@ class ScopeTreeNode:
         self.factoring_fence = False
         self.factoring_allowlist = set()
         self.optional_count = 0 if optional else None
-        self.children = set()
+        self.children = ordered.OrderedSet()
         self.namespaces = set()
         self._parent: Optional[weakref.ReferenceType[ScopeTreeNode]] = None
 
@@ -899,7 +900,6 @@ class ScopeTreeNode:
                     child_formats.append(cf)
 
             if child_formats:
-                child_formats = sorted(child_formats)
                 children = textwrap.indent(',\n'.join(child_formats), '    ')
                 return f'"{self.name}": {{\n{children}\n}}'
 
@@ -916,7 +916,6 @@ class ScopeTreeNode:
                 if cf:
                     child_formats.append(cf)
 
-            child_formats = sorted(child_formats)
             children = textwrap.indent(',\n'.join(child_formats), '    ')
             return f'"{self.debugname(fuller=fuller)}": {{\n{children}\n}}'
         else:
