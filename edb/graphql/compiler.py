@@ -109,7 +109,8 @@ def compile_graphql(
 
     sql_text, argmap = pg_compiler.compile_ir_to_sql(
         ir,
-        pretty=bool(debug.flags.edgeql_compile),
+        pretty=bool(debug.flags.edgeql_compile
+                    or debug.flags.edgeql_compile_sql_text),
         expected_cardinality_one=True,
         output_format=pg_compiler.OutputFormat.JSON)
 

@@ -121,7 +121,9 @@ def compile_ir_to_sql(
         use_named_params=use_named_params,
         expected_cardinality_one=expected_cardinality_one)
 
-    if debug.flags.edgeql_compile:  # pragma: no cover
+    if (  # pragma: no cover
+        debug.flags.edgeql_compile or debug.flags.edgeql_compile_sql_ast
+    ):
         debug.header('SQL Tree')
         debug.dump(qtree)
 
@@ -134,7 +136,9 @@ def compile_ir_to_sql(
     codegen = _run_codegen(qtree, pretty=pretty)
     sql_text = ''.join(codegen.result)
 
-    if debug.flags.edgeql_compile:  # pragma: no cover
+    if (  # pragma: no cover
+        debug.flags.edgeql_compile or debug.flags.edgeql_compile_sql_text
+    ):
         debug.header('SQL')
         debug.dump_code(sql_text, lexer='sql')
 
