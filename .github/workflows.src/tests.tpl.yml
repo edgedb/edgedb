@@ -1,0 +1,224 @@
+<% from "tests.inc.yml" import build, calc_cache_key, restore_cache -%>
+name: Tests
+
+on:
+  push:
+    branches:
+      - master
+      - ci
+      - "releases/*"
+  pull_request:
+    branches:
+      - '*'
+  schedule:
+    - cron: "0 */3 * * *"
+
+jobs:
+  build:
+    runs-on: ubuntu-18.04
+
+    steps:
+    <%- call build() -%>
+    - name: Compute cache keys and download the running times log
+      env:
+        GIST_TOKEN: ${{ secrets.CI_BOT_GIST_TOKEN }}
+      run: |
+        << calc_cache_key()|indent >>
+
+        curl \
+          -H "Accept: application/vnd.github.v3+json" \
+          -u edgedb-ci:$GIST_TOKEN \
+          https://api.github.com/gists/8b722a65397f7c4c0df72f5394efa04c \
+        | jq '.files."time_stats.csv".raw_url' \
+        | xargs curl > .tmp/time_stats.csv
+    <%- endcall %>
+
+  cargo-test:
+    needs: build
+    runs-on: ubuntu-18.04
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+        submodules: false
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.9
+
+    - name: Handle virtualenv
+      uses: syphar/restore-virtualenv@v1.1
+      id: venv-cache
+      with:
+        requirement_files: setup.py
+
+    - name: Stop if we cannot retrieve the cache
+      if: steps.venv-cache.outputs.cache-hit != 'true'
+      run: |
+        echo ::error::Cannot retrieve venv cache.
+        exit 1
+
+    - name: Download cache key
+      uses: actions/download-artifact@v2
+      with:
+        name: shared-artifacts
+        path: .tmp
+
+    - name: Generate environment variables
+      run: |
+        echo BUILD_TEMP=$(python setup.py -q ci_helper --type build_temp) >> $GITHUB_ENV
+
+    - name: Handle Rust extensions build cache
+      uses: actions/cache@v2
+      id: rust-cache
+      with:
+        path: ${{ env.BUILD_TEMP }}/rust/extensions
+        key: edb-rust-build-v1-${{ hashFiles('.tmp/rust_cache_key.txt') }}
+
+    - name: Install rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        default: true
+
+    - name: Cargo test
+      uses: actions-rs/cargo@v1
+      env:
+        CARGO_TARGET_DIR: ${{ env.BUILD_TEMP }}/rust/extensions
+        CARGO_HOME: ${{ env.BUILD_TEMP }}/rust/extensions/cargo_home
+      with:
+        command: test
+
+  python-test:
+    needs: build
+    runs-on: ubuntu-18.04
+    strategy:
+      matrix:
+        shard: [
+             1/16,  2/16,  3/16,  4/16,
+             5/16,  6/16,  7/16,  8/16,
+             9/16, 10/16, 11/16, 12/16,
+            13/16, 14/16, 15/16, 16/16,
+        ]
+
+    steps:
+    <<- restore_cache() >>
+
+    # Run the test
+
+    - name: Test
+      env:
+        SHARD: ${{ matrix.shard }}
+      run: |
+        mkdir -p .results/
+        cp .tmp/time_stats.csv .results/shard_${SHARD/\//_}.csv
+        edb test -j2 -v -s ${SHARD} --running-times-log=.results/shard_${SHARD/\//_}.csv
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v2
+      with:
+        name: python-test-results
+        path: .results
+        retention-days: 1
+
+  collect:
+    needs: build
+    runs-on: ubuntu-18.04
+    steps:
+    <<- restore_cache() >>
+
+    # Collect tests and upload
+
+    - name: Generate complete list of tests for verification
+      env:
+        SHARD: ${{ matrix.shard }}
+      run: |
+        edb test --list > .tmp/all_tests.txt
+
+    - name: Update shared artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: shared-artifacts
+        path: .tmp
+        retention-days: 1
+
+  test-conclusion:
+    needs: [cargo-test, python-test, collect]
+    runs-on: ubuntu-18.04
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+
+      - name: Install Python deps
+        run: |
+          pip install requests
+
+      - name: Download shared artifacts
+        uses: actions/download-artifact@v2
+        with:
+          name: shared-artifacts
+          path: .tmp
+
+      - name: Download python-test results
+        uses: actions/download-artifact@v2
+        with:
+          name: python-test-results
+          path: .results
+
+      - name: Merge stats and verify tests completion
+        shell: python
+        env:
+          GIST_TOKEN: ${{ secrets.CI_BOT_GIST_TOKEN }}
+          GIT_REF: ${{ github.ref }}
+        run: |
+          import csv
+          import glob
+          import io
+          import os
+          import requests
+
+          orig = {}
+          new = {}
+          all_tests = set()
+          with open(".tmp/time_stats.csv") as f:
+              for name, t, c in csv.reader(f):
+                  assert name not in orig, "duplicate test name in original stats!"
+                  orig[name] = (t, int(c))
+
+          with open(".tmp/all_tests.txt") as f:
+              for line in f:
+                  assert line not in all_tests, "duplicate test name in this run!"
+                  all_tests.add(line.strip())
+
+          for new_file in glob.glob(".results/*.csv"):
+              with open(new_file) as f:
+                  for name, t, c in csv.reader(f):
+                      if int(c) > orig.get(name, (0, 0))[1]:
+                          if name.startswith("setup::"):
+                              new[name] = (t, c)
+                          else:
+                              assert name not in new, f"duplicate test! {name}"
+                              new[name] = (t, c)
+                              all_tests.remove(name)
+
+          assert not all_tests, "Tests not run! \n" + "\n".join(all_tests)
+
+          if os.environ["GIT_REF"] == "refs/heads/master":
+              buf = io.StringIO()
+              writer = csv.writer(buf)
+              orig.update(new)
+              for k, v in sorted(orig.items()):
+                  writer.writerow((k,) + v)
+
+              resp = requests.patch(
+                  "https://api.github.com/gists/8b722a65397f7c4c0df72f5394efa04c",
+                  headers={"Accept": "application/vnd.github.v3+json"},
+                  auth=("edgedb-ci", os.environ["GIST_TOKEN"]),
+                  json={"files": {"time_stats.csv": {"content": buf.getvalue()}}},
+              )
+              resp.raise_for_status()

@@ -1,0 +1,356 @@
+<% macro _init() -%>
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+        submodules: false
+
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 50
+        submodules: true
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.9
+<%- endmacro %>
+
+<% macro _init_venv() -%>
+    - name: Handle virtualenv
+      uses: syphar/restore-virtualenv@v1.1
+      id: venv-cache
+      with:
+        requirement_files: setup.py
+<%- endmacro -%>
+
+<% macro build() %>
+    << _init() >>
+
+    # Build virtualenv
+
+    << _init_venv() >>
+
+    - name: Install Python dependencies
+      if: steps.venv-cache.outputs.cache-hit != 'true'
+      run: |
+        pip download --dest=$VIRTUAL_ENV/deps .[test,docs]
+        pip install -U --no-index --find-links=$VIRTUAL_ENV/deps $VIRTUAL_ENV/deps/*
+
+    # Prepare environment variables and shared artifacts
+
+    << caller() >>
+
+    - name: Upload shared artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: shared-artifacts
+        path: .tmp
+        retention-days: 1
+
+    # Restore binary cache
+
+    - name: Handle cached EdgeDB CLI binaries
+      uses: actions/cache@v2
+      id: cli-cache
+      with:
+        path: build/cli
+        key: edb-cli-v1-${{ env.EDGEDBCLI_GIT_REV }}
+
+    - name: Handle cached Rust extensions
+      uses: actions/cache@v2
+      id: rust-cache
+      with:
+        path: build/rust_extensions
+        key: edb-rust-v1-${{ hashFiles('.tmp/rust_cache_key.txt') }}
+        restore-keys: |
+          edb-rust-v1-
+
+    - name: Handle cached Cython extensions
+      uses: actions/cache@v2
+      id: ext-cache
+      with:
+        path: build/extensions
+        key: edb-ext-v1-${{ hashFiles('.tmp/ext_cache_key.txt') }}
+        restore-keys: |
+          edb-ext-v1-
+
+    - name: Handle cached PostgreSQL build
+      uses: actions/cache@v2
+      id: postgres-cache
+      with:
+        path: build/postgres/install
+        key: edb-postgres-v1-${{ env.POSTGRES_GIT_REV }}
+
+    # Install system dependencies for building
+
+    - name: Install system deps
+      if: |
+        steps.cli-cache.outputs.cache-hit != 'true' ||
+        steps.rust-cache.outputs.cache-hit != 'true' ||
+        steps.ext-cache.outputs.cache-hit != 'true' ||
+        steps.postgres-cache.outputs.cache-hit != 'true'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y uuid-dev libreadline-dev bison flex
+
+    - name: Install rust toolchain
+      if: |
+        steps.cli-cache.outputs.cache-hit != 'true' ||
+        steps.rust-cache.outputs.cache-hit != 'true'
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        default: true
+
+    # Build EdgeDB CLI
+
+    - name: Handle EdgeDB CLI build cache
+      uses: actions/cache@v2
+      if: steps.cli-cache.outputs.cache-hit != 'true'
+      with:
+        path: ${{ env.BUILD_TEMP }}/rust/cli
+        key: edb-cli-build-v1-${{ env.EDGEDBCLI_GIT_REV }}
+        restore-keys: |
+          edb-cli-build-v1-
+
+    - name: Build EdgeDB CLI
+      env:
+        CARGO_HOME: ${{ env.BUILD_TEMP }}/rust/cli/cargo_home
+        CACHE_HIT: ${{ steps.cli-cache.outputs.cache-hit }}
+      run: |
+        if [[ "$CACHE_HIT" == "true" ]]; then
+          cp -v build/cli/bin/edgedb edb/cli/edgedb
+        else
+          python setup.py -v build_cli
+        fi
+
+    # Build Rust extensions
+
+    - name: Handle Rust extensions build cache
+      uses: actions/cache@v2
+      if: steps.rust-cache.outputs.cache-hit != 'true'
+      with:
+        path: ${{ env.BUILD_TEMP }}/rust/extensions
+        key: edb-rust-build-v1-${{ hashFiles('.tmp/rust_cache_key.txt') }}
+        restore-keys: |
+          edb-rust-build-v1-
+
+    - name: Build Rust extensions
+      env:
+        CARGO_HOME: ${{ env.BUILD_TEMP }}/rust/extensions/cargo_home
+        CACHE_HIT: ${{ steps.rust-cache.outputs.cache-hit }}
+      run: |
+        if [[ "$CACHE_HIT" != "true" ]]; then
+          rm -rf ${BUILD_LIB}
+          mkdir -p build/rust_extensions
+          rsync -aP ./build/rust_extensions/ ${BUILD_LIB}/
+          python setup.py -v build_rust
+          rsync -aP ${BUILD_LIB}/ build/rust_extensions/
+        fi
+        rsync -aP ./build/rust_extensions/edb/ ./edb/
+
+    # Build extensions
+
+    - name: Handle Cython extensions build cache
+      uses: actions/cache@v2
+      if: steps.ext-cache.outputs.cache-hit != 'true'
+      with:
+        path: ${{ env.BUILD_TEMP }}/edb
+        key: edb-ext-build-v1-${{ hashFiles('.tmp/ext_cache_key.txt') }}
+        restore-keys: |
+          edb-ext-build-v1-
+
+    - name: Build Cython extensions
+      env:
+        CACHE_HIT: ${{ steps.ext-cache.outputs.cache-hit }}
+        BUILD_EXT_MODE: py-only
+      run: |
+        if [[ "$CACHE_HIT" != "true" ]]; then
+          rm -rf ${BUILD_LIB}
+          mkdir -p ./build/extensions
+          rsync -aP ./build/extensions/ ${BUILD_LIB}/
+          python setup.py -v build_ext
+          rsync -aP ${BUILD_LIB}/ ./build/extensions/
+        fi
+        rsync -aP ./build/extensions/edb/ ./edb/
+
+    # Build parsers
+
+    - name: Handle compiled parsers cache
+      uses: actions/cache@v2
+      id: parsers-cache
+      with:
+        path: build/lib
+        key: edb-parsers-v1-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
+        restore-keys: |
+          edb-parsers-v1-
+
+    - name: Build parsers
+      env:
+        CACHE_HIT: ${{ steps.parsers-cache.outputs.cache-hit }}
+      run: |
+        if [[ "$CACHE_HIT" != "true" ]]; then
+          python setup.py -v build_parsers --inplace
+        fi
+        rsync -aP ./build/lib/edb/ ./edb/
+
+    # Build PostgreSQL
+
+    - name: Build PostgreSQL
+      env:
+        CACHE_HIT: ${{ steps.postgres-cache.outputs.cache-hit }}
+      run: |
+        if [[ "$CACHE_HIT" == "true" ]]; then
+          cp build/postgres/install/stamp build/postgres/
+        else
+          python setup.py build_postgres
+          cp build/postgres/stamp build/postgres/install/
+        fi
+
+    # Install edgedb-server and populate egg-info
+
+    - name: Install edgedb-server and populate egg-info
+      env:
+        CACHE_HIT: ${{ steps.venv-cache.outputs.cache-hit }}
+        BUILD_EXT_MODE: skip
+      run: |
+        if [[ "$CACHE_HIT" == "true" ]]; then
+          rsync -aP $VIRTUAL_ENV/edgedb_server.egg-info/ ./edgedb_server.egg-info/
+        else
+          # --no-use-pep517 because we have explicitly installed all deps
+          # and don't want them to be reinstalled in an "isolated env".
+          pip install --no-use-pep517 --no-deps -e .[test,docs]
+          rsync -aP ./edgedb_server.egg-info/ $VIRTUAL_ENV/edgedb_server.egg-info/
+        fi
+
+    # Refresh the bootstrap cache
+
+    - name: Handle bootstrap cache
+      uses: actions/cache@v2
+      id: bootstrap-cache
+      with:
+        path: build/cache
+        key: edb-bootstrap-v1-${{ hashFiles('.tmp/bootstrap_cache_key.txt') }}
+        restore-keys: |
+          edb-bootstrap-v1-
+
+    - name: Bootstrap EdgeDB Server
+      if: steps.bootstrap-cache.outputs.cache-hit != 'true'
+      run: |
+        edb server --bootstrap-only
+<%- endmacro %>
+
+<% macro calc_cache_key() -%>
+    mkdir -p .tmp
+    python setup.py -q ci_helper --type cli > .tmp/edgedbcli_git_rev.txt
+    python setup.py -q ci_helper --type rust >.tmp/rust_cache_key.txt
+    python setup.py -q ci_helper --type ext >.tmp/ext_cache_key.txt
+    python setup.py -q ci_helper --type parsers >.tmp/parsers_cache_key.txt
+    python setup.py -q ci_helper --type postgres >.tmp/postgres_git_rev.txt
+    python setup.py -q ci_helper --type bootstrap >.tmp/bootstrap_cache_key.txt
+    echo EDGEDBCLI_GIT_REV=$(cat .tmp/edgedbcli_git_rev.txt) >> $GITHUB_ENV
+    echo POSTGRES_GIT_REV=$(cat .tmp/postgres_git_rev.txt) >> $GITHUB_ENV
+    echo BUILD_LIB=$(python setup.py -q ci_helper --type build_lib) >> $GITHUB_ENV
+    echo BUILD_TEMP=$(python setup.py -q ci_helper --type build_temp) >> $GITHUB_ENV
+<%- endmacro %>
+
+<% macro restore_cache() %>
+    << _init() >>
+
+    << _init_venv() >>
+
+    # Restore the artifacts and environment variables
+
+    - name: Download shared artifacts
+      uses: actions/download-artifact@v2
+      with:
+        name: shared-artifacts
+        path: .tmp
+
+    - name: Set environment variables
+      run: |
+        echo EDGEDBCLI_GIT_REV=$(cat .tmp/edgedbcli_git_rev.txt) >> $GITHUB_ENV
+        echo POSTGRES_GIT_REV=$(cat .tmp/postgres_git_rev.txt) >> $GITHUB_ENV
+        echo BUILD_LIB=$(python setup.py -q ci_helper --type build_lib) >> $GITHUB_ENV
+        echo BUILD_TEMP=$(python setup.py -q ci_helper --type build_temp) >> $GITHUB_ENV
+
+    # Restore build cache
+
+    - name: Restore cached EdgeDB CLI binaries
+      uses: actions/cache@v2
+      id: cli-cache
+      with:
+        path: build/cli
+        key: edb-cli-v1-${{ env.EDGEDBCLI_GIT_REV }}
+
+    - name: Restore cached Rust extensions
+      uses: actions/cache@v2
+      id: rust-cache
+      with:
+        path: build/rust_extensions
+        key: edb-rust-v1-${{ hashFiles('.tmp/rust_cache_key.txt') }}
+
+    - name: Restore cached Cython extensions
+      uses: actions/cache@v2
+      id: ext-cache
+      with:
+        path: build/extensions
+        key: edb-ext-v1-${{ hashFiles('.tmp/ext_cache_key.txt') }}
+
+    - name: Restore compiled parsers cache
+      uses: actions/cache@v2
+      id: parsers-cache
+      with:
+        path: build/lib
+        key: edb-parsers-v1-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
+
+    - name: Restore cached PostgreSQL build
+      uses: actions/cache@v2
+      id: postgres-cache
+      with:
+        path: build/postgres/install
+        key: edb-postgres-v1-${{ env.POSTGRES_GIT_REV }}
+
+    - name: Restore bootstrap cache
+      uses: actions/cache@v2
+      id: bootstrap-cache
+      with:
+        path: build/cache
+        key: edb-bootstrap-v1-${{ hashFiles('.tmp/bootstrap_cache_key.txt') }}
+
+    - name: Stop if we cannot retrieve the cache
+      if: |
+        steps.venv-cache.outputs.cache-hit != 'true' ||
+        steps.cli-cache.outputs.cache-hit != 'true' ||
+        steps.rust-cache.outputs.cache-hit != 'true' ||
+        steps.ext-cache.outputs.cache-hit != 'true' ||
+        steps.parsers-cache.outputs.cache-hit != 'true' ||
+        steps.postgres-cache.outputs.cache-hit != 'true' ||
+        steps.bootstrap-cache.outputs.cache-hit != 'true'
+      run: |
+        echo ::error::Cannot retrieve build cache.
+        exit 1
+
+    - name: Restore cache into the source tree
+      run: |
+        cp -v build/cli/bin/edgedb edb/cli/edgedb
+        rsync -aP ./build/rust_extensions/edb/ ./edb/
+        rsync -aP ./build/extensions/edb/ ./edb/
+        rsync -aP ./build/lib/edb/ ./edb/
+        cp build/postgres/install/stamp build/postgres/
+        rsync -aP $VIRTUAL_ENV/edgedb_server.egg-info/ ./edgedb_server.egg-info/
+<%- endmacro %>
+
+<% macro setup_terraform() -%>
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+        submodules: false
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v1
+
+    - name: Initialize Terraform
+      run: terraform init
+<%- endmacro %>
