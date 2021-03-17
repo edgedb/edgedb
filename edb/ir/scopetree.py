@@ -27,7 +27,6 @@ import weakref
 
 from edb import errors
 from edb.common import context as pctx
-from edb.common import ordered
 from . import pathid
 
 
