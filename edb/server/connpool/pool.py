@@ -239,20 +239,25 @@ class Block(typing.Generic[C]):
     def log_connection(self, event: str, timestamp: float = 0) -> None:
         if not timestamp:
             timestamp = time.monotonic()
+
+        # Add to the backlog if we're in batching, regardless of the time
         if self._is_log_batching:
             self._log_events[event] = self._log_events.setdefault(event, 0) + 1
+
+        # Time check only if we're not in batching
         elif timestamp - self._last_log_timestamp > MIN_LOG_TIME_THRESHOLD:
             logger.info(
                 "Connection %s to backend database: %s", event, self.dbname
             )
+            self._last_log_timestamp = timestamp
+
+        # Start batching if logging is too frequent, add timer only once here
         else:
             self._is_log_batching = True
             self._log_events = {event: 1}
             self.loop.call_later(
                 MIN_LOG_TIME_THRESHOLD, self._log_batched_conns,
             )
-
-        self._last_log_timestamp = timestamp
 
     def _log_batched_conns(self) -> None:
         logger.info(
@@ -266,6 +271,7 @@ class Block(typing.Generic[C]):
             MIN_LOG_TIME_THRESHOLD,
         )
         self._is_log_batching = False
+        self._last_log_timestamp = time.monotonic()
 
 
 class BasePool(typing.Generic[C]):

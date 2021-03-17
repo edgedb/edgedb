@@ -39,6 +39,7 @@ import dataclasses
 import datetime
 import functools
 import json
+import logging
 import os
 import random
 import statistics
@@ -47,6 +48,7 @@ import textwrap
 import time
 import typing
 import unittest
+import unittest.mock
 
 from edb.common import taskgroup
 from edb.server import connpool
@@ -691,6 +693,66 @@ class TestServerConnectionPool(unittest.TestCase):
 
         async def main():
             await asyncio.wait_for(test(0.05), timeout=5)
+
+        asyncio.run(main())
+
+    class MockLogger(logging.Logger):
+        logs: asyncio.Queue
+
+        def __init__(self):
+            super().__init__('edb.server')
+
+        def isEnabledFor(self, level):
+            return True
+
+        def _log(self, level, msg, args, *other, **kwargs):
+            if (
+                'established' in args or
+                '1 were discarded' in args or
+                'discarded' in args
+            ):
+                self.logs.put_nowait(args)
+
+    @unittest.mock.patch('edb.server.connpool.pool.logger',
+                         new_callable=MockLogger)
+    @unittest.mock.patch('edb.server.connpool.pool.MIN_LOG_TIME_THRESHOLD',
+                         0.2)
+    def test_connpool_log_batching(self, logger: MockLogger):
+        async def test():
+            pool = connpool.Pool(
+                connect=self.make_fake_connect(),
+                disconnect=self.make_fake_disconnect(),
+                max_capacity=5,
+            )
+            conn1 = await pool.acquire("block_a")
+            args = await logger.logs.get()
+            self.assertIn("established", args)
+            self.assertIn("block_a", args)
+
+            conn2 = await pool.acquire("block_b")
+            start = time.monotonic()
+            args = await logger.logs.get()
+            self.assertIn("established", args)
+            self.assertIn("block_b", args)
+            self.assertLess(time.monotonic() - start, 0.2)
+
+            pool.release("block_a", conn1, discard=True)
+            start = time.monotonic()
+            args = await logger.logs.get()
+            self.assertIn("1 were discarded", args)
+            self.assertIn("block_a", args)
+            self.assertGreater(time.monotonic() - start, 0.2)
+
+            pool.release("block_b", conn2, discard=True)
+            start = time.monotonic()
+            args = await logger.logs.get()
+            self.assertIn("discarded", args)
+            self.assertIn("block_b", args)
+            self.assertLess(time.monotonic() - start, 0.2)
+
+        async def main():
+            logger.logs = asyncio.Queue()
+            await asyncio.wait_for(test(), timeout=5)
 
         asyncio.run(main())
 
