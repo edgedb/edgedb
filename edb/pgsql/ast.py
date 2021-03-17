@@ -149,6 +149,13 @@ class BaseRangeVar(ImmutableBaseExpr):
     #: The id of the schema object this rvar represents
     schema_object_id: typing.Optional[uuid.UUID] = None
 
+    def __repr__(self) -> str:
+        return (
+            f'<pg.{self.__class__.__name__} '
+            f'alias={self.alias.aliasname} '
+            f'at {id(self):#x}>'
+        )
+
 
 class BaseRelation(EdgeQLPathInfo, BaseExpr):
     name: str
@@ -210,7 +217,8 @@ class RelRangeVar(PathRangeVar):
     def __repr__(self) -> str:
         return (
             f'<pg.{self.__class__.__name__} '
-            f'name={self.relation.name!r} at {id(self):#x}>'
+            f'name={self.relation.name!r} alias={self.alias.aliasname} '
+            f'at {id(self):#x}>'
         )
 
 
