@@ -50,18 +50,10 @@ as its *supertype*.
 The most common use of ``CREATE SCALAR TYPE`` is to define a scalar
 subtype with constraints.
 
-:eql:synopsis:`EXTENDING <supertype>`
-    Optional clause specifying the *supertype* of the new type.
-
-    If :eql:synopsis:`<supertype>` is an
-    :eql:type:`enumerated type <std::enum>` declaration then
-    an enumerated scalar type is defined.
-
-    Use of ``EXTENDING`` creates a persistent type relationship
-    between the new subtype and its supertype(s).  Schema modifications
-    to the supertype(s) propagate to the subtype.
-
-The following subcommands are allowed in the ``CREATE SCALAR TYPE`` block:
+Most sub-commands and options of this command are identical to the
+:ref:`SDL scalar type declaration <ref_eql_sdl_scalars_syntax>`. The
+following subcommands are allowed in the ``CREATE SCALAR TYPE``
+block:
 
 :eql:synopsis:`CREATE ANNOTATION <annotation-name> := <value>;`
     Set scalar type's :eql:synopsis:`<annotation-name>` to

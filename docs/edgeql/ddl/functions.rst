@@ -50,7 +50,6 @@ CREATE FUNCTION
     # and <subcommand> is one of
 
       SET volatility := {'VOLATILE' | 'IMMUTABLE' | 'STABLE'} ;
-      RENAME TO <newname> ;
       CREATE ANNOTATION <annotation-name> := <value> ;
       USING ( <expr> ) ;
       USING <language> <functionbody> ;
@@ -72,106 +71,20 @@ are called *overloaded functions*.
 Parameters
 ----------
 
-:eql:synopsis:`<name>`
-    The name (optionally module-qualified) of the function to create.
-
-:eql:synopsis:`<argkind>`
-    The kind of an argument: ``VARIADIC`` or ``NAMED ONLY``.
-
-    If not specified, the argument is called *positional*.
-
-    The ``VARIADIC`` modifier indicates that the function takes an
-    arbitrary number of arguments of the specified type.  The passed
-    arguments will be passed as as array of the argument type.
-    Positional arguments cannot follow a ``VARIADIC`` argument.
-    ``VARIADIC`` parameters cannot have a default value.
-
-    The ``NAMED ONLY`` modifier indicates that the argument can only
-    be passed using that specific name.  Positional arguments cannot
-    follow a ``NAMED ONLY`` argument.
-
-:eql:synopsis:`<argname>`
-    The name of an argument.  If ``NAMED ONLY`` modifier is used this
-    argument *must* be passed using this name only.
-
-:eql:synopsis:`<typequal>`
-    The type qualifier: ``SET OF`` or ``OPTIONAL``.
-
-    The ``SET OF`` qualifier indicates that the function is taking the
-    argument as a *whole set*, as opposed to being called on the input
-    product element-by-element.
-
-    The ``OPTIONAL`` qualifier indicates that the function will be called
-    if the argument is an empty set.  The default behavior is to return
-    an empty set if the argument is not marked as ``OPTIONAL``.
-
-:eql:synopsis:`<argtype>`
-    The data type of the function's arguments
-    (optionally module-qualified).
-
-:eql:synopsis:`<default>`
-    An expression to be used as default value if the parameter is not
-    specified.  The expression has to be of a type compatible with the
-    type of the argument.
-
-:eql:synopsis:`<rettype>`
-    The return data type (optionally module-qualified).
-
-    The ``SET OF`` modifier indicates that the function will return
-    a non-singleton set.
-
-    The ``OPTIONAL`` qualifier indicates that the function may return
-    an empty set.
-
-:eql:synopsis:`USING ( <expr> )`
-    Specified the body of the function.  :eql:synopsis:`<expr>` is an
-    arbitrary EdgeQL expression.
-
-:eql:synopsis:`USING <language> <functionbody>`
-    A verbose version of the :eql:synopsis:`USING` clause that allows
-    to specify the language of the function body.
-
-    * :eql:synopsis:`<language>` is the name of the language that
-      the function is implemented in.  Currently can only be ``edgeql``.
-
-    * :eql:synopsis:`<functionbody>` is a string constant defining
-      the function.  It is often helpful to use
-      :ref:`dollar quoting <ref_eql_lexical_dollar_quoting>`
-      to write the function definition string.
-
-
-Subcommands
------------
-
-``CREATE FUNCTION`` allows specifying the following subcommands in its
-block:
+Most sub-commands and options of this command are identical to the
+:ref:`SDL function declaration <ref_eql_sdl_functions_syntax>`, with
+some additional features listed below:
 
 :eql:synopsis:`SET volatility := {'VOLATILE' | 'IMMUTABLE' | 'STABLE'}`
     Function volatility determines how aggressively the compiler can
-    optimize its invocations.
-
-    If not explicitly specified the function volatility is set to
-    ``IMMUTABLE`` by default.
-
-    * A ``VOLATILE`` function can modify the database and can return
-      different results on successive calls with the same arguments.
-
-    * A ``STABLE`` function cannot modify the database and is
-      guaranteed to return the same results given the same
-      arguments *within a single statement*.
-
-    * An ``IMMUTABLE`` function cannot modify the database and is
-      guaranteed to return the same results given the same arguments
-      *forever*.
+    optimize its invocations. Other than a slight syntactical
+    difference this is the same as the corresponding SDL declaration.
 
 :eql:synopsis:`CREATE ANNOTATION <annotation-name> := <value>`
     Set the function's :eql:synopsis:`<annotation-name>` to
     :eql:synopsis:`<value>`.
 
     See :eql:stmt:`CREATE ANNOTATION` for details.
-
-:eql:synopsis:`USING <language> <functionbody>`
-    See the meaning of *language* and *functionbody* above.
 
 
 Examples
@@ -229,7 +142,8 @@ Change the definition of a function.
     # and <subcommand> is one of
 
       SET volatility := {'VOLATILE' | 'IMMUTABLE' | 'STABLE'} ;
-      RESET volatility
+      RESET volatility ;
+      RENAME TO <newname> ;
       CREATE ANNOTATION <annotation-name> := <value> ;
       ALTER ANNOTATION <annotation-name> := <value> ;
       DROP ANNOTATION <annotation-name> ;
@@ -247,7 +161,28 @@ allows to change annotations, the volatility level, and other attributes.
 Subcommands
 -----------
 
-Refer to :eql:stmt:`CREATE FUNCTION` for details.
+The following subcommands are allowed in the ``ALTER FUNCTION`` block
+in addition to the commands common to the ``CREATE FUNCITON``:
+
+:eql:synopsis:`RESET volatility`
+    Remove explicitly specified volatility in favor of the volatility
+    inferred from the function body.
+
+:eql:synopsis:`RENAME TO <newname>`
+    Change the name of the function to *newname*.
+
+:eql:synopsis:`ALTER ANNOTATION <annotation-name>;`
+    Alter function :eql:synopsis:`<annotation-name>`.
+    See :eql:stmt:`ALTER ANNOTATION <ALTER ANNOTATION>` for details.
+
+:eql:synopsis:`DROP ANNOTATION <annotation-name>;`
+    Remove function :eql:synopsis:`<annotation-name>`.
+    See :eql:stmt:`DROP ANNOTATION <DROP ANNOTATION>` for details.
+
+:eql:synopsis:`RESET errmessage;`
+    Remove the error message from this abstract constraint.
+    The error message specified in the base abstract constraint
+    will be used instead.
 
 
 Example

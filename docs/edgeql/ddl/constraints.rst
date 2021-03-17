@@ -26,7 +26,7 @@ CREATE ABSTRACT CONSTRAINT
 
     # where <argspec> is:
 
-      [ $<argname>: ] <argtype>
+      [ <argname>: ] <argtype>
 
     # where <subcommand> is one of
 
@@ -49,49 +49,21 @@ in the module.
 Parameters
 ----------
 
+Most sub-commands and options of this command are identical to the
+:ref:`SDL constraint declaration <ref_eql_sdl_constraints_syntax>`,
+with some additional features listed below:
+
 :eql:synopsis:`[ <module-alias> := ] MODULE <module-name>`
     An optional list of module alias declarations to be used in the
     migration definition.  When *module-alias* is not specified,
     *module-name* becomes the effective current module and is used
     to resolve all unqualified names.
 
-:eql:synopsis:`<name>`
-    The name (optionally module-qualified) of the new constraint.
-
-:eql:synopsis:`<argspec>`
-    An optional list of constraint arguments.
-    :eql:synopsis:`<argname>` optionally specifies
-    the argument name, and :eql:synopsis:`<argtype>`
-    specifies the argument type.
-
-:eql:synopsis:`ON ( <subject-expr> )`
-    An optional expression defining the *subject* of the constraint.
-    If not specified, the subject is the value of the schema item on
-    which the concrete constraint is defined.  The expression must
-    refer to the original subject of the constraint as
-    ``__subject__``.  Note also that ``<subject-expr>`` itself has to
-    be parenthesized.
-
-:eql:synopsis:`EXTENDING <base> [, ...]`
-    If specified, declares the *parent* constraints for this constraint.
-
-The following subcommands are allowed in the ``CERATE ABSTRACT
-CONSTRAINT`` block:
-
-:eql:synopsis:`USING <constr_expression>`
-    A boolean expression that returns ``true`` for valid data and
-    ``false`` for invalid data.  The expression may refer to the subject
-    of the constraint as ``__subject__``.
-
 :eql:synopsis:`SET errmessage := <error_message>`
-    An optional string literal defining the error message template that
-    is raised when the constraint is violated.  The template is a formatted
-    string that may refer to constraint context variables in curly braces.
-    The template may refer to the following:
-
-    - ``$argname`` -- the value of the specified constraint argument
-    - ``__subject__`` -- the value of the ``title`` annotation of the scalar
-      type, property or link on which the constraint is defined.
+    An optional string literal defining the error message template
+    that is raised when the constraint is violated. Other than a
+    slight syntactical difference this is the same as the
+    corresponding SDL declaration.
 
 :eql:synopsis:`CREATE ANNOTATION <annotation-name> := <value>;`
     Set constraint :eql:synopsis:`<annotation-name>` to
@@ -259,7 +231,7 @@ Define a concrete constraint on the specified schema item.
 
     # where <argspec> is:
 
-      [ $<argname>: ] <argtype>
+      [ <argname>: ] <argvalue>
 
     # where <subcommand> is one of
 
@@ -283,44 +255,21 @@ abstract constraint.
 Parameters
 ----------
 
+Most sub-commands and options of this command are identical to the
+:ref:`SDL constraint declaration <ref_eql_sdl_constraints_syntax>`,
+with some additional features listed below:
+
 :eql:synopsis:`[ <module-alias> := ] MODULE <module-name>`
     An optional list of module alias declarations to be used in the
     migration definition.  When *module-alias* is not specified,
     *module-name* becomes the effective current module and is used
     to resolve all unqualified names.
 
-:eql:synopsis:`DELEGATED`
-    If specified, the constraint is defined as *delegated*, which means
-    that it will not be enforced on the type it's declared on, and
-    the enforcement will be delegated to the subtypes of this type.
-    This is particularly useful for :eql:constraint:`exclusive`
-    constraints in abstract types.
-
-:eql:synopsis:`<name>`
-    The name (optionally module-qualified) of the abstract constraint
-    from which this constraint is derived.
-
-:eql:synopsis:`<argspec>`
-    An optional list of constraint arguments.  :eql:synopsis:`<argname>`
-    optionally specifies the argument name, and :eql:synopsis:`<argvalue>`
-    specifies the argument value.  The argument value specification must
-    match the parameter declaration of the abstract constraint.
-
-:eql:synopsis:`ON ( <subject-expr> )`
-    An optional expression defining the *subject* of the constraint.
-    If not specified, the subject is the value of the schema item on
-    which the concrete constraint is defined.  The expression must
-    refer to the original subject of the constraint as
-    ``__subject__``.  Note also that ``<subject-expr>`` itself has to
-    be parenthesized.
-
-The following subcommands are allowed in the ``CERATE CONSTRAINT`` block:
-
 :eql:synopsis:`SET errmessage := <error_message>`
-    An optional string literal defining the error message template that
-    is raised when the constraint is violated.  See the relevant
-    paragraph in :eql:stmt:`CREATE ABSTRACT CONSTRAINT` for the rules
-    of error message template syntax.
+    An optional string literal defining the error message template
+    that is raised when the constraint is violated. Other than a
+    slight syntactical difference this is the same as the
+    corresponding SDL declaration.
 
 :eql:synopsis:`CREATE ANNOTATION <annotation-name> := <value>;`
     An optional list of annotations for the constraint.

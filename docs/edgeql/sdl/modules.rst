@@ -45,9 +45,9 @@ commands <ref_eql_ddl_modules>`.
 Description
 -----------
 
-The module block declaration defines a new module much like
-:eql:stmt:`CREATE MODULE`.  Unlike its DDL counterpart the module
-block can have sub-declarations:
+The module block declaration defines a new module similar to the
+:eql:stmt:`CREATE MODULE` command, but it also allows putting the
+module content as nested declarations:
 
 :sdl:synopsis:`<schema-declarations>`
     Define various schema items that belong to this module.

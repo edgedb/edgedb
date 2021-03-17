@@ -72,52 +72,19 @@ created in the same module as the containing object or property.
 Parameters
 ----------
 
-:eql:synopsis:`REQUIRED`
-    If specified, the property is considered *required* for the parent
-    object type.  It is an error for an object to have a required
-    property resolve to an empty value.  Child properties **always**
-    inherit the *required* attribute, i.e it is not possible to make a
-    required property non-required by extending it.
-
-:eql:synopsis:`OPTIONAL`
-    This is the default qualifier assumed when no qualifier is
-    specified, but it can also be specified explicitly. The property
-    is considered *optional* for the parent object type, i.e. it is
-    possible for the property to resolve to an empty value.
-
-:eql:synopsis:`MULTI`
-    Specifies that there may be more than one instance of this property
-    in an object, in other words, ``Object.property`` may resolve to a set
-    of a size greater than one.
-
-:eql:synopsis:`SINGLE`
-    Specifies that there may be at most *one* instance of this property
-    in an object, in other words, ``Object.property`` may resolve to a set
-    of a size not greater than one.  ``SINGLE`` is assumed if nether
-    ``MULTI`` nor ``SINGLE`` qualifier is specified.
-
-:eql:synopsis:`EXTENDING <base> [, ...]`
-    Optional clause specifying the *parents* of the new property item.
-
-    Use of ``EXTENDING`` creates a persistent schema relationship
-    between the new property and its parents.  Schema modifications
-    to the parent(s) propagate to the child.
-
-:eql:synopsis:`<type>`
-    The type must be a valid :ref:`type expression <ref_eql_types>`
-    denoting a non-abstract scalar or a container type.
-
-The following subcommands are allowed in the ``CREATE PROPERTY`` block:
+Most sub-commands and options of this command are identical to the
+:ref:`SDL property declaration <ref_eql_sdl_props_syntax>`. The
+following subcommands are allowed in the ``CREATE PROPERTY`` block:
 
 :eql:synopsis:`SET default := <expression>`
     Specifies the default value for the property as an EdgeQL expression.
-    The default value is used in an ``INSERT`` statement if an explicit
-    value for this property is not specified.
+    Other than a slight syntactical difference this is the same as the
+    corresponding SDL declaration.
 
 :eql:synopsis:`SET readonly := {true | false}`
-    If ``true``, the property is considered *read-only*.  Modifications
-    of this property are prohibited once an object is created.  All of the
-    derived properties **must** preserve the original *read-only* value.
+    Specifies whether the property is considered *read-only*. Other
+    than a slight syntactical difference this is the same as the
+    corresponding SDL declaration.
 
 :eql:synopsis:`CREATE ANNOTATION <annotation-name> := <value>`
     Set property :eql:synopsis:`<annotation-name>` to

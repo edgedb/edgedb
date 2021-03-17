@@ -19,6 +19,7 @@ Declare a new non-negative integer type:
         constraint min_value(0);
     }
 
+.. _ref_eql_sdl_scalars_syntax:
 
 Syntax
 ------
@@ -39,9 +40,26 @@ commands <ref_eql_ddl_scalars>`.
 Description
 -----------
 
-The core of the declaration is identical to
-:eql:stmt:`CREATE SCALAR TYPE`, while the valid SDL sub-declarations
-are listed below:
+This declaration defines a new object type with the following options:
+
+:eql:synopsis:`abstract`
+    If specified, the created scalar type will be *abstract*.
+
+:eql:synopsis:`<TypeName>`
+    The name (optionally module-qualified) of the new scalar type.
+
+:eql:synopsis:`extending <supertype>`
+    Optional clause specifying the *supertype* of the new type.
+
+    If :eql:synopsis:`<supertype>` is an
+    :eql:type:`enumerated type <std::enum>` declaration then
+    an enumerated scalar type is defined.
+
+    Use of ``extending`` creates a persistent type relationship
+    between the new subtype and its supertype(s).  Schema modifications
+    to the supertype(s) propagate to the subtype.
+
+The valid SDL sub-declarations are listed below:
 
 :sdl:synopsis:`<annotation-declarations>`
     Set scalar type :ref:`annotation <ref_eql_sdl_annotations>`

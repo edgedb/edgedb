@@ -1492,6 +1492,16 @@ abstract property test::foo {
             }
         """
 
+    def test_eschema_syntax_function_22(self):
+        """
+        module test {
+            function some_func(a: str) -> std::str {
+                volatility := 'IMMUTABLE';
+                using sql function 'some_other_func';
+            };
+        };
+        """
+
     def test_eschema_syntax_alias_01(self):
         """
         module test {

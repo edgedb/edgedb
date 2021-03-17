@@ -42,6 +42,7 @@ Declare a *concrete* constraint on an object type:
         );
     }
 
+.. _ref_eql_sdl_constraints_syntax:
 
 Syntax
 ------
@@ -63,15 +64,70 @@ commands <ref_eql_ddl_constraints>`.
 
     # where <argspec> is:
 
-    [ $<argname>: ] <argtype>
+    [ <argname>: ] {<argtype> | <argvalue>}
 
 
 Description
 -----------
 
-The core of the declaration is identical to
-:eql:stmt:`CREATE CONSTRAINT <CREATE ABSTRACT CONSTRAINT>`,
-while the valid SDL sub-declarations are listed below:
+This declaration defines a new constraint with the following options:
+
+:eql:synopsis:`abstract`
+    If specified, the constraint will be *abstract*.
+
+:eql:synopsis:`delegated`
+    If specified, the constraint is defined as *delegated*, which
+    means that it will not be enforced on the type it's declared on,
+    and the enforcement will be delegated to the subtypes of this
+    type. This is particularly useful for :eql:constraint:`exclusive`
+    constraints in abstract types. This is only valid for *concrete
+    constraints*.
+
+:eql:synopsis:`<name>`
+    The name (optionally module-qualified) of the new constraint.
+
+:eql:synopsis:`<argspec>`
+    An optional list of constraint arguments.
+
+    For an *abstract constraint* :eql:synopsis:`<argname>` optionally
+    specifies the argument name and :eql:synopsis:`<argtype>`
+    specifies the argument type.
+
+    For a *concrete constraint* :eql:synopsis:`<argname>` optionally
+    specifies the argument name and :eql:synopsis:`<argvalue>`
+    specifies the argument value.  The argument value specification must
+    match the parameter declaration of the abstract constraint.
+
+:eql:synopsis:`on ( <subject-expr> )`
+    An optional expression defining the *subject* of the constraint.
+    If not specified, the subject is the value of the schema item on
+    which the concrete constraint is defined.  The expression must
+    refer to the original subject of the constraint as
+    ``__subject__``.  Note also that ``<subject-expr>`` itself has to
+    be parenthesized.
+
+:eql:synopsis:`extending <base> [, ...]`
+    If specified, declares the *parent* constraints for this abstract
+    constraint.
+
+The valid SDL sub-declarations are listed below:
+
+:eql:synopsis:`using <constr_expression>`
+    A boolean expression that returns ``true`` for valid data and
+    ``false`` for invalid data.  The expression may refer to the
+    subject of the constraint as ``__subject__``. This declaration is
+    only valid for *abstract constraints*.
+
+:eql:synopsis:`errmessage := <error_message>`
+    An optional string literal defining the error message template
+    that is raised when the constraint is violated.  The template is a
+    formatted string that may refer to constraint context variables in
+    curly braces. The template may refer to the following:
+
+    - ``$argname`` -- the value of the specified constraint argument
+    - ``__subject__`` -- the value of the ``title`` annotation of the
+      scalar type, property or link on which the constraint is
+      defined.
 
 :sdl:synopsis:`<annotation-declarations>`
     Set constraint :ref:`annotation <ref_eql_sdl_annotations>`
