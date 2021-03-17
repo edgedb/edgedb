@@ -17,6 +17,8 @@
 #
 
 from __future__ import annotations
+
+import logging
 import typing
 
 import asyncio
@@ -29,7 +31,9 @@ from . import rolavg
 
 MIN_CONN_TIME_THRESHOLD = 0.01
 MIN_QUERY_TIME_THRESHOLD = 0.001
+MIN_LOG_TIME_THRESHOLD = 1
 
+logger = logging.getLogger("edb.server")
 
 CP1 = typing.TypeVar('CP1', covariant=True)
 CP2 = typing.TypeVar('CP2', contravariant=True)
@@ -110,6 +114,10 @@ class Block(typing.Generic[C]):
 
     _cached_calibrated_demand: float
 
+    _is_log_batching: bool
+    _last_log_timestamp: float
+    _log_events: typing.Dict[str, int]
+
     def __init__(
         self,
         dbname: str,
@@ -130,6 +138,10 @@ class Block(typing.Generic[C]):
 
         self.querytime_avg = rolavg.RollingAverage(history_size=20)
         self.nwaiters_avg = rolavg.RollingAverage(history_size=3)
+
+        self._is_log_batching = False
+        self._last_log_timestamp = 0
+        self._log_events = {}
 
     def count_conns(self) -> int:
         return len(self.conns) + self.pending_conns
@@ -223,6 +235,43 @@ class Block(typing.Generic[C]):
             if not waiter.done():
                 waiter.set_result(None)
                 break
+
+    def log_connection(self, event: str, timestamp: float = 0) -> None:
+        if not timestamp:
+            timestamp = time.monotonic()
+
+        # Add to the backlog if we're in batching, regardless of the time
+        if self._is_log_batching:
+            self._log_events[event] = self._log_events.setdefault(event, 0) + 1
+
+        # Time check only if we're not in batching
+        elif timestamp - self._last_log_timestamp > MIN_LOG_TIME_THRESHOLD:
+            logger.info(
+                "Connection %s to backend database: %s", event, self.dbname
+            )
+            self._last_log_timestamp = timestamp
+
+        # Start batching if logging is too frequent, add timer only once here
+        else:
+            self._is_log_batching = True
+            self._log_events = {event: 1}
+            self.loop.call_later(
+                MIN_LOG_TIME_THRESHOLD, self._log_batched_conns,
+            )
+
+    def _log_batched_conns(self) -> None:
+        logger.info(
+            "Backend connections to database %s: %s "
+            "in at least the last %.1f seconds.",
+            self.dbname,
+            ', '.join(
+                f'{num} were {event}'
+                for event, num in self._log_events.items()
+            ),
+            MIN_LOG_TIME_THRESHOLD,
+        )
+        self._is_log_batching = False
+        self._last_log_timestamp = time.monotonic()
 
 
 class BasePool(typing.Generic[C]):
@@ -376,7 +425,12 @@ class BasePool(typing.Generic[C]):
             block = self._new_block(dbname)
         return block
 
-    async def _connect(self, block: Block[C], started_at: float) -> None:
+    async def _connect(
+        self, block: Block[C], started_at: float, event: str
+    ) -> None:
+        logger.debug(
+            "Establishing new connection to backend database: %s", block.dbname
+        )
         try:
             conn = await self._connect_cb(block.dbname)
         except Exception:
@@ -393,8 +447,12 @@ class BasePool(typing.Generic[C]):
 
         # Release the connection to block waiters.
         block.release(conn)
+        block.log_connection(event, ended_at)
 
-    async def _disconnect(self, conn: C) -> None:
+    async def _disconnect(self, conn: C, block: Block[C]) -> None:
+        logger.debug(
+            "Discarding a connection to backend database: %s", block.dbname
+        )
         try:
             await self._disconnect_cb(conn)
         except Exception:
@@ -413,9 +471,10 @@ class BasePool(typing.Generic[C]):
         started_at: float,
     ) -> None:
         self._log_to_snapshot(dbname=from_block.dbname, event='transfer-from')
-        await self._disconnect(from_conn)
+        await self._disconnect(from_conn, from_block)
+        from_block.log_connection('transferred out')
         self._cur_capacity += 1
-        await self._connect(to_block, started_at)
+        await self._connect(to_block, started_at, 'transferred in')
 
     def _schedule_transfer(
         self,
@@ -441,14 +500,17 @@ class BasePool(typing.Generic[C]):
             self._blocks.move_to_end(block.dbname, last=True)
         self._log_to_snapshot(
             dbname=block.dbname, event='connect', value=block.count_conns())
-        self._get_loop().create_task(self._connect(block, started_at))
+        self._get_loop().create_task(
+            self._connect(block, started_at, 'established')
+        )
 
     async def _discard_conn(self, block: Block[C], conn: C) -> None:
         assert not block.conns[conn].in_use
         block.conns.pop(conn)
         self._log_to_snapshot(
             dbname=block.dbname, event='disconnect', value=block.count_conns())
-        await self._disconnect(conn)
+        await self._disconnect(conn, block)
+        block.log_connection("discarded")
 
 
 class Pool(BasePool[C]):

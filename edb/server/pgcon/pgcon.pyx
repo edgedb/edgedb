@@ -1510,6 +1510,7 @@ cdef class PGConnection:
         self.transport = None
 
         if self.server is not None:
+            # only system db PGConnection has self.server
             self.server._on_sys_pgcon_connection_lost()
 
         if self.connected_fut is not None and not self.connected_fut.done():
