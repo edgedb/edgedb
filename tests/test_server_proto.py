@@ -1892,7 +1892,9 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
             123
         )
 
-        async with tb.start_edgedb_server(adjacent_to=self.con) as sd:
+        async with tb.start_edgedb_server(
+            adjacent_to=self.con, postgres_dsn=self.postgres_dsn
+        ) as sd:
 
             con2 = await edgedb.async_connect(
                 host=sd.host,
@@ -1923,9 +1925,9 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
 
                 # Give some time for the other server to re-introspect the
                 # schema: the first attempt of querying Test2 might fail.
-                # We'll give it generous 5 seconds to accomodate slow CI.
+                # We'll give it generous 30 seconds to accomodate slow CI.
                 async for tr in self.try_until_succeeds(
-                    ignore=edgedb.InvalidReferenceError
+                    ignore=edgedb.InvalidReferenceError, timeout=30,
                 ):
                     async with tr:
                         self.assertEqual(
