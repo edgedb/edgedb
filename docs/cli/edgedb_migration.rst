@@ -38,7 +38,7 @@ Here is typical file tree::
 
 In the tree:
 
-* ``dbschema/*.esdl`` is a set of files that contains current database schema
+* ``dbschema/*.esdl`` is a set of files that describes the current database schema
 * ``default.esdl`` is named after ``module default`` that is usually used for
   the initial application schema. There is no requirement to use a single
   module, but this is a good start.
