@@ -24,7 +24,7 @@ description. It's also possible to split the schema definition across
 multiple ``.esdl`` files. The migration tools will read all of them
 and treat them as a single SDL document.
 
-Here is typical file tree::
+Here is a typical file tree::
 
     $ tree dbschema
     dbschema
