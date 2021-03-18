@@ -85,7 +85,7 @@ migrations or schema changes.
 Create migration script
 =======================
 
-After editing schema files, migration script must be created.
+After editing schema files, a migration script needs to be created.
 This is done by invoking the following command:
 
 .. cli:synopsis::
