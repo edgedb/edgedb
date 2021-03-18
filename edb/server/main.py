@@ -36,6 +36,7 @@ import tempfile
 import typing
 import warnings
 
+import psutil
 import uvloop
 
 import click
@@ -55,6 +56,8 @@ from . import pgconnparams
 from . import pgcluster
 from . import protocol
 
+
+BYTES_OF_MEM_PER_CONN = 100 * 1024 * 1024 / 8  # 100Mb
 
 logger = logging.getLogger('edb.server')
 _server_initialized = False
@@ -271,10 +274,8 @@ def run_server(args: ServerConfig):
     cluster: Union[pgcluster.Cluster, pgcluster.RemoteCluster]
     if args.data_dir:
         if not args.max_backend_connections:
-            max_conns = _default_max_backend_connections()
-            new_args = args._asdict()
-            new_args['max_backend_connections'] = max_conns
-            args = ServerConfig(**new_args)
+            max_conns = _compute_default_max_backend_connections()
+            args = args._replace(max_backend_connections=max_conns)
             logger.info(f'Using {max_conns} max backend connections based on '
                         f'total memory.')
 
@@ -295,9 +296,7 @@ def run_server(args: ServerConfig):
             instance_params.max_connections -
             instance_params.reserved_connections)
         if not args.max_backend_connections:
-            new_args = args._asdict()
-            new_args['max_backend_connections'] = max_conns
-            args = ServerConfig(**new_args)
+            args = args._replace(max_backend_connections=max_conns)
             logger.info(f'Detected {max_conns} backend connections available.')
         elif args.max_backend_connections > max_conns:
             abort(f'--max-backend-connections is too large for this backend; '
@@ -517,21 +516,9 @@ def _validate_max_backend_connections(ctx, param, value):
     return value
 
 
-def _default_max_backend_connections():
-    try:
-        import psutil
-    except ImportError:
-        total_mem = 1024 * 1024 * 1024
-        if sys.platform.startswith("linux"):
-            with open('/proc/meminfo', 'rb') as f:
-                for line in f:
-                    if line.startswith(b'MemTotal'):
-                        total_mem = int(line.split()[1]) * 1024
-                        break
-    else:
-        total_mem = psutil.virtual_memory().total
-
-    return int(total_mem / 1024 / 1024 / 100 * 8)
+def _compute_default_max_backend_connections():
+    total_mem = psutil.virtual_memory().total
+    return int(total_mem / BYTES_OF_MEM_PER_CONN)
 
 
 def _validate_compiler_pool_size(ctx, param, value):
@@ -614,9 +601,9 @@ _server_options = [
         help=f'The maximum NUM of connections this EdgeDB instance could make '
              f'to the backend PostgreSQL cluster. If not set, EdgeDB will '
              f'detect and calculate the NUM: RAM/100Mb='
-             f'{_default_max_backend_connections()} for local Postgres or '
-             f'pg_settings.max_connections for remote Postgres, minus the NUM '
-             f'of --reserved-pg-connections.',
+             f'{_compute_default_max_backend_connections()} for local '
+             f'Postgres or pg_settings.max_connections for remote Postgres, '
+             f'minus the NUM of --reserved-pg-connections.',
         callback=_validate_max_backend_connections),
     click.option(
         '--compiler-pool-size', type=int,

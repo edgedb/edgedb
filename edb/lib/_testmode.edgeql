@@ -97,6 +97,12 @@ ALTER TYPE cfg::AbstractConfig {
         CREATE ANNOTATION cfg::internal := 'true';
         SET default := '';
     };
+
+    CREATE PROPERTY __pg_max_connections -> std::str {
+        CREATE ANNOTATION cfg::internal := 'true';
+        CREATE ANNOTATION cfg::backend_setting := '"max_connections"';
+        SET default := '';
+    };
 };
 
 
