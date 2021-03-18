@@ -74,7 +74,7 @@ General Workflow
 
 It's worth mentioning that after code checkout (e.g. ``git pull``) it makes
 sense to run ``edgedb migrate`` again. The server has a record of the latest
-recorded so will only apply new migrations.
+migration, so it will only apply new migrations.
 
 At any time ``edgedb show-status`` describes if there are any pending
 migrations or schema changes.
