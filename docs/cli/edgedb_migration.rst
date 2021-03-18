@@ -43,7 +43,7 @@ In the tree:
   the initial application schema. There is no requirement to use a single
   module, but this is a good start.
 * ``dbschema/migrations/*.edgeql`` is a sequence of migration files that, when
-  applied bring database schema to the latest version. These files are mostly
+  applied, bring the database schema to the latest version. These files are mostly
   managed by command-line tools, but have to be commited to source code
   repository, and occasionally may need to be edited manually (common example
   is when merging a branch).
