@@ -124,11 +124,11 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
 % OK %
         "FENCE": {
-            "(test::Card)",
             "(test::Card).<deck[IS __derived__::(opaque: test:User)]\
 .>indirection[IS test::User]": {
                 "(test::Card).<deck[IS __derived__::(opaque: test:User)]"
             },
+            "(test::Card)",
             "FENCE": {
                 "(test::Card).>owner[IS test::User]"
             }
@@ -149,16 +149,16 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
 % OK %
         "FENCE": {
-            "(test::Card)",
-            "(test::User)",
-            "FENCE": {
-                "(test::Card).>users[IS test::User]",
-                "[ns~2]@[ns~3]@@(__derived__::__derived__|U@w~1)"
-            },
             "FENCE": {
                 "FENCE": {
                     "[ns~1]@@(test::User)"
                 }
+            },
+            "(test::Card)",
+            "(test::User)",
+            "FENCE": {
+                "[ns~2]@[ns~3]@@(__derived__::__derived__|U@w~1)",
+                "(test::Card).>users[IS test::User]"
             }
         }
         """
@@ -199,10 +199,9 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
 % OK %
         "FENCE": {
-            "(test::User)",
             "(test::User).>friends[IS test::User]",
-            "(test::User).>friends[IS test::User]\
-@nickname[IS std::str]"
+            "(test::User)",
+            "(test::User).>friends[IS test::User]@nickname[IS std::str]"
         }
         """
 
@@ -213,9 +212,6 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
 % OK %
         "FENCE": {
-            "(__derived__::expr~6).>friends[IS test::User]": {
-                "(__derived__::expr~6)"
-            },
             "FENCE": {
                 "FENCE": {
                     "(test::User)",
@@ -223,6 +219,9 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                         "(test::User).>name[IS std::str]"
                     }
                 }
+            },
+            "(__derived__::expr~6).>friends[IS test::User]": {
+                "(__derived__::expr~6)"
             }
         }
         """
@@ -234,11 +233,11 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
 % OK %
         "FENCE": {
-            "(test::Card) [OPT]",
-            "(test::Card).>element[IS std::str] [OPT]",
             "FENCE": {
                 "(test::Card).>cost[IS std::int64]"
-            }
+            },
+            "(test::Card) [OPT]",
+            "(test::Card).>element[IS std::str] [OPT]"
         }
         """
 
@@ -254,10 +253,10 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         "FENCE": {
             "(schema::Type)",
             "FENCE": {
-                "(schema::Type).>element_type[IS schema::Type]",
                 "(schema::Type).>indirection[IS schema::Array]",
                 "[ns~1]@[ns~2]@@(schema::Type).>indirection[IS schema::Array]\
-.>element_type[IS schema::Type]"
+.>element_type[IS schema::Type]",
+                "(schema::Type).>element_type[IS schema::Type]"
             }
         }
         """
@@ -273,10 +272,10 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
 % OK %
         "FENCE": {
-            "(__derived__::expr~3)",
             "FENCE": {
                 "(schema::Type)"
             },
+            "(__derived__::expr~3)",
             "FENCE": {
                 "[ns~2]@[ns~3]@@(__derived__::expr~3).>foo[IS std::str]"
             }
@@ -297,7 +296,9 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         "FENCE": {
             "(test::User)",
             "FENCE": {
-                "(test::User).>friends[IS test::User]",
+                "FENCE": {
+                    "[ns~1]@[ns~2]@@(test::User).>friends[IS test::User]"
+                },
                 "FENCE": {
                     "[ns~1]@[ns~2]@@(test::User).>deck[IS test::Card]\
 .<deck[IS __derived__::(opaque: test:User)].>indirection[IS test::User]": {
@@ -310,9 +311,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                 "FENCE": {
                     "[ns~1]@[ns~2]@@(test::User).>friends[IS test::User]"
                 },
-                "FENCE": {
-                    "[ns~1]@[ns~2]@@(test::User).>friends[IS test::User]"
-                }
+                "(test::User).>friends[IS test::User]"
             },
             "FENCE": {
                 "(test::User).>name[IS std::str]"
@@ -354,8 +353,6 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
 % OK %
         "FENCE": {
-            "(__derived__::expr~10)",
-            "(__derived__::expr~5)",
             "FENCE": {
                 "(test::Card)",
                 "FENCE": {
@@ -367,7 +364,9 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                 "FENCE": {
                     "(test::Card).>element[IS std::str]"
                 }
-            }
+            },
+            "(__derived__::expr~5)",
+            "(__derived__::expr~10)"
         }
         """
 
@@ -390,6 +389,14 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
 % OK %
         "FENCE": {
+            "FENCE": {
+                "FENCE": {
+                    "[ns~1]@@(test::User)",
+                    "FENCE": {
+                        "[ns~1]@@(test::User).>name[IS std::str]"
+                    }
+                }
+            },
             "(__derived__::__derived__|U@w~1).>cards[IS test::Card]\
 .>foo[IS std::float64]": {
                 "BRANCH": {
@@ -398,23 +405,15 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                             "(__derived__::__derived__|U@w~1)"
                         },
                         "FENCE": {
+                            "[ns~2]@@(test::Card)",
                             "FENCE": {
                                 "[ns~2]@@(__derived__::__derived__|U@w~1)\
 .>deck[IS test::Card]": {
                                     "(__derived__::__derived__|U@w~1)"
                                 }
-                            },
-                            "[ns~2]@@(test::Card)"
+                            }
                         }
                     }
-                }
-            },
-            "FENCE": {
-                "FENCE": {
-                    "FENCE": {
-                        "[ns~1]@@(test::User).>name[IS std::str]"
-                    },
-                    "[ns~1]@@(test::User)"
                 }
             }
         }
@@ -453,9 +452,6 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         "FENCE": {
             "(test::User)",
             "FENCE": {
-                "(__derived__::expr~8).>name[IS std::str]": {
-                    "(__derived__::expr~8)"
-                },
                 "FENCE": {
                     "FENCE": {
                         "FENCE": {
@@ -466,6 +462,9 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                             }
                         }
                     }
+                },
+                "(__derived__::expr~8).>name[IS std::str]": {
+                    "(__derived__::expr~8)"
                 }
             }
         }
@@ -483,16 +482,8 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
 % OK %
         "FENCE": {
-            "(__derived__::__derived__|x@w~1)",
-            "FENCE": {
-                "(__derived__::__derived__|x@w~1).>0[IS std::float64]"
-            },
             "FENCE": {
                 "FENCE": {
-                    "FENCE": {
-                        "[ns~1]@@(test::User).>friends[IS test::User]\
-.>deck[IS test::Card]"
-                    },
                     "[ns~1]@@(test::User).>friends[IS test::User]": {
                         "[ns~1]@@(test::User)"
                     },
@@ -509,8 +500,16 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                                 }
                             }
                         }
+                    },
+                    "FENCE": {
+                        "[ns~1]@@(test::User).>friends[IS test::User]\
+.>deck[IS test::Card]"
                     }
                 }
+            },
+            "(__derived__::__derived__|x@w~1)",
+            "FENCE": {
+                "(__derived__::__derived__|x@w~1).>0[IS std::float64]"
             }
         }
         """
@@ -549,11 +548,11 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
 % OK %
         "FENCE": {
+            "(test::Card)",
+            "(test::Card).>element[IS std::str]",
             "(__derived__::expr~7).>name[IS std::str]": {
                 "(__derived__::expr~7)"
-            },
-            "(test::Card)",
-            "(test::Card).>element[IS std::str]"
+            }
         }
         """
 
@@ -571,28 +570,28 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         "FENCE": {
             "(test::User)",
             "FENCE": {
-                "(test::User).>deck[IS test::Card]",
+                "[ns~1]@[ns~2]@@(test::User).>deck[IS test::Card]",
                 "FENCE": {
                     "[ns~1]@[ns~2]@@(test::User)\
 .>deck[IS test::Card]@count[IS std::int64]"
                 },
-                "[ns~1]@[ns~2]@@(test::User).>deck[IS test::Card]"
+                "(test::User).>deck[IS test::Card]"
             },
             "FENCE": {
                 "(test::User).>deck[IS test::Card]": {
                     "FENCE": {
-                        "FENCE": {
-                            "[ns~1]@[ns~3]@@(test::User)\
-.>deck[IS test::Card]@count[IS std::int64]"
-                        },
-                        "[ns~1]@[ns~3]@@(test::User).>deck[IS test::Card]"
-                    },
-                    "FENCE": {
+                        "[ns~1]@[ns~4]@@(test::User).>deck[IS test::Card]",
                         "FENCE": {
                             "[ns~1]@[ns~4]@@(test::User)\
 .>deck[IS test::Card]@count[IS std::int64]"
-                        },
-                        "[ns~1]@[ns~4]@@(test::User).>deck[IS test::Card]"
+                        }
+                    },
+                    "FENCE": {
+                        "[ns~1]@[ns~3]@@(test::User).>deck[IS test::Card]",
+                        "FENCE": {
+                            "[ns~1]@[ns~3]@@(test::User)\
+.>deck[IS test::Card]@count[IS std::int64]"
+                        }
                     }
                 },
                 "(test::User).>deck[IS test::Card].>cost[IS std::int64]",
@@ -613,18 +612,18 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         "FENCE": {
             "(test::User)",
             "FENCE": {
-                "(test::User).>deck[IS test::Card]",
                 "FENCE": {
                     "FENCE": {
                         "[ns~1]@[ns~3]@[ns~4]@@(test::User)\
 .>deck[IS test::Card]"
                     }
                 },
+                "[ns~1]@[ns~3]@@(__derived__::__derived__|x@w~2)",
                 "FENCE": {
                     "[ns~1]@[ns~3]@@(__derived__::__derived__|x@w~2)\
 .>name[IS std::str]"
                 },
-                "[ns~1]@[ns~3]@@(__derived__::__derived__|x@w~2)"
+                "(test::User).>deck[IS test::Card]"
             }
         }
         """
@@ -638,13 +637,13 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
 % OK %
         "FENCE": {
-            "(__derived__::__derived__|_@w~2)",
             "FENCE": {
                 "FENCE": {
-                    "[ns~2]@@(__derived__::__derived__|A@w~1)",
-                    "[ns~2]@@(test::User)"
+                    "[ns~2]@@(test::User)",
+                    "[ns~2]@@(__derived__::__derived__|A@w~1)"
                 }
-            }
+            },
+            "(__derived__::__derived__|_@w~2)"
         }
         """
 
@@ -668,20 +667,20 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         "FENCE": {
             "(test::User)",
             "FENCE": {
-                "(test::User).>name[IS std::str]"
-            },
-            "FENCE": {
-                "(test::User).>select_deck[IS test::Card]",
+                "[ns~1]@[ns~4]@@(__derived__::__derived__|letter@w~1)",
                 "FENCE": {
                     "FENCE": {
+                        "[ns~1]@[ns~4]@@(test::User).>deck[IS test::Card]",
                         "FENCE": {
                             "[ns~1]@[ns~4]@@(test::User).>deck[IS test::Card]\
 .>name[IS std::str]"
-                        },
-                        "[ns~1]@[ns~4]@@(test::User).>deck[IS test::Card]"
+                        }
                     }
                 },
-                "[ns~1]@[ns~4]@@(__derived__::__derived__|letter@w~1)"
+                "(test::User).>select_deck[IS test::Card]"
+            },
+            "FENCE": {
+                "(test::User).>name[IS std::str]"
             }
         }
         """
@@ -706,24 +705,24 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         "FENCE": {
             "(test::User)",
             "FENCE": {
-                "(test::User).>name[IS std::str]"
-            },
-            "FENCE": {
-                "(test::User).>select_deck[IS test::Card]",
+                "[ns~1]@[ns~5]@@(__derived__::__derived__|letter@w~1)",
                 "FENCE": {
                     "FENCE": {
                         "FENCE": {
+                            "[ns~1]@[ns~5]@[ns~7]@@(test::User)\
+.>deck[IS test::Card]",
                             "FENCE": {
                                 "[ns~1]@[ns~5]@[ns~7]@@(test::User)\
 .>deck[IS test::Card].>name[IS std::str]"
-                            },
-                            "[ns~1]@[ns~5]@[ns~7]@@(test::User)\
-.>deck[IS test::Card]"
+                            }
                         }
                     },
                     "[ns~1]@[ns~5]@@(__derived__::__derived__|foo@w~2)"
                 },
-                "[ns~1]@[ns~5]@@(__derived__::__derived__|letter@w~1)"
+                "(test::User).>select_deck[IS test::Card]"
+            },
+            "FENCE": {
+                "(test::User).>name[IS std::str]"
             }
         }
         """
@@ -742,14 +741,14 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         "FENCE": {
             "(test::User)",
             "FENCE": {
-                "(test::User).>deck[IS test::Card]",
-                "FENCE": {
-                    "(test::User).>deck[IS test::Card].>cost[IS std::int64]"
-                },
+                "[ns~1]@[ns~5]@@(test::Card)",
                 "FENCE": {
                     "[ns~1]@[ns~5]@@(test::Card).>element[IS std::str]"
                 },
-                "[ns~1]@[ns~5]@@(test::Card)"
+                "(test::User).>deck[IS test::Card]",
+                "FENCE": {
+                    "(test::User).>deck[IS test::Card].>cost[IS std::int64]"
+                }
             }
         }
         """
@@ -761,8 +760,6 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
 % OK %
         "FENCE": {
-            "(test::Card)",
-            "(test::Card).>name[IS std::str]",
             "FENCE": {
                 "(__derived__::__derived__|A@w~1).>owners[IS test::User]": {
                     "BRANCH": {
@@ -778,7 +775,9 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                         }
                     }
                 }
-            }
+            },
+            "(test::Card)",
+            "(test::Card).>name[IS std::str]"
         }
         """
 
@@ -795,23 +794,23 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         "FENCE": {
             "(test::Card)",
             "FENCE": {
-                "(test::Card).>alice[IS test::User]",
+                "[ns~1]@[ns~2]@@(test::User)",
                 "FENCE": {
                     "[ns~1]@[ns~2]@@(test::User).>name[IS std::str]"
                 },
-                "[ns~1]@[ns~2]@@(test::User)"
+                "(test::Card).>alice[IS test::User]"
             },
             "FENCE": {
                 "(test::Card).>alice[IS test::User]": {
                     "FENCE": {
+                        "[ns~1]@[ns~3]@@(test::User)",
                         "FENCE": {
                             "[ns~1]@[ns~3]@@(test::User).>name[IS std::str]"
-                        },
-                        "[ns~1]@[ns~3]@@(test::User)"
+                        }
                     }
                 },
-                "(test::Card).>name[IS std::str]",
-                "(test::User)"
+                "(test::User)",
+                "(test::Card).>name[IS std::str]"
             }
         }
         """

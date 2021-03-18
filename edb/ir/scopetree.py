@@ -71,7 +71,7 @@ class ScopeTreeNode:
     nodes merged into it, but could become optional again.
     """
 
-    children: Set[ScopeTreeNode]
+    children: List[ScopeTreeNode]
     """A set of child nodes."""
 
     namespaces: Set[pathid.AnyNamespace]
@@ -99,7 +99,7 @@ class ScopeTreeNode:
         self.factoring_fence = False
         self.factoring_allowlist = set()
         self.optional_count = 0 if optional else None
-        self.children = set()
+        self.children = []
         self.namespaces = set()
         self._parent: Optional[weakref.ReferenceType[ScopeTreeNode]] = None
 
@@ -899,7 +899,6 @@ class ScopeTreeNode:
                     child_formats.append(cf)
 
             if child_formats:
-                child_formats = sorted(child_formats)
                 children = textwrap.indent(',\n'.join(child_formats), '    ')
                 return f'"{self.name}": {{\n{children}\n}}'
 
@@ -916,7 +915,6 @@ class ScopeTreeNode:
                 if cf:
                     child_formats.append(cf)
 
-            child_formats = sorted(child_formats)
             children = textwrap.indent(',\n'.join(child_formats), '    ')
             return f'"{self.debugname(fuller=fuller)}": {{\n{children}\n}}'
         else:
@@ -933,7 +931,7 @@ class ScopeTreeNode:
 
         if parent is not None:
             self._parent = weakref.ref(parent)
-            parent.children.add(self)
+            parent.children.append(self)
         else:
             self._parent = None
 
