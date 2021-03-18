@@ -40,7 +40,7 @@ In the tree:
 
 * ``dbschema/*.esdl`` is a set of files that contains current database schema
 * ``default.esdl`` is named after ``module default`` that is usually used for
-  initial application schema. You don't have to stick to single file per
+  the initial application schema. There is no requirement to use a single
   module, but this is a good start.
 * ``dbschema/migrations/*.edgeql`` is a sequence of migration files that when
   applied bring database schema to the latest version. These files are mostly
