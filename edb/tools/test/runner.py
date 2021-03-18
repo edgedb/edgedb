@@ -80,10 +80,12 @@ def init_worker(status_queue: multiprocessing.SimpleQueue,
 
     result = ChannelingTestResult(result_queue)
     if not param_queue.empty():
-        server_addr = param_queue.get()
+        server_addr, postgres_dsn = param_queue.get()
 
         if server_addr is not None:
             os.environ['EDGEDB_TEST_CLUSTER_ADDR'] = json.dumps(server_addr)
+        if postgres_dsn:
+            os.environ['EDGEDB_TEST_POSTGRES_DSN'] = postgres_dsn
 
     os.environ['EDGEDB_TEST_PARALLEL'] = '1'
     coverage_run = devmode.CoverageConfig.start_coverage_if_requested()
@@ -235,11 +237,12 @@ def monitor_thread(queue, result):
 
 
 class ParallelTestSuite(unittest.TestSuite):
-    def __init__(self, tests, server_conn, num_workers):
+    def __init__(self, tests, server_conn, num_workers, postgres_dsn):
         self.tests = tests
         self.server_conn = server_conn
         self.num_workers = num_workers
         self.stop_requested = False
+        self.postgres_dsn = postgres_dsn
 
     def run(self, result):
         # We use SimpleQueues because they are more predictable.
@@ -252,7 +255,7 @@ class ParallelTestSuite(unittest.TestSuite):
         # Prepopulate the worker param queue with server connection
         # information.
         for _ in range(self.num_workers):
-            worker_param_queue.put(self.server_conn)
+            worker_param_queue.put((self.server_conn, self.postgres_dsn))
 
         result_thread = threading.Thread(
             name='test-monitor', target=monitor_thread,
@@ -302,10 +305,11 @@ class ParallelTestSuite(unittest.TestSuite):
 
 class SequentialTestSuite(unittest.TestSuite):
 
-    def __init__(self, tests, server_conn):
+    def __init__(self, tests, server_conn, postgres_dsn):
         self.tests = tests
         self.server_conn = server_conn
         self.stop_requested = False
+        self.postgres_dsn = postgres_dsn
 
     def run(self, result_):
         global result
@@ -314,6 +318,8 @@ class SequentialTestSuite(unittest.TestSuite):
         if self.server_conn:
             os.environ['EDGEDB_TEST_CLUSTER_ADDR'] = \
                 json.dumps(self.server_conn)
+        if self.postgres_dsn:
+            os.environ['EDGEDB_TEST_POSTGRES_DSN'] = self.postgres_dsn
 
         for test in self.tests:
             _run_test(test)
@@ -811,11 +817,14 @@ class ParallelTextTestRunner:
                 suite = ParallelTestSuite(
                     self._sort_tests(cases),
                     conn,
-                    self.num_workers)
+                    self.num_workers,
+                    self.postgres_dsn,
+                )
             else:
                 suite = SequentialTestSuite(
                     self._sort_tests(cases),
-                    conn
+                    conn,
+                    self.postgres_dsn,
                 )
 
             result = ParallelTextTestResult(

@@ -445,11 +445,13 @@ def _shutdown_cluster(cluster, *, destroy=True):
 class ClusterTestCase(TestCase):
 
     BASE_TEST_CLASS = True
+    postgres_dsn: Optional[str] = None
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.cluster = _start_cluster(cleanup_atexit=True)
+        cls.postgres_dsn = os.environ.get('EDGEDB_TEST_POSTGRES_DSN')
 
     @classmethod
     def get_connect_args(cls, *,
