@@ -4374,6 +4374,61 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 ALTER FUNCTION test::foo() SET volatility := "volatile";
             ''')
 
+    async def test_edgeql_ddl_function_fallback_01(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidFunctionDefinitionError,
+                r'cannot create.*test::foo\(a: anytype\).*'
+                r'only one generic fallback per polymorphic function '
+                r'is allowed'):
+            await self.con.execute(r'''
+                CREATE FUNCTION test::foo(a: int64) -> str {
+                    USING (SELECT 'foo' ++ <str>(a + 1));
+                };
+                CREATE FUNCTION test::foo(a: bytes) -> str {
+                    USING (SELECT 'foobytes' ++ <str>len(a));
+                };
+                CREATE FUNCTION test::foo(a: array<anytype>) -> str {
+                    SET fallback := True;
+                    USING (SELECT 'fooarray' ++ <str>len(a));
+                };
+                CREATE FUNCTION test::foo(a: anytype) -> str {
+                    SET fallback := True;
+                    USING (SELECT 'foo' ++ <str>a);
+                };
+            ''')
+
+    async def test_edgeql_ddl_function_fallback_02(self):
+        await self.con.execute(r'''
+            CREATE FUNCTION test::foo(a: int64) -> str {
+                USING (SELECT 'foo' ++ <str>(a + 1));
+            };
+            CREATE FUNCTION test::foo(a: bytes) -> str {
+                USING (SELECT 'foobytes' ++ <str>len(a));
+            };
+            CREATE FUNCTION test::foo(a: array<anytype>) -> str {
+                USING (SELECT 'fooarray' ++ <str>len(a));
+            };
+            CREATE FUNCTION test::foo(a: anytype) -> str {
+                USING (SELECT 'foo' ++ <str>a);
+            };
+        ''')
+        await self.con.execute(r'''
+            ALTER FUNCTION test::foo(a: array<anytype>) {
+                SET fallback := true;
+            };
+        ''')
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidFunctionDefinitionError,
+                r'cannot alter.*test::foo\(a: anytype\).*'
+                r'only one generic fallback per polymorphic function '
+                r'is allowed'):
+            await self.con.execute(r'''
+                ALTER FUNCTION test::foo(a: anytype) {
+                    SET fallback := true;
+                };
+            ''')
+
     async def test_edgeql_ddl_module_01(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaError,

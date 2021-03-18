@@ -626,6 +626,9 @@ class Call(ImmutableExpr):
     # attribute will be set to the name of the SQL function.
     func_sql_function: typing.Optional[str]
 
+    # Whether the bound callable is a "USING SQL EXPRESSION" callable.
+    func_sql_expr: bool = False
+
     # Whether the return value of the function should be
     # explicitly cast into the declared function return type.
     force_return_cast: bool

@@ -322,6 +322,9 @@ ALTER TYPE schema::ObjectType {
 CREATE TYPE schema::Function
     EXTENDING schema::CallableObject, schema::VolatilitySubject
 {
+    CREATE PROPERTY fallback -> std::bool {
+        SET default := false;
+    };
 };
 
 

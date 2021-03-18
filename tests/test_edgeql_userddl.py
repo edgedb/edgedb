@@ -328,3 +328,67 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
                 CREATE INDEX ON (__subject__.name)
             };
         ''')
+
+    async def test_edgeql_userddl_25(self):
+        # testing fallback
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                r"'fallback' is not a valid field"):
+            await self.con.execute(r'''
+                CREATE FUNCTION test::func_25(
+                    a: bool
+                ) -> bool {
+                    SET fallback := true;
+                    USING (
+                        NOT a
+                    );
+                }
+            ''')
+
+    async def test_edgeql_userddl_26(self):
+        # testing fallback
+        await self.con.execute(r'''
+            CREATE FUNCTION test::func_26(
+                a: bool
+            ) -> bool {
+                USING (
+                    NOT a
+                );
+            }
+        ''')
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                r"'fallback' is not a valid field"):
+            await self.con.execute(r'''
+                ALTER FUNCTION test::func_26(
+                    a: bool
+                ) {
+                    SET fallback := true;
+                }
+            ''')
+
+    async def test_edgeql_userddl_27(self):
+        # testing fallback
+        await self.con.execute(r'''
+            CREATE FUNCTION test::func_27(
+                a: bool
+            ) -> bool {
+                USING (
+                    NOT a
+                );
+            }
+        ''')
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                r"'fallback' is not a valid field"):
+            await self.con.execute(r'''
+                ALTER FUNCTION test::func_27(
+                    a: bool
+                ) {
+                    # Even altering to set fallback to False should not be
+                    # allowed in user-space.
+                    SET fallback := false;
+                }
+            ''')

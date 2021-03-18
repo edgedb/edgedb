@@ -2859,6 +2859,16 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [{}],
         )
 
+    async def test_edgeql_functions_min_03(self):
+        # Objects are valid inputs to "min" and are ordered by their .id.
+        await self.assert_query_result(
+            r'''
+            WITH MODULE test
+            SELECT min(User).id = min(User.id);
+            ''',
+            [True],
+        )
+
     async def test_edgeql_functions_max_01(self):
         await self.assert_query_result(
             r'''SELECT max(<int64>{});''',
@@ -2993,6 +3003,16 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             SELECT max(<int64>Issue.number);
             ''',
             [4],
+        )
+
+    async def test_edgeql_functions_max_03(self):
+        # Objects are valid inputs to "max" and are ordered by their .id.
+        await self.assert_query_result(
+            r'''
+            WITH MODULE test
+            SELECT max(User).id = max(User.id);
+            ''',
+            [True],
         )
 
     async def test_edgeql_functions_all_01(self):

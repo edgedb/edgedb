@@ -319,6 +319,15 @@ def _get_set_rvar(
                         ir_set, stmt, ctx=ctx)
                 else:
                     rvars = process_set_as_enumerate(ir_set, stmt, ctx=ctx)
+
+            elif str(expr.func_shortname) == 'std::min' and expr.func_sql_expr:
+                # Generic std::min
+                rvars = process_set_as_std_min_max(ir_set, stmt, ctx=ctx)
+
+            elif str(expr.func_shortname) == 'std::max' and expr.func_sql_expr:
+                # Generic std::max
+                rvars = process_set_as_std_min_max(ir_set, stmt, ctx=ctx)
+
             elif any(
                 pm is qltypes.TypeModifier.SetOfType
                 for pm in expr.params_typemods
@@ -1898,6 +1907,66 @@ def process_set_as_enumerate(
 
         pathctx.put_path_var_if_not_exists(
             newctx.rel, ir_set.path_id, set_expr, aspect='value', env=ctx.env)
+
+    aspects = ('value', 'source')
+
+    func_rvar = relctx.new_rel_rvar(ir_set, newctx.rel, ctx=ctx)
+    relctx.include_rvar(stmt, func_rvar, ir_set.path_id,
+                        pull_namespace=False, aspects=aspects, ctx=ctx)
+
+    return new_stmt_set_rvar(ir_set, stmt, aspects=aspects, ctx=ctx)
+
+
+def process_set_as_std_min_max(
+    ir_set: irast.Set,
+    stmt: pgast.SelectStmt,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> SetRVars:
+    # Postgres implements min/max aggregates for only a specific
+    # subset of scalars and their respective arrays. However, in
+    # EdgeDB every type is orderable (supports < and >) and so to
+    # accommodate that we must choose between the native Postgres
+    # aggregate and the generic fallback implementation (the native
+    # implementation being faster).
+    #
+    # Since the fallback implementation is not mapped onto the same
+    # polymorphic function in Postgres as the implementation for
+    # supported types, we cannot rely on Postgres to always correctly
+    # pick the polymorphic function to call, instead we use static
+    # type inference to determine whether we'll delegate this to
+    # Postgres (e.g. for anyreal) or we'll use the slower
+    # one-size-fits-all fallback which then gets compiled differently.
+    # In particular this means that when used inside a body of another
+    # polymorphic (anytype) function, the slower generic version of
+    # min/max will be used regardless of the actual concrete input
+    # type.
+
+    expr = ir_set.expr
+    assert isinstance(expr, irast.FunctionCall)
+
+    with ctx.subrel() as newctx:
+        ir_arg = expr.args[0].expr
+        dispatch.visit(ir_arg, ctx=newctx)
+
+        arg_ref = pathctx.get_path_value_var(
+            newctx.rel, ir_arg.path_id, env=newctx.env)
+
+        arg_val = output.output_as_value(arg_ref, env=newctx.env)
+
+        newctx.rel.sort_clause.append(
+            pgast.SortBy(
+                node=arg_val,
+                dir=(
+                    pgast.SortAsc
+                    if str(expr.func_shortname) == 'std::min'
+                    else pgast.SortDesc
+                ),
+            ),
+        )
+        newctx.rel.limit_count = pgast.NumericConstant(val='1')
+
+        pathctx.put_path_id_map(newctx.rel, ir_set.path_id, ir_arg.path_id)
 
     aspects = ('value', 'source')
 

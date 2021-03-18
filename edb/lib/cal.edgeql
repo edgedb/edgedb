@@ -821,3 +821,123 @@ std::to_datetime(local: cal::local_datetime, zone: std::str)
     SELECT timezone("zone", "local")::edgedb.timestamptz_t;
     $$;
 };
+
+
+CREATE FUNCTION
+std::min(vals: SET OF cal::local_datetime) -> OPTIONAL cal::local_datetime
+{
+    CREATE ANNOTATION std::description :=
+        'Return the smallest value of the input set.';
+    SET volatility := 'IMMUTABLE';
+    USING SQL FUNCTION 'min';
+};
+
+
+CREATE FUNCTION
+std::min(vals: SET OF cal::local_date) -> OPTIONAL cal::local_date
+{
+    CREATE ANNOTATION std::description :=
+        'Return the smallest value of the input set.';
+    SET volatility := 'IMMUTABLE';
+    USING SQL FUNCTION 'min';
+};
+
+
+CREATE FUNCTION
+std::min(vals: SET OF cal::local_time) -> OPTIONAL cal::local_time
+{
+    CREATE ANNOTATION std::description :=
+        'Return the smallest value of the input set.';
+    SET volatility := 'IMMUTABLE';
+    USING SQL FUNCTION 'min';
+};
+
+
+CREATE FUNCTION
+std::min(vals: SET OF array<cal::local_datetime>) -> OPTIONAL array<cal::local_datetime>
+{
+    CREATE ANNOTATION std::description :=
+        'Return the smallest value of the input set.';
+    SET volatility := 'IMMUTABLE';
+    USING SQL FUNCTION 'min';
+};
+
+
+CREATE FUNCTION
+std::min(vals: SET OF array<cal::local_date>) -> OPTIONAL array<cal::local_date>
+{
+    CREATE ANNOTATION std::description :=
+        'Return the smallest value of the input set.';
+    SET volatility := 'IMMUTABLE';
+    USING SQL FUNCTION 'min';
+};
+
+
+CREATE FUNCTION
+std::min(vals: SET OF array<cal::local_time>) -> OPTIONAL array<cal::local_time>
+{
+    CREATE ANNOTATION std::description :=
+        'Return the smallest value of the input set.';
+    SET volatility := 'IMMUTABLE';
+    USING SQL FUNCTION 'min';
+};
+
+
+CREATE FUNCTION
+std::max(vals: SET OF cal::local_datetime) -> OPTIONAL cal::local_datetime
+{
+    CREATE ANNOTATION std::description :=
+        'Return the smallest value of the input set.';
+    SET volatility := 'IMMUTABLE';
+    USING SQL FUNCTION 'max';
+};
+
+
+CREATE FUNCTION
+std::max(vals: SET OF cal::local_date) -> OPTIONAL cal::local_date
+{
+    CREATE ANNOTATION std::description :=
+        'Return the smallest value of the input set.';
+    SET volatility := 'IMMUTABLE';
+    USING SQL FUNCTION 'max';
+};
+
+
+CREATE FUNCTION
+std::max(vals: SET OF cal::local_time) -> OPTIONAL cal::local_time
+{
+    CREATE ANNOTATION std::description :=
+        'Return the smallest value of the input set.';
+    SET volatility := 'IMMUTABLE';
+    USING SQL FUNCTION 'max';
+};
+
+
+CREATE FUNCTION
+std::max(vals: SET OF array<cal::local_datetime>) -> OPTIONAL array<cal::local_datetime>
+{
+    CREATE ANNOTATION std::description :=
+        'Return the smallest value of the input set.';
+    SET volatility := 'IMMUTABLE';
+    USING SQL FUNCTION 'max';
+};
+
+
+CREATE FUNCTION
+std::max(vals: SET OF array<cal::local_date>) -> OPTIONAL array<cal::local_date>
+{
+    CREATE ANNOTATION std::description :=
+        'Return the smallest value of the input set.';
+    SET volatility := 'IMMUTABLE';
+    USING SQL FUNCTION 'max';
+};
+
+
+CREATE FUNCTION
+std::max(vals: SET OF array<cal::local_time>) -> OPTIONAL array<cal::local_time>
+{
+    CREATE ANNOTATION std::description :=
+        'Return the smallest value of the input set.';
+    SET volatility := 'IMMUTABLE';
+    USING SQL FUNCTION 'max';
+};
