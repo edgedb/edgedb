@@ -2170,6 +2170,26 @@ class TestExpressions(tb.QueryTestCase):
             [True]
         )
 
+    async def test_edgeql_expr_valid_minmax_01(self):
+        for val in get_test_values():
+            for fn in ['min', 'max']:
+                query = f"""SELECT {fn}({val}) = {val};"""
+                await self.assert_query_result(query, {True})
+
+    async def test_edgeql_expr_valid_minmax_02(self):
+        for val in get_test_values():
+            for fn in ['min', 'max']:
+                # same as the previous test, but for arrays
+                query = f"""SELECT {fn}([{val}]) = [{val}];"""
+                await self.assert_query_result(query, {True})
+
+    async def test_edgeql_expr_valid_minmax_03(self):
+        for val in get_test_values():
+            for fn in ['min', 'max']:
+                # same as the previous test, but for tuples
+                query = f"""SELECT {fn}(({val},)) = ({val},);"""
+                await self.assert_query_result(query, {True})
+
     async def test_edgeql_expr_bytes_op_01(self):
         await self.assert_query_result(
             r'''

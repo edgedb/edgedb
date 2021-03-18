@@ -1159,6 +1159,22 @@ class Function(
     has_dml = so.SchemaField(
         bool, default=False)
 
+    # This flag indicates that this function is intended to be used as
+    # a generic fallback implementation for a particular polymorphic
+    # function. The fallback implementation is exempted from the
+    # limitation that all polymorphic functions have to map to the
+    # same function in Postgres. There can only be at most one
+    # fallback implementation for any given polymorphic function.
+    #
+    # The flag is intended for internal use for standard library
+    # functions.
+    fallback = so.SchemaField(
+        bool,
+        default=False,
+        inheritable=False,
+        compcoef=0.909,
+    )
+
     def has_inlined_defaults(self, schema: s_schema.Schema) -> bool:
         # This can be relaxed to just `language is EdgeQL` when we
         # support non-constant defaults.
@@ -1475,6 +1491,7 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
         has_polymorphic = params.has_polymorphic(schema)
         polymorphic_return_type = return_type.is_polymorphic(schema)
         named_only = params.find_named_only(schema)
+        fallback = self.scls.get_fallback(schema)
 
         # Certain syntax is only allowed in "EdgeDB developer" mode,
         # i.e. when populating std library, etc.
@@ -1495,6 +1512,12 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                 raise errors.InvalidFunctionDefinitionError(
                     f'cannot create `{signature}` function: '
                     f'"USING {language}" is not supported in '
+                    f'user-defined functions',
+                    context=self.source_context)
+            elif fallback:
+                raise errors.InvalidFunctionDefinitionError(
+                    f'cannot create `{signature}` function: '
+                    f'designating a generic fallback is not supported in '
                     f'user-defined functions',
                     context=self.source_context)
 
@@ -1534,12 +1557,24 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                     f'{func.get_return_type(schema).get_displayname(schema)}',
                     context=self.source_context)
 
+            if fallback and func.get_fallback(schema) and self.scls != func:
+                raise errors.InvalidFunctionDefinitionError(
+                    f'cannot create the polymorphic `{signature} -> '
+                    f'{return_typemod.to_edgeql()} '
+                    f'{return_type.get_displayname(schema)}` '
+                    f'function: only one generic fallback per polymorphic '
+                    f'function is allowed',
+                    context=self.source_context)
+
             if func_from_function:
                 has_from_function = func_from_function
 
         if has_from_function:
-            if (from_function != has_from_function or
-                    any(f.get_from_function(schema) != has_from_function
+            # Ignore the generic fallback when considering
+            # from_function for polymorphic functions.
+            if (not fallback and from_function != has_from_function or
+                    any(not f.get_fallback(schema) and
+                        f.get_from_function(schema) != has_from_function
                         for f in overloaded_funcs)):
                 raise errors.InvalidFunctionDefinitionError(
                     f'cannot create the `{signature}` function: '
@@ -1655,6 +1690,14 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                     'from_function',
                     astnode.code.from_function
                 )
+            elif (
+                astnode.code.from_expr is not None
+                and astnode.code.code is None
+            ):
+                cmd.set_attribute_value(
+                    'from_expr',
+                    astnode.code.from_expr,
+                )
             else:
                 cmd.set_attribute_value(
                     'code',
@@ -1764,6 +1807,19 @@ class AlterFunction(AlterCallableObject[Function], FunctionCommand):
     ) -> s_schema.Schema:
         schema = super()._alter_begin(schema, context)
         scls = self.scls
+
+        if self.has_attribute_value("fallback"):
+            overloaded_funcs = schema.get_functions(
+                self.scls.get_shortname(schema), ())
+
+            if len([func for func in overloaded_funcs
+                    if func.get_fallback(schema)]) > 1:
+                raise errors.InvalidFunctionDefinitionError(
+                    f'cannot alter the polymorphic '
+                    f'{self.scls.get_verbosename(schema)}: '
+                    f'only one generic fallback per polymorphic '
+                    f'function is allowed',
+                    context=self.source_context)
 
         # If volatility changed, propagate that to referring exprs
         if not self.has_attribute_value("volatility"):

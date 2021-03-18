@@ -166,6 +166,68 @@ std::min(vals: SET OF anytype) -> OPTIONAL anytype
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
     SET volatility := 'IMMUTABLE';
+    SET fallback := true;
+    USING SQL EXPRESSION;
+};
+
+
+# Postgres only implements min and max for specific scalars and their
+# respective arrays, but in EdgeDB every type is orderable and so
+# minimum and maximum value can be determined for all types. The
+# general catch-all using `anytype` above is valid for all types, but
+# it is somewhat slower than the specialized natively implemented min
+# and max aggregates. So for the types that Postgres supports, we want
+# to use the more specialized implementation.
+#
+# Turns out that the min/max implementation for arrays is not
+# noticeably faster than the fallback we use, so there's no
+# specialized version of it in the polymorphic implementations.
+CREATE FUNCTION
+std::min(vals: SET OF anyreal) -> OPTIONAL anyreal
+{
+    CREATE ANNOTATION std::description :=
+        'Return the smallest value of the input set.';
+    SET volatility := 'IMMUTABLE';
+    USING SQL FUNCTION 'min';
+};
+
+
+CREATE FUNCTION
+std::min(vals: SET OF anyenum) -> OPTIONAL anyenum
+{
+    CREATE ANNOTATION std::description :=
+        'Return the smallest value of the input set.';
+    SET volatility := 'IMMUTABLE';
+    USING SQL FUNCTION 'min';
+};
+
+
+CREATE FUNCTION
+std::min(vals: SET OF str) -> OPTIONAL str
+{
+    CREATE ANNOTATION std::description :=
+        'Return the smallest value of the input set.';
+    SET volatility := 'IMMUTABLE';
+    USING SQL FUNCTION 'min';
+};
+
+
+CREATE FUNCTION
+std::min(vals: SET OF datetime) -> OPTIONAL datetime
+{
+    CREATE ANNOTATION std::description :=
+        'Return the smallest value of the input set.';
+    SET volatility := 'IMMUTABLE';
+    USING SQL FUNCTION 'min';
+};
+
+
+CREATE FUNCTION
+std::min(vals: SET OF duration) -> OPTIONAL duration
+{
+    CREATE ANNOTATION std::description :=
+        'Return the smallest value of the input set.';
+    SET volatility := 'IMMUTABLE';
     USING SQL FUNCTION 'min';
 };
 
@@ -175,6 +237,68 @@ std::min(vals: SET OF anytype) -> OPTIONAL anytype
 
 CREATE FUNCTION
 std::max(vals: SET OF anytype) -> OPTIONAL anytype
+{
+    CREATE ANNOTATION std::description :=
+        'Return the greatest value of the input set.';
+    SET volatility := 'IMMUTABLE';
+    SET fallback := true;
+    USING SQL EXPRESSION;
+};
+
+
+# Postgres only implements min and max for specific scalars and their
+# respective arrays, but in EdgeDB every type is orderable and so
+# minimum and maximum value can be determined for all types. The
+# general catch-all using `anytype` above is valid for all types, but
+# it is somewhat slower than the specialized natively implemented min
+# and max aggregates. So for the types that Postgres supports, we want
+# to use the more specialized implementation.
+#
+# Turns out that the min/max implementation for arrays is not
+# noticeably faster than the fallback we use, so there's no
+# specialized version of it in the polymorphic implementations.
+CREATE FUNCTION
+std::max(vals: SET OF anyreal) -> OPTIONAL anyreal
+{
+    CREATE ANNOTATION std::description :=
+        'Return the greatest value of the input set.';
+    SET volatility := 'IMMUTABLE';
+    USING SQL FUNCTION 'max';
+};
+
+
+CREATE FUNCTION
+std::max(vals: SET OF anyenum) -> OPTIONAL anyenum
+{
+    CREATE ANNOTATION std::description :=
+        'Return the greatest value of the input set.';
+    SET volatility := 'IMMUTABLE';
+    USING SQL FUNCTION 'max';
+};
+
+
+CREATE FUNCTION
+std::max(vals: SET OF str) -> OPTIONAL str
+{
+    CREATE ANNOTATION std::description :=
+        'Return the greatest value of the input set.';
+    SET volatility := 'IMMUTABLE';
+    USING SQL FUNCTION 'max';
+};
+
+
+CREATE FUNCTION
+std::max(vals: SET OF datetime) -> OPTIONAL datetime
+{
+    CREATE ANNOTATION std::description :=
+        'Return the greatest value of the input set.';
+    SET volatility := 'IMMUTABLE';
+    USING SQL FUNCTION 'max';
+};
+
+
+CREATE FUNCTION
+std::max(vals: SET OF duration) -> OPTIONAL duration
 {
     CREATE ANNOTATION std::description :=
         'Return the greatest value of the input set.';
