@@ -500,9 +500,9 @@ def new_pointer_rvar(
     ptrref = ir_ptr.ptrref
 
     ptr_info = pg_types.get_ptrref_storage_info(
-        ptrref, resolve_type=False, link_bias=link_bias)
+        ptrref, resolve_type=False, link_bias=link_bias, allow_missing=True)
 
-    if ptr_info.table_type == 'ObjectType':
+    if ptr_info and ptr_info.table_type == 'ObjectType':
         # Inline link
         return _new_inline_pointer_rvar(
             ir_ptr, ptr_info=ptr_info,
@@ -543,18 +543,11 @@ def _new_mapped_pointer_rvar(
     ptrref = ir_ptr.ptrref
     dml_source = irutils.get_nearest_dml_stmt(ir_ptr.source)
     ptr_rvar = range_for_pointer(ir_ptr, dml_source=dml_source, ctx=ctx)
-    src_col = 'source'
 
+    src_col = 'source'
     source_ref = pgast.ColumnRef(name=[src_col], nullable=False)
 
-    if (irtyputils.is_object(ptrref.out_target)
-            and not irtyputils.is_computable_ptrref(ptrref)):
-        tgt_ptr_info = pg_types.get_ptrref_storage_info(
-            ptrref, link_bias=True, resolve_type=False)
-        tgt_col = tgt_ptr_info.column_name
-    else:
-        tgt_col = 'target'
-
+    tgt_col = 'target'
     target_ref = pgast.ColumnRef(
         name=[tgt_col],
         nullable=not ptrref.required)
@@ -611,9 +604,9 @@ def semi_join(
 
     ptrref = rptr.ptrref
     ptr_info = pg_types.get_ptrref_storage_info(
-        ptrref, resolve_type=False)
+        ptrref, resolve_type=False, allow_missing=True)
 
-    if ptr_info.table_type == 'ObjectType':
+    if ptr_info and ptr_info.table_type == 'ObjectType':
         if irtyputils.is_inbound_ptrref(ptrref):
             far_pid = ir_set.path_id.src_path()
             assert far_pid is not None
@@ -1103,19 +1096,17 @@ def range_from_queryset(
 
 def table_from_ptrref(
     ptrref: irast.PointerRef,
+    ptr_info: pg_types.PointerStorageInfo,
     *,
     include_descendants: bool = True,
     for_mutation: bool = False,
     ctx: context.CompilerContextLevel,
 ) -> pgast.RelRangeVar:
     """Return a Table corresponding to a given Link."""
-    table_schema_name, table_name = common.get_pointer_backend_name(
-        ptrref.id,
-        ptrref.name.module,
-        aspect=(
-            'table' if for_mutation or not include_descendants else 'inhview'
-        ),
-        catenate=False,
+
+    aspect = 'table' if for_mutation or not include_descendants else 'inhview'
+    table_schema_name, table_name = common.update_aspect(
+        ptr_info.table_name, aspect
     )
 
     if ptrref.name.module in {'cfg', 'sys'}:
@@ -1152,13 +1143,8 @@ def range_for_ptrref(
     corresponding to a set of specialized links computed from the given
     `ptrref` taking source inheritance into account.
     """
-    tgt_col = pg_types.get_ptrref_storage_info(
-        ptrref, resolve_type=False, link_bias=True).column_name
 
-    cols = [
-        'source',
-        tgt_col
-    ]
+    output_cols = ('source', 'target')
 
     set_ops = []
 
@@ -1178,8 +1164,29 @@ def range_for_ptrref(
     for src_ptrref in refs:
         assert isinstance(src_ptrref, irast.PointerRef), \
             "expected regular PointerRef"
+
+        # Most references to inline links are dispatched to a separate
+        # code path (_new_inline_pointer_rvar) by new_pointer_rvar,
+        # but when we have union pointers, some might be inline.  We
+        # always use the link table if it exists (because this range
+        # needs to contain any link properties, for one reason.)
+        ptr_info = pg_types.get_ptrref_storage_info(
+            src_ptrref, resolve_type=False, link_bias=True,
+        )
+        if not ptr_info:
+            assert ptrref.union_components
+            ptr_info = pg_types.get_ptrref_storage_info(
+                src_ptrref, resolve_type=False, link_bias=False,
+            )
+
+        cols = [
+            'source' if ptr_info.table_type == 'link' else 'id',
+            ptr_info.column_name,
+        ]
+
         table = table_from_ptrref(
             src_ptrref,
+            ptr_info,
             include_descendants=not ptrref.union_is_concrete,
             for_mutation=for_mutation,
             ctx=ctx,
@@ -1189,11 +1196,11 @@ def range_for_ptrref(
         qry.from_clause.append(table)
 
         # Make sure all property references are pulled up properly
-        for colname in cols:
+        for colname, output_colname in zip(cols, output_cols):
             selexpr = pgast.ColumnRef(
                 name=[table.alias.aliasname, colname])
             qry.target_list.append(
-                pgast.ResTarget(val=selexpr, name=colname))
+                pgast.ResTarget(val=selexpr, name=output_colname))
 
         set_ops.append(('union', qry))
 

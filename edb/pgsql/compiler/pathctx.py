@@ -139,7 +139,7 @@ def get_path_var(
     src_path_id: Optional[irast.PathId] = None
     if ptrref is not None and not is_type_intersection:
         ptr_info = pg_types.get_ptrref_storage_info(
-            ptrref, resolve_type=False, link_bias=False)
+            ptrref, resolve_type=False, link_bias=False, allow_missing=True)
         ptr_dir = path_id.rptr_dir()
         is_inbound = ptr_dir == s_pointers.PointerDirection.Inbound
         if is_inbound:
@@ -172,8 +172,10 @@ def get_path_var(
                         and not irtyputils.is_computable_ptrref(src_rptr)
                         and env.ptrref_source_visibility.get(src_rptr)):
                     src_ptr_info = pg_types.get_ptrref_storage_info(
-                        src_rptr, resolve_type=False, link_bias=False)
-                    if src_ptr_info.table_type == 'ObjectType':
+                        src_rptr, resolve_type=False, link_bias=False,
+                        allow_missing=True)
+                    if (src_ptr_info
+                            and src_ptr_info.table_type == 'ObjectType'):
                         src_path_id = src_path_id.src_path()
                         ptr_info = src_ptr_info
 
@@ -234,20 +236,13 @@ def get_path_var(
             src_path_id = path_id
 
     elif ptrref.source_ptr is not None:
-        if ptr_info.table_type != 'link' and not is_inbound:
+        if ptr_info and ptr_info.table_type != 'link' and not is_inbound:
             # This is a link prop that is stored in source rel,
             # step back to link source rvar.
             _prefix_pid = path_id.src_path()
             assert _prefix_pid is not None
             src_path_id = _prefix_pid.src_path()
 
-    elif (
-        ptr_info is not None
-        and ptr_info.table_type != 'ObjectType'
-        and not is_inbound
-    ):
-        # Ref is in the mapping rvar.
-        src_path_id = path_id.ptr_path()
     elif is_type_intersection:
         src_path_id = path_id
 
@@ -526,6 +521,7 @@ def get_rvar_path_var(
     if (path_id, aspect) in rvar.query.path_outputs:
         outvar = rvar.query.path_outputs[path_id, aspect]
     elif is_relation_rvar(rvar):
+        ptr_si: Optional[pg_types.PointerStorageInfo]
         if (
             (rptr := path_id.rptr()) is not None
             and rvar.typeref is not None

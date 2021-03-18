@@ -938,13 +938,13 @@ def process_set_as_path(
             ctx=ctx)
 
     ptr_info = pg_types.get_ptrref_storage_info(
-        ptrref, resolve_type=False, link_bias=False)
+        ptrref, resolve_type=False, link_bias=False, allow_missing=True)
 
     # Path is a link property.
     is_linkprop = ptrref.source_ptr is not None
-    # Path is a reference to a relationship stored in the source table.
-    is_inline_ref = ptr_info.table_type == 'ObjectType'
     is_primitive_ref = not irtyputils.is_object(ptrref.out_target)
+    # Path is a reference to a relationship stored in the source table.
+    is_inline_ref = bool(ptr_info and ptr_info.table_type == 'ObjectType')
     is_inline_primitive_ref = is_inline_ref and is_primitive_ref
     is_id_ref_to_inline_source = False
 
@@ -988,9 +988,10 @@ def process_set_as_path(
             # __type__[IS Array].id, or if Foo is not visible in
             # this scope.
             source_ptr_info = pg_types.get_ptrref_storage_info(
-                source_rptr.ptrref, resolve_type=False, link_bias=False)
-            is_id_ref_to_inline_source = (
-                source_ptr_info.table_type == 'ObjectType')
+                source_rptr.ptrref, resolve_type=False, link_bias=False,
+                allow_missing=True)
+            is_id_ref_to_inline_source = bool(
+                source_ptr_info and source_ptr_info.table_type == 'ObjectType')
 
     if semi_join:
         with ctx.subrel() as srcctx:

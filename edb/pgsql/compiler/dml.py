@@ -676,10 +676,15 @@ def process_insert_body(
 
                 values.append(pgast.ResTarget(val=insvalue))
 
-            ptr_info = pg_types.get_ptrref_storage_info(
+            # Register all link table inserts to be run after the main
+            # insert.  Note that single links with link properties are
+            # processed both as a local link insert (for the inline
+            # pointer) and as a link table insert (because lprops are
+            # stored in link tables).
+            link_ptr_info = pg_types.get_ptrref_storage_info(
                 ptrref, resolve_type=False, link_bias=True)
 
-            if ptr_info and ptr_info.table_type == 'link':
+            if link_ptr_info and link_ptr_info.table_type == 'link':
                 external_inserts.append(shape_el)
 
         if iterator is not None:
@@ -1015,10 +1020,15 @@ def process_update_body(
 
                     update_stmt.targets.append(updtarget)
 
-            ptr_info = pg_types.get_ptrref_storage_info(
+            # Register all link table inserts to be run after the main
+            # insert.  Note that single links with link properties are
+            # processed both as a local link update (for the inline
+            # pointer) and as a link table update (because lprops are
+            # stored in link tables).
+            link_ptr_info = pg_types.get_ptrref_storage_info(
                 actual_ptrref, resolve_type=False, link_bias=True)
 
-            if ptr_info and ptr_info.table_type == 'link':
+            if link_ptr_info and link_ptr_info.table_type == 'link':
                 external_updates.append((shape_el, shape_op))
 
     if not update_stmt.targets:
