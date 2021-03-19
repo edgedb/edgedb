@@ -186,6 +186,18 @@ def convert_name(name, suffix='', catenate=True):
         return schema, dbname
 
 
+def update_aspect(name, aspect):
+    """Update the aspect on a non catenated name.
+
+    It also needs to be from an object that uses ids for names"""
+    suffix = get_aspect_suffix(aspect)
+    stripped = name[1].rsplit("_", 1)[0]
+    if suffix:
+        return (name[0], f'{stripped}_{suffix}')
+    else:
+        return (name[0], stripped)
+
+
 def get_scalar_backend_name(id, module_name, catenate=True, *, aspect=None):
     if aspect is None:
         aspect = 'domain'
