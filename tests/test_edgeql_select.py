@@ -6304,3 +6304,15 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         for row in res:
             self.assertEqual(row[0].__tname__, "test::User")
             self.assertEqual(row[1].__tname__, "test::Issue")
+
+    @test.xfail("""
+        SchemaDefinitionError: cannot alter object type 'std::Object':
+        module std is read-only
+    """)
+    async def test_edgeql_select_array_common_type_02(self):
+        # Issue #2387
+        res = await self.con._fetchall("""
+            SELECT [Object];
+        """, __typenames__=True)
+        for row in res:
+            self.assertEqual(row[0].__tname__, "std::Object")
