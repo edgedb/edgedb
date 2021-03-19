@@ -3659,6 +3659,25 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
+    def test_schema_migrations_equivalence_50(self):
+        self._assert_migration_equivalence([r"""
+            type User {
+                required property name -> str {
+                    constraint exclusive;
+                };
+                index on (__subject__.name);
+            };
+        """, r"""
+            type User extending Named;
+
+            abstract type Named {
+                required property name -> str {
+                    constraint exclusive;
+                };
+                index on (__subject__.name);
+            };
+        """])
+
     def test_schema_migrations_equivalence_compound_01(self):
         # Check that union types can be referenced in computables
         # Bug #2002.

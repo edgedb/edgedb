@@ -50,7 +50,10 @@ class Index(
     data_safe=True,
 ):
 
-    subject = so.SchemaField(so.Object)
+    subject = so.SchemaField(
+        so.Object,
+        compcoef=None,
+        inheritable=False)
 
     expr = so.SchemaField(
         s_expr.Expression,
@@ -241,18 +244,18 @@ class IndexCommand(
         astnode: qlast.DDLOperation,
         context: sd.CommandContext,
     ) -> sd.ObjectCommand[Index]:
-        assert isinstance(astnode, qlast.IndexCommand)
         cmd = super()._cmd_from_ast(schema, astnode, context)
-        orig_text = cls.get_orig_expr_text(schema, astnode, 'expr')
-        cmd.set_ddl_identity(
-            'expr',
-            s_expr.Expression.from_ast(
-                astnode.expr,
-                schema,
-                context.modaliases,
-                orig_text=orig_text,
-            ),
-        )
+        if isinstance(astnode, qlast.IndexCommand):
+            orig_text = cls.get_orig_expr_text(schema, astnode, 'expr')
+            cmd.set_ddl_identity(
+                'expr',
+                s_expr.Expression.from_ast(
+                    astnode.expr,
+                    schema,
+                    context.modaliases,
+                    orig_text=orig_text,
+                ),
+            )
         return cmd
 
     def get_ast_attr_for_field(
