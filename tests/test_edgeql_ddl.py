@@ -1229,6 +1229,27 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
+    async def test_edgeql_ddl_sequence_01(self):
+        await self.con.execute("""
+            SET MODULE test;
+            CREATE TYPE Foo {
+                CREATE REQUIRED PROPERTY index -> std::int64;
+            };
+        """)
+
+        await self.con.execute("""
+            CREATE SCALAR TYPE ctr EXTENDING std::sequence;
+            ALTER TYPE Foo {
+                ALTER PROPERTY index {
+                    SET TYPE ctr;
+                };
+            };
+        """)
+
+        await self.con.execute("""
+            INSERT Foo;
+        """)
+
     async def test_edgeql_ddl_abstract_link_01(self):
         await self.con.execute("""
             CREATE ABSTRACT LINK test::test_link;

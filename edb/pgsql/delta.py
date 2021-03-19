@@ -2381,13 +2381,8 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
         return default_value
 
     def alter_pointer_default(self, pointer, schema, context):
-        default = self.get_resolved_attribute_value(
-            'default',
-            schema=schema,
-            context=context,
-        )
-        if default:
-            default_value = self.get_pointer_default(pointer, schema, context)
+        default_value = self.get_pointer_default(pointer, schema, context)
+        if default_value:
             source_ctx = context.get_ancestor(
                 s_sources.SourceCommandContext, self)
             alter_table = source_ctx.op.get_alter_table(
