@@ -2369,7 +2369,7 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
             else:
                 default_value = common.quote_literal(
                     str(default))
-        elif ptr.get_target(schema).issubclass(
+        elif (tgt := ptr.get_target(schema)) and tgt.issubclass(
                 schema, schema.get('std::sequence')):
             # TODO: replace this with a generic scalar type default
             #       using std::nextval().
