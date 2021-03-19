@@ -116,7 +116,7 @@ CREATE TYPE schema::Array EXTENDING schema::CollectionType {
 };
 
 
-CREATE TYPE schema::TupleElement {
+CREATE TYPE schema::TupleElement EXTENDING std::BaseObject {
     CREATE REQUIRED LINK type -> schema::Type {
         ON TARGET DELETE DEFERRED RESTRICT;
     };
