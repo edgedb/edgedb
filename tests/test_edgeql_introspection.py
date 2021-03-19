@@ -32,6 +32,18 @@ class TestIntrospection(tb.QueryTestCase):
     TEARDOWN = """
     """
 
+    async def test_edgeql_introspection_schema_not_objects_01(self):
+        # Test to make sure that no types in the schema are derived
+        # from std::Object.
+        await self.assert_query_result(
+            r"""
+            WITH MODULE schema
+            SELECT ObjectType { name, bases: {name}, ancestors: {name} }
+            FILTER .name LIKE 'schema::%' AND 'std::Object' IN .ancestors.name;
+            """,
+            []
+        )
+
     async def test_edgeql_introspection_objtype_01(self):
         await self.assert_query_result(
             r"""
