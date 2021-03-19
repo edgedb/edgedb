@@ -2369,7 +2369,7 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
             else:
                 default_value = common.quote_literal(
                     str(default))
-        elif ptr.get_target(schema).issubclass(
+        elif (tgt := ptr.get_target(schema)) and tgt.issubclass(
                 schema, schema.get('std::sequence')):
             # TODO: replace this with a generic scalar type default
             #       using std::nextval().
@@ -2381,13 +2381,8 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
         return default_value
 
     def alter_pointer_default(self, pointer, schema, context):
-        default = self.get_resolved_attribute_value(
-            'default',
-            schema=schema,
-            context=context,
-        )
-        if default:
-            default_value = self.get_pointer_default(pointer, schema, context)
+        default_value = self.get_pointer_default(pointer, schema, context)
+        if default_value:
             source_ctx = context.get_ancestor(
                 s_sources.SourceCommandContext, self)
             alter_table = source_ctx.op.get_alter_table(
