@@ -35,6 +35,7 @@ from libc.stdint cimport int8_t, uint8_t, int16_t, uint16_t, \
                          UINT32_MAX
 
 from edb import errors
+from edb.edgeql import qltypes
 
 from edb.schema import objects as s_obj
 
@@ -50,6 +51,7 @@ from edb.server.pgproto.pgproto cimport (
     frb_init,
     frb_read,
     frb_get_len,
+    frb_slice_from,
 )
 
 from edb.server import buildmeta
@@ -1017,7 +1019,7 @@ cdef class PGConnection:
         finally:
             await self.after_command()
 
-    async def _restore(self, sql, bytes data, tuple elided_cols):
+    async def _restore(self, restore_block, bytes data, dict type_map):
         cdef:
             WriteBuffer buf
             WriteBuffer qbuf
@@ -1028,7 +1030,7 @@ cdef class PGConnection:
             ssize_t ncols
 
         qbuf = WriteBuffer.new_message(b'Q')
-        qbuf.write_bytestring(sql)
+        qbuf.write_bytestring(restore_block.sql_copy_stmt)
         qbuf.end_message()
 
         self.write(qbuf)
@@ -1062,8 +1064,19 @@ cdef class PGConnection:
 
         buf = WriteBuffer.new()
         cpython.PyBytes_AsStringAndSize(data, &cbuf, &clen)
-        if elided_cols:
-            self._elide_copy_cols(buf, cbuf, clen, ncols, elided_cols)
+        if (
+            restore_block.compat_elided_cols
+            or any(desc for desc in restore_block.data_mending_desc)
+        ):
+            self._rewrite_copy_data(
+                buf,
+                cbuf,
+                clen,
+                ncols,
+                restore_block.data_mending_desc,
+                type_map,
+                restore_block.compat_elided_cols,
+            )
         else:
             if cbuf[0] != b'd':
                 raise RuntimeError('unexpected dump data message structure')
@@ -1078,7 +1091,6 @@ cdef class PGConnection:
         self.write(buf)
 
         qbuf = WriteBuffer.new_message(b'c')
-        qbuf.write_bytes(data)
         qbuf.end_message()
         self.write(qbuf)
 
@@ -1101,17 +1113,20 @@ cdef class PGConnection:
         if er is not None:
             raise er[0](fields=er[1])
 
-    cdef _elide_copy_cols(
+    cdef _rewrite_copy_data(
         self,
         WriteBuffer wbuf,
         char* data,
         ssize_t data_len,
         ssize_t ncols,
+        tuple data_mending_desc,
+        dict type_id_map,
         tuple elided_cols,
     ):
-        """Rewrite the binary COPY stream to exclude the specified columns."""
+        """Rewrite the binary COPY stream."""
         cdef:
             FRBuffer rbuf
+            FRBuffer datum_buf
             ssize_t i
             ssize_t real_ncols
             int8_t *elide
@@ -1172,8 +1187,22 @@ cdef class PGConnection:
                         mbuf.write_int32(datum_len)
                     if datum_len != -1:
                         datum = frb_read(&rbuf, datum_len)
+
                         if not elided:
-                            mbuf.write_cstr(datum, datum_len)
+                            datum_mending_desc = data_mending_desc[i]
+                            if (
+                                datum_mending_desc is not None
+                                and datum_mending_desc.needs_mending
+                            ):
+                                frb_init(&datum_buf, datum, datum_len)
+                                self._mend_copy_datum(
+                                    mbuf,
+                                    &datum_buf,
+                                    datum_mending_desc,
+                                    type_id_map,
+                                )
+                            else:
+                                mbuf.write_cstr(datum, datum_len)
 
                 mbuf.end_message()
                 wbuf.write_buffer(mbuf)
@@ -1181,10 +1210,109 @@ cdef class PGConnection:
         finally:
             cpython.PyMem_Free(elide)
 
-    async def restore(self, sql, bytes data, tuple elided_cols):
+    cdef _mend_copy_datum(
+        self,
+        WriteBuffer wbuf,
+        FRBuffer *rbuf,
+        object mending_desc,
+        dict type_id_map,
+    ):
+        cdef:
+            ssize_t remainder
+            int32_t ndims
+            int32_t i
+            int32_t nelems
+            int32_t dim
+            int64_t overflow_sentinel
+            const char *buf
+            FRBuffer elem_buf
+            int32_t elem_len
+            object elem_mending_desc
+
+        kind = mending_desc.schema_object_class
+
+        if kind is qltypes.SchemaObjectClass.ARRAY_TYPE:
+            # Dimensions and flags
+            buf = frb_read(rbuf, 8)
+            wbuf.write_cstr(buf, 8)
+            elem_mending_desc = mending_desc.elements[0]
+            # Discard the original element OID.
+            frb_read(rbuf, 4)
+            # Write the correct element OID.
+            elem_type_id = elem_mending_desc.schema_type_id
+            elem_type_oid = type_id_map[elem_type_id]
+            wbuf.write_int32(<int32_t>elem_type_oid)
+
+            if mending_desc.needs_mending:
+                ndims = hton.unpack_int32(buf)
+                nelems = 1
+                for i in range(ndims):
+                    # dim and lbound
+                    buf = frb_read(rbuf, 8)
+                    wbuf.write_cstr(buf, 8)
+
+                    dim = hton.unpack_int32(buf)
+                    overflow_sentinel = <int64_t>nelems * <int64_t>dim
+                    nelems = <int32_t>overflow_sentinel
+                    if <int64_t>nelems != overflow_sentinel:
+                        raise ValueError(
+                            'array datum in COPY stream exceeds the '
+                            'maximum allowed size'
+                        )
+
+                for i in range(nelems):
+                    elem_len = hton.unpack_int32(frb_read(rbuf, 4))
+                    wbuf.write_int32(elem_len)
+                    frb_slice_from(&elem_buf, rbuf, elem_len)
+                    self._mend_copy_datum(
+                        wbuf,
+                        &elem_buf,
+                        mending_desc.elements[0],
+                        type_id_map,
+                    )
+
+        elif kind is qltypes.SchemaObjectClass.TUPLE_TYPE:
+            nelems = hton.unpack_int32(frb_read(rbuf, 4))
+            wbuf.write_int32(nelems)
+
+            for i in range(nelems):
+                elem_mending_desc = mending_desc.elements[i]
+                if elem_mending_desc is not None:
+                    # Discard the original element OID.
+                    frb_read(rbuf, 4)
+                    # Write the correct element OID.
+                    elem_type_id = elem_mending_desc.schema_type_id
+                    elem_type_oid = type_id_map[elem_type_id]
+                    wbuf.write_int32(<int32_t>elem_type_oid)
+
+                    elem_len = hton.unpack_int32(frb_read(rbuf, 4))
+                    wbuf.write_int32(elem_len)
+
+                    if elem_len != -1:
+                        frb_slice_from(&elem_buf, rbuf, elem_len)
+
+                        if elem_mending_desc.needs_mending:
+                            self._mend_copy_datum(
+                                wbuf,
+                                &elem_buf,
+                                elem_mending_desc,
+                                type_id_map,
+                            )
+                        else:
+                            wbuf.write_frbuf(&elem_buf)
+                else:
+                    buf = frb_read(rbuf, 8)
+                    wbuf.write_cstr(buf, 8)
+                    elem_len = hton.unpack_int32(buf + 4)
+                    if elem_len != -1:
+                        wbuf.write_cstr(frb_read(rbuf, elem_len), elem_len)
+
+        wbuf.write_frbuf(rbuf)
+
+    async def restore(self, restore_block, bytes data, dict type_map):
         self.before_command()
         try:
-            await self._restore(sql, data, elided_cols)
+            await self._restore(restore_block, data, type_map)
         finally:
             await self.after_command()
 

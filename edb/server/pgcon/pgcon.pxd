@@ -26,6 +26,7 @@ from libc.stdint cimport int8_t, uint8_t, int16_t, uint16_t, \
 from edb.server.pgproto.pgproto cimport (
     WriteBuffer,
     ReadBuffer,
+    FRBuffer,
 )
 
 from edb.server.pgproto.debug cimport PG_DEBUG
@@ -104,11 +105,21 @@ cdef class PGConnection:
     cdef make_clean_stmt_message(self, bytes stmt_name)
     cdef make_auth_password_md5_message(self, bytes salt)
 
-    cdef _elide_copy_cols(
+    cdef _rewrite_copy_data(
         self,
         WriteBuffer wbuf,
-        char* data,
+        char *data,
         ssize_t data_len,
         ssize_t ncols,
         tuple elide_cols,
+        dict type_id_map,
+        tuple data_mending_desc,
+    )
+
+    cdef _mend_copy_datum(
+        self,
+        WriteBuffer wbuf,
+        FRBuffer *rbuf,
+        object mending_desc,
+        dict type_id_map,
     )

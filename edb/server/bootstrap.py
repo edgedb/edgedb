@@ -677,36 +677,6 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
         logger.info('Initializing the standard library...')
         await metaschema._execute_sql_script(conn, tpldbdump.decode('utf-8'))
 
-        # When we restore a database from a dump, OIDs for non-system
-        # Postgres types might get skewed as they are not part of the dump.
-        # A good example of that is `std::bigint` which is implemented as
-        # a custom domain type. The OIDs are stored under
-        # `schema::Object.backend_id` property and are injected into
-        # array query arguments.
-        #
-        # The code below re-syncs backend_id properties of EdgeDB builtin
-        # types with the actual OIDs in the DB.
-
-        compiler = edbcompiler.new_compiler(
-            std_schema=stdlib.stdschema,
-            reflection_schema=stdlib.reflschema,
-            schema_class_layout=stdlib.classlayout,
-        )
-        _, sql = compile_bootstrap_script(
-            compiler,
-            stdlib.reflschema,
-            '''
-            UPDATE schema::ScalarType
-            FILTER .builtin AND NOT (.abstract ?? False)
-            SET {
-                backend_id := sys::_get_pg_type_for_scalar_type(.id)
-            }
-            ''',
-            expected_cardinality_one=False,
-            single_statement=True,
-        )
-        await conn.execute(sql)
-
     if not in_dev_mode and testmode:
         # Running tests on a production build.
         stdlib, testmode_sql = await _amend_stdlib(
@@ -714,10 +684,6 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
             stdlib,
         )
         await conn.execute(testmode_sql)
-        await metaschema.generate_support_views(
-            conn,
-            stdlib.reflschema,
-        )
 
     # Make sure that schema backend_id properties are in sync with
     # the database.
@@ -795,6 +761,63 @@ async def _init_stdlib(cluster, conn, testmode, global_ids):
 
     await metaschema.generate_more_support_functions(
         conn, compiler, stdlib.reflschema, testmode)
+
+    if tpldbdump is not None:
+        # When we restore a database from a dump, OIDs for non-system
+        # Postgres types might get skewed as they are not part of the dump.
+        # A good example of that is `std::bigint` which is implemented as
+        # a custom domain type. The OIDs are stored under
+        # `schema::Object.backend_id` property and are injected into
+        # array query arguments.
+        #
+        # The code below re-syncs backend_id properties of EdgeDB builtin
+        # types with the actual OIDs in the DB.
+
+        compiler = edbcompiler.new_compiler(
+            std_schema=stdlib.stdschema,
+            reflection_schema=stdlib.reflschema,
+            schema_class_layout=stdlib.classlayout,
+        )
+        _, sql = compile_bootstrap_script(
+            compiler,
+            stdlib.reflschema,
+            '''
+            UPDATE schema::Type
+            FILTER
+                .builtin
+                AND NOT (.abstract ?? False)
+                AND schema::Type IS schema::ScalarType | schema::Tuple
+            SET {
+                backend_id := sys::_get_pg_type_for_edgedb_type(
+                    .id,
+                    <uuid>{}
+                )
+            }
+            ''',
+            expected_cardinality_one=False,
+            single_statement=True,
+        )
+        await conn.execute(sql)
+
+        _, sql = compile_bootstrap_script(
+            compiler,
+            stdlib.reflschema,
+            '''
+            UPDATE schema::Array
+            FILTER
+                .builtin
+                AND NOT (.abstract ?? False)
+            SET {
+                backend_id := sys::_get_pg_type_for_edgedb_type(
+                    .id,
+                    .element_type.id,
+                )
+            }
+            ''',
+            expected_cardinality_one=False,
+            single_statement=True,
+        )
+        await conn.execute(sql)
 
     return stdlib, compiler
 

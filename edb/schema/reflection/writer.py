@@ -412,13 +412,21 @@ def _build_object_mutation_shape(
 
     if isinstance(cmd, sd.CreateObject):
         if (
-            issubclass(mcls, s_scalars.ScalarType)
+            issubclass(mcls, (s_scalars.ScalarType, s_types.Collection))
+            and not issubclass(mcls, s_types.CollectionExprAlias)
             and not cmd.get_attribute_value('abstract')
         ):
-            assignments.append(
-                f'backend_id := sys::_get_pg_type_for_scalar_type('
-                f'<uuid>$__{var_prefix}id)'
-            )
+            if issubclass(mcls, s_types.Array):
+                assignments.append(
+                    f'backend_id := sys::_get_pg_type_for_edgedb_type('
+                    f'<uuid>$__{var_prefix}id, '
+                    f'<uuid>$__{var_prefix}element_type)'
+                )
+            else:
+                assignments.append(
+                    f'backend_id := sys::_get_pg_type_for_edgedb_type('
+                    f'<uuid>$__{var_prefix}id, <uuid>{{}})'
+                )
             variables[f'__{var_prefix}id'] = json.dumps(
                 str(cmd.get_attribute_value('id')))
 

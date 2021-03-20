@@ -414,7 +414,7 @@ class Server:
                         "backend_id"
                     )::text
                 FROM
-                    edgedb."_SchemaScalarType"
+                    edgedb."_SchemaType"
                 ''',
                 b'__backend_ids_fetch',
                 dbver=0,

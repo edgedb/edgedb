@@ -134,12 +134,13 @@ cdef class QueryRequestInfo:
     def __cinit__(
         self,
         source: edgeql.Source,
-        io_format: object,
-        expect_one: bint,
-        implicit_limit: int,
-        inline_typeids: bint,
-        inline_typenames: bint,
-        allow_capabilities: uint64_t,
+        *,
+        io_format: compiler.IoFormat = FMT_BINARY,
+        expect_one: bint = False,
+        implicit_limit: int = 0,
+        inline_typeids: bint = False,
+        inline_typenames: bint = False,
+        allow_capabilities: uint64_t = ALL_CAPABILITIES,
     ):
         self.source = source
         self.io_format = io_format
@@ -1207,12 +1208,12 @@ cdef class EdgeConnection:
 
         query_req = QueryRequestInfo(
             source,
-            io_format,
-            expect_one,
-            implicit_limit,
-            inline_typeids,
-            inline_typenames,
-            allow_capabilities,
+            io_format=io_format,
+            expect_one=expect_one,
+            implicit_limit=implicit_limit,
+            inline_typeids=inline_typeids,
+            inline_typenames=inline_typenames,
+            allow_capabilities=allow_capabilities,
         )
 
         return eql, query_req, stmt_name
@@ -1985,7 +1986,7 @@ cdef class EdgeConnection:
                     # per Postgres' expectations.
                     if param.array_type_id is not None:
                         # ndimensions + flags
-                        array_tid = self.dbview.resolve_array_type_id(
+                        array_tid = self.dbview.resolve_backend_type_id(
                             param.array_type_id)
                         out_buf.write_cstr(data, 8)
                         out_buf.write_int32(<int32_t>array_tid)
@@ -2259,6 +2260,34 @@ cdef class EdgeConnection:
         self.write(msg_buf.end_message())
         self.flush()
 
+    async def _execute_utility_stmt(self, eql: str, pgcon):
+        query_req = QueryRequestInfo(edgeql.Source.from_string(eql))
+
+        units = await self._compile(query_req)
+        assert len(units) == 1
+        query_unit = units[0]
+
+        try:
+            self.dbview.start(query_unit)
+            await pgcon.simple_query(
+                b';'.join(query_unit.sql),
+                ignore_data=True,
+            )
+        except Exception:
+            self.dbview.on_error(query_unit)
+            if (
+                query_unit.tx_commit and
+                not pgcon.in_tx() and
+                self.dbview.in_tx()
+            ):
+                # The COMMIT command has failed. Our Postgres connection
+                # isn't in a transaction anymore. Abort the transaction
+                # in dbview.
+                self.dbview.abort_tx()
+            raise
+        else:
+            self.dbview.on_success(query_unit, {})
+
     async def restore(self):
         cdef:
             WriteBuffer msg_buf
@@ -2278,6 +2307,7 @@ cdef class EdgeConnection:
         compiler_pool = server.get_compiler_pool()
 
         global_schema = self.dbview.get_global_schema()
+        user_schema = self.dbview.get_user_schema()
 
         dump_server_ver_str = None
         headers_num = self.buffer.read_int16()
@@ -2322,14 +2352,10 @@ cdef class EdgeConnection:
         pgcon = await server.acquire_pgcon(dbname)
 
         try:
-            await pgcon.simple_query(
-                b'''START TRANSACTION
-                        ISOLATION LEVEL SERIALIZABLE;
-                ''',
-                True
+            await self._execute_utility_stmt(
+                'START TRANSACTION ISOLATION SERIALIZABLE',
+                pgcon,
             )
-
-            user_schema = await server.introspect_user_schema(pgcon)
 
             schema_sql_units, restore_blocks, tables = \
                 await compiler_pool.describe_database_restore(
@@ -2342,18 +2368,33 @@ cdef class EdgeConnection:
                 )
 
             for query_unit in schema_sql_units:
-                if query_unit.config_ops:
-                    for op in query_unit.config_ops:
-                        if op.scope is config.ConfigScope.SYSTEM:
-                            raise errors.ProtocolError(
-                                'CONFIGURE SYSTEM cannot be executed'
-                                ' in dump restore'
+                new_types = None
+                self.dbview.start(query_unit)
+
+                try:
+                    if query_unit.config_ops:
+                        for op in query_unit.config_ops:
+                            if op.scope is config.ConfigScope.SYSTEM:
+                                raise errors.ProtocolError(
+                                    'CONFIGURE SYSTEM cannot be executed'
+                                    ' in dump restore'
+                                )
+
+                    if query_unit.sql:
+                        if query_unit.ddl_stmt_id:
+                            ddl_ret = await pgcon.run_ddl(query_unit)
+                            if ddl_ret and ddl_ret['new_types']:
+                                new_types = ddl_ret['new_types']
+                        else:
+                            await pgcon.simple_query(
+                                b';'.join(query_unit.sql),
+                                ignore_data=True,
                             )
-                if query_unit.sql:
-                    await pgcon.simple_query(
-                        b';'.join(query_unit.sql),
-                        ignore_data=True,
-                    )
+                except Exception:
+                    self.dbview.on_error(query_unit)
+                    raise
+                else:
+                    self.dbview.on_success(query_unit, new_types)
 
             restore_blocks = {
                 b.schema_object_id: b
@@ -2372,7 +2413,7 @@ cdef class EdgeConnection:
 
             await pgcon.simple_query(
                 disable_trigger_q.encode(),
-                True
+                ignore_data=True,
             )
 
             # Send "RestoreReadyMessage"
@@ -2413,11 +2454,9 @@ cdef class EdgeConnection:
                         raise errors.ProtocolError('incomplete data block')
 
                     restore_block = restore_blocks[block_id]
-                    await pgcon.restore(
-                        restore_block.sql_copy_stmt,
-                        block_data,
-                        restore_block.compat_elided_cols,
-                    )
+                    type_id_map = self._build_type_id_map_for_restore_mending(
+                        restore_block)
+                    await pgcon.restore(restore_block, block_data, type_id_map)
 
                 elif mtype == b'.':
                     self.buffer.finish_message()
@@ -2427,9 +2466,17 @@ cdef class EdgeConnection:
                     self.fallthrough()
 
             await pgcon.simple_query(
-                enable_trigger_q.encode() + b'COMMIT;',
-                True
+                enable_trigger_q.encode(),
+                ignore_data=True,
             )
+
+        except Exception:
+            await pgcon.simple_query(b'ROLLBACK', ignore_data=True)
+            self.dbview.abort_tx()
+            raise
+
+        else:
+            await self._execute_utility_stmt('COMMIT', pgcon)
 
         finally:
             server.release_pgcon(dbname, pgcon)
@@ -2441,3 +2488,25 @@ cdef class EdgeConnection:
         msg.write_len_prefixed_bytes(b'RESTORE')
         self.write(msg.end_message())
         self.flush()
+
+    def _build_type_id_map_for_restore_mending(self, restore_block):
+        type_map = {}
+        descriptor_stack = []
+
+        if not restore_block.data_mending_desc:
+            return type_map
+
+        descriptor_stack.append(restore_block.data_mending_desc)
+        while descriptor_stack:
+            desc_tuple = descriptor_stack.pop()
+            for desc in desc_tuple:
+                if desc is not None:
+                    type_map[desc.schema_type_id] = (
+                        self.dbview.resolve_backend_type_id(
+                            desc.schema_type_id,
+                        )
+                    )
+
+                    descriptor_stack.append(desc.elements)
+
+        return type_map
