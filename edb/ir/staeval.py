@@ -269,7 +269,12 @@ def cast_const_to_python(
     schema, stype = irtyputils.ir_typeref_to_type(schema, ir.to_type)
     pytype = scalar_type_to_python_type(stype, schema)
     sval = evaluate_to_python_val(ir.expr, schema=schema)
-    return pytype(sval)
+    if sval is None:
+        return None
+    elif isinstance(sval, tuple):
+        return tuple(pytype(elem) for elem in sval)
+    else:
+        return pytype(sval)
 
 
 def schema_type_to_python_type(

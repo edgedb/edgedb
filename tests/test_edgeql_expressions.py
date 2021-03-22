@@ -4704,3 +4704,30 @@ aa \
             await self.con.query("""
                 SELECT Object ?? '';
             """)
+
+    async def test_edgeql_expr_static_eval_casts_01(self):
+        # The static evaluator produced some really silly results for
+        # these at one point.
+
+        await self.assert_query_result(
+            r'''
+                WITH x := {1, 2}, SELECT ("wtf" ++ <str>x);
+            ''',
+            ["wtf1", "wtf2"],
+            sort=True,
+        )
+
+        await self.assert_query_result(
+            r'''
+                FOR x in {1, 2} UNION (SELECT ("wtf" ++ <str>x));
+            ''',
+            ["wtf1", "wtf2"],
+            sort=True,
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH x := <int64>{}, SELECT ("wtf" ++ <str>x);
+            ''',
+            [],
+        )
