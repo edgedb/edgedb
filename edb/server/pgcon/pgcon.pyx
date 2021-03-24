@@ -60,7 +60,7 @@ from edb.server import buildmeta
 from edb.server import compiler
 from edb.server import defines
 from edb.server.cache cimport stmt_cache
-from edb.server.pgconnparams import SSLMode
+from edb.server import pgconnparams
 from edb.server.protocol cimport binary as edgecon
 
 from edb.common import debug
@@ -169,7 +169,7 @@ async def _create_ssl_connection(protocol_factory, host, port, *,
     return new_tr, pg_proto
 
 
-class _Retry(Exception):
+class _RetryConnectSignal(Exception):
     pass
 
 
@@ -179,7 +179,7 @@ async def _connect(connargs, dbname, ssl):
 
     host = connargs.get("host")
     port = connargs.get("port")
-    sslmode = connargs.get('sslmode', SSLMode.prefer)
+    sslmode = connargs.get('sslmode', pgconnparams.SSLMode.prefer)
 
     if host.startswith('/'):
         addr = os.path.join(host, f'.s.PGSQL.{port}')
@@ -194,7 +194,7 @@ async def _connect(connargs, dbname, ssl):
                 port,
                 loop=loop,
                 ssl_context=ssl,
-                ssl_is_advisory=(sslmode == SSLMode.prefer),
+                ssl_is_advisory=(sslmode == pgconnparams.SSLMode.prefer),
             )
         else:
             trans, pgcon = await loop.create_connection(
@@ -210,15 +210,15 @@ async def _connect(connargs, dbname, ssl):
             raise
 
         if (
-            sslmode == SSLMode.allow and not pgcon.is_ssl or
-            sslmode == SSLMode.prefer and pgcon.is_ssl
+            sslmode == pgconnparams.SSLMode.allow and not pgcon.is_ssl or
+            sslmode == pgconnparams.SSLMode.prefer and pgcon.is_ssl
         ):
             # Trigger retry when:
             #   1. First attempt with sslmode=allow, ssl=None failed
             #   2. First attempt with sslmode=prefer, ssl=ctx failed while the
             #      server claimed to support SSL (returning "S" for SSLRequest)
             #      (likely because pg_hba.conf rejected the connection)
-            raise _Retry()
+            raise _RetryConnectSignal()
 
         else:
             # but will NOT retry if:
@@ -239,17 +239,17 @@ async def connect(connargs, dbname):
     # This is different than parsing DSN and use the default sslmode=prefer,
     # because connargs can be set manually thru set_connection_params(), and
     # the caller should be responsible for aligning sslmode with ssl.
-    sslmode = connargs.get('sslmode', SSLMode.disable)
+    sslmode = connargs.get('sslmode', pgconnparams.SSLMode.disable)
     ssl = connargs.get('ssl')
-    if sslmode == SSLMode.allow:
+    if sslmode == pgconnparams.SSLMode.allow:
         try:
             pgcon = await _connect(connargs, dbname, ssl=None)
-        except _Retry:
+        except _RetryConnectSignal:
             pgcon = await _connect(connargs, dbname, ssl=ssl)
-    elif sslmode == SSLMode.prefer:
+    elif sslmode == pgconnparams.SSLMode.prefer:
         try:
             pgcon = await _connect(connargs, dbname, ssl=ssl)
-        except _Retry:
+        except _RetryConnectSignal:
             pgcon = await _connect(connargs, dbname, ssl=None)
     else:
         pgcon = await _connect(connargs, dbname, ssl=ssl)
