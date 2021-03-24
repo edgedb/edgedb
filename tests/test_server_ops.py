@@ -184,7 +184,7 @@ class TestServerOps(tb.TestCase):
                 try:
                     max_connections = await con.query_one(
                         'SELECT cfg::SystemConfig.__pg_max_connections '
-                        'LIMIT 1')
+                        'LIMIT 1')  # TODO: remove LIMIT 1 after #2402
                     self.assertEqual(int(max_connections), actual)
                 finally:
                     await con.aclose()

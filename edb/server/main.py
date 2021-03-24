@@ -57,7 +57,7 @@ from . import pgcluster
 from . import protocol
 
 
-BYTES_OF_MEM_PER_CONN = 100 * 1024 * 1024 / 8  # 100Mb
+BYTES_OF_MEM_PER_CONN = 100 * 1024 * 1024  # 100MiB
 
 logger = logging.getLogger('edb.server')
 _server_initialized = False
@@ -518,7 +518,7 @@ def _validate_max_backend_connections(ctx, param, value):
 
 def _compute_default_max_backend_connections():
     total_mem = psutil.virtual_memory().total
-    return int(total_mem / BYTES_OF_MEM_PER_CONN)
+    return max(int(total_mem / BYTES_OF_MEM_PER_CONN), 2)
 
 
 def _validate_compiler_pool_size(ctx, param, value):
@@ -600,7 +600,7 @@ _server_options = [
         '--max-backend-connections', type=int, metavar='NUM',
         help=f'The maximum NUM of connections this EdgeDB instance could make '
              f'to the backend PostgreSQL cluster. If not set, EdgeDB will '
-             f'detect and calculate the NUM: RAM/100Mb='
+             f'detect and calculate the NUM: RAM/100MiB='
              f'{_compute_default_max_backend_connections()} for local '
              f'Postgres or pg_settings.max_connections for remote Postgres, '
              f'minus the NUM of --reserved-pg-connections.',
