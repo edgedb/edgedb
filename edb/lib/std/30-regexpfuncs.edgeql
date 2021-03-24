@@ -25,7 +25,7 @@ std::re_match(pattern: std::str, str: std::str) -> array<std::str>
 {
     CREATE ANNOTATION std::description :=
         'Find the first regular expression match in a string.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT regexp_matches("str", "pattern");
     $$;
@@ -37,7 +37,7 @@ std::re_match_all(pattern: std::str, str: std::str) -> SET OF array<std::str>
 {
     CREATE ANNOTATION std::description :=
         'Find all regular expression matches in a string.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT regexp_matches("str", "pattern", 'g');
     $$;
@@ -49,7 +49,7 @@ std::re_test(pattern: std::str, str: std::str) -> std::bool
 {
     CREATE ANNOTATION std::description :=
         'Test if a regular expression has a match in a string.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT "str" ~ "pattern";
     $$;
@@ -65,7 +65,7 @@ std::re_replace(
 {
     CREATE ANNOTATION std::description :=
         'Replace matching substrings in a given string.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT regexp_replace("str", "pattern", "sub", "flags");
     $$;

@@ -40,7 +40,7 @@ commands <ref_eql_ddl_functions>`.
     function <name> ([ <argspec> ] [, ... ]) -> <returnspec>
     "{"
         [ <annotation-declarations> ]
-        [ volatility := {'VOLATILE' | 'IMMUTABLE' | 'STABLE'} ]
+        [ volatility := {'Immutable' | 'Stable' | 'Volatile'} ]
         [ using ( <expr> ) ; ]
         [ using <language> <functionbody> ; ]
         [ ... ]
@@ -121,21 +121,21 @@ This declaration defines a new constraint with the following options:
 
 The valid SDL sub-declarations are listed below:
 
-:eql:synopsis:`volatility := {'VOLATILE' | 'IMMUTABLE' | 'STABLE'}`
+:eql:synopsis:`volatility := {'Immutable' | 'Stable' | 'Volatile'}`
     Function volatility determines how aggressively the compiler can
     optimize its invocations.
 
     If not explicitly specified the function volatility is set to
-    ``IMMUTABLE`` by default.
+    ``Immutable`` by default.
 
-    * A ``VOLATILE`` function can modify the database and can return
+    * A ``Volatile`` function can modify the database and can return
       different results on successive calls with the same arguments.
 
-    * A ``STABLE`` function cannot modify the database and is
+    * A ``Stable`` function cannot modify the database and is
       guaranteed to return the same results given the same
       arguments *within a single statement*.
 
-    * An ``IMMUTABLE`` function cannot modify the database and is
+    * An ``Immutable`` function cannot modify the database and is
       guaranteed to return the same results given the same arguments
       *forever*.
 

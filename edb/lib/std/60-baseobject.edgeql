@@ -60,7 +60,7 @@ CREATE ABSTRACT TYPE std::Object EXTENDING std::BaseObject {
 # clashing with the operators for uuid in Postgres.
 CREATE INFIX OPERATOR
 std::`=` (l: std::BaseObject, r: std::BaseObject) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
@@ -70,14 +70,14 @@ std::`?=` (
     l: OPTIONAL std::BaseObject,
     r: OPTIONAL std::BaseObject
 ) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::BaseObject, r: std::BaseObject) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
@@ -87,41 +87,41 @@ std::`?!=` (
     l: OPTIONAL std::BaseObject,
     r: OPTIONAL std::BaseObject
 ) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::BaseObject, r: std::BaseObject) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::BaseObject, r: std::BaseObject) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::BaseObject, r: std::BaseObject) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::BaseObject, r: std::BaseObject) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 # The only possible Object cast is into json.
 CREATE CAST FROM std::BaseObject TO std::json {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };

@@ -201,7 +201,7 @@ The standard library defines the following constraints:
     * The expression can only contain references to the immediate
       properties or links of the type.
     * No backward links or long paths are allowed.
-    * Only ``IMMUTABLE`` functions are allowed in the constraint
+    * Only ``Immutable`` functions are allowed in the constraint
       expression.
 
     .. note::

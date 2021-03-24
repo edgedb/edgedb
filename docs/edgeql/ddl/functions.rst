@@ -49,7 +49,7 @@ CREATE FUNCTION
 
     # and <subcommand> is one of
 
-      SET volatility := {'VOLATILE' | 'IMMUTABLE' | 'STABLE'} ;
+      SET volatility := {'Immutable' | 'Stable' | 'Volatile'} ;
       CREATE ANNOTATION <annotation-name> := <value> ;
       USING ( <expr> ) ;
       USING <language> <functionbody> ;
@@ -75,7 +75,7 @@ Most sub-commands and options of this command are identical to the
 :ref:`SDL function declaration <ref_eql_sdl_functions_syntax>`, with
 some additional features listed below:
 
-:eql:synopsis:`SET volatility := {'VOLATILE' | 'IMMUTABLE' | 'STABLE'}`
+:eql:synopsis:`SET volatility := {'Immutable' | 'Stable' | 'Volatile'}`
     Function volatility determines how aggressively the compiler can
     optimize its invocations. Other than a slight syntactical
     difference this is the same as the corresponding SDL declaration.
@@ -141,7 +141,7 @@ Change the definition of a function.
 
     # and <subcommand> is one of
 
-      SET volatility := {'VOLATILE' | 'IMMUTABLE' | 'STABLE'} ;
+      SET volatility := {'Immutable' | 'Stable' | 'Volatile'} ;
       RESET volatility ;
       RENAME TO <newname> ;
       CREATE ANNOTATION <annotation-name> := <value> ;
@@ -198,7 +198,7 @@ Example
     };
 
     ALTER FUNCTION mysum(a: int64, b: int64) {
-        SET volatility := 'IMMUTABLE';
+        SET volatility := 'Immutable';
         DROP ANNOTATION title;
     };
 

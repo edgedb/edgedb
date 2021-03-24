@@ -28,7 +28,7 @@ CREATE INFIX OPERATOR
 std::`IN` (e: anytype, s: SET OF anytype) -> std::bool
 {
     USING SQL EXPRESSION;
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET derivative_of := 'std::=';
 };
 
@@ -37,35 +37,35 @@ CREATE INFIX OPERATOR
 std::`NOT IN` (e: anytype, s: SET OF anytype) -> std::bool
 {
     USING SQL EXPRESSION;
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET derivative_of := 'std::=';
 };
 
 
 CREATE PREFIX OPERATOR
 std::`EXISTS` (s: SET OF anytype) -> bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE PREFIX OPERATOR
 std::`DISTINCT` (s: SET OF anytype) -> SET OF anytype {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`UNION` (s1: SET OF anytype, s2: SET OF anytype) -> SET OF anytype {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`??` (l: OPTIONAL anytype, r: SET OF anytype) -> SET OF anytype {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
@@ -73,6 +73,6 @@ std::`??` (l: OPTIONAL anytype, r: SET OF anytype) -> SET OF anytype {
 CREATE TERNARY OPERATOR
 std::`IF` (if_true: SET OF anytype, condition: bool,
            if_false: SET OF anytype) -> SET OF anytype {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };

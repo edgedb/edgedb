@@ -35,7 +35,7 @@
 # boolean expression in conjunction.
 CREATE INFIX OPERATOR
 std::`OR` (a: std::bool, b: std::bool) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT ("a" OR "b") AND ("a"::int | "b"::int)::bool
     $$;
@@ -46,21 +46,21 @@ std::`OR` (a: std::bool, b: std::bool) -> std::bool {
 # by the compiler into some SQL expression.
 CREATE INFIX OPERATOR
 std::`AND` (a: std::bool, b: std::bool) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE PREFIX OPERATOR
 std::`NOT` (v: std::bool) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`=` (l: std::bool, r: std::bool) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
     USING SQL OPERATOR r'=';
@@ -69,14 +69,14 @@ std::`=` (l: std::bool, r: std::bool) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::bool, r: OPTIONAL std::bool) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::bool, r: std::bool) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
     USING SQL OPERATOR r'<>';
@@ -85,14 +85,14 @@ std::`!=` (l: std::bool, r: std::bool) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::bool, r: OPTIONAL std::bool) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::bool, r: std::bool) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
     USING SQL OPERATOR '>=';
@@ -101,7 +101,7 @@ std::`>=` (l: std::bool, r: std::bool) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::bool, r: std::bool) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
     USING SQL OPERATOR '>';
@@ -110,7 +110,7 @@ std::`>` (l: std::bool, r: std::bool) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::bool, r: std::bool) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
     USING SQL OPERATOR '<=';
@@ -119,7 +119,7 @@ std::`<=` (l: std::bool, r: std::bool) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::bool, r: std::bool) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
     USING SQL OPERATOR '<';
@@ -130,12 +130,12 @@ std::`<` (l: std::bool, r: std::bool) -> std::bool {
 ## -------------
 
 CREATE CAST FROM std::str TO std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'edgedb.str_to_bool';
 };
 
 
 CREATE CAST FROM std::bool TO std::str {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL CAST;
 };

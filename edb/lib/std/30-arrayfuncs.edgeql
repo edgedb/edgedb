@@ -25,7 +25,7 @@ std::array_agg(s: SET OF anytype) -> array<anytype>
 {
     CREATE ANNOTATION std::description :=
         'Return the array made from all of the input set elements.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET initial_value := [];
     USING SQL FUNCTION 'array_agg';
 };
@@ -35,7 +35,7 @@ CREATE FUNCTION
 std::array_unpack(array: array<anytype>) -> SET OF anytype
 {
     CREATE ANNOTATION std::description := 'Return array elements as a set.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'unnest';
 };
 
@@ -49,7 +49,7 @@ std::array_get(
 {
     CREATE ANNOTATION std::description :=
         'Return the element of *array* at the specified *index*.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT COALESCE(
         "array"[
@@ -66,7 +66,7 @@ CREATE FUNCTION
 std::array_join(array: array<std::str>, delimiter: std::str) -> std::str
 {
     CREATE ANNOTATION std::description := 'Render an array to a string.';
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     USING SQL $$
     SELECT array_to_string("array", "delimiter");
     $$;
@@ -78,7 +78,7 @@ std::array_join(array: array<std::str>, delimiter: std::str) -> std::str
 
 CREATE INFIX OPERATOR
 std::`=` (l: array<anytype>, r: array<anytype>) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET recursive := true;
     SET commutator := 'std::=';
     SET negator := 'std::!=';
@@ -89,7 +89,7 @@ std::`=` (l: array<anytype>, r: array<anytype>) -> std::bool {
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL array<anytype>,
            r: OPTIONAL array<anytype>) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
     SET recursive := true;
 };
@@ -97,7 +97,7 @@ std::`?=` (l: OPTIONAL array<anytype>,
 
 CREATE INFIX OPERATOR
 std::`!=` (l: array<anytype>, r: array<anytype>) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET recursive := true;
     SET commutator := 'std::!=';
     SET negator := 'std::=';
@@ -108,14 +108,14 @@ std::`!=` (l: array<anytype>, r: array<anytype>) -> std::bool {
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL array<anytype>,
             r: OPTIONAL array<anytype>) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
     SET recursive := true;
 };
 
 CREATE INFIX OPERATOR
 std::`>=` (l: array<anytype>, r: array<anytype>) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET recursive := true;
     SET commutator := 'std::<=';
     SET negator := 'std::<';
@@ -124,7 +124,7 @@ std::`>=` (l: array<anytype>, r: array<anytype>) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>` (l: array<anytype>, r: array<anytype>) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET recursive := true;
     SET commutator := 'std::<';
     SET negator := 'std::<=';
@@ -133,7 +133,7 @@ std::`>` (l: array<anytype>, r: array<anytype>) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: array<anytype>, r: array<anytype>) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET recursive := true;
     SET commutator := 'std::>=';
     SET negator := 'std::>';
@@ -142,7 +142,7 @@ std::`<=` (l: array<anytype>, r: array<anytype>) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: array<anytype>, r: array<anytype>) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET recursive := true;
     SET commutator := 'std::>';
     SET negator := 'std::>=';
@@ -152,6 +152,6 @@ std::`<` (l: array<anytype>, r: array<anytype>) -> std::bool {
 # Concatenation
 CREATE INFIX OPERATOR
 std::`++` (l: array<anytype>, r: array<anytype>) -> array<anytype> {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL OPERATOR '||';
 };

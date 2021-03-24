@@ -35,7 +35,7 @@ cal::to_local_datetime(s: std::str, fmt: OPTIONAL str={})
     CREATE ANNOTATION std::description :=
         'Create a `cal::local_datetime` value.';
     # Helper function to_local_datetime is VOLATILE.
-    SET volatility := 'VOLATILE';
+    SET volatility := 'Volatile';
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
@@ -71,7 +71,7 @@ cal::to_local_datetime(year: std::int64, month: std::int64, day: std::int64,
 {
     CREATE ANNOTATION std::description :=
         'Create a `cal::local_datetime` value.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT make_timestamp(
         "year"::int, "month"::int, "day"::int,
@@ -88,7 +88,7 @@ cal::to_local_datetime(dt: std::datetime, zone: std::str)
     CREATE ANNOTATION std::description :=
         'Create a `cal::local_datetime` value.';
     # The version of timezone with these arguments is IMMUTABLE.
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT timezone("zone", "dt")::edgedb.timestamp_t;
     $$;
@@ -100,7 +100,7 @@ cal::to_local_date(s: std::str, fmt: OPTIONAL str={}) -> cal::local_date
 {
     CREATE ANNOTATION std::description := 'Create a `cal::local_date` value.';
     # Helper functions raising exceptions are STABLE.
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
@@ -134,7 +134,7 @@ cal::to_local_date(dt: std::datetime, zone: std::str)
 {
     CREATE ANNOTATION std::description := 'Create a `cal::local_date` value.';
     # The version of timezone with these arguments is IMMUTABLE.
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT timezone("zone", "dt")::edgedb.date_t;
     $$;
@@ -146,7 +146,7 @@ cal::to_local_date(year: std::int64, month: std::int64, day: std::int64)
     -> cal::local_date
 {
     CREATE ANNOTATION std::description := 'Create a `cal::local_date` value.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT make_date("year"::int, "month"::int, "day"::int)::edgedb.date_t
     $$;
@@ -158,7 +158,7 @@ cal::to_local_time(s: std::str, fmt: OPTIONAL str={}) -> cal::local_time
 {
     CREATE ANNOTATION std::description := 'Create a `cal::local_time` value.';
     # Helper functions raising exceptions are STABLE.
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
@@ -194,7 +194,7 @@ cal::to_local_time(dt: std::datetime, zone: std::str)
     CREATE ANNOTATION std::description := 'Create a `cal::local_time` value.';
     # The version of timezone with these arguments is IMMUTABLE and so
     # is the cast.
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT timezone("zone", "dt")::time;
     $$;
@@ -206,7 +206,7 @@ cal::to_local_time(hour: std::int64, min: std::int64, sec: std::float64)
     -> cal::local_time
 {
     CREATE ANNOTATION std::description := 'Create a `cal::local_time` value.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT make_time("hour"::int, "min"::int, "sec")
     $$;
@@ -218,7 +218,7 @@ cal::time_get(dt: cal::local_time, el: std::str) -> std::float64
 {
     CREATE ANNOTATION std::description :=
         'Extract a specific element of input time by name.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT CASE WHEN "el" IN ('hour', 'microseconds', 'milliseconds',
             'minutes', 'seconds')
@@ -247,7 +247,7 @@ cal::date_get(dt: cal::local_date, el: std::str) -> std::float64
 {
     CREATE ANNOTATION std::description :=
         'Extract a specific element of input date by name.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT CASE WHEN "el" IN (
             'century', 'day', 'decade', 'dow', 'doy',
@@ -277,7 +277,7 @@ cal::date_get(dt: cal::local_date, el: std::str) -> std::float64
 
 CREATE INFIX OPERATOR
 std::`=` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
     USING SQL OPERATOR r'=(timestamp,timestamp)';
@@ -287,14 +287,14 @@ std::`=` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL cal::local_datetime,
            r: OPTIONAL cal::local_datetime) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`!=` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
     USING SQL OPERATOR r'<>(timestamp,timestamp)';
@@ -304,14 +304,14 @@ std::`!=` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL cal::local_datetime,
             r: OPTIONAL cal::local_datetime) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`>` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
     USING SQL OPERATOR r'>(timestamp,timestamp)';
@@ -320,7 +320,7 @@ std::`>` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>=` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
     USING SQL OPERATOR r'>=(timestamp,timestamp)';
@@ -329,7 +329,7 @@ std::`>=` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
     USING SQL OPERATOR r'<(timestamp,timestamp)';
@@ -338,7 +338,7 @@ std::`<` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
     USING SQL OPERATOR r'<=(timestamp,timestamp)';
@@ -347,7 +347,7 @@ std::`<=` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`+` (l: cal::local_datetime, r: std::duration) -> cal::local_datetime {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL $$
         SELECT ("l" + "r")::edgedb.timestamp_t
@@ -357,7 +357,7 @@ std::`+` (l: cal::local_datetime, r: std::duration) -> cal::local_datetime {
 
 CREATE INFIX OPERATOR
 std::`+` (l: std::duration, r: cal::local_datetime) -> cal::local_datetime {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL $$
         SELECT ("l" + "r")::edgedb.timestamp_t
@@ -367,7 +367,7 @@ std::`+` (l: std::duration, r: cal::local_datetime) -> cal::local_datetime {
 
 CREATE INFIX OPERATOR
 std::`-` (l: cal::local_datetime, r: std::duration) -> cal::local_datetime {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
         SELECT ("l" - "r")::edgedb.timestamp_t
     $$;
@@ -379,7 +379,7 @@ std::`-` (l: cal::local_datetime, r: std::duration) -> cal::local_datetime {
 
 CREATE INFIX OPERATOR
 std::`=` (l: cal::local_date, r: cal::local_date) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
     USING SQL OPERATOR r'=(date,date)';
@@ -389,14 +389,14 @@ std::`=` (l: cal::local_date, r: cal::local_date) -> std::bool {
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL cal::local_date,
            r: OPTIONAL cal::local_date) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`!=` (l: cal::local_date, r: cal::local_date) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
     USING SQL OPERATOR r'<>(date,date)';
@@ -406,14 +406,14 @@ std::`!=` (l: cal::local_date, r: cal::local_date) -> std::bool {
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL cal::local_date,
             r: OPTIONAL cal::local_date) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`>` (l: cal::local_date, r: cal::local_date) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
     USING SQL OPERATOR r'>(date,date)';
@@ -422,7 +422,7 @@ std::`>` (l: cal::local_date, r: cal::local_date) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>=` (l: cal::local_date, r: cal::local_date) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
     USING SQL OPERATOR r'>=(date,date)';
@@ -431,7 +431,7 @@ std::`>=` (l: cal::local_date, r: cal::local_date) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: cal::local_date, r: cal::local_date) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
     USING SQL OPERATOR r'<(date,date)';
@@ -440,7 +440,7 @@ std::`<` (l: cal::local_date, r: cal::local_date) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: cal::local_date, r: cal::local_date) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
     USING SQL OPERATOR r'<=(date,date)';
@@ -450,7 +450,7 @@ std::`<=` (l: cal::local_date, r: cal::local_date) -> std::bool {
 CREATE INFIX OPERATOR
 std::`+` (l: cal::local_date, r: std::duration) -> cal::local_date
 {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::+';
     SET force_return_cast := true;
     USING SQL $$
@@ -462,7 +462,7 @@ std::`+` (l: cal::local_date, r: std::duration) -> cal::local_date
 CREATE INFIX OPERATOR
 std::`+` (l: std::duration, r: cal::local_date) -> cal::local_date
 {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::+';
     SET force_return_cast := true;
     USING SQL $$
@@ -474,7 +474,7 @@ std::`+` (l: std::duration, r: cal::local_date) -> cal::local_date
 CREATE INFIX OPERATOR
 std::`-` (l: cal::local_date, r: std::duration) -> cal::local_date
 {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET force_return_cast := true;
     USING SQL $$
         SELECT ("l" - "r")::edgedb.date_t
@@ -487,7 +487,7 @@ std::`-` (l: cal::local_date, r: std::duration) -> cal::local_date
 
 CREATE INFIX OPERATOR
 std::`=` (l: cal::local_time, r: cal::local_time) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
     USING SQL OPERATOR r'=';
@@ -497,14 +497,14 @@ std::`=` (l: cal::local_time, r: cal::local_time) -> std::bool {
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL cal::local_time,
            r: OPTIONAL cal::local_time) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`!=` (l: cal::local_time, r: cal::local_time) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
     USING SQL OPERATOR r'<>';
@@ -514,14 +514,14 @@ std::`!=` (l: cal::local_time, r: cal::local_time) -> std::bool {
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL cal::local_time,
             r: OPTIONAL cal::local_time) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`>` (l: cal::local_time, r: cal::local_time) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
     USING SQL OPERATOR r'>';
@@ -530,7 +530,7 @@ std::`>` (l: cal::local_time, r: cal::local_time) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>=` (l: cal::local_time, r: cal::local_time) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
     USING SQL OPERATOR r'>=';
@@ -539,7 +539,7 @@ std::`>=` (l: cal::local_time, r: cal::local_time) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: cal::local_time, r: cal::local_time) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
     USING SQL OPERATOR r'<';
@@ -548,7 +548,7 @@ std::`<` (l: cal::local_time, r: cal::local_time) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: cal::local_time, r: cal::local_time) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
     USING SQL OPERATOR r'<=';
@@ -557,7 +557,7 @@ std::`<=` (l: cal::local_time, r: cal::local_time) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`+` (l: cal::local_time, r: std::duration) -> cal::local_time {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL OPERATOR r'+';
 };
@@ -565,7 +565,7 @@ std::`+` (l: cal::local_time, r: std::duration) -> cal::local_time {
 
 CREATE INFIX OPERATOR
 std::`+` (l: std::duration, r: cal::local_time) -> cal::local_time {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL OPERATOR r'+';
 };
@@ -573,7 +573,7 @@ std::`+` (l: std::duration, r: cal::local_time) -> cal::local_time {
 
 CREATE INFIX OPERATOR
 std::`-` (l: cal::local_time, r: std::duration) -> cal::local_time {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL OPERATOR r'-';
 };
 
@@ -582,80 +582,80 @@ std::`-` (l: cal::local_time, r: std::duration) -> cal::local_time {
 ## ---------------
 
 CREATE CAST FROM cal::local_datetime TO cal::local_date {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL CAST;
 };
 
 
 CREATE CAST FROM cal::local_datetime TO cal::local_time {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL CAST;
 };
 
 
 CREATE CAST FROM cal::local_date TO cal::local_datetime {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL CAST;
 };
 
 
 CREATE CAST FROM std::str TO cal::local_datetime {
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     USING SQL FUNCTION 'edgedb.local_datetime_in';
 };
 
 
 CREATE CAST FROM std::str TO cal::local_date {
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     USING SQL FUNCTION 'edgedb.local_date_in';
 };
 
 
 CREATE CAST FROM std::str TO cal::local_time {
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     USING SQL FUNCTION 'edgedb.local_time_in';
 };
 
 
 CREATE CAST FROM cal::local_datetime TO std::str {
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     USING SQL $$
     SELECT trim(to_json(val)::text, '"');
     $$;
 };
 
 CREATE CAST FROM cal::local_date TO std::str {
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     USING SQL CAST;
 };
 
 
 CREATE CAST FROM cal::local_time TO std::str {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL CAST;
 };
 
 
 CREATE CAST FROM cal::local_datetime TO std::json {
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     USING SQL FUNCTION 'to_jsonb';
 };
 
 
 CREATE CAST FROM cal::local_date TO std::json {
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     USING SQL FUNCTION 'to_jsonb';
 };
 
 
 CREATE CAST FROM cal::local_time TO std::json {
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     USING SQL FUNCTION 'to_jsonb';
 };
 
 
 CREATE CAST FROM std::json TO cal::local_datetime {
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     USING SQL $$
     SELECT edgedb.local_datetime_in(
         edgedb.jsonb_extract_scalar(val, 'string'));
@@ -664,7 +664,7 @@ CREATE CAST FROM std::json TO cal::local_datetime {
 
 
 CREATE CAST FROM std::json TO cal::local_date {
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     USING SQL $$
     SELECT edgedb.local_date_in(edgedb.jsonb_extract_scalar(val, 'string'));
     $$;
@@ -672,7 +672,7 @@ CREATE CAST FROM std::json TO cal::local_date {
 
 
 CREATE CAST FROM std::json TO cal::local_time {
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     USING SQL $$
     SELECT edgedb.local_time_in(edgedb.jsonb_extract_scalar(val, 'string'));
     $$;
@@ -687,7 +687,7 @@ std::datetime_get(dt: cal::local_datetime, el: std::str) -> std::float64
 {
     CREATE ANNOTATION std::description :=
         'Extract a specific element of input datetime by name.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT CASE WHEN "el" IN (
             'century', 'day', 'decade', 'dow', 'doy', 'hour',
@@ -723,7 +723,7 @@ std::to_str(dt: cal::local_datetime, fmt: OPTIONAL str={}) -> std::str
     CREATE ANNOTATION std::description :=
         'Return string representation of the input value.';
     # Helper functions raising exceptions are STABLE.
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
@@ -752,7 +752,7 @@ std::to_str(d: cal::local_date, fmt: OPTIONAL str={}) -> std::str
     CREATE ANNOTATION std::description :=
         'Return string representation of the input value.';
     # Helper functions raising exceptions are STABLE.
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
@@ -787,7 +787,7 @@ std::to_str(nt: cal::local_time, fmt: OPTIONAL str={}) -> std::str
     CREATE ANNOTATION std::description :=
         'Return string representation of the input value.';
     # Helper functions raising exceptions are STABLE.
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
@@ -816,7 +816,7 @@ std::to_datetime(local: cal::local_datetime, zone: std::str)
 {
     CREATE ANNOTATION std::description := 'Create a `datetime` value.';
     # The version of timezone with these arguments is IMMUTABLE.
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT timezone("zone", "local")::edgedb.timestamptz_t;
     $$;
@@ -828,7 +828,7 @@ std::min(vals: SET OF cal::local_datetime) -> OPTIONAL cal::local_datetime
 {
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'min';
 };
 
@@ -838,7 +838,7 @@ std::min(vals: SET OF cal::local_date) -> OPTIONAL cal::local_date
 {
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'min';
 };
 
@@ -848,7 +848,7 @@ std::min(vals: SET OF cal::local_time) -> OPTIONAL cal::local_time
 {
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'min';
 };
 
@@ -858,7 +858,7 @@ std::min(vals: SET OF array<cal::local_datetime>) -> OPTIONAL array<cal::local_d
 {
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'min';
 };
 
@@ -868,7 +868,7 @@ std::min(vals: SET OF array<cal::local_date>) -> OPTIONAL array<cal::local_date>
 {
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'min';
 };
 
@@ -878,7 +878,7 @@ std::min(vals: SET OF array<cal::local_time>) -> OPTIONAL array<cal::local_time>
 {
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'min';
 };
 
@@ -888,7 +888,7 @@ std::max(vals: SET OF cal::local_datetime) -> OPTIONAL cal::local_datetime
 {
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'max';
 };
 
@@ -898,7 +898,7 @@ std::max(vals: SET OF cal::local_date) -> OPTIONAL cal::local_date
 {
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'max';
 };
 
@@ -908,7 +908,7 @@ std::max(vals: SET OF cal::local_time) -> OPTIONAL cal::local_time
 {
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'max';
 };
 
@@ -918,7 +918,7 @@ std::max(vals: SET OF array<cal::local_datetime>) -> OPTIONAL array<cal::local_d
 {
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'max';
 };
 
@@ -928,7 +928,7 @@ std::max(vals: SET OF array<cal::local_date>) -> OPTIONAL array<cal::local_date>
 {
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'max';
 };
 
@@ -938,6 +938,6 @@ std::max(vals: SET OF array<cal::local_time>) -> OPTIONAL array<cal::local_time>
 {
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'max';
 };

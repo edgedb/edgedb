@@ -21,7 +21,7 @@ function user_func_3(x: int64) -> str {
     using (
         SELECT 'test' ++ <str>x
     );
-    volatility := 'IMMUTABLE';
+    volatility := 'Immutable';
 };
 
 # cross-module references

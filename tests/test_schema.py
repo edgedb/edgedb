@@ -492,7 +492,7 @@ _123456789_123456789_123456789 -> str
         schema = self.run_ddl(schema, '''
             CREATE FUNCTION
             test::my_contains(arr: array<anytype>, val: anytype) -> bool {
-                SET volatility := 'STABLE';
+                SET volatility := 'Stable';
                 USING (
                     SELECT contains(arr, val)
                 );
@@ -1769,7 +1769,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         function idx(num: int64) -> bool {
             using (SELECT (num % 2) = 0);
-            volatility := 'IMMUTABLE';
+            volatility := 'Immutable';
         }
         '''
 
@@ -1828,7 +1828,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                     flags := 'g')
                 )
             );
-            volatility := 'IMMUTABLE';  # needed for the constraint
+            volatility := 'Immutable';  # needed for the constraint
         }
         '''
 
@@ -1928,7 +1928,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         schema = r'''
         function idx(num: int64) -> bool {
             using (SELECT (num % 2) = 0);
-            volatility := 'IMMUTABLE';
+            volatility := 'Immutable';
             annotation title := 'func anno';
         }
         '''
@@ -2415,7 +2415,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         function other::idx(num: int64) -> bool {
             using (SELECT (num % 2) = 0);
-            volatility := 'IMMUTABLE';
+            volatility := 'Immutable';
         }
         '''
 
@@ -5809,7 +5809,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             """
             function std::array_agg(s: SET OF anytype) ->  array<anytype> {
-                volatility := 'IMMUTABLE';
+                volatility := 'Immutable';
                 annotation std::description := 'Return the array made from all
                     of the input set elements.';
                 using sql function 'array_agg';
@@ -5820,7 +5820,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             r"""
             function stdgraphql::short_name(name: std::str) -> std::str {
-                volatility := 'IMMUTABLE';
+                volatility := 'Immutable';
                 using (
                     SELECT (
                        ((name)[5:] IF (name LIKE 'std::%') ELSE
@@ -6829,7 +6829,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             # The following builtins are masked by the above:
 
             # function std::all(vals: SET OF std::bool) ->  std::bool {
-            #     volatility := 'IMMUTABLE';
+            #     volatility := 'Immutable';
             #     annotation std::description := 'Generalized boolean `AND`
                       applied to the set of *values*.';
             #     using sql function 'bool_and'

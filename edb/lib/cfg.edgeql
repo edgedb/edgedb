@@ -135,7 +135,7 @@ cfg::get_config_json(
 CREATE FUNCTION
 cfg::_quote(text: std::str) -> std::str
 {
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     SET internal := true;
     USING SQL $$
         SELECT replace(quote_literal(text), '''''', '\\''')
@@ -146,7 +146,7 @@ CREATE FUNCTION
 cfg::_describe_system_config_as_ddl() -> str
 {
     # The results won't change within a single statement.
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     SET internal := true;
     USING SQL FUNCTION 'edgedb._describe_system_config_as_ddl';
 };
@@ -156,7 +156,7 @@ CREATE FUNCTION
 cfg::_describe_database_config_as_ddl() -> str
 {
     # The results won't change within a single statement.
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     SET internal := true;
     USING SQL FUNCTION 'edgedb._describe_database_config_as_ddl';
 };

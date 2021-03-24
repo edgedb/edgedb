@@ -26,7 +26,7 @@ function `💯`(NAMED ONLY `🙀`: int64) -> int64 {
     );
 
     annotation `🍿` := 'fun!🚀';
-    volatility := 'IMMUTABLE';
+    volatility := 'Immutable';
 }
 
 type `S p a M` {

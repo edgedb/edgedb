@@ -35,7 +35,7 @@ ALTER TYPE stdgraphql::Mutation {
 
 
 CREATE FUNCTION stdgraphql::short_name(name: str) -> str {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET internal := true;
     USING (
         SELECT (
