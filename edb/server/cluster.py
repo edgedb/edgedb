@@ -109,7 +109,7 @@ class BaseCluster:
         try:
             conn = loop.run_until_complete(
                 self._pg_cluster.connect(
-                    database='template1', timeout=5, **self._pg_connect_args))
+                    timeout=5, **self._pg_connect_args))
 
             db_exists = loop.run_until_complete(
                 self._edgedb_template_exists(conn))
@@ -286,6 +286,7 @@ class Cluster(BaseCluster):
         )
         self._edgedb_cmd.extend(['-D', self._data_dir])
         self._pg_connect_args['user'] = pg_superuser
+        self._pg_connect_args['database'] = 'template1'
 
     def _get_pg_cluster(self):
         return pgcluster.get_local_pg_cluster(self._data_dir)
