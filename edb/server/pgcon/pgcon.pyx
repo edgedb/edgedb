@@ -24,6 +24,8 @@ import hashlib
 import json
 import os.path
 import socket
+import ssl as ssl_mod
+import struct
 
 cimport cython
 cimport cpython
@@ -58,12 +60,12 @@ from edb.server import buildmeta
 from edb.server import compiler
 from edb.server import defines
 from edb.server.cache cimport stmt_cache
+from edb.server import pgconnparams
 from edb.server.protocol cimport binary as edgecon
 
 from edb.common import debug
 
 from . import errors as pgerror
-
 
 DEF DATA_BUFFER_SIZE = 100_000
 DEF PREP_STMTS_CACHE = 100
@@ -116,13 +118,68 @@ def _build_init_con_script() -> bytes:
     ''').encode('utf-8')
 
 
-async def connect(connargs, dbname):
-    global INIT_CON_SCRIPT
+def _set_tcp_keepalive(transport):
+    # TCP keepalive was initially added here for special cases where idle
+    # connections are dropped silently on GitHub Action running test suite
+    # against AWS RDS. We are keeping the TCP keepalive for generic
+    # Postgres connections as the kernel overhead is considered low, and
+    # in certain cases it does save us some reconnection time.
+    sock = transport.get_extra_info('socket')
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+    if hasattr(socket, 'TCP_KEEPIDLE'):
+        sock.setsockopt(socket.IPPROTO_TCP,
+                        socket.TCP_KEEPIDLE, TCP_KEEPIDLE)
+        sock.setsockopt(socket.IPPROTO_TCP,
+                        socket.TCP_KEEPINTVL, TCP_KEEPINTVL)
+        sock.setsockopt(socket.IPPROTO_TCP,
+                        socket.TCP_KEEPCNT, TCP_KEEPCNT)
+
+
+async def _create_ssl_connection(protocol_factory, host, port, *,
+                                 loop, ssl_context, ssl_is_advisory):
+    tr, pr = await loop.create_connection(
+        lambda: TLSUpgradeProto(loop, host, port,
+                                ssl_context, ssl_is_advisory),
+        host, port)
+    _set_tcp_keepalive(tr)
+
+    tr.write(struct.pack('!ll', 8, 80877103))  # SSLRequest message.
+
+    try:
+        do_ssl_upgrade = await pr.on_data
+    except (Exception, asyncio.CancelledError):
+        tr.close()
+        raise
+
+    if do_ssl_upgrade:
+        try:
+            new_tr = await loop.start_tls(
+                tr, pr, ssl_context, server_hostname=host)
+        except (Exception, asyncio.CancelledError):
+            tr.close()
+            raise
+    else:
+        new_tr = tr
+
+    pg_proto = protocol_factory()
+    pg_proto.is_ssl = do_ssl_upgrade
+    pg_proto.connection_made(new_tr)
+    new_tr.set_protocol(pg_proto)
+
+    return new_tr, pg_proto
+
+
+class _RetryConnectSignal(Exception):
+    pass
+
+
+async def _connect(connargs, dbname, ssl):
 
     loop = asyncio.get_running_loop()
 
     host = connargs.get("host")
     port = connargs.get("port")
+    sslmode = connargs.get('sslmode', pgconnparams.SSLMode.prefer)
 
     if host.startswith('/'):
         addr = os.path.join(host, f'.s.PGSQL.{port}')
@@ -130,25 +187,72 @@ async def connect(connargs, dbname):
             lambda: PGConnection(dbname, loop, connargs), addr)
 
     else:
-        trans, pgcon = await loop.create_connection(
-            lambda: PGConnection(dbname, loop, connargs), host=host, port=port)
+        if ssl:
+            _, pgcon = await _create_ssl_connection(
+                lambda: PGConnection(dbname, loop, connargs),
+                host,
+                port,
+                loop=loop,
+                ssl_context=ssl,
+                ssl_is_advisory=(sslmode == pgconnparams.SSLMode.prefer),
+            )
+        else:
+            trans, pgcon = await loop.create_connection(
+                lambda: PGConnection(dbname, loop, connargs),
+                host=host, port=port)
+            _set_tcp_keepalive(trans)
 
-        # TCP keepalive was initially added here for special cases where idle
-        # connections are dropped silently on GitHub Action running test suite
-        # against AWS RDS. We are keeping the TCP keepalive for generic
-        # Postgres connections as the kernel overhead is considered low, and
-        # in certain cases it does save us some reconnection time.
-        sock = trans.get_extra_info('socket')
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-        if hasattr(socket, 'TCP_KEEPIDLE'):
-            sock.setsockopt(socket.IPPROTO_TCP,
-                            socket.TCP_KEEPIDLE, TCP_KEEPIDLE)
-            sock.setsockopt(socket.IPPROTO_TCP,
-                            socket.TCP_KEEPINTVL, TCP_KEEPINTVL)
-            sock.setsockopt(socket.IPPROTO_TCP,
-                            socket.TCP_KEEPCNT, TCP_KEEPCNT)
+    try:
+        await pgcon.connect()
+    except pgerror.BackendError as e:
+        if e.fields['C'] != '28000':
+            # 'C' is error code, 28000 is invalid_authorization_specification
+            raise
 
-    await pgcon.connect()
+        if (
+            sslmode == pgconnparams.SSLMode.allow and not pgcon.is_ssl or
+            sslmode == pgconnparams.SSLMode.prefer and pgcon.is_ssl
+        ):
+            # Trigger retry when:
+            #   1. First attempt with sslmode=allow, ssl=None failed
+            #   2. First attempt with sslmode=prefer, ssl=ctx failed while the
+            #      server claimed to support SSL (returning "S" for SSLRequest)
+            #      (likely because pg_hba.conf rejected the connection)
+            raise _RetryConnectSignal()
+
+        else:
+            # but will NOT retry if:
+            #   1. First attempt with sslmode=prefer failed but the server
+            #      doesn't support SSL (returning 'N' for SSLRequest), because
+            #      we already tried to connect without SSL thru ssl_is_advisory
+            #   2. Second attempt with sslmode=prefer, ssl=None failed
+            #   3. Second attempt with sslmode=allow, ssl=ctx failed
+            #   4. Any other sslmode
+            raise
+
+    return pgcon
+
+
+async def connect(connargs, dbname):
+    global INIT_CON_SCRIPT
+
+    # This is different than parsing DSN and use the default sslmode=prefer,
+    # because connargs can be set manually thru set_connection_params(), and
+    # the caller should be responsible for aligning sslmode with ssl.
+    sslmode = connargs.get('sslmode', pgconnparams.SSLMode.disable)
+    ssl = connargs.get('ssl')
+    if sslmode == pgconnparams.SSLMode.allow:
+        try:
+            pgcon = await _connect(connargs, dbname, ssl=None)
+        except _RetryConnectSignal:
+            pgcon = await _connect(connargs, dbname, ssl=ssl)
+    elif sslmode == pgconnparams.SSLMode.prefer:
+        try:
+            pgcon = await _connect(connargs, dbname, ssl=ssl)
+        except _RetryConnectSignal:
+            pgcon = await _connect(connargs, dbname, ssl=None)
+    else:
+        pgcon = await _connect(connargs, dbname, ssl=ssl)
 
     if connargs['user'] != defines.EDGEDB_SUPERUSER:
         # We used to use SET SESSION AUTHORIZATION here, there're some security
@@ -166,6 +270,39 @@ async def connect(connargs, dbname):
     await pgcon.simple_query(INIT_CON_SCRIPT, ignore_data=True)
 
     return pgcon
+
+
+class TLSUpgradeProto(asyncio.Protocol):
+    def __init__(self, loop, host, port, ssl_context, ssl_is_advisory):
+        self.on_data = loop.create_future()
+        self.host = host
+        self.port = port
+        self.ssl_context = ssl_context
+        self.ssl_is_advisory = ssl_is_advisory
+
+    def data_received(self, data):
+        if data == b'S':
+            self.on_data.set_result(True)
+        elif (self.ssl_is_advisory and
+              self.ssl_context.verify_mode == ssl_mod.CERT_NONE and
+              data == b'N'):
+            # ssl_is_advisory will imply that ssl.verify_mode == CERT_NONE,
+            # since the only way to get ssl_is_advisory is from
+            # sslmode=prefer. But be extra sure to disallow insecure
+            # connections when the ssl context asks for real security.
+            self.on_data.set_result(False)
+        else:
+            self.on_data.set_exception(
+                ConnectionError(
+                    'PostgreSQL server at "{host}:{port}" '
+                    'rejected SSL upgrade'.format(
+                        host=self.host, port=self.port)))
+
+    def connection_lost(self, exc):
+        if not self.on_data.done():
+            if exc is None:
+                exc = ConnectionError('unexpected connection_lost() call')
+            self.on_data.set_exception(exc)
 
 
 @cython.final
@@ -215,6 +352,16 @@ cdef class PGConnection:
 
         self.idle = True
         self.cancel_fut = None
+
+        self._is_ssl = False
+
+    @property
+    def is_ssl(self):
+        return self._is_ssl
+
+    @is_ssl.setter
+    def is_ssl(self, value):
+        self._is_ssl = value
 
     def debug_print(self, *args):
         print(
@@ -1467,7 +1614,7 @@ cdef class PGConnection:
             self.idle = True
 
     cdef write(self, buf):
-        self.transport.write(buf)
+        self.transport.write(memoryview(buf))
 
     cdef fallthrough(self):
         if self.parse_notification():

@@ -140,6 +140,8 @@ class BaseCluster:
     async def connect(self, loop=None, **kwargs):
         conn_info = self.get_connection_spec()
         conn_info.update(kwargs)
+        if 'sslmode' in conn_info:
+            conn_info['ssl'] = conn_info.pop('sslmode').name
         conn = await asyncpg.connect(loop=loop, **conn_info)
 
         if (not kwargs.get('user')
@@ -181,7 +183,14 @@ class BaseCluster:
         conn_dict['host'] = addr[0]
         conn_dict['port'] = addr[1]
         params = self.get_connection_params()
-        for k in ('user', 'password', 'database', 'ssl', 'server_settings'):
+        for k in (
+            'user',
+            'password',
+            'database',
+            'ssl',
+            'sslmode',
+            'server_settings',
+        ):
             v = getattr(params, k)
             if v is not None:
                 conn_dict[k] = v
