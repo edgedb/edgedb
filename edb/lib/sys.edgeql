@@ -84,7 +84,7 @@ sys::__version_internal() -> tuple<major: std::int64,
                                    local: array<std::str>>
 {
     # This function reads from a table.
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     SET internal := true;
     USING SQL $$
     SELECT
@@ -109,7 +109,7 @@ sys::get_version() -> tuple<major: std::int64,
 {
     CREATE ANNOTATION std::description :=
         'Return the server version as a tuple.';
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     USING (
         SELECT <tuple<major: std::int64,
                     minor: std::int64,
@@ -125,7 +125,7 @@ sys::get_version_as_str() -> std::str
 {
     CREATE ANNOTATION std::description :=
         'Return the server version as a string.';
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     USING (
         WITH v := sys::get_version()
         SELECT
@@ -145,7 +145,7 @@ sys::get_transaction_isolation() -> sys::TransactionIsolation
     CREATE ANNOTATION std::description :=
         'Return the isolation level of the current transaction.';
     # This function only reads from a table.
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     SET force_return_cast := true;
     USING SQL FUNCTION 'edgedb._get_transaction_isolation';
 };
@@ -157,7 +157,7 @@ sys::get_current_database() -> str
     CREATE ANNOTATION std::description :=
         'Return the name of the current database as a string.';
     # The results won't change within a single statement.
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     USING SQL FUNCTION 'current_database';
 };
 
@@ -165,7 +165,7 @@ CREATE FUNCTION
 sys::_describe_roles_as_ddl() -> str
 {
     # The results won't change within a single statement.
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     SET internal := true;
     USING SQL FUNCTION 'edgedb._describe_roles_as_ddl';
 };

@@ -1496,7 +1496,7 @@ abstract property test::foo {
         """
         module test {
             function some_func(a: str) -> std::str {
-                volatility := 'IMMUTABLE';
+                volatility := 'Immutable';
                 using sql function 'some_other_func';
             };
         };

@@ -47,7 +47,7 @@ class TestEdgeQLVolatilityInference(tb.BaseEdgeQLCompilerTest):
         WITH MODULE test
         SELECT Card
 % OK %
-        STABLE
+        Stable
         """
 
     def test_edgeql_ir_volatility_inference_01(self):
@@ -58,7 +58,7 @@ class TestEdgeQLVolatilityInference(tb.BaseEdgeQLCompilerTest):
         SELECT
             foo
 % OK %
-        VOLATILE
+        Volatile
         """
 
     def test_edgeql_ir_volatility_inference_02(self):
@@ -70,7 +70,7 @@ class TestEdgeQLVolatilityInference(tb.BaseEdgeQLCompilerTest):
         FILTER
             random() > 0.9
 % OK %
-        VOLATILE
+        Volatile
         """
 
     def test_edgeql_ir_volatility_inference_03(self):
@@ -82,7 +82,7 @@ class TestEdgeQLVolatilityInference(tb.BaseEdgeQLCompilerTest):
         ORDER BY
             random()
 % OK %
-        VOLATILE
+        Volatile
         """
 
     def test_edgeql_ir_volatility_inference_04(self):
@@ -94,7 +94,7 @@ class TestEdgeQLVolatilityInference(tb.BaseEdgeQLCompilerTest):
         LIMIT
             <int64>random()
 % OK %
-        VOLATILE
+        Volatile
         """
 
     def test_edgeql_ir_volatility_inference_05(self):
@@ -106,7 +106,7 @@ class TestEdgeQLVolatilityInference(tb.BaseEdgeQLCompilerTest):
         OFFSET
             <int64>random()
 % OK %
-        VOLATILE
+        Volatile
         """
 
     def test_edgeql_ir_volatility_inference_06(self):
@@ -120,7 +120,7 @@ class TestEdgeQLVolatilityInference(tb.BaseEdgeQLCompilerTest):
                 cost := 1,
             }
 % OK %
-        VOLATILE
+        Volatile
         """
 
     def test_edgeql_ir_volatility_inference_07(self):
@@ -133,7 +133,7 @@ class TestEdgeQLVolatilityInference(tb.BaseEdgeQLCompilerTest):
                 name := 'foo',
         }
 % OK %
-        VOLATILE
+        Volatile
         """
 
     def test_edgeql_ir_volatility_inference_08(self):
@@ -143,5 +143,5 @@ class TestEdgeQLVolatilityInference(tb.BaseEdgeQLCompilerTest):
         DELETE
             Card
 % OK %
-        VOLATILE
+        Volatile
         """

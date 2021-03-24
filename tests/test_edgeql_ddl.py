@@ -9453,7 +9453,7 @@ type test::Foo {
                 await self.con.execute('''
                     WITH MODULE test
                     ALTER FUNCTION foo___1(a: int64)
-                    SET volatility := 'STABLE';
+                    SET volatility := 'Stable';
                 ''')
 
         async with self._run_and_rollback():

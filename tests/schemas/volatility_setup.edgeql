@@ -18,42 +18,42 @@
 
 
 CREATE FUNCTION test::vol_immutable() -> float64 {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
         SELECT random();
     $$;
 };
 
 CREATE FUNCTION test::vol_stable() -> float64 {
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     USING SQL $$
         SELECT random();
     $$;
 };
 
 CREATE FUNCTION test::vol_volatile() -> float64 {
-    SET volatility := 'VOLATILE';
+    SET volatility := 'Volatile';
     USING SQL $$
         SELECT random();
     $$;
 };
 
 CREATE FUNCTION test::err_immutable() -> float64 {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
         SELECT random()/0;
     $$;
 };
 
 CREATE FUNCTION test::err_stable() -> float64 {
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     USING SQL $$
         SELECT random()/0;
     $$;
 };
 
 CREATE FUNCTION test::err_volatile() -> float64 {
-    SET volatility := 'VOLATILE';
+    SET volatility := 'Volatile';
     USING SQL $$
         SELECT random()/0;
     $$;

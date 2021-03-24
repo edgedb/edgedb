@@ -25,7 +25,7 @@ std::bytes_get_bit(bytes: std::bytes, num: int64) -> std::int64
 {
     CREATE ANNOTATION std::description :=
         'Get the *nth* bit of the *bytes* value.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT get_bit("bytes", "num"::int)::bigint
     $$;
@@ -38,7 +38,7 @@ std::bytes_get_bit(bytes: std::bytes, num: int64) -> std::int64
 
 CREATE INFIX OPERATOR
 std::`=` (l: std::bytes, r: std::bytes) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
     USING SQL OPERATOR r'=';
@@ -47,14 +47,14 @@ std::`=` (l: std::bytes, r: std::bytes) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::bytes, r: OPTIONAL std::bytes) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::bytes, r: std::bytes) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
     USING SQL OPERATOR r'<>';
@@ -63,21 +63,21 @@ std::`!=` (l: std::bytes, r: std::bytes) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::bytes, r: OPTIONAL std::bytes) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`++` (l: std::bytes, r: std::bytes) -> std::bytes {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL OPERATOR r'||';
 };
 
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::bytes, r: std::bytes) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
     USING SQL OPERATOR '>=';
@@ -86,7 +86,7 @@ std::`>=` (l: std::bytes, r: std::bytes) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::bytes, r: std::bytes) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
     USING SQL OPERATOR '>';
@@ -95,7 +95,7 @@ std::`>` (l: std::bytes, r: std::bytes) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::bytes, r: std::bytes) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
     USING SQL OPERATOR '<=';
@@ -104,7 +104,7 @@ std::`<=` (l: std::bytes, r: std::bytes) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::bytes, r: std::bytes) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
     USING SQL OPERATOR '<';

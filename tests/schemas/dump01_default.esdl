@@ -25,21 +25,21 @@ function user_func_0(x: int64) -> str {
         SELECT 'func' ++ <str>x
     );
     annotation title := 'user_func(int64) -> str';
-    volatility := 'IMMUTABLE';
+    volatility := 'Immutable';
 };
 
 function user_func_1(x: array<int64>, y: str) -> str {
     using (
         SELECT array_join(<array<str>>x, y)
     );
-    volatility := 'STABLE';
+    volatility := 'Stable';
 };
 
 function user_func_2(x: OPTIONAL int64, y: str = 'x') -> SET OF str {
     using (
         SELECT {<str>x, y}
     );
-    volatility := 'IMMUTABLE';
+    volatility := 'Immutable';
 };
 
 type A {

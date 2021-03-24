@@ -23,7 +23,7 @@
 CREATE FUNCTION
 std::_is_exclusive(s: SET OF anytype) -> std::bool
 {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET initial_value := True;
     SET internal := true;
     USING SQL EXPRESSION;

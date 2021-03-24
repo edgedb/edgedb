@@ -108,7 +108,7 @@ std::_gen_series(
     stop: std::int64
 ) -> SET OF std::int64
 {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'generate_series';
 };
 
@@ -119,7 +119,7 @@ std::_gen_series(
     step: std::int64
 ) -> SET OF std::int64
 {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'generate_series';
 };
 
@@ -129,7 +129,7 @@ std::_gen_series(
     stop: std::bigint
 ) -> SET OF std::bigint
 {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'generate_series';
 };
 
@@ -140,7 +140,7 @@ std::_gen_series(
     step: std::bigint
 ) -> SET OF std::bigint
 {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'generate_series';
 };
 
@@ -151,7 +151,7 @@ sys::_sleep(duration: std::float64) -> std::bool
     CREATE ANNOTATION std::description :=
         'Make the current session sleep for *duration* time.';
     # This function has side-effect.
-    SET volatility := 'VOLATILE';
+    SET volatility := 'Volatile';
     USING SQL $$
     SELECT pg_sleep("duration") IS NOT NULL;
     $$;
@@ -163,7 +163,7 @@ sys::_sleep(duration: std::duration) -> std::bool
     CREATE ANNOTATION std::description :=
         'Make the current session sleep for *duration* time.';
     # This function has side-effect.
-    SET volatility := 'VOLATILE';
+    SET volatility := 'Volatile';
     USING SQL $$
     SELECT pg_sleep_for("duration") IS NOT NULL;
     $$;
@@ -176,7 +176,7 @@ sys::_advisory_lock(key: std::int64) -> std::bool
     CREATE ANNOTATION std::description :=
         'Obtain an exclusive session-level advisory lock.';
     # This function has side-effect.
-    SET volatility := 'VOLATILE';
+    SET volatility := 'Volatile';
     USING SQL $$
     SELECT CASE WHEN "key" < 0 THEN
         edgedb.raise(NULL::bool, msg => 'lock key cannot be negative')
@@ -193,7 +193,7 @@ sys::_advisory_unlock(key: std::int64) -> std::bool
     CREATE ANNOTATION std::description :=
         'Release an exclusive session-level advisory lock.';
     # This function has side-effect.
-    SET volatility := 'VOLATILE';
+    SET volatility := 'Volatile';
     USING SQL $$
     SELECT CASE WHEN "key" < 0 THEN
         edgedb.raise(NULL::bool, msg => 'lock key cannot be negative')
@@ -210,7 +210,7 @@ sys::_advisory_unlock_all() -> std::bool
     CREATE ANNOTATION std::description :=
         'Release all session-level advisory locks held by the current session.';
     # This function has side-effect.
-    SET volatility := 'VOLATILE';
+    SET volatility := 'Volatile';
     USING SQL $$
     SELECT pg_advisory_unlock_all() IS NOT NULL;
     $$;

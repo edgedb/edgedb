@@ -4242,7 +4242,7 @@ aa';
     def test_edgeql_syntax_ddl_function_26(self):
         """
         CREATE FUNCTION foo() -> std::str {
-            SET volatility := 'VOLATILE';
+            SET volatility := 'Volatile';
             CREATE ANNOTATION description := 'aaaa';
             USING SQL $a$SELECT $$foo$$$a$;
         };
@@ -4525,7 +4525,7 @@ aa';
         """
         CREATE INFIX OPERATOR
         std::`OR` (a: std::bool, b: std::bool) -> std::bool {
-            SET volatility := 'IMMUTABLE';
+            SET volatility := 'Immutable';
             USING SQL $$
             SELECT ("a" OR "b") AND ("a"::int | "b"::int)::bool
             $$;
@@ -4536,7 +4536,7 @@ aa';
         """
         CREATE INFIX OPERATOR
         std::`AND` (a: std::bool, b: std::bool) -> std::bool {
-            SET volatility := 'IMMUTABLE';
+            SET volatility := 'Immutable';
             USING SQL EXPRESSION;
         };
         """
@@ -4545,7 +4545,7 @@ aa';
         """
         CREATE INFIX OPERATOR
         std::`=` (l: std::bool, r: std::bool) -> std::bool {
-            SET volatility := 'IMMUTABLE';
+            SET volatility := 'Immutable';
             SET commutator := 'std::=';
             SET negator := 'std::!=';
             USING SQL OPERATOR '=';
@@ -4556,7 +4556,7 @@ aa';
         """
         CREATE INFIX OPERATOR
         std::`>` (l: std::int32, r: std::float32) -> std::bool {
-            SET volatility := 'IMMUTABLE';
+            SET volatility := 'Immutable';
             SET commutator := 'std::<';
             SET negator := 'std::<=';
             USING SQL OPERATOR '>(float8,float8)';
@@ -4584,7 +4584,7 @@ aa';
     def test_edgeql_syntax_ddl_cast_01(self):
         """
         CREATE CAST FROM std::str TO std::bool {
-            SET volatility := 'IMMUTABLE';
+            SET volatility := 'Immutable';
             USING SQL FUNCTION 'edgedb.str_to_bool';
         };
         """
@@ -4592,7 +4592,7 @@ aa';
     def test_edgeql_syntax_ddl_cast_02(self):
         """
         CREATE CAST FROM std::bool TO std::str {
-            SET volatility := 'IMMUTABLE';
+            SET volatility := 'Immutable';
             USING SQL CAST;
         };
         """
@@ -4600,7 +4600,7 @@ aa';
     def test_edgeql_syntax_ddl_cast_03(self):
         """
         CREATE CAST FROM std::json TO std::bigint {
-            SET volatility := 'STABLE';
+            SET volatility := 'Stable';
             USING SQL $$
             SELECT edgedb.str_to_bigint(
                 edgedb.jsonb_extract_scalar(val, 'number')
@@ -4612,7 +4612,7 @@ aa';
     def test_edgeql_syntax_ddl_cast_04(self):
         """
         CREATE CAST FROM std::int32 TO std::int64 {
-            SET volatility := 'IMMUTABLE';
+            SET volatility := 'Immutable';
             USING SQL CAST;
             ALLOW IMPLICIT;
         };
@@ -4621,7 +4621,7 @@ aa';
     def test_edgeql_syntax_ddl_cast_05(self):
         """
         CREATE CAST FROM std::int64 TO std::int16 {
-            SET volatility := 'IMMUTABLE';
+            SET volatility := 'Immutable';
             USING SQL CAST;
             ALLOW ASSIGNMENT;
         };
@@ -4630,7 +4630,7 @@ aa';
     def test_edgeql_syntax_ddl_cast_06(self):
         """
         CREATE CAST FROM std::BaseObject TO std::json {
-            SET volatility := 'IMMUTABLE';
+            SET volatility := 'Immutable';
             USING SQL EXPRESSION;
         };
         """

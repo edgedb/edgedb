@@ -1279,7 +1279,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                 USING (
                     SELECT str_lower(s)
                 );
-                SET volatility := 'IMMUTABLE';
+                SET volatility := 'Immutable';
             };
 
             CREATE TYPE test::CompPropFunction {

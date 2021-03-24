@@ -23,7 +23,7 @@
 CREATE FUNCTION
 std::uuid_generate_v1mc() -> std::uuid {
     CREATE ANNOTATION std::description := 'Return a version 1 UUID.';
-    SET volatility := 'VOLATILE';
+    SET volatility := 'Volatile';
     USING SQL $$
     SELECT edgedbext.uuid_generate_v1mc()
     $$;
@@ -32,7 +32,7 @@ std::uuid_generate_v1mc() -> std::uuid {
 
 CREATE INFIX OPERATOR
 std::`=` (l: std::uuid, r: std::uuid) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
     USING SQL OPERATOR r'=';
@@ -41,14 +41,14 @@ std::`=` (l: std::uuid, r: std::uuid) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::uuid, r: OPTIONAL std::uuid) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::uuid, r: std::uuid) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
     USING SQL OPERATOR r'<>';
@@ -57,14 +57,14 @@ std::`!=` (l: std::uuid, r: std::uuid) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::uuid, r: OPTIONAL std::uuid) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::uuid, r: std::uuid) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
     USING SQL OPERATOR '>=';
@@ -73,7 +73,7 @@ std::`>=` (l: std::uuid, r: std::uuid) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::uuid, r: std::uuid) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
     USING SQL OPERATOR '>';
@@ -82,7 +82,7 @@ std::`>` (l: std::uuid, r: std::uuid) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::uuid, r: std::uuid) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
     USING SQL OPERATOR '<=';
@@ -91,7 +91,7 @@ std::`<=` (l: std::uuid, r: std::uuid) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::uuid, r: std::uuid) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
     USING SQL OPERATOR '<';
@@ -101,12 +101,12 @@ std::`<` (l: std::uuid, r: std::uuid) -> std::bool {
 ## String casts.
 
 CREATE CAST FROM std::str TO std::uuid {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL CAST;
 };
 
 
 CREATE CAST FROM std::uuid TO std::str {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL CAST;
 };
