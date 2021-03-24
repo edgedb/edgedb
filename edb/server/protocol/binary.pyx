@@ -413,6 +413,9 @@ cdef class EdgeConnection:
             if pgaddr.get('password'):
                 pgaddr['password'] = '********'
             pgaddr['database'] = self.dbview.dbname
+            pgaddr.pop('ssl', None)
+            if 'sslmode' in pgaddr:
+                pgaddr['sslmode'] = pgaddr['sslmode'].name
             msg_buf = WriteBuffer.new_message(b'S')
             msg_buf.write_len_prefixed_bytes(b'pgaddr')
             msg_buf.write_len_prefixed_utf8(json.dumps(pgaddr))

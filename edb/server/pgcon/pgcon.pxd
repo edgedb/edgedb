@@ -89,6 +89,8 @@ cdef class PGConnection:
 
         object cancel_fut
 
+        bint _is_ssl
+
     cdef before_command(self)
 
     cdef write(self, buf)
