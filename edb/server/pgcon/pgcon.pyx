@@ -151,8 +151,12 @@ async def connect(connargs, dbname):
     await pgcon.connect()
 
     if connargs['user'] != defines.EDGEDB_SUPERUSER:
+        # We used to use SET SESSION AUTHORIZATION here, there're some security
+        # differences over SET ROLE, but as we don't allow accessing Postgres
+        # directly through EdgeDB, SET ROLE is mostly fine here. (Also hosted
+        # backends like Postgres on DigitalOcean support only SET ROLE)
         await pgcon.simple_query(
-            f'SET SESSION AUTHORIZATION {defines.EDGEDB_SUPERUSER}'.encode(),
+            f'SET ROLE {defines.EDGEDB_SUPERUSER}'.encode(),
             ignore_data=True,
         )
 
