@@ -7938,6 +7938,39 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 POPULATE MIGRATION;
             """)
 
+    async def test_edgeql_migration_scalar_array_01(self):
+        await self.migrate(r"""
+            type User {
+                required property scopes -> array<scope>;
+            }
+            scalar type scope extending int64 {
+                constraint one_of (1, 2);
+            }
+        """)
+
+        await self.migrate(r"""
+            type User {
+                required property scopes -> array<scope>;
+            }
+            scalar type scope extending int64 {
+                constraint one_of (1, 2, 3);
+            }
+        """)
+
+    async def test_edgeql_migration_scalar_array_02(self):
+        await self.migrate(r"""
+            scalar type scope extending int64;
+        """)
+
+        await self.migrate(r"""
+            type User {
+                required property scopes -> array<scope>;
+            }
+            scalar type scope extending int64 {
+                constraint one_of (1, 2);
+            }
+        """)
+
     async def test_edgeql_migration_force_alter(self):
         await self.con.execute('''
             START MIGRATION TO {

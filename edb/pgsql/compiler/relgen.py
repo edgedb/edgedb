@@ -2556,7 +2556,7 @@ def process_set_as_agg_expr(
                 ctx=xctx)
 
     if wrapper:
-        stmt = wrapper
+        ctx.rel = stmt = wrapper
 
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
