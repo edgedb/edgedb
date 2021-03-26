@@ -809,6 +809,9 @@ def compile_insert_else_body(
 
         dispatch.compile(else_select, ctx=ictx)
         pathctx.put_path_id_map(ictx.rel, subject_id, else_select.path_id)
+        # Discard else_branch from the path_id_mask to prevent subject_id
+        # from being masked.
+        ictx.rel.path_id_mask.discard(else_select.path_id)
 
         else_select_cte = pgast.CommonTableExpr(
             query=ictx.rel,
@@ -832,6 +835,9 @@ def compile_insert_else_body(
             ictx.volatility_ref = ()
             dispatch.compile(else_branch, ctx=ictx)
             pathctx.put_path_id_map(ictx.rel, subject_id, else_branch.path_id)
+            # Discard else_branch from the path_id_mask to prevent subject_id
+            # from being masked.
+            ictx.rel.path_id_mask.discard(else_branch.path_id)
 
             assert else_cte_rvar
             else_branch_cte = else_cte_rvar[0]
