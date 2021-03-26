@@ -13,6 +13,7 @@ env = jinja2.Environment(
     variable_end_string='>>',
     block_start_string='<%',
     block_end_string='%>',
+    loader=jinja2.FileSystemLoader(pathlib.Path(__file__).parent),
 )
 
 
@@ -39,11 +40,11 @@ def main():
 
     datapath = pathlib.Path(__file__).parent / args.datafile
 
-    if not datapath.exists():
-        die(f'data file does not exist: {args.datafile}')
-
-    with open(datapath) as f:
-        data = yaml.load(f, Loader=yaml.SafeLoader)
+    if datapath.exists():
+        with open(datapath) as f:
+            data = yaml.load(f, Loader=yaml.SafeLoader)
+    else:
+        data = {}
 
     output = tpl.render(**data)
 

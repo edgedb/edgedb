@@ -1,0 +1,220 @@
+<% from "tests.inc.yml" import build, calc_cache_key, restore_cache, setup_terraform -%>
+
+<% macro setup_aws_creds() -%>
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-2
+<%- endmacro -%>
+
+name: Tests on Managed PostgreSQL
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+    inputs: {}
+  push:
+    branches:
+      - cloud-test
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    <%- call build() -%>
+    - name: Compute cache keys
+      run: |
+        << calc_cache_key()|indent >>
+    <%- endcall %>
+
+
+  setup-aws-rds:
+    runs-on: ubuntu-latest
+    outputs:
+      pghost: ${{ steps.pghost.outputs.stdout }}
+    defaults:
+      run:
+        working-directory: .github/aws-rds
+    steps:
+      << setup_terraform()|indent(2) >>
+
+      << setup_aws_creds()|indent(2) >>
+
+      - name: Setup AWS RDS
+        env:
+          TF_VAR_sg_id: ${{ secrets.AWS_SECURITY_GROUP }}
+          TF_VAR_password: ${{ secrets.AWS_RDS_PASSWORD }}
+        run: |
+          terraform apply -auto-approve
+
+      - name: Store Terraform state
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: aws-rds-tfstate
+          path: .github/aws-rds/terraform.tfstate
+          retention-days: 1
+
+      - name: Get RDS host
+        id: pghost
+        run: |
+          terraform output -raw db_instance_address
+
+  test-aws-rds:
+    runs-on: ubuntu-latest
+    needs: [setup-aws-rds, build]
+    steps:
+    <<- restore_cache() >>
+
+    # Run the test
+
+    - name: Test
+      env:
+        EDGEDB_TEST_POSTGRES_DSN: postgres://edbtest:${{ secrets.AWS_RDS_PASSWORD }}@${{ needs.setup-aws-rds.outputs.pghost }}/postgres
+      run: |
+        edb server --bootstrap-only --postgres-dsn=$EDGEDB_TEST_POSTGRES_DSN
+        edb test -j2 -v --postgres-dsn=$EDGEDB_TEST_POSTGRES_DSN
+
+  teardown-aws-rds:
+    runs-on: ubuntu-latest
+    needs: test-aws-rds
+    if: ${{ always() }}
+    defaults:
+      run:
+        working-directory: .github/aws-rds
+    steps:
+      << setup_terraform()|indent(2) >>
+
+      << setup_aws_creds()|indent(2) >>
+
+      - name: Restore Terraform state
+        uses: actions/download-artifact@v2
+        with:
+          name: aws-rds-tfstate
+          path: .github/aws-rds
+
+      - name: Destroy AWS RDS
+        run: terraform destroy -auto-approve
+        env:
+          TF_VAR_sg_id: ${{ secrets.AWS_SECURITY_GROUP }}
+          TF_VAR_password: ${{ secrets.AWS_RDS_PASSWORD }}
+
+      - name: Overwrite Terraform state
+        uses: actions/upload-artifact@v2
+        with:
+          name: aws-rds-tfstate
+          path: .github/aws-rds/terraform.tfstate
+          retention-days: 1
+
+
+  setup-do-database:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .github/do-database
+    steps:
+      << setup_terraform()|indent(2) >>
+
+      - name: Setup DigitalOcean Database
+        env:
+          TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+        run: |
+          terraform apply -auto-approve
+
+      - name: Store Terraform state
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: do-database-tfstate
+          path: .github/do-database/terraform.tfstate
+          retention-days: 1
+
+  test-do-database:
+    runs-on: ubuntu-latest
+    needs: [setup-do-database, build]
+    steps:
+    <<- restore_cache() >>
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v1
+
+    - name: Initialize Terraform
+      working-directory: .github/do-database
+      run: terraform init
+
+    - name: Restore Terraform state
+      uses: actions/download-artifact@v2
+      with:
+        name: do-database-tfstate
+        path: .github/do-database
+
+    - name: Get Database host
+      id: pghost
+      working-directory: .github/do-database
+      run: |
+        terraform output -raw db_instance_address
+
+    - name: Get Database port
+      id: pgport
+      working-directory: .github/do-database
+      run: |
+        terraform output -raw db_instance_port
+
+    - name: Get Database user
+      id: pguser
+      working-directory: .github/do-database
+      run: |
+        terraform output -raw db_instance_user
+
+    - name: Get Database password
+      id: pgpass
+      working-directory: .github/do-database
+      run: |
+        terraform output -raw db_instance_password
+
+    - name: Get Database dbname
+      id: pgdatabase
+      working-directory: .github/do-database
+      run: |
+        terraform output -raw db_instance_database
+
+    # Run the test
+
+    - name: Test
+      env:
+        EDGEDB_TEST_POSTGRES_DSN: postgres://${{ steps.pguser.outputs.stdout }}:${{ steps.pgpass.outputs.stdout }}@${{ steps.pghost.outputs.stdout }}:${{ steps.pgport.outputs.stdout }}/${{ steps.pgdatabase.outputs.stdout }}
+      run: |
+        edb server --bootstrap-only --postgres-dsn=$EDGEDB_TEST_POSTGRES_DSN
+        edb test -j2 -v --postgres-dsn=$EDGEDB_TEST_POSTGRES_DSN
+
+  teardown-do-database:
+    runs-on: ubuntu-latest
+    needs: test-do-database
+    if: ${{ always() }}
+    defaults:
+      run:
+        working-directory: .github/do-database
+    steps:
+      << setup_terraform()|indent(2) >>
+
+      - name: Restore Terraform state
+        uses: actions/download-artifact@v2
+        with:
+          name: do-database-tfstate
+          path: .github/do-database
+
+      - name: Destroy DigitalOcean Database
+        run: terraform destroy -auto-approve
+        env:
+          TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+
+      - name: Overwrite Terraform state
+        uses: actions/upload-artifact@v2
+        with:
+          name: do-database-tfstate
+          path: .github/do-database/terraform.tfstate
+          retention-days: 1
