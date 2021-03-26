@@ -14,6 +14,8 @@ name: Tests on Managed PostgreSQL
 on:
   schedule:
     - cron: "0 3 * * *"
+  workflow_dispatch:
+    inputs: {}
   push:
     branches:
       - cloud-test
