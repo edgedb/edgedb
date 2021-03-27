@@ -1864,10 +1864,11 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
         schema = s_scalars.AlterScalarType.apply(self, schema, context)
         new_scalar = self.scls
 
-        used_props = []
+        used_props = None
         if list(self.get_subcommands(type=s_constr.CreateConstraint)):
             used_props = self._get_composite_refs(schema, context)
-            schema = self._undo_everything(schema, context, used_props)
+            if used_props:
+                schema = self._undo_everything(schema, context, used_props)
 
         schema = ScalarTypeMetaCommand.apply(self, schema, context)
 
