@@ -2364,7 +2364,13 @@ def is_type_compatible(
     schema, material_type_b = type_b.material_type(schema)
 
     def labels_compatible(t_a: Type, t_b: Type) -> bool:
+        if t_a == t_b:
+            return True
+
         if isinstance(t_a, Tuple) and isinstance(t_b, Tuple):
+            if t_a.get_is_persistent(schema) and t_b.get_is_persistent(schema):
+                return False
+
             # For tuples, we also (recursively) check that the element
             # names match
             return all(

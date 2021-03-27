@@ -1385,7 +1385,6 @@ class ConstraintCommand(sd.ObjectCommand,
     @classmethod
     def create_constraint(
             cls, constraint, schema, context, source_context=None):
-        op = dbops.CommandGroup(priority=1)
         if cls.constraint_is_effective(schema, constraint):
             subject = constraint.get_subject(schema)
 
@@ -1397,9 +1396,9 @@ class ConstraintCommand(sd.ObjectCommand,
                     subject, constraint, schema, context,
                     source_context)
 
-                op.add_command(bconstr.create_ops())
-
-        return op
+                return bconstr.create_ops()
+        else:
+            return dbops.CommandGroup()
 
     @classmethod
     def delete_constraint(
@@ -1610,9 +1609,17 @@ class CreateScalarType(ScalarTypeMetaCommand,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         schema = s_scalars.CreateScalarType.apply(self, schema, context)
-        scalar = self.scls
-
         schema = ScalarTypeMetaCommand.apply(self, schema, context)
+
+        return schema
+
+    def _create_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super()._create_begin(schema, context)
+        scalar = self.scls
 
         if scalar.get_abstract(schema):
             return schema
@@ -1710,6 +1717,144 @@ class RebaseScalarType(ScalarTypeMetaCommand,
 
 
 class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
+
+    def _get_composite_refs(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> List[Tuple[s_props.Property, s_types.TypeShell]]:
+        """Find problematic references to this scalar type that need handled.
+
+        Postgres has an irritating limitation that a constraint may
+        not be added to a domain type if that domain type appears in a
+        *composite* type that is used in a column somewhere.
+
+        We don't want to have that limitation, and we need to do a decent
+        amount of work to work around this.
+
+        1. Find all of the properties whose type is a container type
+           that contains this scalar. (Possibly transitively.)
+        2. Change the type of all offending properties to an equivalent type
+           that does not reference this scalar. This may require creating
+           new types. (See _undo_everything.)
+        3. Add the constraint.
+        4. Restore the type of all offending properties. If existing data
+           violates the new constraint, we will fail here. Delete any
+           temporarily created types. (See _redo_everything.)
+
+        Somewhat hackily, _undo_everything and _redo_everything
+        operate by creating new schema delta command objects, and
+        adapting and applying them. This is the most straightforward
+        way to perform the high-level operations needed here.
+
+        I've kept this code in pgsql/delta instead of trying to put in
+        schema/delta because it is pretty aggressively an irritating
+        pgsql implementation detail and because I didn't want it to
+        have to interact with ordering ever.
+
+        This function finds all of the relevant properties and returns
+        a list of them along with the appropriate replacement type.
+        """
+
+        seen_props = set()
+
+        typ = self.scls
+        # Do a worklist driven search for properties that refer to this scalar
+        # through a collection type. We search backwards starting from
+        # referring collection types.
+        wl = list(schema.get_referrers(typ, scls_type=s_types.Collection))
+        while wl:
+            obj = wl.pop()
+            if isinstance(obj, s_props.Property):
+                seen_props.add(obj)
+            elif isinstance(obj, s_scalars.ScalarType):
+                assert obj == typ, (
+                    "nested uses of scalar types unsupported for now")
+            elif isinstance(obj, s_types.Collection):
+                wl.extend(schema.get_referrers(obj))
+
+        if seen_props:
+            # Find a concrete ancestor to substitute in.
+            for ancestor in typ.get_ancestors(schema).objects(schema):
+                if not ancestor.get_abstract(schema):
+                    break
+            else:
+                return []
+            replacement_shell = ancestor.as_shell(schema)
+
+            return [
+                (
+                    prop,
+                    s_utils.type_shell_substitute(
+                        typ.get_name(schema),
+                        replacement_shell,
+                        prop.get_target(schema).as_shell(schema))
+                )
+                for prop in seen_props
+            ]
+        else:
+            return []
+
+    def _undo_everything(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        props: List[Tuple[s_props.Property, s_types.TypeShell]],
+    ) -> s_schema.Schema:
+        """Rewrite the type of every property that uses this in a composite.
+
+        See _get_composite_refs above for details.
+        """
+        if not props:
+            return schema
+
+        cmd = sd.DeltaRoot()
+
+        for prop, new_typ in props:
+            cmd.add(new_typ.as_create_delta(schema))
+
+            delta_alter, cmd_alter, alter_context = prop.init_delta_branch(
+                schema, context, cmdtype=sd.AlterObject)
+            cmd_alter.set_attribute_value('target', new_typ)
+            cmd.add(delta_alter)
+
+        acmd = CommandMeta.adapt(cmd)
+        self.pgops.add(acmd)
+        return acmd.apply(schema, context)
+
+    def _redo_everything(
+        self,
+        schema: s_schema.Schema,
+        orig_schema: s_schema.Schema,
+        context: sd.CommandContext,
+        props: List[Tuple[s_props.Property, s_types.TypeShell]],
+    ) -> s_schema.Schema:
+        """Restore the type of every property that uses this in a composite.
+
+        See _get_composite_refs above for details.
+        """
+
+        cmd = sd.DeltaRoot()
+
+        for prop, new_typ in props:
+            delta_alter, cmd_alter, alter_context = prop.init_delta_branch(
+                schema, context, cmdtype=sd.AlterObject)
+            cmd_alter.set_attribute_value(
+                'target', prop.get_target(orig_schema))
+            cmd.add(delta_alter)
+
+            rnew_typ = new_typ.resolve(schema)
+            if delete := rnew_typ.as_type_delete_if_dead(schema):
+                cmd.add(delete)
+
+        # do an apply of the schema-level command to force it to canonicalize,
+        # which prunes out duplicate deletions
+        cmd.apply(schema, context)
+
+        acmd = CommandMeta.adapt(cmd)
+        self.pgops.add(acmd)
+        return acmd.apply(schema, context)
+
     def apply(
         self,
         schema: s_schema.Schema,
@@ -1718,7 +1863,18 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
         orig_schema = schema
         schema = s_scalars.AlterScalarType.apply(self, schema, context)
         new_scalar = self.scls
+
+        used_props = None
+        if list(self.get_subcommands(type=s_constr.CreateConstraint)):
+            used_props = self._get_composite_refs(schema, context)
+            if used_props:
+                schema = self._undo_everything(schema, context, used_props)
+
         schema = ScalarTypeMetaCommand.apply(self, schema, context)
+
+        if used_props:
+            schema = self._redo_everything(
+                schema, orig_schema, context, used_props)
 
         old_enum_values = new_scalar.get_enum_values(orig_schema)
         new_enum_values = new_scalar.get_enum_values(schema)

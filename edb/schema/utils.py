@@ -1112,3 +1112,52 @@ def get_config_type_shape(
             seen.add(pn)
 
     return shape
+
+
+def type_shell_substitute(
+    name: sn.Name,
+    new: s_types.TypeShell,
+    typ: s_types.TypeShell,
+) -> s_types.TypeShell:
+    from . import types as s_types
+
+    # arguably this would be better done with a method on the types
+    if typ.name == name:
+        return new
+
+    if isinstance(typ, s_types.UnionTypeShell):
+        return s_types.UnionTypeShell(
+            module=typ.module, schemaclass=typ.schemaclass, opaque=typ.opaque,
+            components=[
+                type_shell_substitute(name, new, c)
+                for c in typ.components
+            ]
+        )
+    elif isinstance(typ, s_types.IntersectionTypeShell):
+        return s_types.IntersectionTypeShell(
+            module=typ.module, schemaclass=typ.schemaclass,
+            components=[
+                type_shell_substitute(name, new, c)
+                for c in typ.components
+            ]
+        )
+    elif isinstance(typ, s_types.ArrayTypeShell):
+        return s_types.ArrayTypeShell(
+            name=sn.UnqualName('__unresolved__'),
+            expr=typ.expr,
+            typemods=typ.typemods,
+            schemaclass=typ.schemaclass,
+            subtype=type_shell_substitute(name, new, typ.subtype),
+        )
+    elif isinstance(typ, s_types.TupleTypeShell):
+        return s_types.TupleTypeShell(
+            name=sn.UnqualName('__unresolved__'),
+            typemods=typ.typemods,
+            schemaclass=typ.schemaclass,
+            subtypes={
+                k: type_shell_substitute(name, new, v)
+                for k, v in typ.subtypes.items()
+            }
+        )
+    else:
+        return typ

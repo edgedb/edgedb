@@ -344,6 +344,12 @@ def _find_cast(
         srcctx: Optional[parsing.ParserContext],
         ctx: context.ContextLevel) -> Optional[s_casts.Cast]:
 
+    # Don't try to pick up casts when there is a direct subtyping
+    # relationship.
+    if (orig_stype.issubclass(ctx.env.schema, new_stype)
+            or new_stype.issubclass(ctx.env.schema, orig_stype)):
+        return None
+
     casts = ctx.env.schema.get_casts_to_type(new_stype)
     if not casts and isinstance(new_stype, s_types.InheritingType):
         ancestors = new_stype.get_ancestors(ctx.env.schema)

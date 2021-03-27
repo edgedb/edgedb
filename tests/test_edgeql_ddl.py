@@ -4829,6 +4829,59 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 CREATE SCALAR TYPE test::myint EXTENDING test::a, test::b;
             ''')
 
+    async def test_edgeql_ddl_scalar_08(self):
+        await self.con.execute('''
+            SET MODULE test;
+
+            CREATE SCALAR TYPE myint EXTENDING int64;
+            CREATE TYPE Bar {
+                CREATE PROPERTY b1 -> tuple<myint, tuple<myint>>;
+                CREATE PROPERTY b2 -> tuple<myint, tuple<myint>>;
+                CREATE MULTI PROPERTY b3 -> tuple<z: myint, y: array<myint>>;
+            };
+            CREATE TYPE Foo {
+                CREATE PROPERTY a1 -> array<myint>;
+                CREATE PROPERTY a2 -> tuple<array<myint>>;
+                CREATE PROPERTY a3 -> array<tuple<array<myint>>>;
+                CREATE PROPERTY a4 -> tuple<myint, str>;
+                CREATE PROPERTY a5 -> tuple<myint, myint>;
+                CREATE PROPERTY a6 -> tuple<myint, tuple<myint>>;
+                CREATE PROPERTY a6b -> tuple<myint, tuple<myint>>;
+                CREATE LINK l -> Bar {
+                    CREATE PROPERTY l1 -> tuple<str, myint>;
+                    CREATE PROPERTY l2 -> tuple<myint, tuple<myint>>;
+                };
+            };
+        ''')
+
+        count_query = "SELECT count(schema::CollectionType);"
+        orig_count = await self.con.query_one(count_query)
+
+        await self.con.execute('''
+            ALTER SCALAR TYPE myint CREATE CONSTRAINT std::one_of(1, 2);
+        ''')
+
+        self.assertEqual(await self.con.query_one(count_query), orig_count)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                'myint must be one of'):
+            await self.con.execute('''
+                INSERT Foo { a4 := (10, "oops") };
+            ''')
+
+        await self.con.execute('''
+            INSERT Foo { a3 := [([2],)] };
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                'myint must be one of:'):
+            await self.con.execute('''
+                ALTER SCALAR TYPE myint DROP CONSTRAINT std::one_of(1, 2);
+                ALTER SCALAR TYPE myint CREATE CONSTRAINT std::one_of(1);
+            ''')
+
     async def test_edgeql_ddl_cast_01(self):
         await self.con.execute('''
             CREATE SCALAR TYPE test::type_a EXTENDING std::str;
