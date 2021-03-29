@@ -556,3 +556,69 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 % OK %
         ONE
         """
+
+    # some tests of object constraints
+    def test_edgeql_ir_card_inference_54(self):
+        """
+        WITH MODULE test
+        SELECT Person FILTER .first = "Phil" AND .last = "Emarg"
+% OK %
+        AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_55(self):
+        """
+        WITH MODULE test
+        SELECT Person FILTER .first = "Phil"
+% OK %
+        MANY
+        """
+
+    def test_edgeql_ir_card_inference_56(self):
+        """
+        WITH MODULE test
+        SELECT Person FILTER .email = "test@example.com"
+% OK %
+        AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_57(self):
+        """
+        WITH MODULE test
+        SELECT Person FILTER .p = 7 AND .q = 3
+% OK %
+        MANY
+        """
+
+    def test_edgeql_ir_card_inference_58(self):
+        """
+        WITH MODULE test
+        SELECT Person FILTER .last = "Hatch" AND .first = "Madeline"
+% OK %
+        AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_59(self):
+        """
+        WITH MODULE test
+        SELECT Person FILTER .p = 7 AND .q = 3 AND .first = "???"
+% OK %
+        AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_60(self):
+        """
+        WITH MODULE test
+        SELECT Person
+        FILTER .p = 12 AND .card = (SELECT Card FILTER .name = 'Imp')
+% OK %
+        AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_61(self):
+        """
+        WITH MODULE test
+        SELECT Person FILTER .first = "Phil" OR .last = "Emarg"
+% OK %
+        MANY
+        """

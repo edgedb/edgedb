@@ -102,3 +102,24 @@ type Report extending Named {
         property note -> str;
     }
 }
+
+
+abstract type BadlyNamed {
+    property first -> str;
+    property last -> str;
+    delegated constraint exclusive on ((.first, .last));
+}
+
+
+type Person extending BadlyNamed {
+    # these constraints don't really make sense but that's fine.
+    property email -> str;
+    constraint exclusive on (.email);
+    property p -> int64;
+    property q -> int64;
+    constraint exclusive on (.p * .q);
+    constraint exclusive on (((.p, __subject__.q), __subject__.first));
+
+    link card -> Card;
+    constraint exclusive on ((.p, .card));
+}

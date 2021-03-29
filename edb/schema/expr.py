@@ -261,7 +261,7 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
         return so.ObjectCollection.schema_refs_from_data(data[1])
 
     @property
-    def _ir_statement(self) -> irast_.Statement:
+    def ir_statement(self) -> irast_.Statement:
         """Assert this expr is a compiled EdgeQL statement and return its IR"""
         from edb.ir import ast as irast_
 
@@ -275,15 +275,15 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
 
     @property
     def stype(self) -> s_types.Type:
-        return self._ir_statement.stype
+        return self.ir_statement.stype
 
     @property
     def cardinality(self) -> qltypes.Cardinality:
-        return self._ir_statement.cardinality
+        return self.ir_statement.cardinality
 
     @property
     def schema(self) -> s_schema.Schema:
-        return self._ir_statement.schema
+        return self.ir_statement.schema
 
 
 class ExpressionShell(so.Shell):
