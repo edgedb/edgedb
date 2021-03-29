@@ -20,11 +20,12 @@ from __future__ import annotations
 from typing import *
 
 import collections.abc
+import enum
 import json
 
 from edb import errors
 
-from edb.common import enum
+from edb.common import enum as s_enum
 from edb.common import struct
 
 from edb.edgeql import ast as qlast
@@ -51,9 +52,15 @@ if TYPE_CHECKING:
     from . import sources as s_sources
 
 
-class PointerDirection(enum.StrEnum):
+class PointerDirection(s_enum.StrEnum):
     Outbound = '>'
     Inbound = '<'
+
+
+class LineageStatus(enum.Enum):
+    VALID = 0
+    MULTIPLE_COMPUTABLES = 1
+    MIXED = 2
 
 
 def merge_cardinality(
@@ -1381,6 +1388,15 @@ class PointerCommand(
             self._validate_pointer_def(schema, context)
         return schema
 
+    def _create_finalize(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super()._create_finalize(schema, context)  # type: ignore
+        self._validate_computables(schema, context)
+        return schema
+
     def _alter_begin(
         self,
         schema: s_schema.Schema,
@@ -1390,6 +1406,130 @@ class PointerCommand(
         if not context.canonical:
             self._validate_pointer_def(schema, context)
         return schema
+
+    def _alter_finalize(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super()._alter_finalize(schema, context)  # type: ignore
+        self._validate_computables(schema, context)
+        return schema
+
+    def _validate_computables(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext
+    ) -> None:
+        scls = self.scls
+
+        if scls.get_from_alias(schema):
+            return
+
+        is_computable = scls.is_pure_computable(schema)
+        is_owned = scls.get_owned(schema)
+        # Get the non-generic, explicitly declared ancestors as the
+        # limitations on computables apply to explicitly declared
+        # pointers, not just a long chain of inherited ones.
+        #
+        # Because this is potentially nested inside a command to
+        # delete a property some ancestors may not be present in the
+        # schema anymore, so we will only consider the ones that still
+        # are (which should still be valid).
+        lineage: List[Pointer_T] = []
+        for iid in scls.get_ancestors(schema)._ids:
+            try:
+                p = cast(Pointer_T, schema.get_by_id(iid))
+                if not p.generic(schema) and p.get_owned(schema):
+                    lineage.append(p)
+            except errors.InvalidReferenceError:
+                pass
+
+        if is_owned:
+            # If the current pointer is explicitly declared, add it at
+            # the end of the lineage.
+            lineage.insert(0, scls)
+
+        status = self._validate_lineage(schema, lineage)
+
+        if status is LineageStatus.VALID:
+            return
+
+        if is_computable and is_owned:
+            # Overloading with a computable
+            raise errors.SchemaDefinitionError(
+                f'it is illegal for the computable '
+                f'{scls.get_verbosename(schema, with_parent=True)} '
+                f'to overload an existing '
+                f'{scls.get_schema_class_displayname()}',
+                context=self.source_context,
+            )
+        else:
+            if status is LineageStatus.MIXED:
+                raise errors.SchemaDefinitionError(
+                    f'it is illegal for the '
+                    f'{scls.get_verbosename(schema, with_parent=True)} '
+                    f'to extend both a computable and a non-computable '
+                    f'{scls.get_schema_class_displayname()}',
+                    context=self.source_context,
+                )
+            elif status is LineageStatus.MULTIPLE_COMPUTABLES:
+                raise errors.SchemaDefinitionError(
+                    f'it is illegal for the '
+                    f'{scls.get_verbosename(schema, with_parent=True)} '
+                    f'to extend more than one computable '
+                    f'{scls.get_schema_class_displayname()}',
+                    context=self.source_context,
+                )
+
+    def _validate_lineage(
+        self,
+        schema: s_schema.Schema,
+        lineage: List[Pointer_T],
+    ) -> LineageStatus:
+        if len(lineage) <= 1:
+            # Having at most 1 item in the lineage is always valid.
+            return LineageStatus.VALID
+
+        head, *rest = lineage
+
+        if not head.is_pure_computable(schema):
+            # The rest of the lineage must all be regular
+            if any(b.is_pure_computable(schema) for b in rest):
+                return LineageStatus.MIXED
+            else:
+                return LineageStatus.VALID
+
+        else:
+            # We have a computable with some non-empty lineage. Which
+            # could be valid only if this is some aliasing followed by
+            # regular pointers only.
+            prev_shortname = head.get_shortname(schema)
+            prev_is_comp = True
+            for b in rest:
+                cur_is_comp = b.is_pure_computable(schema)
+                cur_shortname = b.get_shortname(schema)
+                if prev_is_comp:
+                    # Computables cannot overload, but they can alias
+                    # other pointers, however aliases cannot have
+                    # matching shortnames.
+                    if cur_shortname == prev_shortname:
+                        # Names match, so this is illegal.
+                        if cur_is_comp:
+                            return LineageStatus.MULTIPLE_COMPUTABLES
+                        else:
+                            return LineageStatus.MIXED
+
+                else:
+                    # Only regular pointers expected from here on.
+                    if cur_is_comp:
+                        return LineageStatus.MULTIPLE_COMPUTABLES
+
+                prev_shortname = cur_shortname
+                prev_is_comp = cur_is_comp
+
+            # Did not find anything wrong with the computable lineage.
+            return LineageStatus.VALID
 
     def _validate_pointer_def(
         self,
@@ -2383,6 +2523,27 @@ def get_or_create_union_pointer(
     if len(components) == 1 and direction is PointerDirection.Outbound:
         return schema, components[0]
 
+    # We want to transform all the computables in the list of the
+    # components to their respective owned computables. This is to
+    # ensure that mixing multiple inherited copies of the same
+    # computable is actually allowed.
+    comp_set = set()
+    for c in components:
+        if c.is_pure_computable(schema):
+            comp_set.add(_get_nearest_owned(schema, c))
+        else:
+            comp_set.add(c)
+    components = list(comp_set)
+
+    if (any(p.is_pure_computable(schema) for p in components) and
+            len(components) > 1):
+        p = components[0]
+        raise errors.SchemaError(
+            f'it is illegal to create a type union that causes '
+            f'a computable {p.get_verbosename(schema)} to mix '
+            f'with other versions of the same {p.get_verbosename(schema)}',
+        )
+
     far_endpoints = [p.get_far_endpoint(schema, direction)
                      for p in components]
     targets: List[s_types.Type] = [p for p in far_endpoints
@@ -2432,6 +2593,20 @@ def get_or_create_union_pointer(
         )
 
     return schema, result
+
+
+def _get_nearest_owned(
+    schema: s_schema.Schema,
+    pointer: Pointer,
+) -> Pointer:
+    if pointer.get_owned(schema):
+        return pointer
+
+    for p in pointer.get_ancestors(schema).objects(schema):
+        if p.get_owned(schema):
+            return p
+
+    return pointer
 
 
 def get_or_create_intersection_pointer(

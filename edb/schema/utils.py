@@ -834,28 +834,44 @@ def ensure_union_type(
     *,
     opaque: bool = False,
     module: Optional[str] = None,
+    preserve_derived: bool = False,
 ) -> Tuple[s_schema.Schema, s_types.Type, bool]:
 
     from edb.schema import objtypes as s_objtypes
     from edb.schema import types as s_types
 
-    components: Set[s_types.Type] = set()
+    type_set: Set[s_types.Type] = set()
     for t in types:
         union_of = t.get_union_of(schema)
         if union_of:
-            components.update(union_of.objects(schema))
+            type_set.update(union_of.objects(schema))
+        else:
+            type_set.add(t)
+    # IF we need to preserve derived types, that means that we don't
+    # want to minimize them and instead keep them as is to be
+    # considered in the type union.
+    derived: Set[s_types.Type] = set()
+    components: Set[s_types.Type] = set()
+    for t in type_set:
+        if (
+            preserve_derived and
+            isinstance(t, s_types.InheritingType) and
+            t.get_is_derived(schema)
+        ):
+            derived.add(t)
         else:
             components.add(t)
 
-    components_list: Sequence[s_types.Type]
+    components_list: List[s_types.Type]
 
     if all(isinstance(c, s_types.InheritingType) for c in components):
-        components_list = minimize_class_set_by_most_generic(
+        components_list = list(minimize_class_set_by_most_generic(
             schema,
             cast(Set[s_types.InheritingType], components),
-        )
+        ))
     else:
         components_list = list(components)
+    components_list.extend(list(derived))
 
     if len(components_list) == 1 and not opaque:
         return schema, next(iter(components_list)), False

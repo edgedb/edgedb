@@ -8790,21 +8790,27 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         )
 
     async def test_edgeql_migration_union_01(self):
-        await self.migrate('''
-            type Category {
-                required property title -> str;
-                required property deleted :=
-                    EXISTS(.<element[IS DeletionRecord]);
-            };
-            type Article {
-                required property title -> str;
-                required property deleted :=
-                    EXISTS(.<element[IS DeletionRecord]);
-            };
-            type DeletionRecord {
-                link element -> Article | Category;
-            }
-        ''')
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            "it is illegal to create a type union that causes a "
+            "computable property 'deleted' to mix with other versions of the "
+            "same property 'deleted'"
+        ):
+            await self.migrate('''
+                type Category {
+                    required property title -> str;
+                    required property deleted :=
+                        EXISTS(.<element[IS DeletionRecord]);
+                };
+                type Article {
+                    required property title -> str;
+                    required property deleted :=
+                        EXISTS(.<element[IS DeletionRecord]);
+                };
+                type DeletionRecord {
+                    link element -> Article | Category;
+                }
+            ''')
 
     async def test_edgeql_migration_backlink_01(self):
         await self.migrate('''

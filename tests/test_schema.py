@@ -45,7 +45,7 @@ if TYPE_CHECKING:
 class TestSchema(tb.BaseSchemaLoadTest):
     DEFAULT_MODULE = 'test'
 
-    def test_schema_overloaded_01(self):
+    def test_schema_overloaded_prop_01(self):
         """
             type UniqueName {
                 property name -> str {
@@ -62,7 +62,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
     @tb.must_fail(errors.SchemaDefinitionError,
                   "'name'.*must be declared using the `overloaded` keyword",
                   position=228)
-    def test_schema_overloaded_02(self):
+    def test_schema_overloaded_prop_02(self):
         """
             type UniqueName {
                 property name -> str {
@@ -80,11 +80,199 @@ class TestSchema(tb.BaseSchemaLoadTest):
     @tb.must_fail(errors.SchemaDefinitionError,
                   "'name'.*cannot be declared `overloaded`",
                   position=61)
-    def test_schema_overloaded_03(self):
+    def test_schema_overloaded_prop_03(self):
         """
             type UniqueName {
                 overloaded property name -> str
             };
+        """
+
+    @tb.must_fail(errors.SchemaDefinitionError,
+                  "it is illegal for the computable property 'val' "
+                  "of object type 'test::UniqueName_2' to overload "
+                  "an existing property")
+    def test_schema_overloaded_prop_04(self):
+        """
+            type UniqueName {
+                property val -> str {
+                    constraint exclusive;
+                }
+            };
+            type UniqueName_2 extending UniqueName {
+                overloaded property val -> str {
+                    using ('bad');
+                }
+            };
+        """
+
+    @tb.must_fail(errors.SchemaDefinitionError,
+                  "it is illegal for the computable property 'val' "
+                  "of object type 'test::UniqueName_2' to overload "
+                  "an existing property")
+    def test_schema_overloaded_prop_05(self):
+        """
+            type UniqueName {
+                property val := 'ok';
+            };
+            type UniqueName_2 extending UniqueName {
+                # This doesn't appear to be a computable property, but
+                # it is due to inheritance.
+                overloaded property val -> str {
+                    constraint exclusive;
+                }
+            };
+        """
+
+    @tb.must_fail(errors.SchemaDefinitionError,
+                  "it is illegal for the property 'val' of object "
+                  "type 'test::UniqueName_3' to extend both a computable "
+                  "and a non-computable property")
+    def test_schema_overloaded_prop_06(self):
+        """
+            type UniqueName {
+                property val := 'ok';
+            };
+            type UniqueName_2 {
+                property val -> str;
+            };
+            type UniqueName_3 extending UniqueName, UniqueName_2;
+        """
+
+    @tb.must_fail(errors.SchemaDefinitionError,
+                  "it is illegal for the property 'val' of object "
+                  "type 'test::UniqueName_3' to extend more than one "
+                  "computable property")
+    def test_schema_overloaded_prop_07(self):
+        """
+            type UniqueName {
+                property val := 'ok';
+            };
+            type UniqueName_2 {
+                property val := 'ok';
+            };
+            # It's illegal to extend 2 computable properties even if
+            # the expression is the same for them.
+            type UniqueName_3 extending UniqueName, UniqueName_2;
+        """
+
+    @tb.must_fail(errors.SchemaDefinitionError,
+                  "it is illegal for the property 'val' of object "
+                  "type 'test::UniqueName_4' to extend both a computable "
+                  "and a non-computable property")
+    def test_schema_overloaded_prop_08(self):
+        """
+            type UniqueName {
+                property val -> str;
+            };
+            type UniqueName_2 {
+                property val := 'ok';
+            };
+            type UniqueName_3 extending UniqueName_2;
+            type UniqueName_4 extending UniqueName, UniqueName_3;
+        """
+
+    @tb.must_fail(errors.SchemaError,
+                  "it is illegal to create a type union that causes "
+                  "a computable property 'val' to mix with other "
+                  "versions of the same property 'val'")
+    def test_schema_overloaded_prop_09(self):
+        # Overloading implicitly via a type UNION.
+        """
+            type UniqueName {
+                property val -> str;
+            };
+            type UniqueName_2 {
+                property val := 'ok';
+            };
+            alias Combo := {UniqueName, UniqueName_2};
+        """
+
+    @tb.must_fail(errors.SchemaError,
+                  "it is illegal to create a type union that causes "
+                  "a computable property 'val' to mix with other "
+                  "versions of the same property 'val'")
+    def test_schema_overloaded_prop_10(self):
+        # Overloading implicitly via a type UNION.
+        """
+            type UniqueName {
+                property val -> str;
+            };
+            type UniqueName_2 {
+                property val := 'ok';
+            };
+            type Combo {
+               multi link comp := {UniqueName, UniqueName_2};
+            }
+        """
+
+    @tb.must_fail(errors.SchemaDefinitionError,
+                  "it is illegal for the computable link 'foo' "
+                  "of object type 'test::UniqueName_2' to overload "
+                  "an existing link")
+    def test_schema_overloaded_link_01(self):
+        """
+            type Foo;
+            type UniqueName {
+                link foo -> Foo;
+            };
+            type UniqueName_2 extending UniqueName {
+                overloaded link foo -> Foo {
+                    using (SELECT Foo LIMIT 1);
+                }
+            };
+        """
+
+    @tb.must_fail(errors.SchemaDefinitionError,
+                  "it is illegal for the computable link 'foo' "
+                  "of object type 'test::UniqueName_2' to overload "
+                  "an existing link")
+    def test_schema_overloaded_link_02(self):
+        """
+            type Foo;
+            type UniqueName {
+                link foo := (SELECT Foo LIMIT 1);
+            };
+            type UniqueName_2 extending UniqueName {
+                # This doesn't appear to be a computable link, but
+                # it is due to inheritance.
+                overloaded link foo -> Foo {
+                    constraint exclusive;
+                }
+            };
+        """
+
+    @tb.must_fail(errors.SchemaDefinitionError,
+                  "it is illegal for the link 'foo' of object "
+                  "type 'test::UniqueName_3' to extend both a computable "
+                  "and a non-computable link")
+    def test_schema_overloaded_link_03(self):
+        """
+            type Foo;
+            type UniqueName {
+                link foo := (SELECT Foo LIMIT 1);
+            };
+            type UniqueName_2 {
+                link foo -> Foo;
+            };
+            type UniqueName_3 extending UniqueName, UniqueName_2;
+        """
+
+    @tb.must_fail(errors.SchemaDefinitionError,
+                  "it is illegal for the link 'foo' of object "
+                  "type 'test::UniqueName_3' to extend more than one "
+                  "computable link")
+    def test_schema_overloaded_link_04(self):
+        """
+            type Foo;
+            type UniqueName {
+                link foo := (SELECT Foo LIMIT 1);
+            };
+            type UniqueName_2 {
+                link foo := (SELECT Foo LIMIT 1);
+            };
+            # It's illegal to extend 2 computable links even if
+            # the expression is the same for them.
+            type UniqueName_3 extending UniqueName, UniqueName_2;
         """
 
     @tb.must_fail(errors.InvalidLinkTargetError,
@@ -2267,6 +2455,49 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
+    def test_schema_get_migration_49(self):
+        schema = r'''
+        type Base {
+            property val := 'ok';
+        }
+
+        type Gen1 extending Base;
+        type Gen2 extending Gen1;
+        type Gen3 extending Gen2 {
+            property derived_val := .val ++ '!';
+        }
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_schema_get_migration_50(self):
+        schema = r'''
+        type Base {
+            property val := 'ok';
+        }
+
+        type Gen1Lin1 extending Base;
+        type Gen2Lin1 extending Gen1Lin1;
+
+        type Gen1Lin2 extending Base;
+        type Gen2Lin2 extending Gen1Lin2;
+
+        # Diamond inheritance for the .val
+        type Gen3 extending Gen2Lin1, Gen2Lin2 {
+            property aliased_val3 := .val;
+        }
+        # Alias of an alias.
+        type Gen4 extending Gen3 {
+            property aliased_val4 := .aliased_val3;
+        }
+        # Derive a computable from alias.
+        type Gen5 extending Gen4 {
+            property derived_val := .aliased_val4 ++ '!';
+        }
+        '''
+
+        self._assert_migration_consistency(schema)
+
     def test_schema_get_migration_multi_module_01(self):
         schema = r'''
             # The two declared types declared are from different
@@ -3656,6 +3887,14 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 };
                 index on (__subject__.name);
             };
+        """])
+
+    def test_schema_migrations_equivalence_51(self):
+        self._assert_migration_equivalence([r"""
+            abstract type Text;
+            abstract type Owned;
+            type Comment extending Text, Owned;
+        """, r"""
         """])
 
     def test_schema_migrations_equivalence_compound_01(self):
@@ -5598,21 +5837,27 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         """])
 
     def test_schema_migrations_union_01(self):
-        self._assert_migration_equivalence([r"""
-            type Category {
-                required property title -> str;
-                required property deleted :=
-                    EXISTS(.<element[IS DeletionRecord]);
-            };
-            type Article {
-                required property title -> str;
-                required property deleted :=
-                    EXISTS(.<element[IS DeletionRecord]);
-            };
-            type DeletionRecord {
-                link element -> Article | Category;
-            }
-        """])
+        with self.assertRaisesRegex(
+            errors.QueryError,
+            "it is illegal to create a type union that causes a "
+            "computable property 'deleted' to mix with other versions of the "
+            "same property 'deleted'"
+        ):
+            self._assert_migration_equivalence([r"""
+                type Category {
+                    required property title -> str;
+                    required property deleted :=
+                        EXISTS(.<element[IS DeletionRecord]);
+                };
+                type Article {
+                    required property title -> str;
+                    required property deleted :=
+                        EXISTS(.<element[IS DeletionRecord]);
+                };
+                type DeletionRecord {
+                    link element -> Article | Category;
+                }
+            """])
 
     def test_schema_migrations_drop_depended_on_parent_01(self):
         self._assert_migration_equivalence([r"""
