@@ -346,11 +346,13 @@ def get_union_type(
     types: Iterable[s_types.Type],
     *,
     opaque: bool = False,
+    preserve_derived: bool = False,
     ctx: context.ContextLevel,
 ) -> s_types.Type:
 
     ctx.env.schema, union, created = s_utils.ensure_union_type(
-        ctx.env.schema, types, opaque=opaque)
+        ctx.env.schema, types,
+        opaque=opaque, preserve_derived=preserve_derived)
 
     if created:
         ctx.env.created_schema_objects.add(union)

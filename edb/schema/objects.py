@@ -2876,7 +2876,7 @@ class InheritingObject(SubclassableObject):
     def get_default_base_name(self) -> Optional[sn.Name]:
         return None
 
-    # Redefinining bases and ancestors accessors to make them generic
+    # Redefining bases and ancestors accessors to make them generic
     def get_bases(
         self: InheritingObjectT,
         schema: s_schema.Schema,

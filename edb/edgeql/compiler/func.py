@@ -535,23 +535,10 @@ def compile_operator(
         else:
             larg, _, rarg = (a.expr for a in final_args)
 
-        left_type = schemactx.get_material_type(
-            setgen.get_set_type(larg, ctx=ctx),
-            ctx=ctx,
-        )
-        right_type = schemactx.get_material_type(
-            setgen.get_set_type(rarg, ctx=ctx),
-            ctx=ctx,
-        )
-
-        if left_type.issubclass(env.schema, right_type):
-            rtype = right_type
-        elif right_type.issubclass(env.schema, left_type):
-            rtype = left_type
-        else:
-            assert isinstance(left_type, s_types.InheritingType)
-            assert isinstance(right_type, s_types.InheritingType)
-            rtype = schemactx.get_union_type([left_type, right_type], ctx=ctx)
+        left_type = setgen.get_set_type(larg, ctx=ctx)
+        right_type = setgen.get_set_type(rarg, ctx=ctx)
+        rtype = schemactx.get_union_type(
+            [left_type, right_type], preserve_derived=True, ctx=ctx)
 
     from_op = oper.get_from_operator(env.schema)
     sql_operator = None

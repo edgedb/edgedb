@@ -8573,6 +8573,140 @@ type default::Foo {
             DROP TYPE `U S``E R`;
         """)
 
+    async def test_edgeql_ddl_prop_overload_01(self):
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                "it is illegal for the computable property 'val' "
+                "of object type 'default::UniqueName_2' to overload "
+                "an existing property"):
+            await self.con.execute("""
+                CREATE TYPE UniqueName {
+                    CREATE PROPERTY val -> str;
+                };
+                CREATE TYPE UniqueName_2 EXTENDING UniqueName {
+                    ALTER PROPERTY val {
+                        USING ('bad');
+                    };
+                };
+            """)
+
+    async def test_edgeql_ddl_prop_overload_02(self):
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                "it is illegal for the computable property 'val' "
+                "of object type 'default::UniqueName_2' to overload "
+                "an existing property"):
+            await self.con.execute("""
+                CREATE TYPE UniqueName {
+                    CREATE PROPERTY val := 'bad';
+                };
+                CREATE TYPE UniqueName_2 EXTENDING UniqueName {
+                    ALTER PROPERTY val {
+                        CREATE CONSTRAINT exclusive;
+                    };
+                };
+            """)
+
+    async def test_edgeql_ddl_prop_overload_03(self):
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                "it is illegal for the property 'val' of object "
+                "type 'default::UniqueName_3' to extend both a computable "
+                "and a non-computable property"):
+            await self.con.execute("""
+                CREATE TYPE UniqueName {
+                    CREATE PROPERTY val := 'ok';
+                };
+                CREATE TYPE UniqueName_2 {
+                    CREATE PROPERTY val -> str;
+                };
+                CREATE TYPE UniqueName_3 EXTENDING UniqueName, UniqueName_2;
+            """)
+
+    async def test_edgeql_ddl_prop_overload_04(self):
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                "it is illegal for the property 'val' of object "
+                "type 'default::UniqueName_3' to extend more than one "
+                "computable property"):
+            await self.con.execute("""
+                CREATE TYPE UniqueName {
+                    CREATE PROPERTY val := 'ok';
+                };
+                CREATE TYPE UniqueName_2 {
+                    CREATE PROPERTY val := 'ok';
+                };
+                CREATE TYPE UniqueName_3 EXTENDING UniqueName, UniqueName_2;
+            """)
+
+    async def test_edgeql_ddl_prop_overload_05(self):
+        await self.con.execute("""
+            CREATE TYPE UniqueName {
+                CREATE PROPERTY val -> str;
+            };
+            CREATE TYPE UniqueName_2 {
+                CREATE PROPERTY val -> str;
+            };
+            CREATE TYPE UniqueName_3 EXTENDING UniqueName, UniqueName_2;
+        """)
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                "it is illegal for the property 'val' of object "
+                "type 'default::UniqueName_3' to extend both a computable "
+                "and a non-computable property"):
+            await self.con.execute("""
+                ALTER TYPE UniqueName {
+                    ALTER PROPERTY val {
+                        USING ('bad');
+                    };
+                };
+            """)
+
+    async def test_edgeql_ddl_prop_overload_06(self):
+        await self.con.execute("""
+            CREATE TYPE UniqueName {
+                CREATE PROPERTY val -> str;
+            };
+            CREATE TYPE UniqueName_2 {
+                CREATE PROPERTY val -> str;
+            };
+            CREATE TYPE UniqueName_3 {
+                CREATE PROPERTY val := 'ok';
+            };
+            CREATE TYPE UniqueName_4 EXTENDING UniqueName, UniqueName_2;
+        """)
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                "it is illegal for the property 'val' of object "
+                "type 'default::UniqueName_4' to extend both a computable "
+                "and a non-computable property"):
+            await self.con.execute("""
+                ALTER TYPE UniqueName_4 EXTENDING UniqueName_3;
+            """)
+
+    async def test_edgeql_ddl_prop_overload_07(self):
+        await self.con.execute("""
+            CREATE TYPE UniqueName {
+                CREATE PROPERTY val -> str;
+            };
+            CREATE TYPE UniqueName_2 {
+                CREATE PROPERTY val := 'ok';
+            };
+            CREATE TYPE UniqueName_3;
+            CREATE TYPE UniqueName_4 EXTENDING UniqueName, UniqueName_3;
+        """)
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                "it is illegal for the property 'val' of object "
+                "type 'default::UniqueName_4' to extend both a computable "
+                "and a non-computable property"):
+            await self.con.execute("""
+                ALTER TYPE UniqueName_3 EXTENDING UniqueName_2;
+            """)
+
     async def test_edgeql_ddl_link_overload_01(self):
         await self.con.execute("""
             CREATE TYPE T;

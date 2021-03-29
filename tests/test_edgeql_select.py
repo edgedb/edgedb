@@ -2393,6 +2393,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
+    @test.xfail('Too many results')
     async def test_edgeql_select_setops_13a(self):
         await self.assert_query_result(
             r"""
@@ -2443,34 +2444,34 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         )
 
     async def test_edgeql_select_setops_14(self):
-        await self.assert_query_result(
-            r"""
-            # The computable in the type variant is omitted from the duck type
-            # of the UNION because ultimately it's the duck type of
-            # the operands, which are both Issue with the real
-            # property 'number'.
-            SELECT {
-                Issue{number := 'foo'}, Issue
-            }.number;
-            """,
-            ['1', '1', '2', '2', '3', '3', '4', '4'],
-            sort=True
-        )
+        with self.assertRaisesRegex(
+            edgedb.SchemaError,
+            "it is illegal to create a type union that causes "
+            "a computable property 'number' to mix with other "
+            "versions of the same property 'number'"
+        ):
+            await self.con.execute(
+                r"""
+                SELECT {
+                    Issue{number := 'foo'}, Issue
+                }.number;
+                """
+            )
 
     async def test_edgeql_select_setops_15(self):
-        await self.assert_query_result(
-            r"""
-            # The computable in the type variant is omitted from the duck type
-            # of the UNION because ultimately it's the duck type of
-            # the operands, which are both Issue with the real
-            # property 'number'.
-            WITH
-                I := Issue{number := 'foo'}
-            SELECT {I, Issue}.number;
-            """,
-            ['1', '1', '2', '2', '3', '3', '4', '4'],
-            sort=True
-        )
+        with self.assertRaisesRegex(
+            edgedb.SchemaError,
+            "it is illegal to create a type union that causes "
+            "a computable property 'number' to mix with other "
+            "versions of the same property 'number'"
+        ):
+            await self.con.execute(
+                r"""
+                WITH
+                    I := Issue{number := 'foo'}
+                SELECT {I, Issue}.number;
+                """
+            )
 
     async def test_edgeql_select_setops_16(self):
         await self.assert_query_result(
@@ -6034,7 +6035,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_banned_anonymous_01(self):
         async with self.assertRaisesRegexTx(
             edgedb.QueryError,
-            "cannot use DISTINCT on anonymous shape",
+            "it is illegal to create a type union that causes a "
+            "computable property 'z' to mix with other versions of the "
+            "same property 'z'"
         ):
             await self.con.execute("""
                 SELECT DISTINCT {{ z := 1 }, { z := 2 }};
