@@ -272,32 +272,6 @@ def collapse_type_intersection(
     return source, result
 
 
-def extract_constraint_style_ptrs(
-        ir: irast.Set) -> Optional[List[irast.Pointer]]:
-    """Extract ptrrefs from a simple "constraint-style" expression.
-
-    This means that the expression can be a simple pointer reference
-    or a tuple of "constraint-style" expressions.
-    """
-    parts = []
-
-    def _extract(ir: irast.Set) -> bool:
-        if ir.rptr is not None:
-            parts.append(ir.rptr)
-            return True
-        elif isinstance(ir.expr, irast.Tuple):
-            return all(
-                _extract(elem.val) for elem in ir.expr.elements
-            )
-        else:
-            return False
-
-    if _extract(ir):
-        return parts
-    else:
-        return None
-
-
 def get_nearest_dml_stmt(ir_set: irast.Set) -> Optional[irast.MutatingStmt]:
     """For a given *ir_set* representing a Path, return the nearest path
        step that is a DML expression.

@@ -587,7 +587,7 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
         WITH MODULE test
         SELECT Person FILTER .p = 7 AND .q = 3
 % OK %
-        MANY
+        AT_MOST_ONE
         """
 
     def test_edgeql_ir_card_inference_58(self):
@@ -621,4 +621,12 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
         SELECT Person FILTER .first = "Phil" OR .last = "Emarg"
 % OK %
         MANY
+        """
+
+    def test_edgeql_ir_card_inference_62(self):
+        """
+        WITH MODULE test
+        SELECT Person FILTER .p = 7 AND .q = 3 AND .last = "Whatever"
+% OK %
+        AT_MOST_ONE
         """
