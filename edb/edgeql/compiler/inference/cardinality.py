@@ -36,8 +36,11 @@ from edb.common import parsing
 from edb.edgeql import qltypes
 
 from edb.schema import name as sn
+from edb.schema import types as s_types
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
+from edb.schema import constraints as s_constraints
+from edb.schema import expr as s_expr
 
 from edb.ir import ast as irast
 from edb.ir import utils as irutils
@@ -48,6 +51,7 @@ from . import volatility
 from . import context as inference_context
 
 from .. import context
+from .. import options
 
 
 AT_MOST_ONE = qltypes.Cardinality.AT_MOST_ONE
@@ -932,6 +936,82 @@ def extract_filters(
     return None
 
 
+def _get_object_constraint_pointers(
+    typ: s_objtypes.ObjectType,
+    constr: s_constraints.Constraint,
+    env: context.Environment,
+) -> Optional[Sequence[s_pointers.PointerLike]]:
+    subjectexpr = constr.get_subjectexpr(env.schema)
+    if not subjectexpr:
+        return None
+
+    # would it be worth it to cache this?
+    subjectexpr = s_expr.Expression.compiled(
+        subjectexpr,
+        schema=env.schema,
+        options=options.CompilerOptions(
+            anchors={'__subject__': typ},
+            path_prefix_anchor='__subject__',
+        ),
+    )
+    ptrrefs = irutils.extract_constraint_style_ptrs(
+        irutils.unwrap_set(subjectexpr.ir_statement.expr))
+    if ptrrefs is None:
+        return None
+
+    parts = []
+    for rptr in ptrrefs:
+        env.schema, ptrcls = typeutils.ptrcls_from_ptrref(
+            rptr.ptrref, schema=env.schema)
+        parts.append(ptrcls)
+
+    return parts
+
+
+def get_object_exclusive_constraints(
+    typ: s_types.Type,
+    ptr_set: Set[s_pointers.Pointer],
+    env: context.Environment,
+) -> Sequence[Tuple[
+    s_constraints.Constraint, Sequence[s_pointers.PointerLike],
+]]:
+    """Collect any exclusive object constraints that could apply.
+
+    Object constraints that are just a single pointer reference or a
+    tuple of pointer references can be used for cardinality purposes.
+
+    Returns a sequence of (constraint, pointer sequence) pair,
+    where each pointer sequence lists all of the component pointers in
+    the exclusive object constraint.
+    """
+
+    if not isinstance(typ, s_objtypes.ObjectType):
+        return ()
+
+    schema = env.schema
+    exclusive = schema.get('std::exclusive', type=s_constraints.Constraint)
+
+    cnstrs = []
+    typ = typ.get_nearest_non_derived_parent(schema)
+    for constr in typ.get_constraints(schema).objects(schema):
+        if (
+            constr.issubclass(schema, exclusive)
+            and (subjectexpr := constr.get_subjectexpr(schema))
+        ):
+            # as an optimization, make sure that all the referenced values
+            # appear in the query so we don't need to compile the subjectexpr
+            # if they don't
+            if subjectexpr.refs is not None and not all(
+                ref in ptr_set for ref in subjectexpr.refs.objects(schema)
+            ):
+                continue
+
+            if res := _get_object_constraint_pointers(typ, constr, env):
+                cnstrs.append((constr, res))
+
+    return cnstrs
+
+
 def _analyse_filter_clause(
     result_set: irast.Set,
     result_card: qltypes.Cardinality,
@@ -945,10 +1025,23 @@ def _analyse_filter_clause(
         result_set, filter_clause, scope_tree, ctx)
 
     if filtered_ptrs:
+        ptr_set = set()
+        # First look at each referenced pointer and see if it has
+        # an exclusive constraint.
         for ptr, _ in filtered_ptrs:
+            ptr = ptr.get_nearest_non_derived_parent(schema)
+            ptr_set.add(ptr)
             if ptr.is_exclusive(schema):
                 # Bingo, got an equality filter on a link with a
                 # unique constraint
+                return AT_MOST_ONE
+
+        # Then look at all the object exclusive constraints
+        result_stype = ctx.env.set_types[result_set]
+        obj_exclusives = get_object_exclusive_constraints(
+            result_stype, ptr_set, ctx.env)
+        for _, exc_ptrs in obj_exclusives:
+            if not (set(exc_ptrs) - ptr_set):
                 return AT_MOST_ONE
 
     return result_card

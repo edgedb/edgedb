@@ -665,7 +665,23 @@ def ptrref_from_ptrcls(  # NoQA: F811
     return ptrref
 
 
+@overload
 def ptrcls_from_ptrref(
+    ptrref: irast.PointerRef, *,
+    schema: s_schema.Schema,
+) -> Tuple[s_schema.Schema, s_pointers.Pointer]:
+    ...
+
+
+@overload
+def ptrcls_from_ptrref(  # NoQA: F811
+    ptrref: irast.BasePointerRef, *,
+    schema: s_schema.Schema,
+) -> Tuple[s_schema.Schema, s_pointers.PointerLike]:
+    ...
+
+
+def ptrcls_from_ptrref(  # NoQA: F811
     ptrref: irast.BasePointerRef, *,
     schema: s_schema.Schema,
 ) -> Tuple[s_schema.Schema, s_pointers.PointerLike]:
