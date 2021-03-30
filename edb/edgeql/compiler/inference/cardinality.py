@@ -1041,7 +1041,7 @@ def _analyse_filter_clause(
         obj_exclusives = get_object_exclusive_constraints(
             result_stype, ptr_set, ctx.env)
         for _, exc_ptrs in obj_exclusives:
-            if all(exc_ptr in ptr_set for exc_ptr in exc_ptrs):
+            if not (set(exc_ptrs) - ptr_set):
                 return AT_MOST_ONE
 
     return result_card
