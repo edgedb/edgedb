@@ -73,6 +73,8 @@ type Person2 {
 type Person2a extending Person2 {
     required single property last -> std::str;
     constraint exclusive on ((__subject__.first, __subject__.last));
+    single link bff -> Person;
+    constraint exclusive on ((.first, .bff));
 }
 
 type Person2b extending Person2 {

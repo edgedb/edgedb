@@ -417,55 +417,75 @@ def compile_insert_unless_conflict_on(
         cspec_res = setgen.ensure_set(dispatch.compile(
             constraint_spec, ctx=constraint_ctx), ctx=constraint_ctx)
 
-    if not cspec_res.rptr:
-        raise errors.QueryError(
-            'UNLESS CONFLICT argument must be a property',
-            context=constraint_spec.context,
-        )
+    # We accept a property, link, or a list of them in the form of a
+    # tuple.
+    if cspec_res.rptr is None and isinstance(cspec_res.expr, irast.Tuple):
+        cspec_args = [elem.val for elem in cspec_res.expr.elements]
+    else:
+        cspec_args = [cspec_res]
 
-    if cspec_res.rptr.source.path_id != stmt.subject.path_id:
-        raise errors.QueryError(
-            'UNLESS CONFLICT argument must be a property of the '
-            'type being inserted',
-            context=constraint_spec.context,
-        )
+    for cspec_arg in cspec_args:
+        if not cspec_arg.rptr:
+            raise errors.QueryError(
+                'UNLESS CONFLICT argument must be a property, link, '
+                'or tuple of properties and links',
+                context=constraint_spec.context,
+            )
+
+        if cspec_arg.rptr.source.path_id != stmt.subject.path_id:
+            raise errors.QueryError(
+                'UNLESS CONFLICT argument must be a property of the '
+                'type being inserted',
+                context=constraint_spec.context,
+            )
 
     schema = ctx.env.schema
     schema, typ = typeutils.ir_typeref_to_type(schema, stmt.subject.typeref)
     assert isinstance(typ, s_objtypes.ObjectType)
     real_typ = typ.get_nearest_non_derived_parent(schema)
 
-    schema, ptr = (
-        typeutils.ptrcls_from_ptrref(cspec_res.rptr.ptrref,
-                                     schema=schema))
-    if not isinstance(ptr, s_pointers.Pointer):
-        raise errors.QueryError(
-            'UNLESS CONFLICT property must be a property',
-            context=constraint_spec.context,
-        )
-
-    ptr = ptr.get_nearest_non_derived_parent(schema)
-    ptr_card = ptr.get_cardinality(schema)
-    if not ptr_card.is_single():
-        raise errors.QueryError(
-            'UNLESS CONFLICT property must be a SINGLE property',
-            context=constraint_spec.context,
-        )
-
+    ptrs = []
     exclusive_constr = schema.get('std::exclusive', type=s_constr.Constraint)
-    ex_cnstrs = [c for c in ptr.get_constraints(schema).objects(schema)
-                 if c.issubclass(schema, exclusive_constr)]
+    for cspec_arg in cspec_args:
+        assert cspec_arg.rptr is not None
+        schema, ptr = (
+            typeutils.ptrcls_from_ptrref(cspec_arg.rptr.ptrref, schema=schema))
+        if not isinstance(ptr, s_pointers.Pointer):
+            raise errors.QueryError(
+                'UNLESS CONFLICT property must be a property',
+                context=constraint_spec.context,
+            )
 
-    if len(ex_cnstrs) != 1:
+        ptr = ptr.get_nearest_non_derived_parent(schema)
+        ptr_card = ptr.get_cardinality(schema)
+        if not ptr_card.is_single():
+            raise errors.QueryError(
+                'UNLESS CONFLICT property must be a SINGLE property',
+                context=constraint_spec.context,
+            )
+
+        ptrs.append(ptr)
+
+    obj_constrs = inference.cardinality.get_object_exclusive_constraints(
+        real_typ, set(ptrs), ctx.env)
+
+    field_constrs = []
+    if len(ptrs) == 1:
+        field_constrs = [
+            c for c in ptrs[0].get_constraints(schema).objects(schema)
+            if c.issubclass(schema, exclusive_constr)]
+
+    all_constrs = list(obj_constrs) + field_constrs
+    if len(all_constrs) != 1:
         raise errors.QueryError(
             'UNLESS CONFLICT property must have a single exclusive constraint',
             context=constraint_spec.context,
         )
 
-    field_name = cspec_res.rptr.ptrref.shortname
-    ds = {field_name.name: (ptr, ex_cnstrs)}
+    ds = {ptr.get_shortname(schema).name: (ptr, field_constrs)
+          for ptr in ptrs}
     select_ir = compile_insert_unless_conflict_select(
-        stmt, insert_subject, real_typ, constrs=ds, obj_constrs=[],
+        stmt, insert_subject, real_typ, constrs=ds, obj_constrs=obj_constrs,
         parser_context=stmt.context, ctx=ctx)
 
     # Compile an else branch
@@ -481,7 +501,7 @@ def compile_insert_unless_conflict_on(
         assert isinstance(else_ir, irast.Set)
 
     return irast.OnConflictClause(
-        constraint=irast.ConstraintRef(id=ex_cnstrs[0].id),
+        constraint=irast.ConstraintRef(id=all_constrs[0].id),
         select_ir=select_ir,
         else_ir=else_ir
     )

@@ -2712,6 +2712,95 @@ class TestInsert(tb.QueryTestCase):
 
         self.assertEqual(list(res1)[0].id, list(res2)[0].id)
 
+    async def test_edgeql_insert_unless_conflict_14(self):
+        query = r'''
+            WITH MODULE test
+            SELECT (
+                INSERT Person2a {first := "Phil", last := "Emarg"}
+                UNLESS CONFLICT ON (.first, .last) ELSE (SELECT Person2a)
+            ) {first, last};
+        '''
+
+        await self.assert_query_result(
+            query,
+            [{"first": "Phil", "last": "Emarg"}],
+        )
+
+        await self.assert_query_result(
+            query,
+            [{"first": "Phil", "last": "Emarg"}],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT test::Person2a {first, last}''',
+            [{"first": "Phil", "last": "Emarg"}],
+        )
+
+    async def test_edgeql_insert_unless_conflict_15(self):
+        # test using a tuple object constraint with a link in it
+        await self.con.execute(r'''
+            WITH MODULE test
+            INSERT Person {
+                name := "Phil Emarg",
+            };
+
+            WITH MODULE test
+            INSERT Person {
+                name := "Madeline Hatch",
+            };
+        ''')
+
+        query = r'''
+            WITH MODULE test
+            SELECT (
+                INSERT Person2a {
+                    first := "Emmanuel",
+                    last := "Villip",
+                    bff := (SELECT Person FILTER .name = "Phil Emarg")
+                }
+                UNLESS CONFLICT ON (.first, .bff) ELSE (SELECT Person2a)
+            ) {first, last};
+        '''
+
+        await self.assert_query_result(
+            query,
+            [{"first": "Emmanuel", "last": "Villip"}],
+        )
+
+        await self.assert_query_result(
+            query,
+            [{"first": "Emmanuel", "last": "Villip"}],
+        )
+
+        await self.assert_query_result(
+            query.replace("Villip", "Vi11ip"),
+            [{"first": "Emmanuel", "last": "Villip"}],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT test::Person2a {first, last, friend := .bff.name}''',
+            [{"first": "Emmanuel", "last": "Villip", "friend": "Phil Emarg"}],
+        )
+
+        await self.assert_query_result(
+            query.replace("Villip", "Vi11ip").replace(
+                "Phil Emarg", "Madeline Hatch"),
+            [{"first": "Emmanuel", "last": "Vi11ip"}],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT test::Person2a {first, last, friend := .bff.name}
+                ORDER BY .last
+            ''',
+            [
+                {"first": "Emmanuel", "last": "Vi11ip",
+                 "friend": "Madeline Hatch"},
+                {"first": "Emmanuel", "last": "Villip",
+                 "friend": "Phil Emarg"},
+            ],
+        )
+
     async def test_edgeql_insert_dependent_01(self):
         query = r'''
             WITH MODULE test
