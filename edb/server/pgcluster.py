@@ -878,6 +878,7 @@ def get_remote_pg_cluster(dsn: str) -> RemoteCluster:
     ) -> Tuple[Type[RemoteCluster], Optional[str]]:
         managed_clouds = {
             'rds_superuser': RemoteCluster,    # Amazon RDS
+            'cloudsqlsuperuser': RemoteCluster,    # GCP Cloud SQL
         }
 
         managed_cloud_super = await conn.fetchval(

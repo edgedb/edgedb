@@ -9,6 +9,14 @@
         aws-region: us-east-2
 <%- endmacro -%>
 
+<% macro setup_gcp_creds() -%>
+    - name: Configure GCP Credentials
+      uses: google-github-actions/setup-gcloud@master
+      with:
+        service_account_key: ${{ secrets.GCP_SA_KEY }}
+        export_default_credentials: true
+<%- endmacro -%>
+
 name: Tests on Managed PostgreSQL
 
 on:
@@ -217,4 +225,81 @@ jobs:
         with:
           name: do-database-tfstate
           path: .github/do-database/terraform.tfstate
+          retention-days: 1
+
+
+  setup-gcp-cloud-sql:
+    runs-on: ubuntu-latest
+    outputs:
+      pghost: ${{ steps.pghost.outputs.stdout }}
+    defaults:
+      run:
+        working-directory: .github/gcp-cloud-sql
+    steps:
+      << setup_terraform()|indent(2) >>
+
+      << setup_gcp_creds()|indent(2) >>
+
+      - name: Setup GCP Cloud SQL
+        env:
+          TF_VAR_password: ${{ secrets.AWS_RDS_PASSWORD }}
+        run: |
+          terraform apply -auto-approve
+
+      - name: Store Terraform state
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: gcp-cloud-sql-tfstate
+          path: .github/gcp-cloud-sql/terraform.tfstate
+          retention-days: 1
+
+      - name: Get Cloud SQL host
+        id: pghost
+        run: |
+          terraform output -raw db_instance_address
+
+  test-gcp-cloud-sql:
+    runs-on: ubuntu-latest
+    needs: [setup-gcp-cloud-sql, build]
+    steps:
+    <<- restore_cache() >>
+
+    # Run the test
+
+    - name: Test
+      env:
+        EDGEDB_TEST_POSTGRES_DSN: postgres://postgres:${{ secrets.AWS_RDS_PASSWORD }}@${{ needs.setup-gcp-cloud-sql.outputs.pghost }}/postgres
+      run: |
+        edb server --bootstrap-only --postgres-dsn=$EDGEDB_TEST_POSTGRES_DSN
+        edb test -j2 -v --postgres-dsn=$EDGEDB_TEST_POSTGRES_DSN
+
+  teardown-gcp-cloud-sql:
+    runs-on: ubuntu-latest
+    needs: test-gcp-cloud-sql
+    if: ${{ always() }}
+    defaults:
+      run:
+        working-directory: .github/gcp-cloud-sql
+    steps:
+      << setup_terraform()|indent(2) >>
+
+      << setup_gcp_creds()|indent(2) >>
+
+      - name: Restore Terraform state
+        uses: actions/download-artifact@v2
+        with:
+          name: gcp-cloud-sql-tfstate
+          path: .github/gcp-cloud-sql
+
+      - name: Destroy GCP Cloud SQL
+        run: terraform destroy -auto-approve
+        env:
+          TF_VAR_password: ${{ secrets.AWS_RDS_PASSWORD }}
+
+      - name: Overwrite Terraform state
+        uses: actions/upload-artifact@v2
+        with:
+          name: gcp-cloud-sql-tfstate
+          path: .github/gcp-cloud-sql/terraform.tfstate
           retention-days: 1
