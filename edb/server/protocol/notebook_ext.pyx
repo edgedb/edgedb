@@ -126,7 +126,6 @@ async def heartbeat_check(db, server):
 
 async def compile(db, server, list queries):
     compiler_pool = server.get_compiler_pool()
-    # TODO(tailhook) check capabilities
     return await compiler_pool.compile_notebook(
         db.name,
         db.user_schema,
