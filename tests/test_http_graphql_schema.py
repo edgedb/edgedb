@@ -1986,7 +1986,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                     },
                     {
                         "name": "nulls",
-                        "defaultValue": 'SMALLEST',  # TODO(tailhook) not sure
+                        "defaultValue": 'SMALLEST',
                         "type": {
                             "name": "nullsOrderingEnum",
                             "kind": "ENUM",
