@@ -36,6 +36,7 @@ import tempfile
 import typing
 import warnings
 
+import psutil
 import uvloop
 
 import click
@@ -55,6 +56,8 @@ from . import pgconnparams
 from . import pgcluster
 from . import protocol
 
+
+BYTES_OF_MEM_PER_CONN = 100 * 1024 * 1024  # 100MiB
 
 logger = logging.getLogger('edb.server')
 _server_initialized = False
@@ -270,7 +273,14 @@ def run_server(args: ServerConfig):
 
     cluster: Union[pgcluster.Cluster, pgcluster.RemoteCluster]
     if args.data_dir:
-        cluster = pgcluster.get_local_pg_cluster(args.data_dir)
+        if not args.max_backend_connections:
+            max_conns = _compute_default_max_backend_connections()
+            args = args._replace(max_backend_connections=max_conns)
+            logger.info(f'Using {max_conns} max backend connections based on '
+                        f'total memory.')
+
+        cluster = pgcluster.get_local_pg_cluster(
+            args.data_dir, max_connections=args.max_backend_connections)
         default_runstate_dir = cluster.get_data_dir()
         cluster.set_connection_params(
             pgconnparams.ConnectionParameters(
@@ -280,6 +290,18 @@ def run_server(args: ServerConfig):
         )
     elif args.postgres_dsn:
         cluster = pgcluster.get_remote_pg_cluster(args.postgres_dsn)
+
+        instance_params = cluster.get_runtime_params().instance_params
+        max_conns = (
+            instance_params.max_connections -
+            instance_params.reserved_connections)
+        if not args.max_backend_connections:
+            args = args._replace(max_backend_connections=max_conns)
+            logger.info(f'Detected {max_conns} backend connections available.')
+        elif args.max_backend_connections > max_conns:
+            abort(f'--max-backend-connections is too large for this backend; '
+                  f'detected maximum available NUM: {max_conns}')
+
         default_runstate_dir = None
     else:
         # This should have been checked by main() already,
@@ -437,7 +459,7 @@ class ServerConfig(typing.NamedTuple):
     daemon_user: str
     daemon_group: str
     runstate_dir: pathlib.Path
-    max_backend_connections: int
+    max_backend_connections: Optional[int]
     compiler_pool_size: int
     echo_runtime_info: bool
     temp_dir: bool
@@ -487,11 +509,16 @@ def _protocol_version(
 
 
 def _validate_max_backend_connections(ctx, param, value):
-    if value < defines.BACKEND_CONNECTIONS_MIN:
+    if value is not None and value < defines.BACKEND_CONNECTIONS_MIN:
         raise click.BadParameter(
             f'the minimum number of backend connections '
             f'is {defines.BACKEND_CONNECTIONS_MIN}')
     return value
+
+
+def _compute_default_max_backend_connections():
+    total_mem = psutil.virtual_memory().total
+    return max(int(total_mem / BYTES_OF_MEM_PER_CONN), 2)
 
 
 def _validate_compiler_pool_size(ctx, param, value):
@@ -570,8 +597,13 @@ _server_options = [
              f'runtime files will be placed ({_get_runstate_dir_default()} '
              f'by default)'),
     click.option(
-        '--max-backend-connections', type=int,
-        default=defines.BACKEND_CONNECTIONS_DEFAULT,
+        '--max-backend-connections', type=int, metavar='NUM',
+        help=f'The maximum NUM of connections this EdgeDB instance could make '
+             f'to the backend PostgreSQL cluster. If not set, EdgeDB will '
+             f'detect and calculate the NUM: RAM/100MiB='
+             f'{_compute_default_max_backend_connections()} for local '
+             f'Postgres or pg_settings.max_connections for remote Postgres, '
+             f'minus the NUM of --reserved-pg-connections.',
         callback=_validate_max_backend_connections),
     click.option(
         '--compiler-pool-size', type=int,

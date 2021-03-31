@@ -21,11 +21,16 @@ from __future__ import annotations
 
 import asyncio
 import os.path
+import pathlib
+import random
 import subprocess
 import sys
+import tempfile
 
+import asyncpg
 import edgedb
 
+from edb.server import pgcluster, pgconnparams, cluster as edgedb_cluster
 from edb.testbase import server as tb
 
 
@@ -77,16 +82,6 @@ class TestServerOps(tb.TestCase):
                     wait_until_available=0,
                 )
 
-            i = 600 * 5  # Give it up to 5 minutes to cleanup.
-            while i > 0:
-                if not os.path.exists(sd.host):
-                    break
-                else:
-                    i -= 1
-                    await asyncio.sleep(0.1)
-            else:
-                self.fail('temp directory was not cleaned up')
-
     async def test_server_ops_bootstrap_script(self):
         # Test that "edgedb-server" works as expected with the
         # following arguments:
@@ -130,3 +125,82 @@ class TestServerOps(tb.TestCase):
                 self.fail(
                     'Unexpected server error output:\n' + stderr.decode()
                 )
+
+    async def test_server_ops_set_pg_max_connections(self):
+        bootstrap_command = (
+            r'CONFIGURE SYSTEM INSERT Auth '
+            r'{ priority := 0, method := (INSERT Trust) }'
+        )
+        actual = random.randint(50, 100)
+        async with tb.start_edgedb_server(
+            auto_shutdown=True,
+            bootstrap_command=bootstrap_command,
+            max_allowed_connections=actual,
+        ) as sd:
+            run_dir = sd.server_data['runstate_dir']
+            port = 0
+            for sock in pathlib.Path(run_dir).glob('.s.PGSQL.*'):
+                if sock.is_socket():
+                    port = int(sock.suffix[1:])
+                    break
+
+            con = await edgedb.async_connect(
+                user='edgedb', host=sd.host, port=sd.port)
+            self.assertEqual(await con.query_one('SELECT 1'), 1)
+
+            try:
+
+                conn = await asyncpg.connect(
+                    host=run_dir, port=port, user='postgres')
+                try:
+                    max_connectiosn = await conn.fetchval(
+                        "SELECT setting FROM pg_settings "
+                        "WHERE name = 'max_connections'")
+                    self.assertEqual(int(max_connectiosn), actual)
+                finally:
+                    await conn.close()
+
+            finally:
+                await con.aclose()
+
+    def test_server_ops_detect_postgres_pool_size(self):
+        port = edgedb_cluster.find_available_port()
+        actual = random.randint(50, 100)
+
+        async def test(host):
+            bootstrap_command = (
+                r'CONFIGURE SYSTEM INSERT Auth '
+                r'{ priority := 0, method := (INSERT Trust) }'
+            )
+            async with tb.start_edgedb_server(
+                auto_shutdown=True,
+                bootstrap_command=bootstrap_command,
+                max_allowed_connections=None,
+                postgres_dsn=f'postgres:///?user=postgres&port={port}&'
+                             f'host={host}',
+            ) as sd:
+                con = await edgedb.async_connect(
+                    user='edgedb', host=sd.host, port=sd.port)
+                try:
+                    max_connections = await con.query_one(
+                        'SELECT cfg::SystemConfig.__pg_max_connections '
+                        'LIMIT 1')  # TODO: remove LIMIT 1 after #2402
+                    self.assertEqual(int(max_connections), actual)
+                finally:
+                    await con.aclose()
+
+        with tempfile.TemporaryDirectory() as td:
+            cluster = pgcluster.get_local_pg_cluster(td,
+                                                     max_connections=actual)
+            cluster.set_connection_params(
+                pgconnparams.ConnectionParameters(
+                    user='postgres',
+                    database='template1',
+                ),
+            )
+            self.assertTrue(cluster.ensure_initialized())
+            cluster.start(port=port)
+            try:
+                self.loop.run_until_complete(test(td))
+            finally:
+                cluster.stop()

@@ -1420,9 +1420,10 @@ class _EdgeDBServer:
         bootstrap_command: Optional[str],
         auto_shutdown: bool,
         adjacent_to: Optional[edgedb.AsyncIOConnection],
-        max_allowed_connections: int,
+        max_allowed_connections: Optional[int],
         compiler_pool_size: int,
         debug: bool,
+        postgres_dsn: Optional[str] = None,
     ) -> None:
         self.auto_shutdown = auto_shutdown
         self.bootstrap_command = bootstrap_command
@@ -1430,7 +1431,9 @@ class _EdgeDBServer:
         self.max_allowed_connections = max_allowed_connections
         self.compiler_pool_size = compiler_pool_size
         self.debug = debug
+        self.postgres_dsn = postgres_dsn
         self.proc = None
+        self.data = None
 
     async def _read_runtime_info(self, stdout: asyncio.StreamReader):
         while True:
@@ -1467,10 +1470,16 @@ class _EdgeDBServer:
             '--testmode',
             '--echo-runtime-info',
             '--compiler-pool-size', str(self.compiler_pool_size),
-            '--max-backend-connections', str(self.max_allowed_connections),
         ]
-
-        if self.adjacent_to is not None:
+        if self.max_allowed_connections is not None:
+            cmd.extend([
+                '--max-backend-connections', str(self.max_allowed_connections),
+            ])
+        if self.postgres_dsn is not None:
+            cmd.extend([
+                '--postgres-dsn', self.postgres_dsn,
+            ])
+        elif self.adjacent_to is not None:
             settings = self.adjacent_to.get_settings()
             pgaddr = settings.get('pgaddr')
             if pgaddr is None:
@@ -1502,7 +1511,7 @@ class _EdgeDBServer:
         )
 
         try:
-            data = await asyncio.wait_for(
+            self.data = data = await asyncio.wait_for(
                 self._read_runtime_info(self.proc.stdout),
                 timeout=240,
             )
@@ -1519,6 +1528,17 @@ class _EdgeDBServer:
         )
 
     async def __aexit__(self, *exc):
+        if self.auto_shutdown and self.data:
+            i = 600 * 5  # Give it up to 5 minutes to cleanup.
+            while i > 0:
+                if not os.path.exists(self.data['runstate_dir']):
+                    break
+                else:
+                    i -= 1
+                    await asyncio.sleep(0.1)
+            else:
+                raise AssertionError('temp directory was not cleaned up')
+
         await self._shutdown()
 
 
@@ -1526,10 +1546,11 @@ def start_edgedb_server(
     *,
     auto_shutdown: bool=False,
     bootstrap_command: Optional[str]=None,
-    max_allowed_connections: int=10,
+    max_allowed_connections: Optional[int]=10,
     compiler_pool_size: int=2,
     adjacent_to: Optional[edgedb.AsyncIOConnection]=None,
     debug: bool=False,
+    postgres_dsn: Optional[str] = None,
 ):
     return _EdgeDBServer(
         auto_shutdown=auto_shutdown,
@@ -1537,7 +1558,8 @@ def start_edgedb_server(
         max_allowed_connections=max_allowed_connections,
         adjacent_to=adjacent_to,
         compiler_pool_size=compiler_pool_size,
-        debug=debug
+        debug=debug,
+        postgres_dsn=postgres_dsn,
     )
 
 

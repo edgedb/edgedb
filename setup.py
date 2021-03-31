@@ -49,6 +49,7 @@ RUNTIME_DEPS = [
     'immutables>=0.15',
     'parsing~=1.6.1',
     'prompt_toolkit==3.0.3',
+    'psutil~=5.8.0',
     'Pygments~=2.3.0',
     'setproctitle~=1.1.10',
     'setuptools-rust==0.10.3',
