@@ -1802,7 +1802,6 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                         schema, context, cmdtype=AlterObject)
                     delta_create, cmd_create, _ = ref.init_delta_branch(
                         schema, context, cmdtype=AlterObject)
-                    cmd_create.scls = ref
                     # Mark it metadata_only so that if it actually gets
                     # applied, only the metadata is changed but not
                     # the real underlying schema.

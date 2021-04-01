@@ -5646,6 +5646,28 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Person2a;
         """])
 
+    def test_schema_migrations_drop_from_one_parent_01(self):
+        self._assert_migration_equivalence([r"""
+            abstract type Text { property x -> str { constraint exclusive } }
+            abstract type Owned { property x -> str { constraint exclusive } }
+            type Comment extending Text, Owned;
+        """, r"""
+            abstract type Text { }
+            abstract type Owned { property x -> str { constraint exclusive } }
+            type Comment extending Text, Owned;
+        """])
+
+    def test_schema_migrations_drop_from_one_parent_02(self):
+        self._assert_migration_equivalence([r"""
+            abstract type Text { property x -> str { constraint exclusive } }
+            abstract type Owned { property x -> str { constraint exclusive } }
+            type Comment extending Text, Owned;
+        """, r"""
+            abstract type Text { property x -> str }
+            abstract type Owned { property x -> str { constraint exclusive } }
+            type Comment extending Text, Owned;
+        """])
+
 
 class TestDescribe(tb.BaseSchemaLoadTest):
     """Test the DESCRIBE command."""

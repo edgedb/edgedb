@@ -1504,6 +1504,7 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
             ddl_identity=self.get_ddl_identity(schema),
             **kwargs,
         )
+        cmd.scls = self
         self.record_cmd_object_aux_data(schema, cmd)
         return cmd
 
@@ -1573,7 +1574,6 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
             classname=classname,
             **kwargs,
         )
-        self_cmd.scls = self
 
         parent_cmd.add(self_cmd)
         ctx_stack.push(self_cmd.new_context(schema, context, self))
