@@ -1888,6 +1888,8 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         from . import indexes as s_indexes
         from edb.ir import ast as irast
 
+        scls = cmd.get_object(schema, context)
+
         ast: qlast.ObjectDDL
         # if the delta involves re-setting a computable
         # expression, then we also need to change the type to the
@@ -1940,7 +1942,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
             if new_name == cmd.classname:
                 return
 
-            rename = cmd.scls.init_delta_command(
+            rename = scls.init_delta_command(
                 schema, RenameObject, new_name=new_name)
             rename.set_attribute_value(
                 'name', value=new_name, orig_value=cmd.classname)
@@ -1967,7 +1969,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
             if new_name == cmd.classname:
                 return
 
-            rename = cmd.scls.init_delta_command(
+            rename = scls.init_delta_command(
                 schema, RenameObject, new_name=new_name)
             rename.set_attribute_value(
                 'name', value=new_name, orig_value=cmd.classname)
@@ -1977,7 +1979,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         # the internal param names if a type name has changed.
         elif isinstance(cmd, s_func.AlterFunction):
             # Produce a param desc list which we use to find a new name.
-            param_list = cmd.scls.get_params(schema)
+            param_list = scls.get_params(schema)
             params = s_func.CallableCommand._get_param_desc_from_params_ast(
                 schema, context.modaliases, param_list.get_ast(schema))
             name = sn.shortname_from_fullname(cmd.classname)
@@ -1988,7 +1990,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                 return
 
             # Do the rename
-            rename = cmd.scls.init_delta_command(
+            rename = scls.init_delta_command(
                 schema, RenameObject, new_name=new_fname)
             rename.set_attribute_value(
                 'name', value=new_fname, orig_value=cmd.classname)
@@ -2006,7 +2008,8 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         # so sort by dependency order.
         objs_to_cmds = {}
         for delta, cmd, refdesc in context.affected_finalization.get(self, []):
-            objs_to_cmds[cmd.scls] = delta, cmd, refdesc
+            scls = cmd.get_object(schema, context)
+            objs_to_cmds[scls] = delta, cmd, refdesc
         objs = sort_by_cross_refs(schema, objs_to_cmds.keys())
 
         for obj in reversed(objs):
@@ -2489,9 +2492,10 @@ class ObjectCommand(Command, Generic[so.Object_T]):
             is_alter
             and spec is None
             and not self.has_attribute_value(field)
-            and field not in self.scls.get_computed_fields(schema)
+            and (scls := self.get_object(schema, context))
+            and field not in scls.get_computed_fields(schema)
         ):
-            spec = self.scls.get_explicit_field_value(
+            spec = scls.get_explicit_field_value(
                 schema, field, default=None)
 
         return spec
@@ -3017,7 +3021,7 @@ class AlterObjectFragment(AlterObjectOrFragment[so.Object_T]):
     ) -> s_schema.Schema:
         # AlterObjectFragment must be executed in the context
         # of a parent AlterObject command.
-        scls = self.get_parent_op(context).scls
+        scls = self.get_parent_op(context).get_object(schema, context)
         self.scls = cast(so.Object_T, scls)
 
         schema = self._alter_begin(schema, context)

@@ -1504,7 +1504,6 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
             ddl_identity=self.get_ddl_identity(schema),
             **kwargs,
         )
-        cmd.scls = self
         self.record_cmd_object_aux_data(schema, cmd)
         return cmd
 

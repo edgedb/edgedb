@@ -458,11 +458,12 @@ class ConstraintCommand(
 
         base: Optional[so.Object] = None
         if isinstance(self, AlterConstraint):
-            base = self.scls.get_subject(schema)
+            scls = self.get_object(schema, context)
+            base = scls.get_subject(schema)
         else:
             referrer_ctx = self.get_referrer_context(context)
             if referrer_ctx:
-                base = referrer_ctx.op.scls
+                base = referrer_ctx.op.get_object(schema, context)
 
         if base is not None:
             # Concrete constraint

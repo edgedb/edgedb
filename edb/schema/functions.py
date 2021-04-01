@@ -1888,7 +1888,8 @@ class AlterFunction(AlterCallableObject[Function], FunctionCommand):
             context=context,
         )
         if val is None:
-            val = self.scls.get_field_value(schema, name)
+            val = self.get_object(schema, context).get_field_value(
+                schema, name)
         if val is None:
             mcls = self.get_schema_metaclass()
             raise AssertionError(
@@ -1902,7 +1903,7 @@ class AlterFunction(AlterCallableObject[Function], FunctionCommand):
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> FuncParameterList:
-        return self.scls.get_params(schema)
+        return self.get_object(schema, context).get_params(schema)
 
 
 class DeleteFunction(DeleteCallableObject[Function], FunctionCommand):
