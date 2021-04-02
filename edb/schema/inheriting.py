@@ -67,8 +67,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         context: sd.CommandContext,
         update: Mapping[str, bool],
     ) -> s_schema.Schema:
-        scls = self.get_object(schema, context)
-        cur_inh_fields = scls.get_inherited_fields(schema)
+        cur_inh_fields = self.scls.get_inherited_fields(schema)
         inh_fields = set(cur_inh_fields)
         for fn, inherited in update.items():
             if inherited:
@@ -83,7 +82,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
                     frozenset(inh_fields),
                     orig_value=cur_inh_fields,
                 )
-                schema = scls.set_field_value(
+                schema = self.scls.set_field_value(
                     schema, 'inherited_fields', inh_fields)
             else:
                 self.set_attribute_value(
@@ -91,7 +90,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
                     None,
                     orig_value=cur_inh_fields,
                 )
-                schema = scls.set_field_value(
+                schema = self.scls.set_field_value(
                     schema, 'inherited_fields', None)
 
         return schema
@@ -120,7 +119,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         ignore_local: bool = False,
     ) -> s_schema.Schema:
         mcls = self.get_schema_metaclass()
-        scls = self.get_object(schema, context)
+        scls = self.scls
 
         field_names: Iterable[str]
         if fields is not None:
@@ -175,7 +174,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
                 sav = self.set_attribute_value(
                     field_name, result, inherited=inherited)
                 if isinstance(sav, sd.AlterObjectProperty):
-                    schema = scls.set_field_value(
+                    schema = self.scls.set_field_value(
                         schema, field_name, result)
                 else:
                     # If this isn't a simple AlterObjectProperty, postpone
@@ -213,8 +212,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         from . import referencing as s_referencing
 
         attr = refdict.attr
-        scls = self.get_object(schema, context)
-        bases = scls.get_bases(schema)
+        bases = self.scls.get_bases(schema)
         refs: Dict[
             sn.QualName,
             Tuple[
@@ -228,8 +226,8 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
             ],
         ] = {}
 
-        ancestors = set(scls.get_ancestors(schema).objects(schema))
-        for base in bases.objects(schema) + (scls,):
+        ancestors = set(self.scls.get_ancestors(schema).objects(schema))
+        for base in bases.objects(schema) + (self.scls,):
             base_refs: so.ObjectIndexBase[
                 sn.Name,
                 s_referencing.ReferencedInheritingObject,
@@ -238,7 +236,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
             for k, v in base_refs.items(schema):
                 if v.get_final(schema):
                     continue
-                if base == scls and not v.get_owned(schema):
+                if base == self.scls and not v.get_owned(schema):
                     continue
 
                 mcls = type(v)
@@ -259,7 +257,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
                     refs[fqname] = (create_cmd, astnode, [])
 
                 objs = refs[fqname][2]
-                if base != scls:
+                if base != self.scls:
                     objs.append(v)
                 elif not objs:
                     # If we are looking at refs in the base object
@@ -295,8 +293,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
     ) -> Dict[sn.Name, Type[sd.ObjectCommand[so.Object]]]:
         from . import referencing as s_referencing
 
-        scls = self.get_object(schema, context)
-        local_refs = scls.get_field_value(schema, refdict.attr)
+        local_refs = self.scls.get_field_value(schema, refdict.attr)
         dropped_refs: Dict[sn.Name, Type[sd.ObjectCommand[so.Object]]] = {}
         for k, v in local_refs.items(schema):
             if not v.get_owned(schema):
@@ -328,7 +325,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
     ) -> s_schema.Schema:
         from . import ordering
 
-        scls = self.get_object(schema, context)
+        scls = self.scls
         mcls = type(scls)
 
         orig_rec = context.current().enable_recursion
@@ -377,7 +374,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
                Dict[sn.Name, Type[sd.ObjectCommand[so.Object]]]]:
         from edb.schema import referencing as s_referencing
 
-        scls = self.get_object(schema, context)
+        scls = self.scls
         refs = self.get_inherited_ref_layout(schema, context, refdict)
         refnames = set(refs)
 
