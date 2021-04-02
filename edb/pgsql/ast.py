@@ -394,12 +394,10 @@ class Query(ReturningQuery):
     """Generic superclass representing a query."""
 
     # Ignore the below fields in AST visitor/transformer.
-    __ast_meta__ = {'ptr_join_map', 'path_rvar_map',
+    __ast_meta__ = {'path_rvar_map',
                     'view_path_id_map', 'argnames', 'nullable'}
 
     view_path_id_map: typing.Dict[irast.PathId, irast.PathId]
-    # Map of RangeVars corresponding to pointer relations.
-    ptr_join_map: dict
     # Map of RangeVars corresponding to paths.
     path_rvar_map: typing.Dict[typing.Tuple[irast.PathId, str], PathRangeVar]
 

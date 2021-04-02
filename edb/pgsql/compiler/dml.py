@@ -1052,7 +1052,6 @@ def process_update_body(
             path_scope=update_stmt.path_scope,
             path_rvar_map=update_stmt.path_rvar_map.copy(),
             view_path_id_map=update_stmt.view_path_id_map.copy(),
-            ptr_join_map=update_stmt.ptr_join_map.copy(),
         )
 
     toplevel = ctx.toplevel_stmt
