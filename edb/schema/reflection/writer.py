@@ -787,7 +787,7 @@ def _update_lprops(
             target_type = target_field.type
         target_clsname = target_type.__name__
         target_link = refdict.attr
-        target_obj = cmd.scls
+        target_obj = cmd.get_object(schema, context)
 
     shape, append_variables = _build_object_mutation_shape(
         cmd,
