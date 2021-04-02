@@ -444,7 +444,7 @@ class CreateLink(
         )
         src_prop.set_attribute_value(
             'target',
-            parent_ctx.op.scls,
+            parent_ctx.op.get_object(schema, context),
         )
         src_prop.set_attribute_value('required', True)
         src_prop.set_attribute_value('readonly', True)
