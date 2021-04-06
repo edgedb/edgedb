@@ -1515,6 +1515,8 @@ class GraphQLTranslator:
     def visit_VariableNode(self, node):
         varname = node.name.value
         var = self._context.vars[varname]
+        err_msg = (f"Only scalar input variables are allowed. "
+                   f"Variable {varname!r} has non-scalar value.")
 
         vartype = var.defn.type
         optional = True
@@ -1522,15 +1524,25 @@ class GraphQLTranslator:
             vartype = vartype.type
             optional = False
 
-        if vartype.name.value not in gt.GQL_TO_EDB_SCALARS_MAP:
-            raise errors.QueryError(
-                f"Only scalar input variables are allowed. "
-                f"Variable {varname!r} has non-scalar value.")
+        if self.is_list_type(vartype):
+            raise errors.QueryError(err_msg)
 
-        casttype = qlast.TypeName(
-            maintype=qlast.ObjectRef(
+        if vartype.name.value in gt.GQL_TO_EDB_SCALARS_MAP:
+            castname = qlast.ObjectRef(
                 name=gt.GQL_TO_EDB_SCALARS_MAP[vartype.name.value])
-        )
+        else:
+            try:
+                vtype = self.get_type(
+                    self._context.gqlcore.gql_to_edb_name(vartype.name.value))
+            except AssertionError:
+                raise errors.QueryError(err_msg)
+
+            if vtype.is_enum:
+                castname = vtype.edb_base_name_ast
+            else:
+                raise errors.QueryError(err_msg)
+
+        casttype = qlast.TypeName(maintype=castname)
         # potentially this is an array
         if self.is_list_type(vartype):
             casttype = qlast.TypeName(
@@ -1789,7 +1801,9 @@ def convert_default(
     node: gql_ast.ValueNode,
     varname: str
 ) -> Union[str, float, int, bool]:
-    if isinstance(node, (gql_ast.StringValueNode, gql_ast.BooleanValueNode)):
+    if isinstance(node, (gql_ast.StringValueNode,
+                         gql_ast.BooleanValueNode,
+                         gql_ast.EnumValueNode)):
         return node.value
     elif isinstance(node, gql_ast.IntValueNode):
         return int(node.value)

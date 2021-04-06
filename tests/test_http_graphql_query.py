@@ -1421,6 +1421,21 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }]
         })
 
+    def test_graphql_functional_enums_04(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'String cannot represent a non string value: admin',
+                _line=4, _col=51):
+            self.graphql_query(r"""
+                query {
+                    # enum supplied instead of a string
+                    UserGroup(filter: {name: {eq: admin}}) {
+                        id,
+                        name,
+                    }
+                }
+            """)
+
     def test_graphql_functional_fragment_01(self):
         self.assert_graphql_query_result(r"""
             fragment groupFrag on UserGroup {
@@ -3015,20 +3030,44 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """, variables={"f": {"name": {"eq": "Alice"}}})
 
-    def test_graphql_functional_enum_01(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r'String cannot represent a non string value: admin',
-                _line=4, _col=51):
-            self.graphql_query(r"""
-                query {
-                    # enum supplied instead of a string
-                    UserGroup(filter: {name: {eq: admin}}) {
-                        id,
-                        name,
+    def test_graphql_functional_variables_44(self):
+        self.assert_graphql_query_result(
+            r"""
+                query foo($color: other__ColorEnum!) {
+                    other__Foo(
+                        filter: {color: {eq: $color}},
+                    ) {
+                        select
+                        color
                     }
                 }
-            """)
+            """, {
+                "other__Foo": [{
+                    "select": "a",
+                    "color": "RED",
+                }]
+            },
+            variables={"color": "RED"},
+        )
+
+    def test_graphql_functional_variables_45(self):
+        self.assert_graphql_query_result(
+            r"""
+                query foo($color: other__ColorEnum! = GREEN) {
+                    other__Foo(
+                        filter: {color: {eq: $color}},
+                    ) {
+                        select
+                        color
+                    }
+                }
+            """, {
+                "other__Foo": [{
+                    "select": "b",
+                    "color": "GREEN",
+                }]
+            },
+        )
 
     def test_graphql_functional_inheritance_01(self):
         # ISSUE: #709
