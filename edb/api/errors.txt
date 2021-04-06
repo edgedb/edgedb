@@ -111,8 +111,9 @@
 0x_05_02_00_03   MissingRequiredError
 
 0x_05_03_00_00   TransactionError
-0x_05_03_00_01   TransactionSerializationError  #SHOULD_RETRY
-0x_05_03_00_02   TransactionDeadlockError  #SHOULD_RETRY
+0x_05_03_01_00   TransactionConflictError  #SHOULD_RETRY
+0x_05_03_01_01   TransactionSerializationError
+0x_05_03_01_02   TransactionDeadlockError
 
 
 ####
