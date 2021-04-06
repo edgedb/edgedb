@@ -24,6 +24,7 @@ import json
 import pathlib
 import re
 import sys
+from dataclasses import dataclass
 
 import click
 
@@ -33,47 +34,23 @@ from edb.tools.edb import edbcommands
 from edb.errors import base as edb_base_errors
 
 
-class SparseArray:
-
-    def __init__(self):
-        self._list = {}
-
-    def __getitem__(self, idx: int):
-        if not isinstance(idx, int):
-            raise TypeError
-        if idx not in self._list:
-            raise IndexError
-        return self._list[idx]
-
-    def __setitem__(self, idx, value):
-        if not isinstance(idx, int):
-            raise TypeError
-        self._list[idx] = value
-
-    def __contains__(self, idx):
-        if not isinstance(idx, int):
-            raise TypeError
-        return idx in self._list
+@dataclass(frozen=True)
+class ErrorCode:
+    b1: int
+    b2: int
+    b3: int
+    b4: int
 
     def __iter__(self):
-        for i in self.indices():
-            yield self._list[i]
+        return iter((self.b1, self.b2, self.b3, self.b4))
 
-    def indices(self):
-        return iter(sorted(self._list.keys()))
 
-    def setdefault(self, idx, default_factory):
-        if not isinstance(idx, int):
-            raise TypeError
-        if idx in self._list:
-            return self._list[idx]
-        self._list[idx] = default_factory()
-        return self._list[idx]
-
-    def __repr__(self):
-        vals = (f'{i}: {self._list[i]}' for i in self.indices())
-        vals = ', '.join(vals)
-        return f'[{vals}]'
+@dataclass(frozen=True)
+class ErrorDescription:
+    name: str
+    code: ErrorCode
+    tags: frozenset
+    base_name: str = ''
 
 
 class ErrorsTree:
@@ -141,49 +118,35 @@ class ErrorsTree:
     DEFAULT_EXTRA_ALL = 'base.__all__'
 
     def __init__(self):
-        self._tree = SparseArray()
-
-        self._all_codes = set()
+        self._tree = {}
         self._all_names = set()
-        self._all_tags = dict()
 
-    def add(self, b1, b2, b3, b4, name, tags):
-        if name in self._all_names:
-            raise ValueError(f'duplicate error name {name!r}')
+    def add(self, desc):
+        if desc.name in self._all_names:
+            raise ValueError(f'duplicate error name {desc.name!r}')
 
         # Let's try to avoid name clashes with built-in exception
         # names in some popular languages
         for lang, names in self.errors_names.items():
-            if name in names:
-                raise ValueError(
-                    f'error name {name!r} conflicts with {lang} exception')
+            if desc.name in names:
+                raise ValueError(f'error name {desc.name!r} conflicts with '
+                                 f'{lang} exception')
 
-        if (b1, b2, b3, b4) in self._all_codes:
-            raise ValueError(f'duplicate error code for error {name!r}')
+        if desc.code in self._tree:
+            raise ValueError(f'duplicate error code for error {desc.name!r}')
 
-        self._all_names.add(name)
-        self._all_codes.add((b1, b2, b3, b4))
-
-        self._tree \
-            .setdefault(b1, SparseArray) \
-            .setdefault(b2, SparseArray) \
-            .setdefault(b3, SparseArray) \
-            .setdefault(b4, lambda: name)
-        self._all_tags[name] = tags
+        self._all_names.add(desc.name)
+        self._tree[desc.code] = desc
 
     def load(self, ep):
         with open(ep, 'rt') as f:
             self._load(f)
 
     def _load(self, f):
-        lines = []
         for line in f.readlines():
             if re.match(r'(?x)^ (\s*\#[^\n]*) | (\s*) $', line):
                 continue
-            else:
-                lines.append(line)
 
-        for line in lines:
             # For consistency we require a very particular format
             # for error codes (hex numbers) and error names
             # (camel case, only words, ends with "Error").
@@ -205,67 +168,64 @@ class ErrorsTree:
             if not m:
                 die(f'Unable to parse {line!r} line')
 
-            b1 = int(m.group('b1'), 16)
-            b2 = int(m.group('b2'), 16)
-            b3 = int(m.group('b3'), 16)
-            b4 = int(m.group('b4'), 16)
+            code = ErrorCode(
+                int(m.group('b1'), 16),
+                int(m.group('b2'), 16),
+                int(m.group('b3'), 16),
+                int(m.group('b4'), 16),
+            )
             name = m.group('name')
-            if m.group('tags').strip():
-                tags = set(
-                    map(lambda s: s.lstrip('#'),
-                        map(str.strip,
-                            m.group('tags').split()))
-                )
-            else:
-                tags = set()
+            tags = m.group('tags').split()
+            tags = frozenset(t.strip().lstrip('#') for t in tags)
+            desc = ErrorDescription(name=name, code=code, tags=tags)
 
-            self.add(b1, b2, b3, b4, name, tags)
+            self.add(desc)
+
+    def get_parent(self, code):
+        b1, b2, b3, b4 = code
+
+        if b4 == 0 and b3 == 0 and b2 == 0:
+            return None
+
+        if b4 == 0 and b3 == 0:
+            parent_code = ErrorCode(b1, 0, 0, 0)
+        elif b4 == 0:
+            parent_code = ErrorCode(b1, b2, 0, 0)
+        else:
+            parent_code = ErrorCode(b1, b2, b3, 0)
+
+        try:
+            return self._tree[parent_code]
+        except KeyError:
+            raise ValueError(f'No base class for code '
+                             f'0x_{b1:0>2X}_{b2:0>2X}_{b3:0>2X}_{b4:0>2X}')
 
     def generate_classes(self, *, message_base_class, base_class, client):
         classes = []
 
-        for i1 in self._tree.indices():
-            try:
-                b1 = self._tree[i1][0][0][0]
-            except (IndexError, TypeError):
-                raise ValueError(f'No base class for code 0x_{i1:0>2X}_*_*_*')
-
-            if i1 == 0xFF and not client:
+        for desc in self._tree.values():
+            if desc.code.b1 == 0xFF and not client:
                 continue
 
-            for i2 in self._tree[i1].indices():
-                try:
-                    b2 = self._tree[i1][i2][0][0]
-                except (IndexError, TypeError):
-                    raise ValueError(
-                        f'No base class for code 0x_{i1:0>2X}_{i2:0>2X}_*_*')
+            parent = self.get_parent(desc.code)
 
-                for i3 in self._tree[i1][i2].indices():
-                    try:
-                        b3 = self._tree[i1][i2][i3][0]
-                    except (IndexError, TypeError):
-                        raise ValueError(
-                            f'No base class for code '
-                            f'0x_{i1:0>2X}_{i2:0>2X}_{i3:0>2X}_*')
+            if parent:
+                base_name = parent.name
+            elif desc.name.endswith('Error'):
+                base_name = base_class
+            else:
+                base_name = message_base_class
 
-                    for i4 in self._tree[i1][i2][i3].indices():
-                        b4 = self._tree[i1][i2][i3][i4]
-                        base = None
-                        if b4 != b3:
-                            base = b3
-                        else:
-                            if b4 != b2:
-                                base = b2
-                            else:
-                                base = b1
-                        if base == b4:
-                            if b4.endswith('Error'):
-                                base = base_class
-                            else:
-                                base = message_base_class
+            tags = desc.tags
+            while parent:
+                tags |= parent.tags
+                parent = self.get_parent(parent.code)
 
-                        classes.append((b4, base, i1, i2, i3, i4,
-                                        list(self._all_tags[b4])))
+            # make tag list order stable
+            tags = sorted(tags)
+            b1, b2, b3, b4 = desc.code
+
+            classes.append((desc.name, base_name, b1, b2, b3, b4, tags))
 
         return classes
 
