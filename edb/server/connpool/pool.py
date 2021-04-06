@@ -32,6 +32,7 @@ from . import rolavg
 MIN_CONN_TIME_THRESHOLD = 0.01
 MIN_QUERY_TIME_THRESHOLD = 0.001
 MIN_LOG_TIME_THRESHOLD = 1
+CONNECT_FAILURE_RETRIES = 3
 
 logger = logging.getLogger("edb.server")
 
@@ -108,6 +109,7 @@ class Block(typing.Generic[C]):
     conn_waiters_num: int
     conn_waiters: typing.Deque[asyncio.Future[None]]
     conn_queue: typing.Deque[C]
+    connect_failures_num: int
 
     querytime_avg: rolavg.RollingAverage
     nwaiters_avg: rolavg.RollingAverage
@@ -135,6 +137,7 @@ class Block(typing.Generic[C]):
         self.conn_waiters_num = 0
         self.conn_waiters = collections.deque()
         self.conn_queue = collections.deque()
+        self.connect_failures_num = 0
 
         self.querytime_avg = rolavg.RollingAverage(history_size=20)
         self.nwaiters_avg = rolavg.RollingAverage(history_size=3)
@@ -228,6 +231,12 @@ class Block(typing.Generic[C]):
     def release(self, conn: C) -> None:
         self.conn_queue.append(conn)
         self._wakeup_next_waiter()
+
+    def abort_waiters(self, e: Exception) -> None:
+        while self.conn_waiters:
+            waiter = self.conn_waiters.popleft()
+            if not waiter.done():
+                waiter.set_exception(e)
 
     def _wakeup_next_waiter(self) -> None:
         while self.conn_waiters:
@@ -433,10 +442,35 @@ class BasePool(typing.Generic[C]):
         )
         try:
             conn = await self._connect_cb(block.dbname)
-        except Exception:
+        except Exception as e:
             self._failed_connects += 1
             self._cur_capacity -= 1
-            raise
+
+            logger.error(
+                "Failed to establish a new connection to backend database: %s",
+                block.dbname,
+                exc_info=True,
+            )
+            block.connect_failures_num += 1
+
+            if getattr(e, 'fields', {}).get('C') == '3D000':
+                # 3D000 - INVALID CATALOG NAME, database does not exist
+                # Skip retry and propagate the error immediately
+                if block.connect_failures_num <= CONNECT_FAILURE_RETRIES:
+                    block.connect_failures_num = CONNECT_FAILURE_RETRIES + 1
+
+            if block.connect_failures_num > CONNECT_FAILURE_RETRIES:
+                # Abort all waiters on this block and propagate the error, as
+                # we don't have a mapping between waiters and _connect() tasks
+                block.abort_waiters(e)
+            else:
+                # We must retry immediately here (without sleeping), or _tick()
+                # will jump in and schedule more retries than what we expected.
+                self._schedule_new_conn(block, event)
+            return
+        else:
+            # reset the failure counter if we got the connection back
+            block.connect_failures_num = 0
         finally:
             ended_at = time.monotonic()
             self._conntime_avg.add(ended_at - started_at)
@@ -492,7 +526,8 @@ class BasePool(typing.Generic[C]):
         self._get_loop().create_task(
             self._transfer(from_block, from_conn, to_block, started_at))
 
-    def _schedule_new_conn(self, block: Block[C]) -> None:
+    def _schedule_new_conn(self, block: Block[C],
+                           event: str = 'established') -> None:
         started_at = time.monotonic()
         self._cur_capacity += 1
         block.pending_conns += 1
@@ -500,9 +535,7 @@ class BasePool(typing.Generic[C]):
             self._blocks.move_to_end(block.dbname, last=True)
         self._log_to_snapshot(
             dbname=block.dbname, event='connect', value=block.count_conns())
-        self._get_loop().create_task(
-            self._connect(block, started_at, 'established')
-        )
+        self._get_loop().create_task(self._connect(block, started_at, event))
 
     async def _discard_conn(self, block: Block[C], conn: C) -> None:
         assert not block.conns[conn].in_use

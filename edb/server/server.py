@@ -53,6 +53,7 @@ from edb.server import defines
 from edb.server import protocol
 from edb.server.protocol import binary  # type: ignore
 from edb.server import pgcon
+from edb.server.pgcon import errors as pgcon_errors
 
 from . import dbview
 
@@ -376,8 +377,22 @@ class Server:
             schema_class_layout=self._schema_class_layout,
         )
 
-    async def introspect_db(self, dbname, *, refresh=False):
-        conn = await self.acquire_pgcon(dbname)
+    async def introspect_db(
+        self, dbname, *, refresh=False, skip_concurrent_drop=False
+    ):
+        try:
+            conn = await self.acquire_pgcon(dbname)
+        except pgcon_errors.BackendError as e:
+            if skip_concurrent_drop and e.fields['C'] == '3D000':
+                # 3D000 - INVALID CATALOG NAME, database does not exist
+                logger.warning(
+                    "Detected concurrently-dropped database %s; skipping.",
+                    dbname,
+                )
+                return
+            else:
+                raise
+
         try:
             user_schema = await self.introspect_user_schema(conn)
 
@@ -461,7 +476,9 @@ class Server:
 
         async with taskgroup.TaskGroup(name='introspect DBs') as g:
             for dbname in dbnames:
-                g.create_task(self.introspect_db(dbname))
+                g.create_task(
+                    self.introspect_db(dbname, skip_concurrent_drop=True)
+                )
 
     def _fetch_roles(self):
         global_schema = self._dbindex.get_global_schema()

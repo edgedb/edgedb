@@ -709,6 +709,9 @@ class TestServerConnectionPool(unittest.TestCase):
             if (
                 'established' in args or
                 '1 were discarded' in args or
+                '1 were established' in args or
+                'transferred out' in args or
+                'transferred in' in args or
                 'discarded' in args
             ):
                 self.logs.put_nowait(args)
@@ -749,6 +752,112 @@ class TestServerConnectionPool(unittest.TestCase):
             self.assertIn("discarded", args)
             self.assertIn("block_b", args)
             self.assertLess(time.monotonic() - start, 0.2)
+
+        async def main():
+            logger.logs = asyncio.Queue()
+            await asyncio.wait_for(test(), timeout=5)
+
+        asyncio.run(main())
+
+    @unittest.mock.patch('edb.server.connpool.pool.logger.level',
+                         logging.CRITICAL)
+    def _test_connpool_connect_error(self, error_type, expected_connects):
+        connect_called_num = 0
+        disconnect_called_num = 0
+
+        async def fake_connect(dbname):
+            nonlocal connect_called_num
+            connect_called_num += 1
+            raise error_type()
+
+        async def fake_disconnect(conn):
+            nonlocal disconnect_called_num
+            disconnect_called_num += 1
+
+        async def test():
+            pool = connpool.Pool(
+                connect=fake_connect,
+                disconnect=fake_disconnect,
+                max_capacity=5,
+            )
+            with self.assertRaises(error_type):
+                await pool.acquire("block_a")
+            self.assertEqual(connect_called_num, expected_connects)
+            self.assertEqual(disconnect_called_num, 0)
+            with self.assertRaises(error_type):
+                await pool.acquire("block_a")
+            self.assertEqual(connect_called_num, expected_connects + 1)
+            self.assertEqual(disconnect_called_num, 0)
+
+        async def main():
+            await asyncio.wait_for(test(), timeout=1)
+
+        asyncio.run(main())
+
+    @unittest.mock.patch('edb.server.connpool.pool.CONNECT_FAILURE_RETRIES', 2)
+    def test_connpool_connect_error(self):
+        from edb.server.pgcon import errors
+
+        class BackendError(errors.BackendError):
+            def __init__(self):
+                super().__init__(fields={'C': '3D000'})
+
+        self._test_connpool_connect_error(BackendError, 1)
+
+        class ConnectError(Exception):
+            pass
+
+        self._test_connpool_connect_error(ConnectError, 3)
+
+    @unittest.mock.patch('edb.server.connpool.pool.CONNECT_FAILURE_RETRIES', 0)
+    def test_connpool_connect_error_zero_retry(self):
+        class ConnectError(Exception):
+            pass
+
+        self._test_connpool_connect_error(ConnectError, 1)
+
+    @unittest.mock.patch('edb.server.connpool.pool.logger',
+                         new_callable=MockLogger)
+    @unittest.mock.patch('edb.server.connpool.pool.MIN_LOG_TIME_THRESHOLD', 0)
+    @unittest.mock.patch('edb.server.connpool.pool.CONNECT_FAILURE_RETRIES', 5)
+    def test_connpool_steal_connect_error(self, logger: MockLogger):
+        count = 0
+        connect = self.make_fake_connect()
+
+        async def fake_connect(dbname):
+            if dbname == 'block_a':
+                return await connect(dbname)
+            else:
+                nonlocal count
+                count += 1
+                if count < 3:
+                    raise ValueError()
+                else:
+                    return await connect(dbname)
+
+        async def test():
+            pool = connpool.Pool(
+                connect=fake_connect,
+                disconnect=self.make_fake_disconnect(),
+                max_capacity=2,
+            )
+
+            # fill the pool
+            conn1 = await pool.acquire("block_a")
+            self.assertEqual(await logger.logs.get(),
+                             ('established', 'block_a'))
+            conn2 = await pool.acquire("block_a")
+            self.assertEqual(await logger.logs.get(),
+                             ('established', 'block_a'))
+            pool.release("block_a", conn1)
+            pool.release("block_a", conn2)
+
+            # steal a connection from block_a, with retries
+            await pool.acquire("block_b")
+            logs = [await logger.logs.get() for i in range(3)]
+            self.assertIn(('transferred out', 'block_a'), logs)
+            self.assertIn(('discarded', 'block_a'), logs)
+            self.assertIn(('transferred in', 'block_b'), logs)
 
         async def main():
             logger.logs = asyncio.Queue()

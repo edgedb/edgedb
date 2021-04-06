@@ -1482,6 +1482,8 @@ class _EdgeDBServer:
             '--echo-runtime-info',
             '--compiler-pool-size', str(self.compiler_pool_size),
         ]
+        if self.debug:
+            cmd.extend(['--log-level', 'd'])
         if self.max_allowed_connections is not None:
             cmd.extend([
                 '--max-backend-connections', str(self.max_allowed_connections),
@@ -1514,7 +1516,6 @@ class _EdgeDBServer:
         if self.auto_shutdown:
             cmd += ['--auto-shutdown']
 
-        # Note: for debug comment "stderr=subprocess.PIPE".
         self.proc: asyncio.Process = await asyncio.create_subprocess_exec(
             *cmd,
             stderr=subprocess.PIPE if not self.debug else None,
