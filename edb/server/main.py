@@ -58,6 +58,7 @@ from . import protocol
 
 
 BYTES_OF_MEM_PER_CONN = 100 * 1024 * 1024  # 100MiB
+NUM_RESERVED_CONNS_IN_TESTMODE = 15
 
 logger = logging.getLogger('edb.server')
 _server_initialized = False
@@ -273,14 +274,24 @@ def run_server(args: ServerConfig):
 
     cluster: Union[pgcluster.Cluster, pgcluster.RemoteCluster]
     if args.data_dir:
-        if not args.max_backend_connections:
+        pg_max_connections = args.max_backend_connections
+        if not pg_max_connections:
             max_conns = _compute_default_max_backend_connections()
+            pg_max_connections = max_conns
+            if args.testmode:
+                max_conns = max(
+                    1,
+                    max_conns // 2,
+                    max_conns - NUM_RESERVED_CONNS_IN_TESTMODE,
+                )
+                logger.info(f'Configuring Postgres max_connections='
+                            f'{pg_max_connections} under test mode.')
             args = args._replace(max_backend_connections=max_conns)
             logger.info(f'Using {max_conns} max backend connections based on '
                         f'total memory.')
 
         cluster = pgcluster.get_local_pg_cluster(
-            args.data_dir, max_connections=args.max_backend_connections)
+            args.data_dir, max_connections=pg_max_connections)
         default_runstate_dir = cluster.get_data_dir()
         cluster.set_connection_params(
             pgconnparams.ConnectionParameters(
@@ -296,8 +307,16 @@ def run_server(args: ServerConfig):
             instance_params.max_connections -
             instance_params.reserved_connections)
         if not args.max_backend_connections:
-            args = args._replace(max_backend_connections=max_conns)
             logger.info(f'Detected {max_conns} backend connections available.')
+            if args.testmode:
+                max_conns = max(
+                    1,
+                    max_conns // 2,
+                    max_conns - NUM_RESERVED_CONNS_IN_TESTMODE,
+                )
+                logger.info(f'Using max_backend_connections={max_conns} '
+                            f'under test mode.')
+            args = args._replace(max_backend_connections=max_conns)
         elif args.max_backend_connections > max_conns:
             abort(f'--max-backend-connections is too large for this backend; '
                   f'detected maximum available NUM: {max_conns}')
