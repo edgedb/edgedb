@@ -53,6 +53,9 @@ import unittest.mock
 from edb.common import taskgroup
 from edb.server import connpool
 
+# TIME_SCALE is used to run the simulation for longer time, the default is 1x.
+TIME_SCALE = int(os.environ.get("TIME_SCALE", '1'))
+
 
 @dataclasses.dataclass
 class DBSpec:
@@ -75,6 +78,13 @@ class Spec:
     desc: str = ''
     disconn_cost_base: float = 0.006
     disconn_cost_var: float = 0.0015
+
+    def __post_init__(self):
+        self.timeout *= TIME_SCALE
+        self.duration *= TIME_SCALE
+        for db in self.dbs:
+            db.start_at *= TIME_SCALE
+            db.end_at *= TIME_SCALE
 
 
 @dataclasses.dataclass
