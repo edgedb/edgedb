@@ -58,7 +58,6 @@ from . import protocol
 
 
 BYTES_OF_MEM_PER_CONN = 100 * 1024 * 1024  # 100MiB
-NUM_RESERVED_CONNS_IN_TESTMODE = 15
 
 logger = logging.getLogger('edb.server')
 _server_initialized = False
@@ -279,11 +278,7 @@ def run_server(args: ServerConfig):
             max_conns = _compute_default_max_backend_connections()
             pg_max_connections = max_conns
             if args.testmode:
-                max_conns = max(
-                    1,
-                    max_conns // 2,
-                    max_conns - NUM_RESERVED_CONNS_IN_TESTMODE,
-                )
+                max_conns = _adjust_testmode_max_connections(max_conns)
                 logger.info(f'Configuring Postgres max_connections='
                             f'{pg_max_connections} under test mode.')
             args = args._replace(max_backend_connections=max_conns)
@@ -309,11 +304,7 @@ def run_server(args: ServerConfig):
         if not args.max_backend_connections:
             logger.info(f'Detected {max_conns} backend connections available.')
             if args.testmode:
-                max_conns = max(
-                    1,
-                    max_conns // 2,
-                    max_conns - NUM_RESERVED_CONNS_IN_TESTMODE,
-                )
+                max_conns = _adjust_testmode_max_connections(max_conns)
                 logger.info(f'Using max_backend_connections={max_conns} '
                             f'under test mode.')
             args = args._replace(max_backend_connections=max_conns)
@@ -538,6 +529,15 @@ def _validate_max_backend_connections(ctx, param, value):
 def _compute_default_max_backend_connections():
     total_mem = psutil.virtual_memory().total
     return max(int(total_mem / BYTES_OF_MEM_PER_CONN), 2)
+
+
+def _adjust_testmode_max_connections(max_conns):
+    # Some test cases will start a second EdgeDB server (default
+    # max_backend_connections=10), so we should reserve some backend
+    # connections for that. This is ideally calculated upon the edb test -j
+    # option, but that also depends on the total available memory. We are
+    # hard-coding 15 reserved connections here for simplicity.
+    return max(1, max_conns // 2, max_conns - 15)
 
 
 def _validate_compiler_pool_size(ctx, param, value):
