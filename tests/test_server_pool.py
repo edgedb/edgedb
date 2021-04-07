@@ -45,6 +45,7 @@ import os
 import random
 import statistics
 import string
+import sys
 import textwrap
 import time
 import typing
@@ -56,6 +57,14 @@ from edb.server import connpool
 
 # TIME_SCALE is used to run the simulation for longer time, the default is 1x.
 TIME_SCALE = int(os.environ.get("TIME_SCALE", '1'))
+
+# Running this script individually for the simulation test will exit with
+# code 0 if the final score is above MIN_SCORE, non-zero otherwise.
+MIN_SCORE = int(os.environ.get('MIN_SCORE', 80))
+
+# As the simulation test report is kinda large (~5MB with TIME_SCALE=10),
+# the CI automation will delete old reports beyond CI_MAX_REPORTS.
+CI_MAX_REPORTS = int(os.environ.get('CI_MAX_REPORTS', 50))
 
 C = typing.TypeVar('C')
 
@@ -502,7 +511,7 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
 
         return js_data
 
-    def simulate_all_and_collect_stats(self):
+    def simulate_all_and_collect_stats(self) -> int:
         specs = {}
         for methname in dir(self):
             if not methname.startswith('test_'):
@@ -522,14 +531,60 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
 
         html = string.Template(HTML_TPL).safe_substitute(
             DATA=json.dumps(js_data))
+        score = int(round(statistics.fmean(
+            sim['runs'][0]['score'] for sim in js_data
+        )))
 
-        if not os.path.exists('tmp'):
-            os.mkdir('tmp')
-        with open(f'tmp/connpool.html', 'wt') as f:
+        if os.environ.get("SIMULATION_CI"):
+            self.write_ci_report(html, js_data, score)
+
+        else:
+            if not os.path.exists('tmp'):
+                os.mkdir('tmp')
+            with open(f'tmp/connpool.html', 'wt') as f:
+                f.write(html)
+            now = int(datetime.datetime.now().timestamp())
+            with open(f'tmp/connpool_{now}.html', 'wt') as f:
+                f.write(html)
+
+        print('Final QoS score:', score)
+        return score
+
+    def write_ci_report(self, html, js_data, score):
+        sha = os.environ.get('GITHUB_SHA')
+        path = f'reports/{sha}.html'
+        report_path = f'pool-simulation/{path}'
+        i = 1
+        while os.path.exists(report_path):
+            path = f'reports/{sha}-{i}.html'
+            report_path = f'pool-simulation/{path}'
+            i += 1
+        with open(report_path, 'wt') as f:
             f.write(html)
-        now = int(datetime.datetime.now().timestamp())
-        with open(f'tmp/connpool_{now}.html', 'wt') as f:
-            f.write(html)
+        try:
+            with open(f'pool-simulation/reports.json') as f:
+                reports = json.load(f)
+        except Exception:
+            reports = []
+        reports.insert(0, {
+            'path': path,
+            'sha': sha,
+            'ref': os.environ.get('GITHUB_REF'),
+            'num_simulations': len(js_data),
+            'qos_score': score,
+            'datetime': str(datetime.datetime.now()),
+        })
+        with open(f'pool-simulation/reports.json', 'wt') as f:
+            json.dump(reports[:CI_MAX_REPORTS], f)
+        with open(f'pool-simulation/reports-archive.json', 'at') as f:
+            for report in reports[:CI_MAX_REPORTS - 1:-1]:
+                print('Removing outdated report:', report['path'])
+                json.dump(report, f)
+                print(file=f)
+                try:
+                    os.unlink(report['path'])
+                except OSError as e:
+                    print('ERROR:', e)
 
 
 class TestServerConnpoolSimulation(SimulatedCase):
@@ -1864,5 +1919,22 @@ HTML_TPL = R'''<!DOCTYPE html>
 '''
 
 
+def run():
+    try:
+        import uvloop
+    except ImportError:
+        pass
+    else:
+        uvloop.install()
+
+    test_sim = TestServerConnpoolSimulation()
+    if test_sim.simulate_all_and_collect_stats() < MIN_SCORE:
+        print(
+            f'WARNING: the score is below the bar ({MIN_SCORE}), please '
+            f'double check the changes made to edb/server/connpool/pool.py'
+        )
+        sys.exit(1)
+
+
 if __name__ == '__main__':
-    TestServerConnpoolSimulation().simulate_all_and_collect_stats()
+    run()
