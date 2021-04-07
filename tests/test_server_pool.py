@@ -270,6 +270,14 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
         self.assertEqual(pool.failed_disconnects, 0)
         self.assertEqual(pool.failed_connects, 0)
 
+        try:
+            for db in sim.latencies:
+                int(db[1:])
+        except ValueError:
+            key_func = lambda x: x
+        else:
+            key_func = lambda x: int(x[0][1:])
+
         if collect_stats:
             pn = f'{type(pool).__module__}.{type(pool).__qualname__}'
             js_data = {
@@ -277,7 +285,7 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
                 'total_lats': self.calc_total_percentiles(sim.latencies),
                 'lats': {
                     db: self.calc_percentiles(lats)
-                    for db, lats in sim.latencies.items()
+                    for db, lats in sorted(sim.latencies.items(), key=key_func)
                 },
                 'pool_name': pn,
                 'stats': sim.stats,
