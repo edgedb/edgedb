@@ -101,7 +101,7 @@ DEF QUERY_HEADER_IMPLICIT_LIMIT = 0xFF01
 DEF QUERY_HEADER_IMPLICIT_TYPENAMES = 0xFF02
 DEF QUERY_HEADER_IMPLICIT_TYPEIDS = 0xFF03
 DEF QUERY_HEADER_ALLOW_CAPABILITIES = 0xFF04
-DEF QUERY_HEADER_IMPLICIT_OBJECTIDS = 0xFF05
+DEF QUERY_HEADER_EXPLICIT_OBJECTIDS = 0xFF05
 
 DEF SERVER_HEADER_CAPABILITIES = 0x1001
 
@@ -1195,9 +1195,9 @@ cdef class EdgeConnection:
                 elif k == QUERY_HEADER_ALLOW_CAPABILITIES:
                     self.version_check("ALLOW_CAPABILITIES header", (0, 9))
                     allow_capabilities = parse_capabilities_header(v)
-                elif k == QUERY_HEADER_IMPLICIT_OBJECTIDS:
-                    self.version_check("IMPLICIT_OBJECTIDS header", (0, 9))
-                    inline_objectids = parse_boolean(v, "IMPLICIT_OBJECTIDS")
+                elif k == QUERY_HEADER_EXPLICIT_OBJECTIDS:
+                    self.version_check("EXPLICIT_OBJECTIDS header", (0, 9))
+                    inline_objectids = not parse_boolean(v, "EXPLICIT_OBJECTIDS")
                 else:
                     raise errors.BinaryProtocolError(
                         f'unexpected message header: {k}'
