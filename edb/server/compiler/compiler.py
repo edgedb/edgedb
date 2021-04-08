@@ -550,13 +550,10 @@ class Compiler:
 
         single_stmt_mode = ctx.stmt_mode is enums.CompileStatementMode.SINGLE
 
-        if not ctx.inline_objectids:
-            can_have_implicit_fields = False
-        else:
-            can_have_implicit_fields = (
-                native_out_format and
-                single_stmt_mode
-            )
+        can_have_implicit_fields = (
+            native_out_format and
+            single_stmt_mode
+        )
 
         disable_constant_folding = self.get_config_val(
             ctx,
@@ -574,7 +571,9 @@ class Compiler:
                 implicit_tname_in_shapes=(
                     can_have_implicit_fields and ctx.inline_typenames
                 ),
-                implicit_id_in_shapes=can_have_implicit_fields,
+                implicit_id_in_shapes=(
+                    can_have_implicit_fields and ctx.inline_objectids
+                ),
                 constant_folding=not disable_constant_folding,
                 json_parameters=ctx.json_parameters,
                 implicit_limit=ctx.implicit_limit,
