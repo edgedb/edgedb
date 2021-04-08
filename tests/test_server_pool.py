@@ -33,6 +33,7 @@ file in `./tmp/connpool.html`.
 """
 
 
+from __future__ import annotations
 import asyncio
 import collections
 import dataclasses
@@ -56,6 +57,32 @@ from edb.server import connpool
 # TIME_SCALE is used to run the simulation for longer time, the default is 1x.
 TIME_SCALE = int(os.environ.get("TIME_SCALE", '1'))
 
+C = typing.TypeVar('C')
+
+
+def calc_percentiles(
+    lats: typing.List[float]
+) -> typing.Tuple[float, float, float, float, float, float]:
+    lats_len = len(lats)
+    lats.sort()
+    return (
+        lats[lats_len // 99],
+        lats[lats_len // 4],
+        lats[lats_len // 2],
+        lats[lats_len * 3 // 4],
+        lats[min(lats_len - lats_len // 99, lats_len - 1)],
+        statistics.geometric_mean(lats)
+    )
+
+
+def calc_total_percentiles(
+    lats: typing.Dict[str, typing.List[float]]
+) -> typing.Tuple[float, float, float, float, float, float]:
+    acc = []
+    for i in lats.values():
+        acc.extend(i)
+    return calc_percentiles(acc)
+
 
 @dataclasses.dataclass
 class DBSpec:
@@ -65,6 +92,131 @@ class DBSpec:
     qps: int
     query_cost_base: float
     query_cost_var: float
+
+
+@dataclasses.dataclass
+class ScoreMethod:
+    # Calculates a score in 0 - 100 with the given value linearly scaled to the
+    # four landmarks. v100 is the value that worth 100 points, and v0 is the
+    # value worth nothing. There is no limit on either v100 or v0 is greater
+    # than each other, but the landmarks should be either incremental
+    # (v100 > v90 > v60 > v0) or decremental (v100 < v90 < v60 < v10).
+
+    v100: float
+    v90: float
+    v60: float
+    v0: float
+    weight: float
+
+    def _calculate(self, value: float) -> float:
+        for v1, v2, base, diff in (
+            (self.v100, self.v90, 90, 10),
+            (self.v90, self.v60, 60, 30),
+            (self.v60, self.v0, 0, 60),
+        ):
+            v_min = min(v1, v2)
+            v_max = max(v1, v2)
+            if v_min <= value < v_max:
+                return base + abs(value - v2) / (v_max - v_min) * diff
+        if self.v0 > self.v100:
+            return 100 if value < self.v100 else 0
+        else:
+            return 0 if value < self.v0 else 100
+
+    def calculate(self, sim: Simulation) -> float:
+        raise NotImplementedError()
+
+
+@dataclasses.dataclass
+class LatencyDistribution(ScoreMethod):
+    # Calculate the score using the average CV of quantiles. This evaluates how
+    # the specified groups of latencies vary in distribution.
+
+    group: range  # select a subset from sim.latencies using range()
+
+    @staticmethod
+    def calc_average_cv_of_quantiles(
+        group_of_lats: typing.Iterable[typing.List[float]], n: int = 10
+    ) -> float:
+        # Calculates the average CV (coefficient of variation) of the given
+        # distributions. The result is a float ranging from zero indicating
+        # how different the given distributions are, where zero means no
+        # difference. Known defect: when the mean value is close to zero, the
+        # coefficient of variation will approach infinity and is therefore
+        # sensitive to small changes.
+        return statistics.geometric_mean(
+            map(
+                lambda v: statistics.pstdev(v) / statistics.fmean(v),
+                zip(
+                    *(
+                        statistics.quantiles(lats, n=n)
+                        for lats in group_of_lats
+                    )
+                ),
+            )
+        )
+
+    def calculate(self, sim: Simulation) -> float:
+        group = sim.group_of_latencies(f't{i}' for i in self.group)
+        cv = self.calc_average_cv_of_quantiles(group)
+        score = self._calculate(cv)
+        sim.record_scoring(
+            f'Average CV for {self.group}', cv, score, self.weight
+        )
+        return score * self.weight
+
+
+@dataclasses.dataclass
+class ConnectionOverhead(ScoreMethod):
+    # Calculate the score based on the total number of connects and disconnects
+
+    def calculate(self, sim: Simulation) -> float:
+        self.v90 = self.v100 + (self.v90 - self.v100) * TIME_SCALE
+        self.v60 = self.v100 + (self.v60 - self.v100) * TIME_SCALE
+        self.v0 = self.v100 + (self.v0 - self.v100) * TIME_SCALE
+        value = (
+            sim.stats[-1]["successful_connects"]
+            + sim.stats[-1]["successful_disconnects"]
+        )
+        score = self._calculate(value)
+        sim.record_scoring(
+            'Num of (dis-)connects', value, score, self.weight
+        )
+        return score * self.weight
+
+
+@dataclasses.dataclass
+class LatencyRatio(ScoreMethod):
+    # Calculate score based on the ratio of average percentiles between two
+    # groups of latencies. This measures how close this ratio is from the
+    # expected ratio (v100, v90, etc.).
+
+    percentile: str  # one of ('P1', 'P25', 'P50', 'P75', 'P99', 'Mean')
+    dividend: range
+    divisor: range
+
+    def calc_average_percentile(self, sim: Simulation, group: range) -> float:
+        # Calculate the arithmetic mean of the specified percentile of the
+        # given groups of latencies.
+        percentile_names = ('P1', 'P25', 'P50', 'P75', 'P99', 'Mean')
+        percentile_index = percentile_names.index(self.percentile)
+        return statistics.fmean(
+            map(
+                lambda lats: calc_percentiles(lats)[percentile_index],
+                sim.group_of_latencies(f"t{i}" for i in group),
+            )
+        )
+
+    def calculate(self, sim: Simulation) -> float:
+        dividend_percentile = self.calc_average_percentile(sim, self.dividend)
+        divisor_percentile = self.calc_average_percentile(sim, self.divisor)
+        ratio = dividend_percentile / divisor_percentile
+        score = self._calculate(ratio)
+        sim.record_scoring(
+            f'{self.percentile} ratio {self.divisor}/{self.divisor}',
+            ratio, score, self.weight
+        )
+        return score * self.weight
 
 
 @dataclasses.dataclass
@@ -78,6 +230,7 @@ class Spec:
     desc: str = ''
     disconn_cost_base: float = 0.006
     disconn_cost_var: float = 0.0015
+    score: typing.List[ScoreMethod] = dataclasses.field(default_factory=list)
 
     def __post_init__(self):
         self.timeout *= TIME_SCALE
@@ -85,6 +238,11 @@ class Spec:
         for db in self.dbs:
             db.start_at *= TIME_SCALE
             db.end_at *= TIME_SCALE
+
+    def asdict(self):
+        rv = dataclasses.asdict(self)
+        rv.pop('score')
+        return rv
 
 
 @dataclasses.dataclass
@@ -97,6 +255,28 @@ class Simulation:
     failed_queries: int = 0
 
     stats: typing.List[dict] = dataclasses.field(default_factory=list)
+    scores: typing.List[dict] = dataclasses.field(default_factory=list)
+
+    def group_of_latencies(
+        self, keys: typing.Iterable[str]
+    ) -> typing.Iterable[typing.List[float]]:
+        for key in keys:
+            yield self.latencies[key]
+
+    def record_scoring(self, key, value, score, weight):
+        self.scores.append({
+            'name': key,
+            'value': value if isinstance(value, int) else f'{value:.4f}',
+            'score': f'{score:.1f}',
+            'weight': f'{weight * 100:.0f}%',
+        })
+        if isinstance(value, int):
+            kv = f'{key}: {value}'
+        else:
+            kv = f'{key}: {value:.4f}'
+        score_str = f'score: {score:.1f}'
+        weight_str = f'weight: {weight * 100:.0f}%'
+        print(f'    {kv.ljust(40)} {score_str.ljust(15)} {weight_str}')
 
 
 class FakeConnection:
@@ -203,30 +383,6 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
                 raise
         return query()
 
-    def calc_percentiles(
-        self,
-        lats: typing.List[float]
-    ) -> typing.Tuple[float, float, float, float, float, float]:
-        lats_len = len(lats)
-        lats.sort()
-        return (
-            lats[lats_len // 99],
-            lats[lats_len // 4],
-            lats[lats_len // 2],
-            lats[lats_len * 3 // 4],
-            lats[min(lats_len - lats_len // 99, lats_len - 1)],
-            statistics.geometric_mean(lats)
-        )
-
-    def calc_total_percentiles(
-        self,
-        lats: typing.Dict[str, typing.List[float]]
-    ) -> typing.Tuple[float, float, float, float, float, float]:
-        acc = []
-        for i in lats.values():
-            acc.extend(i)
-        return self.calc_percentiles(acc)
-
     async def simulate_once(self, spec, pool_cls, *, collect_stats=False):
         sim = Simulation()
 
@@ -290,11 +446,15 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
 
         if collect_stats:
             pn = f'{type(pool).__module__}.{type(pool).__qualname__}'
+            score = int(round(sum(sm.calculate(sim) for sm in spec.score)))
+            print('weighted score:'.rjust(68), score)
             js_data = {
                 'test_started_at': started_at,
-                'total_lats': self.calc_total_percentiles(sim.latencies),
+                'total_lats': calc_total_percentiles(sim.latencies),
+                "score": score,
+                'scores': sim.scores,
                 'lats': {
-                    db: self.calc_percentiles(lats)
+                    db: calc_percentiles(lats)
                     for db, lats in sorted(sim.latencies.items(), key=key_func)
                 },
                 'pool_name': pn,
@@ -339,7 +499,7 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
             'desc': textwrap.dedent(spec.desc) if spec.desc else None,
             'test_name': testname,
             'now': str(datetime.datetime.now()),
-            'spec': dataclasses.asdict(spec),
+            'spec': spec.asdict(),
             'runs': js_data
         }
 
@@ -358,11 +518,10 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
 
         js_data = []
         for testname, spec in specs.items():
-            print(f'Running {testname}...', end='', flush=True)
+            print(f'Running {testname}...')
             js_data.append(
                 asyncio.run(
                     self.simulate_and_collect_stats(testname, spec)))
-            print('OK')
 
         html = string.Template(HTML_TPL).safe_substitute(
             DATA=json.dumps(js_data))
@@ -385,6 +544,23 @@ class TestServerConnpoolSimulation(SimulatedCase):
             capacity=6,
             conn_cost_base=0.05,
             conn_cost_var=0.01,
+            score=[
+                LatencyDistribution(
+                    weight=0.18, group=range(6),
+                    v100=0, v90=0.25, v60=0.5, v0=2
+                ),
+                LatencyDistribution(
+                    weight=0.28, group=range(6, 12),
+                    v100=0, v90=0.1, v60=0.3, v0=2
+                ),
+                LatencyDistribution(
+                    weight=0.48, group=range(12),
+                    v100=0.2, v90=0.45, v60=0.7, v0=2
+                ),
+                ConnectionOverhead(
+                    weight=0.06, v100=40, v90=160, v60=200, v0=300
+                ),
+            ],
             dbs=[
                 DBSpec(
                     db=f't{i}',
@@ -430,6 +606,23 @@ class TestServerConnpoolSimulation(SimulatedCase):
             capacity=100,
             conn_cost_base=0.04,
             conn_cost_var=0.011,
+            score=[
+                LatencyDistribution(
+                    weight=0.15, group=range(6),
+                    v100=0, v90=0.2, v60=0.3, v0=2
+                ),
+                LatencyDistribution(
+                    weight=0.25, group=range(6, 12),
+                    v100=0, v90=0.05, v60=0.2, v0=2
+                ),
+                LatencyDistribution(
+                    weight=0.45, group=range(12),
+                    v100=0.55, v90=0.75, v60=1.0, v0=2
+                ),
+                ConnectionOverhead(
+                    weight=0.15, v100=500, v90=510, v60=800, v0=1500
+                ),
+            ],
             dbs=[
                 DBSpec(
                     db=f't{i}',
@@ -467,6 +660,14 @@ class TestServerConnpoolSimulation(SimulatedCase):
             capacity=100,
             conn_cost_base=0.04,
             conn_cost_var=0.011,
+            score=[
+                LatencyDistribution(
+                    weight=0.85, group=range(6), v100=0, v90=0.1, v60=0.2, v0=2
+                ),
+                ConnectionOverhead(
+                    weight=0.15, v100=200, v90=250, v60=300, v0=600
+                ),
+            ],
             dbs=[
                 DBSpec(
                     db=f't{i}',
@@ -486,6 +687,14 @@ class TestServerConnpoolSimulation(SimulatedCase):
             capacity=50,
             conn_cost_base=0.04,
             conn_cost_var=0.011,
+            score=[
+                LatencyDistribution(
+                    weight=0.9, group=range(6), v100=0, v90=0.1, v60=0.2, v0=2
+                ),
+                ConnectionOverhead(
+                    weight=0.1, v100=100, v90=220, v60=300, v0=500
+                ),
+            ],
             dbs=[
                 DBSpec(
                     db=f't{i}',
@@ -505,6 +714,26 @@ class TestServerConnpoolSimulation(SimulatedCase):
             capacity=6,
             conn_cost_base=0.15,
             conn_cost_var=0.05,
+            score=[
+                LatencyDistribution(
+                    weight=0.2, group=range(6),
+                    v100=0, v90=0.4, v60=0.8, v0=2
+                ),
+                LatencyDistribution(
+                    weight=0.2, group=range(6, 12),
+                    v100=0, v90=0.4, v60=0.8, v0=2
+                ),
+                LatencyRatio(
+                    weight=0.45,
+                    percentile='P75',
+                    dividend=range(6),
+                    divisor=range(6, 12),
+                    v100=30, v90=5, v60=2, v0=1,
+                ),
+                ConnectionOverhead(
+                    weight=0.15, v100=50, v90=100, v60=150, v0=200
+                ),
+            ],
             dbs=[
                 DBSpec(
                     db=f't{i}',
@@ -542,6 +771,11 @@ class TestServerConnpoolSimulation(SimulatedCase):
             capacity=6,
             conn_cost_base=0.15,
             conn_cost_var=0.05,
+            score=[
+                ConnectionOverhead(
+                    weight=0.9, v100=6, v90=7, v60=12, v0=13
+                ),
+            ],
             dbs=[
                 DBSpec(
                     db=f'one-db',
@@ -569,6 +803,25 @@ class TestServerConnpoolSimulation(SimulatedCase):
             capacity=6,
             conn_cost_base=0.05,
             conn_cost_var=0.01,
+            score=[
+                LatencyRatio(
+                    weight=0.2,
+                    percentile='P99',
+                    dividend=range(1, 2),
+                    divisor=range(2, 3),
+                    v100=100, v90=50, v60=10, v0=1,
+                ),
+                LatencyRatio(
+                    weight=0.4,
+                    percentile='P75',
+                    dividend=range(1, 2),
+                    divisor=range(2, 3),
+                    v100=200, v90=100, v60=20, v0=1,
+                ),
+                ConnectionOverhead(
+                    weight=0.4, v100=14, v90=22, v60=30, v0=50
+                ),
+            ],
             dbs=[
                 DBSpec(
                     db=f't1',
@@ -1460,6 +1713,45 @@ HTML_TPL = R'''<!DOCTYPE html>
             </div>
         }
 
+        function ScoreLine({score, scores}) {
+            const [collapsed, setCollapsed] = React.useState(true);
+
+            const button = collapsed ?
+                <button onClick={() => setCollapsed(false)}>➕</button> :
+                <button onClick={() => setCollapsed(true)}>➖</button>;
+
+            let scoreDetail = null;
+            if (!collapsed) {
+                let items = [];
+                for (const detail of scores) {
+                    items.push(
+                        <tr>
+                            <td>{detail.name}</td>
+                            <td><code>{detail.value}</code></td>
+                            <td><code>{detail.score}</code></td>
+                            <td><code>{detail.weight}</code></td>
+                        </tr>
+                    );
+                }
+
+                scoreDetail = <table>
+                    <tr>
+                        <th>Reason</th>
+                        <th>Value</th>
+                        <th>Score</th>
+                        <th>Weight</th>
+                    </tr>
+                    {items}
+                </table>;
+            }
+
+            return <p>
+                {button} QoS Score:{' '}
+                <code>{score}</code>
+                {scoreDetail}
+            </p>;
+        }
+
         function TestView({results: tr, collapsible}) {
             const [collapsed, setCollapsed] = React.useState(collapsible);
 
@@ -1483,6 +1775,8 @@ HTML_TPL = R'''<!DOCTYPE html>
                             Pool implementation:{' '}
                             <code>{runData.pool_name}</code>
                         </p>
+                        <ScoreLine score={runData.score}
+                                   scores={runData.scores}/>
 
                         <LatencyChart runData={runData} tr={tr}/>
                     </div>
