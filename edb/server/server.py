@@ -378,12 +378,12 @@ class Server:
         )
 
     async def introspect_db(
-        self, dbname, *, refresh=False, skip_concurrent_drop=False
+        self, dbname, *, refresh=False, skip_dropped=False
     ):
         try:
             conn = await self.acquire_pgcon(dbname)
         except pgcon_errors.BackendError as e:
-            if skip_concurrent_drop and e.fields['C'] == '3D000':
+            if skip_dropped and e.fields['C'] == '3D000':
                 # 3D000 - INVALID CATALOG NAME, database does not exist
                 logger.warning(
                     "Detected concurrently-dropped database %s; skipping.",
@@ -476,9 +476,7 @@ class Server:
 
         async with taskgroup.TaskGroup(name='introspect DBs') as g:
             for dbname in dbnames:
-                g.create_task(
-                    self.introspect_db(dbname, skip_concurrent_drop=True)
-                )
+                g.create_task(self.introspect_db(dbname, skip_dropped=True))
 
     def _fetch_roles(self):
         global_schema = self._dbindex.get_global_schema()
