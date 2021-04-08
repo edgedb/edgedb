@@ -280,7 +280,7 @@ Known headers:
 * 0xFF04 ``ALLOW_CAPABILITIES``: ``uint64`` -- optional bitmask of
   capabilities allowed for this query.  See RFC1004_ for more information.
 
-* 0xFF05 ``IMPLICIT_SHAPEIDS`` -- "true" by default.
+* 0xFF05 ``IMPLICIT_OBJECTIDS`` -- "true" by default.
   If set to "false" returned objects will not have an implicit ``id`` property
   i.e. query shapes will have to explicitly list id properties.
 
@@ -450,7 +450,7 @@ Known headers:
 * 0xFF04 ``ALLOW_CAPABILITIES``: ``uint64`` -- optional bitmask of
   capabilities allowed for this query.  See RFC1004_ for more information.
 
-* 0xFF05 ``IMPLICIT_SHAPEIDS`` -- "true" by default.
+* 0xFF05 ``IMPLICIT_OBJECTIDS`` -- "true" by default.
   If set to "false" returned objects will not have an implicit ``id`` property
   i.e. query shapes will have to explicitly list id properties.
 

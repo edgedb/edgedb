@@ -104,7 +104,7 @@ class CompileContext:
     implicit_limit: int = 0
     inline_typeids: bool = False
     inline_typenames: bool = False
-    inline_shapeids: bool = True
+    inline_objectids: bool = True
     schema_object_ids: Optional[Mapping[s_name.Name, uuid.UUID]] = None
     source: Optional[edgeql.Source] = None
     backend_runtime_params: Any = (
@@ -550,7 +550,7 @@ class Compiler:
 
         single_stmt_mode = ctx.stmt_mode is enums.CompileStatementMode.SINGLE
 
-        if not ctx.inline_shapeids:
+        if not ctx.inline_objectids:
             can_have_implicit_fields = False
         else:
             can_have_implicit_fields = (
@@ -1933,7 +1933,7 @@ class Compiler:
         inline_typeids: bool,
         inline_typenames: bool,
         stmt_mode: enums.CompileStatementMode,
-        inline_shapeids: bool=True,
+        inline_objectids: bool=True,
         json_parameters: bool=False,
     ) -> Tuple[List[dbstate.QueryUnit],
                Optional[dbstate.CompilerConnectionState]]:
@@ -1970,7 +1970,7 @@ class Compiler:
             implicit_limit=implicit_limit,
             inline_typeids=inline_typeids,
             inline_typenames=inline_typenames,
-            inline_shapeids=inline_shapeids,
+            inline_objectids=inline_objectids,
             stmt_mode=enums.CompileStatementMode(stmt_mode),
             json_parameters=json_parameters,
             source=source,
@@ -1999,7 +1999,7 @@ class Compiler:
         inline_typeids: bool,
         inline_typenames: bool,
         stmt_mode: enums.CompileStatementMode,
-        inline_shapeids: bool = True,
+        inline_objectids: bool = True,
     ) -> Tuple[List[dbstate.QueryUnit], dbstate.CompilerConnectionState]:
         state.sync_tx(txid)
 
@@ -2010,7 +2010,7 @@ class Compiler:
             implicit_limit=implicit_limit,
             inline_typeids=inline_typeids,
             inline_typenames=inline_typenames,
-            inline_shapeids=inline_shapeids,
+            inline_objectids=inline_objectids,
             stmt_mode=enums.CompileStatementMode(stmt_mode),
             source=source,
         )
