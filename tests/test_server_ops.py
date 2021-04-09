@@ -30,6 +30,7 @@ import tempfile
 import asyncpg
 import edgedb
 
+from edb.common import devmode
 from edb.server import pgcluster, pgconnparams, cluster as edgedb_cluster
 from edb.testbase import server as tb
 
@@ -178,6 +179,7 @@ class TestServerOps(tb.TestCase):
                 max_allowed_connections=None,
                 postgres_dsn=f'postgres:///?user=postgres&port={port}&'
                              f'host={host}',
+                runstate_dir=None if devmode.is_in_dev_mode() else host,
             ) as sd:
                 con = await edgedb.async_connect(
                     user='edgedb', host=sd.host, port=sd.port)
