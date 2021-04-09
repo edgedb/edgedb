@@ -55,6 +55,7 @@ from edb.edgeql import quote as qlquote
 from edb.server import cluster as edgedb_cluster
 from edb.server import defines as edgedb_defines
 
+from edb.common import devmode
 from edb.common import taskgroup
 
 from edb.testbase import serutils
@@ -1435,6 +1436,7 @@ class _EdgeDBServer:
         compiler_pool_size: int,
         debug: bool,
         postgres_dsn: Optional[str] = None,
+        runstate_dir: Optional[str] = None,
     ) -> None:
         self.auto_shutdown = auto_shutdown
         self.bootstrap_command = bootstrap_command
@@ -1443,6 +1445,7 @@ class _EdgeDBServer:
         self.compiler_pool_size = compiler_pool_size
         self.debug = debug
         self.postgres_dsn = postgres_dsn
+        self.runstate_dir = runstate_dir
         self.proc = None
         self.data = None
 
@@ -1516,6 +1519,9 @@ class _EdgeDBServer:
         if self.auto_shutdown:
             cmd += ['--auto-shutdown']
 
+        if self.runstate_dir:
+            cmd += ['--runstate-dir', self.runstate_dir]
+
         self.proc: asyncio.Process = await asyncio.create_subprocess_exec(
             *cmd,
             stderr=subprocess.PIPE if not self.debug else None,
@@ -1540,7 +1546,7 @@ class _EdgeDBServer:
         )
 
     async def __aexit__(self, *exc):
-        if self.auto_shutdown and self.data:
+        if self.auto_shutdown and self.data and not self.runstate_dir:
             i = 600 * 5  # Give it up to 5 minutes to cleanup.
             while i > 0:
                 if not os.path.exists(self.data['runstate_dir']):
@@ -1563,7 +1569,15 @@ def start_edgedb_server(
     adjacent_to: Optional[edgedb.AsyncIOConnection]=None,
     debug: bool=False,
     postgres_dsn: Optional[str] = None,
+    runstate_dir: Optional[str] = None,
 ):
+    if not devmode.is_in_dev_mode() and not runstate_dir:
+        if postgres_dsn or adjacent_to:
+            # We don't want to implicitly "fix the issue" for the test author
+            print('WARNING: starting an EdgeDB server with the default '
+                  'runstate_dir; the test is likely to fail or hang. '
+                  'Consider specifying the runstate_dir parameter.')
+
     return _EdgeDBServer(
         auto_shutdown=auto_shutdown,
         bootstrap_command=bootstrap_command,
@@ -1572,6 +1586,7 @@ def start_edgedb_server(
         compiler_pool_size=compiler_pool_size,
         debug=debug,
         postgres_dsn=postgres_dsn,
+        runstate_dir=runstate_dir,
     )
 
 

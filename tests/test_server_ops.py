@@ -30,6 +30,7 @@ import tempfile
 import asyncpg
 import edgedb
 
+from edb.common import devmode
 from edb.server import pgcluster, pgconnparams, cluster as edgedb_cluster
 from edb.testbase import server as tb
 
@@ -167,7 +168,7 @@ class TestServerOps(tb.TestCase):
         port = edgedb_cluster.find_available_port()
         actual = random.randint(50, 100)
 
-        async def test(host):
+        async def test(pgdata_path):
             bootstrap_command = (
                 r'CONFIGURE SYSTEM INSERT Auth '
                 r'{ priority := 0, method := (INSERT Trust) }'
@@ -177,7 +178,8 @@ class TestServerOps(tb.TestCase):
                 bootstrap_command=bootstrap_command,
                 max_allowed_connections=None,
                 postgres_dsn=f'postgres:///?user=postgres&port={port}&'
-                             f'host={host}',
+                             f'host={pgdata_path}',
+                runstate_dir=None if devmode.is_in_dev_mode() else pgdata_path,
             ) as sd:
                 con = await edgedb.async_connect(
                     user='edgedb', host=sd.host, port=sd.port)
