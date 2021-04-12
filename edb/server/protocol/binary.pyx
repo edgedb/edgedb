@@ -92,7 +92,7 @@ cdef object FMT_JSON_ELEMENTS = compiler.IoFormat.JSON_ELEMENTS
 cdef object FMT_SCRIPT = compiler.IoFormat.SCRIPT
 
 cdef tuple DUMP_VER_MIN = (0, 7)
-cdef tuple DUMP_VER_MAX = (0, 9)
+cdef tuple DUMP_VER_MAX = (0, 10)
 
 cdef object logger = logging.getLogger('edb.server')
 cdef object log_metrics = logging.getLogger('edb.server.metrics')
@@ -101,6 +101,7 @@ DEF QUERY_HEADER_IMPLICIT_LIMIT = 0xFF01
 DEF QUERY_HEADER_IMPLICIT_TYPENAMES = 0xFF02
 DEF QUERY_HEADER_IMPLICIT_TYPEIDS = 0xFF03
 DEF QUERY_HEADER_ALLOW_CAPABILITIES = 0xFF04
+DEF QUERY_HEADER_EXPLICIT_OBJECTIDS = 0xFF05
 
 DEF SERVER_HEADER_CAPABILITIES = 0x1001
 
@@ -140,6 +141,7 @@ cdef class QueryRequestInfo:
         implicit_limit: int = 0,
         inline_typeids: bint = False,
         inline_typenames: bint = False,
+        inline_objectids: bint = True,
         allow_capabilities: uint64_t = ALL_CAPABILITIES,
     ):
         self.source = source
@@ -148,6 +150,7 @@ cdef class QueryRequestInfo:
         self.implicit_limit = implicit_limit
         self.inline_typeids = inline_typeids
         self.inline_typenames = inline_typenames
+        self.inline_objectids = inline_objectids
         self.allow_capabilities = allow_capabilities
 
         self.cached_hash = hash((
@@ -157,6 +160,7 @@ cdef class QueryRequestInfo:
             self.implicit_limit,
             self.inline_typeids,
             self.inline_typenames,
+            self.inline_objectids,
         ))
 
     def __hash__(self):
@@ -169,7 +173,8 @@ cdef class QueryRequestInfo:
             self.expect_one == other.expect_one and
             self.implicit_limit == other.implicit_limit and
             self.inline_typeids == other.inline_typeids and
-            self.inline_typenames == other.inline_typenames
+            self.inline_typenames == other.inline_typenames and
+            self.inline_objectids == other.inline_objectids
         )
 
 
@@ -773,6 +778,7 @@ cdef class EdgeConnection:
                 query_req.inline_typeids,
                 query_req.inline_typenames,
                 'single',
+                query_req.inline_objectids,
             )
         else:
             units, self.last_state = await compiler_pool.compile(
@@ -791,6 +797,7 @@ cdef class EdgeConnection:
                 query_req.inline_typeids,
                 query_req.inline_typenames,
                 'single',
+                query_req.inline_objectids,
             )
         return units
 
@@ -1171,6 +1178,7 @@ cdef class EdgeConnection:
             bint inline_typeids = self.protocol_version <= (0, 8)
             uint64_t allow_capabilities = ALL_CAPABILITIES
             bint inline_typenames = False
+            bint inline_objectids = True
             bytes stmt_name = b''
 
         headers = self.parse_headers()
@@ -1187,6 +1195,9 @@ cdef class EdgeConnection:
                 elif k == QUERY_HEADER_ALLOW_CAPABILITIES:
                     self.version_check("ALLOW_CAPABILITIES header", (0, 9))
                     allow_capabilities = parse_capabilities_header(v)
+                elif k == QUERY_HEADER_EXPLICIT_OBJECTIDS:
+                    self.version_check("EXPLICIT_OBJECTIDS header", (0, 10))
+                    inline_objectids = not parse_boolean(v, "EXPLICIT_OBJECTIDS")
                 else:
                     raise errors.BinaryProtocolError(
                         f'unexpected message header: {k}'
@@ -1216,6 +1227,7 @@ cdef class EdgeConnection:
             implicit_limit=implicit_limit,
             inline_typeids=inline_typeids,
             inline_typenames=inline_typenames,
+            inline_objectids=inline_objectids,
             allow_capabilities=allow_capabilities,
         )
 
