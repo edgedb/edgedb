@@ -35,6 +35,7 @@ from edb.server.protocol import binary
 
 from . import edgeql_ext
 from . import notebook_ext
+from . import system_api
 
 
 HTTPStatus = http.HTTPStatus
@@ -214,13 +215,14 @@ cdef class HttpProtocol:
         path = path.strip('/')
         path_parts = path.split('/')
 
-        if len(path_parts) >= 3:
+        # Check if this a request to a registered extension
+        if len(path_parts) >= 3 and path_parts[0] == 'db':
             root, dbname, extname, *args = path_parts
             db = self.server.maybe_get_db(dbname=dbname)
             if extname == 'edgeql':
                 extname = 'edgeql_http'
 
-            if db is not None and root == 'db' and extname in db.extensions:
+            if db is not None and extname in db.extensions:
                 if extname == 'graphql':
                     await graphql_ext.handle_request(
                         request, response, db, args, self.server
@@ -237,7 +239,18 @@ cdef class HttpProtocol:
                     )
                     return
 
-        response.body = f'Unknown path: {path!r}'.encode()
+        elif path_parts and path_parts[0] == 'server':
+            # System API request
+            await system_api.handle_request(
+                request,
+                response,
+                path_parts[1:],
+                self.server,
+            )
+            return
+
+        response.body = b'Unknown path'
         response.status = http.HTTPStatus.NOT_FOUND
         response.close_connection = True
+
         return

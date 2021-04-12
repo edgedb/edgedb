@@ -25,7 +25,7 @@ import urllib
 from edb.testbase import http as tb
 
 
-class TestHttpNotebook(tb.BaseHttpTest, tb.server.QueryTestCase):
+class TestHttpNotebook(tb.BaseHttpExtensionTest, tb.server.QueryTestCase):
 
     # EdgeQL/HTTP queries cannot run in a transaction
     TRANSACTION_ISOLATION = False

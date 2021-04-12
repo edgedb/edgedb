@@ -45,44 +45,17 @@ class StubbornHttpConnection(http.client.HTTPConnection):
 
 class BaseHttpTest:
 
-    # Serialize tests over http -- we don't want all tests workers to
-    # create http ports. Every port spawns a number of Python
-    # compiler processes and at a high number of parallel test
-    # workers this ends up with test consuming too much system resources
-    # for no particular speedup.
-    PARALLELISM_GRANULARITY = 'suite'
-
     @classmethod
-    def get_extension_name(cls):
+    def get_api_path(cls):
         raise NotImplementedError
-
-    @classmethod
-    def get_extension_path(cls):
-        return cls.get_extension_name()
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
 
-        extpath = cls.get_extension_path()
-
         cls.http_host, cls.http_port = cls.con.connected_addr()
-        dbname = cls.get_database_name()
-        cls.http_addr = \
-            f'http://{cls.http_host}:{cls.http_port}/db/{dbname}/{extpath}'
-
-        extname = cls.get_extension_name()
-        cls.loop.run_until_complete(
-            cls.con.execute(f'CREATE EXTENSION {extname};')
-        )
-
-    @classmethod
-    def tearDownClass(cls):
-        extname = cls.get_extension_name()
-        cls.loop.run_until_complete(
-            cls.con.execute(f'DROP EXTENSION {extname};')
-        )
-        super().tearDownClass()
+        api_path = cls.get_api_path()
+        cls.http_addr = f'http://{cls.http_host}:{cls.http_port}{api_path}'
 
     @contextlib.contextmanager
     def http_con(self):
@@ -110,7 +83,41 @@ class BaseHttpTest:
         return self.http_con_read_response(con)
 
 
-class EdgeQLTestCase(BaseHttpTest, server.QueryTestCase):
+class BaseHttpExtensionTest(BaseHttpTest):
+
+    @classmethod
+    def get_extension_name(cls):
+        raise NotImplementedError
+
+    @classmethod
+    def get_extension_path(cls):
+        return cls.get_extension_name()
+
+    @classmethod
+    def get_api_path(cls):
+        extpath = cls.get_extension_path()
+        dbname = cls.get_database_name()
+        return f'/db/{dbname}/{extpath}'
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+
+        extname = cls.get_extension_name()
+        cls.loop.run_until_complete(
+            cls.con.execute(f'CREATE EXTENSION {extname};')
+        )
+
+    @classmethod
+    def tearDownClass(cls):
+        extname = cls.get_extension_name()
+        cls.loop.run_until_complete(
+            cls.con.execute(f'DROP EXTENSION {extname};')
+        )
+        super().tearDownClass()
+
+
+class EdgeQLTestCase(BaseHttpExtensionTest, server.QueryTestCase):
 
     @classmethod
     def get_extension_name(cls):
@@ -169,7 +176,7 @@ class EdgeQLTestCase(BaseHttpTest, server.QueryTestCase):
         return res
 
 
-class GraphQLTestCase(BaseHttpTest, server.QueryTestCase):
+class GraphQLTestCase(BaseHttpExtensionTest, server.QueryTestCase):
 
     @classmethod
     def get_extension_name(cls):
