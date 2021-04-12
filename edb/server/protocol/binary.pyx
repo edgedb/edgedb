@@ -92,7 +92,7 @@ cdef object FMT_JSON_ELEMENTS = compiler.IoFormat.JSON_ELEMENTS
 cdef object FMT_SCRIPT = compiler.IoFormat.SCRIPT
 
 cdef tuple DUMP_VER_MIN = (0, 7)
-cdef tuple DUMP_VER_MAX = (0, 9)
+cdef tuple DUMP_VER_MAX = (0, 10)
 
 cdef object logger = logging.getLogger('edb.server')
 cdef object log_metrics = logging.getLogger('edb.server.metrics')
@@ -1196,7 +1196,7 @@ cdef class EdgeConnection:
                     self.version_check("ALLOW_CAPABILITIES header", (0, 9))
                     allow_capabilities = parse_capabilities_header(v)
                 elif k == QUERY_HEADER_EXPLICIT_OBJECTIDS:
-                    self.version_check("EXPLICIT_OBJECTIDS header", (0, 9))
+                    self.version_check("EXPLICIT_OBJECTIDS header", (0, 10))
                     inline_objectids = not parse_boolean(v, "EXPLICIT_OBJECTIDS")
                 else:
                     raise errors.BinaryProtocolError(
