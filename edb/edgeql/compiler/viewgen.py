@@ -654,10 +654,6 @@ def _normalize_view_ptr_expr(
                 shape_expr_ctx.empty_result_type_hint = \
                     ptrcls.get_target(ctx.env.schema)
 
-            if is_mutation:
-                shape_expr_ctx.stmt_metadata[qlexpr] = (
-                    context.StatementMetadata(iterator_target=True)
-                )
             irexpr = dispatch.compile(qlexpr, ctx=shape_expr_ctx)
 
             if (
@@ -1221,8 +1217,7 @@ def _compile_view_shapes_in_set(
     shape_ptrs = _get_shape_configuration(
         ir_set, rptr=rptr, parent_view_type=parent_view_type, ctx=ctx)
 
-    # For queries where there is not a parent view that is a mutation,
-    # we push down the shape to better correspond with where it
+    # We want to push down the shape to better correspond with where it
     # appears in the query (rather than lifting it up to the first
     # place the view_type appears---this is a little hacky, because
     # letting it be lifted up is the natural thing with our view type-driven
@@ -1230,17 +1225,7 @@ def _compile_view_shapes_in_set(
     #
     # This is to avoid losing subquery distinctions (in cases
     # like test_edgeql_scope_tuple_15), and generally seems more natural.
-    #
-    # We unfortunately still do lifting for when the parent is DML
-    # (and thus this shape would be selecting link properties),
-    # because getting process_link_values to extract link properties
-    # from a nested shape was nontrivial.
-    # (If we could get rid of that lifting, I think we could also get rid
-    # of hoisted_iterators!)
-    parent_is_mutation = parent_view_type in {
-        s_types.ExprType.Update, s_types.ExprType.Insert}
     if (isinstance(ir_set.expr, irast.SelectStmt)
-            and not parent_is_mutation
             and (setgen.get_set_type(ir_set, ctx=ctx) ==
                  setgen.get_set_type(ir_set.expr.result, ctx=ctx))):
 

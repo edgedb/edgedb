@@ -599,6 +599,17 @@ def _compile_set(
             shape=[expr for expr, _ in ir_set.shape],
             ctx=ctx,
         )
+    elif ir_set.shape and ir_set in ctx.shapes_needed_by_dml:
+        # hoo, boy.
+        shape_tuple = shapecomp.compile_shape(
+            ir_set,
+            shape=[expr for expr, _ in ir_set.shape],
+            ctx=ctx,
+        )
+        for element in shape_tuple.elements:
+            pathctx.put_path_var_if_not_exists(
+                ctx.rel, element.path_id, element.val,
+                aspect='value', env=ctx.env)
 
 
 def _compile_shape(

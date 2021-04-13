@@ -1489,8 +1489,25 @@ def process_link_values(
                     row_query, ir_stmt.subject.path_id,
                     env=input_rel_ctx.env),)
 
+            # Look for a shape that might provide link property values
+            # for this link. We have to dig down into the expression,
+            # because the shape might be wrapped a few times (because
+            # of iterators, filters, etc)
+            shape_expr = ir_expr
+            while (
+                not shape_expr.shape
+                and isinstance(shape_expr.expr, irast.SelectStmt)
+                and shape_expr.typeref == shape_expr.expr.result.typeref
+            ):
+                shape_expr = shape_expr.expr.result
+            if not shape_expr.shape:
+                shape_expr = ir_expr
+            # Register that this shape needs to be compiled for use by DML,
+            # so that the values will be there for us to grab later.
+            input_rel_ctx.shapes_needed_by_dml.add(shape_expr)
+
             if ptr_is_required and enforce_cardinality:
-                input_rel_ctx.force_optional.add(ir_expr.path_id)
+                input_rel_ctx.force_optional.add(shape_expr.path_id)
 
             dispatch.visit(ir_expr, ctx=input_rel_ctx)
 
@@ -1523,19 +1540,6 @@ def process_link_values(
                         input_rel
                     )
 
-            shape_tuple = None
-            if ir_expr.shape:
-                shape_tuple = shapecomp.compile_shape(
-                    ir_expr,
-                    [expr for expr, _ in ir_expr.shape],
-                    ctx=input_rel_ctx,
-                )
-
-                for element in shape_tuple.elements:
-                    pathctx.put_path_var_if_not_exists(
-                        input_rel_ctx.rel, element.path_id, element.val,
-                        aspect='value', env=input_rel_ctx.env)
-
     input_stmt: pgast.Query = input_rel
 
     input_rvar = pgast.RangeSubselect(
@@ -1562,8 +1566,8 @@ def process_link_values(
     path_id = ir_expr.path_id
 
     target_ref: pgast.BaseExpr
-    if shape_tuple is not None:
-        for element in shape_tuple.elements:
+    if shape_expr.shape:
+        for element, _ in shape_expr.shape:
             if not element.path_id.is_linkprop_path():
                 continue
             val = pathctx.get_rvar_path_value_var(
