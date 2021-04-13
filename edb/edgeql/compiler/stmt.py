@@ -156,7 +156,7 @@ def compile_ForQuery(
                 context=ctx.env.type_origins.get(anytype),
             )
 
-        # If this statement is exposed, and there is a shape-induced
+        # If this statement is exposed, and there is a DML shape-induced
         # iterator context, then register the iterator as hoisted.
         # This ensures that the pgsql compiler allows the iterator value
         # to drift upward. Note that sctx.iterator_ctx.stmt may equal stmt

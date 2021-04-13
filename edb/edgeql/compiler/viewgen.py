@@ -654,9 +654,10 @@ def _normalize_view_ptr_expr(
                 shape_expr_ctx.empty_result_type_hint = \
                     ptrcls.get_target(ctx.env.schema)
 
-            shape_expr_ctx.stmt_metadata[qlexpr] = context.StatementMetadata(
-                iterator_target=True,
-            )
+            if is_mutation:
+                shape_expr_ctx.stmt_metadata[qlexpr] = (
+                    context.StatementMetadata(iterator_target=True)
+                )
             irexpr = dispatch.compile(qlexpr, ctx=shape_expr_ctx)
 
             if (
@@ -1234,6 +1235,8 @@ def _compile_view_shapes_in_set(
     # (and thus this shape would be selecting link properties),
     # because getting process_link_values to extract link properties
     # from a nested shape was nontrivial.
+    # (If we could get rid of that lifting, I think we could also get rid
+    # of hoisted_iterators!)
     parent_is_mutation = parent_view_type in {
         s_types.ExprType.Update, s_types.ExprType.Insert}
     if (isinstance(ir_set.expr, irast.SelectStmt)
