@@ -637,6 +637,8 @@ def process_insert_body(
         for shape_el, shape_op in ir_stmt.subject.shape:
             assert shape_op is qlast.ShapeOp.ASSIGN
 
+            # If the shape element is a linkprop, we do nothing.
+            # It will be picked up by the enclosing DML.
             if shape_el.path_id.is_linkprop_path():
                 continue
 
@@ -645,10 +647,6 @@ def process_insert_body(
             ptrref = rptr.ptrref
             if ptrref.material_ptr is not None:
                 ptrref = ptrref.material_ptr
-
-            if (ptrref.source_ptr is not None and
-                    rptr.source.path_id != ir_stmt.subject.path_id):
-                continue
 
             ptr_info = pg_types.get_ptrref_storage_info(
                 ptrref, resolve_type=True, link_bias=False)
