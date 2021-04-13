@@ -932,7 +932,8 @@ def get_remote_pg_cluster(dsn: str) -> RemoteCluster:
             caps |= BackendCapabilities.SUPERUSER_ACCESS
 
         coll = await conn.fetchval('''
-            SELECT collname FROM pg_collation WHERE lower(collname) = 'c.utf8';
+            SELECT collname FROM pg_collation
+            WHERE lower(replace(collname, '-', '')) = 'c.utf8' LIMIT 1;
         ''')
 
         if coll is not None:
