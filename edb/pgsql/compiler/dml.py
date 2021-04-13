@@ -637,6 +637,9 @@ def process_insert_body(
         for shape_el, shape_op in ir_stmt.subject.shape:
             assert shape_op is qlast.ShapeOp.ASSIGN
 
+            if shape_el.path_id.is_linkprop_path():
+                continue
+
             rptr = shape_el.rptr
             assert rptr is not None
             ptrref = rptr.ptrref

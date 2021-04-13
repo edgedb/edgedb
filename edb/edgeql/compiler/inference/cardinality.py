@@ -565,7 +565,8 @@ def _infer_set(
     # since sometimes the shape will refer to the enclosing set.
     ctx.inferred_cardinality[ir, scope_tree] = result
 
-    _infer_shape(ir, is_mutation=is_mutation, scope_tree=scope_tree, ctx=ctx)
+    _infer_shape(
+        ir, is_mutation=is_mutation, scope_tree=scope_tree, ctx=ctx)
 
     return result
 

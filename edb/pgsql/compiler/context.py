@@ -330,6 +330,17 @@ class CompilerContextLevel(compiler.ContextLevel):
     ) -> compiler.CompilerContextManager[CompilerContextLevel]:
         return self.new(ContextSwitchMode.NEWSCOPE)
 
+    def up_hierarchy(
+        self,
+        n: int, q: Optional[pgast.Query]=None
+    ) -> Optional[pgast.Query]:
+        # mostly intended as a debugging helper
+        q = q or self.rel
+        for _ in range(n):
+            if q:
+                q = self.rel_hierarchy.get(q)
+        return q
+
 
 class CompilerContext(compiler.CompilerContext[CompilerContextLevel]):
     ContextLevelClass = CompilerContextLevel
