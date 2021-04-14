@@ -732,7 +732,6 @@ class Stmt(Expr):
     result: Set
     parent_stmt: typing.Optional[Stmt]
     iterator_stmt: typing.Optional[Set]
-    hoisted_iterators: typing.List[Set]
     bindings: typing.List[Set]
 
 

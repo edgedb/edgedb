@@ -654,9 +654,6 @@ def _normalize_view_ptr_expr(
                 shape_expr_ctx.empty_result_type_hint = \
                     ptrcls.get_target(ctx.env.schema)
 
-            shape_expr_ctx.stmt_metadata[qlexpr] = context.StatementMetadata(
-                iterator_target=True,
-            )
             irexpr = dispatch.compile(qlexpr, ctx=shape_expr_ctx)
 
             if (
@@ -1140,16 +1137,7 @@ def _get_shape_configuration(
 
     for source in sources:
         for ptr, shape_op in ctx.env.view_shapes[source]:
-            if ptr.is_link_property(ctx.env.schema):
-                assert rptr is not None
-                if ir_set.path_id != rptr.target.path_id:
-                    path_tip = rptr.target
-                else:
-                    path_tip = ir_set
-            else:
-                path_tip = ir_set
-
-            shape_ptrs.append((path_tip, ptr, shape_op))
+            shape_ptrs.append((ir_set, ptr, shape_op))
 
     if is_objtype:
         assert isinstance(stype, s_objtypes.ObjectType)
@@ -1229,6 +1217,32 @@ def _compile_view_shapes_in_set(
     shape_ptrs = _get_shape_configuration(
         ir_set, rptr=rptr, parent_view_type=parent_view_type, ctx=ctx)
 
+    # We want to push down the shape to better correspond with where it
+    # appears in the query (rather than lifting it up to the first
+    # place the view_type appears---this is a little hacky, because
+    # letting it be lifted up is the natural thing with our view type-driven
+    # shape compilation).
+    #
+    # This is to avoid losing subquery distinctions (in cases
+    # like test_edgeql_scope_tuple_15), and generally seems more natural.
+    if (isinstance(ir_set.expr, irast.SelectStmt)
+            and (setgen.get_set_type(ir_set, ctx=ctx) ==
+                 setgen.get_set_type(ir_set.expr.result, ctx=ctx))):
+
+        set_scope = pathctx.get_set_scope(ir_set, ctx=ctx)
+
+        if shape_ptrs:
+            pathctx.register_set_in_scope(ir_set, ctx=ctx)
+        with ctx.new() as scopectx:
+            if set_scope is not None:
+                scopectx.path_scope = set_scope
+            compile_view_shapes(
+                ir_set.expr.result,
+                rptr=rptr or ir_set.rptr,
+                parent_view_type=parent_view_type,
+                ctx=scopectx)
+        return
+
     if shape_ptrs:
         pathctx.register_set_in_scope(ir_set, ctx=ctx)
         stype = setgen.get_set_type(ir_set, ctx=ctx)
@@ -1290,7 +1304,8 @@ def _compile_view_shapes_in_select(
         rptr: Optional[irast.Pointer]=None,
         parent_view_type: Optional[s_types.ExprType]=None,
         ctx: context.ContextLevel) -> None:
-    compile_view_shapes(stmt.result, ctx=ctx)
+    compile_view_shapes(
+        stmt.result, rptr=rptr, parent_view_type=parent_view_type, ctx=ctx)
 
 
 @compile_view_shapes.register(irast.FunctionCall)

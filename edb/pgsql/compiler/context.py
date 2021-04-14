@@ -190,6 +190,10 @@ class CompilerContextLevel(compiler.ContextLevel):
     #: ELSE select clauses) currently being compiled.
     enclosing_cte_iterator: Optional[pgast.IteratorCTE]
 
+    #: Sets to force shape compilation on, because the values are
+    #: needed by DML.
+    shapes_needed_by_dml: Set[irast.Set]
+
     def __init__(
         self,
         prevlevel: Optional[CompilerContextLevel],
@@ -235,6 +239,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.ptr_rel_overlays = collections.defaultdict(
                 lambda: collections.defaultdict(list))
             self.enclosing_cte_iterator = None
+            self.shapes_needed_by_dml = set()
 
         else:
             self.env = prevlevel.env
@@ -268,6 +273,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.type_rel_overlays = prevlevel.type_rel_overlays
             self.ptr_rel_overlays = prevlevel.ptr_rel_overlays
             self.enclosing_cte_iterator = prevlevel.enclosing_cte_iterator
+            self.shapes_needed_by_dml = prevlevel.shapes_needed_by_dml
 
             if mode is ContextSwitchMode.SUBSTMT:
                 if self.pending_query is not None:
@@ -329,6 +335,17 @@ class CompilerContextLevel(compiler.ContextLevel):
         self,
     ) -> compiler.CompilerContextManager[CompilerContextLevel]:
         return self.new(ContextSwitchMode.NEWSCOPE)
+
+    def up_hierarchy(
+        self,
+        n: int, q: Optional[pgast.Query]=None
+    ) -> Optional[pgast.Query]:
+        # mostly intended as a debugging helper
+        q = q or self.rel
+        for _ in range(n):
+            if q:
+                q = self.rel_hierarchy.get(q)
+        return q
 
 
 class CompilerContext(compiler.CompilerContext[CompilerContextLevel]):

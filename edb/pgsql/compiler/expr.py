@@ -101,11 +101,7 @@ def _compile_set_impl(
         pathctx.put_path_value_var(ctx.rel, ir_set.path_id, value, env=ctx.env)
         if (output.in_serialization_ctx(ctx) and ir_set.shape
                 and not ctx.env.ignore_object_shapes):
-            _compile_shape(
-                ir_set,
-                shape=[expr for expr, _ in ir_set.shape],
-                ctx=ctx,
-            )
+            _compile_shape(ir_set, ir_set.shape, ctx=ctx)
 
     elif ir_set.path_scope_id is not None and not is_toplevel:
         # This Set is behind a scope fence, so compute it
@@ -594,15 +590,23 @@ def _compile_set(
 
     if (output.in_serialization_ctx(ctx) and ir_set.shape
             and not ctx.env.ignore_object_shapes):
-        _compile_shape(
-            ir_set,
-            shape=[expr for expr, _ in ir_set.shape],
-            ctx=ctx,
-        )
+        _compile_shape(ir_set, ir_set.shape, ctx=ctx)
+    elif ir_set.shape and ir_set in ctx.shapes_needed_by_dml:
+        # If this shape is needed for DML purposes (because it is
+        # populating link properties), compile it and populate its
+        # elements as *values*, so that process_link_values can pick
+        # them up and insert them.
+        shape_tuple = shapecomp.compile_shape(ir_set, ir_set.shape, ctx=ctx)
+        for element in shape_tuple.elements:
+            pathctx.put_path_var_if_not_exists(
+                ctx.rel, element.path_id, element.val,
+                aspect='value', env=ctx.env)
 
 
 def _compile_shape(
-        ir_set: irast.Set, shape: List[irast.Set], *,
+        ir_set: irast.Set,
+        shape: List[Tuple[irast.Set, qlast.ShapeOp]],
+        *,
         ctx: context.CompilerContextLevel) -> pgast.TupleVar:
 
     result = shapecomp.compile_shape(ir_set, shape, ctx=ctx)

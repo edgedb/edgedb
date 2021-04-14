@@ -23,6 +23,9 @@ from __future__ import annotations
 
 from typing import *
 
+from edb.edgeql import ast as qlast
+
+
 from edb.ir import ast as irast
 from edb.ir import utils as irutils
 
@@ -36,7 +39,8 @@ from . import relgen
 
 
 def compile_shape(
-        ir_set: irast.Set, shape: List[irast.Set], *,
+        ir_set: irast.Set,
+        shape: List[Tuple[irast.Set, qlast.ShapeOp]], *,
         ctx: context.CompilerContextLevel) -> pgast.TupleVar:
     elements = []
 
@@ -44,7 +48,6 @@ def compile_shape(
         shapectx.disable_semi_join.add(ir_set.path_id)
 
         if isinstance(ir_set.expr, irast.Stmt):
-            iterators = irutils.get_iterator_sets(ir_set.expr)
             # The source set for this shape is a FOR statement,
             # which is special in that besides set path_id it
             # should also expose the path_id of the FOR iterator
@@ -58,11 +61,11 @@ def compile_shape(
             #
             # the path scope when processing the shape of Bar.foo
             # should be {'Bar.foo', 'x'}.
-            if iterators:
-                for iterator in iterators:
-                    shapectx.path_scope[iterator.path_id] = ctx.rel
+            iterator = ir_set.expr.iterator_stmt
+            if iterator:
+                shapectx.path_scope[iterator.path_id] = ctx.rel
 
-        for el in shape:
+        for el, _ in shape:
             rptr = el.rptr
             assert rptr is not None
             ptrref = rptr.ptrref

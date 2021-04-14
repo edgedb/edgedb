@@ -55,7 +55,6 @@ from . import output
 from . import pathctx
 from . import relctx
 from . import relgen
-from . import shapecomp
 
 
 class DMLParts(NamedTuple):
@@ -481,60 +480,45 @@ def get_dml_range(
         return range_cte
 
 
-def compile_iterator_ctes(
-    iterators: Iterable[irast.Set],
+def compile_iterator_cte(
+    iterator_set: irast.Set,
     *,
     ctx: context.CompilerContextLevel
 ) -> Optional[pgast.IteratorCTE]:
 
     last_iterator = ctx.enclosing_cte_iterator
 
-    seen = set()
-    p = last_iterator
-    while p:
-        seen.add(p.path_id)
-        p = p.parent
-
-    for iterator_set in iterators:
-        # Because of how the IR compiler hoists iterators, we may see
-        # an iterator twice.  Just ignore it if we do.
-        if iterator_set.path_id in seen:
-            continue
-
-        # If this iterator has already been compiled to a CTE, use
-        # that CTE instead of recompiling. (This will happen when
-        # a DML-containing FOR loop is WITH bound, for example.)
-        if iterator_set in ctx.dml_stmts:
-            iterator_cte = ctx.dml_stmts[iterator_set]
-            last_iterator = pgast.IteratorCTE(
-                path_id=iterator_set.path_id, cte=iterator_cte,
-                parent=last_iterator)
-            continue
-
-        with ctx.newrel() as ictx:
-            ictx.path_scope[iterator_set.path_id] = ictx.rel
-
-            # Correlate with enclosing iterators
-            merge_iterator(last_iterator, ictx.rel, ctx=ictx)
-            clauses.setup_iterator_volatility(last_iterator, is_cte=True,
-                                              ctx=ictx)
-
-            clauses.compile_iterator_expr(ictx.rel, iterator_set, ctx=ictx)
-            ictx.rel.path_id = iterator_set.path_id
-            pathctx.put_path_bond(ictx.rel, iterator_set.path_id)
-            iterator_cte = pgast.CommonTableExpr(
-                query=ictx.rel,
-                name=ctx.env.aliases.get('iter')
-            )
-            ictx.toplevel_stmt.ctes.append(iterator_cte)
-
-        ctx.dml_stmts[iterator_set] = iterator_cte
-
-        last_iterator = pgast.IteratorCTE(
+    # If this iterator has already been compiled to a CTE, use
+    # that CTE instead of recompiling. (This will happen when
+    # a DML-containing FOR loop is WITH bound, for example.)
+    if iterator_set in ctx.dml_stmts:
+        iterator_cte = ctx.dml_stmts[iterator_set]
+        return pgast.IteratorCTE(
             path_id=iterator_set.path_id, cte=iterator_cte,
             parent=last_iterator)
 
-    return last_iterator
+    with ctx.newrel() as ictx:
+        ictx.path_scope[iterator_set.path_id] = ictx.rel
+
+        # Correlate with enclosing iterators
+        merge_iterator(last_iterator, ictx.rel, ctx=ictx)
+        clauses.setup_iterator_volatility(last_iterator, is_cte=True,
+                                          ctx=ictx)
+
+        clauses.compile_iterator_expr(ictx.rel, iterator_set, ctx=ictx)
+        ictx.rel.path_id = iterator_set.path_id
+        pathctx.put_path_bond(ictx.rel, iterator_set.path_id)
+        iterator_cte = pgast.CommonTableExpr(
+            query=ictx.rel,
+            name=ctx.env.aliases.get('iter')
+        )
+        ictx.toplevel_stmt.ctes.append(iterator_cte)
+
+    ctx.dml_stmts[iterator_set] = iterator_cte
+
+    return pgast.IteratorCTE(
+        path_id=iterator_set.path_id, cte=iterator_cte,
+        parent=last_iterator)
 
 
 def process_insert_body(
@@ -637,15 +621,16 @@ def process_insert_body(
         for shape_el, shape_op in ir_stmt.subject.shape:
             assert shape_op is qlast.ShapeOp.ASSIGN
 
+            # If the shape element is a linkprop, we do nothing.
+            # It will be picked up by the enclosing DML.
+            if shape_el.path_id.is_linkprop_path():
+                continue
+
             rptr = shape_el.rptr
             assert rptr is not None
             ptrref = rptr.ptrref
             if ptrref.material_ptr is not None:
                 ptrref = ptrref.material_ptr
-
-            if (ptrref.source_ptr is not None and
-                    rptr.source.path_id != ir_stmt.subject.path_id):
-                continue
 
             ptr_info = pg_types.get_ptrref_storage_info(
                 ptrref, resolve_type=True, link_bias=False)
@@ -1488,6 +1473,23 @@ def process_link_values(
                     row_query, ir_stmt.subject.path_id,
                     env=input_rel_ctx.env),)
 
+            # Look for a shape that might provide link property values
+            # for this link. We have to dig down into the expression,
+            # because the shape might be wrapped a few times (because
+            # of iterators, filters, etc)
+            shape_expr = ir_expr
+            while (
+                not shape_expr.shape
+                and isinstance(shape_expr.expr, irast.SelectStmt)
+                and shape_expr.typeref == shape_expr.expr.result.typeref
+            ):
+                shape_expr = shape_expr.expr.result
+            if not shape_expr.shape:
+                shape_expr = ir_expr
+            # Register that this shape needs to be compiled for use by DML,
+            # so that the values will be there for us to grab later.
+            input_rel_ctx.shapes_needed_by_dml.add(shape_expr)
+
             if ptr_is_required and enforce_cardinality:
                 input_rel_ctx.force_optional.add(ir_expr.path_id)
 
@@ -1522,19 +1524,6 @@ def process_link_values(
                         input_rel
                     )
 
-            shape_tuple = None
-            if ir_expr.shape:
-                shape_tuple = shapecomp.compile_shape(
-                    ir_expr,
-                    [expr for expr, _ in ir_expr.shape],
-                    ctx=input_rel_ctx,
-                )
-
-                for element in shape_tuple.elements:
-                    pathctx.put_path_var_if_not_exists(
-                        input_rel_ctx.rel, element.path_id, element.val,
-                        aspect='value', env=input_rel_ctx.env)
-
     input_stmt: pgast.Query = input_rel
 
     input_rvar = pgast.RangeSubselect(
@@ -1561,8 +1550,8 @@ def process_link_values(
     path_id = ir_expr.path_id
 
     target_ref: pgast.BaseExpr
-    if shape_tuple is not None:
-        for element in shape_tuple.elements:
+    if shape_expr.shape:
+        for element, _ in shape_expr.shape:
             if not element.path_id.is_linkprop_path():
                 continue
             val = pathctx.get_rvar_path_value_var(

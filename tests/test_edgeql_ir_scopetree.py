@@ -311,7 +311,8 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                 "FENCE": {
                     "[ns~1]@[ns~2]@@(test::User).>friends[IS test::User]"
                 },
-                "(test::User).>friends[IS test::User]"
+                "(test::User).>friends[IS test::User]",
+                "[ns~1]@[ns~2]@@(__derived__::expr~13)"
             },
             "FENCE": {
                 "(test::User).>name[IS std::str]"
@@ -677,7 +678,8 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                         }
                     }
                 },
-                "(test::User).>select_deck[IS test::Card]"
+                "(test::User).>select_deck[IS test::Card]",
+                "[ns~1]@[ns~4]@@(__derived__::expr~26)"
             },
             "FENCE": {
                 "(test::User).>name[IS std::str]"
@@ -716,10 +718,10 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 .>deck[IS test::Card].>name[IS std::str]"
                             }
                         }
-                    },
-                    "[ns~1]@[ns~5]@@(__derived__::__derived__|foo@w~2)"
+                    }
                 },
-                "(test::User).>select_deck[IS test::Card]"
+                "(test::User).>select_deck[IS test::Card]",
+                "[ns~1]@[ns~5]@@(__derived__::__derived__|foo@w~2)"
             },
             "FENCE": {
                 "(test::User).>name[IS std::str]"
@@ -747,7 +749,8 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                 },
                 "(test::User).>deck[IS test::Card]",
                 "FENCE": {
-                    "(test::User).>deck[IS test::Card].>cost[IS std::int64]"
+                    "[ns~1]@[ns~2]@[ns~5]@[ns~6]@@(test::Card)\
+.>cost[IS std::int64]"
                 }
             }
         }

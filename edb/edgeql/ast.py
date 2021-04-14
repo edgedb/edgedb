@@ -100,7 +100,7 @@ class OffsetLimitMixin(Base):
 
 class OrderByMixin(Base):
     __abstract_node__ = True
-    orderby: typing.Optional[typing.List[SortExpr]]
+    orderby: typing.List[SortExpr]
 
 
 class FilterMixin(Base):

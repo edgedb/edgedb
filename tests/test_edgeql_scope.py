@@ -703,6 +703,16 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         )
 
+    async def test_edgeql_scope_tuple_15(self):
+        res = await self.con.query(r"""
+            WITH MODULE test
+            SELECT ((SELECT User {deck}), User.deck);
+        """)
+
+        # The deck shape ought to contain just the correlated element
+        for row in res:
+            self.assertEqual(row[0].deck, [row[1]])
+
     async def test_edgeql_scope_binding_01(self):
         await self.assert_query_result(
             r"""
