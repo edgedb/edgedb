@@ -749,7 +749,8 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                 },
                 "(test::User).>deck[IS test::Card]",
                 "FENCE": {
-                    "(test::User).>deck[IS test::Card].>cost[IS std::int64]"
+                    "[ns~1]@[ns~2]@[ns~5]@[ns~6]@@(test::Card)\
+.>cost[IS std::int64]"
                 }
             }
         }
