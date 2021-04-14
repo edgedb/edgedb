@@ -289,13 +289,6 @@ def get_nearest_dml_stmt(ir_set: irast.Set) -> Optional[irast.MutatingStmt]:
     return None
 
 
-def get_iterator_sets(stmt: irast.Stmt) -> Sequence[irast.Set]:
-    iterators = []
-    if stmt.iterator_stmt is not None:
-        iterators.append(stmt.iterator_stmt)
-    return iterators
-
-
 class ContainsDMLVisitor(ast.NodeVisitor):
     skip_hidden = True
 

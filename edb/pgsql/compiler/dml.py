@@ -481,60 +481,45 @@ def get_dml_range(
         return range_cte
 
 
-def compile_iterator_ctes(
-    iterators: Iterable[irast.Set],
+def compile_iterator_cte(
+    iterator_set: irast.Set,
     *,
     ctx: context.CompilerContextLevel
 ) -> Optional[pgast.IteratorCTE]:
 
     last_iterator = ctx.enclosing_cte_iterator
 
-    seen = set()
-    p = last_iterator
-    while p:
-        seen.add(p.path_id)
-        p = p.parent
-
-    for iterator_set in iterators:
-        # Because of how the IR compiler hoists iterators, we may see
-        # an iterator twice.  Just ignore it if we do.
-        if iterator_set.path_id in seen:
-            continue
-
-        # If this iterator has already been compiled to a CTE, use
-        # that CTE instead of recompiling. (This will happen when
-        # a DML-containing FOR loop is WITH bound, for example.)
-        if iterator_set in ctx.dml_stmts:
-            iterator_cte = ctx.dml_stmts[iterator_set]
-            last_iterator = pgast.IteratorCTE(
-                path_id=iterator_set.path_id, cte=iterator_cte,
-                parent=last_iterator)
-            continue
-
-        with ctx.newrel() as ictx:
-            ictx.path_scope[iterator_set.path_id] = ictx.rel
-
-            # Correlate with enclosing iterators
-            merge_iterator(last_iterator, ictx.rel, ctx=ictx)
-            clauses.setup_iterator_volatility(last_iterator, is_cte=True,
-                                              ctx=ictx)
-
-            clauses.compile_iterator_expr(ictx.rel, iterator_set, ctx=ictx)
-            ictx.rel.path_id = iterator_set.path_id
-            pathctx.put_path_bond(ictx.rel, iterator_set.path_id)
-            iterator_cte = pgast.CommonTableExpr(
-                query=ictx.rel,
-                name=ctx.env.aliases.get('iter')
-            )
-            ictx.toplevel_stmt.ctes.append(iterator_cte)
-
-        ctx.dml_stmts[iterator_set] = iterator_cte
-
-        last_iterator = pgast.IteratorCTE(
+    # If this iterator has already been compiled to a CTE, use
+    # that CTE instead of recompiling. (This will happen when
+    # a DML-containing FOR loop is WITH bound, for example.)
+    if iterator_set in ctx.dml_stmts:
+        iterator_cte = ctx.dml_stmts[iterator_set]
+        return pgast.IteratorCTE(
             path_id=iterator_set.path_id, cte=iterator_cte,
             parent=last_iterator)
 
-    return last_iterator
+    with ctx.newrel() as ictx:
+        ictx.path_scope[iterator_set.path_id] = ictx.rel
+
+        # Correlate with enclosing iterators
+        merge_iterator(last_iterator, ictx.rel, ctx=ictx)
+        clauses.setup_iterator_volatility(last_iterator, is_cte=True,
+                                          ctx=ictx)
+
+        clauses.compile_iterator_expr(ictx.rel, iterator_set, ctx=ictx)
+        ictx.rel.path_id = iterator_set.path_id
+        pathctx.put_path_bond(ictx.rel, iterator_set.path_id)
+        iterator_cte = pgast.CommonTableExpr(
+            query=ictx.rel,
+            name=ctx.env.aliases.get('iter')
+        )
+        ictx.toplevel_stmt.ctes.append(iterator_cte)
+
+    ctx.dml_stmts[iterator_set] = iterator_cte
+
+    return pgast.IteratorCTE(
+        path_id=iterator_set.path_id, cte=iterator_cte,
+        parent=last_iterator)
 
 
 def process_insert_body(
