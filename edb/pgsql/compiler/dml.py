@@ -1491,7 +1491,7 @@ def process_link_values(
             input_rel_ctx.shapes_needed_by_dml.add(shape_expr)
 
             if ptr_is_required and enforce_cardinality:
-                input_rel_ctx.force_optional.add(shape_expr.path_id)
+                input_rel_ctx.force_optional.add(ir_expr.path_id)
 
             dispatch.visit(ir_expr, ctx=input_rel_ctx)
 
