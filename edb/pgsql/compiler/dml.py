@@ -55,7 +55,6 @@ from . import output
 from . import pathctx
 from . import relctx
 from . import relgen
-from . import shapecomp
 
 
 class DMLParts(NamedTuple):
