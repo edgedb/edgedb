@@ -23,6 +23,9 @@ from __future__ import annotations
 
 from typing import *
 
+from edb.edgeql import ast as qlast
+
+
 from edb.ir import ast as irast
 from edb.ir import utils as irutils
 
@@ -36,7 +39,8 @@ from . import relgen
 
 
 def compile_shape(
-        ir_set: irast.Set, shape: List[irast.Set], *,
+        ir_set: irast.Set,
+        shape: List[Tuple[irast.Set, qlast.ShapeOp]], *,
         ctx: context.CompilerContextLevel) -> pgast.TupleVar:
     elements = []
 
@@ -61,7 +65,7 @@ def compile_shape(
             if iterator:
                 shapectx.path_scope[iterator.path_id] = ctx.rel
 
-        for el in shape:
+        for el, _ in shape:
             rptr = el.rptr
             assert rptr is not None
             ptrref = rptr.ptrref
