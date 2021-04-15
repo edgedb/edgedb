@@ -1617,19 +1617,9 @@ def process_link_values(
                     row_query, ir_stmt.subject.path_id,
                     env=input_rel_ctx.env),)
 
-            # Look for a shape that might provide link property values
-            # for this link. We have to dig down into the expression,
-            # because the shape might be wrapped a few times (because
-            # of iterators, filters, etc)
-            shape_expr = ir_expr
-            while (
-                not shape_expr.shape
-                and isinstance(shape_expr.expr, irast.SelectStmt)
-                and shape_expr.typeref == shape_expr.expr.result.typeref
-            ):
-                shape_expr = shape_expr.expr.result
-            if not shape_expr.shape:
-                shape_expr = ir_expr
+            # Check if some nested Set provides a shape that is
+            # visible here.
+            shape_expr = ir_expr.shape_source or ir_expr
             # Register that this shape needs to be compiled for use by DML,
             # so that the values will be there for us to grab later.
             input_rel_ctx.shapes_needed_by_dml.add(shape_expr)

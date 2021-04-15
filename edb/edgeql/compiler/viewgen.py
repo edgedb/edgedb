@@ -1228,7 +1228,7 @@ def _compile_view_shapes_in_set(
     if (isinstance(ir_set.expr, irast.SelectStmt)
             and (setgen.get_set_type(ir_set, ctx=ctx) ==
                  setgen.get_set_type(ir_set.expr.result, ctx=ctx))):
-
+        child = ir_set.expr.result
         set_scope = pathctx.get_set_scope(ir_set, ctx=ctx)
 
         if shape_ptrs:
@@ -1237,10 +1237,12 @@ def _compile_view_shapes_in_set(
             if set_scope is not None:
                 scopectx.path_scope = set_scope
             compile_view_shapes(
-                ir_set.expr.result,
+                child,
                 rptr=rptr or ir_set.rptr,
                 parent_view_type=parent_view_type,
                 ctx=scopectx)
+
+        ir_set.shape_source = child if child.shape else child.shape_source
         return
 
     if shape_ptrs:
