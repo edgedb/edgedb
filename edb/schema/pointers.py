@@ -35,7 +35,6 @@ from edb.edgeql import quote as qlquote
 from . import abc as s_abc
 from . import annos as s_anno
 from . import constraints
-from . import defines as s_def
 from . import delta as sd
 from . import expr as s_expr
 from . import inheriting
@@ -1437,13 +1436,6 @@ class PointerCommand(
         else:
             name = super()._classname_from_ast(schema, astnode, context)
 
-        sname = sn.shortname_from_fullname(name)
-        assert isinstance(sname, sn.QualName), "expected qualified name"
-        if len(sname.name) > s_def.MAX_NAME_LENGTH:
-            raise errors.SchemaDefinitionError(
-                f'link or property name length exceeds the maximum of '
-                f'{s_def.MAX_NAME_LENGTH} characters',
-                context=astnode.context)
         return name
 
     @classmethod

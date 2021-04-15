@@ -3167,26 +3167,22 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     );
                 """)
 
-    async def test_edgeql_ddl_link_bad_01(self):
-        with self.assertRaisesRegex(
-                edgedb.SchemaDefinitionError,
-                f'link or property name length exceeds the maximum'):
-            async with self.con.transaction():
-                await self.con.execute("""
-                    CREATE ABSTRACT LINK test::f123456789_123456789_123456789_\
-123456789_123456789_123456789_123456789_123456789;
-                """)
+    async def test_edgeql_ddl_link_long_01(self):
+        link_name = (
+            'f123456789_123456789_123456789_123456789'
+            '_123456789_123456789_123456789_123456789'
+        )
+        await self.con.execute(f"""
+            CREATE ABSTRACT LINK test::{link_name};
+        """)
 
-        with self.assertRaisesRegex(
-                edgedb.SchemaDefinitionError,
-                f'link or property name length exceeds the maximum'):
-            async with self.con.transaction():
-                await self.con.execute("""
-                    CREATE TYPE test::Foo {
-                        CREATE LINK f123456789_123456789_123456789_\
-123456789_123456789_123456789_123456789_123456789 -> test::Foo;
-                    };
-                """)
+        await self.con.execute(f"""
+            CREATE TYPE test::Foo {{
+                CREATE LINK {link_name} -> test::Foo;
+            }};
+        """)
+
+        await self.con.query(f"SELECT test::Foo.{link_name}")
 
     async def test_edgeql_ddl_link_bad_02(self):
         with self.assertRaisesRegex(
@@ -3210,26 +3206,22 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     };
                 """)
 
-    async def test_edgeql_ddl_property_bad_01(self):
-        with self.assertRaisesRegex(
-                edgedb.SchemaDefinitionError,
-                f'link or property name length exceeds the maximum'):
-            async with self.con.transaction():
-                await self.con.execute("""
-                    CREATE ABSTRACT PROPERTY test::f123456789_123456789_\
-23456789_123456789_123456789_123456789_123456789_123456789;
-                """)
+    async def test_edgeql_ddl_property_long_01(self):
+        prop_name = (
+            'f123456789_123456789_123456789_123456789'
+            '_123456789_123456789_123456789_123456789'
+        )
+        await self.con.execute(f"""
+            CREATE ABSTRACT PROPERTY test::{prop_name}
+        """)
 
-        with self.assertRaisesRegex(
-                edgedb.SchemaDefinitionError,
-                f'link or property name length exceeds the maximum'):
-            async with self.con.transaction():
-                await self.con.execute("""
-                    CREATE TYPE test::Foo {
-                        CREATE PROPERTY f123456789_123456789_123456789_\
-123456789_123456789_123456789_123456789_123456789 -> std::str;
-                    };
-                """)
+        await self.con.execute(f"""
+            CREATE TYPE test::Foo {{
+                CREATE PROPERTY {prop_name} -> std::str;
+            }};
+        """)
+
+        await self.con.query(f"SELECT test::Foo.{prop_name}")
 
     async def test_edgeql_ddl_property_bad_02(self):
         with self.assertRaisesRegex(

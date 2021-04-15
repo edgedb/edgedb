@@ -18,6 +18,7 @@
 
 import edgedb
 
+from edb.schema import defines as s_def
 from edb.testbase import server as tb
 
 
@@ -156,3 +157,11 @@ class TestServerAuth(tb.ConnectedTestCase):
 
         finally:
             await self.con.query("DROP ROLE bar")
+
+    async def test_long_role_name(self):
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                r'Role names longer than \d+ '
+                r'characters are not supported'):
+            await self.con.execute(
+                f'CREATE SUPERUSER ROLE myrole_{"x" * s_def.MAX_NAME_LENGTH};')

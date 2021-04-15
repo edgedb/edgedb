@@ -105,17 +105,6 @@ class TestSchema(tb.BaseSchemaLoadTest):
             };
         """
 
-    @tb.must_fail(errors.SchemaDefinitionError,
-                  'link or property name length exceeds the maximum.*',
-                  position=57)
-    def test_schema_bad_link_03(self):
-        """
-            type Object {
-                link f123456789_123456789_123456789_123456789_123456789\
-_123456789_123456789_123456789 -> Object
-            };
-        """
-
     @tb.must_fail(errors.InvalidPropertyTargetError,
                   "invalid property type: expected a scalar type, "
                   "or a scalar collection, got object type 'test::Object'",
@@ -135,17 +124,6 @@ _123456789_123456789_123456789 -> Object
         """
             type Object {
                 property foo := (SELECT Object)
-            };
-        """
-
-    @tb.must_fail(errors.SchemaDefinitionError,
-                  'link or property name length exceeds the maximum.*',
-                  position=57)
-    def test_schema_bad_prop_03(self):
-        """
-            type Object {
-                property f123456789_123456789_123456789_123456789_123456789\
-_123456789_123456789_123456789 -> str
             };
         """
 
