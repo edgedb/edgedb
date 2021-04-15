@@ -905,21 +905,28 @@ class Pool(BasePool[C]):
         block_nconns = block.count_conns()
 
         if room_for_new_conns:
+            # First, schedule new connections if needed.
             if len(self._blocks) == 1:
                 # Managing connections to only one DB and can open more
-                # connections.  Or this is before the first tick -- a free
-                # for all.
-                self._schedule_new_conn(block)
-                return await block.acquire()
-
-            if (
+                # connections.  Or this is before the first tick.
+                if block.count_queued_conns() <= 1:
+                    # Only keep at most 1 spare connection in the ready queue.
+                    # When concurrent tasks are racing for the spare
+                    # connections in the same loop iteration, early requesters
+                    # will retrieve the spare connections immediately without
+                    # context switch (block.acquire() will not "block" in
+                    # await). Therefore, we will create just enough new
+                    # connections for the number of late requesters plus one.
+                    self._schedule_new_conn(block)
+            elif (
                 not block_nconns or
                 block_nconns < block.quota or
                 not block.count_approx_available_conns()
             ):
-                # Block has no connections at all.
+                # Block has no connections at all, or not enough connections.
                 self._schedule_new_conn(block)
-                return await block.acquire()
+
+            return await block.acquire()
 
         if not block_nconns:
             # This is a block without any connections.

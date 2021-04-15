@@ -54,6 +54,7 @@ import unittest.mock
 
 from edb.common import taskgroup
 from edb.server import connpool
+from edb.server.connpool import pool as pool_impl
 
 # TIME_SCALE is used to run the simulation for longer time, the default is 1x.
 TIME_SCALE = int(os.environ.get("TIME_SCALE", '1'))
@@ -67,6 +68,17 @@ MIN_SCORE = int(os.environ.get('MIN_SCORE', 80))
 CI_MAX_REPORTS = int(os.environ.get('CI_MAX_REPORTS', 50))
 
 C = typing.TypeVar('C')
+
+
+def with_base_test(m):
+    @functools.wraps(m)
+    def wrapper(self):
+        if self.full_qps is None:
+            self.full_qps = asyncio.run(
+                asyncio.wait_for(self.base_test(), 30 * TIME_SCALE)
+            )
+        return m(self)
+    return wrapper
 
 
 def calc_percentiles(
@@ -179,10 +191,13 @@ class LatencyDistribution(ScoreMethod):
 class ConnectionOverhead(ScoreMethod):
     # Calculate the score based on the total number of connects and disconnects
 
+    use_time_scale: bool = True
+
     def calculate(self, sim: Simulation) -> float:
-        self.v90 = self.v100 + (self.v90 - self.v100) * TIME_SCALE
-        self.v60 = self.v100 + (self.v60 - self.v100) * TIME_SCALE
-        self.v0 = self.v100 + (self.v0 - self.v100) * TIME_SCALE
+        if self.use_time_scale:
+            self.v90 = self.v100 + (self.v90 - self.v100) * TIME_SCALE
+            self.v60 = self.v100 + (self.v60 - self.v100) * TIME_SCALE
+            self.v0 = self.v100 + (self.v0 - self.v100) * TIME_SCALE
         value = (
             sim.stats[-1]["successful_connects"]
             + sim.stats[-1]["successful_disconnects"]
@@ -340,7 +355,48 @@ class SimulatedCaseMeta(type):
         return super().__new__(mcls, name, bases, dct)
 
 
+class SingleBlockPool(pool_impl.BasePool[C]):
+    # used by the base test only
+
+    _queue: asyncio.Queue[C]
+
+    def __init__(
+        self,
+        *,
+        connect,
+        disconnect,
+        max_capacity: int,
+        stats_collector=None,
+    ) -> None:
+        super().__init__(
+            connect=connect,
+            disconnect=disconnect,
+            max_capacity=max_capacity,
+            stats_collector=stats_collector,
+        )
+        self._queue = asyncio.Queue(max_capacity)
+
+    async def _async_connect(self, dbname: str) -> None:
+        self.release(dbname, await self._connect_cb(dbname))
+
+    async def acquire(self, dbname: str) -> C:
+        try:
+            return self._queue.get_nowait()
+        except asyncio.QueueEmpty:
+            if self._cur_capacity < self._max_capacity:
+                self._cur_capacity += 1
+                self._get_loop().create_task(self._async_connect(dbname))
+        return await self._queue.get()
+
+    def release(self, dbname: str, conn: C) -> None:
+        self._queue.put_nowait(conn)
+
+    def count_waiters(self):
+        return len(self._queue._getters)
+
+
 class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
+    full_qps: typing.Optional[int] = None  # set by the base test
 
     def make_fake_connect(
         self,
@@ -511,7 +567,81 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
 
         return js_data
 
+    async def _base_test_single(
+        self, total_duration, qps, sim, pool, query_duration
+    ):
+        getters = 0
+        TICK_EVERY = 0.001
+        started_at = time.monotonic()
+        async with taskgroup.TaskGroup() as g:
+            elapsed = 0
+            while elapsed < total_duration * TIME_SCALE:
+                elapsed = time.monotonic() - started_at
+
+                qpt = qps * TICK_EVERY
+                qpt = int(random.random() <= qpt - int(qpt)) + int(qpt)
+
+                for _ in range(qpt):
+                    g.create_task(
+                        self.make_fake_query(sim, pool, '', query_duration)
+                    )
+
+                await asyncio.sleep(TICK_EVERY)
+                getters = max(getters, pool.count_waiters())
+        return getters
+
+    async def base_test(self) -> int:
+        QUERY_DURATION = 0.01
+        POOL_SIZE = 100
+        verbose = bool(os.environ.get('EDGEDB_TEST_DEBUG_POOL'))
+        qps = 100
+        getters = 0
+        sim = Simulation()
+        pool = SingleBlockPool(
+            connect=self.make_fake_connect(sim, 0, 0),
+            disconnect=self.make_fake_disconnect(sim, 0, 0),
+            max_capacity=POOL_SIZE,
+        )
+
+        if verbose:
+            print('Running the base test to detect the host capacity...')
+            print(f'Query duration: {QUERY_DURATION * 1000:.0f}ms, '
+                  f'pool size: {POOL_SIZE}')
+
+        while pool._cur_capacity < 10 or getters < 100:
+            qps = int(qps * 1.5)
+            getters = await self._base_test_single(
+                0.2, qps, sim, pool, QUERY_DURATION
+            )
+            if verbose:
+                print(f'Increasing load: {qps} Q/s, {pool._cur_capacity} '
+                      f'connections, {getters} waiters')
+
+        if verbose:
+            print("OK that's enough. Now go back slowly to find "
+                  "the precise load.")
+        qps_delta = int(qps / 30)
+        last_qps = qps
+
+        while getters > 10:
+            last_qps = qps
+            qps -= qps_delta
+            getters = await self._base_test_single(
+                0.35, qps, sim, pool, QUERY_DURATION
+            )
+
+            if verbose:
+                print(f'Decreasing load: {qps} Q/s, {pool._cur_capacity} '
+                      f'connections, {getters} waiters')
+
+        qps = int((last_qps + qps) / 2)
+        if verbose:
+            print(f'Looks like {qps} is a just-enough Q/s to '
+                  f'fully load the pool.')
+        return qps
+
     def simulate_all_and_collect_stats(self) -> int:
+        os.environ['EDGEDB_TEST_DEBUG_POOL'] = '1'
         specs = {}
         for methname in dir(self):
             if not methname.startswith('test_'):
@@ -899,6 +1029,36 @@ class TestServerConnpoolSimulation(SimulatedCase):
                     query_cost_base=0.010,
                     query_cost_var=0.005,
                 )
+            ]
+        )
+
+    @with_base_test
+    def test_server_connpool_8(self):
+        return Spec(
+            desc='''
+            This test spec is to check the pool connection reusability with a
+            single block before the pool reaches its full capacity.
+            ''',
+            timeout=20,
+            duration=1.1,
+            capacity=100,
+            conn_cost_base=0,
+            conn_cost_var=0,
+            score=[
+                ConnectionOverhead(
+                    weight=1, v100=25, v90=50, v60=90, v0=100,
+                    use_time_scale=False,
+                ),
+            ],
+            dbs=[
+                DBSpec(
+                    db='t1',
+                    start_at=0,
+                    end_at=0.5,
+                    qps=int(self.full_qps / 8),
+                    query_cost_base=0.01,
+                    query_cost_var=0,
+                ),
             ]
         )
 
