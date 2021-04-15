@@ -222,7 +222,7 @@ class LatencyRatio(ScoreMethod):
 @dataclasses.dataclass
 class Spec:
     timeout: float
-    duration: int
+    duration: float
     capacity: int
     conn_cost_base: float
     conn_cost_var: float
@@ -412,10 +412,7 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
                         continue
 
                     qpt = db.qps * TICK_EVERY
-                    if qpt >= 1:
-                        qpt = round(qpt)
-                    else:
-                        qpt = int(random.random() <= qpt)
+                    qpt = int(random.random() <= qpt - int(qpt)) + int(qpt)
 
                     for _ in range(qpt):
                         dur = max(
