@@ -29,6 +29,7 @@ import tempfile
 import unittest
 
 import click
+import psutil
 
 import edb
 from edb.common import devmode
@@ -64,7 +65,7 @@ __all__ = ('not_implemented', 'xfail', 'skip')
               help='enable or disable warnings (enabled by default)',
               default=True)
 @click.option('-j', '--jobs', type=int,
-              default=lambda: (os.cpu_count() or 0) // 2,
+              default=lambda: psutil.cpu_count(logical=False),
               help='number of parallel processes to use')
 @click.option('-s', '--shard', type=str,
               default='1/1',
