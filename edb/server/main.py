@@ -22,12 +22,10 @@ from typing import *
 
 import asyncio
 import contextlib
-import errno
 import logging
 import os
 import os.path
 import pathlib
-import random
 import resource
 import signal
 import socket
@@ -48,7 +46,6 @@ from edb.common import exceptions
 from edb.server import defines as edgedb_defines
 
 from . import buildmeta
-from . import cluster as edgedb_cluster
 from . import daemon
 from . import defines
 from . import logsetup
@@ -184,8 +181,14 @@ def _init_parsers():
     ql_parser.preload()
 
 
-def _run_server(cluster, args: ServerConfig,
-                runstate_dir, internal_runstate_dir):
+def _run_server(
+    cluster,
+    args: ServerConfig,
+    runstate_dir,
+    internal_runstate_dir,
+    *,
+    do_setproctitle: bool
+):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     # Import here to make sure that most of imports happen
@@ -243,6 +246,11 @@ def _run_server(cluster, args: ServerConfig,
             loop.run_until_complete(ss.stop())
             raise
 
+        if do_setproctitle:
+            setproctitle.setproctitle(
+                f"edgedb-server-{ss.get_listen_port()}"
+            )
+
         loop.add_signal_handler(signal.SIGTERM, terminate_server, ss, loop)
 
         # Notify systemd that we've started up.
@@ -258,7 +266,7 @@ def _run_server(cluster, args: ServerConfig,
                 _sd_notify('STOPPING=1')
 
 
-def run_server(args: ServerConfig):
+def run_server(args: ServerConfig, *, do_setproctitle: bool=False):
     ver = buildmeta.get_version()
 
     if devmode.is_in_dev_mode():
@@ -346,7 +354,7 @@ def run_server(args: ServerConfig):
                 _internal_state_dir(runstate_dir) as internal_runstate_dir:
 
             if cluster_status == 'stopped':
-                cluster.start(port=edgedb_cluster.find_available_port())
+                cluster.start()
                 pg_cluster_started_by_us = True
 
             elif cluster_status != 'running':
@@ -357,9 +365,8 @@ def run_server(args: ServerConfig):
 
             if need_cluster_restart and pg_cluster_started_by_us:
                 logger.info('Restarting server to reload configuration...')
-                cluster_port = cluster.get_connection_spec()['port']
                 cluster.stop()
-                cluster.start(port=cluster_port)
+                cluster.start()
 
             if (
                 not args.bootstrap_only
@@ -374,7 +381,10 @@ def run_server(args: ServerConfig):
                         ),
                     )
 
-                _run_server(cluster, args, runstate_dir, internal_runstate_dir)
+                _run_server(
+                    cluster, args, runstate_dir, internal_runstate_dir,
+                    do_setproctitle=do_setproctitle,
+                )
 
     except BaseException:
         if pg_cluster_init_by_us and not _server_initialized:
@@ -405,35 +415,9 @@ class PathPath(click.Path):
 class PortType(click.ParamType):
     name = 'port'
 
-    @staticmethod
-    def find_available_port(port_range=(49152, 65535), max_tries=1000):
-        low, high = port_range
-
-        port = low
-        try_no = 0
-
-        while try_no < max_tries:
-            try_no += 1
-            port = random.randint(low, high)
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            try:
-                sock.bind(('localhost', port))
-            except socket.error as e:
-                if e.errno == errno.EADDRINUSE:
-                    continue
-                raise
-            finally:
-                sock.close()
-
-            break
-        else:
-            port = None
-
-        return port
-
     def convert(self, value, param, ctx):
         if value == 'auto':
-            return self.find_available_port()
+            return 0
 
         try:
             return int(value, 10)
@@ -733,14 +717,7 @@ def server_main(*, insecure=False, bootstrap, **kwargs):
         if kwargs['daemon_group']:
             daemon_opts['gid'] = kwargs['daemon_group']
         with daemon.DaemonContext(**daemon_opts):
-            # TODO: setproctitle should probably be moved to where
-            # management port is initialized, as that's where we know
-            # the actual network port we listen on.  At this point
-            # "port" can be "None".
-            setproctitle.setproctitle(
-                f"edgedb-server-{kwargs['port']}")
-
-            run_server(ServerConfig(**kwargs))
+            run_server(ServerConfig(**kwargs), setproctitle=True)
     else:
         with devmode.CoverageConfig.enable_coverage_if_requested():
             run_server(ServerConfig(**kwargs))
