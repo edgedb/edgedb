@@ -119,6 +119,8 @@ class Server:
 
         self._cluster = cluster
         self._pg_addr = self._get_pgaddr()
+        inst_params = cluster.get_runtime_params().instance_params
+        self._tenant_id = inst_params.tenant_id
 
         # 1 connection is reserved for the system DB
         pool_capacity = max_backend_connections - 1
@@ -194,6 +196,9 @@ class Server:
     def in_dev_mode(self):
         return self._devmode
 
+    def get_pg_dbname(self, dbname: str) -> str:
+        return self._cluster.get_db_name(dbname)
+
     def on_binary_client_connected(self) -> str:
         self._binary_proto_id_counter += 1
         return str(self._binary_proto_id_counter)
@@ -217,7 +222,9 @@ class Server:
         )
 
     async def _pg_connect(self, dbname):
-        return await pgcon.connect(self._get_pgaddr(), dbname)
+        pg_dbname = self.get_pg_dbname(dbname)
+        return await pgcon.connect(
+            self._get_pgaddr(), pg_dbname, self._tenant_id)
 
     async def _pg_disconnect(self, conn):
         conn.terminate()
@@ -854,6 +861,7 @@ class Server:
                 "port": self._listen_port,
                 "socket_dir": str(self._runstate_dir),
                 "main_pid": os.getpid(),
+                "tenant_id": self._tenant_id,
             }
             self._status_sink(f'READY={json.dumps(status)}')
 

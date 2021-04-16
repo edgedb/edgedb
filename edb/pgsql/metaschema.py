@@ -465,6 +465,84 @@ class StrToFloat32NoInline(dbops.Function):
         )
 
 
+class GetBackendCapabilitiesFunction(dbops.Function):
+
+    text = f'''
+        SELECT
+            (json ->> 'capabilities')::bigint
+        FROM
+            edgedbinstdata.instdata
+        WHERE
+            key = 'backend_instance_params'
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'get_backend_capabilities'),
+            args=[],
+            returns=('bigint',),
+            language='sql',
+            volatility='stable',
+            text=self.text,
+        )
+
+
+class GetBackendTenantIDFunction(dbops.Function):
+
+    text = f'''
+        SELECT
+            (json ->> 'tenant_id')::text
+        FROM
+            edgedbinstdata.instdata
+        WHERE
+            key = 'backend_instance_params'
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'get_backend_tenant_id'),
+            args=[],
+            returns=('text',),
+            language='sql',
+            volatility='stable',
+            text=self.text,
+        )
+
+
+class GetDatabaseBackendNameFunction(dbops.Function):
+
+    text = f'''
+        SELECT edgedb.get_backend_tenant_id() || '_' || "db_name"
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'get_database_backend_name'),
+            args=[('db_name', ('text',))],
+            returns=('text',),
+            language='sql',
+            volatility='stable',
+            text=self.text,
+        )
+
+
+class GetRoleBackendNameFunction(dbops.Function):
+
+    text = f'''
+        SELECT edgedb.get_backend_tenant_id() || '_' || "role_name"
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'get_role_backend_name'),
+            args=[('role_name', ('text',))],
+            returns=('text',),
+            language='sql',
+            volatility='stable',
+            text=self.text,
+        )
+
+
 class GetObjectMetadata(dbops.Function):
     """Return EdgeDB metadata associated with a backend object."""
     text = '''
@@ -532,6 +610,53 @@ class GetSharedObjectMetadata(dbops.Function):
             returns=('jsonb',),
             volatility='stable',
             text=self.text)
+
+
+class GetDatabaseMetadataFunction(dbops.Function):
+    """Return EdgeDB metadata associated with a given database."""
+    text = '''
+        SELECT
+            edgedb.shobj_metadata(
+                (SELECT
+                    oid
+                 FROM
+                    pg_database
+                 WHERE
+                    datname = edgedb.get_database_backend_name("dbname")
+                ),
+                'pg_database'
+            )
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'get_database_metadata'),
+            args=[('dbname', ('text',))],
+            returns=('jsonb',),
+            volatility='stable',
+            text=self.text,
+        )
+
+
+class GetCurrentDatabaseFunction(dbops.Function):
+
+    text = f'''
+        SELECT
+            substr(
+                current_database(),
+                char_length(edgedb.get_backend_tenant_id()) + 2
+            )
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'get_current_database'),
+            args=[],
+            returns=('text',),
+            language='sql',
+            volatility='stable',
+            text=self.text,
+        )
 
 
 class RaiseExceptionFunction(dbops.Function):
@@ -2260,12 +2385,10 @@ class SysConfigFullFunction(dbops.Function):
             'system override' AS source
         FROM
             jsonb_each(
-                edgedb.shobj_metadata(
-                    (SELECT oid FROM pg_database
-                    WHERE datname = {ql(defines.EDGEDB_SYSTEM_DB)}),
-                    'pg_database'
+                edgedb.get_database_metadata(
+                    {ql(defines.EDGEDB_SYSTEM_DB)}
                 ) -> 'sysconfig'
-            ) s
+            ) AS s
     ),
 
     config_db AS (
@@ -2518,12 +2641,10 @@ class SysConfigNoFileAccessFunction(dbops.Function):
             'system override' AS source
         FROM
             jsonb_each(
-                edgedb.shobj_metadata(
-                    (SELECT oid FROM pg_database
-                    WHERE datname = {ql(defines.EDGEDB_SYSTEM_DB)}),
-                    'pg_database'
+                edgedb.get_database_metadata(
+                    {ql(defines.EDGEDB_SYSTEM_DB)}
                 ) -> 'sysconfig'
-            ) s
+            ) AS s
     ),
 
     config_db AS (
@@ -2733,28 +2854,6 @@ class SysConfigFunction(dbops.Function):
         )
 
 
-class GetBackendCapabilitiesFunction(dbops.Function):
-
-    text = f'''
-        SELECT
-            (json ->> 'capabilities')::bigint
-        FROM
-            edgedbinstdata.instdata
-        WHERE
-            key = 'backend_instance_params'
-    '''
-
-    def __init__(self) -> None:
-        super().__init__(
-            name=('edgedb', 'get_backend_capabilities'),
-            args=[],
-            returns=('bigint',),
-            language='sql',
-            volatility='stable',
-            text=self.text,
-        )
-
-
 class SysVersionFunction(dbops.Function):
 
     text = f'''
@@ -2940,9 +3039,15 @@ async def bootstrap(conn: asyncpg.Connection) -> None:
         dbops.CreateFunction(AlterCurrentDatabaseSetStringArray()),
         dbops.CreateFunction(AlterCurrentDatabaseSetNonArray()),
         dbops.CreateFunction(AlterCurrentDatabaseSetArray()),
+        dbops.CreateFunction(GetBackendCapabilitiesFunction()),
+        dbops.CreateFunction(GetBackendTenantIDFunction()),
+        dbops.CreateFunction(GetDatabaseBackendNameFunction()),
+        dbops.CreateFunction(GetRoleBackendNameFunction()),
         dbops.CreateFunction(GetObjectMetadata()),
         dbops.CreateFunction(GetColumnMetadata()),
         dbops.CreateFunction(GetSharedObjectMetadata()),
+        dbops.CreateFunction(GetDatabaseMetadataFunction()),
+        dbops.CreateFunction(GetCurrentDatabaseFunction()),
         dbops.CreateFunction(RaiseExceptionFunction()),
         dbops.CreateFunction(RaiseExceptionOnNullFunction()),
         dbops.CreateFunction(RaiseExceptionOnNotNullFunction()),
@@ -2995,7 +3100,6 @@ async def bootstrap(conn: asyncpg.Connection) -> None:
         dbops.CreateEnum(SysConfigSourceType()),
         dbops.CreateEnum(SysConfigScopeType()),
         dbops.CreateCompositeType(SysConfigValueType()),
-        dbops.CreateFunction(GetBackendCapabilitiesFunction()),
         dbops.CreateFunction(SysConfigFullFunction()),
         dbops.CreateFunction(SysConfigNoFileAccessFunction()),
         dbops.CreateFunction(SysConfigFunction()),
@@ -3079,12 +3183,16 @@ def _generate_database_views(schema: s_schema.Schema) -> List[dbops.View]:
                  WHERE name = 'sys::Database')
                 AS {qi(ptr_col_name(schema, Database, '__type__'))},
             (datname IN (
-                {ql(defines.EDGEDB_TEMPLATE_DB)},
-                {ql(defines.EDGEDB_SYSTEM_DB)}
+                edgedb.get_database_backend_name(
+                    {ql(defines.EDGEDB_TEMPLATE_DB)}),
+                edgedb.get_database_backend_name(
+                    {ql(defines.EDGEDB_SYSTEM_DB)})
             ))
                 AS {qi(ptr_col_name(schema, Database, 'internal'))},
-            datname AS {qi(ptr_col_name(schema, Database, 'name'))},
-            datname AS {qi(ptr_col_name(schema, Database, 'name__internal'))},
+            (d.description)->>'name'
+                AS {qi(ptr_col_name(schema, Database, 'name'))},
+            (d.description)->>'name'
+                AS {qi(ptr_col_name(schema, Database, 'name__internal'))},
             ARRAY[]::text[]
                 AS {qi(ptr_col_name(schema, Database, 'computed_fields'))},
             ((d.description)->>'builtin')::bool
@@ -3098,6 +3206,7 @@ def _generate_database_views(schema: s_schema.Schema) -> List[dbops.View]:
             ) AS d
         WHERE
             (d.description)->>'id' IS NOT NULL
+            AND (d.description)->>'tenant_id' = edgedb.get_backend_tenant_id()
     '''
 
     annos_link_query = f'''
@@ -3210,11 +3319,11 @@ def _generate_extension_views(schema: s_schema.Schema) -> List[dbops.View]:
             (e.value->>'internal')::bool
                 AS {qi(ptr_col_name(schema, ExtPkg, 'internal'))}
         FROM
-            jsonb_each(edgedb.shobj_metadata(
-                (SELECT oid FROM pg_database
-                WHERE datname = {ql(defines.EDGEDB_TEMPLATE_DB)}),
-                'pg_database'
-            ) -> 'ExtensionPackage') AS e
+            jsonb_each(
+                edgedb.get_database_metadata(
+                    {ql(defines.EDGEDB_TEMPLATE_DB)}
+                ) -> 'ExtensionPackage'
+            ) AS e
     '''
 
     annos_link_query = f'''
@@ -3228,11 +3337,11 @@ def _generate_extension_views(schema: s_schema.Schema) -> List[dbops.View]:
             (annotations->>'is_owned')::bool
                 AS {qi(ptr_col_name(schema, annos, 'owned'))}
         FROM
-            jsonb_each(edgedb.shobj_metadata(
-                (SELECT oid FROM pg_database
-                WHERE datname = {ql(defines.EDGEDB_TEMPLATE_DB)}),
-                'pg_database'
-            ) -> 'ExtensionPackage') AS e
+            jsonb_each(
+                edgedb.get_database_metadata(
+                    {ql(defines.EDGEDB_TEMPLATE_DB)}
+                ) -> 'ExtensionPackage'
+            ) AS e
             CROSS JOIN LATERAL
                 ROWS FROM (
                     jsonb_array_elements(e.value->'annotations')
@@ -3248,11 +3357,11 @@ def _generate_extension_views(schema: s_schema.Schema) -> List[dbops.View]:
             (annotations->>'is_owned')::bool
                 AS {qi(ptr_col_name(schema, int_annos, 'owned'))}
         FROM
-            jsonb_each(edgedb.shobj_metadata(
-                (SELECT oid FROM pg_database
-                WHERE datname = {ql(defines.EDGEDB_TEMPLATE_DB)}),
-                'pg_database'
-            ) -> 'ExtensionPackage') AS e
+            jsonb_each(
+                edgedb.get_database_metadata(
+                    {ql(defines.EDGEDB_TEMPLATE_DB)}
+                ) -> 'ExtensionPackage'
+            ) AS e
             CROSS JOIN LATERAL
                 ROWS FROM (
                     jsonb_array_elements(e.value->'annotations__internal')
@@ -3308,9 +3417,9 @@ def _generate_role_views(schema: s_schema.Schema) -> List[dbops.View]:
             (SELECT id FROM edgedb."_SchemaObjectType"
                  WHERE name = 'sys::Role')
                 AS {qi(ptr_col_name(schema, Role, '__type__'))},
-            a.rolname
+            (d.description)->>'name'
                 AS {qi(ptr_col_name(schema, Role, 'name'))},
-            a.rolname
+            (d.description)->>'name'
                 AS {qi(ptr_col_name(schema, Role, 'name__internal'))},
             {superuser}
                 AS {qi(ptr_col_name(schema, Role, 'superuser'))},
@@ -3339,6 +3448,7 @@ def _generate_role_views(schema: s_schema.Schema) -> List[dbops.View]:
             ) AS d
         WHERE
             (d.description)->>'id' IS NOT NULL
+            AND (d.description)->>'tenant_id' = edgedb.get_backend_tenant_id()
     '''
 
     member_of_link_query = f'''
@@ -3502,10 +3612,8 @@ def _generate_schema_ver_views(schema: s_schema.Schema) -> List[dbops.View]:
                 AS {qi(ptr_col_name(schema, Ver, 'computed_fields'))}
         FROM
             jsonb_each(
-                edgedb.shobj_metadata(
-                    (SELECT oid FROM pg_database
-                    WHERE datname = {ql(defines.EDGEDB_TEMPLATE_DB)}),
-                    'pg_database'
+                edgedb.get_database_metadata(
+                    {ql(defines.EDGEDB_TEMPLATE_DB)}
                 ) -> 'GlobalSchemaVersion'
             ) AS v
     '''

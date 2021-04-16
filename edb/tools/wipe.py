@@ -38,6 +38,7 @@ from edb.server import defines as edbdef
 from edb.server import pgcluster
 from edb.server import pgconnparams
 
+from edb.pgsql import common as pgcommon
 from edb.pgsql.common import quote_ident as qi
 
 
@@ -59,6 +60,11 @@ class AbsPath(click.Path):
     type=AbsPath(),
     help='database cluster directory')
 @click.option(
+    '--postgres-tenant-id',
+    type=str,
+    help='The tenant ID of an EdgeDB server to wipe.  May be specified'
+         ' multiple times.  If not specified, all tenants are wiped.')
+@click.option(
     '-y',
     'yes',
     is_flag=True,
@@ -67,11 +73,17 @@ class AbsPath(click.Path):
     '--dry-run',
     is_flag=True,
     help='give a summary of wipe operations without performing them')
-def wipe(*, postgres_dsn, data_dir, yes, dry_run):
+def wipe(*, postgres_dsn, data_dir, tenant_id, yes, dry_run):
     if postgres_dsn:
-        cluster = pgcluster.get_remote_pg_cluster(postgres_dsn)
+        cluster = pgcluster.get_remote_pg_cluster(
+            postgres_dsn,
+            tenant_id='<unknown>',
+        )
     elif data_dir:
-        cluster = pgcluster.get_local_pg_cluster(data_dir)
+        cluster = pgcluster.get_local_pg_cluster(
+            data_dir,
+            tenant_id='<unknown>',
+        )
         cluster.set_connection_params(
             pgconnparams.ConnectionParameters(
                 user='postgres',
@@ -87,6 +99,7 @@ def wipe(*, postgres_dsn, data_dir, yes, dry_run):
             'This will DELETE all EdgeDB data from the target '
             'PostgreSQL instance.  ARE YOU SURE?'):
         click.echo('OK. Not proceeding.')
+        return
 
     status = cluster.get_status()
     cluster_started_by_us = False
@@ -99,71 +112,134 @@ def wipe(*, postgres_dsn, data_dir, yes, dry_run):
             cluster_started_by_us = True
 
     try:
-        asyncio.run(do_wipe(cluster, dry_run))
+        asyncio.run(do_wipe(cluster, tenant_id, dry_run))
     finally:
         if cluster_started_by_us:
             cluster.stop()
 
 
 async def do_wipe(
-    cluster: pgcluster.RemoteCluster,
+    cluster: pgcluster.BaseCluster,
+    tenants: List[str],
     dry_run: bool,
 ) -> None:
 
+    conn = await cluster.connect()
+
     try:
-        pgconn = await cluster.connect(database=edbdef.EDGEDB_TEMPLATE_DB)
+        if not tenants:
+            tenants = await _get_all_tenants(conn)
+
+        for tenant in tenants:
+            await wipe_tenant(cluster, conn, tenant, dry_run)
+    finally:
+        await conn.close()
+
+
+async def wipe_tenant(
+    cluster: pgcluster.BaseCluster,
+    pgconn: asyncpg.Connection,
+    tenant: str,
+    dry_run: bool,
+) -> None:
+
+    tpl_db = pgcommon.get_database_backend_name(
+        edbdef.EDGEDB_TEMPLATE_DB,
+        tenant_id=tenant,
+    )
+
+    sup_role = pgcommon.get_role_backend_name(
+        edbdef.EDGEDB_SUPERUSER,
+        tenant_id=tenant,
+    )
+
+    try:
+        tpl_conn = await cluster.connect(database=tpl_db)
     except asyncpg.InvalidCatalogNameError:
         click.secho(
-            f'Instance does not have the {edbdef.EDGEDB_TEMPLATE_DB!r} '
-            f'database. Is it already clean?'
+            f'Instance tenant {tenant!r} does not have the '
+            f'{edbdef.EDGEDB_TEMPLATE_DB!r} database. Is it already clean?'
         )
         return
 
     try:
-        databases, roles = await _get_dbs_and_roles(pgconn)
+        databases, roles = await _get_dbs_and_roles(tpl_conn)
     finally:
-        await pgconn.close()
+        await tpl_conn.close()
 
     stmts = [
-        f'SET ROLE {qi(edbdef.EDGEDB_SUPERUSER)}',
+        f'SET ROLE {qi(sup_role)}',
     ]
 
-    pgconn = await cluster.connect()
+    for db in databases:
+        pg_db = pgcommon.get_database_backend_name(db, tenant_id=tenant)
+        owner = await pgconn.fetchval("""
+            SELECT
+                rolname
+            FROM
+                pg_database d
+                INNER JOIN pg_roles r
+                    ON (d.datdba = r.oid)
+            WHERE
+                d.datname = $1
+        """, pg_db)
 
-    try:
-        for db in databases:
-            owner = await pgconn.fetchval("""
-                SELECT
-                    rolname
-                FROM
-                    pg_database d
-                    INNER JOIN pg_roles r
-                        ON (d.datdba = r.oid)
-                WHERE
-                    d.datname = $1
-            """, db)
-
+        if owner:
             stmts.append(f'SET ROLE {qi(owner)}')
 
-            if db == edbdef.EDGEDB_TEMPLATE_DB:
-                stmts.append(f'ALTER DATABASE {qi(db)} IS_TEMPLATE = false')
+        if pg_db == tpl_db:
+            stmts.append(f'ALTER DATABASE {qi(pg_db)} IS_TEMPLATE = false')
 
-            stmts.append(f'DROP DATABASE {qi(db)}')
+        stmts.append(f'DROP DATABASE {qi(pg_db)}')
 
-        stmts.append('RESET ROLE;')
+    stmts.append('RESET ROLE;')
 
-        for role in roles:
-            stmts.append(f'DROP ROLE {qi(role)}')
+    for role in roles:
+        pg_role = pgcommon.get_role_backend_name(role, tenant_id=tenant)
 
-        for stmt in stmts:
-            click.echo(stmt)
-            if not dry_run:
-                await pgconn.execute(stmt)
-    finally:
-        await pgconn.close()
+        members = await pgconn.fetchval("""
+            SELECT
+                array_agg(member::regrole::text)
+            FROM
+                pg_auth_members
+            WHERE
+                roleid = (SELECT oid FROM pg_roles WHERE rolname = $1)
+        """, pg_role)
+
+        for member in members:
+            stmts.append(f'REVOKE {qi(pg_role)} FROM {qi(member)}')
+
+        stmts.append(f'DROP ROLE {qi(pg_role)}')
+
+    for stmt in stmts:
+        click.echo(stmt + (';' if not stmt.endswith(';') else ''))
+        if not dry_run:
+            await pgconn.execute(stmt)
 
 
-async def _get_dbs_and_roles(pgconn) -> Tuple[List[str], List[str]]:
+async def _get_all_tenants(
+    conn: asyncpg.Connection,
+) -> List[str]:
+    dbs = await conn.fetch(
+        """
+            SELECT datname
+            FROM pg_database
+            WHERE datname LIKE $1
+        """,
+        f"%_{edbdef.EDGEDB_TEMPLATE_DB}",
+    )
+
+    tenants = []
+    for db in dbs:
+        t, _, _ = db['datname'].partition('_')
+        tenants.append(t)
+
+    return tenants
+
+
+async def _get_dbs_and_roles(
+    pgconn: asyncpg.Connection,
+) -> Tuple[List[str], List[str]]:
     compiler = edbcompiler.Compiler()
     await compiler.initialize_from_pg(pgconn)
     compilerctx = edbcompiler.new_compiler_context(
@@ -183,7 +259,7 @@ async def _get_dbs_and_roles(pgconn) -> Tuple[List[str], List[str]]:
 
     databases = list(sorted(
         json.loads(await pgconn.fetchval(get_databases_sql)),
-        key=lambda dname: dname == edbdef.EDGEDB_TEMPLATE_DB,
+        key=lambda dname: edbdef.EDGEDB_TEMPLATE_DB in dname,
     ))
 
     _, get_roles_sql = edbcompiler.compile_edgeql_script(

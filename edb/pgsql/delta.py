@@ -165,6 +165,29 @@ class MetaCommand(sd.Command, metaclass=CommandMeta):
 
         return node
 
+    def _get_backend_params(
+        self,
+        context: sd.CommandContext,
+    ) -> pgcluster.BackendRuntimeParams:
+
+        ctx_backend_params = context.backend_runtime_params
+        if ctx_backend_params is not None:
+            backend_params = cast(
+                pgcluster.BackendRuntimeParams, ctx_backend_params)
+        else:
+            backend_params = pgcluster.get_default_runtime_params()
+
+        return backend_params
+
+    def _get_instance_params(
+        self,
+        context: sd.CommandContext,
+    ) -> pgcluster.BackendInstanceParams:
+        return self._get_backend_params(context).instance_params
+
+    def _get_tenant_id(self, context: sd.CommandContext) -> str:
+        return self._get_instance_params(context).tenant_id
+
 
 class CommandGroupAdapted(MetaCommand, adapts=sd.CommandGroup):
     def apply(
@@ -353,9 +376,11 @@ class CreateGlobalSchemaVersion(
         schema = ObjectMetaCommand.apply(self, schema, context)
         ver_id = str(self.scls.id)
         ver_name = str(self.scls.get_name(schema))
+        tenant_id = self._get_tenant_id(context)
         self.pgops.add(
             dbops.UpdateMetadataSection(
-                dbops.Database(name=edbdef.EDGEDB_TEMPLATE_DB),
+                dbops.Database(name=common.get_database_backend_name(
+                    edbdef.EDGEDB_TEMPLATE_DB, tenant_id=tenant_id)),
                 section='GlobalSchemaVersion',
                 metadata={
                     ver_id: {
@@ -396,6 +421,10 @@ class AlterGlobalSchemaVersion(
 
         instance_params = backend_params.instance_params
         capabilities = instance_params.capabilities
+        tenant_id = instance_params.tenant_id
+
+        tpl_db_name = common.get_database_backend_name(
+            edbdef.EDGEDB_TEMPLATE_DB, tenant_id=tenant_id)
 
         if capabilities & pgcluster.BackendCapabilities.SUPERUSER_ACCESS:
             # Only superusers are generally allowed to make an UPDATE
@@ -410,7 +439,7 @@ class AlterGlobalSchemaVersion(
                         objoid = (
                             SELECT oid
                             FROM pg_database
-                            WHERE datname = {ql(edbdef.EDGEDB_TEMPLATE_DB)}
+                            WHERE datname = {ql(tpl_db_name)}
                         )
                         AND classoid = 'pg_database'::regclass::oid
                     FOR UPDATE
@@ -433,8 +462,7 @@ class AlterGlobalSchemaVersion(
                                     SELECT oid
                                     FROM pg_database
                                     WHERE
-                                        datname =
-                                        {ql(edbdef.EDGEDB_TEMPLATE_DB)}
+                                        datname = {ql(tpl_db_name)}
                                 )
                                 AND mode = 'ShareUpdateExclusiveLock'
                                 AND granted
@@ -479,7 +507,7 @@ class AlterGlobalSchemaVersion(
 
         self.pgops.add(
             dbops.UpdateMetadataSection(
-                dbops.Database(name=edbdef.EDGEDB_TEMPLATE_DB),
+                dbops.Database(name=tpl_db_name),
                 section='GlobalSchemaVersion',
                 metadata={
                     ver_id: {
@@ -4842,16 +4870,23 @@ class CreateDatabase(ObjectMetaCommand, adapts=s_db.CreateDatabase):
     ) -> s_schema.Schema:
         schema = s_db.CreateDatabase.apply(self, schema, context)
         db = self.scls
+        tenant_id = self._get_tenant_id(context)
+        db_name = common.get_database_backend_name(
+            str(self.classname), tenant_id=tenant_id)
+        tpl_name = common.get_database_backend_name(
+            self.template or edbdef.EDGEDB_TEMPLATE_DB, tenant_id=tenant_id)
         self.pgops.add(
             dbops.CreateDatabase(
                 dbops.Database(
-                    str(self.classname),
+                    db_name,
                     metadata=dict(
                         id=str(db.id),
+                        tenant_id=tenant_id,
                         builtin=self.get_attribute_value('builtin'),
+                        name=str(self.classname),
                     ),
-                    template=self.template,
-                )
+                ),
+                template=tpl_name,
             )
         )
         return schema
@@ -4864,7 +4899,10 @@ class DropDatabase(ObjectMetaCommand, adapts=s_db.DropDatabase):
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         schema = s_db.DropDatabase.apply(self, schema, context)
-        self.pgops.add(dbops.DropDatabase(str(self.classname)))
+        tenant_id = self._get_tenant_id(context)
+        db_name = common.get_database_backend_name(
+            str(self.classname), tenant_id=tenant_id)
+        self.pgops.add(dbops.DropDatabase(db_name))
         return schema
 
 
@@ -4884,22 +4922,18 @@ class CreateRole(ObjectMetaCommand, adapts=s_roles.CreateRole):
 
         members = set()
 
-        ctx_backend_params = context.backend_runtime_params
-        if ctx_backend_params is not None:
-            backend_params = cast(
-                pgcluster.BackendRuntimeParams, ctx_backend_params)
-        else:
-            backend_params = pgcluster.get_default_runtime_params()
+        role_name = str(role.get_name(schema))
 
-        instance_params = backend_params.instance_params
-        capabilities = instance_params.capabilities
+        backend_params = self._get_backend_params(context)
+        capabilities = backend_params.instance_params.capabilities
+        tenant_id = backend_params.instance_params.tenant_id
 
         if role.get_superuser(schema):
             membership.append(edbdef.EDGEDB_SUPERGROUP)
 
             # If the cluster is not exposing an explicit superuser role,
             # we will make the created Postgres role superuser if we can
-            if not instance_params.base_superuser:
+            if not backend_params.instance_params.base_superuser:
                 superuser_flag = (
                     capabilities
                     & pgcluster.BackendCapabilities.SUPERUSER_ACCESS
@@ -4912,13 +4946,18 @@ class CreateRole(ObjectMetaCommand, adapts=s_roles.CreateRole):
             members.add(backend_params.session_authorization_role)
 
         role = dbops.Role(
-            name=str(role.get_name(schema)),
+            name=common.get_role_backend_name(role_name, tenant_id=tenant_id),
             allow_login=True,
             superuser=superuser_flag,
             password=passwd,
-            membership=membership,
+            membership=[
+                common.get_role_backend_name(parent_role, tenant_id=tenant_id)
+                for parent_role in membership
+            ],
             metadata=dict(
                 id=str(role.id),
+                name=role_name,
+                tenant_id=tenant_id,
                 password_hash=passwd,
                 builtin=role.get_builtin(schema),
             ),
@@ -4936,33 +4975,38 @@ class AlterRole(ObjectMetaCommand, adapts=s_roles.AlterRole):
         schema = s_roles.AlterRole.apply(self, schema, context)
         role = self.scls
         schema = ObjectMetaCommand.apply(self, schema, context)
-        rolname = str(role.get_name(schema))
+
+        backend_params = self._get_backend_params(context)
+        capabilities = backend_params.instance_params.capabilities
+        tenant_id = backend_params.instance_params.tenant_id
+        instance_params = backend_params.instance_params
+        role_name = str(role.get_name(schema))
+
         kwargs = {}
         if self.has_attribute_value('password'):
             passwd = self.get_attribute_value('password')
             kwargs['password'] = passwd
             kwargs['metadata'] = dict(
                 id=str(role.id),
+                name=role_name,
+                tenant_id=tenant_id,
                 password_hash=passwd,
                 builtin=role.get_builtin(schema),
             )
+
+        pg_role_name = common.get_role_backend_name(
+            role_name, tenant_id=tenant_id)
         if self.has_attribute_value('superuser'):
-            ctx_backend_params = context.backend_runtime_params
-            if ctx_backend_params is not None:
-                backend_params = cast(
-                    pgcluster.BackendRuntimeParams, ctx_backend_params)
-            else:
-                backend_params = pgcluster.get_default_runtime_params()
-
-            instance_params = backend_params.instance_params
-            capabilities = instance_params.capabilities
-
             membership = list(role.get_bases(schema).names(schema))
             membership.append(edbdef.EDGEDB_SUPERGROUP)
             self.pgops.add(
                 dbops.AlterRoleAddMembership(
-                    name=rolname,
-                    membership=membership,
+                    name=pg_role_name,
+                    membership=[
+                        common.get_role_backend_name(
+                            parent_role, tenant_id=tenant_id)
+                        for parent_role in membership
+                    ],
                 )
             )
 
@@ -4978,7 +5022,7 @@ class AlterRole(ObjectMetaCommand, adapts=s_roles.AlterRole):
 
             kwargs['superuser'] = superuser_flag
 
-        dbrole = dbops.Role(name=rolname, **kwargs)
+        dbrole = dbops.Role(name=pg_role_name, **kwargs)
         self.pgops.add(dbops.AlterRole(dbrole))
 
         return schema
@@ -4994,17 +5038,23 @@ class RebaseRole(ObjectMetaCommand, adapts=s_roles.RebaseRole):
         role = self.scls
         schema = ObjectMetaCommand.apply(self, schema, context)
 
+        tenant_id = self._get_tenant_id(context)
+
         for dropped in self.removed_bases:
             self.pgops.add(dbops.AlterRoleDropMember(
-                name=str(dropped.name),
-                member=str(role.get_name(schema)),
+                name=common.get_role_backend_name(
+                    str(dropped.name), tenant_id=tenant_id),
+                member=common.get_role_backend_name(
+                    str(role.get_name(schema)), tenant_id=tenant_id),
             ))
 
         for bases, _pos in self.added_bases:
             for added in bases:
                 self.pgops.add(dbops.AlterRoleAddMember(
-                    name=str(added.name),
-                    member=str(role.get_name(schema)),
+                    name=common.get_role_backend_name(
+                        str(added.name), tenant_id=tenant_id),
+                    member=common.get_role_backend_name(
+                        str(role.get_name(schema)), tenant_id=tenant_id),
                 ))
 
         return schema
@@ -5018,7 +5068,10 @@ class DeleteRole(ObjectMetaCommand, adapts=s_roles.DeleteRole):
     ) -> s_schema.Schema:
         schema = s_roles.DeleteRole.apply(self, schema, context)
         schema = ObjectMetaCommand.apply(self, schema, context)
-        self.pgops.add(dbops.DropRole(str(self.classname)))
+        tenant_id = self._get_tenant_id(context)
+        self.pgops.add(dbops.DropRole(
+            common.get_role_backend_name(
+                str(self.classname), tenant_id=tenant_id)))
         return schema
 
 
@@ -5039,9 +5092,14 @@ class CreateExtensionPackage(
         name = self.scls.get_displayname(schema)
         version = self.scls.get_version(schema)._asdict()
         version['stage'] = version['stage'].name.lower()
+
+        tenant_id = self._get_tenant_id(context)
+        tpl_db_name = common.get_database_backend_name(
+            edbdef.EDGEDB_TEMPLATE_DB, tenant_id=tenant_id)
+
         self.pgops.add(
             dbops.UpdateMetadataSection(
-                dbops.Database(name=edbdef.EDGEDB_TEMPLATE_DB),
+                dbops.Database(name=tpl_db_name),
                 section='ExtensionPackage',
                 metadata={
                     ext_id: {
@@ -5073,10 +5131,13 @@ class DeleteExtensionPackage(
         schema = s_exts.DeleteExtensionPackage.apply(self, schema, context)
         schema = ObjectMetaCommand.apply(self, schema, context)
 
+        tenant_id = self._get_tenant_id(context)
+        tpl_db_name = common.get_database_backend_name(
+            edbdef.EDGEDB_TEMPLATE_DB, tenant_id=tenant_id)
         ext_id = str(self.scls.id)
         self.pgops.add(
             dbops.UpdateMetadataSection(
-                dbops.Database(name=edbdef.EDGEDB_TEMPLATE_DB),
+                dbops.Database(name=tpl_db_name),
                 section='ExtensionPackage',
                 metadata={
                     ext_id: None

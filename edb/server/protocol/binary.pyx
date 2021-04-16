@@ -422,7 +422,7 @@ cdef class EdgeConnection:
             pgaddr = dict(self.server._get_pgaddr())
             if pgaddr.get('password'):
                 pgaddr['password'] = '********'
-            pgaddr['database'] = self.dbview.dbname
+            pgaddr['database'] = self.server.get_pg_dbname(self.dbview.dbname)
             pgaddr.pop('ssl', None)
             if 'sslmode' in pgaddr:
                 pgaddr['sslmode'] = pgaddr['sslmode'].name

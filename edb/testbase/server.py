@@ -1453,6 +1453,7 @@ class _EdgeDBServer:
         postgres_dsn: Optional[str] = None,
         runstate_dir: Optional[str] = None,
         reset_auth: Optional[bool] = None,
+        tenant_id: Optional[str] = None,
     ) -> None:
         self.auto_shutdown = auto_shutdown
         self.bootstrap_command = bootstrap_command
@@ -1463,6 +1464,7 @@ class _EdgeDBServer:
         self.postgres_dsn = postgres_dsn
         self.runstate_dir = runstate_dir
         self.reset_auth = reset_auth
+        self.tenant_id = tenant_id
         self.proc = None
         self.data = None
 
@@ -1573,6 +1575,9 @@ class _EdgeDBServer:
         if self.runstate_dir:
             cmd += ['--runstate-dir', self.runstate_dir]
 
+        if self.tenant_id:
+            cmd += ['--postgres-tenant-id', self.tenant_id]
+
         if self.debug:
             print(f'Starting EdgeDB cluster with the following params: {cmd}')
 
@@ -1621,6 +1626,7 @@ def start_edgedb_server(
     postgres_dsn: Optional[str] = None,
     runstate_dir: Optional[str] = None,
     reset_auth: Optional[bool] = None,
+    tenant_id: Optional[str] = None,
 ):
     if not devmode.is_in_dev_mode() and not runstate_dir:
         if postgres_dsn or adjacent_to:
@@ -1637,6 +1643,7 @@ def start_edgedb_server(
         compiler_pool_size=compiler_pool_size,
         debug=debug,
         postgres_dsn=postgres_dsn,
+        tenant_id=tenant_id,
         runstate_dir=runstate_dir,
         reset_auth=reset_auth,
     )

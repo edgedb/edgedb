@@ -141,7 +141,7 @@ def hash_dirs(
 
 def read_data_cache(
     cache_key: bytes,
-    path: os.PathLike,
+    path: str,
     *,
     pickled: bool=True,
     source_dir: Optional[pathlib.Path] = None,
@@ -167,7 +167,7 @@ def read_data_cache(
 def write_data_cache(
     obj: Any,
     cache_key: bytes,
-    path: os.PathLike,
+    path: str,
     *,
     pickled: bool = True,
     target_dir: Optional[pathlib.Path] = None,
@@ -355,3 +355,8 @@ def get_cache_src_dirs():
         (pathlib.Path(find_spec('edb.lib').origin).parent, '.edgeql'),
         (pathlib.Path(find_spec('edb.pgsql.metaschema').origin).parent, '.py'),
     )
+
+
+def get_default_tenant_id() -> str:
+    catver = defines.EDGEDB_CATALOG_VERSION
+    return f'V{catver:x}'

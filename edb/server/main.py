@@ -44,7 +44,7 @@ import setproctitle
 from edb.common import devmode
 from edb.common import exceptions
 
-from edb.server import defines as edgedb_defines
+from edb.schema import defines as schema_defines
 
 from . import buildmeta
 from . import daemon
@@ -140,6 +140,7 @@ def _init_cluster(cluster, args: ServerConfig) -> bool:
         'default_database_user': args.default_database_user,
         'testmode': args.testmode,
         'insecure': args.insecure,
+        'tenant_id': args.postgres_tenant_id,
         'bootstrap_script': args.bootstrap_script,
         'bootstrap_command': args.bootstrap_command,
     }
@@ -245,11 +246,11 @@ def _run_server(
             text=bootstrap_script_text,
             database=(
                 args.default_database or
-                edgedb_defines.EDGEDB_SUPERUSER_DB
+                defines.EDGEDB_SUPERUSER_DB
             ),
             user=(
                 args.default_database_user or
-                edgedb_defines.EDGEDB_SUPERUSER
+                defines.EDGEDB_SUPERUSER
             ),
         )
 
@@ -338,6 +339,11 @@ def run_server(args: ServerConfig, *, do_setproctitle: bool=False):
     pg_cluster_init_by_us = False
     pg_cluster_started_by_us = False
 
+    if args.postgres_tenant_id is None:
+        tenant_id = buildmeta.get_default_tenant_id()
+    else:
+        tenant_id = f'C{args.postgres_tenant_id}'
+
     cluster: Union[pgcluster.Cluster, pgcluster.RemoteCluster]
     if args.data_dir:
         pg_max_connections = args.max_backend_connections
@@ -353,7 +359,10 @@ def run_server(args: ServerConfig, *, do_setproctitle: bool=False):
                         f'total memory.')
 
         cluster = pgcluster.get_local_pg_cluster(
-            args.data_dir, max_connections=pg_max_connections)
+            args.data_dir,
+            max_connections=pg_max_connections,
+            tenant_id=tenant_id,
+        )
         default_runstate_dir = cluster.get_data_dir()
         cluster.set_connection_params(
             pgconnparams.ConnectionParameters(
@@ -362,7 +371,10 @@ def run_server(args: ServerConfig, *, do_setproctitle: bool=False):
             ),
         )
     elif args.postgres_dsn:
-        cluster = pgcluster.get_remote_pg_cluster(args.postgres_dsn)
+        cluster = pgcluster.get_remote_pg_cluster(
+            args.postgres_dsn,
+            tenant_id=tenant_id,
+        )
 
         instance_params = cluster.get_runtime_params().instance_params
         max_conns = (
@@ -435,8 +447,11 @@ def run_server(args: ServerConfig, *, do_setproctitle: bool=False):
                 if args.data_dir:
                     cluster.set_connection_params(
                         pgconnparams.ConnectionParameters(
-                            user=defines.EDGEDB_SUPERUSER,
-                            database=defines.EDGEDB_TEMPLATE_DB,
+                            user='postgres',
+                            database=pgcluster.get_database_backend_name(
+                                defines.EDGEDB_TEMPLATE_DB,
+                                tenant_id=tenant_id,
+                            ),
                         ),
                     )
 
@@ -496,6 +511,7 @@ class ServerConfig(typing.NamedTuple):
     insecure: bool
     data_dir: pathlib.Path
     postgres_dsn: str
+    postgres_tenant_id: Optional[str]
     log_level: str
     log_to: str
     bootstrap_only: bool
@@ -592,6 +608,19 @@ def _validate_compiler_pool_size(ctx, param, value):
     return value
 
 
+def _validate_tenant_id(ctx, param, value):
+    if value is not None:
+        if len(value) > schema_defines.MAX_TENANT_ID_LENGTH:
+            raise click.BadParameter(
+                f'cannot be longer than'
+                f' {schema_defines.MAX_TENANT_ID_LENGTH} characters')
+        if not value.isalnum() or not value.isascii():
+            raise click.BadParameter(
+                f'contains invalid characters')
+
+    return value
+
+
 _server_options = [
     click.option(
         '-D', '--data-dir', type=PathPath(), envvar='EDGEDB_DATADIR',
@@ -599,6 +628,15 @@ _server_options = [
     click.option(
         '--postgres-dsn', type=str,
         help='DSN of a remote Postgres cluster, if using one'),
+    click.option(
+        '--postgres-tenant-id',
+        type=str,
+        callback=_validate_tenant_id,
+        help='Specifies the tenant ID of this server when hosting'
+             ' multiple EdgeDB instances on one Postgres cluster.'
+             ' Must be an alphanumeric ASCII string, maximum'
+             f' {schema_defines.MAX_TENANT_ID_LENGTH} characters long.',
+    ),
     click.option(
         '-l', '--log-level',
         help=('Logging level.  Possible values: (d)ebug, (i)nfo, (w)arn, '

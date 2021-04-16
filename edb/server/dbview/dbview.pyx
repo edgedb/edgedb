@@ -561,6 +561,8 @@ cdef class DatabaseIndex:
         try:
             return self._dbs[dbname]
         except KeyError:
+            import traceback
+            traceback.print_stack()
             raise errors.UnknownDatabaseError(
                 f'database {dbname!r} does not exist')
 
@@ -617,7 +619,9 @@ cdef class DatabaseIndex:
         )
         block = dbops.PLTopBlock()
         dbops.UpdateMetadata(
-            dbops.Database(name=defines.EDGEDB_SYSTEM_DB),
+            dbops.Database(
+                name=self._server.get_pg_dbname(defines.EDGEDB_SYSTEM_DB),
+            ),
             {'sysconfig': json.loads(data)},
         ).generate(block)
         await conn.simple_query(block.to_string().encode(), True)

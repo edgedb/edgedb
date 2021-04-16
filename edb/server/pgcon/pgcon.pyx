@@ -41,6 +41,8 @@ from edb.edgeql import qltypes
 
 from edb.schema import objects as s_obj
 
+from edb.pgsql import common as pgcommon
+from edb.pgsql.common import quote_ident as pg_qi
 from edb.pgsql.common import quote_literal as pg_ql
 
 from edb.server.pgproto cimport hton
@@ -233,7 +235,7 @@ async def _connect(connargs, dbname, ssl):
     return pgcon
 
 
-async def connect(connargs, dbname):
+async def connect(connargs, dbname, tenant_id):
     global INIT_CON_SCRIPT
 
     # This is different than parsing DSN and use the default sslmode=prefer,
@@ -254,13 +256,15 @@ async def connect(connargs, dbname):
     else:
         pgcon = await _connect(connargs, dbname, ssl=ssl)
 
-    if connargs['user'] != defines.EDGEDB_SUPERUSER:
+    sup_role = pgcommon.get_role_backend_name(
+        defines.EDGEDB_SUPERUSER, tenant_id=tenant_id)
+    if connargs['user'] != sup_role:
         # We used to use SET SESSION AUTHORIZATION here, there're some security
         # differences over SET ROLE, but as we don't allow accessing Postgres
         # directly through EdgeDB, SET ROLE is mostly fine here. (Also hosted
         # backends like Postgres on DigitalOcean support only SET ROLE)
         await pgcon.simple_query(
-            f'SET ROLE {defines.EDGEDB_SUPERUSER}'.encode(),
+            f'SET ROLE {pg_qi(sup_role)}'.encode(),
             ignore_data=True,
         )
 
@@ -410,7 +414,7 @@ cdef class PGConnection:
             self.msg_waiter = None
 
     async def set_server(self, server):
-        assert self.dbname == defines.EDGEDB_SYSTEM_DB
+        assert defines.EDGEDB_SYSTEM_DB in self.dbname
         await self.simple_query(
             b'LISTEN __edgedb_sysevent__;',
             ignore_data=True
@@ -418,7 +422,7 @@ cdef class PGConnection:
         self.server = server
 
     async def signal_sysevent(self, event, **kwargs):
-        assert self.dbname == defines.EDGEDB_SYSTEM_DB
+        assert defines.EDGEDB_SYSTEM_DB in self.dbname
         event = json.dumps({
             'event': event,
             'server_id': self.server._server_id,

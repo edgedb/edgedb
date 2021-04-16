@@ -158,7 +158,7 @@ sys::get_current_database() -> str
         'Return the name of the current database as a string.';
     # The results won't change within a single statement.
     SET volatility := 'Stable';
-    USING SQL FUNCTION 'current_database';
+    USING SQL FUNCTION 'edgedb.get_current_database';
 };
 
 CREATE FUNCTION

@@ -21,6 +21,7 @@ from typing import *
 
 import asyncio
 import enum
+import functools
 import locale
 import logging
 import os
@@ -39,11 +40,16 @@ from edb.common import uuidgen
 
 from edb.server import buildmeta
 from edb.server import defines
+from edb.pgsql import common as pgcommon
 
 from . import pgconnparams
 
 
 logger = logging.getLogger(__name__)
+
+
+get_database_backend_name = pgcommon.get_database_backend_name
+get_role_backend_name = pgcommon.get_role_backend_name
 
 
 def _is_c_utf8_locale_present() -> bool:
@@ -84,6 +90,7 @@ ALL_BACKEND_CAPABILITIES = (
 class BackendInstanceParams(NamedTuple):
 
     capabilities: BackendCapabilities
+    tenant_id: str
     base_superuser: Optional[str] = None
     max_connections: int = 500
     reserved_connections: int = 0
@@ -95,11 +102,17 @@ class BackendRuntimeParams(NamedTuple):
     session_authorization_role: Optional[str] = None
 
 
+@functools.lru_cache
 def get_default_runtime_params(**instance_params) -> BackendRuntimeParams:
     capabilities = ALL_BACKEND_CAPABILITIES
     if not _is_c_utf8_locale_present():
         capabilities &= ~BackendCapabilities.C_UTF8_LOCALE
     instance_params.setdefault('capabilities', capabilities)
+    if 'tenant_id' not in instance_params:
+        instance_params = dict(
+            tenant_id=buildmeta.get_default_tenant_id(),
+            **instance_params,
+        )
 
     return BackendRuntimeParams(
         instance_params=BackendInstanceParams(**instance_params),
@@ -126,6 +139,18 @@ class BaseCluster:
             self._instance_params = instance_params
         self._init_env()
 
+    def get_db_name(self, db_name: str) -> str:
+        return get_database_backend_name(
+            db_name,
+            tenant_id=self._instance_params.tenant_id,
+        )
+
+    def get_role_name(self, role_name: str) -> str:
+        return get_database_backend_name(
+            role_name,
+            tenant_id=self._instance_params.tenant_id,
+        )
+
     async def connect(self, loop=None, **kwargs):
         conn_info = self.get_connection_spec()
         conn_info.update(kwargs)
@@ -140,17 +165,18 @@ class BaseCluster:
             # SESSION AUTHORIZATION is different from the user
             # used to connect.
             await conn.execute(
-                f'SET ROLE {self._default_session_auth};'
+                f'SET ROLE {pgcommon.quote_ident(self._default_session_auth)}'
             )
 
         return conn
 
     def get_runtime_params(self) -> BackendRuntimeParams:
         login_role: str = self.get_connection_params().user
+        sup_role = self.get_role_name(defines.EDGEDB_SUPERUSER)
         return BackendRuntimeParams(
             instance_params=self._instance_params,
             session_authorization_role=(
-                None if login_role == defines.EDGEDB_SUPERUSER else login_role
+                None if login_role == sup_role else login_role
             ),
         )
 
@@ -204,7 +230,16 @@ class BaseCluster:
     def is_managed(self) -> bool:
         raise NotImplementedError
 
-    def dump_database(self, dbname, *, exclude_schemas=None):
+    def get_status(self) -> str:
+        raise NotImplementedError
+
+    def dump_database(
+        self,
+        dbname: str,
+        *,
+        exclude_schemas: Iterable[str] = (),
+        dump_object_owners: bool = True,
+    ) -> bytes:
         status = self.get_status()
         if status != 'running':
             raise ClusterError('cannot dump: cluster is not running')
@@ -220,6 +255,9 @@ class BaseCluster:
             f'--port={conn_spec["port"]}',
             f'--username={conn_spec["user"]}',
         ]
+
+        if not dump_object_owners:
+            args.append('--no-owner')
 
         env = os.environ.copy()
         if conn_spec.get("password"):
@@ -381,13 +419,6 @@ class Cluster(BaseCluster):
                 user='postgres',
                 auth_method='trust'
             )
-            self.add_hba_entry(
-                type='local',
-                database='all',
-                user=defines.EDGEDB_SUPERUSER,
-                auth_method='trust'
-            )
-
             return True
         else:
             return False
@@ -812,13 +843,19 @@ class RemoteCluster(BaseCluster):
 
 
 def get_local_pg_cluster(
-    data_dir: os.PathLike, *, max_connections: Optional[int] = None
+    data_dir: os.PathLike,
+    *,
+    max_connections: Optional[int] = None,
+    tenant_id: Optional[str] = None,
 ) -> Cluster:
     pg_config = buildmeta.get_pg_config_path()
+    if tenant_id is None:
+        tenant_id = buildmeta.get_default_tenant_id()
     instance_params = None
     if max_connections is not None:
         instance_params = get_default_runtime_params(
-            max_connections=max_connections
+            max_connections=max_connections,
+            tenant_id=tenant_id,
         ).instance_params
     return Cluster(
         data_dir=data_dir,
@@ -827,11 +864,19 @@ def get_local_pg_cluster(
     )
 
 
-def get_remote_pg_cluster(dsn: str) -> RemoteCluster:
+def get_remote_pg_cluster(
+    dsn: str,
+    *,
+    tenant_id: Optional[str] = None,
+) -> RemoteCluster:
     addrs, params = pgconnparams.parse_dsn(dsn)
     if len(addrs) > 1:
         raise ValueError('multiple hosts in Postgres DSN are not supported')
     pg_config = buildmeta.get_pg_config_path()
+    if tenant_id is None:
+        t_id = buildmeta.get_default_tenant_id()
+    else:
+        t_id = tenant_id
     rcluster = RemoteCluster(addrs[0], params, pg_config_path=str(pg_config))
 
     loop = asyncio.new_event_loop()
@@ -931,6 +976,7 @@ def get_remote_pg_cluster(dsn: str) -> RemoteCluster:
                 base_superuser=superuser_name,
                 max_connections=int(max_connections),
                 reserved_connections=await _get_reserved_connections(conn),
+                tenant_id=t_id,
             )
 
             return (cluster_type, instance_params)

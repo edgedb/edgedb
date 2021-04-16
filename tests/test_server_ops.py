@@ -32,6 +32,7 @@ import time
 import edgedb
 
 from edb.common import devmode
+from edb.common import taskgroup
 from edb.server import pgcluster, pgconnparams
 from edb.testbase import server as tb
 
@@ -226,5 +227,45 @@ class TestServerOps(tb.TestCase):
             cluster.start()
             try:
                 self.loop.run_until_complete(test(td))
+            finally:
+                cluster.stop()
+
+    def test_server_ops_postgres_multitenant(self):
+        async def test(pgdata_path, tenant):
+            async with tb.start_edgedb_server(
+                auto_shutdown=True,
+                tenant_id=tenant,
+                reset_auth=True,
+                postgres_dsn=f'postgres:///?user=postgres&host={pgdata_path}',
+                runstate_dir=None if devmode.is_in_dev_mode() else pgdata_path,
+            ) as sd:
+                con = await sd.connect()
+                try:
+                    await con.execute(f'CREATE DATABASE {tenant}')
+                    await con.execute(f'CREATE SUPERUSER ROLE {tenant}')
+                    databases = await con.query('SELECT sys::Database.name')
+                    self.assertEqual(set(databases), {'edgedb', tenant})
+                    roles = await con.query('SELECT sys::Role.name')
+                    self.assertEqual(set(roles), {'edgedb', tenant})
+                finally:
+                    await con.aclose()
+
+        async def run():
+            async with taskgroup.TaskGroup() as tg:
+                tg.create_task(test(td, 'tenant1'))
+                tg.create_task(test(td, 'tenant2'))
+
+        with tempfile.TemporaryDirectory() as td:
+            cluster = pgcluster.get_local_pg_cluster(td)
+            cluster.set_connection_params(
+                pgconnparams.ConnectionParameters(
+                    user='postgres',
+                    database='template1',
+                ),
+            )
+            self.assertTrue(cluster.ensure_initialized())
+            cluster.start()
+            try:
+                self.loop.run_until_complete(run())
             finally:
                 cluster.stop()

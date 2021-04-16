@@ -186,6 +186,14 @@ def convert_name(name, suffix='', catenate=True):
         return schema, dbname
 
 
+def get_database_backend_name(db_name: str, *, tenant_id: str) -> str:
+    return f'{tenant_id}_{db_name}'
+
+
+def get_role_backend_name(role_name: str, *, tenant_id: str) -> str:
+    return f'{tenant_id}_{role_name}'
+
+
 def update_aspect(name, aspect):
     """Update the aspect on a non catenated name.
 
