@@ -53,6 +53,40 @@ Note: zero-length arrays (and sets) are represented as a 12-byte value where
 ``dims`` equal to zero regardless of the shape in type descriptor.
 
 
+Sets of arrays are a special case and are represented as the following
+structure:
+
+.. code-block:: c
+
+    struct SetOfArrayValue {
+        // Number of dimensions, currently must
+        // always be 0 or 1.
+        int32 ndims;
+        // Reserved.
+        int32 reserved0;
+        // Reserved.
+        int32 reserved1;
+        // Dimension data. Same layout as above.
+        Dimension dimensions[ndims];
+        // Envelope data, the number of elements
+        // in this array is the sum of dimension sizes:
+        // sum((d.upper - d.lower + 1) for d in dimensions)
+        Envelope elements[];
+    };
+
+    struct Envelope {
+        // Encoded envelope element length in bytes.
+        int32 length;
+        // Number of elements, currently must
+        // always be 1.
+        int32 nelems;
+        // Reserved.
+        int32 reserved
+        // Element data. Same layout as above.
+        Element element[nelems];
+    };
+
+
 .. _ref_protocol_fmt_tuple:
 
 tuple<>,  namedtuple<>, and object<>
