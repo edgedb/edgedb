@@ -36,6 +36,8 @@ import pathlib
 import pprint
 import random
 import re
+import secrets
+import socket
 import subprocess
 import sys
 import tempfile
@@ -1419,7 +1421,20 @@ class _EdgeDBServerData(NamedTuple):
 
     host: str
     port: int
+    password: str
     server_data: Any
+
+    async def connect(self, **kwargs: Any) -> edgedb.AsyncIOConnection:
+        conn_args = dict(
+            user='edgedb',
+            password=self.password,
+            host=self.host,
+            port=self.port,
+        )
+
+        conn_args.update(kwargs)
+
+        return await edgedb.async_connect(**conn_args)
 
 
 class _EdgeDBServer:
@@ -1437,6 +1452,7 @@ class _EdgeDBServer:
         debug: bool,
         postgres_dsn: Optional[str] = None,
         runstate_dir: Optional[str] = None,
+        reset_auth: Optional[bool] = None,
     ) -> None:
         self.auto_shutdown = auto_shutdown
         self.bootstrap_command = bootstrap_command
@@ -1446,29 +1462,44 @@ class _EdgeDBServer:
         self.debug = debug
         self.postgres_dsn = postgres_dsn
         self.runstate_dir = runstate_dir
+        self.reset_auth = reset_auth
         self.proc = None
         self.data = None
 
-    async def _read_runtime_info(self, stdout: asyncio.StreamReader):
+    async def wait_for_server_readiness(self, stream: asyncio.StreamReader):
         while True:
-            line = await stdout.readline()
+            line = await stream.readline()
             if self.debug:
                 print(line.decode())
             if not line:
                 raise RuntimeError("EdgeDB server terminated")
-            if line.startswith(b'EDGEDB_SERVER_DATA:'):
+            if line.startswith(b'READY='):
                 break
 
-        dataline = line.decode().split('EDGEDB_SERVER_DATA:', 1)[1]
-        data = json.loads(dataline)
-        return data
+        _, _, dataline = line.decode().partition('=')
+        return json.loads(dataline)
 
-    async def _shutdown(self):
+    async def kill_process(self, proc: asyncio.Process):
+        proc.terminate()
+        try:
+            await asyncio.wait_for(proc.wait(), timeout=20)
+        except TimeoutError:
+            proc.kill()
+
+    async def _shutdown(self, exc: Optional[Exception] = None):
         if self.proc is None:
             return
+
         if self.proc.returncode is None:
-            self.proc.kill()
-        await self.proc.wait()
+            if self.auto_shutdown and exc is None:
+                try:
+                    await asyncio.wait_for(self.proc.wait(), timeout=60 * 5)
+                except TimeoutError:
+                    self.proc.kill()
+                    raise AssertionError(
+                        'server did not auto-shutdown in 5 minutes')
+            else:
+                await self.kill_process(self.proc)
 
         # asyncio, hello?
         # Workaround SubprocessProtocol.__del__ weirdly
@@ -1478,13 +1509,18 @@ class _EdgeDBServer:
         self.proc = None
 
     async def __aenter__(self):
+        status_r, status_w = socket.socketpair()
+
         cmd = [
             sys.executable, '-m', 'edb.server.main',
             '--port', 'auto',
             '--testmode',
-            '--echo-runtime-info',
+            '--emit-server-status', f'fd://{status_w.fileno()}',
             '--compiler-pool-size', str(self.compiler_pool_size),
         ]
+
+        reset_auth = self.reset_auth
+
         if self.debug:
             cmd.extend(['--log-level', 'd'])
         if self.max_allowed_connections is not None:
@@ -1511,10 +1547,25 @@ class _EdgeDBServer:
         else:
             cmd += ['--temp-dir']
 
+            if reset_auth is None:
+                reset_auth = True
+
+        if not reset_auth:
+            password = None
+            bootstrap_command = ''
+        else:
+            password = secrets.token_urlsafe()
+            bootstrap_command = f"""\
+                ALTER ROLE edgedb {{
+                    SET password := '{password}';
+                }};
+                """
+
         if self.bootstrap_command is not None:
-            cmd += [
-                '--bootstrap-command', self.bootstrap_command,
-            ]
+            bootstrap_command += self.bootstrap_command
+
+        if bootstrap_command:
+            cmd += ['--bootstrap-command', bootstrap_command]
 
         if self.auto_shutdown:
             cmd += ['--auto-shutdown']
@@ -1525,15 +1576,18 @@ class _EdgeDBServer:
         if self.debug:
             print(f'Starting EdgeDB cluster with the following params: {cmd}')
 
+        stat_reader, stat_writer = await asyncio.open_connection(sock=status_r)
+
         self.proc: asyncio.Process = await asyncio.create_subprocess_exec(
             *cmd,
-            stderr=subprocess.PIPE if not self.debug else None,
-            stdout=subprocess.PIPE,
+            stdout=None if self.debug else subprocess.DEVNULL,
+            stderr=subprocess.STDOUT,
+            pass_fds=(status_w.fileno(),),
         )
 
         try:
             self.data = data = await asyncio.wait_for(
-                self._read_runtime_info(self.proc.stdout),
+                self.wait_for_server_readiness(stat_reader),
                 timeout=240,
             )
         except (Exception, asyncio.CancelledError):
@@ -1541,26 +1595,19 @@ class _EdgeDBServer:
                 await self._shutdown()
             finally:
                 raise
+        finally:
+            stat_writer.close()
+            status_w.close()
 
         return _EdgeDBServerData(
-            host=data['runstate_dir'],
+            host=data['socket_dir'],
             port=data['port'],
-            server_data=data
+            password=password,
+            server_data=data,
         )
 
-    async def __aexit__(self, *exc):
-        if self.auto_shutdown and self.data and not self.runstate_dir:
-            i = 600 * 5  # Give it up to 5 minutes to cleanup.
-            while i > 0:
-                if not os.path.exists(self.data['runstate_dir']):
-                    break
-                else:
-                    i -= 1
-                    await asyncio.sleep(0.1)
-            else:
-                raise AssertionError('temp directory was not cleaned up')
-
-        await self._shutdown()
+    async def __aexit__(self, exc_type, exc, tb):
+        await self._shutdown(exc)
 
 
 def start_edgedb_server(
@@ -1573,6 +1620,7 @@ def start_edgedb_server(
     debug: bool=False,
     postgres_dsn: Optional[str] = None,
     runstate_dir: Optional[str] = None,
+    reset_auth: Optional[bool] = None,
 ):
     if not devmode.is_in_dev_mode() and not runstate_dir:
         if postgres_dsn or adjacent_to:
@@ -1590,6 +1638,7 @@ def start_edgedb_server(
         debug=debug,
         postgres_dsn=postgres_dsn,
         runstate_dir=runstate_dir,
+        reset_auth=reset_auth,
     )
 
 

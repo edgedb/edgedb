@@ -26,6 +26,7 @@ import logging
 import os
 import os.path
 import pathlib
+import re
 import resource
 import signal
 import socket
@@ -181,6 +182,37 @@ def _init_parsers():
     ql_parser.preload()
 
 
+def _status_sink_file(path: str) -> Callable[[str], None]:
+    def _writer(status: str) -> None:
+        try:
+            with open(path, 'a') as f:
+                print(status, file=f, flush=True)
+        except OSError as e:
+            logger.warning(
+                f'could not write server status to {path!r}: {e.strerror}')
+        except Exception as e:
+            logger.warning(
+                f'could not write server status to {path!r}: {e}')
+
+    return _writer
+
+
+def _status_sink_fd(fileno: int) -> Callable[[str], None]:
+    def _writer(status: str) -> None:
+        try:
+            with open(fileno, mode='a', closefd=False) as f:
+                print(status, file=f, flush=True)
+        except OSError as e:
+            logger.warning(
+                f'could not write server status to fd://{fileno!r}: '
+                f'{e.strerror}')
+        except Exception as e:
+            logger.warning(
+                f'could not write server status to fd://{fileno!r}: {e}')
+
+    return _writer
+
+
 def _run_server(
     cluster,
     args: ServerConfig,
@@ -221,6 +253,32 @@ def _run_server(
             ),
         )
 
+    status_sink = None
+
+    if args.emit_server_status:
+        if args.emit_server_status.startswith('file://'):
+            status_sink = _status_sink_file(
+                args.emit_server_status[len('file://'):],
+            )
+        elif args.emit_server_status.startswith('fd://'):
+            try:
+                fileno = int(args.emit_server_status[len('fd://'):])
+            except ValueError:
+                abort(
+                    f'invalid file descriptor number in --emit-server-status: '
+                    f'{args.emit_server_status[len("fd://")]!r}'
+                )
+
+            status_sink = _status_sink_fd(fileno)
+        elif m := re.match(r'(^\w+)://', args.emit_server_status):
+            abort(
+                f'unsupported destination scheme in --emit-server-status: '
+                f'{m.group(1)}'
+            )
+        else:
+            # Assume it's a file.
+            status_sink = _status_sink_file(args.emit_server_status)
+
     ss = server.Server(
         loop=loop,
         cluster=cluster,
@@ -232,6 +290,7 @@ def _run_server(
         netport=args.port,
         auto_shutdown=args.auto_shutdown,
         echo_runtime_info=args.echo_runtime_info,
+        status_sink=status_sink,
         startup_script=bootstrap_script,
     )
 
@@ -456,6 +515,7 @@ class ServerConfig(typing.NamedTuple):
     max_backend_connections: Optional[int]
     compiler_pool_size: int
     echo_runtime_info: bool
+    emit_server_status: str
     temp_dir: bool
     auto_shutdown: bool
 
@@ -614,15 +674,22 @@ _server_options = [
         callback=_validate_compiler_pool_size),
     click.option(
         '--echo-runtime-info', type=bool, default=False, is_flag=True,
-        help='echo runtime info to stdout; the format is JSON, prefixed by ' +
+        help='[DEPREATED, use --emit-server-status] '
+             'echo runtime info to stdout; the format is JSON, prefixed by '
              '"EDGEDB_SERVER_DATA:", ended with a new line'),
+    click.option(
+        '--emit-server-status', type=str, default=None, metavar='DEST',
+        help='Instruct the server to emit changes in status to DEST, '
+             'where DEST is a URI specifying a file (file://<path>), '
+             'or a file descriptor (fd://<fileno>).  If the URI scheme '
+             'is not specified, file:// is assumed.'),
     click.option(
         '--temp-dir', type=bool, default=False, is_flag=True,
         help='create a temporary database cluster directory '
              'that will be automatically purged on server shutdown'),
     click.option(
         '--auto-shutdown', type=bool, default=False, is_flag=True,
-        help='shutdown the server after the last management ' +
+        help='shutdown the server after the last ' +
              'connection is closed'),
     click.option(
         '--version', is_flag=True,
@@ -636,7 +703,7 @@ def server_options(func):
     return func
 
 
-def server_main(*, insecure=False, bootstrap, **kwargs):
+def server_main(*, insecure=False, **kwargs):
     logsetup.setup_logging(kwargs['log_level'], kwargs['log_to'])
     exceptions.install_excepthook()
 
@@ -647,12 +714,21 @@ def server_main(*, insecure=False, bootstrap, **kwargs):
     if kwargs['devmode'] is not None:
         devmode.enable_dev_mode(kwargs['devmode'])
 
-    if bootstrap:
+    if kwargs['echo_runtime_info']:
+        warnings.warn(
+            "The `--echo-runtime-info` option is deprecated, use "
+            "`--emit-server-status` instead.",
+            DeprecationWarning,
+        )
+
+    if kwargs['bootstrap']:
         warnings.warn(
             "Option `--bootstrap` is deprecated, use `--bootstrap-only`",
             DeprecationWarning,
         )
         kwargs['bootstrap_only'] = True
+
+    kwargs.pop('bootstrap', False)
 
     if kwargs['default_database_user']:
         if kwargs['default_database_user'] == 'edgedb':

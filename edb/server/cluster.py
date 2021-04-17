@@ -22,6 +22,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import socket
 import subprocess
 import sys
 import tempfile
@@ -138,8 +139,10 @@ class BaseCluster:
         extra_args = ['--{}={}'.format(k.replace('_', '-'), v)
                       for k, v in settings.items()]
         extra_args.append(f'--port={cmd_port}')
+        status_r = status_w = None
         if port == 0:
-            extra_args.append('--echo-runtime-info')
+            status_r, status_w = socket.socketpair()
+            extra_args.append(f'--emit-server-status=fd://{status_w.fileno()}')
 
         env: typing.Optional[dict]
         if self._env:
@@ -148,32 +151,17 @@ class BaseCluster:
         else:
             env = None
 
-        stdout = subprocess.DEVNULL
-        if port == 0:
-            stdout = subprocess.PIPE
-
         self._daemon_process = subprocess.Popen(
             self._edgedb_cmd + extra_args,
-            stdout=stdout,
-            stderr=sys.stderr,
             env=env,
             text=True,
+            pass_fds=(status_w.fileno(),) if status_w is not None else (),
         )
 
-        if port == 0:
-            while 1:
-                stdoutf = self._daemon_process.stdout
-                assert stdoutf is not None
-                line = stdoutf.readline()
-                if line.startswith('EDGEDB_SERVER_DATA:'):
-                    json_data = line[len('EDGEDB_SERVER_DATA:'):]
-                    data = json.loads(json_data)
-                    port = data['port']
-                    stdoutf.close()
-                    break
+        if status_w is not None:
+            status_w.close()
 
-        self._effective_port = port
-        self._test_connection(timeout=wait)
+        self._wait_for_server(timeout=wait, status_sock=status_r)
 
     def stop(self, wait=60):
         if (self._daemon_process is not None and
@@ -209,9 +197,48 @@ class BaseCluster:
 
         return await st.fetchval(edgedb_defines.EDGEDB_TEMPLATE_DB)
 
-    def _test_connection(self, timeout=30):
+    def _wait_for_server(self, timeout=30, status_sock=None):
+
+        async def _read_server_status(stream: asyncio.StreamReader):
+            while True:
+                line = await stream.readline()
+                if not line:
+                    raise ClusterError("EdgeDB server terminated")
+                if line.startswith(b'READY='):
+                    break
+
+            _, _, dataline = line.decode().partition('=')
+            try:
+                return json.loads(dataline)
+            except Exception as e:
+                raise ClusterError(
+                    f"EdgeDB server returned invalid status line: "
+                    f"{dataline!r} ({e})"
+                )
+
         async def test(timeout):
             left = timeout
+            started = time.monotonic()
+
+            if status_sock is not None:
+                stat_reader, stat_writer = await asyncio.open_connection(
+                    sock=status_sock,
+                )
+                try:
+                    data = await asyncio.wait_for(
+                        _read_server_status(stat_reader),
+                        timeout=timeout
+                    )
+                except asyncio.TimeoutError:
+                    raise ClusterError(
+                        f'EdgeDB server did not initialize '
+                        f'within {timeout} seconds'
+                    ) from None
+
+                self._effective_port = data['port']
+                stat_writer.close()
+                left -= (time.monotonic() - started)
+
             while True:
                 started = time.monotonic()
                 try:
@@ -231,7 +258,7 @@ class BaseCluster:
                         continue
                     raise ClusterError(
                         f'could not connect to edgedb-server '
-                        f'within {timeout} seconds')
+                        f'within {timeout} seconds') from None
                 except edgedb.AuthenticationError:
                     return
                 else:

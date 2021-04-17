@@ -105,6 +105,7 @@ class Server:
         netport,
         auto_shutdown: bool=False,
         echo_runtime_info: bool = False,
+        status_sink: Optional[Callable[[str], None]] = None,
         startup_script: Optional[StartupScript] = None,
     ):
 
@@ -145,6 +146,7 @@ class Server:
         self._auto_shutdown = auto_shutdown
 
         self._echo_runtime_info = echo_runtime_info
+        self._status_sink = status_sink
 
         self._startup_script = startup_script
 
@@ -846,6 +848,14 @@ class Server:
                 "runstate_dir": str(self._runstate_dir),
             }
             print(f'\nEDGEDB_SERVER_DATA:{json.dumps(ri)}\n', flush=True)
+
+        if self._status_sink is not None:
+            status = {
+                "port": self._listen_port,
+                "socket_dir": str(self._runstate_dir),
+                "main_pid": os.getpid(),
+            }
+            self._status_sink(f'READY={json.dumps(status)}')
 
     async def stop(self):
         try:
