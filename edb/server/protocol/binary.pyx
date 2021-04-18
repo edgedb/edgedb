@@ -2094,7 +2094,7 @@ cdef class EdgeConnection:
                     self.loop.create_task(
                         self.server._cancel_and_discard_pgcon(
                             self._pinned_pgcon,
-                            self.dbview.name,
+                            self.dbview.dbname,
                         )
                     )
 
