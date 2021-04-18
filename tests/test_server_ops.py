@@ -18,16 +18,17 @@
 
 
 from __future__ import annotations
+from typing import *
 
 import asyncio
+import json
 import os.path
-import pathlib
 import random
 import subprocess
 import sys
 import tempfile
+import time
 
-import asyncpg
 import edgedb
 
 from edb.common import devmode
@@ -37,6 +38,13 @@ from edb.testbase import server as tb
 
 class TestServerOps(tb.TestCase):
 
+    async def kill_process(self, proc: asyncio.subprocess.Process):
+        proc.terminate()
+        try:
+            await asyncio.wait_for(proc.wait(), timeout=20)
+        except TimeoutError:
+            proc.kill()
+
     async def test_server_ops_temp_dir(self):
         # Test that "edgedb-server" works as expected with the
         # following arguments:
@@ -44,25 +52,16 @@ class TestServerOps(tb.TestCase):
         # * "--port=auto"
         # * "--temp-dir"
         # * "--auto-shutdown"
-        # * "--echo-runtime-info"
-
-        bootstrap_command = (
-            r'CONFIGURE SYSTEM INSERT Auth '
-            r'{ priority := 0, method := (INSERT Trust) }'
-        )
+        # * "--emit-server-status"
 
         async with tb.start_edgedb_server(
-                bootstrap_command=bootstrap_command,
-                auto_shutdown=True) as sd:
+            auto_shutdown=True,
+        ) as sd:
 
-            self.assertTrue(os.path.exists(sd.host))
-
-            con1 = await edgedb.async_connect(
-                user='edgedb', host=sd.host, port=sd.port)
+            con1 = await sd.connect()
             self.assertEqual(await con1.query_one('SELECT 1'), 1)
 
-            con2 = await edgedb.async_connect(
-                user='edgedb', host=sd.host, port=sd.port)
+            con2 = await sd.connect()
             self.assertEqual(await con2.query_one('SELECT 1'), 1)
 
             await con1.aclose()
@@ -127,40 +126,70 @@ class TestServerOps(tb.TestCase):
                     'Unexpected server error output:\n' + stderr.decode()
                 )
 
+    async def test_server_ops_emit_server_status_to_file(self):
+        debug = False
+
+        status_fd, status_file = tempfile.mkstemp()
+        os.close(status_fd)
+
+        cmd = [
+            sys.executable, '-m', 'edb.server.main',
+            '--port', 'auto',
+            '--testmode',
+            '--temp-dir',
+            '--log-level=debug',
+            '--max-backend-connections', '10',
+            '--emit-server-status', status_file,
+        ]
+
+        proc: Optional[asyncio.Process] = None
+
+        def _read():
+            with open(status_file, 'r') as f:
+                while True:
+                    result = f.readline()
+                    if not result:
+                        time.sleep(0.1)
+                    else:
+                        return result
+
+        async def _waiter() -> Tuple[str, Mapping[str, Any]]:
+            loop = asyncio.get_running_loop()
+            line = await loop.run_in_executor(None, _read)
+            status, _, dataline = line.partition('=')
+            return status, json.loads(dataline)
+
+        try:
+            if debug:
+                print(*cmd)
+            proc: asyncio.Process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=None if debug else subprocess.DEVNULL,
+                stderr=subprocess.STDOUT,
+            )
+
+            status, data = await asyncio.wait_for(_waiter(), timeout=240)
+            self.assertEqual(status, 'READY')
+            self.assertIsNotNone(data.get('socket_dir'))
+            self.assertIsNotNone(data.get('port'))
+            self.assertIsNotNone(data.get('main_pid'))
+
+        finally:
+            await self.kill_process(proc)
+            os.unlink(status_file)
+
     async def test_server_ops_set_pg_max_connections(self):
-        bootstrap_command = (
-            r'CONFIGURE SYSTEM INSERT Auth '
-            r'{ priority := 0, method := (INSERT Trust) }'
-        )
         actual = random.randint(50, 100)
         async with tb.start_edgedb_server(
             auto_shutdown=True,
-            bootstrap_command=bootstrap_command,
             max_allowed_connections=actual,
         ) as sd:
-            run_dir = sd.server_data['runstate_dir']
-            port = 0
-            for sock in pathlib.Path(run_dir).glob('.s.PGSQL.*'):
-                if sock.is_socket():
-                    port = int(sock.suffix[1:])
-                    break
-
-            con = await edgedb.async_connect(
-                user='edgedb', host=sd.host, port=sd.port)
-            self.assertEqual(await con.query_one('SELECT 1'), 1)
-
+            con = await sd.connect()
             try:
-
-                conn = await asyncpg.connect(
-                    host=run_dir, port=port, user='postgres')
-                try:
-                    max_connectiosn = await conn.fetchval(
-                        "SELECT setting FROM pg_settings "
-                        "WHERE name = 'max_connections'")
-                    self.assertEqual(int(max_connectiosn), actual)
-                finally:
-                    await conn.close()
-
+                max_connections = await con.query_one(
+                    'SELECT cfg::SystemConfig.__pg_max_connections LIMIT 1'
+                )  # TODO: remove LIMIT 1 after #2402
+                self.assertEqual(int(max_connections), actual)
             finally:
                 await con.aclose()
 
@@ -168,23 +197,18 @@ class TestServerOps(tb.TestCase):
         actual = random.randint(50, 100)
 
         async def test(pgdata_path):
-            bootstrap_command = (
-                r'CONFIGURE SYSTEM INSERT Auth '
-                r'{ priority := 0, method := (INSERT Trust) }'
-            )
             async with tb.start_edgedb_server(
                 auto_shutdown=True,
-                bootstrap_command=bootstrap_command,
                 max_allowed_connections=None,
                 postgres_dsn=f'postgres:///?user=postgres&host={pgdata_path}',
+                reset_auth=True,
                 runstate_dir=None if devmode.is_in_dev_mode() else pgdata_path,
             ) as sd:
-                con = await edgedb.async_connect(
-                    user='edgedb', host=sd.host, port=sd.port)
+                con = await sd.connect()
                 try:
                     max_connections = await con.query_one(
-                        'SELECT cfg::SystemConfig.__pg_max_connections '
-                        'LIMIT 1')  # TODO: remove LIMIT 1 after #2402
+                        'SELECT cfg::SystemConfig.__pg_max_connections LIMIT 1'
+                    )  # TODO: remove LIMIT 1 after #2402
                     self.assertEqual(int(max_connections), actual)
                 finally:
                     await con.aclose()

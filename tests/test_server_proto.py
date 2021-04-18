@@ -1896,9 +1896,7 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
             adjacent_to=self.con, postgres_dsn=self.postgres_dsn
         ) as sd:
 
-            con2 = await edgedb.async_connect(
-                host=sd.host,
-                port=sd.port,
+            con2 = await sd.connect(
                 user=conargs.get('user'),
                 password=conargs.get('password'),
                 database=self.get_database_name(),
@@ -1956,9 +1954,7 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
                 ignore=edgedb.AuthenticationError
             ):
                 async with tr:
-                    con3 = await edgedb.async_connect(
-                        host=sd.host,
-                        port=sd.port,
+                    con3 = await sd.connect(
                         user='ddlprop01',
                         password='aaaa',
                         database=self.get_database_name(),
