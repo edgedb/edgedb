@@ -244,8 +244,9 @@ class ErrorsTree:
                 f'class {name}({base}):\n'
                 f'    _code = 0x_{i1:0>2X}_{i2:0>2X}_{i3:0>2X}_{i4:0>2X}'
             )
-            if tags:
-                klass += f'\n    tags = frozenset({{{", ".join(tags)}}})'
+            if client and tags:
+                tag_list = ", ".join(sorted(tags))
+                klass += f'\n    tags = frozenset({{{tag_list}}})'
             lines.append(klass)
 
         lines = '\n\n\n'.join(lines)
