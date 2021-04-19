@@ -97,6 +97,11 @@ cdef tuple DUMP_VER_MAX = (0, 10)
 cdef object logger = logging.getLogger('edb.server')
 cdef object log_metrics = logging.getLogger('edb.server.metrics')
 
+cdef dict ERROR_CODES_PRE_0_10 = {
+    0x05_03_01_01: 0x05_03_00_01,  # TransactionSerializationError #2431
+    0x05_03_01_02: 0x05_03_00_02,  # TransactionDeadlockError      #2431
+}
+
 DEF QUERY_HEADER_IMPLICIT_LIMIT = 0xFF01
 DEF QUERY_HEADER_IMPLICIT_TYPENAMES = 0xFF02
 DEF QUERY_HEADER_IMPLICIT_TYPEIDS = 0xFF03
@@ -1825,6 +1830,10 @@ cdef class EdgeConnection:
         if (isinstance(exc, errors.EdgeDBError) and
                 type(exc) is not errors.EdgeDBError):
             exc_code = exc.get_code()
+
+            if self.protocol_version < (0, 10):
+                exc_code = ERROR_CODES_PRE_0_10.get(exc_code, exc_code)
+
             fields.update(exc._attrs)
 
         internal_error_code = errors.InternalServerError.get_code()
