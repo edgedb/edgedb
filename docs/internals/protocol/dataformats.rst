@@ -18,7 +18,7 @@ The set and array values are represented as the following structure:
 
     struct SetOrArrayValue {
         // Number of dimensions, currently must
-        // always be 0 or 1.
+        // always be 0 or 1. 0 indicates an empty set or array.
         int32       ndims;
 
         // Reserved.
@@ -66,7 +66,7 @@ Envelope. The full structure follows:
 
     struct SetOfArrayValue {
         // Number of dimensions, currently must
-        // always be 0 or 1.
+        // always be 0 or 1. 0 indicates an empty set.
         int32 ndims;
 
         // Reserved.
