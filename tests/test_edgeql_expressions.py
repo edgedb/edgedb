@@ -413,6 +413,13 @@ class TestExpressions(tb.QueryTestCase):
                     r'''SELECT 1e999''',
                 )
 
+        with self.assertRaisesRegex(edgedb.NumericOutOfRangeError,
+                                    'interval field value out of range'):
+            async with self.con.transaction():
+                await self.con.query_one(
+                    r'''SELECT <duration>'3074457345618258602us' ''',
+                )
+
     async def test_edgeql_expr_op_02(self):
         await self.assert_query_result(
             r'''SELECT 40 ^ 2;''',
