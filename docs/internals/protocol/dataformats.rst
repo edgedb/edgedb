@@ -18,14 +18,18 @@ The set and array values are represented as the following structure:
 
     struct SetOrArrayValue {
         // Number of dimensions, currently must
-        // always be 0 or 1.
+        // always be 0 or 1. 0 indicates an empty set or array.
         int32       ndims;
+
         // Reserved.
         int32       reserved0;
+
         // Reserved.
         int32       reserved1;
+
         // Dimension data.
         Dimension   dimensions[ndims];
+
         // Element data, the number of elements
         // in this array is the sum of dimension sizes:
         // sum((d.upper - d.lower + 1) for d in dimensions)
@@ -37,6 +41,7 @@ The set and array values are represented as the following structure:
         // number of elements in the dimension
         // relative to the lower bound.
         int32       upper;
+
         // Lower dimension bound, always 1.
         int32       lower;
     };
@@ -44,6 +49,7 @@ The set and array values are represented as the following structure:
     struct Element {
         // Encoded element data length in bytes.
         int32       length;
+
         // Element data.
         uint8       data[length];
     };
@@ -51,6 +57,47 @@ The set and array values are represented as the following structure:
 
 Note: zero-length arrays (and sets) are represented as a 12-byte value where
 ``dims`` equal to zero regardless of the shape in type descriptor.
+
+
+Sets of arrays are a special case. Every array within a set is wrapped in an
+Envelope. The full structure follows:
+
+.. code-block:: c
+
+    struct SetOfArrayValue {
+        // Number of dimensions, currently must
+        // always be 0 or 1. 0 indicates an empty set.
+        int32 ndims;
+
+        // Reserved.
+        int32 reserved0;
+
+        // Reserved.
+        int32 reserved1;
+
+        // Dimension data. Same layout as above.
+        Dimension dimensions[ndims];
+
+        // Envelope data, the number of elements
+        // in this array is the sum of dimension sizes:
+        // sum((d.upper - d.lower + 1) for d in dimensions)
+        Envelope elements[];
+    };
+
+    struct Envelope {
+        // Encoded envelope element length in bytes.
+        int32 length;
+
+        // Number of elements, currently must
+        // always be 1.
+        int32 nelems;
+
+        // Reserved.
+        int32 reserved
+
+        // Element data. Same layout as above.
+        Element element[nelems];
+    };
 
 
 .. _ref_protocol_fmt_tuple:
@@ -65,6 +112,7 @@ The values are represented as the following structure:
     struct TupleOrNamedTupleOrObjectValue {
         // Number of elements
         int32       nelems;
+
         // Element data.
         Element     elements[nelems];
     };
@@ -72,8 +120,10 @@ The values are represented as the following structure:
     struct Element {
         // Reserved.
         int32       reserved;
+
         // Encoded element data length in bytes.
         int32       length;
+
         // Element data.
         uint8       data[length];
     };
@@ -225,6 +275,7 @@ The :eql:type:`std::decimal` values are represented as the following structure:
     enum DecimalSign {
         // Positive value.
         POS     = 0x0000;
+
         // Negative value.
         NEG     = 0x4000;
     };
@@ -357,10 +408,10 @@ structure:
 
     struct Duration {
         int64   microseconds;
-        
+
         // deprecated, is always 0
         int32   days;
-        
+
         // deprecated, is always 0
         int32   months;
     };
@@ -372,8 +423,10 @@ encoded as:
 
     // microseconds
     0x00 0x00 0x00 0x28 0xdd 0x11 0x72 0x80
+
     // days
     0x00 0x00 0x00 0x00
+
     // months
     0x00 0x00 0x00 0x00
 
@@ -425,6 +478,7 @@ The :eql:type:`std::bigint` values are represented as the following structure:
     enum BigIntSign {
         // Positive value.
         POS     = 0x0000;
+
         // Negative value.
         NEG     = 0x4000;
     };
