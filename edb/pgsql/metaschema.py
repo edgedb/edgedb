@@ -1681,7 +1681,8 @@ class DatetimeInFunction(dbops.Function):
                         || quote_literal(val)
                     ),
                     detail => (
-                        '{"hint":"Please use ISO8601 format. Alternatively '
+                        '{"hint":"Please use ISO8601 format. Example: '
+                        || '2010-12-27T23:59:59-07:00 Alternatively '
                         || '\"to_datetime\" function provides custom '
                         || 'formatting options."}'
                     )
@@ -1762,7 +1763,8 @@ class LocalDatetimeInFunction(dbops.Function):
                         || quote_literal(val)
                     ),
                     detail => (
-                        '{"hint":"Please use ISO8601 format. Alternatively '
+                        '{"hint":"Please use ISO8601 format. Example '
+                        || '2010-04-18T09:27:00 Alternatively '
                         || '\"to_local_datetime\" function provides custom '
                         || 'formatting options."}'
                     )
@@ -1801,7 +1803,8 @@ class LocalDateInFunction(dbops.Function):
                         || quote_literal(val)
                     ),
                     detail => (
-                        '{"hint":"Please use ISO8601 format. Alternatively '
+                        '{"hint":"Please use ISO8601 format. Example '
+                        || '2010-04-18 Alternatively '
                         || '\"to_local_date\" function provides custom '
                         || 'formatting options."}'
                     )
@@ -1839,7 +1842,8 @@ class LocalTimeInFunction(dbops.Function):
                         || quote_literal(val)
                     ),
                     detail => (
-                        '{"hint":"Please use ISO8601 format. Alternatively '
+                        '{"hint":"Please use ISO8601 format. Examples: '
+                        || '18:43:27 or 18:43 Alternatively '
                         || '\"to_local_time\" function provides custom '
                         || 'formatting options."}'
                     )
