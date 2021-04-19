@@ -51,6 +51,7 @@ class PGErrorCode(enum.Enum):
     WrongObjectType = '42809'
 
     DivisionByZeroError = '22012'
+    IntervalFieldOverflow = '22015'
 
     ReadOnlySQLTransactionError = '25006'
 
@@ -321,6 +322,9 @@ def static_interpret_backend_error(fields):
 
     elif err_details.code == PGErrorCode.DivisionByZeroError:
         return errors.DivisionByZeroError(err_details.message)
+
+    elif err_details.code == PGErrorCode.IntervalFieldOverflow:
+        return errors.NumericOutOfRangeError(err_details.message)
 
     elif err_details.code == PGErrorCode.ReadOnlySQLTransactionError:
         return errors.TransactionError(
