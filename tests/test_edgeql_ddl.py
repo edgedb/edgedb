@@ -10853,6 +10853,67 @@ type test::Foo {
             WITH W := (Bar UNION Baz), SELECT (W, W.foo.id);
         """)
 
+    async def test_edgeql_ddl_no_volatile_computable_01(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            "volatile functions are not permitted in schema-defined "
+            "computables",
+        ):
+            await self.con.execute("""
+                CREATE TYPE test::Foo {
+                    CREATE PROPERTY foo := random();
+                }
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            "volatile functions are not permitted in schema-defined "
+            "computables",
+        ):
+            await self.con.execute("""
+                CREATE TYPE test::Foo {
+                    CREATE PROPERTY foo := (SELECT stdgraphql::Query {
+                        asdf := random()
+                    }).asdf
+                }
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            "volatile functions are not permitted in schema-defined "
+            "computables",
+        ):
+            await self.con.execute("""
+                CREATE TYPE test::Noob {
+                    CREATE MULTI LINK friends -> test::Noob;
+                    CREATE LINK best_friends := (
+                        SELECT .friends FILTER random() > 0.5
+                    );
+                }
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            "volatile functions are not permitted in schema-defined "
+            "computables",
+        ):
+            await self.con.execute("""
+                CREATE TYPE test::Noob {
+                    CREATE LINK noob -> test::Noob {
+                        CREATE PROPERTY foo := random();
+                    }
+                }
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            "volatile functions are not permitted in schema-defined "
+            "computables",
+        ):
+            await self.con.execute("""
+                CREATE ALIAS Asdf := Object { foo := random() };
+            """)
+
 
 class TestConsecutiveMigrations(tb.DDLTestCase):
     TRANSACTION_ISOLATION = False
