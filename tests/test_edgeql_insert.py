@@ -500,6 +500,39 @@ class TestInsert(tb.QueryTestCase):
             }
         }])
 
+    async def test_edgeql_insert_nested_11(self):
+        await self.con.execute('''
+            WITH MODULE test
+            INSERT Subordinate {
+                name := 'linkprop test target 6'
+            };
+        ''')
+
+        await self.assert_query_result(
+            '''
+                WITH MODULE test
+                SELECT (
+                    INSERT InsertTest {
+                        name := 'insert nested 6',
+                        l2 := 0,
+                        subordinates := (
+                            SELECT (SELECT Subordinate LIMIT 1) {
+                                @comment := 'comment 6'
+                            }
+                        )
+                    }
+                ) {
+                    subordinates: { name, @comment }
+                }
+            ''',
+            [{
+                'subordinates': [{
+                    'name': 'linkprop test target 6',
+                    '@comment': 'comment 6'
+                }]
+            }]
+        )
+
     async def test_edgeql_insert_returning_01(self):
         await self.con.execute('''
             WITH MODULE test

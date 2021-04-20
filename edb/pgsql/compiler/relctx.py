@@ -340,7 +340,7 @@ def maybe_get_path_rvar(
 def maybe_get_path_var(
         stmt: pgast.Query, path_id: irast.PathId, *,
         aspect: str, ctx: context.CompilerContextLevel
-) -> Optional[pgast.OutputVar]:
+) -> Optional[pgast.BaseExpr]:
     result = _maybe_get_path_rvar(stmt, path_id, aspect=aspect, ctx=ctx)
     if result is None:
         return None
@@ -1023,8 +1023,19 @@ def wrap_set_op_query(
 ) -> pgast.SelectStmt:
     if astutils.is_set_op_query(qry):
         rvar = rvar_for_rel(qry, ctx=ctx)
-        qry = pgast.SelectStmt(from_clause=[rvar])
-        pull_path_namespace(target=qry, source=rvar, ctx=ctx)
+        nqry = pgast.SelectStmt(from_clause=[rvar])
+        nqry.target_list = [
+            pgast.ResTarget(
+                name=col.name,
+                val=pgast.ColumnRef(
+                    name=[rvar.alias.aliasname, col.name],
+                )
+            )
+            for col in astutils.get_leftmost_query(qry).target_list
+        ]
+
+        pull_path_namespace(target=nqry, source=rvar, ctx=ctx)
+        qry = nqry
     return qry
 
 
@@ -1056,6 +1067,8 @@ def range_from_queryset(
     set_ops: Sequence[Tuple[str, pgast.SelectStmt]],
     objname: sn.Name,
     *,
+    prep_filter: Callable[
+        [pgast.SelectStmt, pgast.SelectStmt], None]=lambda a, b: None,
     path_id: Optional[irast.PathId]=None,
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
@@ -1069,6 +1082,7 @@ def range_from_queryset(
         for op, rarg in set_ops[1:]:
             if op == 'filter':
                 qry = wrap_set_op_query(qry, ctx=ctx)
+                prep_filter(qry, rarg)
                 anti_join(qry, rarg, path_id, ctx=ctx)
             else:
                 qry = pgast.SelectStmt(
@@ -1135,6 +1149,7 @@ def range_for_ptrref(
     dml_source: Optional[irast.MutatingStmt]=None,
     for_mutation: bool=False,
     only_self: bool=False,
+    path_id: Optional[irast.PathId]=None,
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
     """"Return a Range subclass corresponding to a given ptr step.
@@ -1207,7 +1222,16 @@ def range_for_ptrref(
         overlays = get_ptr_rel_overlays(
             src_ptrref, dml_source=dml_source, ctx=ctx)
         if overlays and not for_mutation:
-            for op, cte in overlays:
+            # We need the identity var for semi_join to work and
+            # the source rvar so that linkprops can be found here.
+            if path_id:
+                target_ref = qry.target_list[1].val
+                pathctx.put_path_identity_var(
+                    qry, path_id, var=target_ref, env=ctx.env)
+                pathctx.put_path_source_rvar(
+                    qry, path_id, table, env=ctx.env)
+
+            for op, cte, cte_path_id in overlays:
                 rvar = pgast.RelRangeVar(
                     relation=cte,
                     alias=pgast.Alias(
@@ -1226,9 +1250,30 @@ def range_for_ptrref(
                     ],
                     from_clause=[rvar],
                 )
+                # Set up identity var, source rvar for reasons discussed above
+                if path_id:
+                    target_ref = pgast.ColumnRef(
+                        name=[rvar.alias.aliasname, cols[1]])
+                    pathctx.put_path_identity_var(
+                        qry, cte_path_id, var=target_ref, env=ctx.env)
+                    pathctx.put_path_source_rvar(
+                        qry, cte_path_id, rvar, env=ctx.env)
+                    pathctx.put_path_id_map(qry, path_id, cte_path_id)
+
                 set_ops.append((op, qry))
 
-    return range_from_queryset(set_ops, ptrref.shortname, ctx=ctx)
+    def prep_filter(larg: pgast.SelectStmt, rarg: pgast.SelectStmt) -> None:
+        # Set up the proper join on the source field and clear the target list
+        # of the rhs of a filter overlay.
+        assert isinstance(larg.target_list[0].val, pgast.ColumnRef)
+        assert isinstance(rarg.target_list[0].val, pgast.ColumnRef)
+        rarg.where_clause = astutils.join_condition(
+            larg.target_list[0].val, rarg.target_list[0].val)
+        rarg.target_list.clear()
+
+    return range_from_queryset(
+        set_ops, ptrref.shortname,
+        prep_filter=prep_filter, path_id=path_id, ctx=ctx)
 
 
 def range_for_pointer(
@@ -1247,7 +1292,8 @@ def range_for_pointer(
     if ptrref.material_ptr is not None:
         ptrref = ptrref.material_ptr
 
-    return range_for_ptrref(ptrref, dml_source=dml_source, ctx=ctx)
+    return range_for_ptrref(
+        ptrref, dml_source=dml_source, path_id=path_id, ctx=ctx)
 
 
 def rvar_for_rel(
@@ -1360,10 +1406,10 @@ def reuse_type_rel_overlays(
                 tid, op, rel, dml_stmts=dml_stmts, path_id=path_id, ctx=ctx
             )
     ptr_overlays = ctx.ptr_rel_overlays[dml_source]
-    for ptr_name, poverlays in ptr_overlays.items():
-        for op, rel in poverlays:
+    for ptr, poverlays in ptr_overlays.items():
+        for op, rel, path_id in poverlays:
             _add_ptr_rel_overlay(
-                ptr_name, op, rel, dml_stmts=dml_stmts, ctx=ctx
+                ptr, op, rel, path_id=path_id, dml_stmts=dml_stmts, ctx=ctx
             )
 
 
@@ -1372,15 +1418,16 @@ def _add_ptr_rel_overlay(
         op: str,
         rel: Union[pgast.BaseRelation, pgast.CommonTableExpr], *,
         dml_stmts: Iterable[irast.MutatingStmt] = (),
+        path_id: irast.PathId,
         ctx: context.CompilerContextLevel) -> None:
 
     if dml_stmts:
         for dml_stmt in dml_stmts:
             overlays = ctx.ptr_rel_overlays[dml_stmt][ptrref_name]
-            overlays.append((op, rel))
+            overlays.append((op, rel, path_id))
     else:
         overlays = ctx.ptr_rel_overlays[None][ptrref_name]
-        overlays.append((op, rel))
+        overlays.append((op, rel, path_id))
 
 
 def add_ptr_rel_overlay(
@@ -1388,9 +1435,11 @@ def add_ptr_rel_overlay(
         op: str,
         rel: Union[pgast.BaseRelation, pgast.CommonTableExpr], *,
         dml_stmts: Iterable[irast.MutatingStmt] = (),
+        path_id: irast.PathId,
         ctx: context.CompilerContextLevel) -> None:
     _add_ptr_rel_overlay(
-        ptrref.shortname.name, op, rel, dml_stmts=dml_stmts, ctx=ctx)
+        ptrref.shortname.name, op, rel, path_id=path_id, dml_stmts=dml_stmts,
+        ctx=ctx)
 
 
 def get_ptr_rel_overlays(
@@ -1401,6 +1450,7 @@ def get_ptr_rel_overlays(
     Tuple[
         str,
         Union[pgast.BaseRelation, pgast.CommonTableExpr],
+        irast.PathId,
     ]
 ]:
     return ctx.ptr_rel_overlays[dml_source][ptrref.shortname.name]

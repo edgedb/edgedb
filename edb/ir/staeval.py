@@ -84,7 +84,7 @@ def evaluate_SelectStmt(
         ir_stmt: irast.SelectStmt,
         schema: s_schema.Schema) -> irast.ConstExpr:
 
-    if irutils.is_trivial_select(ir_stmt):
+    if irutils.is_trivial_select(ir_stmt) and not ir_stmt.result.is_binding:
         return evaluate(ir_stmt.result, schema)
     else:
         raise UnsupportedExpressionError(

@@ -1048,6 +1048,7 @@ def process_update_body(
             ir_stmt=ir_stmt,
             ir_set=expr,
             dml_cte=update_cte,
+            iterator=ctx.enclosing_cte_iterator,
             shape_op=shape_op,
             source_typeref=typeref,
             ctx=ctx,
@@ -1225,7 +1226,8 @@ def process_link_update(
         # context to ensure that references to the link in the result
         # of this DML statement yield the expected results.
         relctx.add_ptr_rel_overlay(
-            ptrref, 'except', delcte, dml_stmts=ctx.dml_stmt_stack, ctx=ctx)
+            ptrref, 'except', delcte, path_id=path_id,
+            dml_stmts=ctx.dml_stmt_stack, ctx=ctx)
         toplevel.ctes.append(delcte)
     else:
         delqry = None
@@ -1260,7 +1262,7 @@ def process_link_update(
             with ctx.new() as subctx:
                 subctx.ptr_rel_overlays = ctx.ptr_rel_overlays.copy()
                 relctx.add_ptr_rel_overlay(
-                    ptrref, 'except', delcte, ctx=subctx)
+                    ptrref, 'except', delcte, path_id=path_id, ctx=subctx)
 
                 check_cte, _ = process_link_values(
                     ir_stmt=ir_stmt,
@@ -1391,8 +1393,20 @@ def process_link_update(
     # Record the effect of this insertion in the relation overlay
     # context to ensure that references to the link in the result
     # of this DML statement yield the expected results.
+    if shape_op is qlast.ShapeOp.APPEND:
+        # When doing an UPDATE with +=, we need to do an anti-join
+        # based filter to filter out links that were already present
+        # and have been re-added.
+        relctx.add_ptr_rel_overlay(
+            ptrref, 'filter', updcte, dml_stmts=ctx.dml_stmt_stack,
+            path_id=path_id.ptr_path(),
+            ctx=ctx)
+
     relctx.add_ptr_rel_overlay(
-        ptrref, 'union', updcte, dml_stmts=ctx.dml_stmt_stack, ctx=ctx)
+        ptrref, 'union', updcte, dml_stmts=ctx.dml_stmt_stack,
+        path_id=path_id.ptr_path(),
+        ctx=ctx)
+
     toplevel.ctes.append(updcte)
 
     return None

@@ -186,7 +186,7 @@ def get_path_var(
     var: Optional[pgast.BaseExpr]
 
     if astutils.is_set_op_query(rel):
-        # We disable the find_path_output optimizaiton when doing
+        # We disable the find_path_output optimization when doing
         # UNIONs to avoid situations where they have different numbers
         # of columns.
         cb = functools.partial(
@@ -892,7 +892,7 @@ def _get_path_output(
         ref = get_path_var(rel, path_id, aspect=aspect, env=env)
 
     # As an optimization, look to see if the same expression is being
-    # output on a different asepct. This can save us needing to do the
+    # output on a different aspect. This can save us needing to do the
     # work twice in the query.
     other_output = find_path_output(rel, path_id, ref, env=env)
     if other_output is not None and not disable_output_fusion:
@@ -1079,10 +1079,21 @@ def get_path_output_or_null(
 
     alt_aspect = get_less_specific_aspect(path_id, aspect)
     if alt_aspect is not None:
+        # If disable_output_fusion is true, we need to be careful
+        # to not reuse an existing column
+        if disable_output_fusion:
+            preexisting = rel.path_outputs.pop((path_id, alt_aspect), None)
         ref = maybe_get_path_output(
             rel, path_id,
             disable_output_fusion=disable_output_fusion,
             aspect=alt_aspect, env=env)
+        if disable_output_fusion:
+            # Put back the path_output to whatever it was before
+            if not preexisting:
+                rel.path_outputs.pop((path_id, alt_aspect), None)
+            else:
+                rel.path_outputs[(path_id, alt_aspect)] = preexisting
+
         if ref is not None:
             _put_path_output_var(rel, path_id, aspect, ref, env=env)
             return ref, False

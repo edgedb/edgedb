@@ -1611,6 +1611,49 @@ class TestUpdate(tb.QueryTestCase):
             ]
         )
 
+    async def test_edgeql_update_for_03(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                FOR x IN {
+                        'update-test1',
+                        'update-test2',
+                    }
+                UNION (
+                    UPDATE UpdateTest
+                    FILTER UpdateTest.name = x
+                    SET {
+                        str_tags := x
+                    }
+                );
+            """,
+            [{}, {}],  # since updates are in FOR they return objects
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest {
+                    name,
+                    str_tags,
+                } ORDER BY UpdateTest.name;
+            """,
+            [
+                {
+                    'name': 'update-test1',
+                    'str_tags': ['update-test1'],
+                },
+                {
+                    'name': 'update-test2',
+                    'str_tags': ['update-test2'],
+                },
+                {
+                    'name': 'update-test3',
+                    'str_tags': [],
+                },
+            ]
+        )
+
     async def test_edgeql_update_empty_01(self):
         await self.assert_query_result(
             r"""
@@ -2645,4 +2688,223 @@ class TestUpdate(tb.QueryTestCase):
                     }]
                 },
             ]
+        )
+
+    async def test_edgeql_update_add_dupes_01a(self):
+        await self.con.execute("""
+            WITH MODULE test
+            INSERT UpdateTestSubSubType {
+                name := 'add-dupes-scalar',
+                str_tags := {'foo', 'bar'},
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT (
+                    UPDATE UpdateTestSubSubType
+                    FILTER .name = 'add-dupes-scalar'
+                    SET {
+                        str_tags += 'foo'
+                    }
+                ) { name, str_tags }
+            """,
+            [{
+                'name': 'add-dupes-scalar',
+                'str_tags': {'foo', 'bar'},
+            }]
+        )
+
+    async def test_edgeql_update_add_dupes_01b(self):
+        await self.con.execute("""
+            WITH MODULE test
+            INSERT UpdateTestSubSubType {
+                name := 'add-dupes-scalar-foo',
+                str_tags := {'foo', 'baz'},
+            };
+            WITH MODULE test
+            INSERT UpdateTestSubSubType {
+                name := 'add-dupes-scalar-bar',
+                str_tags := {'bar', 'baz'},
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT (
+                    FOR x in {'foo', 'bar'} UNION (
+                        UPDATE UpdateTestSubSubType
+                        FILTER .name = 'add-dupes-scalar-' ++ x
+                        SET {
+                            str_tags += x
+                        }
+                    )
+                ) { name, str_tags };
+            """,
+            [
+                {
+                    'name': 'add-dupes-scalar-foo',
+                    'str_tags': {'foo', 'baz'},
+                },
+                {
+                    'name': 'add-dupes-scalar-bar',
+                    'str_tags': {'bar', 'baz'},
+                },
+            ]
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT (
+                    FOR x in {'foo', 'bar'} UNION (
+                        UPDATE UpdateTestSubSubType
+                        FILTER .name = 'add-dupes-scalar-' ++ x
+                        SET {
+                            str_tags += {x, ('baz' if x = 'foo' else <str>{})}
+                        }
+                    )
+                ) { name, str_tags };
+            """,
+            [
+                {
+                    'name': 'add-dupes-scalar-foo',
+                    'str_tags': {'foo', 'baz'},
+                },
+                {
+                    'name': 'add-dupes-scalar-bar',
+                    'str_tags': {'bar', 'baz'},
+                },
+            ]
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT (
+                    FOR x in {'foo', 'bar'} UNION (
+                        UPDATE UpdateTestSubSubType
+                        FILTER .name = 'add-dupes-scalar-' ++ x
+                        SET {
+                            str_tags += x
+                        }
+                    )
+                ) { name, str_tags };
+            """,
+            [
+                {
+                    'name': 'add-dupes-scalar-foo',
+                    'str_tags': {'foo', 'baz'},
+                },
+                {
+                    'name': 'add-dupes-scalar-bar',
+                    'str_tags': {'bar', 'baz'},
+                },
+            ]
+        )
+
+    async def test_edgeql_update_add_dupes_02(self):
+        await self.con.execute("""
+            WITH MODULE test
+            INSERT UpdateTestSubSubType {
+                name := 'add-dupes',
+                tags := (SELECT Tag FILTER .name IN {'fun', 'wow'})
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT (
+                    UPDATE UpdateTestSubSubType
+                    FILTER .name = 'add-dupes'
+                    SET {
+                        tags += {
+                            (SELECT Tag FILTER .name = 'fun'),
+                        }
+                    }
+                ) {
+                    name,
+                    tags: { name } ORDER BY .name
+                }
+            """,
+            [{
+                'name': 'add-dupes',
+                'tags': [
+                    {'name': 'fun'},
+                    {'name': 'wow'},
+                ],
+            }]
+        )
+
+    async def test_edgeql_update_add_dupes_03(self):
+        await self.con.execute("""
+            WITH MODULE test
+            INSERT UpdateTestSubSubType {
+                name := 'add-dupes',
+                tags := (SELECT Tag FILTER .name IN {'fun', 'wow'})
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT (
+                    UPDATE UpdateTestSubSubType
+                    FILTER .name = 'add-dupes'
+                    SET {
+                        tags += {
+                            (UPDATE Tag FILTER .name = 'fun' SET {flag := 1}),
+                            (UPDATE Tag FILTER .name = 'wow' SET {flag := 2}),
+                        }
+                    }
+                ) {
+                    name,
+                    tags: { name, flag } ORDER BY .name
+                }
+            """,
+            [{
+                'name': 'add-dupes',
+                'tags': [
+                    {'name': 'fun', 'flag': 1},
+                    {'name': 'wow', 'flag': 2},
+                ],
+            }]
+        )
+
+    async def test_edgeql_update_add_dupes_04(self):
+        await self.con.execute("""
+            WITH MODULE test
+            INSERT UpdateTestSubSubType {
+                name := 'add-dupes-lprop',
+                weighted_tags := (
+                    SELECT Tag { @weight := 10 }
+                    FILTER .name IN {'fun', 'wow'})
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT (
+                    UPDATE UpdateTestSubSubType
+                    FILTER .name = 'add-dupes-lprop'
+                    SET {
+                        weighted_tags += (SELECT Tag {@weight := 20}
+                                          FILTER .name = 'fun'),
+                    }
+                ) {
+                    name,
+                    weighted_tags: { name, @weight } ORDER BY .name
+                }
+            """,
+            [{
+                'name': 'add-dupes-lprop',
+                'weighted_tags': [
+                    {'name': 'fun', '@weight': 20},
+                    {'name': 'wow', '@weight': 10},
+                ],
+            }]
         )

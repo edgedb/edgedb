@@ -27,6 +27,9 @@ type Tag {
     required property name -> str {
         constraint exclusive;
     }
+    required property flag -> int64 {
+        default := 0;
+    }
 }
 
 type UpdateTest {
