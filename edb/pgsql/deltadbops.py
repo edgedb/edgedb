@@ -303,69 +303,6 @@ class AlterTableAddMultiConstraint(dbops.AlterTableAddConstraint):
             comment.generate(block)
 
 
-class AlterTableRenameMultiConstraint(
-        dbops.AlterTableBaseMixin, dbops.CommandGroup):
-    def __init__(
-            self, name, *, constraint, new_constraint, contained=False,
-            conditions=None, neg_conditions=None, priority=0):
-
-        dbops.CommandGroup.__init__(
-            self, conditions=conditions, neg_conditions=neg_conditions,
-            priority=priority)
-
-        dbops.AlterTableBaseMixin.__init__(
-            self, name=name, contained=contained)
-
-        self.constraint = constraint
-        self.new_constraint = new_constraint
-
-    def generate(self, block: dbops.PLBlock) -> None:
-        c = self.constraint
-        nc = self.new_constraint
-
-        exprs = self.constraint.constraint_code(block)
-
-        if isinstance(exprs, list) and len(exprs) > 1:
-            for i, _expr in enumerate(exprs):
-                old_name = c.numbered_constraint_name(i, quote=False)
-                new_name = nc.numbered_constraint_name(i, quote=False)
-                if old_name != new_name:
-                    ac = dbops.AlterTableRenameConstraintSimple(
-                        name=self.name, old_name=old_name, new_name=new_name)
-
-                    self.add_command(ac)
-        else:
-            old_name = c.constraint_name(quote=False)
-            new_name = nc.constraint_name(quote=False)
-
-            if old_name != new_name:
-                ac = dbops.AlterTableRenameConstraintSimple(
-                    name=self.name, old_name=old_name, new_name=new_name)
-
-                self.add_command(ac)
-
-        return super().generate(block)
-
-    def generate_extra(self, block: dbops.PLBlock) -> None:
-        comments = []
-
-        exprs = self.new_constraint.constraint_code(block)
-        constr_name = self.new_constraint.raw_constraint_name()
-
-        if isinstance(exprs, list) and len(exprs) > 1:
-            for i, _expr in enumerate(exprs):
-                constraint = MultiConstraintItem(self.new_constraint, i)
-
-                comment = dbops.Comment(constraint, constr_name)
-                comments.append(comment)
-        else:
-            comment = dbops.Comment(self.new_constraint, constr_name)
-            comments.append(comment)
-
-        for comment in comments:
-            comment.generate(block)
-
-
 class AlterTableDropMultiConstraint(dbops.AlterTableDropConstraint):
     def code(self, block: dbops.PLBlock) -> str:
         exprs = self.constraint.constraint_code(block)
@@ -425,40 +362,6 @@ class AlterTableConstraintBase(dbops.AlterTableBaseMixin, dbops.CommandGroup):
 
         return cmds
 
-    def rename_constr_trigger(self, table_name):
-        constraint = self._constraint
-        new_constr = self._new_constraint
-
-        cname = constraint.raw_constraint_name()
-        ncname = new_constr.raw_constraint_name()
-
-        if cname == ncname:
-            return ()
-
-        ins_trigger_name = common.edgedb_name_to_pg_name(cname + '_instrigger')
-        new_ins_trg_name = common.edgedb_name_to_pg_name(
-            ncname + '_instrigger')
-
-        ins_trigger = dbops.Trigger(
-            name=ins_trigger_name, table_name=table_name, events=('insert', ),
-            procedure='null', is_constraint=True, inherit=True)
-
-        rn_ins_trigger = dbops.AlterTriggerRenameTo(
-            ins_trigger, new_name=new_ins_trg_name)
-
-        upd_trigger_name = common.edgedb_name_to_pg_name(cname + '_updtrigger')
-        new_upd_trg_name = common.edgedb_name_to_pg_name(
-            ncname + '_updtrigger')
-
-        upd_trigger = dbops.Trigger(
-            name=upd_trigger_name, table_name=table_name, events=('update', ),
-            procedure='null', is_constraint=True, inherit=True)
-
-        rn_upd_trigger = dbops.AlterTriggerRenameTo(
-            upd_trigger, new_name=new_upd_trg_name)
-
-        return (rn_ins_trigger, rn_upd_trigger)
-
     def drop_constr_trigger(self, table_name, constraint):
         cname = constraint.raw_constraint_name()
 
@@ -512,28 +415,6 @@ class AlterTableConstraintBase(dbops.AlterTableBaseMixin, dbops.CommandGroup):
                 self.name, constraint, proc_name)
             self.add_commands(cr_trigger)
 
-    def rename_constraint(self, old_constraint, new_constraint):
-        # Rename the native constraint(s) normally
-        #
-        rename_constr = AlterTableRenameMultiConstraint(
-            name=self.name, constraint=old_constraint,
-            new_constraint=new_constraint)
-        self.add_command(rename_constr)
-
-        if old_constraint.requires_triggers():
-            old_proc_name = old_constraint.get_trigger_procname()
-            new_proc_name = new_constraint.get_trigger_procname()
-
-            rename_proc = dbops.RenameFunction(
-                name=old_proc_name, args=(), new_name=new_proc_name)
-            self.add_command(rename_proc)
-
-            self.add_commands(
-                self.create_constr_trigger_function(new_constraint))
-
-            mv_trigger = self.rename_constr_trigger(self.name)
-            self.add_commands(mv_trigger)
-
     def alter_constraint(self, old_constraint, new_constraint):
         if old_constraint.delegated and not new_constraint.delegated:
             # No longer delegated, create db structures
@@ -573,22 +454,6 @@ class AlterTableAddConstraint(AlterTableConstraintBase):
     def generate(self, block):
         if not self._constraint.delegated:
             self.create_constraint(self._constraint)
-        super().generate(block)
-
-
-class AlterTableRenameConstraint(AlterTableConstraintBase):
-    def __init__(self, name, *, constraint, new_constraint, **kwargs):
-        super().__init__(name, constraint=constraint, **kwargs)
-        self._new_constraint = new_constraint
-
-    def __repr__(self):
-        return '<{}.{} {!r}>'.format(
-            self.__class__.__module__, self.__class__.__name__,
-            self._constraint)
-
-    def generate(self, block):
-        if not self._constraint.delegated:
-            self.rename_constraint(self._constraint, self._new_constraint)
         super().generate(block)
 
 

@@ -22,7 +22,6 @@ from __future__ import annotations
 import textwrap
 
 from ..common import qname as qn
-from ..common import quote_ident as qi
 from ..common import quote_literal as ql
 
 from . import base
@@ -70,54 +69,6 @@ class CreateEnum(ddl.SchemaObjectOperation):
         return f'CREATE TYPE {qn(*self.name)} AS ENUM ({vals})'
 
 
-class RenameEnum(base.CommandGroup):
-    def __init__(
-            self, name, new_name, *, conditions=None, neg_conditions=None,
-            priority=0):
-        super().__init__(
-            conditions=conditions, neg_conditions=neg_conditions,
-            priority=priority)
-
-        if name[0] != new_name[0]:
-            cmd = AlterEnumSetSchema(name, new_name[0])
-            self.add_command(cmd)
-            name = (new_name[0], name[1])
-
-        if name[1] != new_name[1]:
-            cmd = AlterEnumRenameTo(name, new_name[1])
-            self.add_command(cmd)
-
-
-class AlterEnumSetSchema(ddl.DDLOperation):
-    def __init__(
-            self, name, new_schema, *, conditions=None, neg_conditions=None,
-            priority=0):
-        super().__init__(
-            conditions=conditions, neg_conditions=neg_conditions,
-            priority=priority)
-        self.name = name
-        self.new_schema = new_schema
-
-    def code(self, block: base.PLBlock) -> str:
-        return (f'ALTER TYPE {qn(*self.name)} '
-                f'SET SCHEMA {qi(self.new_schema)}')
-
-
-class AlterEnumRenameTo(ddl.DDLOperation):
-    def __init__(
-            self, name, new_name, *, conditions=None, neg_conditions=None,
-            priority=0):
-        super().__init__(
-            conditions=conditions, neg_conditions=neg_conditions,
-            priority=priority)
-        self.name = name
-        self.new_name = new_name
-
-    def code(self, block: base.PLBlock) -> str:
-        return (f'ALTER TYPE {qn(*self.name)} '
-                f'RENAME TO {qi(self.new_name)}')
-
-
 class AlterEnum(ddl.DDLOperation):
     def __init__(
             self, name, *, conditions=None, neg_conditions=None, priority=0):
@@ -153,18 +104,6 @@ class AlterEnumAddValue(AlterEnum):
         elif self.after:
             code += f' AFTER {ql(self.before)}'
 
-        return code
-
-
-class AlterEnumRenameValue(AlterEnum):
-    def __init__(self, name, old_value, new_value):
-        super().__init__(name)
-        self.old_value = old_value
-        self.new_value = new_value
-
-    def code(self, block: base.PLBlock) -> str:
-        code = self.prefix_code()
-        code += f' RENAME VALUE {ql(self.old_value)} TO {ql(self.new_value)}'
         return code
 
 

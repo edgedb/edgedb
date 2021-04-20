@@ -147,23 +147,3 @@ class AlterCompositeAlterAttributeType:
     def __repr__(self):
         cls = self.__class__
         return f'<{cls.__name__} {self.attribute_name!r} to {self.new_type}>'
-
-
-class AlterCompositeRenameAttribute:
-    def __init__(
-            self, name, old_attr_name, new_attr_name, *, contained=False,
-            conditions=None, neg_conditions=None, priority=0):
-        super().__init__(
-            name, conditions=conditions, neg_conditions=neg_conditions,
-            priority=priority)
-        self.old_attr_name = old_attr_name
-        self.new_attr_name = new_attr_name
-
-    def code(self, block: base.PLBlock) -> str:
-        code = super().prefix_code()  # type: ignore
-        attrterm = self.get_attribute_term()  # type: ignore
-        old_attr_name = common.quote_ident(str(self.old_attr_name))
-        new_attr_name = common.quote_ident(str(self.new_attr_name))
-        code += ' RENAME {} {} TO {}'.format(
-            attrterm, old_attr_name, new_attr_name)
-        return code

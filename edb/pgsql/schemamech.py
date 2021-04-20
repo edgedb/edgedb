@@ -309,20 +309,6 @@ class SchemaDomainConstraint:
 
         return ops
 
-    def rename_ops(self, orig_constr):
-        ops = dbops.CommandGroup()
-
-        domconstr = self._domain_constraint(self)
-        orig_domconstr = self._domain_constraint(orig_constr)
-
-        add_constr = dbops.AlterDomainRenameConstraint(
-            name=domconstr.get_subject_name(quote=False),
-            constraint=orig_domconstr, new_constraint=domconstr)
-
-        ops.add_command(add_constr)
-
-        return ops
-
     def alter_ops(self, orig_constr):
         ops = dbops.CommandGroup()
         return ops
@@ -375,20 +361,6 @@ class SchemaTableConstraint:
             name=tabconstr.get_subject_name(quote=False), constraint=tabconstr)
 
         ops.add_command(add_constr)
-
-        return ops
-
-    def rename_ops(self, orig_constr):
-        ops = dbops.CommandGroup()
-
-        tabconstr = self._table_constraint(self)
-        orig_tabconstr = self._table_constraint(orig_constr)
-
-        rename_constr = deltadbops.AlterTableRenameConstraint(
-            name=tabconstr.get_subject_name(quote=False),
-            constraint=orig_tabconstr, new_constraint=tabconstr)
-
-        ops.add_command(rename_constr)
 
         return ops
 

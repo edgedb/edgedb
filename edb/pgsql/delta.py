@@ -908,26 +908,7 @@ class CreateFunction(FunctionCommand, CreateObject,
 
 class RenameFunction(
         FunctionCommand, RenameObject, adapts=s_funcs.RenameFunction):
-    def apply(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-    ) -> s_schema.Schema:
-        func = self.get_object(schema, context)
-        orig_schema = schema
-        schema = super().apply(schema, context)
-
-        variadic = func.get_params(orig_schema).find_variadic(orig_schema)
-        self.pgops.add(
-            dbops.RenameFunction(
-                name=self.get_pgname(func, orig_schema),
-                new_name=self.get_pgname(func, schema),
-                args=self.compile_args(func, schema),
-                has_variadic=variadic is not None,
-            )
-        )
-
-        return schema
+    pass
 
 
 class AlterFunction(
@@ -1441,34 +1422,7 @@ class CreateConstraint(
 class RenameConstraint(
         ConstraintCommand, RenameObject,
         adapts=s_constr.RenameConstraint):
-    def apply(self, schema, context):
-        orig_schema = schema
-        schema = super().apply(schema, context)
-        constraint = self.scls
-        if not self.constraint_is_effective(orig_schema, constraint):
-            return schema
-
-        subject = constraint.get_subject(schema)
-
-        if subject is not None:
-            schemac_to_backendc = \
-                schemamech.ConstraintMech.\
-                schema_constraint_to_backend_constraint
-
-            bconstr = schemac_to_backendc(
-                subject, constraint, schema, context, self.source_context)
-
-            orig_subject = constraint.get_subject(orig_schema)
-            orig_bconstr = schemac_to_backendc(
-                orig_subject, constraint, orig_schema, context,
-                self.source_context,
-            )
-
-            op = dbops.CommandGroup(priority=1)
-            op.add_command(bconstr.rename_ops(orig_bconstr))
-            self.pgops.add(op)
-
-        return schema
+    pass
 
 
 class AlterConstraintOwned(
@@ -1668,40 +1622,9 @@ class CreateScalarType(ScalarTypeMetaCommand,
         return schema
 
 
-class RenameScalarType(ScalarTypeMetaCommand,
+class RenameScalarType(ScalarTypeMetaCommand, RenameObject,
                        adapts=s_scalars.RenameScalarType):
-    def apply(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-    ) -> s_schema.Schema:
-        schema = s_scalars.RenameScalarType.apply(self, schema, context)
-        schema = ScalarTypeMetaCommand.apply(self, schema, context)
-        scls = self.scls
-
-        ctx = context.get(s_scalars.ScalarTypeCommandContext)
-        orig_schema = ctx.original_schema
-
-        name = common.get_backend_name(orig_schema, scls, catenate=False)
-        new_name = common.get_backend_name(schema, scls, catenate=False)
-
-        if scls.is_enum(schema):
-            self.pgops.add(dbops.RenameEnum(name=name, new_name=new_name))
-
-        else:
-            self.pgops.add(dbops.RenameDomain(name=name, new_name=new_name))
-
-        if self.is_sequence(schema, scls):
-            seq_name = common.get_backend_name(
-                orig_schema, scls, catenate=False, aspect='sequence')
-            new_seq_name = common.get_backend_name(
-                schema, scls, catenate=False, aspect='sequence')
-
-            if seq_name != new_seq_name:
-                self.pgops.add(
-                    dbops.RenameSequence(name=seq_name, new_name=new_seq_name))
-
-        return schema
+    pass
 
 
 class RebaseScalarType(ScalarTypeMetaCommand,
@@ -2038,32 +1961,6 @@ class CompositeObjectMetaCommand(ObjectMetaCommand):
     def attach_alter_table(self, context):
         self._attach_multicommand(context, dbops.AlterTable)
 
-    def rename(self, schema, orig_schema, context, obj):
-        old_table_name = common.get_backend_name(
-            orig_schema, obj, catenate=False)
-
-        new_table_name = common.get_backend_name(
-            schema, obj, catenate=False)
-
-        cond = dbops.TableExists(name=old_table_name)
-
-        if old_table_name[0] != new_table_name[0]:
-            self.pgops.add(
-                dbops.AlterTableSetSchema(
-                    old_table_name, new_table_name[0], conditions=(cond, )))
-            old_table_name = (new_table_name[0], old_table_name[1])
-
-            cond = dbops.TableExists(name=old_table_name)
-
-            self.pgops.add(self.drop_inhview(
-                orig_schema, context, obj,
-            ))
-
-        if old_table_name[1] != new_table_name[1]:
-            self.pgops.add(
-                dbops.AlterTableRenameTo(
-                    old_table_name, new_table_name[1], conditions=(cond, )))
-
     @classmethod
     def get_source_and_pointer_ctx(cls, schema, context):
         if context:
@@ -2243,16 +2140,7 @@ class CreateIndex(IndexCommand, CreateObject, adapts=s_indexes.CreateIndex):
 
 
 class RenameIndex(IndexCommand, RenameObject, adapts=s_indexes.RenameIndex):
-
-    def apply(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-    ) -> s_schema.Schema:
-        schema = s_indexes.RenameIndex.apply(self, schema, context)
-        schema = RenameObject.apply(self, schema, context)
-
-        return schema
+    pass
 
 
 class AlterIndexOwned(
@@ -2381,55 +2269,9 @@ class CreateObjectType(ObjectTypeMetaCommand,
         return schema
 
 
-class RenameObjectType(ObjectTypeMetaCommand,
+class RenameObjectType(ObjectTypeMetaCommand, RenameObject,
                        adapts=s_objtypes.RenameObjectType):
-    def apply(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-    ) -> s_schema.Schema:
-        schema = s_objtypes.RenameObjectType.apply(self, schema, context)
-        scls = self.scls
-        schema = ObjectTypeMetaCommand.apply(self, schema, context)
-
-        objtype = context.get(s_objtypes.ObjectTypeCommandContext)
-        assert objtype
-
-        delta_ctx = context.get(sd.DeltaRootContext)
-        assert delta_ctx
-
-        orig_name = scls.get_name(objtype.original_schema)
-        delta_ctx.op._renames[orig_name] = scls.get_name(schema)
-
-        obj_has_table = has_table(scls, schema)
-
-        self.rename(schema, objtype.original_schema, context, scls)
-
-        if obj_has_table:
-            new_table_name = common.get_backend_name(
-                schema, scls, catenate=False)
-            objtype_table = dbops.Table(name=new_table_name)
-            self.pgops.add(dbops.Comment(
-                object=objtype_table, text=str(self.new_name)))
-
-            objtype.op.table_name = new_table_name
-
-            # Need to update all bits that reference objtype name
-
-            old_constr_name = common.edgedb_name_to_pg_name(
-                str(self.classname) + '.class_check')
-            new_constr_name = common.edgedb_name_to_pg_name(
-                str(self.new_name) + '.class_check')
-
-            alter_table = self.get_alter_table(schema, context, manual=True)
-            rc = dbops.AlterTableRenameConstraintSimple(
-                alter_table.name, old_name=old_constr_name,
-                new_name=new_constr_name)
-            self.pgops.add(rc)
-
-            self.table_name = new_table_name
-
-        return schema
+    pass
 
 
 class RebaseObjectType(ObjectTypeMetaCommand,
@@ -3603,38 +3445,8 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
         return schema
 
 
-class RenameLink(LinkMetaCommand, adapts=s_links.RenameLink):
-    def apply(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-    ) -> s_schema.Schema:
-        schema = s_links.RenameLink.apply(self, schema, context)
-        schema = LinkMetaCommand.apply(self, schema, context)
-        return schema
-
-    def _alter_begin(self, schema, context):
-        schema = super()._alter_begin(schema, context)
-        scls = self.scls
-
-        self.attach_alter_table(context)
-
-        if scls.generic(schema):
-            link_cmd = context.get(s_links.LinkCommandContext)
-            assert link_cmd
-
-            self.rename(
-                schema, link_cmd.original_schema, context, scls)
-            link_cmd.op.table_name = common.get_backend_name(
-                schema, scls, catenate=False)
-        else:
-            link_cmd = context.get(s_links.LinkCommandContext)
-
-            if has_table(scls, schema):
-                self.rename(
-                    schema, link_cmd.original_schema, context, scls)
-
-        return schema
+class RenameLink(LinkMetaCommand, RenameObject, adapts=s_links.RenameLink):
+    pass
 
 
 class RebaseLink(LinkMetaCommand, adapts=s_links.RebaseLink):
@@ -3994,33 +3806,8 @@ class CreateProperty(PropertyMetaCommand, adapts=s_props.CreateProperty):
 
 
 class RenameProperty(
-        PropertyMetaCommand, adapts=s_props.RenameProperty):
-    def apply(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-    ) -> s_schema.Schema:
-        schema = s_props.RenameProperty.apply(self, schema, context)
-        schema = PropertyMetaCommand.apply(self, schema, context)
-
-        source_ctx = context.get(s_sources.SourceCommandContext)
-        if source_ctx is not None:
-            source = source_ctx.scls
-        else:
-            source = None
-
-        if (
-            source is not None
-            and not context.is_deleting(source)
-        ):
-            self.schedule_inhviews_update(
-                schema,
-                context,
-                source,
-                update_descendants=True,
-            )
-
-        return schema
+        PropertyMetaCommand, RenameObject, adapts=s_props.RenameProperty):
+    pass
 
 
 class RebaseProperty(

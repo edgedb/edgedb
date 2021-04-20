@@ -60,15 +60,6 @@ class CreateSchema(ddl.DDLOperation):
         return '<edb.sync.%s %s>' % (self.__class__.__name__, self.name)
 
 
-class RenameSchema(ddl.SchemaObjectOperation):
-    def __init__(self, name, new_name):
-        super().__init__(name)
-        self.new_name = new_name
-
-    def code(self, block: base.PLBlock) -> str:
-        return f'ALTER SCHEMA {qi(self.name)} RENAME TO {qi(self.new_name)}'
-
-
 class DropSchema(ddl.DDLOperation):
     def __init__(
             self, name, *, conditions=None, neg_conditions=None, priority=0):
