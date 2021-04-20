@@ -20,6 +20,8 @@
 from __future__ import annotations
 from typing import *
 
+from edb import errors
+
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
@@ -139,6 +141,14 @@ class AliasCommand(
                 in_ddl_context_name='alias definition',
             ),
         )
+
+        if ir.volatility == qltypes.Volatility.Volatile:
+            srcctx = self.get_attribute_source_context('expr')
+            raise errors.SchemaDefinitionError(
+                f'volatile functions are not permitted in schema-defined '
+                f'computables',
+                context=srcctx
+            )
 
         context.cache_value((expr, classname), ir)
 

@@ -351,6 +351,16 @@ def _merge_types(
         return schema, current_target
 
 
+def _is_view_source(
+        source: Optional[so.Object], schema: s_schema.Schema) -> bool:
+    if isinstance(source, Pointer):
+        return _is_view_source(source.get_source(schema), schema)
+    elif isinstance(source, s_types.Type):
+        return source.is_view(schema)
+    else:
+        return False
+
+
 Pointer_T = TypeVar("Pointer_T", bound="Pointer")
 
 
@@ -1104,6 +1114,17 @@ class PointerCommandOrFragment(
 
         if spec_required is None:
             self.set_attribute_value('required', required, computed=True)
+
+        if (
+            not _is_view_source(source, schema)
+            and expression.irast.volatility == qltypes.Volatility.Volatile
+        ):
+            srcctx = self.get_attribute_source_context('target')
+            raise errors.SchemaDefinitionError(
+                f'volatile functions are not permitted in schema-defined '
+                f'computables',
+                context=srcctx
+            )
 
         self.set_attribute_value('computable', True)
 

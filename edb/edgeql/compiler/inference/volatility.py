@@ -118,13 +118,24 @@ def __infer_set(
     env: context.Environment,
 ) -> qltypes.Volatility:
     if ir.is_binding:
-        return STABLE
-    elif ir.rptr is not None:
-        return infer_volatility(ir.rptr.source, env)
+        vol = STABLE
     elif ir.expr is not None:
-        return infer_volatility(ir.expr, env)
+        vol = infer_volatility(ir.expr, env)
+    elif ir.rptr is not None:
+        vol = infer_volatility(ir.rptr.source, env)
     else:
-        return STABLE
+        vol = STABLE
+
+    # Cache our best-known as to this point volatility, to prevent
+    # infinite recursion.
+    env.inferred_volatility[ir] = vol
+
+    if ir.shape:
+        vol = _max_volatility([
+            _common_volatility((el for el, _ in ir.shape), env),
+            vol,
+        ])
+    return vol
 
 
 @_infer_volatility.register
