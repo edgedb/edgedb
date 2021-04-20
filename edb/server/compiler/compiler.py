@@ -1565,11 +1565,7 @@ class Compiler:
                 except errors.EdgeQLSyntaxError as denormalized_err:
                     raise denormalized_err
                 except Exception:
-                    raise AssertionError(
-                        "Normalized and non-normalized query errors differ")
-                else:
-                    raise AssertionError(
-                        "Normalized query is broken while original is valid")
+                    raise original_err
             else:
                 raise original_err
 

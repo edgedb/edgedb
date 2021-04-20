@@ -4751,3 +4751,9 @@ aa \
             ''',
             [],
         )
+
+    async def test_edgeql_normalization_missmatch_01(self):
+        with self.assertRaisesRegex(
+                edgedb.EdgeQLSyntaxError, "Unexpected '<'"):
+
+            await self.con.query('SELECT <tuple<"">>1;')
