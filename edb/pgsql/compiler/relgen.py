@@ -1424,12 +1424,14 @@ def process_set_as_ifelse(
 
         rvar = pathctx.get_path_value_var(
             stmt, path_id=ir_set.path_id, env=ctx.env)
-        stmt.where_clause = astutils.extend_binop(
-            stmt.where_clause,
-            pgast.NullTest(
-                arg=rvar, negated=True
+        # We need to NULL filter both the result and the input condition
+        for var in [rvar, condref]:
+            stmt.where_clause = astutils.extend_binop(
+                stmt.where_clause,
+                pgast.NullTest(
+                    arg=var, negated=True
+                )
             )
-        )
 
     else:
         with ctx.subrel() as _, _.newscope() as subctx:

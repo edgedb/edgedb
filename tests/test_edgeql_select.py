@@ -5370,6 +5370,17 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '1'}, {'number': '3'}, {'number': '4'}],
         )
 
+    async def test_edgeql_select_if_else_07(self):
+        await self.assert_query_result(
+            r'''
+            WITH MODULE test,
+                 a := (SELECT Issue FILTER .number = '2'),
+                 b := (SELECT Issue FILTER .number = '1'),
+            SELECT a.number IF a.time_estimate < b.time_estimate ELSE b.number;
+            ''',
+            [],
+        )
+
     async def test_edgeql_partial_01(self):
         await self.assert_query_result(
             '''
