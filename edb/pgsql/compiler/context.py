@@ -180,6 +180,7 @@ class CompilerContextLevel(compiler.ContextLevel):
                 Tuple[
                     str,
                     Union[pgast.BaseRelation, pgast.CommonTableExpr],
+                    irast.PathId,
                 ]
             ],
         ],
