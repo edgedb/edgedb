@@ -210,14 +210,8 @@ class ConnectionOverhead(ScoreMethod):
 
 
 @dataclasses.dataclass
-class LatencyRatio(ScoreMethod):
-    # Calculate score based on the ratio of average percentiles between two
-    # groups of latencies. This measures how close this ratio is from the
-    # expected ratio (v100, v90, etc.).
-
+class PercentileBasedScoreMethod(ScoreMethod):
     percentile: str  # one of ('P1', 'P25', 'P50', 'P75', 'P99', 'Mean')
-    dividend: range
-    divisor: range
 
     def calc_average_percentile(self, sim: Simulation, group: range) -> float:
         # Calculate the arithmetic mean of the specified percentile of the
@@ -231,6 +225,16 @@ class LatencyRatio(ScoreMethod):
             )
         )
 
+
+@dataclasses.dataclass
+class LatencyRatio(PercentileBasedScoreMethod):
+    # Calculate score based on the ratio of average percentiles between two
+    # groups of latencies. This measures how close this ratio is from the
+    # expected ratio (v100, v90, etc.).
+
+    dividend: range
+    divisor: range
+
     def calculate(self, sim: Simulation) -> float:
         dividend_percentile = self.calc_average_percentile(sim, self.dividend)
         divisor_percentile = self.calc_average_percentile(sim, self.divisor)
@@ -239,6 +243,24 @@ class LatencyRatio(ScoreMethod):
         sim.record_scoring(
             f'{self.percentile} ratio {self.divisor}/{self.divisor}',
             ratio, score, self.weight
+        )
+        return score * self.weight
+
+
+@dataclasses.dataclass
+class AbsoluteLatency(PercentileBasedScoreMethod):
+    # Calculate score based on the absolute average latency percentiles of the
+    # specified group of latencies. This measures the absolute latency of
+    # acquire latencies.
+
+    group: range
+
+    def calculate(self, sim: Simulation) -> float:
+        value = self.calc_average_percentile(sim, self.group)
+        score = self._calculate(value)
+        sim.record_scoring(
+            f'Average {self.percentile} of {self.group}',
+            value, score, self.weight
         )
         return score * self.weight
 
@@ -1058,6 +1080,91 @@ class TestServerConnpoolSimulation(SimulatedCase):
                     qps=int(self.full_qps / 8),
                     query_cost_base=0.01,
                     query_cost_var=0,
+                ),
+            ]
+        )
+
+    @with_base_test
+    def test_server_connpool_9(self):
+        return Spec(
+            desc='''
+            This test spec is to check the pool performance with low traffic
+            between 3 pre-heated blocks. t1 is a reference block, t2 has the
+            same qps as t1, but t3 with doubled qps came in while t2 is active.
+            As the total throughput is low enough, we shouldn't have a lot of
+            connects and disconnects, nor a high acquire waiting time.
+            ''',
+            timeout=20,
+            duration=1.1,
+            capacity=100,
+            conn_cost_base=0.01,
+            conn_cost_var=0.005,
+            score=[
+                LatencyDistribution(
+                    group=range(1, 4), weight=0.1,
+                    v100=0.2, v90=0.5, v60=1.0, v0=2.0,
+                ),
+                AbsoluteLatency(
+                    group=range(1, 4), percentile='P99', weight=0.1,
+                    v100=0.001, v90=0.002, v60=0.004, v0=0.05
+                ),
+                AbsoluteLatency(
+                    group=range(1, 4), percentile='P75', weight=0.2,
+                    v100=0.0001, v90=0.0002, v60=0.0004, v0=0.005
+                ),
+                ConnectionOverhead(
+                    weight=0.6, v100=50, v90=90, v60=100, v0=200,
+                    use_time_scale=False,
+                ),
+            ],
+            dbs=[
+                DBSpec(
+                    db='t1',
+                    start_at=0,
+                    end_at=0.1,
+                    qps=int(self.full_qps / 32),
+                    query_cost_base=0.01,
+                    query_cost_var=0.005,
+                ),
+                DBSpec(
+                    db='t1',
+                    start_at=0.1,
+                    end_at=0.4,
+                    qps=int(self.full_qps / 16),
+                    query_cost_base=0.01,
+                    query_cost_var=0.005,
+                ),
+                DBSpec(
+                    db='t2',
+                    start_at=0.5,
+                    end_at=0.6,
+                    qps=int(self.full_qps / 32),
+                    query_cost_base=0.01,
+                    query_cost_var=0.005,
+                ),
+                DBSpec(
+                    db='t2',
+                    start_at=0.6,
+                    end_at=1.0,
+                    qps=int(self.full_qps / 16),
+                    query_cost_base=0.01,
+                    query_cost_var=0.005,
+                ),
+                DBSpec(
+                    db='t3',
+                    start_at=0.7,
+                    end_at=0.8,
+                    qps=int(self.full_qps / 16),
+                    query_cost_base=0.01,
+                    query_cost_var=0.005,
+                ),
+                DBSpec(
+                    db='t3',
+                    start_at=0.8,
+                    end_at=0.9,
+                    qps=int(self.full_qps / 8),
+                    query_cost_base=0.01,
+                    query_cost_var=0.005,
                 ),
             ]
         )

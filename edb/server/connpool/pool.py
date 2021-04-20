@@ -650,8 +650,17 @@ class Pool(BasePool[C]):
             return
 
         if total_nwaiters < self._max_capacity:
-            # The quota should already be set.
-            self._maybe_rebalance()
+
+            if self._cur_capacity >= self._max_capacity:
+                self._maybe_rebalance()
+
+            else:
+                # If we still have space for more connections, don't actively
+                # rebalance the pool just yet - rebalance will kick in when the
+                # max capacity is hit; or we'll depend on the garbage
+                # collection to shrink the over-quota blocks.
+                pass
+
             return
 
         if self._is_starving:
