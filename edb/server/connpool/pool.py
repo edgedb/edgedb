@@ -33,6 +33,7 @@ MIN_CONN_TIME_THRESHOLD = 0.01
 MIN_QUERY_TIME_THRESHOLD = 0.001
 MIN_LOG_TIME_THRESHOLD = 1
 CONNECT_FAILURE_RETRIES = 3
+MIN_IDLE_TIME_BEFORE_GC = 120
 
 logger = logging.getLogger("edb.server")
 
@@ -94,6 +95,7 @@ class Snapshot:
 class ConnectionState:
     in_use_since: float = 0
     in_use: bool = False
+    in_stack_since: float = 0
 
 
 class Block(typing.Generic[C]):
@@ -108,7 +110,7 @@ class Block(typing.Generic[C]):
     conn_acquired_num: int
     conn_waiters_num: int
     conn_waiters: typing.Deque[asyncio.Future[None]]
-    conn_queue: typing.Deque[C]
+    conn_stack: typing.Deque[C]
     connect_failures_num: int
 
     querytime_avg: rolavg.RollingAverage
@@ -136,7 +138,7 @@ class Block(typing.Generic[C]):
         self.conn_acquired_num = 0
         self.conn_waiters_num = 0
         self.conn_waiters = collections.deque()
-        self.conn_queue = collections.deque()
+        self.conn_stack = collections.deque()
         self.connect_failures_num = 0
 
         self.querytime_avg = rolavg.RollingAverage(history_size=20)
@@ -153,7 +155,7 @@ class Block(typing.Generic[C]):
         return self.conn_waiters_num
 
     def count_queued_conns(self) -> int:
-        return len(self.conn_queue)
+        return len(self.conn_stack)
 
     def count_pending_conns(self) -> int:
         return self.pending_conns
@@ -178,12 +180,18 @@ class Block(typing.Generic[C]):
     def dec_acquire_counter(self) -> None:
         self.conn_acquired_num -= 1
 
-    def try_steal(self) -> typing.Optional[C]:
-        if self.conn_queue:
-            conn = self.conn_queue.pop()
-            assert conn in self.conns
-            return conn
-        return None
+    def try_steal(
+        self, only_older_than: typing.Optional[float] = None
+    ) -> typing.Optional[C]:
+        if not self.conn_stack:
+            return None
+
+        if only_older_than is not None:
+            oldest_conn = self.conn_stack[0]
+            if self.conns[oldest_conn].in_stack_since > only_older_than:
+                return None
+
+        return self.conn_stack.popleft()
 
     async def acquire(self) -> C:
         # There can be a race between a waiter scheduled for to wake up
@@ -193,7 +201,7 @@ class Block(typing.Generic[C]):
         self.conn_waiters_num += 1
         try:
             attempts = 0
-            while not self.conn_queue:
+            while not self.conn_stack:
                 waiter = self.loop.create_future()
 
                 attempts += 1
@@ -218,18 +226,19 @@ class Block(typing.Generic[C]):
                         # The waiter could be removed from self.conn_waiters
                         # by a previous release() call.
                         pass
-                    if self.conn_queue and not waiter.cancelled():
+                    if self.conn_stack and not waiter.cancelled():
                         # We were woken up by release(), but can't take
                         # the call.  Wake up the next in line.
                         self._wakeup_next_waiter()
                     raise
 
-            return self.conn_queue.popleft()
+            return self.conn_stack.pop()
         finally:
             self.conn_waiters_num -= 1
 
     def release(self, conn: C) -> None:
-        self.conn_queue.append(conn)
+        self.conn_stack.append(conn)
+        self.conns[conn].in_stack_since = time.monotonic()
         self._wakeup_next_waiter()
 
     def abort_waiters(self, e: Exception) -> None:
@@ -553,6 +562,8 @@ class Pool(BasePool[C]):
     _nacquires: int
     _htick: typing.Optional[asyncio.Handle]
     _to_drop: typing.List[Block[C]]
+    _gc_interval: float  # minimum seconds between GC runs
+    _gc_requests: int  # number of GC requests
 
     def __init__(
         self,
@@ -561,6 +572,7 @@ class Pool(BasePool[C]):
         disconnect: Disconnector[C],
         max_capacity: int,
         stats_collector: typing.Optional[StatsCollector]=None,
+        min_idle_time_before_gc: float = MIN_IDLE_TIME_BEFORE_GC,
     ) -> None:
         super().__init__(
             connect=connect,
@@ -577,6 +589,8 @@ class Pool(BasePool[C]):
         self._htick = None
         self._first_tick = True
         self._to_drop = []
+        self._gc_interval = min_idle_time_before_gc
+        self._gc_requests = 0
 
     def _maybe_schedule_tick(self) -> None:
         if self._first_tick:
@@ -953,6 +967,31 @@ class Pool(BasePool[C]):
 
         return await block.acquire()
 
+    def _run_gc(self) -> None:
+        loop = self._get_loop()
+
+        if self._is_starving:
+            # Bail out early if any block is starving, try GC later
+            loop.call_later(self._gc_interval, self._run_gc)
+            return
+
+        if self._gc_requests > 1:
+            # Schedule to run one more GC for requests before this run
+            self._gc_requests = 1
+            loop.call_later(self._gc_interval, self._run_gc)
+
+        else:
+            # We will take care of the only GC request and pause GC
+            self._gc_requests = 0
+
+        # Make sure the unused connections stay in the pool for at least one
+        # GC interval. So theoretically unused connections are usually GC-ed
+        # within 1-2 GC intervals.
+        only_older_than = time.monotonic() - self._gc_interval
+        for block in self._blocks.values():
+            while (conn := block.try_steal(only_older_than)) is not None:
+                loop.create_task(self._discard_conn(block, conn))
+
     async def acquire(self, dbname: str) -> C:
         self._nacquires += 1
         self._maybe_schedule_tick()
@@ -1006,6 +1045,13 @@ class Pool(BasePool[C]):
 
         if not self._maybe_free_conn(block, conn):
             block.release(conn)
+
+            # Only request for GC if the connection is released unused
+            self._gc_requests += 1
+            if self._gc_requests == 1:
+                # Only schedule GC for the very first request - following
+                # requests will be grouped into the next GC
+                self._get_loop().call_later(self._gc_interval, self._run_gc)
 
     async def prune_inactive_connections(self, dbname: str) -> None:
         try:

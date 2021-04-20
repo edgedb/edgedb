@@ -266,6 +266,19 @@ class AbsoluteLatency(PercentileBasedScoreMethod):
 
 
 @dataclasses.dataclass
+class EndingCapacity(ScoreMethod):
+    # Calculate the score based on the capacity at the end of the test
+
+    def calculate(self, sim: Simulation) -> float:
+        value = sim.stats[-1]["capacity"]
+        score = self._calculate(value)
+        sim.record_scoring(
+            'Ending capacity', value, score, self.weight
+        )
+        return score * self.weight
+
+
+@dataclasses.dataclass
 class Spec:
     timeout: float
     duration: float
@@ -485,6 +498,8 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
             stats_collector=on_stats if collect_stats else None,
             max_capacity=spec.capacity,
         )
+        if hasattr(pool, '_gc_interval'):
+            pool._gc_interval = 0.1 * TIME_SCALE
 
         TICK_EVERY = 0.001
 
@@ -619,7 +634,7 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
         qps = 100
         getters = 0
         sim = Simulation()
-        pool = SingleBlockPool(
+        pool: SingleBlockPool = SingleBlockPool(
             connect=self.make_fake_connect(sim, 0, 0),
             disconnect=self.make_fake_disconnect(sim, 0, 0),
             max_capacity=POOL_SIZE,
@@ -1068,7 +1083,7 @@ class TestServerConnpoolSimulation(SimulatedCase):
             conn_cost_var=0,
             score=[
                 ConnectionOverhead(
-                    weight=1, v100=25, v90=50, v60=90, v0=100,
+                    weight=1, v100=25, v90=50, v60=90, v0=200,
                     use_time_scale=False,
                 ),
             ],
@@ -1076,7 +1091,23 @@ class TestServerConnpoolSimulation(SimulatedCase):
                 DBSpec(
                     db='t1',
                     start_at=0,
-                    end_at=0.5,
+                    end_at=0.1,
+                    qps=int(self.full_qps / 32),
+                    query_cost_base=0.01,
+                    query_cost_var=0,
+                ),
+                DBSpec(
+                    db='t1',
+                    start_at=0.1,
+                    end_at=0.2,
+                    qps=int(self.full_qps / 16),
+                    query_cost_base=0.01,
+                    query_cost_var=0,
+                ),
+                DBSpec(
+                    db='t1',
+                    start_at=0.2,
+                    end_at=0.6,
                     qps=int(self.full_qps / 8),
                     query_cost_base=0.01,
                     query_cost_var=0,
@@ -1163,6 +1194,45 @@ class TestServerConnpoolSimulation(SimulatedCase):
                     start_at=0.8,
                     end_at=0.9,
                     qps=int(self.full_qps / 8),
+                    query_cost_base=0.01,
+                    query_cost_var=0.005,
+                ),
+            ]
+        )
+
+    @with_base_test
+    def test_server_connpool_10(self):
+        return Spec(
+            desc='''
+            This test spec is to check the pool garbage collection feature.
+            t1 is a constantly-running reference block, t2 starts in the middle
+            with a full qps and ends early to leave enough time for the pool to
+            execute garbage collection.
+            ''',
+            timeout=10,
+            duration=1.1,
+            capacity=100,
+            conn_cost_base=0.01,
+            conn_cost_var=0.005,
+            score=[
+                EndingCapacity(
+                    weight=1.0, v100=10, v90=20, v60=40, v0=100,
+                ),
+            ],
+            dbs=[
+                DBSpec(
+                    db='t1',
+                    start_at=0,
+                    end_at=1.0,
+                    qps=int(self.full_qps / 32),
+                    query_cost_base=0.01,
+                    query_cost_var=0.005,
+                ),
+                DBSpec(
+                    db='t2',
+                    start_at=0.4,
+                    end_at=0.6,
+                    qps=int(self.full_qps / 32) * 31,
                     query_cost_base=0.01,
                     query_cost_var=0.005,
                 ),
