@@ -1566,6 +1566,9 @@ class Compiler:
                     raise denormalized_err
                 except Exception:
                     raise original_err
+                else:
+                    raise AssertionError(
+                        "Normalized query is broken while original is valid")
             else:
                 raise original_err
 
