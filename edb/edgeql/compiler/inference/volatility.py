@@ -119,10 +119,10 @@ def __infer_set(
 ) -> qltypes.Volatility:
     if ir.is_binding:
         vol = STABLE
-    elif ir.expr is not None:
-        vol = infer_volatility(ir.expr, env)
     elif ir.rptr is not None:
         vol = infer_volatility(ir.rptr.source, env)
+    elif ir.expr is not None:
+        vol = infer_volatility(ir.expr, env)
     else:
         vol = STABLE
 
@@ -132,7 +132,9 @@ def __infer_set(
 
     if ir.shape:
         vol = _max_volatility([
-            _common_volatility((el for el, _ in ir.shape), env),
+            _common_volatility(
+                (el.expr for el, _ in ir.shape if el.expr), env
+            ),
             vol,
         ])
     return vol
