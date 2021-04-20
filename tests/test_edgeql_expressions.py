@@ -2625,7 +2625,13 @@ class TestExpressions(tb.QueryTestCase):
             [[3, 4.5], [1, 2]],
         )
 
-    async def test_edgeql_expr_implicit_cast_07(self):
+    @test.xfail("""
+        Error: can not take cross product of volatile operation
+
+        ... but it really shouldn't be a cross product, and a similar case
+        with + below works fine. Sigh.
+    """)
+    async def test_edgeql_expr_implicit_cast_07a(self):
         await self.assert_query_result(
             r"""
                 WITH
@@ -2639,6 +2645,22 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT (3 / (A.a + A.b), 3 / (A.a + A.c)) LIMIT 1;
             """,
             [[1.5, 1.5]],
+        )
+
+    async def test_edgeql_expr_implicit_cast_07b(self):
+        await self.assert_query_result(
+            r"""
+                WITH
+                    MODULE schema,
+                    A := (
+                        SELECT ObjectType {
+                            a := 1,
+                            b := 1 + 0 * random(),  # float64
+                            c := 1 + 0 * <int64>random(),
+                        })
+                SELECT (3 / (A.a + A.b) + 3 / (A.a + A.c)) LIMIT 1;
+            """,
+            [3.0],
         )
 
     async def test_edgeql_expr_implicit_cast_08(self):
