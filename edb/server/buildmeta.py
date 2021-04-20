@@ -20,6 +20,7 @@
 from __future__ import annotations
 from typing import *
 
+import datetime
 import functools
 import hashlib
 import json
@@ -38,6 +39,8 @@ import edb
 from edb.common import devmode
 from edb.common import verutils
 from edb.common import debug
+
+from . import defines
 
 try:
     import setuptools_scm
@@ -201,6 +204,7 @@ def get_version() -> verutils.Version:
         version = setuptools_scm.get_version(
             root=str(root),
             version_scheme=functools.partial(scm_version_scheme, root),
+            local_scheme=functools.partial(scm_local_scheme, root),
         )
         version = verutils.parse_version(version)
     else:
@@ -320,6 +324,26 @@ def scm_version_scheme(root, version):
 
     incremented_ver = f'{major}.{minor}{microkind}{micro}{prekind}{preval}'
     return f'{incremented_ver}.dev{commits_on_branch}'
+
+
+def scm_local_scheme(root, version):
+    pretend = os.environ.get('SETUPTOOLS_SCM_PRETEND_VERSION')
+    if pretend:
+        return ''
+
+    proc = subprocess.run(
+        ['git', 'rev-parse', '--verify', '--quiet', 'HEAD'],
+        stdout=subprocess.PIPE,
+        universal_newlines=True,
+        check=True,
+        cwd=root,
+    )
+
+    curdate = datetime.datetime.now(tz=datetime.timezone.utc)
+    curdate_str = curdate.strftime(r'%Y%m%d%H')
+    commitish = proc.stdout.strip()
+    catver = defines.EDGEDB_CATALOG_VERSION
+    return f'+g{commitish[:9]}.d{curdate_str}.cv{catver}'
 
 
 def get_cache_src_dirs():
