@@ -102,7 +102,8 @@ def _ql_typeexpr_to_type(
         return [_ql_typename_to_type(ql_t, ctx=ctx)]
 
     else:
-        raise errors.InternalServerError(f'unexpected TypeExpr: {ql_t!r}')
+        raise errors.EdgeQLSyntaxError("Unexpected type expression",
+                                       context=ql_t.context)
 
 
 def _ql_typename_to_type(
