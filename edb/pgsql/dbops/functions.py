@@ -166,68 +166,6 @@ class CreateOrReplaceFunction(ddl.DDLOperation, FunctionOperation):
         return code.strip()
 
 
-class RenameFunction(base.CommandGroup):
-    def __init__(
-            self, name, args, new_name, *,
-            has_variadic=False,
-            conditions=None,
-            neg_conditions=None, priority=0):
-        super().__init__(
-            conditions=conditions, neg_conditions=neg_conditions,
-            priority=priority)
-
-        if name[0] != new_name[0]:
-            cmd = AlterFunctionSetSchema(
-                name, args, has_variadic, new_name[0])
-            self.add_command(cmd)
-            name = (new_name[0], name[1])
-
-        if name[1] != new_name[1]:
-            cmd = AlterFunctionRenameTo(
-                name, args, has_variadic, new_name[1])
-            self.add_command(cmd)
-
-
-class AlterFunctionSetSchema(ddl.DDLOperation, FunctionOperation):
-    def __init__(
-            self, name, args, has_variadic, new_schema, *,
-            conditions=None,
-            neg_conditions=None, priority=0):
-        super().__init__(
-            conditions=conditions, neg_conditions=neg_conditions,
-            priority=priority)
-        self.name = name
-        self.args = args
-        self.new_schema = new_schema
-        self.has_variadic = has_variadic
-
-    def code(self, block: base.PLBlock) -> str:
-        args = self.format_args(self.args, self.has_variadic,
-                                include_defaults=False)
-        return (f'ALTER FUNCTION {qn(*self.name)}({args}) '
-                f'SET SCHEMA {qi(self.new_schema)}')
-
-
-class AlterFunctionRenameTo(ddl.DDLOperation, FunctionOperation):
-    def __init__(
-            self, name, args, has_variadic, new_name, *,
-            conditions=None,
-            neg_conditions=None, priority=0):
-        super().__init__(
-            conditions=conditions, neg_conditions=neg_conditions,
-            priority=priority)
-        self.name = name
-        self.args = args
-        self.new_name = new_name
-        self.has_variadic = has_variadic
-
-    def code(self, block: base.PLBlock) -> str:
-        args = self.format_args(self.args, self.has_variadic,
-                                include_defaults=False)
-        return (f'ALTER FUNCTION {qn(*self.name)}({args}) '
-                f'RENAME TO {qi(self.new_name)}')
-
-
 class DropFunction(ddl.DDLOperation, FunctionOperation):
     def __init__(
             self, name, args, *,

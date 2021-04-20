@@ -507,25 +507,6 @@ class AlterTableAddConstraint(AlterTableFragment, TableConstraintCommand):
             self.constraint)
 
 
-class AlterTableRenameConstraintSimple(AlterTableBase, TableConstraintCommand):
-    def __init__(self, name, *, old_name, new_name, **kwargs):
-        assert name
-        super().__init__(name=name, **kwargs)
-        self.old_name = old_name
-        self.new_name = new_name
-
-    def code(self, block: base.PLBlock) -> str:
-        code = self.prefix_code()
-        code += (f' RENAME CONSTRAINT {qi(self.old_name)} '
-                 f'TO {qi(self.new_name)}')
-        return code
-
-    def __repr__(self):
-        return '<%s.%s %r to %r>' % (
-            self.__class__.__module__, self.__class__.__name__, self.old_name,
-            self.new_name)
-
-
 class AlterTableDropConstraint(AlterTableFragment, TableConstraintCommand):
     def __init__(self, constraint):
         self.constraint = constraint
@@ -537,33 +518,6 @@ class AlterTableDropConstraint(AlterTableFragment, TableConstraintCommand):
         return '<%s.%s %r>' % (
             self.__class__.__module__, self.__class__.__name__,
             self.constraint)
-
-
-class AlterTableSetSchema(AlterTableBase):
-    def __init__(self, name, schema, **kwargs):
-        super().__init__(name, **kwargs)
-        self.schema = schema
-
-    def code(self, block: base.PLBlock) -> str:
-        code = super().prefix_code()
-        code += f' SET SCHEMA {qi(self.schema)} '
-        return code
-
-
-class AlterTableRenameTo(AlterTableBase):
-    def __init__(self, name, new_name, **kwargs):
-        super().__init__(name, **kwargs)
-        self.new_name = new_name
-
-    def code(self, block: base.PLBlock) -> str:
-        code = super().prefix_code()
-        code += f' RENAME TO {qi(self.new_name)} '
-        return code
-
-
-class AlterTableRenameColumn(
-        composites.AlterCompositeRenameAttribute, AlterTableBase):
-    pass
 
 
 class DropTable(ddl.SchemaObjectOperation):

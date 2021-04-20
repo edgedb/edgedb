@@ -256,22 +256,6 @@ class CreateObject(SchemaObjectOperation):
             block.add_command(mdata.code(block))
 
 
-class RenameObject(SchemaObjectOperation):
-    def __init__(self, object, *, new_name, **kwargs):
-        super().__init__(name=object.name, **kwargs)
-        self.object = object
-        self.altered_object = object.copy()
-        self.altered_object.rename(new_name)
-        self.new_name = new_name
-
-    def generate_extra(self, block: base.PLBlock) -> None:
-        super().generate_extra(block)
-        if self.object.metadata:
-            mdata = UpdateMetadata(
-                self.altered_object, self.altered_object.metadata)
-            block.add_command(mdata.code(block))
-
-
 class AlterObject(SchemaObjectOperation):
     def __init__(self, object, **kwargs):
         super().__init__(object.get_id(), **kwargs)
