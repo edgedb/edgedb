@@ -4754,6 +4754,6 @@ aa \
 
     async def test_edgeql_normalization_missmatch_01(self):
         with self.assertRaisesRegex(
-                edgedb.EdgeQLSyntaxError, "Unexpected '<'"):
+                edgedb.EdgeQLSyntaxError, "Unexpected type expression"):
 
             await self.con.query('SELECT <tuple<"">>1;')
