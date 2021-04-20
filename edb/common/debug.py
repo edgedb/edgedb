@@ -173,7 +173,7 @@ def dump_code(*args, **kwargs):
 
 def dump_sql(sql, *args, **kwargs):
     import edb.pgsql.codegen
-    dump_code(edb.pgsql.codegen.generate_source(sql))
+    dump_code(edb.pgsql.codegen.generate_source(sql), *args, **kwargs)
 
 
 def set_trace(**kwargs):
