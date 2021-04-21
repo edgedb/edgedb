@@ -83,7 +83,7 @@ The server and the client *MUST* not fragment messages. I.e the complete
 message must be sent before starting a new message. It's advised that whole
 message should be buffered before initiating a network call (but this
 requirement is neither observable nor enforceable at the other side). It's
-also common to buffer the whole message on the receiver side before starting 
+also common to buffer the whole message on the receiver side before starting
 to process it.
 
 Errors
@@ -133,7 +133,7 @@ Connection Phase
 ----------------
 
 To begin a session, a client opens a connection to the server, and sends
-the :ref:`ref_protocol_msg_client_handshake`.  The server responds in one 
+the :ref:`ref_protocol_msg_client_handshake`.  The server responds in one
 of three ways:
 
 1. One of the authentication messages (see :ref:`below <ref_authentication>`);
@@ -150,7 +150,7 @@ the connection if protocol version is unsupported. Server *MUST* send subset
 of the extensions received in :ref:`ref_protocol_msg_client_handshake` (i.e.
 it never adds extra ones).
 
-While it's not required by the protocol specification itself, EdgeDB server 
+While it's not required by the protocol specification itself, EdgeDB server
 currently requires setting the following params in
 :ref:`ref_protocol_msg_client_handshake`:
 
@@ -229,9 +229,9 @@ In the command phase, the server can be in one of the three main states:
 Whenever a server switches to the *idle* state, it sends a
 :ref:`ref_protocol_msg_ready_for_command` message.
 
-Whenever a server encounters an error, it sends an 
-:ref:`ref_protocol_msg_error` message.  If an error occurred 
-during a *granular command flow*, the server switches into 
+Whenever a server encounters an error, it sends an
+:ref:`ref_protocol_msg_error` message.  If an error occurred
+during a *granular command flow*, the server switches into
 the *error* state, otherwise it switches into *idle* directly.
 
 To switch a server from the *error* state into the *idle* state, a
@@ -295,8 +295,16 @@ messages:
     Execute the provided command text directly, assuming prior knowledge
     of the :ref:`type descriptor <ref_proto_typedesc>` data.  This allows
     the client to perform the prepare/execute operation in a single step.
-    The server responds with zero or more :ref:`ref_protocol_msg_data`
-    messages, followed by a :ref:`ref_protocol_msg_command_complete`.
+
+    Client sends type descritor ids in this query. If type descriptors match
+    server's knowledge, the server responds with zero or more
+    :ref:`ref_protocol_msg_data` messages, followed by a
+    :ref:`ref_protocol_msg_command_complete`.
+
+    If type descriptors mismatch, server sends
+    :ref:`ref_protocol_msg_command_data_description`. And this statement
+    becomes currently prepared statement. The client is expected to
+    adjust the request data and send :ref:`ref_protocol_msg_execute`.
 
 
 Implicit Transactions
