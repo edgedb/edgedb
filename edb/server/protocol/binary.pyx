@@ -1595,6 +1595,7 @@ cdef class EdgeConnection:
                 extra_count=query_req.source.extra_count(),
                 extra_blob=query_req.source.extra_blob(),
             )
+            self._last_anon_compiled = compiled
 
         if query_unit.capabilities & ~query_req.allow_capabilities:
             raise query_unit.capabilities.make_error(
@@ -1610,20 +1611,12 @@ cdef class EdgeConnection:
 
             self.write(self.make_describe_msg(compiled))
 
-            # We must re-parse the query so that it becomes
-            # "last anonymous statement" *in Postgres*.
-            # Otherwise the `await self._execute` below would execute
-            # some other query.
-            compiled = await self._parse(query, query_req)
-            self._last_anon_compiled = compiled
             if self._cancelled:
                 raise ConnectionAbortedError
             return
 
         if self.debug:
             self.debug_print('OPTIMISTIC EXECUTE', query)
-
-        self._last_anon_compiled = compiled
 
         await self._execute(
             compiled, bind_args, bool(query_unit.sql_hash))
