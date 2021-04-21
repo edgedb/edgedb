@@ -988,6 +988,10 @@ cdef class EdgeConnection:
                 new_types = None
                 self.dbview.start(query_unit)
                 try:
+                    if query_unit.create_db_template:
+                        await self.server._on_before_create_db_from_template(
+                            query_unit.create_db_template, self.dbview.dbname
+                        )
                     if query_unit.drop_db:
                         await self.server._on_before_drop_db(
                             query_unit.drop_db, self.dbview.dbname)
@@ -1449,6 +1453,10 @@ cdef class EdgeConnection:
         conn = await self.get_pgcon()
         try:
             self.dbview.start(query_unit)
+            if query_unit.create_db_template:
+                await self.server._on_before_create_db_from_template(
+                    query_unit.create_db_template, self.dbview.dbname
+                )
             if query_unit.drop_db:
                 await self.server._on_before_drop_db(
                     query_unit.drop_db, self.dbview.dbname)

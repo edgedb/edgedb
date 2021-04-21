@@ -586,11 +586,26 @@ class Server:
         dbname: str,
         current_dbname: str
     ) -> None:
-        assert self._dbindex is not None
-
         if current_dbname == dbname:
             raise errors.ExecutionError(
                 f'cannot drop the currently open database {dbname!r}')
+
+        await self._ensure_database_not_connected(dbname)
+
+    async def _on_before_create_db_from_template(
+        self,
+        dbname: str,
+        current_dbname: str
+    ):
+        if current_dbname == dbname:
+            raise errors.ExecutionError(
+                f'cannot create database using currently open database '
+                f'{dbname!r} as a template database')
+
+        await self._ensure_database_not_connected(dbname)
+
+    async def _ensure_database_not_connected(self, dbname: str):
+        assert self._dbindex is not None
 
         if self._dbindex.count_connections(dbname):
             # If there are open EdgeDB connections to the `dbname` DB
