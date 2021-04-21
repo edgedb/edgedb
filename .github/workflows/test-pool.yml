@@ -1,0 +1,70 @@
+name: Pool Simulation Test
+
+on:
+  push:
+    branches:
+      - master
+      - pool-test
+    paths:
+      - 'edb/server/connpool/**'
+      - 'tests/test_server_pool.py'
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'edb/server/connpool/**'
+      - 'tests/test_server_pool.py'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    concurrency: pool-test
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+        submodules: false
+
+    - uses: actions/checkout@v2
+      if: startsWith(github.ref, 'refs/heads')
+      with:
+        repository: edgedb/edgedb-pool-simulation
+        path: pool-simulation
+        token: ${{ secrets.GITHUB_CI_BOT_TOKEN }}
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.9
+
+    - name: Generate requirements.txt
+      run: |
+        echo 'uvloop==0.15.2' > requirements.txt
+        mkdir -p pool-simulation/reports
+
+    - name: Handle virtualenv
+      uses: syphar/restore-virtualenv@v1.1
+      id: venv-cache
+
+    - name: Install Python dependencies
+      if: steps.venv-cache.outputs.cache-hit != 'true'
+      run: |
+        pip install -r requirements.txt
+
+    - name: Run the pool simulation test
+      env:
+        PYTHONPATH: .
+        SIMULATION_CI: yes
+        TIME_SCALE: 10
+      run: |
+        python tests/test_server_pool.py
+
+    - uses: EndBug/add-and-commit@v7.0.0
+      if: ${{ always() }}
+      continue-on-error: true
+      with:
+        branch: main
+        cwd: pool-simulation
+        author_name: github-actions
+        author_email: 41898282+github-actions[bot]@users.noreply.github.com
