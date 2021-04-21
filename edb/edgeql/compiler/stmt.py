@@ -787,8 +787,13 @@ def compile_DescribeStmt(
 
         if ql.object is qlast.DescribeGlobal.Schema:
             if ql.language is qltypes.DescribeLanguage.DDL:
-                # DESCRIBE SCHEMA
+                # DESCRIBE SCHEMA AS DDL
                 text = s_ddl.ddl_text_from_schema(
+                    ctx.env.schema,
+                )
+            elif ql.language is qltypes.DescribeLanguage.SDL:
+                # DESCRIBE SCHEMA AS SDL
+                text = s_ddl.sdl_text_from_schema(
                     ctx.env.schema,
                 )
             else:

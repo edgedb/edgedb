@@ -5681,10 +5681,19 @@ class TestDescribe(tb.BaseSchemaLoadTest):
         *tests,
         as_ddl=False,
         default_module='test',
+        explicit_modules=False,
     ):
         if as_ddl:
             schema = tb._load_std_schema()
             schema = self.run_ddl(schema, schema_text, default_module)
+        elif explicit_modules:
+            sdl_schema = qlparser.parse_sdl(schema_text)
+            schema = tb._load_std_schema()
+            schema = s_ddl.apply_sdl(
+                sdl_schema,
+                base_schema=schema,
+                current_schema=schema,
+            )
         else:
             schema = self.load_schema(schema_text)
 
@@ -6918,6 +6927,165 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             };
             """,
             as_ddl=True,
+        )
+
+    def test_schema_describe_schema_01(self):
+        self._assert_describe(
+            """
+            type Foo;
+            abstract annotation anno;
+            scalar type int_t extending int64 {
+                annotation anno := 'ext int';
+                constraint max_value(15);
+            }
+
+            abstract link f {
+                property p -> int_t {
+                    annotation anno := 'annotated link property';
+                    constraint max_value(10);
+                }
+            }
+
+            type Parent {
+                multi property name -> str;
+            }
+
+            type Parent2 {
+                link foo -> Foo;
+                index on (.foo);
+            }
+
+            type Child extending Parent, Parent2 {
+                annotation anno := 'annotated';
+
+                overloaded link foo extending f -> Foo {
+                    constraint exclusive {
+                        annotation anno := 'annotated constraint';
+                    }
+                    annotation anno := 'annotated link';
+                }
+            }
+            """,
+
+            'DESCRIBE SCHEMA AS DDL',
+
+            """
+            CREATE MODULE default IF NOT EXISTS;
+            CREATE MODULE test IF NOT EXISTS;
+            CREATE ABSTRACT ANNOTATION test::anno;
+            CREATE SCALAR TYPE test::int_t EXTENDING std::int64 {
+                CREATE ANNOTATION test::anno := 'ext int';
+                CREATE CONSTRAINT std::max_value(15);
+            };
+            CREATE ABSTRACT LINK test::f {
+                CREATE PROPERTY p -> test::int_t {
+                    CREATE ANNOTATION test::anno := 'annotated link property';
+                    CREATE CONSTRAINT std::max_value(10);
+                };
+            };
+            CREATE TYPE test::Foo;
+            CREATE TYPE test::Parent {
+                CREATE MULTI PROPERTY name -> std::str;
+            };
+            CREATE TYPE test::Parent2 {
+                CREATE LINK foo -> test::Foo;
+                CREATE INDEX ON (.foo);
+            };
+            CREATE TYPE test::Child EXTENDING test::Parent, test::Parent2 {
+                CREATE ANNOTATION test::anno := 'annotated';
+                ALTER LINK foo {
+                    EXTENDING test::f;
+                    SET OWNED;
+                    SET TYPE test::Foo;
+                    CREATE ANNOTATION test::anno := 'annotated link';
+                    CREATE CONSTRAINT std::exclusive {
+                        CREATE ANNOTATION test::anno := 'annotated constraint';
+                    };
+                };
+            };
+            """,
+
+            'DESCRIBE SCHEMA AS SDL',
+
+            r"""
+            module default{};
+            module test {
+                abstract annotation anno;
+                abstract link f {
+                    property p -> test::int_t {
+                        annotation test::anno := 'annotated link property';
+                        constraint std::max_value(10);
+                    };
+                };
+                scalar type int_t extending std::int64 {
+                    annotation test::anno := 'ext int';
+                    constraint std::max_value(15);
+                };
+                type Child extending test::Parent, test::Parent2 {
+                    annotation test::anno := 'annotated';
+                    overloaded link foo extending test::f -> test::Foo {
+                        annotation test::anno := 'annotated link';
+                        constraint std::exclusive {
+                            annotation test::anno := 'annotated constraint';
+                        };
+                    };
+                };
+                type Foo;
+                type Parent {
+                    multi property name -> std::str;
+                };
+                type Parent2 {
+                    index on (.foo);
+                    link foo -> test::Foo;
+                };
+            };
+            """,
+        )
+
+    def test_schema_describe_schema_02(self):
+        self._assert_describe(
+            """
+            module default {
+                type Foo {
+                    link bar -> test::Bar;
+                };
+            };
+            module test {
+                type Bar {
+                    link foo -> default::Foo;
+                };
+            };
+            """,
+
+            'DESCRIBE SCHEMA AS DDL',
+
+            """
+            CREATE MODULE default IF NOT EXISTS;
+            CREATE MODULE test IF NOT EXISTS;
+            CREATE TYPE default::Foo;
+            CREATE TYPE test::Bar {
+                CREATE LINK foo -> default::Foo;
+            };
+            ALTER TYPE default::Foo {
+                CREATE LINK bar -> test::Bar;
+            };
+            """,
+
+            'DESCRIBE SCHEMA AS SDL',
+
+            r"""
+            module default {
+                type Foo {
+                    link bar -> test::Bar;
+                };
+            };
+            module test {
+                type Bar {
+                    link foo -> default::Foo;
+                };
+            };
+            """,
+            explicit_modules=True,
         )
 
 
