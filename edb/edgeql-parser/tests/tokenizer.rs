@@ -634,6 +634,8 @@ fn strings() {
     assert_eq!(tok_typ(" b\"hel\nlo\" "), [BinStr]);
     assert_eq!(tok_str(" b'hel\nlo' "), ["b'hel\nlo'"]);
     assert_eq!(tok_typ(" b'hel\nlo' "), [BinStr]);
+    assert_eq!(tok_str(" rb'hel\nlo' "), ["rb'hel\nlo'"]);
+    assert_eq!(tok_str(" br'hel\nlo' "), ["br'hel\nlo'"]);
     assert_eq!(tok_str(" `hel\nlo` "), ["`hel\nlo`"]);
     assert_eq!(tok_typ(" `hel\nlo` "), [BacktickName]);
 
