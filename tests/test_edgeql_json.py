@@ -1379,12 +1379,11 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             """)
 
     async def test_edgeql_json_bytes_cast_01(self):
-        async with self.assertRaisesRegexTx(
-                edgedb.QueryError, r'cannot cast.*bytes.*to.*json.*'):
-
-            await self.con.execute(r"""
-                SELECT <json>b'foo';
-            """)
+        await self.assert_query_result(
+            r""" SELECT <json>b'foo'; """,
+            ['Zm9v'],
+            ['"Zm9v"'],
+        )
 
     async def test_edgeql_json_alias_01(self):
         await self.assert_query_result(
