@@ -690,6 +690,9 @@ def custom_scm_version():
         'version_scheme': (
             functools.partial(buildmeta.scm_version_scheme, ROOT_PATH)
         ),
+        'local_scheme': (
+            functools.partial(buildmeta.scm_local_scheme, ROOT_PATH)
+        ),
     }
 
 

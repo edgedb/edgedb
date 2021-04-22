@@ -5,23 +5,41 @@ on:
     inputs: {}
 
 jobs:
-<% for tgt in targets.linux %>
-  build-<< tgt.name >>:
+  prep:
     runs-on: ubuntu-latest
-
+    outputs:
+      version: ${{ steps.whichver.outputs.version }}
+      branch: ${{ steps.whichver.outputs.branch }}
     steps:
+    - uses: actions/checkout@v2
+
     - name: Determine package version
       shell: bash
       run: |
-        echo ::set-output name=branch::${GITHUB_REF#refs/heads/}
-        echo ::set-output name=version::${GITHUB_REF#refs/heads/releases/}
+        branch=${GITHUB_REF#refs/heads/}
+        if [[ $branch != releases/* ]]; then
+          echo ::error::"${branch} is not a release branch."
+          exit 1
+        fi
+        ver=${branch#releases/}
+        ver+=+g$(git rev-parse --verify --quiet "${GITHUB_REF}" | cut -c1-9)
+        ver+=.cv$(sed -n -r 's/EDGEDB_CATALOG_VERSION = ([0-9_]+)/\1/p' \
+                   edb/server/defines.py | sed 's/_//g')
+        echo ::set-output name=version::"${ver}"
+        echo ::set-output name=branch::"${branch}"
       id: whichver
 
+<% for tgt in targets.linux %>
+  build-<< tgt.name >>:
+    runs-on: ubuntu-latest
+    needs: prep
+
+    steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/<< tgt.name >>@master
       env:
-        SRC_REF: "${{ steps.whichver.outputs.branch }}"
-        PKG_VERSION: "${{ steps.whichver.outputs.version }}"
+        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        PKG_VERSION: "${{ needs.prep.outputs.version }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
@@ -35,15 +53,9 @@ jobs:
 <% for tgt in targets.macos %>
   build-<< tgt.name >>:
     runs-on: macos-latest
+    needs: prep
 
     steps:
-    - name: Determine package version
-      shell: bash
-      run: |
-        echo ::set-output name=branch::${GITHUB_REF#refs/heads/}
-        echo ::set-output name=version::${GITHUB_REF#refs/heads/releases/}
-      id: whichver
-
     - uses: actions/checkout@v2
       with:
         repository: edgedb/edgedb-pkg
@@ -89,8 +101,8 @@ jobs:
 
     - name: Build
       env:
-        SRC_REF: "${{ steps.whichver.outputs.branch }}"
-        PKG_VERSION: "${{ steps.whichver.outputs.version }}"
+        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        PKG_VERSION: "${{ needs.prep.outputs.version }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"

@@ -89,7 +89,7 @@ def parse_version(ver: str) -> Version:
 
         stage_no = int(v.group('pre_n'))
         if v.group('dev'):
-            local.extend(['dev', v.group('dev_n')])
+            local.extend([f'dev{v.group("dev_n")}'])
     elif v.group('dev'):
         stage = VersionStage.DEV
         stage_no = int(v.group('dev_n'))
