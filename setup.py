@@ -48,9 +48,7 @@ RUNTIME_DEPS = [
     'httptools>=0.0.13',
     'immutables>=0.15',
     'parsing~=1.6.1',
-    'prompt_toolkit==3.0.3',
     'psutil~=5.8.0',
-    'Pygments~=2.3.0',
     'setproctitle~=1.1.10',
     'setuptools-rust==0.10.3',
     'setuptools_scm~=3.2.0',
@@ -67,10 +65,25 @@ RUNTIME_DEPS = [
 CYTHON_DEPENDENCY = 'Cython==0.29.21'
 
 DOCS_DEPS = [
-    'Sphinx~=2.3.1',
     'lxml~=4.6.2',
+    'Pygments~=2.8.0',
+    'Sphinx~=2.3.1',
     'sphinxcontrib-asyncio~=0.2.0',
 ]
+
+TEST_DEPS = [
+    'pycodestyle~=2.6.0',
+    'pyflakes~=2.2.0',
+    'black~=19.10b0',
+    'flake8~=3.8.1',
+    'flake8-bugbear~=20.1.4',
+    'mypy==0.812',
+    'coverage~=5.2.1',
+    'requests-xml~=0.2.3',
+    # For rebuilding GHA workflows
+    'Jinja2',
+    'PyYAML',
+] + DOCS_DEPS
 
 BUILD_DEPS = [
     CYTHON_DEPENDENCY,
@@ -81,22 +94,7 @@ RUST_VERSION = '1.45.0'  # Also update docs/internal/dev.rst
 EDGEDBCLI_REPO = 'https://github.com/edgedb/edgedb-cli'
 
 EXTRA_DEPS = {
-    'test': [
-        # Depend on unreleased version for Python 3.8 support,
-        'pycodestyle~=2.6.0',
-        'pyflakes~=2.2.0',
-        'black~=19.10b0',
-        'flake8~=3.8.1',
-        'flake8-bugbear~=20.1.4',
-        'mypy==0.812',
-        'coverage~=5.2.1',
-        'requests-xml~=0.2.3',
-        'lxml',
-        # For rebuilding GHA workflows
-        'Jinja2',
-        'PyYAML',
-    ] + DOCS_DEPS,
-
+    'test': TEST_DEPS,
     'docs': DOCS_DEPS,
 }
 
