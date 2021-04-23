@@ -45,6 +45,7 @@ from edb.schema import schema as s_schema
 
 from edb.edgeql import parser as ql_parser
 
+from edb.server import args as srvargs
 from edb.server import cache
 from edb.server import config
 from edb.server import connpool
@@ -60,13 +61,6 @@ from . import dbview
 
 logger = logging.getLogger('edb.server')
 log_metrics = logging.getLogger('edb.server.metrics')
-
-
-class StartupScript(NamedTuple):
-
-    text: str
-    database: str
-    user: str
 
 
 class RoleDescriptor(TypedDict):
@@ -106,7 +100,7 @@ class Server:
         auto_shutdown: bool=False,
         echo_runtime_info: bool = False,
         status_sink: Optional[Callable[[str], None]] = None,
-        startup_script: Optional[StartupScript] = None,
+        startup_script: Optional[srvargs.StartupScript] = None,
     ):
 
         self._loop = loop
