@@ -214,6 +214,7 @@ cdef class EdgeConnection:
         self.buffer = ReadBuffer()
 
         self._cancelled = False
+        self._pgcon_released = False
 
         self._main_task = None
         self._msg_take_waiter = None
@@ -256,6 +257,7 @@ cdef class EdgeConnection:
             raise RuntimeError('there is already a pinned pgcon')
         conn = await self.server.acquire_pgcon(self.dbview.dbname)
         self._pinned_pgcon = conn
+        self._pgcon_released = False
         return conn
 
     def maybe_release_pgcon(self, pgcon.PGConnection conn):
@@ -273,15 +275,15 @@ cdef class EdgeConnection:
                 # return the connection to the pool (where it would be
                 # discarded and re-opened.)
                 self._pinned_pgcon = None
-                self.server.release_pgcon(
-                    self.dbview.dbname, conn)
+                if not self._pgcon_released:
+                    self.server.release_pgcon(self.dbview.dbname, conn)
             else:
                 self._pinned_pgcon_in_tx = True
         else:
             self._pinned_pgcon_in_tx = False
             self._pinned_pgcon = None
-            self.server.release_pgcon(
-                self.dbview.dbname, conn)
+            if not self._pgcon_released:
+                self.server.release_pgcon(self.dbview.dbname, conn)
 
     def debug_print(self, *args):
         print(
@@ -2106,6 +2108,9 @@ cdef class EdgeConnection:
                             self.dbview.dbname,
                         )
                     )
+                    # Prevent the main task from releasing the same connection
+                    # twice. This flag is for now only used in this case.
+                    self._pgcon_released = True
 
                 # In all other cases, we can just wait until the `main()`
                 # coroutine notices that `self._cancelled` was set.

@@ -114,6 +114,7 @@ cdef class EdgeConnection:
         int _get_pgcon_cc
 
         bint _cancelled
+        bint _pgcon_released
 
     cdef parse_io_format(self, bytes mode)
     cdef parse_cardinality(self, bytes card)
