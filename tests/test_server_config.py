@@ -967,9 +967,9 @@ class TestServerConfig(tb.QueryTestCase):
 
         self.assertEqual(
             (ver.major, ver.minor, ver.stage.name.lower(),
-             ver.stage_no, ver.local),
+             ver.stage_no,),
             (srv_ver.major, srv_ver.minor, str(srv_ver.stage),
-             srv_ver.stage_no, tuple(srv_ver.local))
+             srv_ver.stage_no,)
         )
 
         srv_ver_string = await self.con.query_one(r"""
