@@ -27,4 +27,4 @@ from edb import cli
 
 
 if __name__ == '__main__':
-    sys.exit(cli.cli(prog_name='edgedb'))
+    sys.exit(cli.rustcli())

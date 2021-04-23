@@ -47,11 +47,7 @@ import uuid
 
 from datetime import timedelta
 
-import click.testing
-
 import edgedb
-
-from edb import cli
 
 from edb.edgeql import quote as qlquote
 from edb.server import cluster as edgedb_cluster
@@ -505,7 +501,6 @@ class ConnectedTestCaseMixin:
         conargs = self.get_connect_args()
 
         cmd = [
-            # TODO: switch to 'edgedb' when it understands EDGEDB_PASSWORD
             'python', '-m', 'edb.cli',
             '--host', conargs['host'],
             '--port', str(conargs['port']),
@@ -755,30 +750,6 @@ class ConnectedTestCaseMixin:
 
         message = message or 'data shape differs'
         return _assert_generic_shape((), data, shape)
-
-
-class OldCLITestCaseMixin:
-
-    def run_cli(self, *args, input: Optional[str]=None):
-        conn_args = self.get_connect_args()
-
-        cmd_args = (
-            '--host', conn_args['host'],
-            '--port', conn_args['port'],
-            '--user', conn_args['user'],
-        ) + args
-
-        if conn_args['password']:
-            cmd_args = ('--password-from-stdin',) + cmd_args
-            if input is not None:
-                input = f"{conn_args['password']}\n{input}"
-            else:
-                input = f"{conn_args['password']}\n"
-
-        runner = click.testing.CliRunner()
-        return runner.invoke(
-            cli.cli, args=cmd_args, input=input,
-            catch_exceptions=False)
 
 
 class CLITestCaseMixin:
