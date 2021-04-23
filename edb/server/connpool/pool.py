@@ -33,6 +33,7 @@ MIN_CONN_TIME_THRESHOLD = 0.01
 MIN_QUERY_TIME_THRESHOLD = 0.001
 MIN_LOG_TIME_THRESHOLD = 1
 CONNECT_FAILURE_RETRIES = 3
+MIN_IDLE_TIME_BEFORE_GC = 120
 
 logger = logging.getLogger("edb.server")
 
@@ -94,9 +95,28 @@ class Snapshot:
 class ConnectionState:
     in_use_since: float = 0
     in_use: bool = False
+    in_stack_since: float = 0
 
 
 class Block(typing.Generic[C]):
+    # A Block holds a number of connections to the same backend database.
+    # A Pool consists of one or more blocks; blocks are the basic unit of
+    # connection pool algorithm, while the pool itself also takes care of
+    # balancing resources between Blocks (because all the blocks share the same
+    # PostgreSQL `max_connections` limit), based on realtime statistics the
+    # block collected and populated.
+    #
+    # Instead of the regular round-robin queue, EdgeDB adopted an LIFO stack
+    # (conn_stack) for the connections - the most recently used connections are
+    # always yielded first. This allows us to run "garbage collection" or
+    # "connection stealing" to recycle the unused connections from the bottom
+    # of the stack (the least recently used ones), so that other blocks could
+    # reuse the spared resource.
+    #
+    # Block is coroutine-safe. Multiple tasks acquiring connections will be put
+    # in a waiters' queue (conn_waiters), if the demand cannot be fulfilled
+    # immediately without blocking/awaiting. When connections are ready in the
+    # stack, the next task in the queue will be woken up to continue.
 
     loop: asyncio.AbstractEventLoop
     dbname: str
@@ -108,7 +128,7 @@ class Block(typing.Generic[C]):
     conn_acquired_num: int
     conn_waiters_num: int
     conn_waiters: typing.Deque[asyncio.Future[None]]
-    conn_queue: typing.Deque[C]
+    conn_stack: typing.Deque[C]
     connect_failures_num: int
 
     querytime_avg: rolavg.RollingAverage
@@ -136,7 +156,7 @@ class Block(typing.Generic[C]):
         self.conn_acquired_num = 0
         self.conn_waiters_num = 0
         self.conn_waiters = collections.deque()
-        self.conn_queue = collections.deque()
+        self.conn_stack = collections.deque()
         self.connect_failures_num = 0
 
         self.querytime_avg = rolavg.RollingAverage(history_size=20)
@@ -147,18 +167,26 @@ class Block(typing.Generic[C]):
         self._log_events = {}
 
     def count_conns(self) -> int:
+        # The total number of connections in this block, including:
+        #  - Future connections that are still pending in connecting
+        #  - Idle connections in the stack
+        #  - Acquired connections (not in the stack)
         return len(self.conns) + self.pending_conns
 
     def count_waiters(self) -> int:
+        # The number of tasks that are blocked in acquire()
         return self.conn_waiters_num
 
     def count_queued_conns(self) -> int:
-        return len(self.conn_queue)
+        # Number of connections in the stack/pool
+        return len(self.conn_stack)
 
     def count_pending_conns(self) -> int:
+        # Number of future connections that are still pending in connecting
         return self.pending_conns
 
     def count_conns_over_quota(self) -> int:
+        # How many connections over the quota
         return max(self.count_conns() - self.quota, 0)
 
     def count_approx_available_conns(self) -> int:
@@ -178,12 +206,25 @@ class Block(typing.Generic[C]):
     def dec_acquire_counter(self) -> None:
         self.conn_acquired_num -= 1
 
-    def try_steal(self) -> typing.Optional[C]:
-        if self.conn_queue:
-            conn = self.conn_queue.pop()
-            assert conn in self.conns
-            return conn
-        return None
+    def try_steal(
+        self, only_older_than: typing.Optional[float] = None
+    ) -> typing.Optional[C]:
+        # Try to take one unused connection from the block without blocking.
+        # If only_older_than is provided, only the connection that was put in
+        # the stack before the given timestamp is returned. None will be
+        # returned if we cannot find such connection in this block.
+
+        if not self.conn_stack:
+            return None
+
+        if only_older_than is not None:
+            # We only need to check the bottom of the stack - higher items in
+            # the stack only have larger timestamps
+            oldest_conn = self.conn_stack[0]
+            if self.conns[oldest_conn].in_stack_since > only_older_than:
+                return None
+
+        return self.conn_stack.popleft()
 
     async def acquire(self) -> C:
         # There can be a race between a waiter scheduled for to wake up
@@ -193,7 +234,13 @@ class Block(typing.Generic[C]):
         self.conn_waiters_num += 1
         try:
             attempts = 0
-            while not self.conn_queue:
+
+            # Skip the waiters' queue if we can grab a connection from the
+            # stack immediately - this is not completely fair, but it's
+            # extremely hard to always take the shortcut and starve the queue
+            # without blocking the main loop, so we are fine here. (This is
+            # also how asyncio.Queue is implemented.)
+            while not self.conn_stack:
                 waiter = self.loop.create_future()
 
                 attempts += 1
@@ -218,21 +265,28 @@ class Block(typing.Generic[C]):
                         # The waiter could be removed from self.conn_waiters
                         # by a previous release() call.
                         pass
-                    if self.conn_queue and not waiter.cancelled():
+                    if self.conn_stack and not waiter.cancelled():
                         # We were woken up by release(), but can't take
                         # the call.  Wake up the next in line.
                         self._wakeup_next_waiter()
                     raise
 
-            return self.conn_queue.popleft()
+            # Yield the most recently used connection from the top of the stack
+            return self.conn_stack.pop()
         finally:
             self.conn_waiters_num -= 1
 
     def release(self, conn: C) -> None:
-        self.conn_queue.append(conn)
+        # Put the connection (back) to the top of the stack,
+        self.conn_stack.append(conn)
+        # refresh the timestamp,
+        self.conns[conn].in_stack_since = time.monotonic()
+        # and call the queue.
         self._wakeup_next_waiter()
 
     def abort_waiters(self, e: Exception) -> None:
+        # Propagate the given exception to all tasks that are waiting in
+        # acquire() - this usually means the underlying connect() is failing
         while self.conn_waiters:
             waiter = self.conn_waiters.popleft()
             if not waiter.done():
@@ -289,15 +343,20 @@ class BasePool(typing.Generic[C]):
     _disconnect_cb: Disconnector[C]
     _stats_cb: typing.Optional[StatsCollector]
 
-    _max_capacity: int
-    _cur_capacity: int
+    _max_capacity: int  # total number of connections allowed in the pool
+    _cur_capacity: int  # counter of all connections (with pending) in the pool
 
     _loop: typing.Optional[asyncio.AbstractEventLoop]
     _current_snapshot: typing.Optional[Snapshot]
 
     _blocks: collections.OrderedDict[str, Block[C]]
+    # Mapping from dbname to the Block instances, also used as a queue in a
+    # starving situation when the blocks are fed with connections in a round-
+    # robin fashion, see also Pool._tick().
 
     _is_starving: bool
+    # Indicates if any block is starving for connections, this usually means
+    # the number of active blocks is greater than the pool max capacity.
 
     _failed_connects: int
     _failed_disconnects: int
@@ -547,12 +606,52 @@ class BasePool(typing.Generic[C]):
 
 
 class Pool(BasePool[C]):
+    # The backend database connection pool implementation in EdgeDB, managing
+    # connections to multiple databases of a single PostgreSQL cluster,
+    # optimized for quality of service (QoS) so that connection acquisitions
+    # and distribution are automatically balanced in a relatively fair way.
+    # Connections to the same database are managed in a Block (see above).
+    #
+    # Conceptually, the Pool has 4 runtime modes (separately optimized):
+    #   Mode A: managing connections to only one database
+    #   Mode B: multiple databases, below max capacity
+    #   Mode C: reached max capacity, some tasks are waiting for connections
+    #   Mode D: some blocks are starving with zero connection
+    #
+    # Mode A is close to a regular connection pool - new connections are only
+    # created when there are not enough spare ones in the pool, and used
+    # connections are released back to the pool, cached for next acquisition
+    # (unless being idle for too long and GC will recycle them). As a
+    # simplified mode, there is usually a shortcut to return early for Mode A
+    # in the same code base shared with other modes.
+    #
+    # Mode B is simply an extension of Mode A for multiple databases. Each
+    # block in Mode B acts just like Mode A, with minimal difference like less
+    # aggressive connection creation. Different blocks could freely create new
+    # connections when needed, racing with each other organically by the demand
+    # for Postgres connections.
+    #
+    # Mode C is when things get complicated. Without being able to create more
+    # connections, pending connection requests can only be satisfied by either
+    # a released connection from the same block, or the pool as the arbiter has
+    # to "transfer" a connection from another block. This is achieved by
+    # rebalancing the pool based on calculated per-block quotas recalibrated
+    # in periodic "ticks" (see _tick()).
+    #
+    # In extreme cases, the number of blocks may go beyond the max capacity.
+    # This is Mode D when even each block takes only at most one connection,
+    # there are still some starved blocks that have no connections at all.
+    # Mode D reuses the framework of Mode C but runs separate logic in a
+    # different if-else branch. In short, the pool reallocates the limited
+    # total number of connections to different blocks in a round-robin fashion.
 
     _new_blocks_waitlist: collections.OrderedDict[Block[C], bool]
     _blocks_over_quota: typing.List[Block[C]]
     _nacquires: int
     _htick: typing.Optional[asyncio.Handle]
     _to_drop: typing.List[Block[C]]
+    _gc_interval: float  # minimum seconds between GC runs
+    _gc_requests: int  # number of GC requests
 
     def __init__(
         self,
@@ -561,6 +660,7 @@ class Pool(BasePool[C]):
         disconnect: Disconnector[C],
         max_capacity: int,
         stats_collector: typing.Optional[StatsCollector]=None,
+        min_idle_time_before_gc: float = MIN_IDLE_TIME_BEFORE_GC,
     ) -> None:
         super().__init__(
             connect=connect,
@@ -577,12 +677,16 @@ class Pool(BasePool[C]):
         self._htick = None
         self._first_tick = True
         self._to_drop = []
+        self._gc_interval = min_idle_time_before_gc
+        self._gc_requests = 0
 
     def _maybe_schedule_tick(self) -> None:
         if self._first_tick:
             self._first_tick = False
             self._capture_snapshot(now=time.monotonic())
 
+        # Only schedule a tick under Mode C/D, and schedule at most one tick
+        # at a time.
         if not self._nacquires or self._htick is not None:
             return
 
@@ -594,6 +698,7 @@ class Pool(BasePool[C]):
     def _tick(self) -> None:
         self._htick = None
         if self._nacquires:
+            # Schedule the next tick if we're still in Mode C/D.
             self._maybe_schedule_tick()
 
         now = time.monotonic()
@@ -601,10 +706,9 @@ class Pool(BasePool[C]):
         self._report_snapshot()
         self._capture_snapshot(now=now)
 
-        # If we're managing connections to only one PostgreSQL DB,
-        # bail out early. Just give the one and only block we have
-        # the max possible quota (which is needed only for logging
-        # purposes.)
+        # If we're managing connections to only one PostgreSQL DB (Mode A),
+        # bail out early. Just give the one and only block we have the max
+        # possible quota (which is needed only for logging purposes.)
         nblocks = len(self._blocks)
         if nblocks <= 1:
             self._is_starving = False
@@ -614,6 +718,12 @@ class Pool(BasePool[C]):
                 first_block.nwaiters_avg.add(first_block.count_waiters())
             return
 
+        # Go over all the blocks and calculate:
+        #  - "nwaiters" - number of connection acquisitions
+        #    (including pending and acquired, per block and total)
+        #  - First round of per-block quota ( := nwaiters )
+        #  - Calibrated demand (per block and total)
+        #  - If any block is starving / Mode D
         need_conns_at_least = 0
         total_nwaiters = 0
         total_calibrated_demand: float = 0
@@ -626,6 +736,9 @@ class Pool(BasePool[C]):
             block.nwaiters_avg.add(nwaiters)
             nwaiters_avg = block.nwaiters_avg.avg()
             if nwaiters_avg:
+                # GOTCHA: this is a counter of blocks that need at least 1
+                # connection. If this number is greater than _max_capacity,
+                # some block will be starving with zero connection.
                 need_conns_at_least += 1
             else:
                 if not block.count_conns():
@@ -633,7 +746,7 @@ class Pool(BasePool[C]):
                     continue
 
             demand = (
-                max(block.nwaiters_avg.avg(), nwaiters) *
+                max(nwaiters_avg, nwaiters) *
                 max(block.querytime_avg.avg(), MIN_QUERY_TIME_THRESHOLD)
             )
             total_calibrated_demand += demand
@@ -647,14 +760,35 @@ class Pool(BasePool[C]):
                 self._drop_block(block)
 
         if not total_nwaiters:
+            # No connection acquisition, nothing to do here.
             return
 
         if total_nwaiters < self._max_capacity:
-            # The quota should already be set.
-            self._maybe_rebalance()
+            # The total demand for connections is lower than our max capacity,
+            # we could bail out early.
+
+            if self._cur_capacity >= self._max_capacity:
+                # GOTCHA: this is still Mode C, because the total_nwaiters
+                # number doesn't include the unused connections in the stacks
+                # if any. Therefore, the rebalance here is necessary to shrink
+                # those blocks and transfer the connection quota to the
+                # starving ones (or they will block). We could simply depend on
+                # the already-set quota based on nwaiters, and skip the regular
+                # Mode C quota calculation below.
+                self._maybe_rebalance()
+
+            else:
+                # If we still have space for more connections (Mode B), don't
+                # actively rebalance the pool just yet - rebalance will kick in
+                # when the max capacity is hit; or we'll depend on the garbage
+                # collection to shrink the over-quota blocks.
+                pass
+
             return
 
         if self._is_starving:
+            # Mode D: recalculate the per-block quota.
+
             for block in tuple(self._blocks.values()):
                 nconns = block.count_conns()
                 if nconns == 1:
@@ -684,6 +818,9 @@ class Pool(BasePool[C]):
                         dbname=block.dbname, event='reset-quota')
 
         else:
+            # Mode C: distribute the total connections by calibrated demand
+            # setting the per-block quota, then trigger rebalance.
+
             capacity_left = self._max_capacity
             if min_demand / total_calibrated_demand * self._max_capacity < 1:
                 for block in self._blocks.values():
@@ -732,6 +869,8 @@ class Pool(BasePool[C]):
             if nconns > quota:
                 self._try_shrink_block(block)
                 if block.count_conns() > quota:
+                    # If the block is still over quota, add it to a list so
+                    # that other blocks could steal connections from it
                     self._blocks_over_quota.append(block)
             elif nconns < quota:
                 while (
@@ -905,21 +1044,28 @@ class Pool(BasePool[C]):
         block_nconns = block.count_conns()
 
         if room_for_new_conns:
+            # First, schedule new connections if needed.
             if len(self._blocks) == 1:
                 # Managing connections to only one DB and can open more
-                # connections.  Or this is before the first tick -- a free
-                # for all.
-                self._schedule_new_conn(block)
-                return await block.acquire()
-
-            if (
+                # connections.  Or this is before the first tick.
+                if block.count_queued_conns() <= 1:
+                    # Only keep at most 1 spare connection in the ready queue.
+                    # When concurrent tasks are racing for the spare
+                    # connections in the same loop iteration, early requesters
+                    # will retrieve the spare connections immediately without
+                    # context switch (block.acquire() will not "block" in
+                    # await). Therefore, we will create just enough new
+                    # connections for the number of late requesters plus one.
+                    self._schedule_new_conn(block)
+            elif (
                 not block_nconns or
                 block_nconns < block.quota or
                 not block.count_approx_available_conns()
             ):
-                # Block has no connections at all.
+                # Block has no connections at all, or not enough connections.
                 self._schedule_new_conn(block)
-                return await block.acquire()
+
+            return await block.acquire()
 
         if not block_nconns:
             # This is a block without any connections.
@@ -936,6 +1082,31 @@ class Pool(BasePool[C]):
             return await block.acquire()
 
         return await block.acquire()
+
+    def _run_gc(self) -> None:
+        loop = self._get_loop()
+
+        if self._is_starving:
+            # Bail out early if any block is starving, try GC later
+            loop.call_later(self._gc_interval, self._run_gc)
+            return
+
+        if self._gc_requests > 1:
+            # Schedule to run one more GC for requests before this run
+            self._gc_requests = 1
+            loop.call_later(self._gc_interval, self._run_gc)
+
+        else:
+            # We will take care of the only GC request and pause GC
+            self._gc_requests = 0
+
+        # Make sure the unused connections stay in the pool for at least one
+        # GC interval. So theoretically unused connections are usually GC-ed
+        # within 1-2 GC intervals.
+        only_older_than = time.monotonic() - self._gc_interval
+        for block in self._blocks.values():
+            while (conn := block.try_steal(only_older_than)) is not None:
+                loop.create_task(self._discard_conn(block, conn))
 
     async def acquire(self, dbname: str) -> C:
         self._nacquires += 1
@@ -991,6 +1162,13 @@ class Pool(BasePool[C]):
         if not self._maybe_free_conn(block, conn):
             block.release(conn)
 
+            # Only request for GC if the connection is released unused
+            self._gc_requests += 1
+            if self._gc_requests == 1:
+                # Only schedule GC for the very first request - following
+                # requests will be grouped into the next GC
+                self._get_loop().call_later(self._gc_interval, self._run_gc)
+
     async def prune_inactive_connections(self, dbname: str) -> None:
         try:
             block = self._blocks[dbname]
@@ -1033,9 +1211,6 @@ class _NaivePool(BasePool[C]):
         self._conns = {}
         self._last_tick = 0
 
-    def _maybe_free_conn(self, block: Block[C], conn: C) -> bool:
-        return False
-
     def _maybe_tick(self) -> None:
         now = time.monotonic()
 
@@ -1054,6 +1229,30 @@ class _NaivePool(BasePool[C]):
         self._report_snapshot()
         self._capture_snapshot(now=now)
 
+    async def _steal_conn(self, for_block: Block[C]) -> None:
+        # A simplified connection stealing implementation.
+        # First, tries to steal one from the blocks queue unconditionally.
+        for block in self._blocks.values():
+            if block is for_block:
+                continue
+            if (conn := block.try_steal()) is not None:
+                self._log_to_snapshot(
+                    dbname=block.dbname, event='conn-stolen')
+                self._schedule_transfer(block, conn, for_block)
+                self._blocks.move_to_end(block.dbname, last=True)
+                return
+        # If all the blocks are busy, simply wait in the queue to get one.
+        for block in self._blocks.values():
+            if block is for_block:
+                continue
+            if block.count_conns():
+                conn = await block.acquire()
+                self._log_to_snapshot(
+                    dbname=block.dbname, event='conn-stolen')
+                self._schedule_transfer(block, conn, for_block)
+                self._blocks.move_to_end(block.dbname, last=True)
+                return
+
     async def acquire(self, dbname: str) -> C:
         self._maybe_tick()
 
@@ -1061,6 +1260,11 @@ class _NaivePool(BasePool[C]):
 
         if self._cur_capacity < self._max_capacity:
             self._schedule_new_conn(block)
+        elif not block.count_conns():
+            # As a new block, steal one connection from other blocks if the
+            # max capacity is reached. We cannot depend on the transfer logic
+            # in `release()`, because it would hang if no other block releases.
+            await self._steal_conn(block)
 
         return await block.acquire()
 

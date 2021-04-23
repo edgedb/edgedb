@@ -54,6 +54,7 @@ import unittest.mock
 
 from edb.common import taskgroup
 from edb.server import connpool
+from edb.server.connpool import pool as pool_impl
 
 # TIME_SCALE is used to run the simulation for longer time, the default is 1x.
 TIME_SCALE = int(os.environ.get("TIME_SCALE", '1'))
@@ -67,6 +68,17 @@ MIN_SCORE = int(os.environ.get('MIN_SCORE', 80))
 CI_MAX_REPORTS = int(os.environ.get('CI_MAX_REPORTS', 50))
 
 C = typing.TypeVar('C')
+
+
+def with_base_test(m):
+    @functools.wraps(m)
+    def wrapper(self):
+        if self.full_qps is None:
+            self.full_qps = asyncio.run(
+                asyncio.wait_for(self.base_test(), 30 * TIME_SCALE)
+            )
+        return m(self)
+    return wrapper
 
 
 def calc_percentiles(
@@ -179,10 +191,13 @@ class LatencyDistribution(ScoreMethod):
 class ConnectionOverhead(ScoreMethod):
     # Calculate the score based on the total number of connects and disconnects
 
+    use_time_scale: bool = True
+
     def calculate(self, sim: Simulation) -> float:
-        self.v90 = self.v100 + (self.v90 - self.v100) * TIME_SCALE
-        self.v60 = self.v100 + (self.v60 - self.v100) * TIME_SCALE
-        self.v0 = self.v100 + (self.v0 - self.v100) * TIME_SCALE
+        if self.use_time_scale:
+            self.v90 = self.v100 + (self.v90 - self.v100) * TIME_SCALE
+            self.v60 = self.v100 + (self.v60 - self.v100) * TIME_SCALE
+            self.v0 = self.v100 + (self.v0 - self.v100) * TIME_SCALE
         value = (
             sim.stats[-1]["successful_connects"]
             + sim.stats[-1]["successful_disconnects"]
@@ -195,14 +210,8 @@ class ConnectionOverhead(ScoreMethod):
 
 
 @dataclasses.dataclass
-class LatencyRatio(ScoreMethod):
-    # Calculate score based on the ratio of average percentiles between two
-    # groups of latencies. This measures how close this ratio is from the
-    # expected ratio (v100, v90, etc.).
-
+class PercentileBasedScoreMethod(ScoreMethod):
     percentile: str  # one of ('P1', 'P25', 'P50', 'P75', 'P99', 'Mean')
-    dividend: range
-    divisor: range
 
     def calc_average_percentile(self, sim: Simulation, group: range) -> float:
         # Calculate the arithmetic mean of the specified percentile of the
@@ -216,6 +225,16 @@ class LatencyRatio(ScoreMethod):
             )
         )
 
+
+@dataclasses.dataclass
+class LatencyRatio(PercentileBasedScoreMethod):
+    # Calculate score based on the ratio of average percentiles between two
+    # groups of latencies. This measures how close this ratio is from the
+    # expected ratio (v100, v90, etc.).
+
+    dividend: range
+    divisor: range
+
     def calculate(self, sim: Simulation) -> float:
         dividend_percentile = self.calc_average_percentile(sim, self.dividend)
         divisor_percentile = self.calc_average_percentile(sim, self.divisor)
@@ -224,6 +243,37 @@ class LatencyRatio(ScoreMethod):
         sim.record_scoring(
             f'{self.percentile} ratio {self.divisor}/{self.divisor}',
             ratio, score, self.weight
+        )
+        return score * self.weight
+
+
+@dataclasses.dataclass
+class AbsoluteLatency(PercentileBasedScoreMethod):
+    # Calculate score based on the absolute average latency percentiles of the
+    # specified group of latencies. This measures the absolute latency of
+    # acquire latencies.
+
+    group: range
+
+    def calculate(self, sim: Simulation) -> float:
+        value = self.calc_average_percentile(sim, self.group)
+        score = self._calculate(value)
+        sim.record_scoring(
+            f'Average {self.percentile} of {self.group}',
+            value, score, self.weight
+        )
+        return score * self.weight
+
+
+@dataclasses.dataclass
+class EndingCapacity(ScoreMethod):
+    # Calculate the score based on the capacity at the end of the test
+
+    def calculate(self, sim: Simulation) -> float:
+        value = sim.stats[-1]["capacity"]
+        score = self._calculate(value)
+        sim.record_scoring(
+            'Ending capacity', value, score, self.weight
         )
         return score * self.weight
 
@@ -340,7 +390,48 @@ class SimulatedCaseMeta(type):
         return super().__new__(mcls, name, bases, dct)
 
 
+class SingleBlockPool(pool_impl.BasePool[C]):
+    # used by the base test only
+
+    _queue: asyncio.Queue[C]
+
+    def __init__(
+        self,
+        *,
+        connect,
+        disconnect,
+        max_capacity: int,
+        stats_collector=None,
+    ) -> None:
+        super().__init__(
+            connect=connect,
+            disconnect=disconnect,
+            max_capacity=max_capacity,
+            stats_collector=stats_collector,
+        )
+        self._queue = asyncio.Queue(max_capacity)
+
+    async def _async_connect(self, dbname: str) -> None:
+        self.release(dbname, await self._connect_cb(dbname))
+
+    async def acquire(self, dbname: str) -> C:
+        try:
+            return self._queue.get_nowait()
+        except asyncio.QueueEmpty:
+            if self._cur_capacity < self._max_capacity:
+                self._cur_capacity += 1
+                self._get_loop().create_task(self._async_connect(dbname))
+        return await self._queue.get()
+
+    def release(self, dbname: str, conn: C) -> None:
+        self._queue.put_nowait(conn)
+
+    def count_waiters(self):
+        return len(self._queue._getters)
+
+
 class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
+    full_qps: typing.Optional[int] = None  # set by the base test
 
     def make_fake_connect(
         self,
@@ -407,6 +498,8 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
             stats_collector=on_stats if collect_stats else None,
             max_capacity=spec.capacity,
         )
+        if hasattr(pool, '_gc_interval'):
+            pool._gc_interval = 0.1 * TIME_SCALE
 
         TICK_EVERY = 0.001
 
@@ -511,7 +604,81 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
 
         return js_data
 
+    async def _base_test_single(
+        self, total_duration, qps, sim, pool, query_duration
+    ):
+        getters = 0
+        TICK_EVERY = 0.001
+        started_at = time.monotonic()
+        async with taskgroup.TaskGroup() as g:
+            elapsed = 0
+            while elapsed < total_duration * TIME_SCALE:
+                elapsed = time.monotonic() - started_at
+
+                qpt = qps * TICK_EVERY
+                qpt = int(random.random() <= qpt - int(qpt)) + int(qpt)
+
+                for _ in range(qpt):
+                    g.create_task(
+                        self.make_fake_query(sim, pool, '', query_duration)
+                    )
+
+                await asyncio.sleep(TICK_EVERY)
+                getters = max(getters, pool.count_waiters())
+        return getters
+
+    async def base_test(self) -> int:
+        QUERY_DURATION = 0.01
+        POOL_SIZE = 100
+        verbose = bool(os.environ.get('EDGEDB_TEST_DEBUG_POOL'))
+        qps = 100
+        getters = 0
+        sim = Simulation()
+        pool: SingleBlockPool = SingleBlockPool(
+            connect=self.make_fake_connect(sim, 0, 0),
+            disconnect=self.make_fake_disconnect(sim, 0, 0),
+            max_capacity=POOL_SIZE,
+        )
+
+        if verbose:
+            print('Running the base test to detect the host capacity...')
+            print(f'Query duration: {QUERY_DURATION * 1000:.0f}ms, '
+                  f'pool size: {POOL_SIZE}')
+
+        while pool._cur_capacity < 10 or getters < 100:
+            qps = int(qps * 1.5)
+            getters = await self._base_test_single(
+                0.2, qps, sim, pool, QUERY_DURATION
+            )
+            if verbose:
+                print(f'Increasing load: {qps} Q/s, {pool._cur_capacity} '
+                      f'connections, {getters} waiters')
+
+        if verbose:
+            print("OK that's enough. Now go back slowly to find "
+                  "the precise load.")
+        qps_delta = int(qps / 30)
+        last_qps = qps
+
+        while getters > 10:
+            last_qps = qps
+            qps -= qps_delta
+            getters = await self._base_test_single(
+                0.35, qps, sim, pool, QUERY_DURATION
+            )
+
+            if verbose:
+                print(f'Decreasing load: {qps} Q/s, {pool._cur_capacity} '
+                      f'connections, {getters} waiters')
+
+        qps = int((last_qps + qps) / 2)
+        if verbose:
+            print(f'Looks like {qps} is a just-enough Q/s to '
+                  f'fully load the pool.')
+        return qps
+
     def simulate_all_and_collect_stats(self) -> int:
+        os.environ['EDGEDB_TEST_DEBUG_POOL'] = '1'
         specs = {}
         for methname in dir(self):
             if not methname.startswith('test_'):
@@ -591,6 +758,15 @@ class TestServerConnpoolSimulation(SimulatedCase):
 
     def test_server_connpool_1(self):
         return Spec(
+            desc='''
+            This is a test for Mode D, where 2 groups of blocks race for
+            connections in the pool with max capacity set to 6. The first group
+            (0-5) has more dedicated time with the pool, so it should have
+            relatively lower latency than the second group (6-11). But the QoS
+            is focusing on the latency distribution similarity, as we don't
+            want to starve only a few blocks because of the lack of capacity.
+            Therefore, reconnection is a necessary cost for QoS.
+            ''',
             timeout=20,
             duration=1.1,
             capacity=6,
@@ -647,11 +823,11 @@ class TestServerConnpoolSimulation(SimulatedCase):
         return Spec(
             desc='''
             In this test, we have 6x1500qps connections that simulate fast
-            queries (0.001..0.006s), and 6x700qps connections that simutale
+            queries (0.001..0.006s), and 6x700qps connections that simulate
             slow queries (~0.03s). The algorithm allocates connections
             fairly to both groups, essentially using the
             "demand = avg_query_time * avg_num_of_connection_waiters"
-            formula. The QoS is at the same level for all DBs.
+            formula. The QoS is at the same level for all DBs. (Mode B / C)
             ''',
             timeout=20,
             duration=1.1,
@@ -707,6 +883,10 @@ class TestServerConnpoolSimulation(SimulatedCase):
 
     def test_server_connpool_3(self):
         return Spec(
+            desc='''
+            This test simply starts 6 same crazy requesters for 6 databases to
+            test the pool fairness in Mode C with max capacity of 100.
+            ''',
             timeout=10,
             duration=1.1,
             capacity=100,
@@ -734,6 +914,12 @@ class TestServerConnpoolSimulation(SimulatedCase):
 
     def test_server_connpool_4(self):
         return Spec(
+            desc='''
+            Similar to test 3, this test also has 6 requesters for 6 databases,
+            they have the same Q/s but with different query cost. In Mode C,
+            we should observe equal connection acquisition latency, fair and
+            stable connection distribution and reasonable reconnection cost.
+            ''',
             timeout=20,
             duration=1.1,
             capacity=50,
@@ -761,6 +947,22 @@ class TestServerConnpoolSimulation(SimulatedCase):
 
     def test_server_connpool_5(self):
         return Spec(
+            desc='''
+            This is a mixed test with pool max capacity set to 6. Requests in
+            the first group (0-5) come and go alternatively as time goes on,
+            even with different query cost, so its latency similarity doesn't
+            matter much, as far as the latency distribution is not too crazy
+            and unstable. However the second group (6-11) has a stable
+            environment - pressure from the first group is quite even at the
+            time the second group works. So we should observe a high similarity
+            in the second group. Also due to a low query cost, the second group
+            should have a higher priority in connection acquisition, therefore
+            a much lower latency distribution comparing to the first group.
+            Pool Mode wise, we should observe a transition from Mode A to C,
+            then D and eventually back to C. One regression to be aware of is
+            that, the last D->C transition should keep the pool running at
+            a full capacity.
+            ''',
             timeout=30,
             duration=1.1,
             capacity=6,
@@ -768,11 +970,11 @@ class TestServerConnpoolSimulation(SimulatedCase):
             conn_cost_var=0.05,
             score=[
                 LatencyDistribution(
-                    weight=0.2, group=range(6),
+                    weight=0.05, group=range(6),
                     v100=0, v90=0.4, v60=0.8, v0=2
                 ),
                 LatencyDistribution(
-                    weight=0.2, group=range(6, 12),
+                    weight=0.25, group=range(6, 12),
                     v100=0, v90=0.4, v60=0.8, v0=2
                 ),
                 LatencyRatio(
@@ -784,6 +986,9 @@ class TestServerConnpoolSimulation(SimulatedCase):
                 ),
                 ConnectionOverhead(
                     weight=0.15, v100=50, v90=100, v60=150, v0=200
+                ),
+                EndingCapacity(
+                    weight=0.1, v100=6, v90=5, v60=4, v0=3
                 ),
             ],
             dbs=[
@@ -818,6 +1023,10 @@ class TestServerConnpoolSimulation(SimulatedCase):
 
     def test_server_connpool_6(self):
         return Spec(
+            desc='''
+            This is a simple test for Mode A. In this case, we don't want to
+            have lots of reconnection overhead.
+            ''',
             timeout=10,
             duration=1.1,
             capacity=6,
@@ -848,7 +1057,8 @@ class TestServerConnpoolSimulation(SimulatedCase):
             are infrequent -- so they have a miniscule quota.
 
             Our goal is to make sure that "t2" has good QoS and gets
-            its queries processed as soon as they're submitted.
+            its queries processed as soon as they're submitted. Therefore,
+            "t2" should have way lower connection acquisition cost than "t1".
             """,
             timeout=10,
             duration=1.1,
@@ -899,6 +1109,178 @@ class TestServerConnpoolSimulation(SimulatedCase):
                     query_cost_base=0.010,
                     query_cost_var=0.005,
                 )
+            ]
+        )
+
+    @with_base_test
+    def test_server_connpool_8(self):
+        return Spec(
+            desc='''
+            This test spec is to check the pool connection reusability with a
+            single block before the pool reaches its full capacity in Mode A.
+            We should observe just enough number of connects to serve the load,
+            while there can be very few disconnects because of GC.
+            ''',
+            timeout=20,
+            duration=1.1,
+            capacity=100,
+            conn_cost_base=0,
+            conn_cost_var=0,
+            score=[
+                ConnectionOverhead(
+                    weight=1, v100=25, v90=50, v60=90, v0=200,
+                    use_time_scale=False,
+                ),
+            ],
+            dbs=[
+                DBSpec(
+                    db='t1',
+                    start_at=0,
+                    end_at=0.1,
+                    qps=int(self.full_qps / 32),
+                    query_cost_base=0.01,
+                    query_cost_var=0,
+                ),
+                DBSpec(
+                    db='t1',
+                    start_at=0.1,
+                    end_at=0.2,
+                    qps=int(self.full_qps / 16),
+                    query_cost_base=0.01,
+                    query_cost_var=0,
+                ),
+                DBSpec(
+                    db='t1',
+                    start_at=0.2,
+                    end_at=0.6,
+                    qps=int(self.full_qps / 8),
+                    query_cost_base=0.01,
+                    query_cost_var=0,
+                ),
+            ]
+        )
+
+    @with_base_test
+    def test_server_connpool_9(self):
+        return Spec(
+            desc='''
+            This test spec is to check the pool performance with low traffic
+            between 3 pre-heated blocks in Mode B. t1 is a reference block,
+            t2 has the same qps as t1, but t3 with doubled qps came in while t2
+            is active. As the total throughput is low enough, we shouldn't have
+            a lot of connects and disconnects, nor a high acquire waiting time.
+            ''',
+            timeout=20,
+            duration=1.1,
+            capacity=100,
+            conn_cost_base=0.01,
+            conn_cost_var=0.005,
+            score=[
+                LatencyDistribution(
+                    group=range(1, 4), weight=0.1,
+                    v100=0.2, v90=0.5, v60=1.0, v0=2.0,
+                ),
+                AbsoluteLatency(
+                    group=range(1, 4), percentile='P99', weight=0.1,
+                    v100=0.001, v90=0.002, v60=0.004, v0=0.05
+                ),
+                AbsoluteLatency(
+                    group=range(1, 4), percentile='P75', weight=0.2,
+                    v100=0.0001, v90=0.0002, v60=0.0004, v0=0.005
+                ),
+                ConnectionOverhead(
+                    weight=0.6, v100=50, v90=90, v60=100, v0=200,
+                    use_time_scale=False,
+                ),
+            ],
+            dbs=[
+                DBSpec(
+                    db='t1',
+                    start_at=0,
+                    end_at=0.1,
+                    qps=int(self.full_qps / 32),
+                    query_cost_base=0.01,
+                    query_cost_var=0.005,
+                ),
+                DBSpec(
+                    db='t1',
+                    start_at=0.1,
+                    end_at=0.4,
+                    qps=int(self.full_qps / 16),
+                    query_cost_base=0.01,
+                    query_cost_var=0.005,
+                ),
+                DBSpec(
+                    db='t2',
+                    start_at=0.5,
+                    end_at=0.6,
+                    qps=int(self.full_qps / 32),
+                    query_cost_base=0.01,
+                    query_cost_var=0.005,
+                ),
+                DBSpec(
+                    db='t2',
+                    start_at=0.6,
+                    end_at=1.0,
+                    qps=int(self.full_qps / 16),
+                    query_cost_base=0.01,
+                    query_cost_var=0.005,
+                ),
+                DBSpec(
+                    db='t3',
+                    start_at=0.7,
+                    end_at=0.8,
+                    qps=int(self.full_qps / 16),
+                    query_cost_base=0.01,
+                    query_cost_var=0.005,
+                ),
+                DBSpec(
+                    db='t3',
+                    start_at=0.8,
+                    end_at=0.9,
+                    qps=int(self.full_qps / 8),
+                    query_cost_base=0.01,
+                    query_cost_var=0.005,
+                ),
+            ]
+        )
+
+    @with_base_test
+    def test_server_connpool_10(self):
+        return Spec(
+            desc='''
+            This test spec is to check the pool garbage collection feature.
+            t1 is a constantly-running reference block, t2 starts in the middle
+            with a full qps and ends early to leave enough time for the pool to
+            execute garbage collection.
+            ''',
+            timeout=10,
+            duration=1.1,
+            capacity=100,
+            conn_cost_base=0.01,
+            conn_cost_var=0.005,
+            score=[
+                EndingCapacity(
+                    weight=1.0, v100=10, v90=20, v60=40, v0=100,
+                ),
+            ],
+            dbs=[
+                DBSpec(
+                    db='t1',
+                    start_at=0,
+                    end_at=1.0,
+                    qps=int(self.full_qps / 32),
+                    query_cost_base=0.01,
+                    query_cost_var=0.005,
+                ),
+                DBSpec(
+                    db='t2',
+                    start_at=0.4,
+                    end_at=0.6,
+                    qps=int(self.full_qps / 32) * 31,
+                    query_cost_base=0.01,
+                    query_cost_var=0.005,
+                ),
             ]
         )
 
