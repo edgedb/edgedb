@@ -62,6 +62,7 @@ class ServerConfig(NamedTuple):
     data_dir: pathlib.Path
     postgres_dsn: str
     postgres_tenant_id: Optional[str]
+    ignore_other_postgres_tenant: bool
     log_level: str
     log_to: str
     bootstrap_only: bool
@@ -212,6 +213,13 @@ _server_options = [
              ' multiple EdgeDB instances on one Postgres cluster.'
              ' Must be an alphanumeric ASCII string, maximum'
              f' {schema_defines.MAX_TENANT_ID_LENGTH} characters long.',
+    ),
+    click.option(
+        '--ignore-other-postgres-tenant',
+        is_flag=True,
+        help='If set, the server will ignore the presence of another tenant '
+             'in the database instance in single-tenant mode instead of '
+             'exiting with a catalog incompatibility error.'
     ),
     click.option(
         '-l', '--log-level',
