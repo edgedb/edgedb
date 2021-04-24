@@ -26,6 +26,7 @@ import click
 
 from edb.common import debug
 from edb.common import devmode as dm
+from edb.server import args as srv_args
 from edb.server import main as srv_main
 from edb.server import buildmeta
 
@@ -41,7 +42,7 @@ def edbcommands(devmode: bool):
 
 
 @edbcommands.command()
-@srv_main.server_options
+@srv_args.server_options
 def server(version=False, **kwargs):
     if version:
         print(f"edb, version {buildmeta.get_version()}")

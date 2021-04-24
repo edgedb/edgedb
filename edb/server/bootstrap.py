@@ -50,6 +50,7 @@ from edb.schema import reflection as s_refl
 from edb.schema import schema as s_schema
 from edb.schema import std as s_std
 
+from edb.server import args as edbargs
 from edb.server import buildmeta
 from edb.server import config
 from edb.server import compiler as edbcompiler
@@ -1275,7 +1276,7 @@ async def _start(ctx: BootstrapContext) -> None:
 
 async def _bootstrap(
     ctx: BootstrapContext,
-    args: Dict[str, Any],
+    args: edbargs.ServerConfig,
 ) -> None:
     await _ensure_edgedb_supergroup(
         ctx,
@@ -1316,7 +1317,7 @@ async def _bootstrap(
 
         stdlib, compiler = await _init_stdlib(
             tpl_ctx,
-            testmode=args['testmode'],
+            testmode=args.testmode,
             global_ids={
                 edbdef.EDGEDB_SUPERUSER: superuser_uid,
                 edbdef.EDGEDB_TEMPLATE_DB: new_template_db_id,
@@ -1353,7 +1354,7 @@ async def _bootstrap(
             ctx._replace(conn=conn),
             schema=schema,
             compiler=compiler,
-            insecure=args['insecure'],
+            insecure=args.insecure,
         )
     finally:
         await conn.close()
@@ -1365,32 +1366,32 @@ async def _bootstrap(
     )
 
     if (
-        args['default_database_user']
-        and args['default_database_user'] != edbdef.EDGEDB_SUPERUSER
+        args.default_database_user
+        and args.default_database_user != edbdef.EDGEDB_SUPERUSER
     ):
         await _ensure_edgedb_role(
             ctx,
-            args['default_database_user'],
+            args.default_database_user,
             superuser=True,
         )
 
-        def_role = ctx.cluster.get_role_name(args['default_database_user'])
+        def_role = ctx.cluster.get_role_name(args.default_database_user)
         await _execute(ctx.conn, f"SET ROLE {qi(def_role)}")
 
     if (
-        args['default_database']
-        and args['default_database'] != edbdef.EDGEDB_SUPERUSER_DB
+        args.default_database
+        and args.default_database != edbdef.EDGEDB_SUPERUSER_DB
     ):
         await _create_edgedb_database(
             ctx,
-            args['default_database'],
-            args['default_database_user'] or edbdef.EDGEDB_SUPERUSER,
+            args.default_database,
+            args.default_database_user or edbdef.EDGEDB_SUPERUSER,
         )
 
 
 async def ensure_bootstrapped(
     cluster: pgcluster.BaseCluster,
-    args: Dict[str, Any],
+    args: edbargs.ServerConfig,
 ) -> bool:
     pgconn = await cluster.connect()
     pgconn.add_log_listener(_pg_log_listener)
