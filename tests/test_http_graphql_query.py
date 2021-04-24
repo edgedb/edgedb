@@ -125,7 +125,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
 
             self.assertEqual(status, 400)
             self.assertEqual(headers['connection'], 'close')
-            self.assertIn(b'invalid HTTP method', data)
+            self.assertIn(b'HttpParserInvalidMethodError', data)
 
             with self.assertRaises(OSError):
                 self.http_con_request(con, {}, path='non-existant')
