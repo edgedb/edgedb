@@ -125,7 +125,7 @@ def _ensure_runstate_dir(
 @contextlib.contextmanager
 def _internal_state_dir(runstate_dir):
     try:
-        with tempfile.TemporaryDirectory(prefix='internal-',
+        with tempfile.TemporaryDirectory(prefix='edgedb-internal-',
                                          dir=runstate_dir) as td:
             yield td
     except PermissionError as ex:
