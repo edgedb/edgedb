@@ -207,6 +207,8 @@ class TestProtocol(ProtocolTestCase):
                 await tx.start()
                 await tx.execute("UPDATE tclcq SET { p := 'lock' }")
                 await self._test_cancel_disconnected_query()
+                val = await tx.query_one('SELECT tclcq.p LIMIT 1')
+                self.assertEqual(val, 'lock')
                 await tx.rollback()
                 val = await con2.query_one('SELECT tclcq.p LIMIT 1')
                 self.assertEqual(val, 'initial')
