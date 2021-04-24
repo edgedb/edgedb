@@ -79,6 +79,7 @@ class BootstrapContext(NamedTuple):
 
     cluster: pgcluster.BaseCluster
     conn: asyncpg_con.Connection
+    args: edbargs.ServerConfig
 
 
 async def _execute(conn, query):
@@ -1218,8 +1219,17 @@ async def _check_catalog_compatibility(
             datadir_major = datadir_version.get('major')
 
         expected_ver = buildmeta.get_version()
+        datadir_catver = instancedata.get('catver')
+        expected_catver = edbdef.EDGEDB_CATALOG_VERSION
+
+        status = dict(
+            data_catalog_version=datadir_catver,
+            expected_catalog_version=expected_catver,
+        )
 
         if datadir_major != expected_ver.major:
+            if ctx.args.status_sink is not None:
+                ctx.args.status_sink(f'INCOMPATIBLE={json.dumps(status)}')
             raise errors.ConfigurationError(
                 'database instance incompatible with this version of EdgeDB',
                 details=(
@@ -1234,10 +1244,9 @@ async def _check_catalog_compatibility(
                 )
             )
 
-        datadir_catver = instancedata.get('catver')
-        expected_catver = edbdef.EDGEDB_CATALOG_VERSION
-
         if datadir_catver != expected_catver:
+            if ctx.args.status_sink is not None:
+                ctx.args.status_sink(f'INCOMPATIBLE={json.dumps(status)}')
             raise errors.ConfigurationError(
                 'database instance incompatible with this version of EdgeDB',
                 details=(
@@ -1276,8 +1285,9 @@ async def _start(ctx: BootstrapContext) -> None:
 
 async def _bootstrap(
     ctx: BootstrapContext,
-    args: edbargs.ServerConfig,
 ) -> None:
+    args = ctx.args
+
     await _ensure_edgedb_supergroup(
         ctx,
         edbdef.EDGEDB_SUPERGROUP,
@@ -1396,11 +1406,11 @@ async def ensure_bootstrapped(
     pgconn = await cluster.connect()
     pgconn.add_log_listener(_pg_log_listener)
 
-    ctx = BootstrapContext(cluster=cluster, conn=pgconn)
+    ctx = BootstrapContext(cluster=cluster, conn=pgconn, args=args)
 
     try:
         if await _is_pristine_cluster(ctx):
-            await _bootstrap(ctx, args)
+            await _bootstrap(ctx)
             return True
         else:
             await _start(ctx)
