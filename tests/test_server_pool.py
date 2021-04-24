@@ -433,6 +433,12 @@ class SingleBlockPool(pool_impl.BasePool[C]):
 class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
     full_qps: typing.Optional[int] = None  # set by the base test
 
+    def setUp(self) -> None:
+        if not os.environ.get('EDGEDB_TEST_DEBUG_POOL'):
+            raise unittest.SkipTest(
+                "Skipped because EDGEDB_TEST_DEBUG_POOL is not set"
+            )
+
     def make_fake_connect(
         self,
         sim: Simulation,
