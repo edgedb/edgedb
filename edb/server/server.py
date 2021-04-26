@@ -251,7 +251,7 @@ class Server:
             self._compiler_pool = await compiler_pool.create_compiler_pool(
                 pool_size=self._compiler_pool_size,
                 dbindex=self._dbindex,
-                runstate_dir=self._runstate_dir,
+                runstate_dir=self._internal_runstate_dir,
                 backend_runtime_params=self.get_backend_runtime_params(),
                 std_schema=self._std_schema,
                 refl_schema=self._refl_schema,
