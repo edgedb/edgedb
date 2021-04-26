@@ -343,7 +343,7 @@ def scm_local_scheme(root, version):
     curdate_str = curdate.strftime(r'%Y%m%d%H')
     commitish = proc.stdout.strip()
     catver = defines.EDGEDB_CATALOG_VERSION
-    return f'+g{commitish[:9]}.d{curdate_str}.cv{catver}'
+    return f'+d{curdate_str}.g{commitish[:9]}.cv{catver}'
 
 
 def get_cache_src_dirs():
