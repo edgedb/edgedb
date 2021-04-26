@@ -3666,6 +3666,16 @@ aa';
         };
         """
 
+    def test_edgeql_syntax_ddl_role_08(self):
+        """
+        CREATE ROLE username IF NOT EXISTS;
+        CREATE SUPERUSER ROLE username IF NOT EXISTS;
+        CREATE ROLE username EXTENDING generic IF NOT EXISTS;
+        CREATE ROLE username EXTENDING generic IF NOT EXISTS {
+            SET password := 'secret';
+        };
+        """
+
     def test_edgeql_syntax_ddl_delta_02(self):
         """
         START MIGRATION TO {type test::Foo;};
@@ -4737,6 +4747,11 @@ aa';
     def test_edgeql_syntax_ddl_module_05(self):
         """
         CREATE MODULE `__std__`;
+        """
+
+    def test_edgeql_syntax_ddl_module_06(self):
+        """
+        CREATE MODULE foo IF NOT EXISTS;
         """
 
     def test_edgeql_syntax_ddl_type_01(self):
