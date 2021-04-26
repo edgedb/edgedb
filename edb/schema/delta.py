@@ -3649,6 +3649,24 @@ def get_special_field_alter_handler(
     return field_handlers.get(schema_cls)
 
 
+def get_special_field_create_handler(
+    field: str,
+    schema_cls: Type[so.Object],
+) -> Optional[Type[AlterSpecialObjectField[so.Object]]]:
+    """Return a custom handler for the field value transition, if any.
+
+    Returns a subclass of AlterSpecialObjectField, when in the context
+    of an CreateObject operation, and a special handler has been declared.
+
+    For now this is just a hacky special case:
+      the 'required' field of Pointers. If that changes, we should generalize
+      the mechanism.
+    """
+    if field != 'required':
+        return None
+    return get_special_field_alter_handler(field, schema_cls)
+
+
 def get_special_field_alter_handler_for_context(
     field: str,
     context: CommandContext,
@@ -3665,6 +3683,9 @@ def get_special_field_alter_handler_for_context(
     ):
         mcls = this_op.get_schema_metaclass()
         return get_special_field_alter_handler(field, mcls)
+    elif isinstance(this_op, CreateObject):
+        mcls = this_op.get_schema_metaclass()
+        return get_special_field_create_handler(field, mcls)
     else:
         return None
 

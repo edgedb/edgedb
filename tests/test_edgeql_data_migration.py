@@ -2387,9 +2387,10 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         # Try altering the schema to a state inconsistent with current
         # data.
         with self.assertRaisesRegex(
-            edgedb.MissingRequiredError,
-            r"missing value for required property 'name' "
-            r"of object type 'test::Base'"
+            AssertionError,
+            r"Please specify an expression to populate existing objects "
+            r"in order to make property 'name' of object type 'test::Base' "
+            r"required"
         ):
             await self.migrate("""
                 type Base {
@@ -4790,7 +4791,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.migrate('''
             type Message {
                 required property text -> str;
-                required property ts -> datetime;
+                property ts -> datetime;
                 index on (.text);
                 index on (.ts);
             };
@@ -8650,6 +8651,93 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 }],
             },
         })
+
+    async def test_edgeql_migration_user_input_03(self):
+        await self.migrate('''
+            type Bar {
+                required property foo -> int64;
+            };
+        ''')
+        await self.con.execute('''
+            SET MODULE test;
+            INSERT Bar { foo := 42 };
+            INSERT Bar { foo := 1337 };
+        ''')
+
+        await self.start_migration('''
+            type Bar {
+                required property foo -> int64;
+                required property bar -> str;
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'proposed': {
+                'statements': [{
+                    'text': '''
+                        ALTER TYPE test::Bar {
+                            CREATE REQUIRED PROPERTY bar -> std::str {
+                                SET REQUIRED USING (\\(fill_expr));
+                            };
+                        };
+                    '''
+                }],
+                'required_user_input': [{
+                    'placeholder': 'fill_expr',
+                    'prompt': (
+                        "Please specify an expression to populate existing "
+                        "objects in order to make property 'bar' of object "
+                        "type 'test::Bar' required"
+                    ),
+                }],
+            },
+        })
+
+        await self.fast_forward_describe_migration(
+            user_input=[
+                '<str>.foo ++ "!"'
+            ]
+        )
+
+        await self.assert_query_result(
+            '''
+                SELECT Bar {foo, bar} ORDER BY .foo
+            ''',
+            [
+                {'foo': 42, 'bar': "42!"},
+                {'foo': 1337, 'bar': "1337!"},
+            ],
+        )
+
+    @test.xfail('''
+        We still don't get it right for rebase situations though. Argh!
+
+        This test shouldn't be unxfailed directly when made to pass, though:
+        it should be extended to finish the migration.
+    ''')
+    async def test_edgeql_migration_user_input_04(self):
+        await self.migrate('''
+            type BlogPost {
+                property title -> str;
+            }
+        ''')
+        await self.con.execute('''
+            SET MODULE test;
+            INSERT BlogPost { title := "Programming Considered Harmful" }
+        ''')
+
+        # await self.start_migration('''
+        with self.assertRaisesRegex(
+                AssertionError,
+                'Please specify an expression'):
+            await self.migrate('''
+                abstract type HasContent {
+                    required property content -> str;
+                }
+                type BlogPost extending HasContent {
+                    property title -> str;
+                }
+            ''')
 
     async def test_edgeql_migration_misplaced_commands(self):
         async with self.assertRaisesRegexTx(
