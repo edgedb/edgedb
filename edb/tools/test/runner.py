@@ -22,6 +22,7 @@ from typing import *
 
 import collections.abc
 import csv
+import dataclasses
 import enum
 import io
 import itertools
@@ -165,6 +166,12 @@ def _is_exc_info(args):
     )
 
 
+@dataclasses.dataclass
+class SerializedServerError:
+    test_error: str
+    server_error: str
+
+
 class ChannelingTestResultMeta(type):
     @staticmethod
     def get_wrapper(meth):
@@ -172,9 +179,13 @@ class ChannelingTestResultMeta(type):
             args = list(args)
 
             if args and _is_exc_info(args[-1]):
-                # exc_info triple
-                error_text = self._exc_info_to_string(args[-1], args[0])
-                args[-1] = error_text
+                exc_info = args[-1]
+                err = self._exc_info_to_string(exc_info, args[0])
+                if isinstance(exc_info[1], edgedb.EdgeDBError):
+                    srv_tb = exc_info[1].get_server_context()
+                    if srv_tb:
+                        err = SerializedServerError(err, srv_tb)
+                args[-1] = err
 
             try:
                 self._queue.put((meth, args, kwargs))
@@ -901,18 +912,20 @@ class ParallelTextTestRunner:
                 self._echo(f'{kind}: {result.getDescription(test)}',
                            fg=fg, bold=True)
                 self._fill('-', fg=fg)
+                srv_tb = None
                 if _is_exc_info(err):
                     if isinstance(err[1], edgedb.EdgeDBError):
                         srv_tb = err[1].get_server_context()
-                        if srv_tb:
-                            self._echo('Server Traceback:',
-                                       fg='red', bold=True)
-                            self._echo(srv_tb)
-                            self._echo('Test Traceback:',
-                                       fg='red', bold=True)
-
                     err = unittest.result.TestResult._exc_info_to_string(
                         result, err, test)
+                elif isinstance(err, SerializedServerError):
+                    err, srv_tb = err.test_error, err.server_error
+                if srv_tb:
+                    self._echo('Server Traceback:',
+                               fg='red', bold=True)
+                    self._echo(srv_tb)
+                    self._echo('Test Traceback:',
+                               fg='red', bold=True)
                 self._echo(err)
 
     def _render_result(self, result, boot_time_taken, tests_time_taken):
