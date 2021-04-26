@@ -4431,6 +4431,16 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 CREATE MODULE spam;
             ''')
 
+    async def test_edgeql_ddl_module_02(self):
+        await self.con.execute('''\
+            CREATE MODULE spam IF NOT EXISTS;
+            CREATE MODULE spam IF NOT EXISTS;
+
+            # Just to validate that the module was indeed created,
+            # make something inside it.
+            CREATE TYPE spam::Test;
+        ''')
+
     async def test_edgeql_ddl_operator_01(self):
         await self.con.execute('''
             CREATE INFIX OPERATOR test::`+++`
@@ -6583,6 +6593,43 @@ type test::Foo {
                 'member_of': [{
                     'name': 'foo3',
                 }],
+            }]
+        )
+
+    async def test_edgeql_ddl_role_04(self):
+        await self.con.execute(r"""
+            CREATE SUPERUSER ROLE foo5 IF NOT EXISTS {
+                SET password := 'secret';
+            };
+            CREATE SUPERUSER ROLE foo5 IF NOT EXISTS {
+                SET password := 'secret';
+            };
+            CREATE SUPERUSER ROLE foo5 IF NOT EXISTS {
+                SET password := 'secret';
+            };
+            CREATE ROLE foo6 EXTENDING foo5 IF NOT EXISTS;
+            CREATE ROLE foo6 EXTENDING foo5 IF NOT EXISTS;
+            CREATE ROLE foo6 EXTENDING foo5 IF NOT EXISTS;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT sys::Role {
+                    name,
+                    superuser,
+                    password,
+                    member_of: {
+                        name
+                    },
+                } FILTER .name = 'foo6'
+            """,
+            [{
+                'name': 'foo6',
+                'superuser': False,
+                'password': None,
+                'member_of': [{
+                    'name': 'foo5'
+                }]
             }]
         )
 

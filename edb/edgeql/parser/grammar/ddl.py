@@ -219,6 +219,14 @@ class UnqualifiedPointerName(Nonterm):
         self.val = kids[0].val
 
 
+class OptIfNotExists(Nonterm):
+    def reduce_IF_NOT_EXISTS(self, *kids):
+        self.val = True
+
+    def reduce_empty(self, *kids):
+        self.val = False
+
+
 class ProductionTpl:
     def _passthrough(self, cmd):
         self.val = cmd.val
@@ -848,12 +856,13 @@ class OptSuperuser(Nonterm):
 class CreateRoleStmt(Nonterm):
     def reduce_CreateRoleStmt(self, *kids):
         r"""%reduce CREATE OptSuperuser ROLE ShortNodeName
-                    OptShortExtending OptCreateRoleCommandsBlock
+                    OptShortExtending OptIfNotExists OptCreateRoleCommandsBlock
         """
         self.val = qlast.CreateRole(
             name=kids[3].val,
             bases=kids[4].val,
-            commands=kids[5].val,
+            create_if_not_exists=kids[5].val,
+            commands=kids[6].val,
             superuser=kids[1].val,
         )
 
@@ -1947,19 +1956,12 @@ class DropAliasStmt(Nonterm):
 # CREATE MODULE
 #
 class CreateModuleStmt(Nonterm):
-    def reduce_CREATE_MODULE_ModuleName_OptCreateCommandsBlock(
+    def reduce_CREATE_MODULE_ModuleName_OptIfNotExists_OptCreateCommandsBlock(
             self, *kids):
         self.val = qlast.CreateModule(
             name=qlast.ObjectRef(module=None, name='.'.join(kids[2].val)),
-            commands=kids[3].val
-        )
-
-    def reduce_CREATE_MODULE_ModuleName_IF_NOT_EXISTS_OptCreateCommandsBlock(
-            self, *kids):
-        self.val = qlast.CreateModule(
-            name=qlast.ObjectRef(module=None, name='.'.join(kids[2].val)),
-            create_if_not_exists=True,
-            commands=kids[6].val
+            create_if_not_exists=kids[3].val,
+            commands=kids[4].val
         )
 
 
