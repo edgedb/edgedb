@@ -4642,3 +4642,40 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             ''',
             [1, 3, 5, 7, 9]
         )
+
+    async def test_edgeql_functions_sequence_next_reset(self):
+        await self.con.execute('''
+            CREATE SCALAR TYPE test::my_seq_01 EXTENDING std::sequence;
+        ''')
+
+        result = await self.con.query_one('''
+            SELECT sequence_next(INTROSPECT test::my_seq_01)
+        ''')
+
+        self.assertEqual(result, 1)
+
+        result = await self.con.query_one('''
+            SELECT sequence_next(INTROSPECT test::my_seq_01)
+        ''')
+
+        self.assertEqual(result, 2)
+
+        await self.con.execute('''
+            SELECT sequence_reset(INTROSPECT test::my_seq_01)
+        ''')
+
+        result = await self.con.query_one('''
+            SELECT sequence_next(INTROSPECT test::my_seq_01)
+        ''')
+
+        self.assertEqual(result, 1)
+
+        await self.con.execute('''
+            SELECT sequence_reset(INTROSPECT test::my_seq_01, 20)
+        ''')
+
+        result = await self.con.query_one('''
+            SELECT sequence_next(INTROSPECT test::my_seq_01)
+        ''')
+
+        self.assertEqual(result, 21)

@@ -543,6 +543,25 @@ class GetRoleBackendNameFunction(dbops.Function):
         )
 
 
+class GetUserSequenceBackendNameFunction(dbops.Function):
+
+    text = f"""
+        SELECT
+            'edgedbpub',
+            "sequence_type_id"::text || '_sequence'
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'get_user_sequence_backend_name'),
+            args=[('sequence_type_id', ('uuid',))],
+            returns=('record',),
+            language='sql',
+            volatility='stable',
+            text=self.text,
+        )
+
+
 class GetObjectMetadata(dbops.Function):
     """Return EdgeDB metadata associated with a backend object."""
     text = '''
@@ -3043,6 +3062,7 @@ async def bootstrap(conn: asyncpg.Connection) -> None:
         dbops.CreateFunction(GetBackendTenantIDFunction()),
         dbops.CreateFunction(GetDatabaseBackendNameFunction()),
         dbops.CreateFunction(GetRoleBackendNameFunction()),
+        dbops.CreateFunction(GetUserSequenceBackendNameFunction()),
         dbops.CreateFunction(GetObjectMetadata()),
         dbops.CreateFunction(GetColumnMetadata()),
         dbops.CreateFunction(GetSharedObjectMetadata()),
