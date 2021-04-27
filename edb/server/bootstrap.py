@@ -239,7 +239,7 @@ async def _is_pristine_cluster(ctx: BootstrapContext) -> bool:
 
     if not result:
         return True
-    elif is_default_tenant and ctx.args.ignore_other_postgres_tenant:
+    elif is_default_tenant and ctx.args.ignore_other_tenants:
         for row in result:
             rolname = row['rolname']
             other_tenant_id = rolname[: -(len(edbdef.EDGEDB_SUPERGROUP) + 1)]

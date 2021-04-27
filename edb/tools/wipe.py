@@ -60,7 +60,7 @@ class AbsPath(click.Path):
     type=AbsPath(),
     help='database cluster directory')
 @click.option(
-    '--postgres-tenant-id',
+    '--tenant-id',
     type=str,
     multiple=True,
     help='The tenant ID of an EdgeDB server to wipe.  May be specified'
@@ -82,7 +82,7 @@ def wipe(
     *,
     postgres_dsn,
     data_dir,
-    postgres_tenant_id,
+    tenant_id,
     yes,
     dry_run,
     list_tenants,
@@ -126,7 +126,7 @@ def wipe(
 
     try:
         asyncio.run(
-            do_wipe(cluster, postgres_tenant_id, dry_run, list_tenants),
+            do_wipe(cluster, tenant_id, dry_run, list_tenants),
         )
     finally:
         if cluster_started_by_us:

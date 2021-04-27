@@ -1547,7 +1547,7 @@ class _EdgeDBServer:
             cmd += ['--runstate-dir', self.runstate_dir]
 
         if self.tenant_id:
-            cmd += ['--postgres-tenant-id', self.tenant_id]
+            cmd += ['--tenant-id', self.tenant_id]
 
         if self.debug:
             print(f'Starting EdgeDB cluster with the following params: {cmd}')

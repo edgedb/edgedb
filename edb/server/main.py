@@ -247,10 +247,10 @@ def run_server(args: srvargs.ServerConfig, *, do_setproctitle: bool=False):
     pg_cluster_init_by_us = False
     pg_cluster_started_by_us = False
 
-    if args.postgres_tenant_id is None:
+    if args.tenant_id is None:
         tenant_id = buildmeta.get_default_tenant_id()
     else:
-        tenant_id = f'C{args.postgres_tenant_id}'
+        tenant_id = f'C{args.tenant_id}'
 
     cluster: Union[pgcluster.Cluster, pgcluster.RemoteCluster]
     if args.data_dir:
