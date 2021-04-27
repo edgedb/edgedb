@@ -562,6 +562,51 @@ class GetUserSequenceBackendNameFunction(dbops.Function):
         )
 
 
+class GetSequenceBackendNameFunction(dbops.Function):
+
+    text = f'''
+        SELECT
+            (CASE
+                WHEN edgedb.get_name_module(st.name)
+                     = any(edgedb.get_std_modules())
+                THEN 'edgedbstd'
+                ELSE 'edgedbpub'
+             END),
+            "sequence_type_id"::text || '_sequence'
+        FROM
+            edgedb."_SchemaScalarType" AS st
+        WHERE
+            st.id = "sequence_type_id"
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'get_sequence_backend_name'),
+            args=[('sequence_type_id', ('uuid',))],
+            returns=('record',),
+            language='sql',
+            volatility='stable',
+            text=self.text,
+        )
+
+
+class GetStdModulesFunction(dbops.Function):
+
+    text = f'''
+        SELECT ARRAY[{",".join(ql(str(m)) for m in s_schema.STD_MODULES)}]
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'get_std_modules'),
+            args=[],
+            returns=('text[]',),
+            language='sql',
+            volatility='immutable',
+            text=self.text,
+        )
+
+
 class GetObjectMetadata(dbops.Function):
     """Return EdgeDB metadata associated with a backend object."""
     text = '''
@@ -1000,6 +1045,21 @@ class NormalizeNameFunction(dbops.Function):
     def __init__(self) -> None:
         super().__init__(
             name=('edgedb', 'shortname_from_fullname'),
+            args=[('name', 'text')],
+            returns='text',
+            volatility='immutable',
+            language='sql',
+            text=self.__class__.text)
+
+
+class GetNameModuleFunction(dbops.Function):
+    text = '''
+        SELECT reverse(split_part(reverse("name"), '::', 1))
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'get_name_module'),
             args=[('name', 'text')],
             returns='text',
             volatility='immutable',
@@ -2210,8 +2270,26 @@ class QuoteIdentFunction(dbops.Function):
             name=('edgedb', 'quote_ident'),
             args=[('val', ('text',))],
             returns=('text',),
-            # Stable because it's raising exceptions.
-            volatility='stable',
+            volatility='immutable',
+            text=self.text,
+        )
+
+
+class QuoteNameFunction(dbops.Function):
+
+    text = r"""
+        SELECT
+            string_agg(edgedb.quote_ident(np), '::')
+        FROM
+            unnest(string_to_array("name", '::')) AS np
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'quote_name'),
+            args=[('name', ('text',))],
+            returns=('text',),
+            volatility='immutable',
             text=self.text,
         )
 
@@ -2311,6 +2389,54 @@ class DescribeRolesAsDDLFunction(dbops.Function):
             # Stable because it's raising exceptions.
             volatility='stable',
             text=text)
+
+
+class DumpSequencesFunction(dbops.Function):
+
+    text = r"""
+        SELECT
+            string_agg(
+                'SELECT std::sequence_reset('
+                || 'INTROSPECT ' || edgedb.quote_name(seq.name)
+                || (CASE WHEN seq_st.is_called
+                    THEN ', ' || seq_st.last_value::text
+                    ELSE '' END)
+                || ');',
+                E'\n'
+            )
+        FROM
+            (SELECT
+                id,
+                name
+             FROM
+                edgedb."_SchemaScalarType"
+             WHERE
+                id = any("seqs")
+            ) AS seq,
+            LATERAL (
+                SELECT
+                    COALESCE(last_value, start_value)::text AS last_value,
+                    last_value IS NOT NULL AS is_called
+                FROM
+                    pg_sequences,
+                    LATERAL ROWS FROM (
+                        edgedb.get_sequence_backend_name(seq.id)
+                    ) AS seq_name(schema text, name text)
+                WHERE
+                    (pg_sequences.schemaname, pg_sequences.sequencename)
+                    = (seq_name.schema, seq_name.name)
+            ) AS seq_st
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_dump_sequences'),
+            args=[('seqs', ('uuid[]',))],
+            returns=('text',),
+            # Volatile because sequence state is volatile
+            volatility='volatile',
+            text=self.text,
+        )
 
 
 class SysConfigSourceType(dbops.Enum):
@@ -3054,6 +3180,8 @@ async def bootstrap(conn: asyncpg.Connection) -> None:
         dbops.CreateSchema(name='edgedbstd'),
         dbops.CreateCompositeType(ExpressionType()),
         dbops.CreateTable(DBConfigTable()),
+        dbops.CreateFunction(QuoteIdentFunction()),
+        dbops.CreateFunction(QuoteNameFunction()),
         dbops.CreateFunction(AlterCurrentDatabaseSetString()),
         dbops.CreateFunction(AlterCurrentDatabaseSetStringArray()),
         dbops.CreateFunction(AlterCurrentDatabaseSetNonArray()),
@@ -3063,6 +3191,7 @@ async def bootstrap(conn: asyncpg.Connection) -> None:
         dbops.CreateFunction(GetDatabaseBackendNameFunction()),
         dbops.CreateFunction(GetRoleBackendNameFunction()),
         dbops.CreateFunction(GetUserSequenceBackendNameFunction()),
+        dbops.CreateFunction(GetStdModulesFunction()),
         dbops.CreateFunction(GetObjectMetadata()),
         dbops.CreateFunction(GetColumnMetadata()),
         dbops.CreateFunction(GetSharedObjectMetadata()),
@@ -3075,6 +3204,7 @@ async def bootstrap(conn: asyncpg.Connection) -> None:
         dbops.CreateFunction(AssertJSONTypeFunction()),
         dbops.CreateFunction(ExtractJSONScalarFunction()),
         dbops.CreateFunction(NormalizeNameFunction()),
+        dbops.CreateFunction(GetNameModuleFunction()),
         dbops.CreateFunction(NullIfArrayNullsFunction()),
         dbops.CreateCompositeType(IndexDescType()),
         dbops.CreateFunction(IntrospectIndexesFunction()),
@@ -3817,7 +3947,6 @@ async def generate_support_functions(
         dbops.CreateFunction(IssubclassFunction()),
         dbops.CreateFunction(IssubclassFunction2()),
         dbops.CreateFunction(GetSchemaObjectNameFunction()),
-        dbops.CreateFunction(QuoteIdentFunction()),
     ])
 
     block = dbops.PLTopBlock()
@@ -3871,6 +4000,8 @@ async def generate_more_support_functions(
         dbops.CreateFunction(DescribeSystemConfigAsDDLFunction),
         dbops.CreateFunction(DescribeDatabaseConfigAsDDLFunction),
         dbops.CreateFunction(DescribeRolesAsDDLFunction(schema)),
+        dbops.CreateFunction(GetSequenceBackendNameFunction()),
+        dbops.CreateFunction(DumpSequencesFunction()),
     ])
 
     block = dbops.PLTopBlock()

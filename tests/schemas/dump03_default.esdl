@@ -18,6 +18,8 @@
 
 
 scalar type MyStr extending str;
+scalar type MySeq extending sequence;
+scalar type MyPristineSeq extending sequence;
 
 type Test {
     required property name -> str {
@@ -30,4 +32,5 @@ type Test {
             array<MyStr>,
             tuple<int64, int64, array<MyStr>>,
         >;
+    property seq -> MySeq;
 };

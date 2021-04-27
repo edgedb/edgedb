@@ -232,6 +232,9 @@ class Type(
     def is_enum(self, schema: s_schema.Schema) -> bool:
         return False
 
+    def is_sequence(self, schema: s_schema.Schema) -> bool:
+        return False
+
     def test_polymorphic(self, schema: s_schema.Schema, poly: Type) -> bool:
         """Check if this type can be matched by a polymorphic type.
 

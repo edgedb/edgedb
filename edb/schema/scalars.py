@@ -69,6 +69,10 @@ class ScalarType(
     def is_enum(self, schema: s_schema.Schema) -> bool:
         return bool(self.get_enum_values(schema))
 
+    def is_sequence(self, schema: s_schema.Schema) -> bool:
+        seq = schema.get('std::sequence', type=ScalarType)
+        return self.issubclass(schema, seq)
+
     def is_polymorphic(self, schema: s_schema.Schema) -> bool:
         return self.get_abstract(schema)
 

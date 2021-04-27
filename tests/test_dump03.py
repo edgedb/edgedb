@@ -38,6 +38,7 @@ class DumpTestCaseMixin:
                 SELECT Test {
                     array_of_tuples,
                     tuple_of_arrays,
+                    seq,
                 } FILTER .name = 'test01'
             ''',
             [
@@ -51,9 +52,20 @@ class DumpTestCaseMixin:
                         ['2', '3'],
                         [4, 5, ['6']],
                     ],
+                    'seq': 1,
                 },
             ]
         )
+
+        result = await self.con.query_one(
+            "SELECT sequence_next(INTROSPECT TYPEOF Test.seq)"
+        )
+        self.assertEqual(result, 2)
+
+        result = await self.con.query_one(
+            "SELECT sequence_next(INTROSPECT MyPristineSeq)"
+        )
+        self.assertEqual(result, 1)
 
 
 class TestDump03(tb.StableDumpTestCase, DumpTestCaseMixin):

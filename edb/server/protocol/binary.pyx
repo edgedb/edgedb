@@ -2190,13 +2190,22 @@ cdef class EdgeConnection:
             global_schema = await server.introspect_global_schema(pgcon)
             db_config = await server.introspect_db_config(pgcon)
 
-            schema_ddl, schema_ids, blocks = (
+            schema_ddl, schema_dynamic_ddl, schema_ids, blocks = (
                 await compiler_pool.describe_database_dump(
                     user_schema,
                     global_schema,
                     db_config,
                 )
             )
+
+            if schema_dynamic_ddl:
+                for query in schema_dynamic_ddl:
+                    result = await pgcon.simple_query(
+                        query.encode('utf-8'),
+                        ignore_data=False,
+                    )
+                    if result:
+                        schema_ddl += '\n' + result[0][0].decode('utf-8')
 
             msg_buf = WriteBuffer.new_message(b'@')
 
