@@ -2918,7 +2918,7 @@ class GetCachedReflection(dbops.Function):
             pg_proc
             INNER JOIN pg_namespace ON (pronamespace = pg_namespace.oid)
         WHERE
-            proname LIKE '__rh_%'
+            proname LIKE '\\_\\_rh\\_%'
     '''
 
     def __init__(self) -> None:
