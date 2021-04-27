@@ -1,0 +1,193 @@
+==========
+1.0 Beta 2
+==========
+
+This changelog summarizes new features and breaking changes in
+EdgeDB 1.0 beta 2 "Luyten".
+
+
+Migrations
+==========
+
+We've been working a lot on our migrations tools with the goal of
+improving the developer experience. Here's a highlight of recent
+changes and fixes:
+
+* Fix :eql:type:`sequence` default values getting lost after some
+  migrations (:eql:gh:`#2389`).
+* Fix moving indexes around the type hierarchy (:eql:gh:`#2380`).
+* Fix issues with renaming (:eql:gh:`#2353`).
+* Fix an issue using a symbol defined in a ``WITH`` block in SDL
+  (:eql:gh:`#2320`).
+* Fix multiple issues with migrations to an empty schema
+  (:eql:gh:`#2296`).
+* Make it possible to add new values to :eql:type:`enums <enum>` in
+  migrations (:eql:gh:`#2328`).
+* Fix tuples in ``MULTI`` properties and :eql:op:`IN` expressions
+  (:eql:gh:`#2255`).
+* Fix SDL handling of types with two or more indexes
+  (:eql:gh:`#2301`).
+* Fix a regression with array aliasing that made array aliases
+  indistinguishable (:eql:gh:`#2287`).
+* Fix a number of issues with constraints and provide
+  better context information for constraint definition errors
+  (:eql:gh:`#1370`, :eql:gh:`#2250`, :eql:gh:`#2305`, :eql:gh:`#2307`,
+  :eql:gh:`#2311`, :eql:gh:`#2410`).
+* Fix ``DROP OWNED`` on links and properties with defaults
+  (:eql:gh:`#2306`).
+* Fix ``SET TYPE`` on links and properties with constraints
+  (:eql:gh:`#2309`).
+
+
+EdgeQL
+======
+
+* Make sure sequence state gets included in dumps (:eql:gh:`#2441`).
+* Implement functions to explicitly advance or reset a sequence value
+  (:eql:gh:`#2508`).
+
+  :eql:func:`sequence_next` returns the next value for the specified
+  sequence type.
+
+  :eql:func:`sequence_reset` resets the *current* value of the
+  specified sequence, the next call to ``sequence_next`` will
+  return the next value in sequence.
+
+* Drop the deprecated ``Port``. The more general
+  :ref:`extension <ref_datamodel_extensions>` mechanism introduced in
+  EdgeDB 1.0 beta 1 should be used (:eql:gh:`#2262`).
+* Reduce the maximum length for names of databases and roles to 51
+  characters (:eql:gh:`#2465`).
+* Enable ``br`` (or ``rb``) as a valid bytes literal prefix
+  (:eql:gh:`#2332`).
+* Enable ``DESCRIBE SCHEMA AS SDL`` (:eql:gh:`#2481`).
+* Support ``UNLESS CONFLICT ON`` with two or more properties or links
+  (:eql:gh:`#1939`).
+
+  This clause allows performing an alternative query when a conflict
+  due to a constraint occurs during an ``INSERT``:
+
+  .. code-block:: edgeql
+
+    INSERT Person { name := "Alice" }
+    UNLESS CONFLICT ON .name  # If a Person with this name exists,
+    ELSE (SELECT Person)      # select that existing Person instead.
+
+* Make :eql:func:`min` and :eql:func:`max` work more consistently
+  across all supported types (:eql:gh:`#1920`).
+* Improve cardinality inference (:eql:gh:`#2097`).
+* Disallow use of ``VOLATILE`` functions in schema-defined computable
+  expressions (:eql:gh:`#2467`).
+* Fix handling of collection types of non-builtin scalars in dumps
+  (:eql:gh:`#2349`).
+* Fix inconsistent handling of ``{}`` by the :eql:op:`IF <IF..ELSE>`
+  operator
+  (:eql:gh:`#2460`).
+* Fix duplicate values appearing when using :ref:`+=
+  <ref_eql_statements_update>` (:eql:gh:`#2455`).
+* Fix an issue with empty sets (i.e. ``{}``) inside set literals
+  (:eql:gh:`#2154`).
+* Fix backward links when multiple types with the same link name exist
+  (:eql:gh:`#2360`).
+* Fix :eql:op:`DISTINCT` on empty and nested tuples (:eql:gh:`#2333`).
+* Fix some serialization issues of shapes inside arrays and tuples
+  (:eql:gh:`#1818`).
+* Make sure :ref:`DELETE <ref_eql_statements_delete>` also applies to
+  all sub-types of the selected type (:eql:gh:`#2265`).
+
+GraphQL
+=======
+
+* Fix usage of :eql:type:`enums <enum>` as input variables in GraphQL
+  (:eql:gh:`#2415`).
+* Fix querying ``BaseObject`` via GraphQL (:eql:gh:`#2214`).
+
+
+Command-Line Tools
+==================
+
+We've added ``edgedb project init`` command to help manage EdgeDB
+credentials for your project. Running this in a new project directory
+will setup an EdgeDB instance, create a schema and migrations
+directory and link the credentials for that instance to the project
+directory.
+
+.. code-block:: bash
+
+    $ edgedb project init
+    No `edgedb.toml` found in `/home/username/dev/hw` or above
+    Do you want to initialize a new project? [Y/n]
+    > Y
+    Specify the name of EdgeDB instance to use with this project
+    [default: myproject]:
+    > myproject
+    Type a number to select an option:
+    How would you like to run EdgeDB for this project?
+    1. Local (docker)
+    > 1
+    Checking EdgeDB versions...
+    Specify the version of EdgeDB to use with this project
+    [default: 1-beta2]:
+    > 1-beta2
+    ┌─────────────────────┬──────────────────────────────────────────┐
+    │ Project directory   │ /home/username/dev/myproject             │
+    │ Project config      │ /home/username/dev/myproject/edgedb.toml │
+    │ Schema dir (empty)  │ /home/username/dev/myproject/dbschema    │
+    │ Installation method │ Docker Container                         │
+    │ Version             │ 1-beta2-c23b7a1                          │
+    │ Instance name       │ myproject                                │
+    └─────────────────────┴──────────────────────────────────────────┘
+    Initializing EdgeDB instance...
+    e740091d317687d1628f96e43a77ec02f098de68df3b8b95b3bd987f7c30080d
+    Applying migrations...
+    Everything is up to date. Revision initial
+    Project initialialized.
+    To connect to myproject, just run `edgedb`
+
+As the last line indicates it is no longer necessary to supply the
+instance name explicitly to connect to the project instance, just
+``edgedb`` will do the trick. This is also true for using any of
+EdgeDB's client libraries, the instance name is no longer required.
+
+Existing projects can be converted to use this feature by simply
+running ``edgedb project init`` in the existing project's directory:
+
+.. code-block:: bash
+
+    $ edgedb project init
+    No `edgedb.toml` found in `/home/username/dev/myproject` or above
+    Do you want to initialize a new project? [Y/n]
+    > Y
+    Specify the name of EdgeDB instance to use with this project
+    [default: myproject_uuyg1cr]:
+    > myproject
+    Do you want to use existing instance "myproject" for the project?
+    [y/n]
+    > y
+    Applying migrations...
+    Everything is up to date.
+    Revision m1lsdptp5qk4sway5vc6ttknwignhm34xncyxwrus2fygnj6nuo7ra
+    Project initialialized.
+    To connect to myproject, just run `edgedb`
+
+
+Bindings
+========
+
+* Implement `RFC 1004 <robust_>`_ features for `edgedb-go
+  <https://github.com/edgedb/edgedb-go>`_ driver.
+* Update the `edgedb-python
+  <https://github.com/edgedb/edgedb-python>`_ driver to v0.14.0.
+* Update the `edgedb-js <https://github.com/edgedb/edgedb-js>`_ driver
+  to v0.14.0.
+* Release `Deno <https://github.com/edgedb/edgedb-deno>`_ driver.
+* Implement ``with_transaction_options`` and ``with_retry_options``
+  from `RFC 1004 <robust_>`_ for `edgedb-python
+  <https://github.com/edgedb/edgedb-python>`_ and `edgedb-js
+  <https://github.com/edgedb/edgedb-js>`_.
+
+  These methods on the connection object allow obtaining a new
+  connection with modified options.
+
+.. _robust:
+    https://github.com/edgedb/rfcs/blob/master/text/1004-transactions-api.rst
