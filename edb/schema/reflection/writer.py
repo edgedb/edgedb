@@ -282,6 +282,9 @@ def _build_object_mutation_shape(
             else:
                 target_value = None
                 variables[f'{var_n}__internal'] = json.dumps(None)
+            if v is not None:
+                assignments.append(f'{n}_parts := <array<str>>${var_n}_parts')
+                variables[f'{var_n}_parts'] = json.dumps(v.as_tuple())
 
         elif isinstance(target, s_objtypes.ObjectType):
             if cardinality is qltypes.SchemaCardinality.Many:

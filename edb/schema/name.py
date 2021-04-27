@@ -50,6 +50,9 @@ if TYPE_CHECKING:
         def get_local_name(self) -> UnqualName:
             ...
 
+        def as_tuple(self) -> Tuple[str, ...]:
+            ...
+
         def __lt__(self, other: Any) -> bool:
             ...
 
@@ -147,6 +150,9 @@ else:
         def get_module_name(self) -> Name:
             return UnqualName(self.module)
 
+        def as_tuple(self) -> Tuple[str, ...]:
+            return (self.module, self.name)
+
         def __str__(self) -> str:
             return f'{self.module}::{self.name}'
 
@@ -166,6 +172,9 @@ else:
 
         def get_local_name(self) -> UnqualName:
             return self
+
+        def as_tuple(self) -> Tuple[str, ...]:
+            return (self.name,)
 
         def __str__(self) -> str:
             return self.name

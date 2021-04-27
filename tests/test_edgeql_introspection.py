@@ -1363,3 +1363,52 @@ class TestIntrospection(tb.QueryTestCase):
         """)
 
         self.assertGreater(res, 0)
+
+    async def test_edgeql_introspection_name_parts(self):
+        await self.con.execute("""
+            CREATE MODULE `name_parts_test_a$`;
+        """)
+        await self.con.execute("""
+            CREATE SCALAR TYPE `name_parts_test_a$`::`b$` EXTENDING std::str;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT
+                    schema::Object {
+                        name_parts
+                    }
+                FILTER
+                    .name LIKE 'name_parts_test_%'
+                ORDER BY
+                    .name
+            """,
+            [{
+                'name_parts': ['name_parts_test_a$'],
+            }, {
+                'name_parts': ['name_parts_test_a$', 'b$'],
+            }]
+        )
+
+        await self.con.execute("""
+            ALTER SCALAR TYPE `name_parts_test_a$`::`b$`
+                RENAME TO `name_parts_test_a$`::`c$`
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT
+                    schema::Object {
+                        name_parts
+                    }
+                FILTER
+                    .name LIKE 'name_parts_test_%'
+                ORDER BY
+                    .name
+            """,
+            [{
+                'name_parts': ['name_parts_test_a$'],
+            }, {
+                'name_parts': ['name_parts_test_a$', 'c$'],
+            }]
+        )

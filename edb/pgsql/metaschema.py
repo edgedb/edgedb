@@ -3193,6 +3193,8 @@ def _generate_database_views(schema: s_schema.Schema) -> List[dbops.View]:
                 AS {qi(ptr_col_name(schema, Database, 'name'))},
             (d.description)->>'name'
                 AS {qi(ptr_col_name(schema, Database, 'name__internal'))},
+            ARRAY[(d.description)->>'name']
+                AS {qi(ptr_col_name(schema, Database, 'name_parts'))},
             ARRAY[]::text[]
                 AS {qi(ptr_col_name(schema, Database, 'computed_fields'))},
             ((d.description)->>'builtin')::bool
@@ -3296,6 +3298,8 @@ def _generate_extension_views(schema: s_schema.Schema) -> List[dbops.View]:
                 AS {qi(ptr_col_name(schema, ExtPkg, 'name'))},
             (e.value->>'name__internal')
                 AS {qi(ptr_col_name(schema, ExtPkg, 'name__internal'))},
+            ARRAY[e.value->>'name']
+                AS {qi(ptr_col_name(schema, ExtPkg, 'name_parts'))},
             (
                 (e.value->'version'->>'major')::int,
                 (e.value->'version'->>'minor')::int,
@@ -3421,6 +3425,8 @@ def _generate_role_views(schema: s_schema.Schema) -> List[dbops.View]:
                 AS {qi(ptr_col_name(schema, Role, 'name'))},
             (d.description)->>'name'
                 AS {qi(ptr_col_name(schema, Role, 'name__internal'))},
+            ARRAY[(d.description)->>'name']
+                AS {qi(ptr_col_name(schema, Role, 'name_parts'))},
             {superuser}
                 AS {qi(ptr_col_name(schema, Role, 'superuser'))},
             False
@@ -3602,6 +3608,8 @@ def _generate_schema_ver_views(schema: s_schema.Schema) -> List[dbops.View]:
                 AS {qi(ptr_col_name(schema, Ver, 'name'))},
             (v.value->>'name')
                 AS {qi(ptr_col_name(schema, Ver, 'name__internal'))},
+            ARRAY[v.value->>'name']
+                AS {qi(ptr_col_name(schema, Ver, 'name_parts'))},
             (v.value->>'version')::uuid
                 AS {qi(ptr_col_name(schema, Ver, 'version'))},
             (v.value->>'builtin')::bool
