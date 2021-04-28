@@ -176,26 +176,8 @@ class TestProtocol(ProtocolTestCase):
             transaction_state=protocol.TransactionState.NOT_IN_TRANSACTION,
         )
 
-    async def _test_cancel_disconnected_query(self):
-        await self.con.send(
-            protocol.ExecuteScript(
-                headers=[],
-                script="UPDATE tclcq SET { p := 'inner' }",
-            )
-        )
-        with self.assertRaises(asyncio.TimeoutError):
-            await asyncio.wait_for(
-                self.con.recv_match(
-                    protocol.CommandComplete,
-                    status='UPDATE'
-                ),
-                0.1,
-            )
-        await self.con.aclose()
-
     async def test_proto_connection_lost_cancel_query(self):
-        await self.con.connect()
-
+        # Prepare the test data
         con2 = await edgedb.async_connect(**self.get_connect_args())
         try:
             await con2.execute(
@@ -203,16 +185,58 @@ class TestProtocol(ProtocolTestCase):
             )
             try:
                 await con2.execute("INSERT tclcq { p := 'initial' }")
+
+                # Ready the nested connection
+                await self.con.connect()
+
+                # Use an implicit transaction in the nested connection: lock
+                # the row with an UPDATE, and then hold the transaction for 10
+                # seconds, which is long enough for the upcoming cancellation
+                await self.con.send(
+                    protocol.ExecuteScript(
+                        headers=[],
+                        script="""\
+                        UPDATE tclcq SET { p := 'inner' };
+                        SELECT sys::_sleep(10);
+                        """,
+                    )
+                )
+
+                # Sanity check - we shouldn't get anything here
+                with self.assertRaises(asyncio.TimeoutError):
+                    await asyncio.wait_for(
+                        self.con.recv_match(
+                            protocol.CommandComplete,
+                            status='UPDATE'
+                        ),
+                        0.1,
+                    )
+
+                # Close the nested connection without waiting for the result;
+                # the server is supposed to cancel the pending query.
+                await self.con.aclose()
+
+                # In the outer connection, let's wait until the lock is
+                # released by either an expected cancellation, or an unexpected
+                # commit after 10 seconds.
                 tx = con2.raw_transaction()
                 await tx.start()
-                await tx.execute("UPDATE tclcq SET { p := 'lock' }")
-                await self._test_cancel_disconnected_query()
-                val = await tx.query_one('SELECT tclcq.p LIMIT 1')
-                self.assertEqual(val, 'lock')
-                await tx.rollback()
+                try:
+                    await tx.execute("UPDATE tclcq SET { p := 'lock' }")
+                except edgedb.TransactionSerializationError:
+                    # In case the nested transaction succeeded, we'll meet an
+                    # concurrent update error here, which can be safely ignored
+                    pass
+                finally:
+                    await tx.rollback()
+
+                # Let's check what's in the row - if the cancellation didn't
+                # happen, the test will fail with value "inner".
                 val = await con2.query_one('SELECT tclcq.p LIMIT 1')
                 self.assertEqual(val, 'initial')
+
             finally:
+                # Clean up
                 await con2.execute(
                     "DROP TYPE tclcq"
                 )
