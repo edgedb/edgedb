@@ -175,7 +175,7 @@ CREATE TYPE schema::Parameter EXTENDING schema::Object {
 CREATE ABSTRACT TYPE schema::CallableObject
     EXTENDING schema::AnnotationSubject
 {
-    CREATE MULTI LINK params -> schema::Parameter {
+    CREATE MULTI LINK params EXTENDING schema::ordered -> schema::Parameter {
         ON TARGET DELETE ALLOW;
     };
 
