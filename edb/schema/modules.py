@@ -77,42 +77,27 @@ class AlterModule(ModuleCommand, sd.AlterObject[Module]):
 class DeleteModule(ModuleCommand, sd.DeleteObject[Module]):
     astnode = qlast.DropModule
 
-    def _delete_begin(
+    def _validate_legal_command(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-    ) -> s_schema.Schema:
-        from . import ddl as s_ddl
+    ) -> None:
+        super()._validate_legal_command(schema, context)
 
-        if context.canonical:
-            return schema
+        def is_toplevel(schema: s_schema.Schema, obj: so.Object) -> bool:
+            return not sn.quals_from_fullname(obj.get_name(schema))
 
-        schema = self.populate_ddl_identity(schema, context)
-        schema = self.canonicalize_attributes(schema, context)
-
-        def not_this_module(schema: s_schema.Schema, obj: so.Object) -> bool:
-            return obj == self.scls
-
-        # We handle deleting the module contents in a heavy-handed way:
-        # do a schema diff.
-        delta = s_ddl.delta_schemas(
-            schema, schema,
+        # Modules aren't actually stored with any direct linkage
+        # to the objects in them, so explicitly search for them
+        # and then delete them.
+        has_objects = bool(schema.get_objects(
             included_modules=[self.classname],
-            schema_b_filters=[not_this_module],
-            linearize_delta=True,
-        )
+            excluded_objects=[self.classname],
+            # extra_filters=[is_toplevel],
+        ))
 
-        # Follow-up on the atrocious heavy-handed delta_schemas diffing
-        # above by doing more heavy-handed hackery:
-        # to properly simulate the migrations experience,
-        # serialize everything to an AST and back.
-        # Sorry.
-        for subcmd in delta.get_subcommands():
-            ast = subcmd.get_ast(schema, context)
-            if ast:
-                assert isinstance(ast, qlast.DDLCommand)
-                new_cmd = s_ddl.cmd_from_ddl(
-                    ast, modaliases=context.modaliases, schema=schema)
-                self.add(new_cmd)
-
-        return schema
+        if has_objects:
+            vn = self.scls.get_verbosename(orig_schema)
+            raise errors.SchemaError(
+                f'cannot drop {vn} because it is not empty'
+            )
