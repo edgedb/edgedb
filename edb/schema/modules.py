@@ -88,7 +88,7 @@ class DeleteModule(ModuleCommand, sd.DeleteObject[Module]):
         # Modules aren't actually stored with any direct linkage
         # to the objects in them, so explicitly search for objects
         # in the module (excluding the module itself).
-        has_objects = bool(any(schema.get_objects(
+        has_objects = bool(list(schema.get_objects(
             included_modules=[self.classname],
             excluded_items=[self.classname],
         )))
