@@ -29,7 +29,6 @@ from edb.edgeql import qltypes
 from . import annos as s_anno
 from . import delta as sd
 from . import schema as s_schema
-from . import objects as so
 
 
 class Module(
@@ -84,20 +83,18 @@ class DeleteModule(ModuleCommand, sd.DeleteObject[Module]):
     ) -> None:
         super()._validate_legal_command(schema, context)
 
-        def is_toplevel(schema: s_schema.Schema, obj: so.Object) -> bool:
-            return not sn.quals_from_fullname(obj.get_name(schema))
+        # For now, we disallow deleting non-empty modules.
 
         # Modules aren't actually stored with any direct linkage
-        # to the objects in them, so explicitly search for them
-        # and then delete them.
-        has_objects = bool(schema.get_objects(
+        # to the objects in them, so explicitly search for objects
+        # in the module (excluding the module itself).
+        has_objects = bool(any(schema.get_objects(
             included_modules=[self.classname],
-            excluded_objects=[self.classname],
-            # extra_filters=[is_toplevel],
-        ))
+            excluded_items=[self.classname],
+        )))
 
         if has_objects:
-            vn = self.scls.get_verbosename(orig_schema)
+            vn = self.scls.get_verbosename(schema)
             raise errors.SchemaError(
                 f'cannot drop {vn} because it is not empty'
             )

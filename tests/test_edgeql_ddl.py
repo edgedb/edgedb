@@ -6326,18 +6326,13 @@ type test::Foo {
             };
         """)
 
-        await self.con.execute(r"""
-            DROP MODULE test_other;
-        """)
-
-        await self.assert_query_result(
-            r"""
-                SELECT count((
-                    SELECT schema::Object FILTER .name LIKE 'test_other::%'
-                ))
-            """,
-            [0],
-        )
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaError,
+            "cannot drop module 'test_other' because it is not empty",
+        ):
+            await self.con.execute(r"""
+                DROP MODULE test_other;
+            """)
 
     async def test_edgeql_ddl_extension_package_01(self):
         await self.con.execute(r"""
