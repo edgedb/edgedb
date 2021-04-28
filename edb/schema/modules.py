@@ -19,6 +19,8 @@
 
 from __future__ import annotations
 
+from typing import *
+
 from edb import errors
 
 from edb.edgeql import ast as qlast
@@ -73,3 +75,26 @@ class AlterModule(ModuleCommand, sd.AlterObject[Module]):
 
 class DeleteModule(ModuleCommand, sd.DeleteObject[Module]):
     astnode = qlast.DropModule
+
+    def _validate_legal_command(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> None:
+        super()._validate_legal_command(schema, context)
+
+        # For now, we disallow deleting non-empty modules.
+
+        # Modules aren't actually stored with any direct linkage
+        # to the objects in them, so explicitly search for objects
+        # in the module (excluding the module itself).
+        has_objects = bool(any(schema.get_objects(
+            included_modules=[self.classname],
+            excluded_items=[self.classname],
+        )))
+
+        if has_objects:
+            vn = self.scls.get_verbosename(schema)
+            raise errors.SchemaError(
+                f'cannot drop {vn} because it is not empty'
+            )
