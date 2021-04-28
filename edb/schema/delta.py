@@ -2163,6 +2163,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                         # and that have their value actually changed.
                         not fop.new_inherited
                         or context.descriptive_mode
+                        or self.ast_ignore_ownership()
                     )
                     and (
                         fop.old_value != new_value
@@ -2604,6 +2605,10 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         if self.annotations is None:
             self.annotations = {}
         self.annotations[name] = value
+
+    def ast_ignore_ownership(self) -> bool:
+        """Whether to force something into the AST even though it is owned"""
+        return False
 
 
 class ObjectCommandContext(CommandContextToken[ObjectCommand[so.Object_T]]):

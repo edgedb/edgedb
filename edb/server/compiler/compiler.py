@@ -764,9 +764,14 @@ class Compiler:
             schema = delta.apply(schema, context=context)
 
             if mstate.last_proposed:
-                if mstate.last_proposed[0].required_user_input:
+                if (
+                    mstate.last_proposed[0].required_user_input
+                    or mstate.last_proposed[0].prompt_id.startswith("Rename")
+                ):
                     # Cannot auto-apply the proposed DDL
                     # if user input is required.
+                    # Also skip auto-applying for renames, since
+                    # renames often force a bunch of rethinking.
                     mstate = mstate._replace(last_proposed=tuple())
                 else:
                     proposed_stmts = mstate.last_proposed[0].statements

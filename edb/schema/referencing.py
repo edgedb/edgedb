@@ -587,7 +587,11 @@ class CreateReferencedObject(
         scls = self.get_object(schema, context)
         assert isinstance(scls, ReferencedInheritingObject)
         implicit_bases = scls.get_implicit_bases(schema)
-        if implicit_bases and not context.declarative:
+        if (
+            implicit_bases
+            and not context.declarative
+            and not self.ast_ignore_ownership()
+        ):
             alter = scls.init_delta_command(schema, sd.AlterObject)
             return alter._get_ast_node(schema, context)
         else:
@@ -993,7 +997,10 @@ class CreateReferencedInheritingObject(
             if self.get_attribute_value('from_alias'):
                 return None
 
-            elif not self.get_attribute_value('owned'):
+            elif (
+                not self.get_attribute_value('owned')
+                and not self.ast_ignore_ownership()
+            ):
                 if context.descriptive_mode:
                     astnode = super()._get_ast(
                         schema,
