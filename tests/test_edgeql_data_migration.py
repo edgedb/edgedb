@@ -205,8 +205,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 ans = "y"
                 user_input = None
             else:
-                prompt, ans = part[0:2]
-                user_input = part[2] if len(part) > 2 else None
+                prompt, ans, *user_input = part
 
             await self.assert_describe_migration({
                 'proposed': {'prompt': prompt}
@@ -4928,10 +4927,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             "did you rename object type 'test::OrgUniquelyNamed' to "
             "'test::OrgUniquelyNamedResource'?",
 
-            "did you alter constraint 'std::exclusive' of object type "
-            "'test::OrgUniquelyNamed'?",
-
-            "did you alter object type 'test::OrgUniquelyNamed'?",
+            "did you alter object type 'test::OrgUniquelyNamedResource'?",
+            "did you alter object type 'test::OrgUniquelyNamedResource'?",
         ])
 
     async def test_edgeql_migration_rename_01(self):
@@ -4947,7 +4944,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self.interact([
             "did you rename object type 'test::Foo' to 'test::Bar'?",
-            "did you create property 'asdf' of object type 'test::Foo'?",
+            "did you create property 'asdf' of object type 'test::Bar'?",
         ])
 
     async def test_edgeql_migration_rename_02(self):
@@ -4975,7 +4972,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             "did you rename property 'asdf' of object type 'test::Foo' to "
             "'womp'?" ,
 
-            "did you create annotation 'std::title' of property 'asdf'?",
+            "did you create annotation 'std::title' of property 'womp'?",
         ])
 
     async def test_edgeql_migration_rename_03(self):
@@ -8709,12 +8706,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             ],
         )
 
-    @test.xfail('''
-        We still don't get it right for rebase situations though. Argh!
-
-        This test shouldn't be unxfailed directly when made to pass, though:
-        it should be extended to finish the migration.
-    ''')
     async def test_edgeql_migration_user_input_04(self):
         await self.migrate('''
             type BlogPost {
@@ -8726,18 +8717,39 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             INSERT BlogPost { title := "Programming Considered Harmful" }
         ''')
 
-        # await self.start_migration('''
-        with self.assertRaisesRegex(
-                AssertionError,
-                'Please specify an expression'):
-            await self.migrate('''
-                abstract type HasContent {
-                    required property content -> str;
-                }
-                type BlogPost extending HasContent {
-                    property title -> str;
-                }
-            ''')
+        await self.start_migration('''
+            abstract type HasContent {
+                required property content -> str;
+            }
+            type BlogPost extending HasContent {
+                property title -> str;
+            }
+        ''')
+
+        await self.interact([
+            "did you create object type 'test::HasContent'?",
+            ("did you alter object type 'test::BlogPost'?", "y",
+             '"This page intentionally left blank"'),
+            # XXX: There is a final follow-up prompt, since the DDL
+            # generated above somewhat wrongly leaves 'content' owned
+            # by the child. This is kind of wrong, but also *works*, so
+            # maybe it's fine for now.
+            "did you alter property 'content' of object type "
+            "'test::BlogPost'?",
+        ])
+        await self.fast_forward_describe_migration()
+
+        await self.assert_query_result(
+            '''
+                SELECT BlogPost {title, content}
+            ''',
+            [
+                {
+                    'title': "Programming Considered Harmful",
+                    'content': "This page intentionally left blank",
+                },
+            ],
+        )
 
     async def test_edgeql_migration_misplaced_commands(self):
         async with self.assertRaisesRegexTx(

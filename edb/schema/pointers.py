@@ -1589,6 +1589,13 @@ class CreatePointer(
     PointerCommand[Pointer_T],
 ):
 
+    def ast_ignore_ownership(self) -> bool:
+        # If we have a SET REQUIRED with a fill_expr, we need to force
+        # this operation to appear in the AST in a useful position,
+        # even if it normally would be skipped.
+        subs = list(self.get_subcommands(type=AlterPointerLowerCardinality))
+        return len(subs) == 1 and bool(subs[0].fill_expr)
+
     @classmethod
     def as_inherited_ref_cmd(
         cls,
@@ -2272,7 +2279,6 @@ class AlterPointerLowerCardinality(
         return (
             not old_required and new_required
             and not self.is_attribute_computed('required')
-            and not self.is_attribute_inherited('required')
             and not ptr_op.maybe_get_object_aux_data('from_alias')
             and self.fill_expr is None
             and not (

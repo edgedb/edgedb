@@ -770,7 +770,11 @@ def _trace_op(
                     referrer_name = renames_r[referrer_name]
                 ref_name_str = str(referrer_name)
                 deps.add(('create', ref_name_str))
-                deps.add(('rebase', ref_name_str))
+                if op.ast_ignore_ownership():
+                    ref_item = get_deps(('rebase', ref_name_str))
+                    ref_item.deps.add((tag, this_name_str))
+                else:
+                    deps.add(('rebase', ref_name_str))
 
                 if isinstance(obj, referencing.ReferencedInheritingObject):
                     implicit_ancestors = [
