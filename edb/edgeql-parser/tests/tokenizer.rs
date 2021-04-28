@@ -557,6 +557,10 @@ fn strings() {
     assert_eq!(tok_typ(r#" b""  "#), [BinStr]);
     assert_eq!(tok_str(r#" b''  "#), [r#"b''"#]);
     assert_eq!(tok_typ(r#" b''  "#), [BinStr]);
+    assert_eq!(tok_str(r#" br""  "#), [r#"br"""#]);
+    assert_eq!(tok_typ(r#" br""  "#), [BinStr]);
+    assert_eq!(tok_str(r#" br''  "#), [r#"br''"#]);
+    assert_eq!(tok_typ(r#" br''  "#), [BinStr]);
     assert_eq!(tok_err(r#" ``  "#),
         "Unexpected `backtick quotes cannot be empty`");
 
@@ -572,6 +576,10 @@ fn strings() {
     assert_eq!(tok_typ(r#" b"hello"  "#), [BinStr]);
     assert_eq!(tok_str(r#" b'hello'  "#), [r#"b'hello'"#]);
     assert_eq!(tok_typ(r#" b'hello'  "#), [BinStr]);
+    assert_eq!(tok_str(r#" rb"hello"  "#), [r#"rb"hello""#]);
+    assert_eq!(tok_typ(r#" rb"hello"  "#), [BinStr]);
+    assert_eq!(tok_str(r#" rb'hello'  "#), [r#"rb'hello'"#]);
+    assert_eq!(tok_typ(r#" rb'hello'  "#), [BinStr]);
     assert_eq!(tok_str(r#" `hello`  "#), [r#"`hello`"#]);
     assert_eq!(tok_typ(r#" `hello`  "#), [BacktickName]);
 
@@ -587,6 +595,10 @@ fn strings() {
     assert_eq!(tok_typ(r#" b"hello""#), [BinStr]);
     assert_eq!(tok_str(r#" b'hello'"#), [r#"b'hello'"#]);
     assert_eq!(tok_typ(r#" b'hello'"#), [BinStr]);
+    assert_eq!(tok_str(r#" rb"hello""#), [r#"rb"hello""#]);
+    assert_eq!(tok_typ(r#" rb"hello""#), [BinStr]);
+    assert_eq!(tok_str(r#" rb'hello'"#), [r#"rb'hello'"#]);
+    assert_eq!(tok_typ(r#" rb'hello'"#), [BinStr]);
     assert_eq!(tok_str(r#" `hello`"#), [r#"`hello`"#]);
     assert_eq!(tok_typ(r#" `hello`"#), [BacktickName]);
 
@@ -602,6 +614,10 @@ fn strings() {
     assert_eq!(tok_typ(r#" b"h\"ello" "#), [BinStr]);
     assert_eq!(tok_str(r#" b'h\'ello' "#), [r#"b'h\'ello'"#]);
     assert_eq!(tok_typ(r#" b'h\'ello' "#), [BinStr]);
+    assert_eq!(tok_str(r#" rb"hello\" "#), [r#"rb"hello\""#]);
+    assert_eq!(tok_typ(r#" rb"hello\" "#), [BinStr]);
+    assert_eq!(tok_str(r#" rb'hello\' "#), [r#"rb'hello\'"#]);
+    assert_eq!(tok_typ(r#" rb'hello\' "#), [BinStr]);
     assert_eq!(tok_str(r#" `hello\` "#), [r#"`hello\`"#]);
     assert_eq!(tok_typ(r#" `hello\` "#), [BacktickName]);
     assert_eq!(tok_str(r#" `hel``lo` "#), [r#"`hel``lo`"#]);
@@ -619,6 +635,10 @@ fn strings() {
     assert_eq!(tok_typ(r#" b"h'el`lo" "#), [BinStr]);
     assert_eq!(tok_str(r#" b'h"el`lo' "#), [r#"b'h"el`lo'"#]);
     assert_eq!(tok_typ(r#" b'h"el`lo' "#), [BinStr]);
+    assert_eq!(tok_str(r#" rb"h'el`lo" "#), [r#"rb"h'el`lo""#]);
+    assert_eq!(tok_typ(r#" rb"h'el`lo" "#), [BinStr]);
+    assert_eq!(tok_str(r#" rb'h"el`lo' "#), [r#"rb'h"el`lo'"#]);
+    assert_eq!(tok_typ(r#" rb'h"el`lo' "#), [BinStr]);
     assert_eq!(tok_str(r#" `h'el"lo` "#), [r#"`h'el"lo`"#]);
     assert_eq!(tok_typ(r#" `h'el"lo\` "#), [BacktickName]);
 
@@ -634,6 +654,10 @@ fn strings() {
     assert_eq!(tok_typ(" b\"hel\nlo\" "), [BinStr]);
     assert_eq!(tok_str(" b'hel\nlo' "), ["b'hel\nlo'"]);
     assert_eq!(tok_typ(" b'hel\nlo' "), [BinStr]);
+    assert_eq!(tok_typ(" rb'hel\nlo' "), [BinStr]);
+    assert_eq!(tok_typ(" br'hel\nlo' "), [BinStr]);
+    assert_eq!(tok_str(" rb'hel\nlo' "), ["rb'hel\nlo'"]);
+    assert_eq!(tok_str(" br'hel\nlo' "), ["br'hel\nlo'"]);
     assert_eq!(tok_str(" `hel\nlo` "), ["`hel\nlo`"]);
     assert_eq!(tok_typ(" `hel\nlo` "), [BacktickName]);
 

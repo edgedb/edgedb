@@ -339,6 +339,8 @@ impl<'a> TokenStream<'a> {
                             let (raw, binary) = match prefix {
                                 "r" => (true, false),
                                 "b" => (false, true),
+                                "rb" => (true, true),
+                                "br" => (true, true),
                                 _ => return Err(Error::unexpected_format(
                                     format_args!("prefix {:?} \
                                     is not allowed for strings, \

@@ -2216,6 +2216,15 @@ class TestExpressions(tb.QueryTestCase):
             [True],
         )
 
+    async def test_edgeql_expr_bytes_op_03(self):
+        await self.assert_query_result(
+            r'''
+                WITH x := rb'test\raw\x01' ++ br'\now\x02' ++ b'\x03\x04',
+                SELECT x = b"test\\raw\\x01\\now\\x02\x03\x04";
+            ''',
+            [True],
+        )
+
     async def test_edgeql_expr_paths_01(self):
         cases = [
             "Issue.owner.name",
