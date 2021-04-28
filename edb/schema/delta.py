@@ -2607,7 +2607,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         self.annotations[name] = value
 
     def ast_ignore_ownership(self) -> bool:
-        """Whether to force something into the AST even though it is owned"""
+        """Whether to force generating an AST even though it isn't owned"""
         return False
 
 
