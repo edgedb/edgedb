@@ -61,7 +61,8 @@ class ServerConfig(NamedTuple):
     insecure: bool
     data_dir: pathlib.Path
     postgres_dsn: str
-    postgres_tenant_id: Optional[str]
+    tenant_id: Optional[str]
+    ignore_other_tenants: bool
     log_level: str
     log_to: str
     bootstrap_only: bool
@@ -205,13 +206,20 @@ _server_options = [
         '--postgres-dsn', type=str,
         help='DSN of a remote Postgres cluster, if using one'),
     click.option(
-        '--postgres-tenant-id',
+        '--tenant-id',
         type=str,
         callback=_validate_tenant_id,
         help='Specifies the tenant ID of this server when hosting'
              ' multiple EdgeDB instances on one Postgres cluster.'
              ' Must be an alphanumeric ASCII string, maximum'
              f' {schema_defines.MAX_TENANT_ID_LENGTH} characters long.',
+    ),
+    click.option(
+        '--ignore-other-tenants',
+        is_flag=True,
+        help='If set, the server will ignore the presence of another tenant '
+             'in the database instance in single-tenant mode instead of '
+             'exiting with a catalog incompatibility error.'
     ),
     click.option(
         '-l', '--log-level',

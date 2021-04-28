@@ -60,8 +60,9 @@ class AbsPath(click.Path):
     type=AbsPath(),
     help='database cluster directory')
 @click.option(
-    '--postgres-tenant-id',
+    '--tenant-id',
     type=str,
+    multiple=True,
     help='The tenant ID of an EdgeDB server to wipe.  May be specified'
          ' multiple times.  If not specified, all tenants are wiped.')
 @click.option(
@@ -73,7 +74,19 @@ class AbsPath(click.Path):
     '--dry-run',
     is_flag=True,
     help='give a summary of wipe operations without performing them')
-def wipe(*, postgres_dsn, data_dir, tenant_id, yes, dry_run):
+@click.option(
+    '--list-tenants',
+    is_flag=True,
+    help='list cluster tenants instead of performing a wipe')
+def wipe(
+    *,
+    postgres_dsn,
+    data_dir,
+    tenant_id,
+    yes,
+    dry_run,
+    list_tenants,
+):
     if postgres_dsn:
         cluster = pgcluster.get_remote_pg_cluster(
             postgres_dsn,
@@ -95,7 +108,7 @@ def wipe(*, postgres_dsn, data_dir, tenant_id, yes, dry_run):
             'either --postgres-dsn or --data-dir is required'
         )
 
-    if not yes and not click.confirm(
+    if not yes and not dry_run and not list_tenants and not click.confirm(
             'This will DELETE all EdgeDB data from the target '
             'PostgreSQL instance.  ARE YOU SURE?'):
         click.echo('OK. Not proceeding.')
@@ -108,11 +121,13 @@ def wipe(*, postgres_dsn, data_dir, tenant_id, yes, dry_run):
             click.secho(f'Remote cluster is not running', fg='red')
             sys.exit(1)
         else:
-            cluster.start(port=0)
+            cluster.start()
             cluster_started_by_us = True
 
     try:
-        asyncio.run(do_wipe(cluster, tenant_id, dry_run))
+        asyncio.run(
+            do_wipe(cluster, tenant_id, dry_run, list_tenants),
+        )
     finally:
         if cluster_started_by_us:
             cluster.stop()
@@ -122,6 +137,7 @@ async def do_wipe(
     cluster: pgcluster.BaseCluster,
     tenants: List[str],
     dry_run: bool,
+    list_tenants: bool,
 ) -> None:
 
     conn = await cluster.connect()
@@ -129,11 +145,28 @@ async def do_wipe(
     try:
         if not tenants:
             tenants = await _get_all_tenants(conn)
+            if list_tenants:
+                print('\n'.join(t if t else '(none)' for t in tenants))
+                return
 
         for tenant in tenants:
             await wipe_tenant(cluster, conn, tenant, dry_run)
     finally:
         await conn.close()
+
+
+def get_database_backend_name(name: str, tenant_id: str) -> str:
+    if not tenant_id:
+        return name
+    else:
+        return pgcommon.get_database_backend_name(name, tenant_id=tenant_id)
+
+
+def get_role_backend_name(name: str, tenant_id: str) -> str:
+    if not tenant_id:
+        return name
+    else:
+        return pgcommon.get_role_backend_name(name, tenant_id=tenant_id)
 
 
 async def wipe_tenant(
@@ -143,12 +176,12 @@ async def wipe_tenant(
     dry_run: bool,
 ) -> None:
 
-    tpl_db = pgcommon.get_database_backend_name(
+    tpl_db = get_database_backend_name(
         edbdef.EDGEDB_TEMPLATE_DB,
         tenant_id=tenant,
     )
 
-    sup_role = pgcommon.get_role_backend_name(
+    sup_role = get_role_backend_name(
         edbdef.EDGEDB_SUPERUSER,
         tenant_id=tenant,
     )
@@ -172,7 +205,7 @@ async def wipe_tenant(
     ]
 
     for db in databases:
-        pg_db = pgcommon.get_database_backend_name(db, tenant_id=tenant)
+        pg_db = get_database_backend_name(db, tenant_id=tenant)
         owner = await pgconn.fetchval("""
             SELECT
                 rolname
@@ -195,7 +228,7 @@ async def wipe_tenant(
     stmts.append('RESET ROLE;')
 
     for role in roles:
-        pg_role = pgcommon.get_role_backend_name(role, tenant_id=tenant)
+        pg_role = get_role_backend_name(role, tenant_id=tenant)
 
         members = await pgconn.fetchval("""
             SELECT
@@ -210,6 +243,10 @@ async def wipe_tenant(
             stmts.append(f'REVOKE {qi(pg_role)} FROM {qi(member)}')
 
         stmts.append(f'DROP ROLE {qi(pg_role)}')
+
+    super_group = get_role_backend_name(
+        edbdef.EDGEDB_SUPERGROUP, tenant_id=tenant)
+    stmts.append(f'DROP ROLE {qi(super_group)}')
 
     for stmt in stmts:
         click.echo(stmt + (';' if not stmt.endswith(';') else ''))
@@ -226,12 +263,15 @@ async def _get_all_tenants(
             FROM pg_database
             WHERE datname LIKE $1
         """,
-        f"%_{edbdef.EDGEDB_TEMPLATE_DB}",
+        f"%{edbdef.EDGEDB_TEMPLATE_DB}",
     )
 
     tenants = []
     for db in dbs:
-        t, _, _ = db['datname'].partition('_')
+        if db['datname'] == edbdef.EDGEDB_TEMPLATE_DB:
+            t = ""
+        else:
+            t, _, _ = db['datname'].partition('_')
         tenants.append(t)
 
     return tenants

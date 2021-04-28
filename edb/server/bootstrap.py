@@ -219,25 +219,35 @@ async def _is_pristine_cluster(ctx: BootstrapContext) -> bool:
     is_default_tenant = tenant_id == buildmeta.get_default_tenant_id()
 
     if is_default_tenant:
-        result = await ctx.conn.fetchrow('''
+        result = await ctx.conn.fetch('''
             SELECT
-                True
+                r.rolname
             FROM
                 pg_catalog.pg_roles AS r
             WHERE
-                r.rolname LIKE ('%_' || $1)
+                r.rolname LIKE ('%' || $1)
         ''', edbdef.EDGEDB_SUPERGROUP)
     else:
-        result = await ctx.conn.fetchrow('''
+        result = await ctx.conn.fetch('''
             SELECT
-                True
+                r.rolname
             FROM
                 pg_catalog.pg_roles AS r
             WHERE
                 r.rolname = $1
         ''', ctx.cluster.get_role_name(edbdef.EDGEDB_SUPERGROUP))
 
-    return not result
+    if not result:
+        return True
+    elif is_default_tenant and ctx.args.ignore_other_tenants:
+        for row in result:
+            rolname = row['rolname']
+            other_tenant_id = rolname[: -(len(edbdef.EDGEDB_SUPERGROUP) + 1)]
+            if other_tenant_id == tenant_id:
+                return False
+        return True
+    else:
+        return False
 
 
 async def _create_edgedb_template_database(
@@ -1191,7 +1201,10 @@ async def _check_catalog_compatibility(
         sys_db = await ctx.conn.fetchval(f'''
             SELECT datname
             FROM pg_database
-            WHERE datname LIKE '%_' || $1
+            WHERE datname LIKE '%' || $1
+            ORDER BY
+                datname = $1,
+                datname DESC
             LIMIT 1
         ''', edbdef.EDGEDB_SYSTEM_DB)
     else:
