@@ -785,6 +785,38 @@ class Pointer(referencing.ReferencedInheritingObject,
         else:
             return f'<{tgt.get_displayname(schema)}>to_json({default})'
 
+    def as_create_delta(
+        self,
+        schema: s_schema.Schema,
+        context: so.ComparisonContext,
+    ) -> sd.ObjectCommand[Pointer]:
+        delta = super().as_create_delta(schema, context)
+
+        # When we are creating a new required property on an existing type,
+        # we need to generate a AlterPointerLowerCardinality so that we can
+        # attach a USING to it.
+        if (
+            context.parent_ops
+            and isinstance(context.parent_ops[-1], sd.AlterObject)
+            and self.get_required(schema)
+            and not self.get_default(schema)
+            and not self.get_computable(schema)
+            and not self.is_link_property(schema)
+            and (required := delta._get_attribute_set_cmd('required'))
+        ):
+            special = sd.get_special_field_alter_handler(
+                'required', type(self))
+            assert special
+            top_op = special(classname=delta.classname)
+            delta.replace(required, top_op)
+            top_op.add(required)
+
+            context.parent_ops.append(delta)
+            top_op.record_diff_annotations(schema, None, context)
+            context.parent_ops.pop()
+
+        return delta
+
 
 class PseudoPointer(s_abc.Pointer):
     # An abstract base class for pointer-like objects, i.e.
@@ -2196,13 +2228,12 @@ class AlterPointerLowerCardinality(
             context=context,
         )
 
-        if orig_schema is None:
-            return
-
         if not context.generate_prompts:
             return
 
-        assert len(context.parent_ops) > 1
+        if len(context.parent_ops) <= 1:
+            return
+
         ptr_op = context.parent_ops[-1]
         src_op = context.parent_ops[-2]
 
@@ -2280,12 +2311,19 @@ class AlterPointerLowerCardinality(
         parent_node: Optional[qlast.DDLOperation] = None,
     ) -> Optional[qlast.DDLOperation]:
         set_field = super()._get_ast(schema, context, parent_node=parent_node)
-        if set_field is None:
+        if set_field is None and not self.fill_expr:
             return None
         else:
-            assert isinstance(set_field, qlast.SetField)
+            if set_field is not None:
+                assert isinstance(set_field, qlast.SetField)
+                value = set_field.value
+            else:
+                req = self.get_attribute_value('required')
+                value = (utils.const_ast_from_python(req) if req is not None
+                         else None)
+
             return qlast.SetPointerOptionality(
-                value=set_field.value,
+                value=value,
                 fill_expr=(
                     self.fill_expr.qlast
                     if self.fill_expr is not None else None

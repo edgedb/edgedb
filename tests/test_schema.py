@@ -1388,8 +1388,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
             diff = s_ddl.delta_schemas(multi_migration, cur_state)
 
-            note = ('' if i + 1 < len(migration)
-                    else '( migrating to empty schema)')
+            note = ('' if i + 1 < len(migrations)
+                    else ' (migrating to empty schema)')
 
             if list(diff.get_subcommands()):
                 self.fail(

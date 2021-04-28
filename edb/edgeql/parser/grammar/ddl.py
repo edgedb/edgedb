@@ -1315,10 +1315,22 @@ class DropPropertyStmt(Nonterm):
 # CREATE LINK ... { CREATE PROPERTY
 #
 
+class SetRequiredInCreateStmt(Nonterm):
+
+    def reduce_SET_REQUIRED_OptAlterUsingClause(self, *kids):
+        self.val = qlast.SetPointerOptionality(
+            name='required',
+            value=qlast.BooleanConstant.from_python(True),
+            special_syntax=True,
+            fill_expr=kids[2].val,
+        )
+
+
 commands_block(
     'CreateConcreteProperty',
     UsingStmt,
     SetFieldStmt,
+    SetRequiredInCreateStmt,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     CreateConcreteConstraintStmt
@@ -1616,6 +1628,7 @@ commands_block(
     'CreateConcreteLink',
     UsingStmt,
     SetFieldStmt,
+    SetRequiredInCreateStmt,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     CreateConcreteConstraintStmt,

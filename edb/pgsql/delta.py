@@ -2468,7 +2468,7 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
                     default=default_value))
 
     @classmethod
-    def get_columns(cls, pointer, schema, default=None):
+    def get_columns(cls, pointer, schema, default=None, sets_required=False):
         ptr_stor_info = types.get_pointer_storage_info(pointer, schema=schema)
         col_type = list(ptr_stor_info.column_type)
         if col_type[-1].endswith('[]'):
@@ -2486,6 +2486,7 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
                     (
                         pointer.get_required(schema)
                         and not pointer.is_pure_computable(schema)
+                        and not sets_required
                     ) or (
                         ptr_stor_info.table_type == 'link'
                         and not pointer.is_link_property(schema)
@@ -2724,19 +2725,15 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
         is_multi = ptr_table and not is_lprop
         is_required = ptr.get_required(schema)
 
-        if is_multi:
-            if isinstance(self, sd.AlterObjectFragment):
-                source_op = self.get_parent_op(context)
-            else:
-                source_op = self
-        else:
-            source_ctx = self.get_referrer_context_or_die(context)
-            source_op = source_ctx.op
+        source_ctx = self.get_referrer_context_or_die(context)
+        source_op = source_ctx.op
 
         # Ignore optionality changes resulting from the creation of
         # an overloaded pointer as there is no data yet.
         if isinstance(source_op, sd.CreateObject):
             return
+
+        ops = dbops.CommandGroup(priority=1)
 
         if self.fill_expr is not None:
             _, fill_sql_expr, orig_rel_alias, _ = (
@@ -2778,7 +2775,7 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
                     SET {qi(target_col)} = ({fill_sql_expr})
                     WHERE {qi(target_col)} IS NULL
                 ''')
-                self.pgops.add(dbops.Query(update_qry))
+                ops.add_command(dbops.Query(update_qry))
             else:
                 # For multi pointers we have to INSERT the
                 # result of USING into the link table for
@@ -2813,7 +2810,7 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
                     )
                 ''')
 
-                self.pgops.add(dbops.Query(update_qry))
+                ops.add_command(dbops.Query(update_qry))
 
                 check_qry = textwrap.dedent(f'''\
                     SELECT
@@ -2830,7 +2827,7 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
                     INTO _dummy_text;
                 ''')
 
-                self.pgops.add(dbops.Query(check_qry))
+                ops.add_command(dbops.Query(check_qry))
 
         if not ptr_table or is_lprop:
             alter_table = source_op.get_alter_table(
@@ -2844,7 +2841,9 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
                     null=not new_required,
                 )
             )
-            self.pgops.add(alter_table)
+            ops.add_command(alter_table)
+
+        self.pgops.add(ops)
 
     def _drop_constraints(self, pointer, schema, context):
         # We need to be able to drop all the constraints referencing a
@@ -3403,8 +3402,12 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
 
             if ptr_stor_info.table_type == 'ObjectType':
                 default_value = self.get_pointer_default(link, schema, context)
+                sets_required = bool(
+                    self.get_subcommands(
+                        type=s_pointers.AlterPointerLowerCardinality))
 
-                cols = self.get_columns(link, schema, default_value)
+                cols = self.get_columns(
+                    link, schema, default_value, sets_required)
                 table_name = common.get_backend_name(
                     schema, objtype.scls, catenate=False)
                 objtype_alter_table = objtype.op.get_alter_table(
@@ -3802,8 +3805,12 @@ class CreateProperty(PropertyMetaCommand, adapts=s_props.CreateProperty):
                 )
 
                 default_value = self.get_pointer_default(prop, schema, context)
+                sets_required = bool(
+                    self.get_subcommands(
+                        type=s_pointers.AlterPointerLowerCardinality))
 
-                cols = self.get_columns(prop, schema, default_value)
+                cols = self.get_columns(
+                    prop, schema, default_value, sets_required)
 
                 for col in cols:
                     cmd = dbops.AlterTableAddColumn(col)
