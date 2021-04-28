@@ -19,6 +19,8 @@
 
 from __future__ import annotations
 
+from typing import *
+
 from edb import errors
 
 from edb.edgeql import ast as qlast
@@ -27,6 +29,7 @@ from edb.edgeql import qltypes
 from . import annos as s_anno
 from . import delta as sd
 from . import schema as s_schema
+from . import objects as so
 
 
 class Module(
@@ -73,3 +76,43 @@ class AlterModule(ModuleCommand, sd.AlterObject[Module]):
 
 class DeleteModule(ModuleCommand, sd.DeleteObject[Module]):
     astnode = qlast.DropModule
+
+    def _delete_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        from . import ddl as s_ddl
+
+        if context.canonical:
+            return schema
+
+        schema = self.populate_ddl_identity(schema, context)
+        schema = self.canonicalize_attributes(schema, context)
+
+        def not_this_module(schema: s_schema.Schema, obj: so.Object) -> bool:
+            return obj == self.scls
+
+        # We handle deleting the module contents in a heavy-handed way:
+        # do a schema diff.
+        delta = s_ddl.delta_schemas(
+            schema, schema,
+            included_modules=[self.classname],
+            schema_b_filters=[not_this_module],
+            linearize_delta=True,
+        )
+
+        # Follow-up on the atrocious heavy-handed delta_schemas diffing
+        # above by doing more heavy-handed hackery:
+        # to properly simulate the migrations experience,
+        # serialize everything to an AST and back.
+        # Sorry.
+        for subcmd in delta.get_subcommands():
+            ast = subcmd.get_ast(schema, context)
+            if ast:
+                assert isinstance(ast, qlast.DDLCommand)
+                new_cmd = s_ddl.cmd_from_ddl(
+                    ast, modaliases=context.modaliases, schema=schema)
+                self.add(new_cmd)
+
+        return schema

@@ -6298,6 +6298,47 @@ type test::Foo {
                 DROP MODULE test_other;
             """)
 
+    async def test_edgeql_ddl_modules_04(self):
+        await self.con.execute(r"""
+            CREATE MODULE test_other;
+
+            CREATE ABSTRACT TYPE test_other::Named {
+                CREATE REQUIRED PROPERTY name -> str;
+            };
+
+            CREATE ABSTRACT TYPE test_other::UniquelyNamed
+                EXTENDING test_other::Named
+            {
+                ALTER PROPERTY name {
+                    CREATE DELEGATED CONSTRAINT exclusive;
+                }
+            };
+
+            CREATE ABSTRACT ANNOTATION whatever;
+
+            CREATE TYPE test_other::Foo;
+            CREATE TYPE test_other::Bar {
+                CREATE LINK foo -> test_other::Foo;
+                CREATE ANNOTATION whatever := "huh";
+            };
+            ALTER TYPE test_other::Foo {
+                CREATE LINK bar -> test_other::Bar;
+            };
+        """)
+
+        await self.con.execute(r"""
+            DROP MODULE test_other;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT count((
+                    SELECT schema::Object FILTER .name LIKE 'test_other::%'
+                ))
+            """,
+            [0],
+        )
+
     async def test_edgeql_ddl_extension_package_01(self):
         await self.con.execute(r"""
             CREATE EXTENSION PACKAGE foo_01 VERSION '1.0' {
