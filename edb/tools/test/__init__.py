@@ -65,8 +65,10 @@ __all__ = ('not_implemented', 'xfail', 'skip')
               help='enable or disable warnings (enabled by default)',
               default=True)
 @click.option('-j', '--jobs', type=int,
-              default=lambda: psutil.cpu_count(logical=False),
-              help='number of parallel processes to use')
+              default=0,
+              help='number of parallel processes to use, default is 0, which '
+                   'means choose automatically based on the number of '
+                   'available CPU cores')
 @click.option('-s', '--shard', type=str,
               default='1/1',
               help='run tests in shards (current/total)')
@@ -110,6 +112,9 @@ def test(*, files, jobs, shard, include, exclude, verbose, quiet, debug,
         verbosity = 2
     else:
         verbosity = 1
+
+    if jobs == 0:
+        jobs = psutil.cpu_count(logical=False)
 
     mproc_fixes.patch_multiprocessing(debug=debug)
 
