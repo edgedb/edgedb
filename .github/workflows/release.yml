@@ -251,6 +251,9 @@ jobs:
       env:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "stretch"
+        # edb test with -j higher than 1 seems to result in workflow
+        # jobs getting killed arbitrarily by Github.
+        PKG_TEST_JOBS: 1
 
 
   test-debian-buster:
@@ -268,6 +271,9 @@ jobs:
       env:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
+        # edb test with -j higher than 1 seems to result in workflow
+        # jobs getting killed arbitrarily by Github.
+        PKG_TEST_JOBS: 1
 
 
   test-ubuntu-xenial:
@@ -285,6 +291,9 @@ jobs:
       env:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "xenial"
+        # edb test with -j higher than 1 seems to result in workflow
+        # jobs getting killed arbitrarily by Github.
+        PKG_TEST_JOBS: 1
 
 
   test-ubuntu-bionic:
@@ -302,6 +311,9 @@ jobs:
       env:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
+        # edb test with -j higher than 1 seems to result in workflow
+        # jobs getting killed arbitrarily by Github.
+        PKG_TEST_JOBS: 1
 
 
   test-ubuntu-focal:
@@ -319,6 +331,9 @@ jobs:
       env:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
+        # edb test with -j higher than 1 seems to result in workflow
+        # jobs getting killed arbitrarily by Github.
+        PKG_TEST_JOBS: 1
 
 
   test-centos-7:
@@ -336,6 +351,9 @@ jobs:
       env:
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "7"
+        # edb test with -j higher than 1 seems to result in workflow
+        # jobs getting killed arbitrarily by Github.
+        PKG_TEST_JOBS: 1
 
 
   test-centos-8:
@@ -353,6 +371,9 @@ jobs:
       env:
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
+        # edb test with -j higher than 1 seems to result in workflow
+        # jobs getting killed arbitrarily by Github.
+        PKG_TEST_JOBS: 1
 
 
 
