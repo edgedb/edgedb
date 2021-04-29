@@ -127,6 +127,9 @@ jobs:
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
+        # edb test with -j higher than 1 seems to result in workflow
+        # jobs getting killed arbitrarily by Github.
+        PKG_TEST_JOBS: 1
 
 <% endfor %>
 <% for tgt in targets.macos %>
