@@ -4679,3 +4679,41 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ''')
 
         self.assertEqual(result, 21)
+
+    async def test_edgeql_functions__datetime_range_buckets(self):
+        await self.assert_query_result(
+            '''
+            SELECT <tuple<str, str>>std::_datetime_range_buckets(
+                <datetime>'2021-01-01T00:00:00Z',
+                <datetime>'2021-04-01T00:00:00Z',
+                '1 month');
+            ''',
+            [
+                ('2021-01-01T00:00:00+00:00', '2021-02-01T00:00:00+00:00'),
+                ('2021-02-01T00:00:00+00:00', '2021-03-01T00:00:00+00:00'),
+                ('2021-03-01T00:00:00+00:00', '2021-04-01T00:00:00+00:00'),
+            ],
+        )
+
+        await self.assert_query_result(
+            '''
+            SELECT <tuple<str, str>>std::_datetime_range_buckets(
+                <datetime>'2021-04-01T00:00:00Z',
+                <datetime>'2021-04-01T00:00:00Z',
+                '1 month');
+            ''',
+            [],
+        )
+
+        await self.assert_query_result(
+            '''
+            SELECT <tuple<str, str>>std::_datetime_range_buckets(
+                <datetime>'2021-01-01T00:00:00Z',
+                <datetime>'2021-04-01T00:00:00Z',
+                '1.5 months');
+            ''',
+            [
+                ('2021-01-01T00:00:00+00:00', '2021-02-16T00:00:00+00:00'),
+                ('2021-02-16T00:00:00+00:00', '2021-03-31T00:00:00+00:00'),
+            ],
+        )
