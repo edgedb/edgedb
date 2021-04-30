@@ -2715,6 +2715,8 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
         schema: s_schema.Schema,
         orig_schema: s_schema.Schema,
         context: sd.CommandContext,
+        *,
+        fill_expr: Optional[s_expr.Expression],
     ) -> None:
         new_required = self.scls.get_required(schema)
 
@@ -2735,11 +2737,28 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
 
         ops = dbops.CommandGroup(priority=1)
 
-        if self.fill_expr is not None:
+        # For multi pointers, if there is no fill expression, we
+        # synthesize a bogus one so that an error will trip if there
+        # are any objects with empty values.
+        if fill_expr is None and is_multi:
+            if (
+                ptr.get_cardinality(schema).is_multi()
+                and fill_expr is None
+                and (target := ptr.get_target(schema))
+            ):
+                fill_ast = ql_ast.TypeCast(
+                    expr=ql_ast.Set(elements=[]),
+                    type=s_utils.typeref_to_ast(schema, target),
+                )
+                fill_expr = s_expr.Expression.from_ast(
+                    qltree=fill_ast, schema=schema
+                )
+
+        if fill_expr is not None:
             _, fill_sql_expr, orig_rel_alias, _ = (
                 self._compile_conversion_expr(
                     pointer=ptr,
-                    conv_expr=self.fill_expr,
+                    conv_expr=fill_expr,
                     schema=schema,
                     orig_schema=orig_schema,
                     context=context,
@@ -3400,12 +3419,12 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
             ptr_stor_info = types.get_pointer_storage_info(
                 link, resolve_type=False, schema=schema)
 
+            sets_required = bool(
+                self.get_subcommands(
+                    type=s_pointers.AlterPointerLowerCardinality))
+
             if ptr_stor_info.table_type == 'ObjectType':
                 default_value = self.get_pointer_default(link, schema, context)
-                sets_required = bool(
-                    self.get_subcommands(
-                        type=s_pointers.AlterPointerLowerCardinality))
-
                 cols = self.get_columns(
                     link, schema, default_value, sets_required)
                 table_name = common.get_backend_name(
@@ -3461,6 +3480,17 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
                     source,
                     update_descendants=True,
                 )
+
+            # If we're creating a required multi pointer without a SET
+            # REQUIRED USING inside, run the alter_pointer_optionality
+            # path to produce an error if there is existing data.
+            if (
+                link.get_cardinality(schema).is_multi()
+                and link.get_required(schema)
+                and not sets_required
+            ):
+                self._alter_pointer_optionality(
+                    schema, schema, context, fill_expr=None)
 
         objtype = context.get(s_objtypes.ObjectTypeCommandContext)
 
@@ -3575,7 +3605,8 @@ class AlterLinkLowerCardinality(
                 and not self.scls.is_endpoint_pointer(schema)
                 and orig_required != new_required
             ):
-                self._alter_pointer_optionality(schema, orig_schema, context)
+                self._alter_pointer_optionality(
+                    schema, orig_schema, context, fill_expr=self.fill_expr)
 
         return schema
 
@@ -3787,6 +3818,9 @@ class CreateProperty(PropertyMetaCommand, adapts=s_props.CreateProperty):
             ptr_stor_info = types.get_pointer_storage_info(
                 prop, resolve_type=False, schema=schema)
 
+            sets_required = bool(
+                self.get_subcommands(
+                    type=s_pointers.AlterPointerLowerCardinality))
             if (
                 (
                     not isinstance(src.scls, s_objtypes.ObjectType)
@@ -3805,9 +3839,6 @@ class CreateProperty(PropertyMetaCommand, adapts=s_props.CreateProperty):
                 )
 
                 default_value = self.get_pointer_default(prop, schema, context)
-                sets_required = bool(
-                    self.get_subcommands(
-                        type=s_pointers.AlterPointerLowerCardinality))
 
                 cols = self.get_columns(
                     prop, schema, default_value, sets_required)
@@ -3836,6 +3867,17 @@ class CreateProperty(PropertyMetaCommand, adapts=s_props.CreateProperty):
                         src.op.scls,
                         update_descendants=True,
                     )
+
+            # If we're creating a required multi pointer without a SET
+            # REQUIRED USING inside, run the alter_pointer_optionality
+            # path to produce an error if there is existing data.
+            if (
+                prop.get_cardinality(schema).is_multi()
+                and prop.get_required(schema)
+                and not sets_required
+            ):
+                self._alter_pointer_optionality(
+                    schema, schema, context, fill_expr=None)
 
         return schema
 
@@ -3941,7 +3983,8 @@ class AlterPropertyLowerCardinality(
                 and not self.scls.is_endpoint_pointer(schema)
                 and orig_required != new_required
             ):
-                self._alter_pointer_optionality(schema, orig_schema, context)
+                self._alter_pointer_optionality(
+                    schema, orig_schema, context, fill_expr=self.fill_expr)
 
         return schema
 
