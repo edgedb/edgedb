@@ -1645,8 +1645,9 @@ class DeletePointer(
         unions = schema.get_referrers(
             self.scls, scls_type=Pointer, field_name='union_of')
         for union in unions:
-            group, _, _ = union.init_delta_branch(
+            group, op, _ = union.init_delta_branch(
                 schema, context, sd.DeleteObject)
+            op.update(op._canonicalize(schema, context, union))
             commands.append(group)
 
         return commands
