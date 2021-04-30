@@ -221,3 +221,35 @@ sys::_advisory_unlock_all() -> std::bool
     SELECT pg_advisory_unlock_all() IS NOT NULL;
     $$;
 };
+
+
+CREATE FUNCTION
+std::_datetime_range_buckets(
+    low: std::datetime,
+    high: std::datetime,
+    granularity: str,
+) -> SET OF tuple<std::datetime, std::datetime>
+{
+    CREATE ANNOTATION std::description :=
+        'Generate a set of datetime buckets for a given time period '
+        ++ 'and a given granularity';
+    # date_trunc of timestamptz is STABLE in PostgreSQL
+    SET volatility := 'Stable';
+    USING SQL $$
+    SELECT
+        lo::edgedb.timestamptz_t,
+        hi::edgedb.timestamptz_t
+    FROM
+        (SELECT
+            series AS lo,
+            lead(series) OVER () AS hi
+        FROM
+            generate_series(
+                "low",
+                "high",
+                "granularity"::interval
+            ) AS series) AS q
+    WHERE
+        hi IS NOT NULL
+    $$;
+};
