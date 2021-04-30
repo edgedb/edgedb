@@ -11115,6 +11115,74 @@ type test::Foo {
             ]
         )
 
+    async def test_edgeql_ddl_new_required_multi_pointer_01(self):
+        await self.con.execute(r"""
+            SET MODULE test;
+            CREATE TYPE Foo;
+            INSERT Foo;
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.MissingRequiredError,
+            "missing value for required property 'name' of object type "
+            "'test::Foo'"
+        ):
+            await self.con.execute("""
+                ALTER TYPE Foo CREATE REQUIRED MULTI PROPERTY name -> str;
+            """)
+
+    async def test_edgeql_ddl_new_required_multi_pointer_02(self):
+        await self.con.execute(r"""
+            SET MODULE test;
+            CREATE TYPE Foo;
+            INSERT Foo;
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.MissingRequiredError,
+            "missing value for required link 'link' of object type "
+            "'test::Foo'"
+        ):
+            await self.con.execute("""
+                ALTER TYPE Foo CREATE REQUIRED MULTI LINK link -> Object;
+            """)
+
+    async def test_edgeql_ddl_new_required_multi_pointer_03(self):
+        await self.con.execute(r"""
+            SET MODULE test;
+            CREATE TYPE Foo {
+                CREATE MULTI PROPERTY name -> str;
+            };
+            INSERT Foo;
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.MissingRequiredError,
+            "missing value for required property 'name' of object type "
+            "'test::Foo'"
+        ):
+            await self.con.execute("""
+                ALTER TYPE Foo ALTER PROPERTY name SET REQUIRED;
+            """)
+
+    async def test_edgeql_ddl_new_required_multi_pointer_04(self):
+        await self.con.execute(r"""
+            SET MODULE test;
+            CREATE TYPE Foo {
+                CREATE MULTI LINK link -> Object;
+            };
+            INSERT Foo;
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.MissingRequiredError,
+            "missing value for required link 'link' of object type "
+            "'test::Foo'"
+        ):
+            await self.con.execute("""
+                ALTER TYPE Foo ALTER LINK link SET REQUIRED;
+            """)
+
     async def test_edgeql_ddl_alter_union_01(self):
         await self.con.execute(r"""
             SET MODULE test;
