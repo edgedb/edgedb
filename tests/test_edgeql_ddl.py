@@ -11115,6 +11115,93 @@ type test::Foo {
             ]
         )
 
+    async def test_edgeql_ddl_alter_union_01(self):
+        await self.con.execute(r"""
+            SET MODULE test;
+            CREATE TYPE Foo;
+            CREATE TYPE Bar;
+        """)
+
+        await self.con.execute(r"""
+            CREATE TYPE Ref {
+                CREATE LINK fubar -> Foo | Bar;
+            }
+        """)
+
+        await self.con.execute(r"""
+            ALTER TYPE Foo CREATE PROPERTY x -> str;
+            ALTER TYPE Bar CREATE PROPERTY x -> str;
+        """)
+
+        await self.assert_query_result(
+            r'''SELECT Ref.fubar.x''',
+            [],
+        )
+
+    async def test_edgeql_ddl_alter_union_02(self):
+        await self.con.execute(r"""
+            SET MODULE test;
+            CREATE TYPE Foo { CREATE PROPERTY x -> str; };
+            CREATE TYPE Bar { CREATE PROPERTY x -> str; };
+            CREATE TYPE Baz { CREATE PROPERTY x -> str; };
+        """)
+
+        await self.con.execute(r"""
+            CREATE TYPE Ref {
+                CREATE LINK everything -> Foo | Bar | Baz;
+                CREATE LINK fubar -> Foo | Bar;
+                CREATE LINK barbaz -> Bar | Baz;
+            }
+        """)
+
+        await self.con.execute(r"""
+            ALTER TYPE Baz DROP PROPERTY x;
+        """)
+
+        await self.assert_query_result(
+            r'''SELECT Ref.fubar.x''',
+            [],
+        )
+
+        await self.con.execute(r"""
+            ALTER TYPE Baz CREATE PROPERTY x -> str;
+        """)
+
+        await self.assert_query_result(
+            r'''SELECT Ref.everything.x''',
+            [],
+        )
+
+    async def test_edgeql_ddl_alter_union_03(self):
+        await self.con.execute(r"""
+            SET MODULE test;
+            CREATE TYPE Parent;
+            CREATE TYPE Child EXTENDING Parent {
+                CREATE PROPERTY prop -> str;
+            };
+            CREATE TYPE Foo {CREATE LINK y -> Child};
+            CREATE TYPE Bar {CREATE LINK y -> Child};
+        """)
+
+        await self.con.execute(r"""
+            CREATE TYPE Ref {
+                CREATE LINK fubar -> Foo | Bar;
+            }
+        """)
+
+        await self.con.execute(r"""
+            ALTER TYPE Foo ALTER LINK y SET TYPE Parent;
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            "object type 'test::Parent' has no link or property 'prop'",
+        ):
+            await self.assert_query_result(
+                r'''SELECT Ref.fubar.y.prop''',
+                [],
+            )
+
 
 class TestConsecutiveMigrations(tb.DDLTestCase):
     TRANSACTION_ISOLATION = False

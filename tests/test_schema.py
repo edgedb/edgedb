@@ -5595,6 +5595,23 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             scalar type foo extending enum<Foo, Bar, Baz>;
         """])
 
+    def test_schema_migrations_union_01(self):
+        self._assert_migration_equivalence([r"""
+            type Category {
+                required property title -> str;
+                required property deleted :=
+                    EXISTS(.<element[IS DeletionRecord]);
+            };
+            type Article {
+                required property title -> str;
+                required property deleted :=
+                    EXISTS(.<element[IS DeletionRecord]);
+            };
+            type DeletionRecord {
+                link element -> Article | Category;
+            }
+        """])
+
     def test_schema_migrations_drop_depended_on_parent_01(self):
         self._assert_migration_equivalence([r"""
             type Person2 {

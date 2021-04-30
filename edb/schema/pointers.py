@@ -1628,6 +1628,31 @@ class CreatePointer(
         return cmd
 
 
+class DeletePointer(
+    referencing.DeleteReferencedInheritingObject[Pointer_T],
+    PointerCommand[Pointer_T],
+):
+    def _canonicalize(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        scls: Pointer_T,
+    ) -> List[sd.Command]:
+        commands = super()._canonicalize(schema, context, scls)
+
+        # Any union type that references this field needs to have it
+        # deleted.
+        unions = schema.get_referrers(
+            self.scls, scls_type=Pointer, field_name='union_of')
+        for union in unions:
+            group, op, _ = union.init_delta_branch(
+                schema, context, sd.DeleteObject)
+            op.update(op._canonicalize(schema, context, union))
+            commands.append(group)
+
+        return commands
+
+
 class SetPointerType(
     referencing.ReferencedInheritingObjectCommand[Pointer_T],
     inheriting.AlterInheritingObjectFragment[Pointer_T],

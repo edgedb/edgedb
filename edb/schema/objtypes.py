@@ -465,6 +465,52 @@ class AlterObjectType(ObjectTypeCommand,
                       inheriting.AlterInheritingObject[ObjectType]):
     astnode = qlast.AlterObjectType
 
+    def _alter_finalize(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+
+        if not context.canonical:
+            # If this type is contained in any unions, we need to
+            # update them with any additions or alterations made to
+            # this type. (Deletions are already handled in DeletePointer.)
+            unions = schema.get_referrers(
+                self.scls, scls_type=ObjectType, field_name='union_of')
+
+            orig_disable = context.disable_dep_verification
+
+            for union in unions:
+                if union.get_is_opaque_union(schema):
+                    continue
+
+                delete = union.init_delta_command(schema, sd.DeleteObject)
+
+                context.disable_dep_verification = True
+                nschema = delete.apply(schema, context)
+                context.disable_dep_verification = orig_disable
+
+                nschema, nunion = utils.get_union_type(
+                    nschema,
+                    types=union.get_union_of(schema).objects(schema),
+                    opaque=union.get_is_opaque_union(schema),
+                    module=union.get_name(schema).module,
+                )
+                assert isinstance(nunion, ObjectType)
+
+                diff = union.as_alter_delta(
+                    other=nunion,
+                    self_schema=schema,
+                    other_schema=nschema,
+                    confidence=1.0,
+                    context=so.ComparisonContext(),
+                )
+
+                schema = diff.apply(schema, context)
+                self.add(diff)
+
+        return super()._alter_finalize(schema, context)
+
 
 class DeleteObjectType(
     ObjectTypeCommand,

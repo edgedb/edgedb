@@ -8751,6 +8751,23 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             ],
         )
 
+    async def test_edgeql_migration_union_01(self):
+        await self.migrate('''
+            type Category {
+                required property title -> str;
+                required property deleted :=
+                    EXISTS(.<element[IS DeletionRecord]);
+            };
+            type Article {
+                required property title -> str;
+                required property deleted :=
+                    EXISTS(.<element[IS DeletionRecord]);
+            };
+            type DeletionRecord {
+                link element -> Article | Category;
+            }
+        ''')
+
     async def test_edgeql_migration_misplaced_commands(self):
         async with self.assertRaisesRegexTx(
             edgedb.QueryError,

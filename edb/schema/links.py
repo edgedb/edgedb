@@ -660,7 +660,7 @@ class AlterLink(
 
 class DeleteLink(
     LinkCommand,
-    referencing.DeleteReferencedInheritingObject[Link],
+    pointers.DeletePointer[Link],
 ):
     astnode = [qlast.DropConcreteLink, qlast.DropLink]
     referenced_astnode = qlast.DropConcreteLink

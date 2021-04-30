@@ -435,7 +435,7 @@ class AlterProperty(
 
 class DeleteProperty(
     PropertyCommand,
-    referencing.DeleteReferencedInheritingObject[Property],
+    pointers.DeletePointer[Property],
 ):
     astnode = [qlast.DropConcreteProperty,
                qlast.DropProperty]
