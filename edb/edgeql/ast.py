@@ -753,7 +753,12 @@ class DropMigration(DropObject, MigrationCommand):
     pass
 
 
-class GlobalObjectCommand(ObjectDDL):
+class UnqualifiedObjectCommand(ObjectDDL):
+
+    __abstract_node__ = True
+
+
+class GlobalObjectCommand(UnqualifiedObjectCommand):
 
     __abstract_node__ = True
 
@@ -798,7 +803,8 @@ class DropExtensionPackage(DropObject, ExtensionPackageCommand):
     pass
 
 
-class ExtensionCommand(ObjectDDL):
+class ExtensionCommand(UnqualifiedObjectCommand):
+
     __abstract_node__ = True
     object_class: qltypes.SchemaObjectClass = (
         qltypes.SchemaObjectClass.EXTENSION)
@@ -813,7 +819,7 @@ class DropExtension(DropObject, ExtensionCommand):
     pass
 
 
-class ModuleCommand(ObjectDDL):
+class ModuleCommand(UnqualifiedObjectCommand):
 
     __abstract_node__ = True
     object_class: qltypes.SchemaObjectClass = (

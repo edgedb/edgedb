@@ -718,6 +718,7 @@ def statements_from_delta(
     # If we're generating SDL and it includes modules, try to nest the
     # module contents in the actual modules.
     processed: List[Tuple[qlast.DDLOperation, sd.Command]] = []
+    unqualified: List[Tuple[qlast.DDLOperation, sd.Command]] = []
     modules = dict()
     for stmt_ast, cmd in stmts.items():
         if sdlmode:
@@ -727,7 +728,10 @@ def statements_from_delta(
                 stmt_ast.commands = []
                 processed.append((stmt_ast, cmd))
 
-            elif modules and not isinstance(stmt_ast, qlast.CreateModule):
+            elif (
+                modules
+                and not isinstance(stmt_ast, qlast.UnqualifiedObjectCommand)
+            ):
                 # This SDL included creation of modules, so we will try to
                 # nest the declarations in them.
                 assert isinstance(stmt_ast, qlast.CreateObject)
@@ -738,6 +742,9 @@ def statements_from_delta(
                 # them in a module already.
                 stmt_ast.name.module = None
 
+            elif isinstance(stmt_ast, qlast.UnqualifiedObjectCommand):
+                unqualified.append((stmt_ast, cmd))
+
             else:
                 processed.append((stmt_ast, cmd))
 
@@ -745,7 +752,7 @@ def statements_from_delta(
             processed.append((stmt_ast, cmd))
 
     text = []
-    for stmt_ast, cmd in processed:
+    for stmt_ast, cmd in itertools.chain(unqualified, processed):
         stmt_text = edgeql.generate_source(
             stmt_ast,
             sdlmode=sdlmode,

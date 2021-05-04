@@ -7040,6 +7040,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
     def test_schema_describe_schema_02(self):
         self._assert_describe(
             """
+            using extension notebook version '1.0';
             module default {
                 type Foo {
                     link bar -> test::Bar;
@@ -7057,6 +7058,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             """
             CREATE MODULE default IF NOT EXISTS;
             CREATE MODULE test IF NOT EXISTS;
+            CREATE EXTENSION NOTEBOOK VERSION '1.0';
             CREATE TYPE default::Foo;
             CREATE TYPE test::Bar {
                 CREATE LINK foo -> default::Foo;
@@ -7069,6 +7071,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             'DESCRIBE SCHEMA AS SDL',
 
             r"""
+            using extension notebook version '1.0';
             module default {
                 type Foo {
                     link bar -> test::Bar;

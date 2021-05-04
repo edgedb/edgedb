@@ -1032,7 +1032,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write(' ')
         self.write(ident_to_str(node.name.name))
         if node.version is not None:
-            self.write(' VERSION ')
+            if self.sdlmode or self.descmode:
+                self.write(' version ')
+            else:
+                self.write(' VERSION ')
             self.visit(node.version)
         if node.commands:
             self._ddl_visit_body(node.commands)
