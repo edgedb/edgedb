@@ -1110,8 +1110,8 @@ def check_update_type(
     # have the infrastructure here.
     if (
         not irtyputils.is_object(ir_set.typeref)
-        or base_ptrref.out_target == actual_ptrref.out_target
-        or shape_ptrref.out_target == actual_ptrref.out_target
+        or base_ptrref.out_target.id == actual_ptrref.out_target.id
+        or shape_ptrref.out_target.id == actual_ptrref.out_target.id
     ):
         return val
 
