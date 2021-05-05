@@ -22,6 +22,7 @@ type Status {
         constraint exclusive;
     }
 }
+type MajorLifeEvent extending Status;
 
 type Tag {
     required property name -> str {
@@ -50,6 +51,7 @@ type UpdateTest {
             readonly := true;
         }
     }
+    multi link statuses -> Status;
 
     # for testing links to sets of the same type as originator
     multi link related -> UpdateTest;
@@ -70,7 +72,10 @@ type UpdateTest {
 
 type UpdateTestSubType extending UpdateTest;
 
-type UpdateTestSubSubType extending UpdateTestSubType;
+type UpdateTestSubSubType extending UpdateTestSubType {
+    overloaded link status -> MajorLifeEvent;
+    overloaded multi link statuses -> MajorLifeEvent;
+};
 
 type CollectionTest {
     required property name -> str;

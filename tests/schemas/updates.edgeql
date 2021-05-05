@@ -25,6 +25,14 @@ INSERT test::Status {
     name := 'Closed'
 };
 
+INSERT test::MajorLifeEvent {
+    name := 'Broke a Type System'
+};
+
+INSERT test::MajorLifeEvent {
+    name := 'Downloaded a Car'
+};
+
 INSERT test::Tag {
     name := 'fun'
 };

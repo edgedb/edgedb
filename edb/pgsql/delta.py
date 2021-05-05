@@ -2894,18 +2894,18 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
         is_required = pointer.get_required(schema)
         changing_col_type = not is_link
 
+        source_ctx = self.get_referrer_context_or_die(context)
         if is_multi:
             if isinstance(self, sd.AlterObjectFragment):
                 source_op = self.get_parent_op(context)
             else:
                 source_op = self
         else:
-            source_ctx = self.get_referrer_context_or_die(context)
             source_op = source_ctx.op
 
         # Ignore type narrowing resulting from a creation of a subtype
         # as there isn't any data in the link yet.
-        if is_link and isinstance(source_op, sd.CreateObject):
+        if is_link and isinstance(source_ctx.op, sd.CreateObject):
             return
 
         new_target = pointer.get_target(schema)

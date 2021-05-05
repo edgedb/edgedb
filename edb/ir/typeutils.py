@@ -31,6 +31,7 @@ from edb.schema import pointers as s_pointers
 from edb.schema import pseudo as s_pseudo
 from edb.schema import scalars as s_scalars
 from edb.schema import types as s_types
+from edb.schema import objtypes as s_objtypes
 from edb.schema import utils as s_utils
 
 from . import ast as irast
@@ -912,3 +913,29 @@ def get_typeref_descendants(typeref: irast.TypeRef) -> List[irast.TypeRef]:
             result.extend(get_typeref_descendants(child))
 
     return result
+
+
+def maybe_lookup_obj_pointer(
+    schema: s_schema.Schema,
+    name: s_name.QualName,
+    ptr_name: s_name.UnqualName,
+) -> Optional[s_pointers.Pointer]:
+    base_object = schema.get(name, type=s_objtypes.ObjectType, default=None)
+    if not base_object:
+        return None
+    ptr = base_object.maybe_get_ptr(schema, ptr_name)
+    return ptr
+
+
+def lookup_obj_ptrref(
+    schema: s_schema.Schema,
+    name: s_name.QualName,
+    ptr_name: s_name.UnqualName,
+    cache: Optional[Dict[PtrRefCacheKey, irast.BasePointerRef]] = None,
+    typeref_cache: Optional[Dict[TypeRefCacheKey, irast.TypeRef]] = None,
+) -> irast.PointerRef:
+    ptr = maybe_lookup_obj_pointer(schema, name, ptr_name)
+    assert ptr
+    return ptrref_from_ptrcls(
+        ptrcls=ptr, schema=schema, cache=cache, typeref_cache=typeref_cache,
+    )

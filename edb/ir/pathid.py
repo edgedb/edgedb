@@ -210,7 +210,7 @@ class PathId:
             raise AssertionError(f'unexpected pointer source: {source!r}')
 
         ptrref = typeutils.ptrref_from_ptrcls(schema=schema, ptrcls=pointer)
-        return prefix.extend(ptrref=ptrref, schema=schema)
+        return prefix.extend(ptrref=ptrref)
 
     @classmethod
     def from_typeref(
@@ -286,7 +286,6 @@ class PathId:
         direction: s_pointers.PointerDirection = (
             s_pointers.PointerDirection.Outbound),
         ns: AbstractSet[AnyNamespace] = frozenset(),
-        schema: s_schema.Schema,
     ) -> PathId:
         """Return a new ``PathId`` that is a *path step* from this ``PathId``.
 

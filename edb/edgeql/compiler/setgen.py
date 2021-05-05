@@ -881,8 +881,7 @@ def type_intersection_set(
         typeref_cache=ctx.env.type_ref_cache,
     )
 
-    poly_set.path_id = source_set.path_id.extend(
-        schema=ctx.env.schema, ptrref=ptrref,)
+    poly_set.path_id = source_set.path_id.extend(ptrref=ptrref)
 
     ptr = irast.TypeIntersectionPointer(
         source=source_set,

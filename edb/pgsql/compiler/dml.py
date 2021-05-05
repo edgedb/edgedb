@@ -917,7 +917,7 @@ def compile_insert_shape_element(
 
 def process_update_body(
     *,
-    ir_stmt: irast.MutatingStmt,
+    ir_stmt: irast.UpdateStmt,
     update_cte: pgast.CommonTableExpr,
     dml_parts: DMLParts,
     typeref: irast.TypeRef,
@@ -1000,6 +1000,19 @@ def process_update_body(
                         else:
                             val = dispatch.compile(updvalue, ctx=scopectx)
 
+                        assert isinstance(updvalue, irast.Stmt)
+                        val = check_update_type(
+                            val,
+                            val,
+                            is_subquery=True,
+                            ir_stmt=ir_stmt,
+                            ir_set=updvalue.result,
+                            subject_typeref=typeref,
+                            shape_ptrref=ptrref,
+                            actual_ptrref=actual_ptrref,
+                            ctx=scopectx,
+                        )
+
                         val = pgast.TypeCast(
                             arg=val,
                             type_name=pgast.TypeName(name=ptr_info.column_type)
@@ -1066,6 +1079,104 @@ def process_update_body(
 
         if check_cte is not None:
             dml_parts.check_ctes.append(check_cte)
+
+
+def check_update_type(
+    val: pgast.BaseExpr,
+    rel_or_rvar: Union[pgast.BaseExpr, pgast.PathRangeVar],
+    *,
+    is_subquery: bool,
+    ir_stmt: irast.UpdateStmt,
+    ir_set: irast.Set,
+    subject_typeref: irast.TypeRef,
+    shape_ptrref: irast.BasePointerRef,
+    actual_ptrref: irast.BasePointerRef,
+    ctx: context.CompilerContextLevel,
+) -> pgast.BaseExpr:
+    """Possibly insert a type check on an UPDATE to a link
+
+    Because edgedb allows subtypes to covariantly override the target
+    types of links, we need to insert runtime type checks when
+    the target in a base type being UPDATEd does not match the
+    target type for this concrete subtype being handled.
+    """
+
+    base_ptrref = irtyputils.find_actual_ptrref(
+        ir_stmt.subject.typeref, shape_ptrref)
+    # We skip the check if either the base type matches exactly
+    # or the shape type matches exactly. FIXME: *Really* we want to do
+    # a subtype check, here, though, since this could do a needless
+    # check if we have multiple levels of overloading, but we don't
+    # have the infrastructure here.
+    if (
+        not irtyputils.is_object(ir_set.typeref)
+        or base_ptrref.out_target == actual_ptrref.out_target
+        or shape_ptrref.out_target == actual_ptrref.out_target
+    ):
+        return val
+
+    if isinstance(rel_or_rvar, pgast.PathRangeVar):
+        rvar = rel_or_rvar
+    else:
+        assert isinstance(rel_or_rvar, pgast.BaseRelation)
+        rvar = relctx.rvar_for_rel(rel_or_rvar, ctx=ctx)
+
+    # Find the ptrref for the __type__ link on our actual target type
+    # and make up a new path_id to access it
+    assert isinstance(actual_ptrref, irast.PointerRef)
+    actual_type_ptrref = irtyputils.find_actual_ptrref(
+        actual_ptrref.out_target, ir_stmt.dunder_type_ptrref)
+    type_pathid = ir_set.path_id.extend(ptrref=actual_type_ptrref)
+
+    # Grab the actual value we have inserted and pull the __type__ out
+    rval = pathctx.get_rvar_path_identity_var(
+        rvar, ir_set.path_id, env=ctx.env)
+    typ = pathctx.get_rvar_path_identity_var(rvar, type_pathid, env=ctx.env)
+
+    typeref_val = dispatch.compile(actual_ptrref.out_target, ctx=ctx)
+
+    # Do the check! Include the ptrref for this concrete class and
+    # also the (dynamic) type of the argument, so that we can produce
+    # a good error message.
+    check_result = pgast.FuncCall(
+        name=('edgedb', 'issubclass'),
+        args=[typ, typeref_val],
+    )
+    maybe_null = pgast.CaseExpr(
+        args=[pgast.CaseWhen(expr=check_result, result=rval)])
+    maybe_raise = pgast.FuncCall(
+        name=('edgedb', 'raise_on_null'),
+        args=[
+            maybe_null,
+            pgast.StringConstant(val='wrong_object_type'),
+            pgast.NamedFuncArg(
+                name='msg',
+                val=pgast.StringConstant(val='covariance error')
+            ),
+            pgast.NamedFuncArg(
+                name='column',
+                val=pgast.StringConstant(val=str(actual_ptrref.id)),
+            ),
+            pgast.NamedFuncArg(
+                name='table',
+                val=pgast.TypeCast(
+                    arg=typ, type_name=pgast.TypeName(name=('text',))
+                ),
+            ),
+        ],
+    )
+
+    if is_subquery:
+        # If this is supposed to be a subquery (because it is an
+        # update of a single link), wrap the result query in a new one,
+        # since we need to access two outputs from it and produce just one
+        # from this query
+        return pgast.SelectStmt(
+            from_clause=[rvar],
+            target_list=[pgast.ResTarget(val=maybe_raise)],
+        )
+    else:
+        return maybe_raise
 
 
 def process_link_update(
@@ -1610,6 +1721,20 @@ def process_link_values(
                 input_rvar, path_id, env=ctx.env)
 
         source_data['target'] = target_ref
+
+    if isinstance(ir_stmt, irast.UpdateStmt) and not target_is_scalar:
+        actual_ptrref = irtyputils.find_actual_ptrref(source_typeref, ptrref)
+        source_data['target'] = check_update_type(
+            source_data['target'],
+            input_rvar,
+            is_subquery=False,
+            ir_stmt=ir_stmt,
+            ir_set=ir_expr,
+            subject_typeref=source_typeref,
+            shape_ptrref=ptrref,
+            actual_ptrref=actual_ptrref,
+            ctx=ctx,
+        )
 
     if ptr_is_required and enforce_cardinality:
         source_data['target'] = pgast.FuncCall(
