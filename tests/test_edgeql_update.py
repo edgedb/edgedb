@@ -859,12 +859,12 @@ class TestUpdate(tb.QueryTestCase):
             };
 
             WITH MODULE test
-            INSERT UpdateTest {
+            INSERT UpdateTestSubType {
                 name := 'update-test-8-2',
             };
 
             WITH MODULE test
-            INSERT UpdateTest {
+            INSERT UpdateTestSubSubType {
                 name := 'update-test-8-3',
             };
         """)
@@ -2538,6 +2538,38 @@ class TestUpdate(tb.QueryTestCase):
                 };
             """)
 
+    async def test_edgeql_update_insert_01(self):
+        await self.con.execute('''
+            WITH MODULE test
+            UPDATE UpdateTest SET {
+                tags := (INSERT Tag { name := <str>random() })
+            };
+        ''')
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT count(UpdateTest.tags);
+            """,
+            [3],
+        )
+
+    async def test_edgeql_update_insert_02(self):
+        await self.con.execute('''
+            WITH MODULE test
+            UPDATE UpdateTest SET {
+                status := (INSERT Status { name := <str>random() })
+            };
+        ''')
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT count(UpdateTest.status);
+            """,
+            [3],
+        )
+
     async def test_edgeql_update_inheritance_01(self):
         await self.con.execute('''
             WITH MODULE test
@@ -2685,6 +2717,43 @@ class TestUpdate(tb.QueryTestCase):
                     'comment': None,
                     'related': [{
                         'name': 'update-test1'
+                    }]
+                },
+            ]
+        )
+
+    async def test_edgeql_update_inheritance_03(self):
+        await self.con.execute('''
+            WITH MODULE test
+            INSERT UpdateTestSubSubType {
+                name := 'update-test-w-insert',
+            };
+        ''')
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                UPDATE UpdateTestSubType
+                FILTER .name = 'update-test-w-insert'
+                SET {
+                    tags := (INSERT Tag { name := "new tag" })
+                };
+            """,
+            [{}],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest {
+                    tags: {name},
+                }
+                FILTER .name = 'update-test-w-insert'
+            """,
+            [
+                {
+                    'tags': [{
+                        'name': 'new tag'
                     }]
                 },
             ]
