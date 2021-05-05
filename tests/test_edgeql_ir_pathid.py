@@ -54,7 +54,7 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
             schema=self.schema,
             ptrcls=deck_ptr,
         )
-        pid_2 = pid_1.extend(ptrref=deck_ptr_ref, schema=self.schema)
+        pid_2 = pid_1.extend(ptrref=deck_ptr_ref)
         self.assertEqual(
             str(pid_2),
             '(test::User).>deck[IS test::Card]')
@@ -80,7 +80,7 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
             schema=self.schema,
             ptrcls=count_prop,
         )
-        prop_pid = ptr_pid.extend(ptrref=count_prop_ref, schema=self.schema)
+        prop_pid = ptr_pid.extend(ptrref=count_prop_ref)
         self.assertEqual(
             str(prop_pid),
             '(test::User).>deck[IS test::Card]@count[IS std::int64]')
@@ -105,9 +105,9 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
         )
 
         pid_1 = pathid.PathId.from_type(self.schema, User)
-        pid_2 = pid_1.extend(ptrref=deck_ptr_ref, schema=self.schema)
+        pid_2 = pid_1.extend(ptrref=deck_ptr_ref)
         ptr_pid = pid_2.ptr_path()
-        prop_pid = ptr_pid.extend(ptrref=count_prop_ref, schema=self.schema)
+        prop_pid = ptr_pid.extend(ptrref=count_prop_ref)
 
         self.assertTrue(pid_2.startswith(pid_1))
         self.assertFalse(pid_1.startswith(pid_2))
@@ -135,9 +135,9 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
 
         ns = frozenset(('foo',))
         pid_1 = pathid.PathId.from_type(self.schema, User, namespace=ns)
-        pid_2 = pid_1.extend(ptrref=deck_ptr_ref, schema=self.schema)
+        pid_2 = pid_1.extend(ptrref=deck_ptr_ref)
         ptr_pid = pid_2.ptr_path()
-        prop_pid = ptr_pid.extend(ptrref=count_prop_ref, schema=self.schema)
+        prop_pid = ptr_pid.extend(ptrref=count_prop_ref)
 
         self.assertEqual(pid_1.namespace, ns)
         self.assertEqual(pid_2.namespace, ns)
@@ -172,16 +172,15 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
         ns_2 = frozenset(('bar',))
 
         pid_1 = pathid.PathId.from_type(self.schema, Card)
-        pid_2 = pid_1.extend(ptrref=owners_ptr_ref, ns=ns_1,
-                             schema=self.schema)
-        pid_2_no_ns = pid_1.extend(ptrref=owners_ptr_ref, schema=self.schema)
+        pid_2 = pid_1.extend(ptrref=owners_ptr_ref, ns=ns_1)
+        pid_2_no_ns = pid_1.extend(ptrref=owners_ptr_ref)
 
         self.assertNotEqual(pid_2, pid_2_no_ns)
         self.assertEqual(pid_2.src_path(), pid_1)
 
-        pid_3 = pid_2.extend(ptrref=deck_ptr_ref, ns=ns_2, schema=self.schema)
+        pid_3 = pid_2.extend(ptrref=deck_ptr_ref, ns=ns_2)
         ptr_pid = pid_3.ptr_path()
-        prop_pid = ptr_pid.extend(ptrref=count_prop_ref, schema=self.schema)
+        prop_pid = ptr_pid.extend(ptrref=count_prop_ref)
 
         self.assertEqual(prop_pid.src_path().namespace, ns_1 | ns_2)
         self.assertEqual(prop_pid.src_path().src_path().namespace, ns_1)
