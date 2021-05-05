@@ -144,7 +144,7 @@ def init_dml_stmt(
     ):
         dml_cte = pgast.CommonTableExpr(
             query=pgast.SelectStmt(),
-            name=ctx.env.aliases.get(hint='m')
+            name=ctx.env.aliases.get(hint='melse')
         )
         dml_rvar = relctx.rvar_for_rel(dml_cte, ctx=ctx)
         else_cte = (dml_cte, dml_rvar)
@@ -471,6 +471,9 @@ def get_dml_range(
                     range_stmt.where_clause,
                     clauses.compile_filter_clause(
                         ir_qual_expr, ir_qual_card, ctx=wctx))
+
+        range_stmt.path_id_mask.discard(target_ir_set.path_id)
+        pathctx.put_path_bond(range_stmt, target_ir_set.path_id)
 
         range_cte = pgast.CommonTableExpr(
             query=range_stmt,
@@ -942,6 +945,12 @@ def process_update_body(
 
     external_updates = []
 
+    iterator = pgast.IteratorCTE(
+        path_id=ir_stmt.subject.path_id,
+        cte=dml_parts.range_cte,
+        parent=ctx.enclosing_cte_iterator,
+        is_dml_pseudo_iterator=False)
+
     with ctx.newscope() as subctx:
         # It is necessary to process the expressions in
         # the UpdateStmt shape body in the context of the
@@ -949,6 +958,7 @@ def process_update_body(
         # values of the updated object are resolved correctly.
         subctx.parent_rel = update_stmt
         subctx.expr_exposed = False
+        subctx.enclosing_cte_iterator = iterator
 
         for shape_el, shape_op in ir_stmt.subject.shape:
             assert shape_el.rptr is not None
@@ -1048,7 +1058,7 @@ def process_update_body(
             ir_stmt=ir_stmt,
             ir_set=expr,
             dml_cte=update_cte,
-            iterator=ctx.enclosing_cte_iterator,
+            iterator=iterator,
             shape_op=shape_op,
             source_typeref=typeref,
             ctx=ctx,
@@ -1459,10 +1469,19 @@ def process_link_values(
     """
     old_dml_count = len(ctx.dml_stmts)
     with ctx.newrel() as subrelctx:
-        subrelctx.enclosing_cte_iterator = pgast.IteratorCTE(
-            path_id=ir_stmt.subject.path_id, cte=dml_cte,
-            parent=iterator,
-            is_dml_pseudo_iterator=True)
+        # For inserts, we need to use the main DML statement as the
+        # iterator, while for updates, we need to use the DML range
+        # CTE as the iterator (and so arrange for it to be passed in).
+        # This is because, for updates, we need to execute any nested
+        # DML once for each row in the range over all types, while
+        # dml_cte contains just one subtype.
+        if isinstance(ir_stmt, irast.InsertStmt):
+            subrelctx.enclosing_cte_iterator = pgast.IteratorCTE(
+                path_id=ir_stmt.subject.path_id, cte=dml_cte,
+                parent=iterator,
+                is_dml_pseudo_iterator=True)
+        else:
+            subrelctx.enclosing_cte_iterator = iterator
         row_query = subrelctx.rel
 
         relctx.include_rvar(row_query, dml_rvar,
