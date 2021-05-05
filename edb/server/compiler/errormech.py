@@ -315,6 +315,9 @@ def static_interpret_backend_error(fields):
         )
 
     elif err_details.code == PGErrorCode.WrongObjectType:
+        if err_details.column_name:
+            return SchemaRequired
+
         return errors.InvalidValueError(
             err_details.message,
             details=err_details.detail if err_details.detail else None
@@ -445,5 +448,18 @@ def interpret_backend_error(schema, fields):
         return errors.InvalidValueError(
             translate_pgtype(schema, err_details.message),
             hint=hint)
+
+    elif (
+        err_details.code == PGErrorCode.WrongObjectType
+        and err_details.message == 'covariance error'
+    ):
+        ptr = schema.get_by_id(uuidgen.UUID(err_details.column_name))
+        wrong_obj = schema.get_by_id(uuidgen.UUID(err_details.table_name))
+
+        vn = ptr.get_verbosename(schema, with_parent=True)
+        return errors.InvalidLinkTargetError(
+            f"invalid target for {vn}: '{wrong_obj.get_name(schema)}'"
+            f" (expecting '{ptr.get_target(schema).get_name(schema)}')"
+        )
 
     return errors.InternalServerError(err_details.message)

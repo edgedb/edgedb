@@ -2977,3 +2977,157 @@ class TestUpdate(tb.QueryTestCase):
                 ],
             }]
         )
+
+    async def test_edgeql_update_covariant_01(self):
+        await self.con.execute("""
+            WITH MODULE test
+            INSERT UpdateTestSubSubType {
+                name := 'update-covariant',
+            };
+        """)
+
+        # Covariant updates should work if the types actually work at
+        # runtime
+        await self.con.execute("""
+            WITH MODULE test
+            UPDATE UpdateTestSubType
+            FILTER .name = "update-covariant"
+            SET {
+                status := (SELECT Status FILTER .name = "Broke a Type System")
+            }
+        """)
+
+        # But fail if they don't
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidLinkTargetError,
+                r"invalid target for link 'status' of object type "
+                r"'test::UpdateTestSubSubType': 'test::Status' "
+                r"\(expecting 'test::MajorLifeEvent'\)"):
+            await self.con.execute("""
+                WITH MODULE test
+                UPDATE UpdateTestSubType
+                FILTER .name = "update-covariant"
+                SET {
+                    status := (SELECT Status FILTER .name = "Open")
+                }
+            """)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidLinkTargetError,
+                r"invalid target for link 'status' of object type "
+                r"'test::UpdateTestSubSubType': 'test::Status' "
+                r"\(expecting 'test::MajorLifeEvent'\)"):
+            await self.con.execute("""
+                WITH MODULE test
+                UPDATE UpdateTestSubType
+                FILTER .name = "update-covariant"
+                SET {
+                    status := (INSERT Status { name := "Yolo" })
+                }
+            """)
+
+    async def test_edgeql_update_covariant_02(self):
+        await self.con.execute("""
+            WITH MODULE test
+            INSERT UpdateTestSubSubType {
+                name := 'update-covariant',
+            };
+        """)
+
+        # Covariant updates should work if the types actually work at
+        # runtime
+        await self.con.execute("""
+            WITH MODULE test
+            UPDATE UpdateTestSubType
+            FILTER .name = "update-covariant"
+            SET {
+                statuses := (
+                    SELECT Status FILTER .name = "Broke a Type System")
+            }
+        """)
+
+        # But fail if they don't
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidLinkTargetError,
+                r"invalid target for link 'statuses' of object type "
+                r"'test::UpdateTestSubSubType': 'test::Status' "
+                r"\(expecting 'test::MajorLifeEvent'\)"):
+            await self.con.execute("""
+                WITH MODULE test
+                UPDATE UpdateTestSubType
+                FILTER .name = "update-covariant"
+                SET {
+                    statuses := (SELECT Status FILTER .name = "Open")
+                }
+            """)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidLinkTargetError,
+                r"invalid target for link 'statuses' of object type "
+                r"'test::UpdateTestSubSubType': 'test::Status' "
+                r"\(expecting 'test::MajorLifeEvent'\)"):
+            await self.con.execute("""
+                WITH MODULE test
+                UPDATE UpdateTestSubType
+                FILTER .name = "update-covariant"
+                SET {
+                    statuses := (INSERT Status { name := "Yolo" })
+                }
+            """)
+
+    async def test_edgeql_update_covariant_03(self):
+        await self.con.execute("""
+            WITH MODULE test
+            INSERT UpdateTestSubSubType {
+                name := 'update-covariant',
+            };
+        """)
+
+        # Tests with a multi link, actually using multiple things
+
+        # Covariant updates should work if the types actually work at
+        # runtime
+        await self.con.execute("""
+            WITH MODULE test
+            UPDATE UpdateTestSubType
+            FILTER .name = "update-covariant"
+            SET {
+                statuses := (SELECT Status FILTER .name = {
+                                 "Broke a Type System",
+                                 "Downloaded a Car",
+                             })
+            }
+        """)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidLinkTargetError,
+                r"invalid target for link 'statuses' of object type "
+                r"'test::UpdateTestSubSubType': 'test::Status' "
+                r"\(expecting 'test::MajorLifeEvent'\)"):
+            await self.con.execute("""
+                WITH MODULE test
+                UPDATE UpdateTestSubType
+                FILTER .name = "update-covariant"
+                SET {
+                    statuses := (SELECT Status FILTER .name = {
+                                     "Broke a Type System",
+                                     "Downloaded a Car",
+                                     "Open",
+                                 })
+                }
+            """)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidLinkTargetError,
+                r"invalid target for link 'statuses' of object type "
+                r"'test::UpdateTestSubSubType': 'test::Status' "
+                r"\(expecting 'test::MajorLifeEvent'\)"):
+            await self.con.execute("""
+                WITH MODULE test
+                UPDATE UpdateTestSubType
+                FILTER .name = "update-covariant"
+                SET {
+                    statuses := (FOR x in {"Foo", "Bar"} UNION (
+                                     INSERT Status {name := x}))
+                }
+            """)

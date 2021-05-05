@@ -75,7 +75,7 @@ def get_tuple_indirection_path_id(
         # typeref_cache=ctx.env.type_ref_cache,
     )
 
-    return tuple_path_id.extend(schema=ctx.env.schema, ptrref=ptrref)
+    return tuple_path_id.extend(ptrref=ptrref)
 
 
 def get_expression_path_id(
@@ -160,8 +160,7 @@ def extend_path_id(
         typeref_cache=ctx.env.type_ref_cache,
     )
 
-    return path_id.extend(ptrref=ptrref, direction=direction,
-                          ns=ns, schema=ctx.env.schema)
+    return path_id.extend(ptrref=ptrref, direction=direction, ns=ns)
 
 
 def ban_path(

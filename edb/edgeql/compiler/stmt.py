@@ -606,6 +606,16 @@ def compile_InsertQuery(
     return result
 
 
+def _get_dunder_type_ptrref(ctx: context.ContextLevel) -> irast.PointerRef:
+    return typeutils.lookup_obj_ptrref(
+        ctx.env.schema,
+        s_name.QualName('std', 'BaseObject'),
+        s_name.UnqualName('__type__'),
+        cache=ctx.env.ptr_ref_cache,
+        typeref_cache=ctx.env.type_ref_cache,
+    )
+
+
 @dispatch.compile.register(qlast.UpdateQuery)
 def compile_UpdateQuery(
         expr: qlast.UpdateQuery, *, ctx: context.ContextLevel) -> irast.Set:
@@ -622,6 +632,8 @@ def compile_UpdateQuery(
     with ctx.subquery() as ictx:
         stmt = irast.UpdateStmt(context=expr.context)
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
+
+        stmt.dunder_type_ptrref = _get_dunder_type_ptrref(ctx)
 
         subject = dispatch.compile(expr.subject, ctx=ictx)
         assert isinstance(subject, irast.Set)
