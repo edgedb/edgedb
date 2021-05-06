@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_alterrole:
+.. _ref_cli_edgedb_alter_role:
 
 
 =================

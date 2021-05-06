@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_droprole:
+.. _ref_cli_edgedb_drop_role:
 
 
 =================

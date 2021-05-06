@@ -32,3 +32,8 @@ Options
 :cli:synopsis:`--all`
     Dump all databases and the server configuration using the
     directory specified by the :cli:synopsis:`<path>`.
+
+:cli:synopsis:`--format=<format>`
+    Choose dump format. For normal dumps this parameter should be
+    omitted. For :cli:synopsis:`--all` only
+    :cli:synopsis:`--format=dir` is required.
