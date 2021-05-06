@@ -1134,7 +1134,7 @@ def process_set_as_path(
 def process_set_as_subquery(
         ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
-    is_scalar_path = ir_set.path_id.is_scalar_path()
+    is_objtype_path = ir_set.path_id.is_objtype_path()
 
     expr = ir_set.expr
     assert isinstance(expr, irast.Stmt)
@@ -1143,7 +1143,7 @@ def process_set_as_subquery(
 
     if ir_set.rptr is not None:
         ir_source = ir_set.rptr.source
-        if is_scalar_path:
+        if not is_objtype_path:
             source_is_visible = True
         else:
             # Non-scalar computable pointer.  Check if path source is
@@ -1169,7 +1169,7 @@ def process_set_as_subquery(
 
         if ir_source is not None:
             if (
-                is_scalar_path
+                not is_objtype_path
                 and ir_source.path_id != ctx.current_insert_path_id
             ):
                 # This is a computable pointer.  In order to ensure that
@@ -1186,7 +1186,7 @@ def process_set_as_subquery(
                     lambda: relctx.maybe_get_path_var(
                         stmt, path_id=path_id, aspect='identity',
                         ctx=ctx),)
-            elif not is_scalar_path and not source_is_visible:
+            elif is_objtype_path and not source_is_visible:
                 path_scope = relctx.get_scope(ir_set, ctx=newctx)
                 if (path_scope is None or
                         path_scope.find_descendant(ir_source.path_id) is None):
