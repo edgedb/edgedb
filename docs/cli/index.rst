@@ -81,8 +81,10 @@ To also remove configuration files:
 If the command-line tool was installed by the user (recommended) then it
 will also remove the binary.
 
-If you've used ``edgedb server`` commands you can also delete instances
-and server packages, prior to removing the tool:
+If you've used ``edgedb server`` commands you can also delete
+:ref:`instances <ref_cli_edgedb_server_destroy>` and :ref:`server
+<ref_cli_edgedb_server_uninstall>` packages, prior to removing the
+tool:
 
 .. code-block:: bash
 

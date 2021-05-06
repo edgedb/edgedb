@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_createdb:
+.. _ref_cli_edgedb_create_db:
 
 
 ======================

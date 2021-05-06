@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_createrole:
+.. _ref_cli_edgedb_create_role:
 
 
 ============================
