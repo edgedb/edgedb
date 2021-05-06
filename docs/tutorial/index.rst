@@ -15,7 +15,7 @@ it. This is a good starting point if you're new to EdgeDB.
 4. Make your data accessible via :ref:`GraphQL <ref_tutorial_graphql>`.
 
 For more examples check out our `interactive tutorial
-<https://tutorial.edgedb.com/>`_.
+<https://www.edgedb.com/tutorial>`_.
 
 .. toctree::
     :maxdepth: 3
