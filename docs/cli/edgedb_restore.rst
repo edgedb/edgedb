@@ -9,7 +9,7 @@ Restore an EdgeDB database from a backup file.
 
 .. cli:synopsis::
 
-    edgedb restore [<connection-option>...] [--allow-non-empty] FILENAME
+    edgedb [<connection-option>...] restore [OPTIONS] <path>
 
 
 Description
@@ -27,8 +27,12 @@ Options
     See the :ref:`ref_cli_edgedb_connopts`.  The ``restore`` command restores
     the backup file into the database it is connected to.
 
-:cli:synopsis:`FILENAME`
+:cli:synopsis:`<path>`
     The name of the backup file to restore the database from.
+
+:cli:synopsis:`--all`
+    Restore all databases and the server configuration using the
+    directory specified by the :cli:synopsis:`<path>`.
 
 :cli:synopsis:`--allow-non-empty`
     By default the command will not attempt to restore into a non-empty

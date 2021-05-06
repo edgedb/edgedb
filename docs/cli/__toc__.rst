@@ -7,11 +7,18 @@ CLI
     :hidden:
 
     index
-    edgedb_install
     edgedb
+    edgedb_project
     edgedb_configure
     edgedb_dump
     edgedb_restore
     edgedb_connopts
     edgedb_migration
+    edgedb_query
+    edgedb_describe
+    edgedb_self_upgrade
+    edgedb_create_database
+    edgedb_create_role
+    edgedb_alter_role
+    edgedb_drop_role
     network

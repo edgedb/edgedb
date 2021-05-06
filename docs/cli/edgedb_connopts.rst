@@ -35,6 +35,10 @@ and :ref:`ref_cli_edgedb_restore` use the following connection options:
     of the ``EDGEDB_DATABASE`` environment variable, or, if not set, to
     the calculated value of :cli:synopsis:`<username>`.
 
+:cli:synopsis:`--dsn=<dsn>`
+    Specifies the DSN for EdgeDB to connect to (overrides all other
+    options except password)
+
 :cli:synopsis:`--admin`
     If specified, attempt to connect to the server via the administrative
     Unix-domain socket.  The user must have permission to access the socket,
@@ -50,3 +54,15 @@ and :ref:`ref_cli_edgedb_restore` use the following connection options:
 
 :cli:synopsis:`--password-from-stdin`
     Use the first line of standard input as the password.
+
+:cli:synopsis:`--connect-timeout=<timeout>`
+    Specifies a :cli:synopsis:`<timeout>` period. In case EdgeDB
+    doesn't respond for this period the command will fail (or retry if
+    :cli:synopsis:`--wait-until-available` is also specified). The
+    :cli:synopsis:`<timeout>` value must be given using time units
+    (e.g. ``hr``, ``min``, ``sec``, ``ms``, etc.). The default
+    value is ``10s``.
+
+:cli:synopsis:`--wait-until-available=<wait_time>`
+    In case EdgeDB connection can't be established, keep retrying up
+    to :cli:synopsis:`<wait_time>` (e.g. ``30s``).
