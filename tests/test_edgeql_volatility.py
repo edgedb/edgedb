@@ -100,7 +100,6 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             'only one value for multiple vol_volatile() calls'
         )
 
-
     async def test_edgeql_volatility_function_04(self):
         with self.assertRaises(edgedb.DivisionByZeroError):
             await self.con.execute(r'''
