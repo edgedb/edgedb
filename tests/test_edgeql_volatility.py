@@ -66,7 +66,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             'more than one value for the same vol_stable() call'
         )
 
-    async def test_edgeql_volatility_function_03(self):
+    async def test_edgeql_volatility_function_03a(self):
         result = await self.con.query(
             r"""
                 WITH MODULE test
@@ -74,6 +74,23 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                     # volatile function should be called once for each
                     # Obj, generating different values
                     x := vol_volatile()
+                };
+            """
+        )
+
+        self.assertNotEqual(
+            len(set(res.x for res in result)), 1,
+            'only one value for multiple vol_volatile() calls'
+        )
+
+    async def test_edgeql_volatility_function_03b(self):
+        result = await self.con.query(
+            r"""
+                WITH MODULE test
+                SELECT Obj {
+                    # volatile function should be called once for each
+                    # Obj, generating different values
+                    x := (vol_volatile(),)
                 };
             """
         )
