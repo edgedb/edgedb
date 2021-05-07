@@ -17,9 +17,7 @@ You can install it with one shell command.
 
 .. _ref_cli_edgedb_install:
 
-Installation
-============
-
+.. rubric:: Installation
 
 On Linux or MacOS, run the following in your terminal and follow the
 on-screen instructions:
@@ -61,8 +59,7 @@ command:
 
 .. _ref_cli_edgedb_uninstall:
 
-Uninstallation
-==============
+.. rubric:: Uninstallation
 
 Command-line tools contain just one binary, so to remove it on Linux or
 macOS run:
