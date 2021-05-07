@@ -239,23 +239,20 @@ def compile_ast_to_ir(
 
     if debug.flags.edgeql_compile or debug.flags.edgeql_compile_scope:
         debug.header('Scope Tree')
-        if ctx.path_scope is not None:
-            print(ctx.path_scope.pdebugformat())
+        print(ctx.path_scope.pdebugformat())
 
-            # Also build and dump a mapping from scope ids to
-            # paths that appear directly at them.
-            scopes: Dict[int, Set[irast.PathId]] = {
-                k: set() for k in
-                sorted(node.unique_id
-                       for node in ctx.path_scope.descendants
-                       if node.unique_id)
-            }
-            for ir_set in ctx.env.set_types:
-                if ir_set.path_scope_id and ir_set.path_scope_id in scopes:
-                    scopes[ir_set.path_scope_id].add(ir_set.path_id)
-            debug.dump(scopes)
-        else:
-            print('N/A')
+        # Also build and dump a mapping from scope ids to
+        # paths that appear directly at them.
+        scopes: Dict[int, Set[irast.PathId]] = {
+            k: set() for k in
+            sorted(node.unique_id
+                   for node in ctx.path_scope.descendants
+                   if node.unique_id)
+        }
+        for ir_set in ctx.env.set_types:
+            if ir_set.path_scope_id and ir_set.path_scope_id in scopes:
+                scopes[ir_set.path_scope_id].add(ir_set.path_id)
+        debug.dump(scopes)
 
     if debug.flags.edgeql_compile or debug.flags.edgeql_compile_ir:
         debug.header('EdgeDB IR')
