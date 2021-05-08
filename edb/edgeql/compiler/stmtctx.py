@@ -116,30 +116,26 @@ def fini_expression(
     ):
         ir = setgen.scoped_set(ir, ctx=ctx)
 
-    cardinality = qltypes.Cardinality.AT_MOST_ONE
-    if ctx.path_scope is not None:
-        # The inference context object will be shared between
-        # cardinality and multiplicity inferrers.
-        inf_ctx = inference.make_ctx(env=ctx.env)
-        # Simple expressions have no scope.
-        cardinality = inference.infer_cardinality(
+    # The inference context object will be shared between
+    # cardinality and multiplicity inferrers.
+    inf_ctx = inference.make_ctx(env=ctx.env)
+    cardinality = inference.infer_cardinality(
+        ir,
+        scope_tree=ctx.path_scope,
+        ctx=inf_ctx,
+    )
+    multiplicity: Optional[qltypes.Multiplicity] = None
+    if ctx.env.options.validate_multiplicity:
+        multiplicity = inference.infer_multiplicity(
             ir,
             scope_tree=ctx.path_scope,
             ctx=inf_ctx,
         )
-        multiplicity: Optional[qltypes.Multiplicity] = None
-        if ctx.env.options.validate_multiplicity:
-            multiplicity = inference.infer_multiplicity(
-                ir,
-                scope_tree=ctx.path_scope,
-                ctx=inf_ctx,
-            )
 
     # Fix up weak namespaces
     _rewrite_weak_namespaces(ir, ctx)
 
-    if ctx.path_scope is not None:
-        ctx.path_scope.validate_unique_ids()
+    ctx.path_scope.validate_unique_ids()
 
     if isinstance(ir, irast.Command):
         if isinstance(ir, irast.ConfigCommand):
@@ -321,9 +317,6 @@ def _rewrite_weak_namespaces(
     ID (using a prefix if necessary) and drop all namespace parts that
     don't appear in the binding.
     """
-
-    if ctx.path_scope is None:
-        return None
 
     tree = ctx.path_scope
 
