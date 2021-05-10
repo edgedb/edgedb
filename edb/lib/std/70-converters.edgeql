@@ -373,7 +373,7 @@ std::to_duration(
             "seconds"
         ) +
         (microseconds::text || ' microseconds')::interval
-    )::edgedb.interval_t
+    )::edgedb.duration_t
     $$;
 };
 

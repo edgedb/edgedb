@@ -182,11 +182,11 @@ class DateDomain(dbops.Domain):
 class IntervalDomain(dbops.Domain):
     def __init__(self) -> None:
         super().__init__(
-            name=('edgedb', 'interval_t'),
+            name=('edgedb', 'duration_t'),
             base='interval',
             constraints=(
                 dbops.DomainCheckConstraint(
-                    domain_name=('edgedb', 'interval_t'),
+                    domain_name=('edgedb', 'duration_t'),
                     expr=r'''
                         EXTRACT(months from VALUE) = 0 AND
                         EXTRACT(years from VALUE) = 0 AND
@@ -1934,7 +1934,7 @@ class DurationInFunction(dbops.Function):
                 EXTRACT(DAY FROM v.column1) != 0
             THEN
                 edgedb.raise(
-                    NULL::edgedb.interval_t,
+                    NULL::edgedb.duration_t,
                     'invalid_datetime_format',
                     msg => (
                         'invalid input syntax for type std::duration: '
@@ -1945,7 +1945,7 @@ class DurationInFunction(dbops.Function):
                         || 'for std::duration."}'
                     )
                 )
-            ELSE v.column1::edgedb.interval_t
+            ELSE v.column1::edgedb.duration_t
             END
         FROM
             (VALUES (
@@ -1957,7 +1957,7 @@ class DurationInFunction(dbops.Function):
         super().__init__(
             name=('edgedb', 'duration_in'),
             args=[('val', ('text',))],
-            returns=('edgedb', 'interval_t'),
+            returns=('edgedb', 'duration_t'),
             # Same volatility as raise() (stable)
             volatility='stable',
             text=self.text,

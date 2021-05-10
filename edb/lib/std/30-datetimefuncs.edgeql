@@ -129,10 +129,10 @@ std::duration_truncate(dt: std::duration, unit: std::str) -> std::duration
     USING SQL $$
     SELECT CASE WHEN "unit" in ('microseconds', 'milliseconds',
                                 'seconds', 'minutes', 'hours')
-        THEN date_trunc("unit", "dt")::edgedb.interval_t
+        THEN date_trunc("unit", "dt")::edgedb.duration_t
         ELSE
             edgedb.raise(
-                NULL::edgedb.interval_t,
+                NULL::edgedb.duration_t,
                 'invalid_datetime_format',
                 msg => (
                     'invalid unit for std::duration_truncate: '
@@ -270,7 +270,7 @@ CREATE INFIX OPERATOR
 std::`-` (l: std::datetime, r: std::datetime) -> std::duration {
     SET volatility := 'Immutable';
     USING SQL $$
-        SELECT EXTRACT(epoch FROM "l" - "r")::text::edgedb.interval_t
+        SELECT EXTRACT(epoch FROM "l" - "r")::text::edgedb.duration_t
     $$
 };
 
