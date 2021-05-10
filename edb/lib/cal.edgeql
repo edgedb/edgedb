@@ -559,7 +559,7 @@ CREATE INFIX OPERATOR
 std::`+` (l: cal::local_time, r: std::duration) -> cal::local_time {
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
-    USING SQL OPERATOR r'+';
+    USING SQL OPERATOR r'+(time, interval)';
 };
 
 
@@ -567,14 +567,14 @@ CREATE INFIX OPERATOR
 std::`+` (l: std::duration, r: cal::local_time) -> cal::local_time {
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
-    USING SQL OPERATOR r'+';
+    USING SQL OPERATOR r'+(interval, time)';
 };
 
 
 CREATE INFIX OPERATOR
 std::`-` (l: cal::local_time, r: std::duration) -> cal::local_time {
     SET volatility := 'Immutable';
-    USING SQL OPERATOR r'-';
+    USING SQL OPERATOR r'-(time, interval)';
 };
 
 
