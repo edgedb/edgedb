@@ -56,7 +56,7 @@ RUNTIME_DEPS = [
     "typing_inspect~=0.5.0;python_version<'3.9'",
     'wcwidth~=0.2.5',
 
-    'graphql-core~=3.1.2',
+    'graphql-core~=3.1.5',
     'promise~=2.2.0',
 
     'edgedb>=0.13.0',
