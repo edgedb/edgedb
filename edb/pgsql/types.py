@@ -83,6 +83,7 @@ base_type_name_map_r = {
     'timestamptz_t': sn.QualName('std', 'datetime'),
     'timestamptz': sn.QualName('std', 'datetime'),
     'edgedb.duration_t': sn.QualName('std', 'duration'),
+    'interval': sn.QualName('std', 'duration'),
     'bytea': sn.QualName('std', 'bytes'),
     'jsonb': sn.QualName('std', 'json'),
 
