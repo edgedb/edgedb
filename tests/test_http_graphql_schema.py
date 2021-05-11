@@ -66,10 +66,12 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                         "description":
                             "Marks an element of a GraphQL schema as "
                             "no longer supported.",
-                        "locations": [
+                        "locations": {
                             "FIELD_DEFINITION",
-                            "ENUM_VALUE"
-                        ],
+                            "ARGUMENT_DEFINITION",
+                            "INPUT_FIELD_DEFINITION",
+                            "ENUM_VALUE",
+                        },
                         "args": [
                             {
                                 "name": "reason",
@@ -97,11 +99,11 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                             "Directs the executor to include this "
                             "field or fragment only when the `if` "
                             "argument is true.",
-                        "locations": [
+                        "locations": {
                             "FIELD",
                             "FRAGMENT_SPREAD",
                             "INLINE_FRAGMENT"
-                        ],
+                        },
                         "args": [
                             {
                                 "name": "if",
