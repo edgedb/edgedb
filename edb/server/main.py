@@ -215,6 +215,7 @@ def _run_server(
             )
 
         loop.add_signal_handler(signal.SIGTERM, terminate_server, ss, loop)
+        loop.add_signal_handler(signal.SIGINT, terminate_server, ss, loop)
 
         # Notify systemd that we've started up.
         _sd_notify('READY=1')
@@ -222,11 +223,9 @@ def _run_server(
         try:
             loop.run_forever()
         finally:
-            try:
-                logger.info('Shutting down.')
-                loop.run_until_complete(ss.stop())
-            finally:
-                _sd_notify('STOPPING=1')
+            _sd_notify('STOPPING=1')
+            logger.info('Shutting down.')
+            loop.run_until_complete(ss.stop())
 
 
 def run_server(args: srvargs.ServerConfig, *, do_setproctitle: bool=False):
