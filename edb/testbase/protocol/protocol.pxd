@@ -17,7 +17,7 @@
 #
 
 
-from edgedb.protocol.asyncio_proto cimport AsyncIOProtocol
+from edgedb.protocol.protocol cimport SansIOProtocol
 
 
 cdef class Connection:
@@ -25,4 +25,4 @@ cdef class Connection:
     cdef:
         object _transport
         readonly list inbox
-        AsyncIOProtocol _protocol
+        SansIOProtocol _protocol

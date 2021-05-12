@@ -58,8 +58,10 @@ class BaseHttpTest:
         cls.http_addr = f'http://{cls.http_host}:{cls.http_port}{api_path}'
 
     @contextlib.contextmanager
-    def http_con(self):
-        con = StubbornHttpConnection(self.http_host, self.http_port)
+    def http_con(self, **http_connection_kwargs):
+        con = StubbornHttpConnection(
+            self.http_host, self.http_port, **http_connection_kwargs
+        )
         con.connect()
         try:
             yield con

@@ -23,6 +23,7 @@ import time
 
 from edgedb import con_utils
 from edgedb.protocol.asyncio_proto cimport AsyncIOProtocol
+from edgedb.protocol.blocking_proto cimport BlockingIOProtocol
 from edgedb.protocol.protocol cimport ReadBuffer, WriteBuffer
 
 from . import messages
@@ -144,3 +145,42 @@ async def new_connection(
             last_error = ex
 
     raise last_error
+
+
+cdef class SyncProtocol(BlockingIOProtocol):
+    def iter_coroutine(self, coro):
+        return self._iter_coroutine(coro)
+
+
+cdef class BlockingIOConnection(Connection):
+    def sync_connect(self):
+        return self._protocol.sync_connect()
+
+    def sync_send(self, *msgs: messages.ClientMessage):
+        self._protocol.iter_coroutine(self.send(*msgs))
+
+    def sync_recv(self):
+        return self._protocol.iter_coroutine(self.recv())
+
+    def sync_recv_match(self, msgcls, **fields):
+        return self._protocol.iter_coroutine(self.recv_match(msgcls, **fields))
+
+
+def new_sync_connection(
+    sock,
+    dsn: str = None,
+    *,
+    host: str = None,
+    port: int = None,
+    user: str = None,
+    password: str = None,
+    admin: str = None,
+    database: str = None,
+    timeout: float = 60,
+):
+    addrs, params, config = con_utils.parse_connect_arguments(
+        dsn=dsn, host=host, port=port, user=user, password=password,
+        admin=admin, database=database,
+        timeout=timeout, command_timeout=None, server_settings=None,
+        wait_until_available=timeout)
+    return BlockingIOConnection(SyncProtocol(params, sock), sock)

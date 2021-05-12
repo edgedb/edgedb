@@ -97,6 +97,12 @@ cdef class HttpProtocol:
 
         try:
             self.parser.feed_data(data)
+        except httptools.HttpParserUpgrade as upgrade:
+            # It's okay to keep a single remaining data buffer for all requests
+            # in `data` because we'll start handling requests once we see the
+            # first HTTP upgrade request in `data`, and only continue with the
+            # remaining data after that request is done.
+            self.upgrade_remaining_data = data[upgrade.args[0]:]
         except Exception as ex:
             self.unhandled_exception(ex)
 
@@ -107,6 +113,8 @@ cdef class HttpProtocol:
         name = name.lower()
         if name == b'content-type':
             self.current_request.content_type = value
+        elif name == b'upgrade':
+            self.current_request.upgrade = value
 
     def on_body(self, body: bytes):
         self.current_request.body = body
@@ -119,6 +127,7 @@ cdef class HttpProtocol:
 
         req.version = self.parser.get_http_version().encode()
         req.should_keep_alive = self.parser.should_keep_alive()
+        req.should_upgrade = self.parser.should_upgrade()
         req.method = self.parser.get_method().upper()
 
         if self.in_response:
@@ -156,6 +165,9 @@ cdef class HttpProtocol:
 
         if self.unprocessed:
             req = self.unprocessed.popleft()
+            # GOTCHA: We don't have to set in_response to True here because
+            # the reading is paused while we are handling all the remaining
+            # requests and the in_response flag has finished its duty by now.
             self.loop.create_task(self._handle_request(req))
         else:
             self.transport.resume_reading()
@@ -196,6 +208,10 @@ cdef class HttpProtocol:
         if self.transport is None:
             return
 
+        if request.should_upgrade and request.upgrade == b'edgedb-binary':
+            self.handle_upgrade(request)
+            return
+
         try:
             await self.handle_request(request, response)
         except Exception as ex:
@@ -207,8 +223,42 @@ cdef class HttpProtocol:
 
         if response.close_connection or not request.should_keep_alive:
             self.close()
+        elif not self.unprocessed and self.upgrade_remaining_data:
+            # Special case: we ignored the Upgrade header and successfully
+            # handled the request, when there are remaining bytes in the
+            # buffer, we should continue with them first.
+            data = self.upgrade_remaining_data
+            self.upgrade_remaining_data = None
+            if data:
+                self.data_received(data)
+            if self.transport is not None:
+                self.transport.resume_reading()
         else:
             self.resume()
+
+    cdef handle_upgrade(self, HttpRequest request):
+        data = self.upgrade_remaining_data
+        self.upgrade_remaining_data = None
+        self.in_response = False
+        self.unprocessed = None
+
+        status = http.HTTPStatus.SWITCHING_PROTOCOLS
+        req_version = request.version
+        resp_status = f'{status.value} {status.phrase}'.encode()
+        resp = [
+            b'HTTP/', req_version, b' ', resp_status, b'\r\n',
+            b'Upgrade: edgedb-binary\r\n',
+            b'Connection: Upgrade\r\n',
+            b'\r\n',
+        ]
+        self.transport.write(b''.join(resp))
+
+        binproto = binary.EdgeConnection(self.server, self.external_auth)
+        self.transport.set_protocol(binproto)
+        binproto.connection_made(self.transport)
+        binproto.data_received(data)
+
+        self.transport.resume_reading()
 
     async def handle_request(self, HttpRequest request, HttpResponse response):
         path = urllib.parse.unquote(request.url.path.decode('ascii'))

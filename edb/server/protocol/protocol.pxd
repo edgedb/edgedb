@@ -26,6 +26,8 @@ cdef class HttpRequest:
         public bytes content_type
         public bytes method
         public bytes body
+        public bytes upgrade
+        public bint should_upgrade
 
 
 cdef class HttpResponse:
@@ -49,6 +51,7 @@ cdef class HttpProtocol:
         bint in_response
         bint first_data_call
         bint external_auth
+        bytes upgrade_remaining_data
 
         HttpRequest current_request
 
@@ -60,3 +63,4 @@ cdef class HttpProtocol:
     cdef unhandled_exception(self, ex)
     cdef resume(self)
     cdef close(self)
+    cdef handle_upgrade(self, HttpRequest request)

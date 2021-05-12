@@ -17,7 +17,9 @@
 #
 
 
+import json
 import os
+import urllib.parse
 
 import edgedb
 
@@ -257,3 +259,32 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
                 r'''SELECT <str>$x ?? '-default' ''',
                 variables={'x': None},
             )
+
+    def test_http_edgeql_pipelining(self):
+        def gen_req(query):
+            params = urllib.parse.urlencode({"query": query})
+            path = self.get_api_path()
+            return f'GET {path}/?{params} HTTP/1.1\r\n\r\n'.encode()
+
+        with self.http_con(timeout=5) as con:
+            con.sock.send(
+                gen_req('SELECT 1') + gen_req("SELECT sys::_sleep(1)")
+            )
+
+            resp = con.response_class(con.sock, method="GET")
+            resp.begin()
+            resp = json.loads(resp.read())
+            self.assertEqual(resp, {"data": [1]})
+
+            con.sock.send(gen_req("SELECT 1/0"))
+
+            resp = con.response_class(con.sock, method="GET")
+            resp.begin()
+            resp = json.loads(resp.read())
+            self.assertEqual(resp, {"data": [True]})
+
+            resp = con.response_class(con.sock, method="GET")
+            resp.begin()
+            resp = json.loads(resp.read())
+            self.assertIn('error', resp)
+            self.assertEqual(resp['error']['message'], 'division by zero')
