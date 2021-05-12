@@ -2549,6 +2549,32 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 ],
             )
 
+    async def test_edgeql_ddl_ptr_set_type_using_02(self):
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            CREATE ABSTRACT TYPE Parent {
+                CREATE PROPERTY name -> str;
+            };
+            CREATE TYPE Child EXTENDING Parent;
+            INSERT Child { name := "10" };
+        """)
+
+        await self.con.execute(r"""
+            ALTER TYPE Parent {
+                ALTER PROPERTY name {
+                    SET TYPE int64 USING (<int64>.name)
+                }
+            }
+        """)
+
+        await self.assert_query_result(
+            'SELECT Child { name }',
+            [
+                {'name': 10},
+            ]
+        )
+
     async def test_edgeql_ddl_ptr_set_type_validation(self):
         await self.con.execute(r"""
             SET MODULE test;
@@ -11112,6 +11138,81 @@ type test::Foo {
             [
                 {'num': 20, 'partner': [{'code': 40}]},
                 {'num': 30, 'partner': [{'code': 60}]},
+            ]
+        )
+
+    async def test_edgeql_ddl_new_required_pointer_06(self):
+        await self.con.execute(r"""
+            SET MODULE test;
+            CREATE ABSTRACT TYPE Bar  {
+                CREATE PROPERTY num -> int64;
+            };
+            CREATE TYPE Foo EXTENDING Bar;
+            INSERT Foo { num := 20 };
+        """)
+
+        await self.con.execute("""
+            ALTER TYPE Bar {
+                CREATE PROPERTY name -> str {
+                    SET REQUIRED USING (<str>.num ++ "!")
+                }
+            }
+        """)
+
+        await self.assert_query_result(
+            r'''SELECT Foo {name, num}''',
+            [{'name': '20!', 'num': 20}]
+        )
+
+    async def test_edgeql_ddl_new_required_pointer_07(self):
+        await self.con.execute(r"""
+            SET MODULE test;
+            CREATE ABSTRACT TYPE Bar  {
+                CREATE PROPERTY num -> int64;
+                CREATE PROPERTY name -> str;
+            };
+            CREATE TYPE Foo EXTENDING Bar;
+            INSERT Foo { num := 20 };
+        """)
+
+        await self.con.execute("""
+            ALTER TYPE Bar {
+                ALTER PROPERTY name {
+                    SET REQUIRED USING (<str>.num ++ "!")
+                }
+            }
+        """)
+
+        await self.assert_query_result(
+            r'''SELECT Foo {name, num}''',
+            [{'name': '20!', 'num': 20}]
+        )
+
+    async def test_edgeql_ddl_new_required_pointer_08(self):
+        await self.con.execute(r"""
+            SET MODULE test;
+            CREATE TYPE Bar  {
+                CREATE PROPERTY num -> int64;
+                CREATE PROPERTY name -> str;
+            };
+            CREATE TYPE Foo EXTENDING Bar;
+            INSERT Bar { num := 10 };
+            INSERT Foo { num := 20 };
+        """)
+
+        await self.con.execute("""
+            ALTER TYPE Bar {
+                ALTER PROPERTY name {
+                    SET REQUIRED USING (<str>.num ++ "!")
+                }
+            }
+        """)
+
+        await self.assert_query_result(
+            r'''SELECT Bar {name, num} ORDER BY .num''',
+            [
+                {'name': '10!', 'num': 10},
+                {'name': '20!', 'num': 20},
             ]
         )
 
