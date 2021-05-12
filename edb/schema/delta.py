@@ -1718,11 +1718,19 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                 source_context=source_context,
             )
 
-            if special is not None:
+            top_op = self._special_attrs.get(attr_name)
+
+            if top_op is None and special is not None:
                 top_op = special(classname=self.classname)
+                self.add(top_op)
+
+            if top_op:
                 top_op.add(op)
             else:
+                self.add(op)
                 top_op = op
+
+            return top_op
         else:
             op.new_value = value
             op.new_inherited = inherited
@@ -1737,10 +1745,6 @@ class ObjectCommand(Command, Generic[so.Object_T]):
             if orig_value is not None:
                 op.old_value = orig_value
 
-        if top_op is not None:
-            self.add(top_op)
-            return top_op
-        else:
             return op
 
     def _propagate_if_expr_refs(
@@ -3599,6 +3603,9 @@ class AlterSpecialObjectField(AlterObjectFragment[so.Object_T]):
         schema_metaclass = cls.get_schema_metaclass()
         handlers[schema_metaclass] = cls  # type: ignore
         cls._field = field
+
+    def clone(self, name: sn.Name) -> AlterSpecialObjectField[so.Object_T]:
+        return struct.Struct.replace(self, classname=name)
 
     @classmethod
     def _cmd_from_ast(

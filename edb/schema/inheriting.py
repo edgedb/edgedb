@@ -125,7 +125,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         if fields is not None:
             field_names = set(scls.inheritable_fields()) & set(fields)
         else:
-            field_names = scls.inheritable_fields()
+            field_names = set(scls.inheritable_fields())
 
         inherited_fields = scls.get_inherited_fields(schema)
         inherited_fields_update = {}
@@ -885,6 +885,10 @@ class AlterInheritingObjectOrFragment(
                 schema, context, sd.AlterObject)
 
             d_bases = descendant.get_bases(schema).objects(schema)
+
+            # Copy any special updates over
+            if isinstance(self, sd.AlterSpecialObjectField):
+                d_alter_cmd.add(self.clone(d_alter_cmd.classname))
 
             with ctx_stack():
                 assert isinstance(d_alter_cmd, InheritingObjectCommand)
