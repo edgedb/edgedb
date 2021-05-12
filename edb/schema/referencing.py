@@ -932,7 +932,11 @@ class ReferencedInheritingObjectCommand(
             refname: sn.Name,
         ) -> None:
             assert isinstance(alter_cmd, sd.QualifiedObjectCommand)
-            s_t = type(self)(classname=alter_cmd.classname)
+            s_t: sd.ObjectCommand[ReferencedInheritingObjectT]
+            if isinstance(self, sd.AlterSpecialObjectField):
+                s_t = self.clone(alter_cmd.classname)
+            else:
+                s_t = type(self)(classname=alter_cmd.classname)
             orig_value = scls.get_explicit_field_value(
                 schema, field_name, default=None)
             s_t.set_attribute_value(
@@ -1172,6 +1176,11 @@ class CreateReferencedInheritingObject(
                 )
                 assert isinstance(ref_create, sd.CreateObject)
                 ref_create.if_not_exists = True
+
+                # Copy any special updates over
+                for special in self.get_subcommands(
+                        type=sd.AlterSpecialObjectField):
+                    ref_create.add(special.clone(ref_create.classname))
 
                 ref_create.set_attribute_value(refdict.backref_attr, child)
 
