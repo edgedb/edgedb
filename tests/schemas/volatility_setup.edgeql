@@ -59,7 +59,15 @@ CREATE FUNCTION test::err_volatile() -> float64 {
     $$;
 };
 
+CREATE FUNCTION test::rand_int(top: int64) -> int64 {
+    USING (<int64>(random() * top))
+};
+
 
 INSERT test::Obj { n := 1 };
 INSERT test::Obj { n := 2 };
 INSERT test::Obj { n := 3 };
+INSERT test::Tgt { n := 1 };
+INSERT test::Tgt { n := 2 };
+INSERT test::Tgt { n := 3 };
+INSERT test::Tgt { n := 4 };

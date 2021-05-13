@@ -468,6 +468,20 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             [True],
         )
 
+    async def test_edgeql_volatility_nested_link_01(self):
+        # random() should get called once for each Obj/Tgt pair
+        result = await self.con.query(
+            r"""
+                WITH MODULE test
+                SELECT Obj {
+                    l := (SELECT Tgt { m := random() }),
+                };
+            """
+        )
+
+        nums = [t.m for o in result for t in o.l]
+        self.assertEqual(len(nums), len(set(nums)))
+
     async def test_edgeql_volatility_errors_01(self):
         async with self._run_and_rollback():
             with self.assertRaisesRegex(
