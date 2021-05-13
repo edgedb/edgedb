@@ -20,3 +20,7 @@
 type Obj {
     required property n -> int64;
 }
+
+type Tgt {
+    required property n -> int64;
+}

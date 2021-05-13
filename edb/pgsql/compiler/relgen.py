@@ -1168,10 +1168,7 @@ def process_set_as_subquery(
             pathctx.put_path_id_map(ctx.rel, outer_id, inner_id)
 
         if ir_source is not None:
-            if (
-                not is_objtype_path
-                and ir_source.path_id != ctx.current_insert_path_id
-            ):
+            if ir_source.path_id != ctx.current_insert_path_id:
                 # This is a computable pointer.  In order to ensure that
                 # the volatile functions in the pointer expression are called
                 # the necessary number of times, we must inject a
@@ -1186,7 +1183,8 @@ def process_set_as_subquery(
                     lambda: relctx.maybe_get_path_var(
                         stmt, path_id=path_id, aspect='identity',
                         ctx=ctx),)
-            elif is_objtype_path and not source_is_visible:
+
+            if is_objtype_path and not source_is_visible:
                 path_scope = relctx.get_scope(ir_set, ctx=newctx)
                 if (path_scope is None or
                         path_scope.find_descendant(ir_source.path_id) is None):
