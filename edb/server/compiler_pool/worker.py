@@ -18,18 +18,16 @@
 
 
 from __future__ import annotations
+
 from typing import *  # NoQA
 
 import argparse
-import asyncio
 import gc
 import os
 import pickle
-import signal
 import traceback
 
 import immutables
-import uvloop
 
 from edb import graphql
 
@@ -266,18 +264,10 @@ def compile_graphql(
     )
 
 
-async def worker(sockname):
-    loop = asyncio.get_running_loop()
-    loop.add_signal_handler(signal.SIGTERM, on_terminate_worker)
-
-    con = await amsg.worker_connect(sockname)
+def worker(sockname):
+    con = amsg.WorkerConnection(sockname)
     try:
-        while True:
-            try:
-                req_id, req = await con.next_request()
-            except amsg.PoolClosedError:
-                os._exit(0)
-
+        for req_id, req in con.iter_request():
             try:
                 methname, args = pickle.loads(req)
                 if methname == '__init_worker__':
@@ -328,20 +318,18 @@ async def worker(sockname):
                 ex_str = f'{ex}:\n\n{ex_tb}'
                 pickled = pickle.dumps((2, ex_str), -1)
 
-            await con.reply(req_id, pickled)
+            con.reply(req_id, pickled)
     finally:
         con.abort()
 
 
-def on_terminate_worker():
-    # sys.exit() might not do it, apparently.
-    os._exit(-1)
-
-
 def run_worker(sockname):
-    uvloop.install()
-    with devmode.CoverageConfig.enable_coverage_if_requested():
-        asyncio.run(worker(sockname))
+    try:
+        with devmode.CoverageConfig.enable_coverage_if_requested():
+            worker(sockname)
+    except KeyboardInterrupt:
+        pass
+    return 0
 
 
 def prepare_exception(ex):
@@ -382,16 +370,50 @@ def main():
     ql_parser.preload()
     gc.freeze()
 
-    for _ in range(int(args.numproc) - 1):
-        if not os.fork():
-            # child process
-            break
+    # Create initial Workers first, to avoid wasting time on double-forking
+    if pid := os.fork():
+        # All initial Workers share the same intermediate process.
+        # We are daemonizing all the Workers to avoid calling waitpid() on
+        # them - when the UNIX socket is broken, the Workers will die and the
+        # supervisor will reap them.
+        os.waitpid(pid, 0)
+    else:
+        for _ in range(numproc):
+            if not os.fork():
+                # child process
+                return run_worker(args.sockname)
+        return 0
 
+    # Start the Queen
+    is_child = False
+    queen_conn = amsg.QueenConnection(args.sockname)
     try:
-        run_worker(args.sockname)
-    except (amsg.PoolClosedError, KeyboardInterrupt):
-        exit(0)
+        for req_id, req in queen_conn.iter_request():
+            # For now, the only type of request for the Queen is to spawn a
+            # new Worker. Similarly we are double-forking here to prevent
+            # Workers ending in zombie processes.
+
+            if pid := os.fork():
+                # Main process, wait for the intermediate process to exit,
+                # which should happen pretty fast.
+                os.waitpid(pid, 0)
+                queen_conn.reply(req_id, pickle.dumps(pid, -1))
+            else:
+                # Intermediate process - just fork and exit, so that the main
+                # process could continue with other requests.
+                if os.fork():
+                    return 0
+
+                is_child = True
+                # Don't run_worker() here - let the `finally` do its job first
+                break
+    except KeyboardInterrupt:
+        pass
+    finally:
+        queen_conn.abort()
+
+    return run_worker(args.sockname) if is_child else 0
 
 
 if __name__ == '__main__':
-    main()
+    exit(main())

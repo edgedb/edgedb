@@ -77,7 +77,7 @@ class Worker:
         schema_class_layout,
         global_schema,
         system_config,
-        server,
+        hive,
         pid
     ):
         self._dbs = dbs
@@ -92,7 +92,7 @@ class Worker:
         self._last_pickled_state = None
 
         self._manager = manager
-        self._server = server
+        self._hive = hive
         self._con = None
         self._last_used = time.monotonic()
         self._closed = False
@@ -100,7 +100,7 @@ class Worker:
     async def _attach(self, init_args_pickled: bytes):
         self._manager._stats_spawned += 1
 
-        self._con = await self._server.get_by_pid(self._pid)
+        self._con = await self._hive.get_by_pid(self._pid)
 
         await self.call(
             '__init_worker__',
@@ -141,12 +141,12 @@ class Worker:
             exc.__formatted_error__ = data[0]
             raise exc
 
-    async def close(self):
+    def close(self):
         if self._closed:
             return
         self._closed = True
         self._manager._stats_killed += 1
-        self._manager._workers.discard(self)
+        self._manager._workers.pop(self._pid, None)
         self._manager._report_worker(self, action="kill")
         try:
             os.kill(self._pid, signal.SIGTERM)
@@ -154,10 +154,11 @@ class Worker:
             pass
 
 
-class Pool:
+class Pool(amsg.HiveControlProtocol):
 
     _workers_queue: queue.WorkerQueue[Worker]
-    _workers: Set[Worker]
+    _workers: Dict[int, Worker]
+    _worker_restart_queue: asyncio.Queue[bool]
 
     def __init__(
         self,
@@ -186,12 +187,16 @@ class Pool:
 
         assert pool_size >= 1
         self._pool_size = pool_size
-        self._workers = set()
+        self._workers = {}
 
-        self._server = amsg.Server(
-            self._poolsock_name, self._pool_size, loop)
+        self._hive = amsg.Hive(self._poolsock_name, loop, self)
+        self._queen_proc_fut = None
+        self._ready_evt = asyncio.Event()
+        self._worker_restart_queue = asyncio.Queue()
+        self._worker_restart_task = None
 
         self._running = None
+        self._stop_requested = False
 
         self._stats_spawned = 0
         self._stats_killed = 0
@@ -203,26 +208,27 @@ class Pool:
         worker = Worker(  # type: ignore
             self,
             *init_args,
-            self._server,
+            self._hive,
             pid,
         )
         await worker._attach(init_args_pickled)
         self._report_worker(worker)
 
-        self._workers.add(worker)
+        self._workers[pid] = worker
         self._workers_queue.release(worker)
+
+        logger.debug("Worker with PID %s is ready.", pid)
+        if (
+            not self._ready_evt.is_set()
+            and len(self._workers) == self._pool_size
+        ):
+            logger.info("All %s compiler Workers are ready.", self._pool_size)
+            self._ready_evt.set()
+
         return worker
 
-    async def start(self):
-        if self._running is not None:
-            raise RuntimeError(
-                'the compiler pool has already been started once')
-
-        self._workers_queue = queue.WorkerQueue(self._loop)
-
-        await self._server.start()
-        self._running = True
-
+    @functools.lru_cache(maxsize=None)
+    def _get_init_args(self):
         dbs: state.DatabasesState = immutables.Map()
         for db in self._dbindex.iter_dbs():
             dbs = dbs.set(
@@ -244,42 +250,105 @@ class Pool:
             self._dbindex.get_global_schema(),
             self._dbindex.get_compilation_system_config(),
         )
-        # Pickle once to later send to multiple worker processes.
-        init_args_pickled = pickle.dumps(init_args, -1)
+        return init_args
 
+    def _get_pickled_init_args(self):
+        return pickle.dumps(self._get_init_args(), -1)
+
+    async def _restart_workers(self):
+        while await self._worker_restart_queue.get():
+            await self._hive.spawn_worker()
+
+    def _start_queen(self):
+        if self._queen_proc_fut is not None:
+            return
         env = _ENV
         if debug.flags.server:
             env = {'EDGEDB_DEBUG_SERVER': '1', **_ENV}
-        self._first_proc = await asyncio.create_subprocess_exec(
-            *[
-                sys.executable, '-m', WORKER_MOD,
-                '--sockname', self._poolsock_name,
-                '--numproc', str(self._pool_size),
-            ],
-            env=env,
-            stdin=subprocess.DEVNULL,
+        self._queen_proc_fut = self._loop.create_task(
+            asyncio.create_subprocess_exec(
+                *[
+                    sys.executable, '-m', WORKER_MOD,
+                    '--sockname', self._poolsock_name,
+                    '--numproc', str(self._pool_size),
+                ],
+                env=env,
+                stdin=subprocess.DEVNULL,
+            )
         )
+
+    def queen_disconnected(self):
+        fut, self._queen_proc_fut = self._queen_proc_fut, None
+        if fut is not None and fut.done():
+            fut.result().terminate()
+        self._start_queen()
+
+    def worker_connected(self, pid):
+        logger.debug("Worker with PID %s connected, sending init args.", pid)
+        self._loop.create_task(
+            self._attach_worker(
+                pid, self._get_init_args(), self._get_pickled_init_args()
+            )
+        )
+
+    def worker_disconnected(self, pid):
+        logger.debug("Worker with PID %s disconnected.", pid)
+        worker = self._workers.pop(pid, None)
+        if worker is not None:
+            worker.close()
+        if not self._stop_requested and len(self._workers) < self._pool_size:
+            logger.warning(
+                "Restarting a compiler Worker (PID=%s disconnected).", pid
+            )
+            if self._worker_restart_task is None:
+                self._worker_restart_task = self._loop.create_task(
+                    self._restart_workers()
+                )
+            self._worker_restart_queue.put_nowait(True)
+
+    async def start(self):
+        if self._running is not None:
+            raise RuntimeError(
+                'the compiler pool has already been started once')
+        self._stop_requested = False
+
+        self._workers_queue = queue.WorkerQueue(self._loop)
+
+        await self._hive.start()
+        self._running = True
+
+        self._start_queen()
 
         await asyncio.wait_for(
-            self._server.wait_until_ready(),
+            self._ready_evt.wait(),
             PROCESS_INITIAL_RESPONSE_TIMEOUT
         )
-
-        async with taskgroup.TaskGroup(name='compiler-pool-start') as g:
-            for pid in self._server.iter_pids():
-                g.create_task(
-                    self._attach_worker(pid, init_args, init_args_pickled)
-                )
 
     async def stop(self):
         if not self._running:
             return
+        self._stop_requested = True
 
-        await self._server.stop()
-        self._server = None
+        await self._hive.stop()
+        self._hive = None
 
         self._workers_queue = queue.WorkerQueue(self._loop)
         self._workers.clear()
+
+        if self._worker_restart_task:
+            await self._worker_restart_queue.put(False)
+            await self._worker_restart_task
+
+        fut, self._queen_proc_fut = self._queen_proc_fut, None
+        if fut is not None:
+            if fut.done():
+                if fut.exception() is None:
+                    proc = fut.result()
+                    proc.terminate()
+                    await proc.wait()
+            else:
+                fut.cancel()
+
         self._running = False
 
     def _report_worker(self, worker: Worker, *, action: str = "spawn"):
