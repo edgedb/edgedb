@@ -884,6 +884,9 @@ class Server:
             await self._stop_servers(self._servers)
             self._servers = []
 
+            await self._compiler_pool.stop()
+            self._compiler_pool = None
+
         finally:
             if self.__sys_pgcon is not None:
                 self.__sys_pgcon.terminate()
